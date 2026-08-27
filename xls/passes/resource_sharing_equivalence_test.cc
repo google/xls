@@ -404,8 +404,9 @@ TEST_F(ResourceSharingEquivalenceTest, ArithShiftEquivalenceMapping) {
     FunctionBuilder fb("shra_to_shrl_same_width", p.get());
     BValue x = fb.Param("x", p->GetBitsType(4));
     BValue s = fb.Param("s", p->GetBitsType(4));
+    BValue t = fb.Param("t", p->GetBitsType(4));
     BValue shra = fb.Shra(x, s);
-    BValue shrl = fb.Shrl(x, s);
+    BValue shrl = fb.Shrl(x, t);
     XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(shra));
 
     auto mapping =
@@ -448,8 +449,9 @@ TEST_F(ResourceSharingEquivalenceTest, ArithShiftEquivalenceMapping) {
     FunctionBuilder fb("shra_to_shll_same_width", p.get());
     BValue x = fb.Param("x", p->GetBitsType(4));
     BValue s = fb.Param("s", p->GetBitsType(4));
+    BValue t = fb.Param("t", p->GetBitsType(4));
     BValue shra = fb.Shra(x, s);
-    BValue shll = fb.Shll(x, s);
+    BValue shll = fb.Shll(x, t);
     XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(shra));
 
     auto mapping =

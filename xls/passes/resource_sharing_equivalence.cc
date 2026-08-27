@@ -301,11 +301,6 @@ class ShiftEquivalenceMapping : public EquivalenceMapping {
     if (dst->op() != Op::kShra && !LessThanOrEqualBitwidth(src, dst)) {
       return std::nullopt;
     }
-    bool same_shift_amount =
-        src->operand(1)->IsDefinitelyEqualTo(dst->operand(1));
-    if (!same_shift_amount) {
-      return std::nullopt;
-    }
     return std::make_unique<ShiftEquivalenceMapping>(src, dst);
   }
 

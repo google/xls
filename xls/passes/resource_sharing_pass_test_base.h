@@ -1461,7 +1461,8 @@ TYPED_TEST_P(ResourceSharingPassTestBase,
   BValue Z = fb.Shll(i, fb.Literal(UBits(1, 8)), SourceInfo(), "Z");
   BValue F = fb.Shrl(Z, i, SourceInfo(), "F");
 
-  // Make the following pairs mutually exclusive: (X, D), (Y, F), and (Z, B)
+  // Exclusivity for multiplies X and D
+  // Exclusivity among sets of shifts (B, Y, Z) and (B, Y, F)
   BValue cond = fb.Param("cond", p->GetBitsType(2));
   BValue sel1 = fb.Select(cond, {X, Y, Z, fb.Literal(UBits(0, 8))});
   BValue sel2 = fb.Select(cond, {B, D, F, fb.Literal(UBits(0, 8))});
@@ -1469,13 +1470,13 @@ TYPED_TEST_P(ResourceSharingPassTestBase,
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(result));
 
   // Initially, there are 2 multipliers and 4 shifters.
-  // Only the multipliers and one pair of shifters should be folded.
+  // The multipliers and 3 of the 4 shifters should be folded.
   EXPECT_EQ(NumberOfMultiplications(f), 2);
   EXPECT_EQ(NumberOfShifts(f), 4);
   ScopedVerifyEquivalence check_equivalent(f, absl::Seconds(10));
   EXPECT_THAT(this->Run(f), IsOkAndHolds(true));
   EXPECT_EQ(NumberOfMultiplications(f), 1);
-  EXPECT_EQ(NumberOfShifts(f), 3);
+  EXPECT_EQ(NumberOfShifts(f), 2);
 }
 
 TYPED_TEST_P(ResourceSharingPassTestBase, MergeShiftLeftAndRight) {

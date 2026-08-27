@@ -1103,14 +1103,29 @@ ResourceSharingPass::LegalizeSequenceOfFolding(
         }
       }
 
-      if (WillToUseFrom(source, to_node, nda, one_to_others_folded,
-                        fold_representative) ||
-          WillToUseFrom(to_node, source, nda, one_to_others_folded,
-                        fold_representative)) {
-        VLOG(4) << "      Excluding the following source because it causes a"
-                   "use-chain between source and destination to become a cycle";
-        VLOG(4) << "        Source removed = " << source->ToString();
-        modified = true;
+      // Ensure adding `source` to the nary folding does not cause a cycle with
+      // the `destination` of the nary or any prior added `source` of the nary.
+      std::vector<Node*> other_nodes = {to_node};
+      other_nodes.reserve(1 + legal_froms.size());
+      for (const auto& [prior_source, _] : legal_froms) {
+        other_nodes.push_back(prior_source);
+      }
+      bool causes_cycle = false;
+      for (Node* other_node : other_nodes) {
+        if (WillToUseFrom(source, other_node, nda, one_to_others_folded,
+                          fold_representative) ||
+            WillToUseFrom(other_node, source, nda, one_to_others_folded,
+                          fold_representative)) {
+          VLOG(4)
+              << "      Excluding the following source because it causes a"
+                 "use-chain between source and destination to become a cycle";
+          VLOG(4) << "        Source removed = " << source->ToString();
+          modified = true;
+          causes_cycle = true;
+          break;
+        }
+      }
+      if (causes_cycle) {
         continue;
       }
 
