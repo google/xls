@@ -384,6 +384,10 @@ cc_library(
     ],
     textual_hdrs = [":synth_only_headers"],
     visibility = ["//xls:xls_users"],
+    deps = [
+        "@ac_datatypes//:ac_fixed",
+        "@ac_datatypes//:ac_int",
+    ],
 )
 
 cc_binary(
