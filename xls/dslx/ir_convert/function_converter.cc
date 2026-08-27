@@ -19,6 +19,7 @@
 #include <cstdint>
 #include <functional>
 #include <ios>
+#include <iterator>
 #include <memory>
 #include <optional>
 #include <string>
@@ -27,6 +28,7 @@
 #include <variant>
 #include <vector>
 
+#include "absl/algorithm/container.h"
 #include "absl/base/casts.h"
 #include "absl/container/btree_set.h"
 #include "absl/container/flat_hash_map.h"
@@ -3549,7 +3551,18 @@ absl::Status FunctionConverter::HandleFunction(
   // pass down templates with less variables.
   FfiPartialValueSubstituteHelper const_prefill(f.extern_verilog_module());
 
-  for (ParametricBinding* parametric_binding : f.parametric_bindings()) {
+  // Populate IR values for the parametric bindings. If the function is in an
+  // impl, this includes both the function's own parametric bindings and those
+  // of its struct.
+  std::vector<ParametricBinding*> parametric_bindings = f.parametric_bindings();
+  if (f.impl().has_value()) {
+    XLS_ASSIGN_OR_RETURN(
+        std::optional<const StructDefBase*> struct_def,
+        GetStructOrProcDef((*f.impl())->struct_ref(), *import_data_));
+    absl::c_copy((*struct_def)->parametric_bindings(),
+                 std::back_inserter(parametric_bindings));
+  }
+  for (ParametricBinding* parametric_binding : parametric_bindings) {
     VLOG(5) << "Resolving parametric binding: "
             << parametric_binding->ToString();
 

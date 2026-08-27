@@ -442,6 +442,7 @@ cc_library(
         "//xls/ir:value_utils",
         "//xls/ir:verifier",
         "//xls/ir:xls_ir_interface_cc_proto",
+        "@abseil-cpp//absl/algorithm:container",
         "@abseil-cpp//absl/base",
         "@abseil-cpp//absl/container:btree",
         "@abseil-cpp//absl/container:flat_hash_map",

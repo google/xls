@@ -4024,6 +4024,42 @@ TEST_F(IrConverterTest, SimpleImplMethod) {
   ExpectIr(converted);
 }
 
+TEST_F(IrConverterTest, MethodUsingStructParametric) {
+  constexpr std::string_view program = R"(
+  struct F<N: u32> {}
+
+  impl F {
+    pub fn bar(self) -> u32 { N + 1 }
+  }
+
+  fn top() -> u32 {
+    F<5>{}.bar()
+  }
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
+                           ConvertModuleForTest(program));
+  ExpectIr(converted);
+}
+
+TEST_F(IrConverterTest, MethodUsingStructParametricAndMethodParametric) {
+  constexpr std::string_view program = R"(
+  struct F<N: u32> {}
+
+  impl F {
+    pub fn bar<M: u32>(self) -> u32 { M + N + 1 }
+  }
+
+  fn top() -> u32 {
+    F<5>{}.bar<6>()
+  }
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
+                           ConvertModuleForTest(program));
+  ExpectIr(converted);
+}
+
 TEST_F(IrConverterTest, ChannelAttributes) {
   constexpr std::string_view program = R"(#![feature(channel_attributes)]
 proc producer {

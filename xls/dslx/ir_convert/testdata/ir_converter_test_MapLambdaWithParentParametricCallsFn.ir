@@ -9,27 +9,28 @@ fn __test_module__add__16(val: bits[32] id=1, delta: bits[16] id=2) -> bits[16] 
 }
 
 fn __test_module__lambda_capture_struct_at_test_module_x_8_12_8_43_N_ls__parametric_type_for_x___call__16_u32_u16(self: (bits[16]) id=6, i: bits[32] id=7) -> bits[16] {
-  self_x: bits[16] = tuple_index(self, index=0, id=8)
-  ret invoke.9: bits[16] = invoke(i, self_x, to_apply=__test_module__add__16, id=9)
+  self_x: bits[16] = tuple_index(self, index=0, id=9)
+  N_ls: bits[32] = literal(value=16, id=8)
+  ret invoke.10: bits[16] = invoke(i, self_x, to_apply=__test_module__add__16, id=10)
 }
 
-fn __SYNTHETIC_LOOP_BODY___test_module__use_lambda__16_CALLING___test_module__lambda_capture_struct_at_test_module_x_8_12_8_43_N_ls__parametric_type_for_x___call__16_u32_u16__MAP_0(idx: bits[32] id=14, array_val: bits[16][4] id=15, context_struct: (bits[16]) id=16, input_array: bits[32][4] id=17) -> bits[16][4] {
-  array_index.18: bits[32] = array_index(input_array, indices=[idx], id=18)
-  map_call_call: bits[16] = invoke(context_struct, array_index.18, to_apply=__test_module__lambda_capture_struct_at_test_module_x_8_12_8_43_N_ls__parametric_type_for_x___call__16_u32_u16, id=19)
-  ret map_iteration: bits[16][4] = array_update(array_val, map_call_call, indices=[idx], id=20)
+fn __SYNTHETIC_LOOP_BODY___test_module__use_lambda__16_CALLING___test_module__lambda_capture_struct_at_test_module_x_8_12_8_43_N_ls__parametric_type_for_x___call__16_u32_u16__MAP_0(idx: bits[32] id=15, array_val: bits[16][4] id=16, context_struct: (bits[16]) id=17, input_array: bits[32][4] id=18) -> bits[16][4] {
+  array_index.19: bits[32] = array_index(input_array, indices=[idx], id=19)
+  map_call_call: bits[16] = invoke(context_struct, array_index.19, to_apply=__test_module__lambda_capture_struct_at_test_module_x_8_12_8_43_N_ls__parametric_type_for_x___call__16_u32_u16, id=20)
+  ret map_iteration: bits[16][4] = array_update(array_val, map_call_call, indices=[idx], id=21)
 }
 
-fn __test_module__use_lambda__16(arr: bits[32][4] id=10) -> bits[16][4] {
-  x: bits[16] = literal(value=5, id=12)
-  literal.21: bits[16][4] = literal(value=[0, 0, 0, 0], id=21)
-  tuple.13: (bits[16]) = tuple(x, id=13)
-  N: bits[32] = literal(value=16, id=11)
-  ret map_invocation__call: bits[16][4] = counted_for(literal.21, trip_count=4, stride=1, body=__SYNTHETIC_LOOP_BODY___test_module__use_lambda__16_CALLING___test_module__lambda_capture_struct_at_test_module_x_8_12_8_43_N_ls__parametric_type_for_x___call__16_u32_u16__MAP_0, invariant_args=[tuple.13, arr], id=22)
+fn __test_module__use_lambda__16(arr: bits[32][4] id=11) -> bits[16][4] {
+  x: bits[16] = literal(value=5, id=13)
+  literal.22: bits[16][4] = literal(value=[0, 0, 0, 0], id=22)
+  tuple.14: (bits[16]) = tuple(x, id=14)
+  N: bits[32] = literal(value=16, id=12)
+  ret map_invocation__call: bits[16][4] = counted_for(literal.22, trip_count=4, stride=1, body=__SYNTHETIC_LOOP_BODY___test_module__use_lambda__16_CALLING___test_module__lambda_capture_struct_at_test_module_x_8_12_8_43_N_ls__parametric_type_for_x___call__16_u32_u16__MAP_0, invariant_args=[tuple.14, arr], id=23)
 }
 
 fn __test_module__main() -> bits[16] {
-  literal.23: bits[32][4] = literal(value=[0, 1, 2, 3], id=23)
-  invoke.24: bits[16][4] = invoke(literal.23, to_apply=__test_module__use_lambda__16, id=24)
-  literal.25: bits[32] = literal(value=1, id=25)
-  ret array_index.26: bits[16] = array_index(invoke.24, indices=[literal.25], id=26)
+  literal.24: bits[32][4] = literal(value=[0, 1, 2, 3], id=24)
+  invoke.25: bits[16][4] = invoke(literal.24, to_apply=__test_module__use_lambda__16, id=25)
+  literal.26: bits[32] = literal(value=1, id=26)
+  ret array_index.27: bits[16] = array_index(invoke.25, indices=[literal.26], id=27)
 }

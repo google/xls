@@ -3,35 +3,38 @@ package test_module
 file_number 0 "test_module.x"
 
 fn __test_module__S_A___foo__16_24(self: (bits[16]) id=1, a: bits[16] id=2) -> bits[16] {
-  self_val: bits[16] = tuple_index(self, index=0, id=4)
+  self_val: bits[16] = tuple_index(self, index=0, id=5)
   N: bits[32] = literal(value=24, id=3)
-  ret add.5: bits[16] = add(a, self_val, id=5)
+  A: bits[32] = literal(value=16, id=4)
+  ret add.6: bits[16] = add(a, self_val, id=6)
 }
 
-fn __test_module__S_A___foo__16_16(self: (bits[16]) id=6, a: bits[16] id=7) -> bits[16] {
-  self_val: bits[16] = tuple_index(self, index=0, id=9)
-  N: bits[32] = literal(value=16, id=8)
-  ret add.10: bits[16] = add(a, self_val, id=10)
+fn __test_module__S_A___foo__16_16(self: (bits[16]) id=7, a: bits[16] id=8) -> bits[16] {
+  self_val: bits[16] = tuple_index(self, index=0, id=11)
+  N: bits[32] = literal(value=16, id=9)
+  A: bits[32] = literal(value=16, id=10)
+  ret add.12: bits[16] = add(a, self_val, id=12)
 }
 
-fn __test_module__S_A___foo__32_16(self: (bits[32]) id=11, a: bits[32] id=12) -> bits[32] {
-  self_val: bits[32] = tuple_index(self, index=0, id=14)
-  N: bits[32] = literal(value=16, id=13)
-  ret add.15: bits[32] = add(a, self_val, id=15)
+fn __test_module__S_A___foo__32_16(self: (bits[32]) id=13, a: bits[32] id=14) -> bits[32] {
+  self_val: bits[32] = tuple_index(self, index=0, id=17)
+  N: bits[32] = literal(value=16, id=15)
+  A: bits[32] = literal(value=32, id=16)
+  ret add.18: bits[32] = add(a, self_val, id=18)
 }
 
 fn __test_module__main() -> (bits[16], bits[16], bits[32]) {
-  literal.16: bits[16] = literal(value=1, id=16)
-  literal.20: bits[16] = literal(value=2, id=20)
-  literal.24: bits[32] = literal(value=2, id=24)
-  tuple.17: (bits[16]) = tuple(literal.16, id=17)
-  literal.18: bits[16] = literal(value=100, id=18)
-  tuple.21: (bits[16]) = tuple(literal.20, id=21)
-  literal.22: bits[16] = literal(value=100, id=22)
-  tuple.25: (bits[32]) = tuple(literal.24, id=25)
-  literal.26: bits[32] = literal(value=200, id=26)
-  X: bits[16] = invoke(tuple.17, literal.18, to_apply=__test_module__S_A___foo__16_24, id=19)
-  Y: bits[16] = invoke(tuple.21, literal.22, to_apply=__test_module__S_A___foo__16_16, id=23)
-  Z: bits[32] = invoke(tuple.25, literal.26, to_apply=__test_module__S_A___foo__32_16, id=27)
-  ret tuple.28: (bits[16], bits[16], bits[32]) = tuple(X, Y, Z, id=28)
+  literal.19: bits[16] = literal(value=1, id=19)
+  literal.23: bits[16] = literal(value=2, id=23)
+  literal.27: bits[32] = literal(value=2, id=27)
+  tuple.20: (bits[16]) = tuple(literal.19, id=20)
+  literal.21: bits[16] = literal(value=100, id=21)
+  tuple.24: (bits[16]) = tuple(literal.23, id=24)
+  literal.25: bits[16] = literal(value=100, id=25)
+  tuple.28: (bits[32]) = tuple(literal.27, id=28)
+  literal.29: bits[32] = literal(value=200, id=29)
+  X: bits[16] = invoke(tuple.20, literal.21, to_apply=__test_module__S_A___foo__16_24, id=22)
+  Y: bits[16] = invoke(tuple.24, literal.25, to_apply=__test_module__S_A___foo__16_16, id=26)
+  Z: bits[32] = invoke(tuple.28, literal.29, to_apply=__test_module__S_A___foo__32_16, id=30)
+  ret tuple.31: (bits[16], bits[16], bits[32]) = tuple(X, Y, Z, id=31)
 }

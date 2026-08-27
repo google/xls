@@ -1,0 +1,16 @@
+package test_module
+
+file_number 0 "test_module.x"
+
+fn __test_module__F__bar__6_5(self: () id=1) -> bits[32] {
+  M: bits[32] = literal(value=6, id=2)
+  N: bits[32] = literal(value=5, id=3)
+  add.4: bits[32] = add(M, N, id=4)
+  literal.5: bits[32] = literal(value=1, id=5)
+  ret add.6: bits[32] = add(add.4, literal.5, id=6)
+}
+
+fn __test_module__top() -> bits[32] {
+  tuple.7: () = tuple(id=7)
+  ret invoke.8: bits[32] = invoke(tuple.7, to_apply=__test_module__F__bar__6_5, id=8)
+}
