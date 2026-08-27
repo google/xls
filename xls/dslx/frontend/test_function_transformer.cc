@@ -305,17 +305,17 @@ TestFunctionTransformer::PromoteVariablesToFields(
             });
 
   absl::flat_hash_map<const NameDef*, std::string> original_to_unique_name;
+  NameUniquer name_uniquer("_");
+  // Seed it with the terminator channel name so that no promoted variable
+  // collides with it.
+  XLS_RETURN_IF_ERROR(name_uniquer.ReserveIdentifier(kTerminatorChannelName));
 
   // If the same identifier is used for multiple promoted variables (e.g. in
   // different scopes), uniquify their names to prevent collisions when they
   // become proc fields.
-  NameUniquer name_uniquer("_");
   for (const NameDef* def : sorted_defs_to_promote) {
     std::string base_name = def->identifier();
     std::string unique_name = name_uniquer.GetSanitizedUniqueName(base_name);
-    if (unique_name != base_name) {
-      unique_name = absl::StrCat("__", unique_name);
-    }
     original_to_unique_name[def] = unique_name;
 
     NameDef* member_name_def =
@@ -323,7 +323,8 @@ TestFunctionTransformer::PromoteVariablesToFields(
 
     XLS_ASSIGN_OR_RETURN(Type * type, type_info_.GetItemOrError(def));
     XLS_ASSIGN_OR_RETURN(TypeAnnotation * type_annot,
-                         CreateTypeAnnotation(new_module, *type, def->span()));
+                         CreateTypeAnnotation(new_module, *type, def->span(),
+                                              &source_module_, &type_info_));
 
     StructMemberNode* member_node = new_module.Make<StructMemberNode>(
         def->span(), member_name_def, /*colon_span=*/def->span(), type_annot);

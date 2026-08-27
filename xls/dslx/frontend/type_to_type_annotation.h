@@ -22,10 +22,12 @@
 
 namespace xls::dslx {
 
+class TypeInfo;
+
 // Creates a type annotation for the given type in the module.
-absl::StatusOr<TypeAnnotation*> CreateTypeAnnotation(Module& new_module,
-                                                     const Type& type,
-                                                     const Span& span);
+absl::StatusOr<TypeAnnotation*> CreateTypeAnnotation(
+    Module& new_module, const Type& type, const Span& span,
+    const Module* source_module = nullptr, const TypeInfo* type_info = nullptr);
 }  // namespace xls::dslx
 
 #endif  // XLS_DSLX_FRONTEND_TYPE_TO_TYPE_ANNOTATION_H_

@@ -14,6 +14,8 @@
 
 #include "xls/dslx/frontend/type_to_type_annotation.h"
 
+#include <optional>
+#include <string>
 #include <string_view>
 #include <utility>
 #include <variant>
@@ -253,6 +255,109 @@ fn f() -> E {
   EXPECT_TRUE(std::holds_alternative<EnumDef*>(td));
   EnumDef* ed = std::get<EnumDef*>(td);
   EXPECT_EQ(ed->identifier(), "E");
+}
+
+TEST(TypeToTypeAnnotationTest, ImportedStructType) {
+  auto import_data = CreateImportDataForTest();
+  constexpr std::string_view kImported = R"(
+pub struct ImportedStruct {
+    a: u32
+}
+)";
+  constexpr std::string_view kProgram = R"(
+import fake_import;
+fn f() -> fake_import::ImportedStruct {
+    fake_import::ImportedStruct { a: u32:42 }
+}
+)";
+  XLS_ASSERT_OK(
+      ParseAndTypecheck(kImported, "fake_import.x", "fake_import", &import_data)
+          .status());
+
+  XLS_ASSERT_OK_AND_ASSIGN(TypeAndModule tam,
+                           ExtractReturnType(kProgram, "f", import_data));
+
+  Module new_module("new_module", /*fs_path=*/std::nullopt,
+                    *tam.tm.module->file_table());
+
+  NameDef* name_def = new_module.Make<NameDef>(
+      tam.tm.module->span(), "fake_import", /*definer=*/nullptr);
+  Import* new_import = new_module.Make<Import>(
+      tam.tm.module->span(), std::vector<std::string>{"fake_import"}, *name_def,
+      /*alias=*/std::nullopt);
+  name_def->set_definer(new_import);
+  XLS_ASSERT_OK(
+      new_module.AddTop(new_import, /*make_collision_error=*/nullptr));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypeAnnotation * ta,
+      CreateTypeAnnotation(new_module, *tam.type, tam.tm.module->span(),
+                           tam.tm.module, tam.tm.type_info));
+
+  EXPECT_EQ(ta->ToString(), "fake_import::ImportedStruct");
+
+  auto* ref_ta = dynamic_cast<TypeRefTypeAnnotation*>(ta);
+  ASSERT_NE(ref_ta, nullptr);
+
+  TypeRef* tr = ref_ta->type_ref();
+  ASSERT_NE(tr, nullptr);
+
+  TypeDefinition td = tr->type_definition();
+  EXPECT_TRUE(std::holds_alternative<ColonRef*>(td));
+  ColonRef* cr = std::get<ColonRef*>(td);
+  EXPECT_EQ(cr->ToString(), "fake_import::ImportedStruct");
+}
+
+TEST(TypeToTypeAnnotationTest, ImportedEnumType) {
+  auto import_data = CreateImportDataForTest();
+  constexpr std::string_view kImported = R"(
+pub enum ImportedEnum : u2 {
+    A = 0,
+    B = 1,
+}
+)";
+  constexpr std::string_view kProgram = R"(
+import fake_import;
+fn f() -> fake_import::ImportedEnum {
+    fake_import::ImportedEnum::A
+}
+)";
+  XLS_ASSERT_OK(
+      ParseAndTypecheck(kImported, "fake_import.x", "fake_import", &import_data)
+          .status());
+
+  XLS_ASSERT_OK_AND_ASSIGN(TypeAndModule tam,
+                           ExtractReturnType(kProgram, "f", import_data));
+
+  Module new_module("new_module", /*fs_path=*/std::nullopt,
+                    *tam.tm.module->file_table());
+
+  NameDef* name_def = new_module.Make<NameDef>(
+      tam.tm.module->span(), "fake_import", /*definer=*/nullptr);
+  Import* new_import = new_module.Make<Import>(
+      tam.tm.module->span(), std::vector<std::string>{"fake_import"}, *name_def,
+      /*alias=*/std::nullopt);
+  name_def->set_definer(new_import);
+  XLS_ASSERT_OK(
+      new_module.AddTop(new_import, /*make_collision_error=*/nullptr));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypeAnnotation * ta,
+      CreateTypeAnnotation(new_module, *tam.type, tam.tm.module->span(),
+                           tam.tm.module, tam.tm.type_info));
+
+  EXPECT_EQ(ta->ToString(), "fake_import::ImportedEnum");
+
+  auto* ref_ta = dynamic_cast<TypeRefTypeAnnotation*>(ta);
+  ASSERT_NE(ref_ta, nullptr);
+
+  TypeRef* tr = ref_ta->type_ref();
+  ASSERT_NE(tr, nullptr);
+
+  TypeDefinition td = tr->type_definition();
+  EXPECT_TRUE(std::holds_alternative<ColonRef*>(td));
+  ColonRef* cr = std::get<ColonRef*>(td);
+  EXPECT_EQ(cr->ToString(), "fake_import::ImportedEnum");
 }
 
 }  // namespace
