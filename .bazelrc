@@ -27,11 +27,9 @@ build:ci --copt="-DXLS_IS_CI_RUN=1"
 build --incompatible_default_to_explicit_init_py=true
 
 # Mac settings
-# Use 10.13 as the minimum OS for host builds. This is needed to use
-# std::optional and absl::optional together, see
-# https://github.com/abseil/abseil-cpp/commit/512af68a1d397cd2cfa1ac9c6eca7694bf75f2b0.
-build:macos --host_macos_minimum_os=10.13
-build:macos --macos_minimum_os=10.13
+# Use 10.15 as the minimum OS; std::filesystem is only available from 10.15 on.
+build:macos --host_macos_minimum_os=10.15
+build:macos --macos_minimum_os=10.15
 
 # Minimum c++ standard used. We set it in the llvm toolchain, but
 # we also need to specify it here when it is not possible to use that toolchain.
