@@ -23,10 +23,13 @@ find ./
 TESTDATA_DIR="${TEST_TMPDIR}/testdata"
 cp -Lr $TOOLPATH/package_bazel_build_testdata ${TESTDATA_DIR}
 
-# Process fake manifest and turn into absolute paths
+# Process fake manifest and turn into absolute paths.
+# NB "sed -i" is not portable: BSD sed reads the next argument as a backup
+# suffix, so rewrite via a temporary file instead.
 chmod +w $TESTDATA_DIR/bazel-bin
-sed -i "s,{x},$TESTDATA_DIR,g" \
-  $TESTDATA_DIR/bazel-bin/package_test.runfiles_manifest
+MANIFEST=$TESTDATA_DIR/bazel-bin/package_test.runfiles_manifest
+sed "s,{x},$TESTDATA_DIR,g" "$MANIFEST" > "$MANIFEST.tmp"
+mv "$MANIFEST.tmp" "$MANIFEST"
 
 echo "Test Data Dir: ${TESTDATA_DIR}"
 find ${TESTDATA_DIR}
