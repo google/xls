@@ -4694,7 +4694,6 @@ cc_test(
     deps = [
         ":folding_graph",
         ":node_dependency_analysis",
-        ":resource_sharing_equivalence",
         ":visibility_analysis",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
