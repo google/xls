@@ -11,7 +11,7 @@ register_toolchains("@llvm//toolchain:all")
 # Python toolchain
 bazel_dep(name = "rules_python", version = "1.9.0")
 
-PYTHON_VERSION = "3.13"
+PYTHON_VERSION = "3.14"
 
 PYTHON_VERSION_NAME = PYTHON_VERSION.replace(".", "_")
 
@@ -181,7 +181,7 @@ bazel_dep(name = "openroad", repo_name = "org_theopenroadproject")
 
 git_override(
     module_name = "rules_hdl",
-    commit = "19cf04d10582d37119a4adbf0cb4fd681c05a3fb",
+    commit = "ece083ef1385ff9ab067711fa766d77c3b54d961",
     remote = "https://github.com/hdl/bazel_rules_hdl.git",
 )
 
