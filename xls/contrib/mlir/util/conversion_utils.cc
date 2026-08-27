@@ -50,8 +50,8 @@ Bits bitsFromAPInt(APInt apInt) {
   auto span =
       absl::MakeConstSpan(reinterpret_cast<const uint8_t*>(apInt.getRawData()),
                           apInt.getNumWords() * sizeof(uint64_t));
-  InlineBitmap bitmap =
-      InlineBitmap::FromBytes(bitCount, span.first(CeilOfRatio(bitCount, 8L)));
+  InlineBitmap bitmap = InlineBitmap::FromBytes(
+      bitCount, span.first(CeilOfRatio(bitCount, int64_t{8})));
   return Bits::FromBitmap(std::move(bitmap));
 }
 
