@@ -1,0 +1,159 @@
+# -*- Python -*-
+# https://github.com/hzeller/bant#macros
+#
+# Tell bant (that is not looking at *.bzl files) how custom rules behave, just
+# enough for it to see through them to provide features such as dwyu.
+#
+# To print a rule and apply the macro transformations, use the `-m` option
+# to bant. e.g.
+# bant print //xls/dslx/cpp_transpiler:test_types_lib -m
+#
+# If bant is not installed locally, $(xls/dev_tools/get-bant-path.sh)
+# will run it from a local compilation.
+#
+# For cc_libraries we expand here we typically don't bother to add all
+# dependencies so need to tell bant to not dwyu check these.
+# We can use tags = ["nofixdeps"] or bant_skip_dependency_check = True for
+# these. The former will show up in -vvv logging, while the latter is silent, so
+# using that here.
+
+# File can be formatted using regular buildifier.
+
+xls_dslx_ir = genrule(
+    name = name,
+    outs = [
+        name + ".ir",
+        ir_file,
+    ],
+)
+
+xls_dslx_opt_ir = genrule(
+    name = name,
+    outs = [
+        name + ".ir",  # sometimes, they are derived from the name
+        name + ".opt.ir",
+        ir_file,  # ... sometimes from kwargs passed to rule.
+        opt_ir_file,
+    ],
+)
+
+xls_ir_opt_ir = genrule(
+    name = name,
+    outs = [
+        name + ".opt.ir",  # from name
+        opt_ir_file,  # from kwarg
+    ],
+)
+
+cc_xls_ir_jit_wrapper = cc_library(
+    name = name,
+    srcs = [name + ".cc"],
+    hdrs = [name + ".h"],
+    bant_skip_dependency_check = True,
+)
+
+xls_dslx_cpp_type_library = (
+    genrule(
+        name = name,
+        srcs = [src],
+        outs = [name + ".h"],
+    ),
+    cc_library(
+        name = name,
+        hdrs = [name + ".h"],
+        bant_skip_dependency_check = True,
+    ),
+)
+
+xls_dslx_ir_wrapper = cc_library(
+    name = name + "_wrapper",
+    hdrs = [name + "_wrapper.h"],
+    bant_skip_dependency_check = True,
+)
+
+xls_codegen_pass = (
+    # From the dependency point of view, this is just a regular library
+    cc_library(
+        name = name,
+        srcs = srcs,
+        hdrs = hdrs,
+        deps = deps,
+    ),
+    # There is also an _impl library which provides exactly the same
+    # headers. Just mentioned here so that we can apply the avoid_deps
+    # tag and lead bant to suggest the other library instead.
+    # (there was a case in which the impl version was linked)
+    cc_library(
+        name = name + "_impl",
+        srcs = srcs,
+        hdrs = hdrs,
+        tags = [
+            "avoid_dep",  # use the other one instead
+        ],
+        bant_skip_dependency_check = True,
+    ),
+)
+
+# Looks like the following two are the same from bant's point of view.
+xls_ir_cc_library_macro = (
+    genrule(
+        name = name,
+        outs = [name + ".h"],
+    ),
+    cc_library(
+        name = name,
+        hdrs = [name + ".h"],
+        bant_skip_dependency_check = True,
+    ),
+)
+
+xls_ir_cc_library = (
+    genrule(
+        name = name,
+        outs = [name + ".h"],
+    ),
+    cc_library(
+        name = name,
+        hdrs = [name + ".h"],
+        bant_skip_dependency_check = True,
+    ),
+)
+
+xls_dslx_verilog = genrule(
+    name = name,
+    outs = [
+        verilog_file.rsplit(".", 1)[0] + ".block.ir",
+        verilog_file.rsplit(".", 1)[0] + ".codegen_options.textproto",
+        verilog_file.rsplit(".", 1)[0] + ".schedule_options.textproto",
+        verilog_file.rsplit(".", 1)[0] + ".sig.textproto",
+        verilog_file,
+    ],
+)
+
+xls_ir_verilog = genrule(
+    name = name,
+    outs = [
+        verilog_file.rsplit(".", 1)[0] + ".block.ir",
+        verilog_file.rsplit(".", 1)[0] + ".codegen_options.textproto",
+        verilog_file.rsplit(".", 1)[0] + ".schedule_options.textproto",
+        verilog_file.rsplit(".", 1)[0] + ".sig.textproto",
+        verilog_file,
+    ],
+)
+
+xls_cc_embed_data = (
+    genrule(
+        name = name,
+        srcs = [data],
+        outs = [name + "_embedded.h"],
+    ),
+    cc_library(
+        name = name,
+        hdrs = [name + "_embedded.h"],
+        bant_skip_dependency_check = True,
+    ),
+)
+
+xls_pass = bant_forward_args(
+    cc_library(),
+)
