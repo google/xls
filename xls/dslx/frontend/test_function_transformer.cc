@@ -525,23 +525,24 @@ TestFunctionTransformer::TransformTestFunctions() {
   std::vector<const AstNode*> test_functions_with_spawn;
 
   // Find all test functions with spawns; these will be replaced.
-  for (const auto& name : source_module_.GetTestNames()) {
-    XLS_ASSIGN_OR_RETURN(TestFunction * func, source_module_.GetTest(name));
-    SpawnFinder spawn_finder;
-    XLS_RETURN_IF_ERROR(func->Accept(&spawn_finder));
-    if (spawn_finder.has_spawn()) {
-      test_functions_with_spawn.push_back(func);
+  for (const auto& member : source_module_.top()) {
+    if (std::holds_alternative<TestFunction*>(member)) {
+      TestFunction* func = std::get<TestFunction*>(member);
+      SpawnFinder spawn_finder;
+      XLS_RETURN_IF_ERROR(func->Accept(&spawn_finder));
+      if (spawn_finder.has_spawn()) {
+        test_functions_with_spawn.push_back(func);
+      }
     }
+  }
+
+  if (test_functions_with_spawn.empty()) {
+    return nullptr;
   }
 
   XLS_ASSIGN_OR_RETURN(
       std::unique_ptr<Module> cloned_module,
       CloneModuleRemovingMembers(source_module_, test_functions_with_spawn));
-  if (test_functions_with_spawn.empty()) {
-    // TODO(davidplass): Consider not cloning if there are no test functions.
-    return cloned_module;
-  }
-
   // For each test function with a spawn from the original module, transform
   // it into a TestProc and add to the *cloned* module.
   for (auto* node : test_functions_with_spawn) {

@@ -42,11 +42,18 @@ namespace {
 absl::StatusOr<std::string> TransformAndTypecheck(std::string_view program) {
   auto import_data = CreateImportDataForTest();
   XLS_ASSIGN_OR_RETURN(
+      std::unique_ptr<Module> module,
+      ParseModule(program, "test.x", "test", import_data.file_table()));
+  XLS_ASSIGN_OR_RETURN(
       TypecheckedModule tm,
-      ParseAndTypecheck(program, "test.x", "test", &import_data));
+      TypecheckModule(std::move(module), "test.x", &import_data));
   TestFunctionTransformer transformer(*tm.module, *tm.type_info);
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<Module> new_module,
                        transformer.TransformTestFunctions());
+  if (new_module == nullptr) {
+    // Unchanged.
+    return std::string(program);
+  }
 
   // Remove "spawn" trait placeholder methods from the string.
   std::string transformed_code =
@@ -482,8 +489,11 @@ fn main() {
   {
     auto import_data = CreateImportDataForTest();
     XLS_ASSERT_OK_AND_ASSIGN(
+        std::unique_ptr<Module> module,
+        ParseModule(kProgram, "test.x", "test", import_data.file_table()));
+    XLS_ASSERT_OK_AND_ASSIGN(
         TypecheckedModule tm,
-        ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
+        TypecheckModule(std::move(module), "test.x", &import_data));
     TestFunctionTransformer transformer(*tm.module, *tm.type_info);
     XLS_ASSERT_OK_AND_ASSIGN(new_module, transformer.TransformTestFunctions());
   }
@@ -737,8 +747,11 @@ fn main() {
 )";
   auto import_data = CreateImportDataForTest();
   XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<Module> module,
+      ParseModule(kProgram, "test.x", "test", import_data.file_table()));
+  XLS_ASSERT_OK_AND_ASSIGN(
       TypecheckedModule tm,
-      ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
+      TypecheckModule(std::move(module), "test.x", &import_data));
   // We manually perform the transformation and verify the generated string
   // representation here instead of using `TransformAndTypecheck`.
   // `TransformAndTypecheck` fails because it attempts to re-typecheck the
@@ -856,8 +869,11 @@ fn main() {
           .status());
 
   XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<Module> module,
+      ParseModule(kProgram, "test.x", "test", import_data.file_table()));
+  XLS_ASSERT_OK_AND_ASSIGN(
       TypecheckedModule tm,
-      ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
+      TypecheckModule(std::move(module), "test.x", &import_data));
 
   TestFunctionTransformer transformer(*tm.module, *tm.type_info);
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> new_module,
@@ -905,8 +921,11 @@ fn main() {
           .status());
 
   XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<Module> module,
+      ParseModule(kProgram, "test.x", "test", import_data.file_table()));
+  XLS_ASSERT_OK_AND_ASSIGN(
       TypecheckedModule tm,
-      ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
+      TypecheckModule(std::move(module), "test.x", &import_data));
 
   TestFunctionTransformer transformer(*tm.module, *tm.type_info);
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> new_module,
@@ -953,8 +972,11 @@ fn main() {
           .status());
 
   XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<Module> module,
+      ParseModule(kProgram, "test.x", "test", import_data.file_table()));
+  XLS_ASSERT_OK_AND_ASSIGN(
       TypecheckedModule tm,
-      ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
+      TypecheckModule(std::move(module), "test.x", &import_data));
 
   TestFunctionTransformer transformer(*tm.module, *tm.type_info);
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> new_module,
@@ -1002,8 +1024,11 @@ fn main() {
           .status());
 
   XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<Module> module,
+      ParseModule(kProgram, "test.x", "test", import_data.file_table()));
+  XLS_ASSERT_OK_AND_ASSIGN(
       TypecheckedModule tm,
-      ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
+      TypecheckModule(std::move(module), "test.x", &import_data));
 
   TestFunctionTransformer transformer(*tm.module, *tm.type_info);
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> new_module,
@@ -1034,8 +1059,11 @@ fn main() {
 })";
   auto import_data = CreateImportDataForTest();
   XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<Module> module,
+      ParseModule(kProgram, "test.x", "test", import_data.file_table()));
+  XLS_ASSERT_OK_AND_ASSIGN(
       TypecheckedModule tm,
-      ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
+      TypecheckModule(std::move(module), "test.x", &import_data));
   TestFunctionTransformer transformer(*tm.module, *tm.type_info);
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> new_module,
                            transformer.TransformTestFunctions());
@@ -1055,6 +1083,60 @@ fn main() {
   // Assert that the body has a trailing semi, meaning it returns void.
   StatementBlock* body = (*next_fn)->body();
   EXPECT_TRUE(body->trailing_semi());
+}
+
+TEST(TestFunctionTransformerTest, TestProcOnlyIgnored) {
+  constexpr std::string_view kProgram = R"(#[test_proc]
+proc MyTestProc {
+    terminator: chan<bool> out;
+    config(terminator: chan<bool> out) {
+        (terminator,)
+    }
+    init { () }
+    next(state: ()) {
+        let tok = send(join(), terminator, true);
+        ()
+    }
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string cloned_code,
+                           TransformAndTypecheck(kProgram));
+  EXPECT_EQ(cloned_code, kProgram);
+}
+
+TEST(TestFunctionTransformerTest, TestFunctionAndTestProc) {
+  constexpr std::string_view kProgram = R"(proc P { }
+impl P {
+    fn new() -> Self { P {  } }
+}
+
+#[test]
+fn main() {
+    let p = P::new();
+    p.spawn();
+}
+
+#[test_proc]
+proc MyTestProc {
+    terminator: chan<bool> out;
+    config(terminator: chan<bool> out) {
+        (terminator,)
+    }
+    init { () }
+    next(state: ()) {
+        let tok = send(join(), terminator, true);
+        ()
+    }
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string cloned_code,
+                           TransformAndTypecheck(kProgram));
+  EXPECT_FALSE(absl::StrContains(cloned_code, "fn main()"));
+  EXPECT_TRUE(
+      absl::StrContains(cloned_code, "__test__terminator: chan<bool> out"));
+  EXPECT_TRUE(
+      absl::StrContains(cloned_code, "#[test]\nproc __test__proc__main"));
+  EXPECT_TRUE(absl::StrContains(cloned_code, "proc MyTestProc"));
 }
 
 }  // namespace

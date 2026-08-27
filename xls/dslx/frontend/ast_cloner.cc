@@ -1721,7 +1721,8 @@ absl::StatusOr<std::unique_ptr<Module>> CloneModule(const Module& module,
 }
 
 absl::StatusOr<std::unique_ptr<Module>> CloneModuleRemovingMembers(
-    const Module& module, absl::Span<const AstNode* const> members_to_remove) {
+    const Module& module, absl::Span<const AstNode* const> members_to_remove,
+    absl::flat_hash_map<const AstNode*, AstNode*>* old_to_new) {
   absl::flat_hash_set<const AstNode*> nodes_to_remove_set;
   nodes_to_remove_set.reserve(members_to_remove.size());
   for (const AstNode* node : members_to_remove) {
@@ -1824,6 +1825,9 @@ absl::StatusOr<std::unique_ptr<Module>> CloneModuleRemovingMembers(
                          MakeClonedModuleMember(member, old_to_new));
     XLS_RETURN_IF_ERROR(new_module->AddTop(cloned_member,
                                            /*make_collision_error=*/nullptr));
+  }
+  if (old_to_new != nullptr) {
+    *old_to_new = std::move(global_map);
   }
 
   return new_module;
