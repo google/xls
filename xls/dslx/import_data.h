@@ -167,6 +167,10 @@ class ImportData {
   absl::StatusOr<ModuleInfo*> Put(const ImportTokens& subject,
                                   std::unique_ptr<ModuleInfo> module_info);
 
+  // Keeps the given module info alive for the duration of the import session,
+  // preventing its AST nodes from being deleted.
+  void KeepAlive(std::unique_ptr<ModuleInfo> module_info);
+
   // Returns the `TraitDeriver` to use for traits that are declared in the
   // builtins module.
   TraitDeriver* GetBuiltinTraitDeriver() const {
@@ -313,6 +317,9 @@ class ImportData {
 
   FileTable file_table_;
   absl::flat_hash_map<ImportTokens, std::unique_ptr<ModuleInfo>> modules_;
+  // Modules that were discarded after being imported. We keep them to
+  // avoid use-after-free errors.
+  std::vector<std::unique_ptr<ModuleInfo>> discarded_modules_;
   absl::flat_hash_map<std::string, ModuleInfo*> path_to_module_info_;
   absl::flat_hash_map<Module*, std::unique_ptr<InterpBindings>>
       top_level_bindings_;

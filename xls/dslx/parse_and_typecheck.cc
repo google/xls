@@ -34,6 +34,7 @@
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/frontend/scanner.h"
 #include "xls/dslx/frontend/semantics_analysis.h"
+#include "xls/dslx/frontend/test_function_transformer.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/ir_convert/convert_options.h"
 #include "xls/dslx/type_system/type_info.h"
@@ -44,6 +45,39 @@
 #include "xls/dslx/warning_collector.h"
 
 namespace xls::dslx {
+namespace {
+struct TypecheckedModuleAndInfo {
+  std::unique_ptr<ModuleInfo> module_info;
+  WarningCollector warnings;
+};
+
+absl::StatusOr<TypecheckedModuleAndInfo> TypecheckModuleWithoutStoringModule(
+    std::unique_ptr<Module> module, std::string_view path,
+    ImportData* import_data, TypeInferenceErrorHandler error_handler,
+    TraitDeriver* trait_deriver) {
+  XLS_RET_CHECK(module.get() != nullptr);
+  XLS_RET_CHECK(import_data != nullptr);
+
+  if (trait_deriver == nullptr) {
+    trait_deriver = import_data->GetBuiltinTraitDeriver();
+  }
+
+  WarningCollector warnings(import_data->enabled_warnings());
+
+  std::unique_ptr<SemanticsAnalysis> semantics_analysis =
+      std::make_unique<SemanticsAnalysis>();
+  XLS_ASSIGN_OR_RETURN(
+      std::unique_ptr<ModuleInfo> module_info,
+      TypecheckModuleV2(std::move(module), path, import_data, &warnings,
+                        std::move(semantics_analysis), error_handler,
+                        trait_deriver == nullptr
+                            ? std::nullopt
+                            : std::make_optional(trait_deriver)));
+
+  return TypecheckedModuleAndInfo{.module_info = std::move(module_info),
+                                  .warnings = std::move(warnings)};
+}
+}  // namespace
 
 absl::StatusOr<TypecheckedModule> ParseAndTypecheck(
     std::string_view text, std::string_view path, std::string_view module_name,
@@ -68,8 +102,35 @@ absl::StatusOr<TypecheckedModule> ParseAndTypecheck(
                                    import_data->file_table(), comments));
 
   XLS_RETURN_IF_ERROR(module->SetConfiguredValues(options.configured_values));
-  return TypecheckModule(std::move(module), path, import_data, error_handler,
-                         trait_deriver);
+  XLS_ASSIGN_OR_RETURN(
+      TypecheckedModuleAndInfo result,
+      TypecheckModuleWithoutStoringModule(std::move(module), path, import_data,
+                                          error_handler, trait_deriver));
+
+  // Transform proc-spawning test functions into test procs.
+  TestFunctionTransformer transformer(result.module_info->module(),
+                                      *result.module_info->type_info());
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<Module> new_module,
+                       transformer.TransformTestFunctions());
+  if (new_module != nullptr) {
+    // The module was modified, so we will re-parse and typecheck it again.
+    std::string new_module_as_string = new_module->ToString();
+    XLS_ASSIGN_OR_RETURN(std::unique_ptr<Module> newly_parsed_module,
+                         ParseModule(new_module_as_string, path, module_name,
+                                     import_data->file_table(), comments));
+    // Keep the old module alive until import_data is destroyed.
+    import_data->KeepAlive(std::move(result.module_info));
+    return TypecheckModule(std::move(newly_parsed_module), path, import_data,
+                           error_handler, trait_deriver);
+  }
+  XLS_ASSIGN_OR_RETURN(ImportTokens subject,
+                       ImportTokens::FromString(module_name));
+  XLS_ASSIGN_OR_RETURN(
+      ModuleInfo * stored_info,
+      import_data->Put(subject, std::move(result.module_info)));
+  return TypecheckedModule{.module = &stored_info->module(),
+                           .type_info = stored_info->type_info(),
+                           .warnings = std::move(result.warnings)};
 }
 
 absl::StatusOr<std::unique_ptr<Module>> ParseModule(
@@ -101,6 +162,7 @@ absl::StatusOr<TypecheckedModule> TypecheckModule(
     std::unique_ptr<Module> module, std::string_view path,
     ImportData* import_data, TypeInferenceErrorHandler error_handler,
     TraitDeriver* trait_deriver) {
+  // TODO(davidplass): Use TypecheckModuleWithoutStoringModule.
   XLS_RET_CHECK(module.get() != nullptr);
   XLS_RET_CHECK(import_data != nullptr);
 

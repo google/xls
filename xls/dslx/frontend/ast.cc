@@ -2119,6 +2119,13 @@ std::string Impl::ToString() const {
   std::string result =
       absl::StrFormat("%simpl %s {\n", public_ ? "pub " : "", type_name);
   for (const auto& member : members_) {
+    if (std::holds_alternative<Function*>(member)) {
+      Function* func = std::get<Function*>(member);
+      if (func->IsCompilerDerived()) {
+        // Do not print compiler-derived functions.
+        continue;
+      }
+    }
     absl::StrAppendFormat(
         &result, "%s\n",
         Indent(ToAstNode(member)->ToString(), kRustSpacesPerIndent));
