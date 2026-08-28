@@ -56,6 +56,12 @@
 
 namespace xls::dslx {
 
+enum class EvaluatorType : uint8_t {
+  kDslxInterpreter,
+  kIrInterpreter,
+  kIrJit,
+};
+
 // Abstract API used for comparing DSLX-interpreter results to executed IR
 // results. This is a virtual API to help decouple from implementation details
 // like whether the JIT is available or only interpretation, or whether we
@@ -111,6 +117,8 @@ struct ParseAndTestOptions {
   bool trace_channels = false;
   bool trace_calls = false;
   std::optional<int64_t> max_ticks;
+  int64_t max_trace_verbosity = 0;
+  std::optional<EvaluatorType> evaluator;
   std::function<std::unique_ptr<VirtualizableFilesystem>()> vfs_factory =
       nullptr;
 
@@ -238,7 +246,8 @@ class AbstractParsedTestRunner {
  public:
   virtual ~AbstractParsedTestRunner() = default;
   virtual absl::StatusOr<RunResult> RunTestProc(
-      std::string_view name, const BytecodeInterpreterOptions& options) = 0;
+      std::string_view name, const BytecodeInterpreterOptions& options,
+      DslxInterpreterEvents* events) = 0;
   virtual absl::StatusOr<RunResult> RunTestFunction(
       std::string_view name, const BytecodeInterpreterOptions& options,
       std::optional<DslxInterpreterEvents*> events) = 0;
@@ -260,8 +269,8 @@ class DslxInterpreterParsedTestRunner : public AbstractParsedTestRunner {
         entry_module_(entry_module) {}
 
   absl::StatusOr<RunResult> RunTestProc(
-      std::string_view name,
-      const BytecodeInterpreterOptions& options) override;
+      std::string_view name, const BytecodeInterpreterOptions& options,
+      DslxInterpreterEvents* events) override;
   absl::StatusOr<RunResult> RunTestFunction(
       std::string_view name, const BytecodeInterpreterOptions& options,
       std::optional<DslxInterpreterEvents*> events) override;
