@@ -1085,5 +1085,59 @@ fn main() {
   EXPECT_TRUE(body->trailing_semi());
 }
 
+TEST(TestFunctionTransformerTest, TestProcOnlyIgnored) {
+  constexpr std::string_view kProgram = R"(#[test_proc]
+proc MyTestProc {
+    terminator: chan<bool> out;
+    config(terminator: chan<bool> out) {
+        (terminator,)
+    }
+    init { () }
+    next(state: ()) {
+        let tok = send(join(), terminator, true);
+        ()
+    }
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string cloned_code,
+                           TransformAndTypecheck(kProgram));
+  EXPECT_EQ(cloned_code, kProgram);
+}
+
+TEST(TestFunctionTransformerTest, TestFunctionAndTestProc) {
+  constexpr std::string_view kProgram = R"(proc P { }
+impl P {
+    fn new() -> Self { P {  } }
+}
+
+#[test]
+fn main() {
+    let p = P::new();
+    p.spawn();
+}
+
+#[test_proc]
+proc MyTestProc {
+    terminator: chan<bool> out;
+    config(terminator: chan<bool> out) {
+        (terminator,)
+    }
+    init { () }
+    next(state: ()) {
+        let tok = send(join(), terminator, true);
+        ()
+    }
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string cloned_code,
+                           TransformAndTypecheck(kProgram));
+  EXPECT_FALSE(absl::StrContains(cloned_code, "fn main()"));
+  EXPECT_TRUE(
+      absl::StrContains(cloned_code, "__test__terminator: chan<bool> out"));
+  EXPECT_TRUE(
+      absl::StrContains(cloned_code, "#[test]\nproc __test__proc__main"));
+  EXPECT_TRUE(absl::StrContains(cloned_code, "proc MyTestProc"));
+}
+
 }  // namespace
 }  // namespace xls::dslx
