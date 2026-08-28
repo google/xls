@@ -147,7 +147,7 @@ proc MemReaderInternal<
             len: req.length
         };
         let do_send_reader_req = !error && !is_zero_len && (state.fsm == Fsm::REQUEST);
-        let tok = send_if(tok0, reader_req_s, do_send_reader_req, reader_req);
+        let tok = send_if(tok, reader_req_s, do_send_reader_req, reader_req);
 
         let do_handle_resp = !error && (state.fsm == Fsm::RESPONSE);
         let (tok, st) = recv_if(tok0, axi_st_out_r, do_handle_resp, zero!<AxiStreamOutput>());
@@ -166,7 +166,7 @@ proc MemReaderInternal<
         let do_send_resp = do_handle_resp ||
                            (state.fsm == Fsm::RESPONSE_ERROR) ||
                            (state.fsm == Fsm::RESPONSE_ZERO);
-        let tok = send_if(tok0, resp_s, do_send_resp, reader_resp);
+        let tok = send_if(tok, resp_s, do_send_resp, reader_resp);
 
         let next_state = match (state.fsm) {
             Fsm::REQUEST => {

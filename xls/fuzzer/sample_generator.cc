@@ -491,7 +491,7 @@ absl::StatusOr<Sample> GenerateSample(
   // kDynamicSlice is in range, so this may result in a warning turned into an
   // error.
   dslx::ConvertOptions convert_options{
-      .warnings = dslx::DisableWarning(
+      .warnings = dslx::DisableWarnings(
           dslx::kDefaultWarningsSet, dslx::WarningKind::kWidthSliceOutOfRange),
       .lower_to_proc_scoped_channels =
           sample_options.lower_to_proc_scoped_channels(),

@@ -44,7 +44,9 @@ class SemanticsAnalysis {
       ImportData& import_data,
       const TypecheckModuleFn& typecheck_imported_module);
 
-  absl::Status RunPostTypeCheckPass(WarningCollector& warning_collector);
+  absl::Status RunPostTypeCheckPass(Module& module,
+                                    WarningCollector& warning_collector,
+                                    const TypeInfo* ti);
 
   void SetNameDefType(const NameDef* def, const Type* type);
 
@@ -60,6 +62,12 @@ class SemanticsAnalysis {
       maybe_unreferenced_defs;
   absl::flat_hash_map<const NameDef*, std::unique_ptr<Type>> def_to_type_;
   bool suppress_warnings_;
+
+  // Used by kIOOrderingMismatch. It checks whether the data arg used in `send`
+  // channel operation is possible to assemble from all data available with
+  // constraints of given tokens.
+  absl::Status RunIOOrderingAnalysis(
+      Module& module, WarningCollector& warning_collector, const TypeInfo* ti);
 };
 
 }  // namespace xls::dslx
