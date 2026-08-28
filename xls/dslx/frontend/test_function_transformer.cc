@@ -534,14 +534,13 @@ TestFunctionTransformer::TransformTestFunctions() {
     }
   }
 
+  if (test_functions_with_spawn.empty()) {
+    return nullptr;
+  }
+
   XLS_ASSIGN_OR_RETURN(
       std::unique_ptr<Module> cloned_module,
       CloneModuleRemovingMembers(source_module_, test_functions_with_spawn));
-  if (test_functions_with_spawn.empty()) {
-    // TODO(davidplass): Consider not cloning if there are no test functions.
-    return cloned_module;
-  }
-
   // For each test function with a spawn from the original module, transform
   // it into a TestProc and add to the *cloned* module.
   for (auto* node : test_functions_with_spawn) {
