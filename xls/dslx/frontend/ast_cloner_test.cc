@@ -454,16 +454,7 @@ proc p<N: u32> {
     next(state: ()) { () }
 }
 )";
-  constexpr std::string_view kExpected = R"(fn p.config<N: u32>() -> () {
-    ()
-}
-fn p.init<N: u32>() -> () {
-    ()
-}
-fn p.next<N: u32>(state: ()) -> () {
-    ()
-}
-proc p<N: u32> {
+  constexpr std::string_view kExpected = R"(proc p<N: u32> {
     config() {
         ()
     }
@@ -502,16 +493,7 @@ proc parent {
 
 )";
 
-  constexpr std::string_view kExpected = R"(fn p.config<N: u32>() -> () {
-    ()
-}
-fn p.init<N: u32>() -> () {
-    ()
-}
-fn p.next<N: u32>(state: ()) -> () {
-    ()
-}
-proc p<N: u32> {
+  constexpr std::string_view kExpected = R"(proc p<N: u32> {
     config() {
         ()
     }
@@ -521,16 +503,6 @@ proc p<N: u32> {
     next(state: ()) {
         ()
     }
-}
-fn parent.config() -> () {
-    spawn p<u32:8>();
-    ()
-}
-fn parent.init() -> () {
-    ()
-}
-fn parent.next(state: ()) -> () {
-    ()
 }
 proc parent {
     config() {
@@ -564,16 +536,7 @@ proc p {
     next(state: ()) { () }
 }
 )";
-  constexpr std::string_view kExpected = R"(fn p.config() -> () {
-    ()
-}
-fn p.init() -> () {
-    ()
-}
-fn p.next(state: ()) -> () {
-    ()
-}
-proc p {
+  constexpr std::string_view kExpected = R"(proc p {
     const C = u32:0;
     type T = u32;
     config() {
@@ -1500,7 +1463,9 @@ proc my_proc {
 })";
 
   // Note that we're dealing with a post-parsing AST, which means that the
-  // proc config and next functions will be present as top-level functions.
+  // proc config and next functions are present as top-level functions in the
+  // AST, but they are not printed by ToString() because they are linked to the
+  // proc.
   constexpr std::string_view kExpected = R"(import my_import;
 enum MyEnum : u8 {
     DOGS = 0,
@@ -1509,16 +1474,6 @@ enum MyEnum : u8 {
 }
 fn my_function(a: u32) -> u16 {
     a as u16
-}
-fn my_proc.init() -> u16 {
-    u16:0
-}
-fn my_proc.config() -> (u8, u32) {
-    (u8:32, u32:8)
-}
-fn my_proc.next(state: u16) -> u16 {
-    let x = my_function(state as u32);
-    a as u16 + b as u16 + x
 }
 proc my_proc {
     a: u8;
@@ -1889,23 +1844,6 @@ proc MyProc {
     }
 })";
   constexpr std::string_view kExpected = R"(import other_module;
-fn MyProc.config() -> (chan<u32> out, chan<u64> out) {
-    let (input_p, input_c) = chan<u32>("input");
-    let (output_p, output_c) = chan<u64>("output");
-    spawn other_module::OtherProc(input_c, output_p);
-    (input_p, output_c)
-}
-fn MyProc.init() -> u32 {
-    u32:0
-}
-fn MyProc.next(state: u32) -> u32 {
-    let tok = send(join(), input_p, state);
-    let tok = send_if(tok, input_p, state > u32:32, state);
-    let (tok1, state) = recv(tok, output_c);
-    let (tok2, foo) = recv_if(tok, output_c, state > u32:32, u64:0);
-    let tok = join(tok1, tok2);
-    state + foo
-}
 proc MyProc {
     input_p: chan<u32> out;
     output_c: chan<u64> out;

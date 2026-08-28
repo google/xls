@@ -890,6 +890,14 @@ class AstCloner : public AstNodeVisitor {
                                     new_parametric_bindings, new_body,
                                     n->is_public());
     new_name_def->set_definer(p);
+
+    // Set up the reverse links for the proc body. NOTE: this will change the
+    // behavior of ToString (for the better). Now, ToString will no longer
+    // include proc functions as top-level functions.
+    new_body.config->set_proc(p);
+    new_body.next->set_proc(p);
+    new_body.init->set_proc(p);
+
     old_to_new_[n] = p;
     return absl::OkStatus();
   }
