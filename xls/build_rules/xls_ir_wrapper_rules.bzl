@@ -13,7 +13,7 @@
 # limitations under the License.
 
 """
-This module contains jit-wrapper-related build rules for XLS.
+This module contains IR wrapper-related build rules for XLS.
 """
 
 load("@bazel_skylib//lib:dicts.bzl", "dicts")
@@ -42,7 +42,7 @@ load(
     "xls_ir_common_attrs",
     "xls_ir_top_attrs",
 )
-load("//xls/build_rules:xls_providers.bzl", "AotCompileInfo", "JitWrapperInfo")
+load("//xls/build_rules:xls_providers.bzl", "AotCompileInfo", "IrWrapperInfo")
 load(
     "//xls/build_rules:xls_toolchains.bzl",
     "xls_toolchain_attrs",
@@ -58,7 +58,7 @@ _H_FILE_EXTENSION = ".h"
 
 _CC_FILE_EXTENSION = ".cc"
 
-_xls_ir_jit_wrapper_attrs = {
+_xls_ir_wrapper_attrs = {
     "jit_wrapper_args": attr.string_dict(
         doc = "Arguments of the JIT wrapper tool.",
     ),
@@ -82,8 +82,8 @@ _xls_ir_jit_wrapper_attrs = {
     ),
 }
 
-def _xls_ir_jit_wrapper_impl(ctx):
-    """The implementation of the 'xls_ir_jit_wrapper' rule.
+def _xls_ir_wrapper_impl(ctx):
+    """The implementation of the 'xls_ir_wrapper' rule.
 
     Execute the JIT wrapper tool on the IR file.
 
@@ -91,7 +91,7 @@ def _xls_ir_jit_wrapper_impl(ctx):
       ctx: The current rule's context object.
 
     Returns:
-      JitWrapperInfo provider
+      IrWrapperInfo provider
       DefaultInfo provider
     """
     jit_wrapper_tool = ctx.executable._xls_jit_wrapper_tool
@@ -192,7 +192,7 @@ def _xls_ir_jit_wrapper_impl(ctx):
         use_default_shell_env = True,
     )
     return [
-        JitWrapperInfo(
+        IrWrapperInfo(
             source_file = cc_file,
             header_file = ctx.outputs.header_file,
         ),
@@ -202,7 +202,7 @@ def _xls_ir_jit_wrapper_impl(ctx):
         ),
     ]
 
-xls_ir_jit_wrapper = rule(
+xls_ir_wrapper = rule(
     doc = """A build rule that generates the sources for JIT invocation wrappers.
 
 Examples:
@@ -210,8 +210,8 @@ Examples:
 1. A file as the source.
 
     ```
-    xls_ir_jit_wrapper(
-        name = "a_jit_wrapper",
+    xls_ir_wrapper(
+        name = "a_wrapper",
         src = "a.ir",
     )
     ```
@@ -224,41 +224,23 @@ Examples:
         src = "a.ir",
     )
 
-    xls_ir_jit_wrapper(
-        name = "a_jit_wrapper",
+    xls_ir_wrapper(
+        name = "a_wrapper",
         src = ":a",
     )
     ```
     """,
-    implementation = _xls_ir_jit_wrapper_impl,
+    implementation = _xls_ir_wrapper_impl,
     attrs = dicts.add(
         xls_ir_common_attrs,
         xls_ir_top_attrs,
-        _xls_ir_jit_wrapper_attrs,
+        _xls_ir_wrapper_attrs,
         CONFIG["xls_outs_attrs"],
         dicts.pick(xls_toolchain_attrs, ["_xls_jit_wrapper_tool"]),
     ),
 )
 
-def _no_aot_info_impl(ctx):
-    """Helper rule to create an empty AotInfo proto."""
-    file = ctx.actions.declare_file(ctx.attr.name + ".pb")
-    ctx.actions.write(file, "", is_executable = False)
-    return [
-        DefaultInfo(files = depset([file])),
-        AotCompileInfo(object_file = [], proto_file = file),
-    ]
-
-_no_aot_info = rule(
-    doc = """Internal only utility rule to generate an empty AotCompileInfo proto file.
-
-    This can be used with function types that don't yet support AOT.
-    """,
-    implementation = _no_aot_info_impl,
-    attrs = {},
-)
-
-def xls_ir_jit_wrapper_macro(
+def xls_ir_wrapper_macro(
         name,
         src,
         top,
@@ -270,25 +252,25 @@ def xls_ir_jit_wrapper_macro(
         enable_generated_file = True,
         enable_presubmit_generated_file = False,
         **kwargs):
-    """A macro wrapper for the 'xls_ir_jit_wrapper' rule.
+    """A macro wrapper for the 'xls_ir_wrapper' rule.
 
-    The macro instantiates the 'xls_ir_jit_wrapper' rule and
+    The macro instantiates the 'xls_ir_wrapper' rule and
     'enable_generated_file_wrapper' function. The generated files of the rule
     are listed in the outs attribute of the rule.
 
     Args:
       name: The name of the rule.
-      src: The IR file. See 'src' attribute from the 'xls_ir_jit_wrapper' rule.
+      src: The IR file. See 'src' attribute from the 'xls_ir_wrapper' rule.
       top: Name of the function/block/proc to wrap.
       source_file: The generated source file. See 'source_file' attribute from
-        the 'xls_ir_jit_wrapper' rule.
+        the 'xls_ir_wrapper' rule.
       header_file: The generated header file. See 'header_file' attribute from
-        the 'xls_ir_jit_wrapper' rule.
+        the 'xls_ir_wrapper' rule.
       wrapper_type: What sort of function base are we wrapping.
       aot_info: AotCompileInfo generating label with information about the AOT
         code that is available.
       jit_wrapper_args: Arguments of the JIT tool. See 'jit_wrapper_args'
-         attribute from the 'xls_ir_jit_wrapper' rule.
+         attribute from the 'xls_ir_wrapper' rule.
       enable_generated_file: See 'enable_generated_file' from
         'enable_generated_file_wrapper' function.
       enable_presubmit_generated_file: See 'enable_presubmit_generated_file'
@@ -308,7 +290,7 @@ def xls_ir_jit_wrapper_macro(
     bool_type_check("enable_generated_file", enable_generated_file)
     bool_type_check("enable_presubmit_generated_file", enable_presubmit_generated_file)
 
-    xls_ir_jit_wrapper(
+    xls_ir_wrapper(
         name = name,
         src = src,
         top = top,
@@ -359,7 +341,7 @@ _BASE_JIT_WRAPPER_DEPS = {
     ],
 }
 
-def cc_xls_ir_jit_wrapper(
+def cc_xls_ir_wrapper(
         name,
         src,
         jit_wrapper_args = {},
@@ -372,6 +354,7 @@ def cc_xls_ir_jit_wrapper(
         jobs = 1,
         alwayslink = False,
         enable_llvm_coverage = False,
+        deprecation = None,
         **kwargs):
     """Invokes the JIT wrapper generator and compiles the result as a cc_library.
 
@@ -397,6 +380,7 @@ def cc_xls_ir_jit_wrapper(
       jobs: Number of jobs to use for AOT compilation.
       alwayslink: Whether to always link the generated library.
       enable_llvm_coverage: Whether to enable LLVM coverage for the AOT compiled code.
+      deprecation: Deprecation message to add to the target.
       **kwargs: Keyword arguments. Named arguments.
     """
 
@@ -406,11 +390,11 @@ def cc_xls_ir_jit_wrapper(
 
     # Validate arguments of macro
     if kwargs.get("source_file"):
-        fail("Cannot set 'source_file' attribute in macro '%s' of type " +
-             "'cc_xls_ir_jit_wrapper'." % name)
+        fail(("Cannot set 'source_file' attribute in macro '%s' of type " +
+              "'cc_xls_ir_wrapper'.") % name)
     if kwargs.get("header_file"):
-        fail("Cannot set 'header_file' attribute in macro '%s' of type " +
-             "'cc_xls_ir_jit_wrapper'." % name)
+        fail(("Cannot set 'header_file' attribute in macro '%s' of type " +
+              "'cc_xls_ir_wrapper'.") % name)
 
     if wrapper_type not in (FUNCTION_WRAPPER_TYPE, BLOCK_WRAPPER_TYPE, PROC_WRAPPER_TYPE, FUZZTEST_WRAPPER_TYPE):
         fail(("Cannot set 'wrapper_type' to %s. It must be one of BLOCK_WRAPPER_TYPE, " +
@@ -441,8 +425,8 @@ def cc_xls_ir_jit_wrapper(
     aot_info_target = ":" + name + "_aot_code_for_wrapper"
     extra_lib_deps.append(aot_info_target)
 
-    xls_ir_jit_wrapper_macro(
-        name = "__" + name + "_xls_ir_jit_wrapper",
+    xls_ir_wrapper_macro(
+        name = "__" + name + "_xls_ir_wrapper",
         src = src,
         top = top,
         jit_wrapper_args = jit_wrapper_args,
@@ -454,6 +438,8 @@ def cc_xls_ir_jit_wrapper(
         tags = tags,
         **kwargs
     )
+    if deprecation != None:
+        kwargs["deprecation"] = deprecation
     cc_library(
         name = name,
         srcs = [":" + source_filename],
@@ -471,3 +457,15 @@ def cc_xls_ir_jit_wrapper(
         ] + deps,
         **kwargs
     )
+
+def cc_xls_ir_jit_wrapper(**kwargs):
+    """A backwards-compatible macro for `cc_xls_ir_wrapper`.
+
+    Args:
+      **kwargs: Keyword arguments forwarded to `cc_xls_ir_wrapper`.
+
+    Deprecated:
+      Use `cc_xls_ir_wrapper` instead.
+    """
+    deprecation = kwargs.pop("deprecation", kwargs.pop("deprecated", "cc_xls_ir_jit_wrapper is deprecated; use cc_xls_ir_wrapper instead."))
+    cc_xls_ir_wrapper(deprecation = deprecation, **kwargs)

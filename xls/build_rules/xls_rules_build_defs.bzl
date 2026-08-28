@@ -29,12 +29,12 @@ load(
     _xls_ir_opt_ir = "xls_ir_opt_ir",
 )
 load(
-    "//xls/build_rules:xls_jit_wrapper_rules.bzl",
+    "//xls/build_rules:xls_ir_wrapper_rules.bzl",
     _BLOCK_WRAPPER_TYPE = "BLOCK_WRAPPER_TYPE",
     _FUNCTION_WRAPPER_TYPE = "FUNCTION_WRAPPER_TYPE",
     _PROC_WRAPPER_TYPE = "PROC_WRAPPER_TYPE",
-    _xls_ir_jit_wrapper = "xls_ir_jit_wrapper",
-    _xls_ir_jit_wrapper_macro = "xls_ir_jit_wrapper_macro",
+    _xls_ir_wrapper = "xls_ir_wrapper",
+    _xls_ir_wrapper_macro = "xls_ir_wrapper_macro",
 )
 load(
     "//xls/build_rules:xls_rules.bzl",
@@ -47,8 +47,8 @@ xls_dslx_opt_ir = _xls_dslx_opt_ir
 xls_dslx_verilog = _xls_dslx_verilog
 xls_ir_opt_ir = _xls_ir_opt_ir
 xls_ir_verilog = _xls_ir_verilog
-xls_ir_jit_wrapper = _xls_ir_jit_wrapper
-xls_ir_jit_wrapper_macro = _xls_ir_jit_wrapper_macro
+xls_ir_wrapper = _xls_ir_wrapper
+xls_ir_wrapper_macro = _xls_ir_wrapper_macro
 FUNCTION_WRAPPER_TYPE = _FUNCTION_WRAPPER_TYPE
 PROC_WRAPPER_TYPE = _PROC_WRAPPER_TYPE
 BLOCK_WRAPPER_TYPE = _BLOCK_WRAPPER_TYPE

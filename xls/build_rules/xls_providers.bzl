@@ -290,9 +290,9 @@ CodegenInfo = provider(
     fields = _CODEGEN_FIELDS,
 )
 
-JitWrapperInfo = provider(
-    doc = "A provider containing JIT Wrapper file information for the " +
-          "target. It is created and returned by the xls_ir_jit_wrapper rule.",
+IrWrapperInfo = provider(
+    doc = "A provider containing IR Wrapper file information for the " +
+          "target. It is created and returned by the xls_ir_wrapper rule.",
     fields = {
         "header_file": "File: The header file.",
         "source_file": "File: The source file.",

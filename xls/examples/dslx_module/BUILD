@@ -17,7 +17,7 @@
 load(
     "//xls/build_rules:xls_build_defs.bzl",
     "PROC_WRAPPER_TYPE",
-    "cc_xls_ir_jit_wrapper",
+    "cc_xls_ir_wrapper",
     "xls_dslx_ir",
     "xls_dslx_library",
     "xls_dslx_opt_ir",
@@ -77,7 +77,7 @@ xls_dslx_ir(
     library = ":some_caps_streaming_configured",
 )
 
-cc_xls_ir_jit_wrapper(
+cc_xls_ir_wrapper(
     name = "some_caps_jit_wrapper",
     src = ":some_caps_streaming_configured.ir",
     jit_wrapper_args = {
@@ -182,7 +182,7 @@ xls_ir_verilog(
     visibility = ["//xls:xls_internal"],
 )
 
-cc_xls_ir_jit_wrapper(
+cc_xls_ir_wrapper(
     name = "some_caps_opt_jit_wrapper",
     src = ":manual_chan_caps_streaming_configured_opt_ir",
     jit_wrapper_args = {

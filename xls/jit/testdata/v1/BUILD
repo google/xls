@@ -14,7 +14,7 @@
 
 load(
     "//xls/build_rules:xls_build_defs.bzl",
-    "cc_xls_ir_jit_wrapper",
+    "cc_xls_ir_wrapper",
     "xls_dslx_ir",
 )
 
@@ -38,7 +38,7 @@ xls_dslx_ir(
     ir_conv_args = {"lower_to_proc_scoped_channels": "true"},
 )
 
-cc_xls_ir_jit_wrapper(
+cc_xls_ir_wrapper(
     name = "test_jit_wrapper",
     src = ":test_ir",
     jit_wrapper_args = {
@@ -47,7 +47,7 @@ cc_xls_ir_jit_wrapper(
     },
 )
 
-cc_xls_ir_jit_wrapper(
+cc_xls_ir_wrapper(
     name = "multi_proc_jit_wrapper",
     src = ":multi_proc_ir",
     jit_wrapper_args = {

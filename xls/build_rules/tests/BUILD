@@ -17,6 +17,7 @@ load("@rules_shell//shell:sh_test.bzl", "sh_test")
 load(
     "//xls/build_rules:xls_build_defs.bzl",
     "cc_xls_ir_jit_wrapper",
+    "cc_xls_ir_wrapper",
     "check_sha256sum_frozen",
     "check_sha256sum_test",
     "get_mangled_ir_symbol",
@@ -39,13 +40,13 @@ load("//xls/build_rules:xls_internal_aot_rules.bzl", "xls_aot_generate")
 load(
     "//xls/build_rules:xls_rules_build_defs.bzl",
     "FUNCTION_WRAPPER_TYPE",
-    "xls_ir_jit_wrapper_macro",
+    "xls_ir_wrapper_macro",
     xls_dslx_ir_native_rule = "xls_dslx_ir",
     xls_dslx_opt_ir_native_rule = "xls_dslx_opt_ir",
     xls_dslx_verilog_native_rule = "xls_dslx_verilog",
-    xls_ir_jit_wrapper_native_rule = "xls_ir_jit_wrapper",
     xls_ir_opt_ir_native_rule = "xls_ir_opt_ir",
     xls_ir_verilog_native_rule = "xls_ir_verilog",
+    xls_ir_wrapper_native_rule = "xls_ir_wrapper",
 )
 load(
     "//xls/build_rules/tests:test_build_defs.bzl",
@@ -491,8 +492,17 @@ xls_benchmark_ir(
 #            (output from chaining_example_triple_skip_passes_opt_ir target)
 ################################################################################
 
-cc_xls_ir_jit_wrapper(
+cc_xls_ir_wrapper(
     name = "chaining_example_opt_ir_jit_wrapper_main_cc",
+    src = ":chaining_example_opt_ir",
+    jit_wrapper_args = {
+        "namespace": "not_xls::test",
+    },
+)
+
+# Test target to verify backwards compatibility of deprecated cc_xls_ir_jit_wrapper macro.
+cc_xls_ir_jit_wrapper(
+    name = "chaining_example_opt_ir_deprecated_jit_wrapper_cc",
     src = ":chaining_example_opt_ir",
     jit_wrapper_args = {
         "namespace": "not_xls::test",
@@ -506,7 +516,7 @@ xls_ir_opt_ir(
     top = get_mangled_ir_symbol("chaining_example", "double"),
 )
 
-cc_xls_ir_jit_wrapper(
+cc_xls_ir_wrapper(
     name = "chaining_example_opt_ir_jit_wrapper_double_cc",
     src = ":chaining_example_double_opt_ir",
     jit_wrapper_args = {
@@ -603,7 +613,7 @@ xls_aot_generate(
 # The xls_ir_jit_wrapper rule using an optimized IR file as input.
 # The header and source files are outputs of the rule, they can be referenced
 # by other rules.
-xls_ir_jit_wrapper_macro(
+xls_ir_wrapper_macro(
     name = "simple_example_5_one_stage_jit_wrapper",
     src = ":simple_example_5_one_stage.opt.ir",
     aot_info = ":simple_example_5_one_stage_jit_wrapper_aot_gen",
@@ -630,7 +640,7 @@ xls_ir_jit_wrapper_macro(
 #         ]
 #     )
 #
-cc_xls_ir_jit_wrapper(
+cc_xls_ir_wrapper(
     name = "simple_example_5_one_stage_jit_wrapper_cc",
     src = ":simple_example_5_one_stage.opt.ir",
     jit_wrapper_args = {
@@ -716,7 +726,7 @@ xls_dslx_verilog_native_rule(
 )
 
 # The target is the native rule form of the 'simple_example_5_one_stage_jit_wrapper' target.
-xls_ir_jit_wrapper_native_rule(
+xls_ir_wrapper_native_rule(
     name = "simple_example_5_one_stage_jit_wrapper_native_rule",
     src = ":simple_example_5_one_stage.opt.ir",
     aot_info = ":simple_example_5_one_stage_jit_wrapper_aot_gen",
@@ -824,7 +834,7 @@ xls_aot_generate(
     with_msan = False,
 )
 
-xls_ir_jit_wrapper_macro(
+xls_ir_wrapper_macro(
     name = "user_defined_output_filename_jit_wrapper",
     src = ":xls_ir_opt_ir.opt.ir",
     aot_info = ":user_defined_output_filename_jit_wrapper_aot_gen",
@@ -837,7 +847,7 @@ xls_ir_jit_wrapper_macro(
     wrapper_type = FUNCTION_WRAPPER_TYPE,
 )
 
-xls_ir_jit_wrapper_native_rule(
+xls_ir_wrapper_native_rule(
     name = "user_defined_output_filename_native_rule_jit_wrapper",
     src = ":xls_ir_opt_ir.opt.ir",
     aot_info = ":user_defined_output_filename_jit_wrapper_aot_gen",

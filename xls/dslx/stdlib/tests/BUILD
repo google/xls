@@ -19,7 +19,7 @@ load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_cc//cc:cc_test.bzl", "cc_test")
 load(
     "//xls/build_rules:xls_build_defs.bzl",
-    "cc_xls_ir_jit_wrapper",
+    "cc_xls_ir_wrapper",
     "xls_dslx_opt_ir",
     "xls_dslx_test",
 )
@@ -41,7 +41,7 @@ xls_dslx_opt_ir(
     ir_conv_args = {"lower_to_proc_scoped_channels": "true"},
 )
 
-cc_xls_ir_jit_wrapper(
+cc_xls_ir_wrapper(
     name = "umul_with_overflow_21_21_18_jit_wrapper",
     src = ":umul_with_overflow_21_21_18",
     jit_wrapper_args = {
@@ -58,7 +58,7 @@ xls_dslx_opt_ir(
     ir_conv_args = {"lower_to_proc_scoped_channels": "true"},
 )
 
-cc_xls_ir_jit_wrapper(
+cc_xls_ir_wrapper(
     name = "umul_with_overflow_35_32_18_jit_wrapper",
     src = ":umul_with_overflow_35_32_18",
     jit_wrapper_args = {
@@ -191,7 +191,7 @@ xls_dslx_opt_ir(
     opt_ir_file = "float32_downcast.opt.ir",
 )
 
-cc_xls_ir_jit_wrapper(
+cc_xls_ir_wrapper(
     name = "float32_downcast_jit_wrapper",
     src = ":float32_downcast",
     jit_wrapper_args = {
@@ -227,7 +227,7 @@ xls_dslx_opt_ir(
     opt_ir_file = "float32_upcast.opt.ir",
 )
 
-cc_xls_ir_jit_wrapper(
+cc_xls_ir_wrapper(
     name = "float32_upcast_jit_wrapper",
     src = ":float32_upcast",
     jit_wrapper_args = {
@@ -525,7 +525,7 @@ BFLOAT16_CMP_TOPS = [
             dslx_top = top,
             ir_conv_args = {"lower_to_proc_scoped_channels": "true"},
         ),
-        cc_xls_ir_jit_wrapper(
+        cc_xls_ir_wrapper(
             name = "bfloat16_" + top + "_jit_wrapper",
             src = ":bfloat16_" + top,
             jit_wrapper_args = {
@@ -561,7 +561,7 @@ xls_dslx_opt_ir(
     ir_conv_args = {"lower_to_proc_scoped_channels": "true"},
 )
 
-cc_xls_ir_jit_wrapper(
+cc_xls_ir_wrapper(
     name = "bfloat16_full_precision_mul_jit_wrapper",
     src = ":bfloat16_full_precision_mul",
     jit_wrapper_args = {

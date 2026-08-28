@@ -14,7 +14,7 @@
 
 load(
     "//xls/build_rules:xls_build_defs.bzl",
-    "cc_xls_ir_jit_wrapper",
+    "cc_xls_ir_wrapper",
     "get_mangled_ir_symbol",
     "xls_benchmark_ir",
     "xls_dslx_fmt_test",
@@ -249,7 +249,7 @@ xls_dslx_opt_ir(
     opt_ir_file = "bfloat16_mul.opt.ir",
 )
 
-cc_xls_ir_jit_wrapper(
+cc_xls_ir_wrapper(
     name = "bfloat16_mul_jit_wrapper",
     src = ":bfloat16_mul",
     jit_wrapper_args = {
@@ -332,7 +332,7 @@ xls_benchmark_ir(
     src = ":float32_add.ir",
 )
 
-cc_xls_ir_jit_wrapper(
+cc_xls_ir_wrapper(
     name = "float32_add_jit_wrapper",
     src = ":float32_add",
     jit_wrapper_args = {
@@ -389,7 +389,7 @@ xls_benchmark_ir(
     src = ":float32_mul.ir",
 )
 
-cc_xls_ir_jit_wrapper(
+cc_xls_ir_wrapper(
     name = "float32_mul_jit_wrapper",
     src = ":float32_mul",
     jit_wrapper_args = {
@@ -408,7 +408,7 @@ xls_dslx_opt_ir(
     ],
 )
 
-cc_xls_ir_jit_wrapper(
+cc_xls_ir_wrapper(
     name = "float32_to_int32_wrapper",
     src = ":float32_to_int32",
     jit_wrapper_args = {
@@ -428,7 +428,7 @@ xls_dslx_opt_ir(
     ],
 )
 
-cc_xls_ir_jit_wrapper(
+cc_xls_ir_wrapper(
     name = "float32_from_int32_wrapper",
     src = ":float32_from_int32",
     jit_wrapper_args = {
@@ -464,7 +464,7 @@ xls_benchmark_ir(
     src = ":float32_fma.ir",
 )
 
-cc_xls_ir_jit_wrapper(
+cc_xls_ir_wrapper(
     name = "float32_fma_jit_wrapper",
     src = ":float32_fma",
     jit_wrapper_args = {
@@ -482,7 +482,7 @@ xls_dslx_opt_ir(
     opt_ir_file = "float32_ldexp.opt.ir",
 )
 
-cc_xls_ir_jit_wrapper(
+cc_xls_ir_wrapper(
     name = "float32_ldexp_jit_wrapper",
     src = ":float32_ldexp",
     jit_wrapper_args = {
@@ -511,7 +511,7 @@ xls_benchmark_ir(
     src = ":float32_fast_rsqrt.ir",
 )
 
-cc_xls_ir_jit_wrapper(
+cc_xls_ir_wrapper(
     name = "float32_fast_rsqrt_jit_wrapper",
     src = ":float32_fast_rsqrt",
     jit_wrapper_args = {
@@ -557,7 +557,7 @@ xls_benchmark_ir(
     src = ":float64_add.ir",
 )
 
-cc_xls_ir_jit_wrapper(
+cc_xls_ir_wrapper(
     name = "float64_add_jit_wrapper",
     src = ":float64_add",
     jit_wrapper_args = {
@@ -607,7 +607,7 @@ xls_benchmark_ir(
     src = ":float64_mul.ir",
 )
 
-cc_xls_ir_jit_wrapper(
+cc_xls_ir_wrapper(
     name = "float64_mul_jit_wrapper",
     src = ":float64_mul",
     jit_wrapper_args = {
@@ -637,7 +637,7 @@ xls_benchmark_ir(
     src = ":float64_fma.ir",
 )
 
-cc_xls_ir_jit_wrapper(
+cc_xls_ir_wrapper(
     name = "float64_fma_jit_wrapper",
     src = ":float64_fma",
     jit_wrapper_args = {
@@ -655,7 +655,7 @@ xls_dslx_opt_ir(
     opt_ir_file = "float32_ceil.opt.ir",
 )
 
-cc_xls_ir_jit_wrapper(
+cc_xls_ir_wrapper(
     name = "float32_ceil_jit_wrapper",
     src = ":float32_ceil.opt.ir",
     jit_wrapper_args = {
@@ -673,7 +673,7 @@ xls_dslx_opt_ir(
     opt_ir_file = "float32_floor.opt.ir",
 )
 
-cc_xls_ir_jit_wrapper(
+cc_xls_ir_wrapper(
     name = "float32_floor_jit_wrapper",
     src = ":float32_floor.opt.ir",
     jit_wrapper_args = {
@@ -691,7 +691,7 @@ xls_dslx_opt_ir(
     opt_ir_file = "float32_trunc.opt.ir",
 )
 
-cc_xls_ir_jit_wrapper(
+cc_xls_ir_wrapper(
     name = "float32_trunc_jit_wrapper",
     src = ":float32_trunc.opt.ir",
     jit_wrapper_args = {

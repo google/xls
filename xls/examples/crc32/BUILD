@@ -15,7 +15,7 @@
 load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
 load(
     "//xls/build_rules:xls_build_defs.bzl",
-    "cc_xls_ir_jit_wrapper",
+    "cc_xls_ir_wrapper",
     "xls_benchmark_ir",
     "xls_dslx_fmt_test",
     "xls_dslx_library",
@@ -70,7 +70,7 @@ xls_dslx_opt_ir_test(
     dep = ":crc32",
 )
 
-cc_xls_ir_jit_wrapper(
+cc_xls_ir_wrapper(
     name = "crc32_jit_wrapper",
     src = ":crc32",
     jit_wrapper_args = {

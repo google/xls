@@ -21,7 +21,7 @@ language-level test.
 
 load(
     "//xls/build_rules:xls_build_defs.bzl",
-    "cc_xls_ir_jit_wrapper",
+    "cc_xls_ir_wrapper",
     "xls_dslx_ir",
 )
 
@@ -59,7 +59,7 @@ def xls_dslx_ir_wrapper(name, library = ":test_target_library"):
         library = library,
     )
 
-    cc_xls_ir_jit_wrapper(
+    cc_xls_ir_wrapper(
         name = "%s_wrapper" % name,
         src = ":%s_ir.ir" % name,
         jit_wrapper_args = {

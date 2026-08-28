@@ -402,9 +402,32 @@ currently produced should be considered INCOMPLETE.
 <pre>
 load("//xls/build_rules:xls_build_defs.bzl", "cc_xls_ir_jit_wrapper")
 
-cc_xls_ir_jit_wrapper(<a href="#cc_xls_ir_jit_wrapper-name">name</a>, <a href="#cc_xls_ir_jit_wrapper-src">src</a>, <a href="#cc_xls_ir_jit_wrapper-jit_wrapper_args">jit_wrapper_args</a>, <a href="#cc_xls_ir_jit_wrapper-wrapper_type">wrapper_type</a>, <a href="#cc_xls_ir_jit_wrapper-top">top</a>, <a href="#cc_xls_ir_jit_wrapper-llvm_opt_level">llvm_opt_level</a>,
-                      <a href="#cc_xls_ir_jit_wrapper-exec_properties">exec_properties</a>, <a href="#cc_xls_ir_jit_wrapper-tags">tags</a>, <a href="#cc_xls_ir_jit_wrapper-aot_tags">aot_tags</a>, <a href="#cc_xls_ir_jit_wrapper-jobs">jobs</a>, <a href="#cc_xls_ir_jit_wrapper-alwayslink">alwayslink</a>, <a href="#cc_xls_ir_jit_wrapper-enable_llvm_coverage">enable_llvm_coverage</a>,
-                      <a href="#cc_xls_ir_jit_wrapper-kwargs">**kwargs</a>)
+cc_xls_ir_jit_wrapper(<a href="#cc_xls_ir_jit_wrapper-kwargs">**kwargs</a>)
+</pre>
+
+A backwards-compatible macro for `cc_xls_ir_wrapper`.
+
+**PARAMETERS**
+
+
+| Name  | Description | Default Value |
+| :------------- | :------------- | :------------- |
+| <a id="cc_xls_ir_jit_wrapper-kwargs"></a>kwargs |  Keyword arguments forwarded to `cc_xls_ir_wrapper`.   |  none |
+
+**DEPRECATED**
+
+Use `cc_xls_ir_wrapper` instead.
+
+
+<a id="cc_xls_ir_wrapper"></a>
+
+## cc_xls_ir_wrapper
+
+<pre>
+load("//xls/build_rules:xls_build_defs.bzl", "cc_xls_ir_wrapper")
+
+cc_xls_ir_wrapper(<a href="#cc_xls_ir_wrapper-name">name</a>, <a href="#cc_xls_ir_wrapper-src">src</a>, <a href="#cc_xls_ir_wrapper-jit_wrapper_args">jit_wrapper_args</a>, <a href="#cc_xls_ir_wrapper-wrapper_type">wrapper_type</a>, <a href="#cc_xls_ir_wrapper-top">top</a>, <a href="#cc_xls_ir_wrapper-llvm_opt_level">llvm_opt_level</a>, <a href="#cc_xls_ir_wrapper-exec_properties">exec_properties</a>,
+                  <a href="#cc_xls_ir_wrapper-tags">tags</a>, <a href="#cc_xls_ir_wrapper-aot_tags">aot_tags</a>, <a href="#cc_xls_ir_wrapper-jobs">jobs</a>, <a href="#cc_xls_ir_wrapper-alwayslink">alwayslink</a>, <a href="#cc_xls_ir_wrapper-enable_llvm_coverage">enable_llvm_coverage</a>, <a href="#cc_xls_ir_wrapper-deprecation">deprecation</a>, <a href="#cc_xls_ir_wrapper-kwargs">**kwargs</a>)
 </pre>
 
 Invokes the JIT wrapper generator and compiles the result as a cc_library.
@@ -419,19 +442,20 @@ identical to this macro.
 
 | Name  | Description | Default Value |
 | :------------- | :------------- | :------------- |
-| <a id="cc_xls_ir_jit_wrapper-name"></a>name |  The name of the cc_library target.   |  none |
-| <a id="cc_xls_ir_jit_wrapper-src"></a>src |  The path to the IR file.   |  none |
-| <a id="cc_xls_ir_jit_wrapper-jit_wrapper_args"></a>jit_wrapper_args |  Arguments of the JIT wrapper tool. Note: argument 'output_name' cannot be defined.   |  `{}` |
-| <a id="cc_xls_ir_jit_wrapper-wrapper_type"></a>wrapper_type |  The type of XLS construct to wrap. Must be one of 'BLOCK', 'FUNCTION', or 'PROC'. You should use the exported FUNCTION_WRAPPER_TYPE, BLOCK_WRAPPER_TYPE, or PROC_WRAPPER_TYPE symbols. Defaults to FUNCTION_WRAPPER_TYPE for compatibility.   |  `"FUNCTION"` |
-| <a id="cc_xls_ir_jit_wrapper-top"></a>top |  Name of the top function/proc/block.   |  `""` |
-| <a id="cc_xls_ir_jit_wrapper-llvm_opt_level"></a>llvm_opt_level |  what opt level to configure aot compiled code to use.   |  `3` |
-| <a id="cc_xls_ir_jit_wrapper-exec_properties"></a>exec_properties |  normal exec-properties to pass to actions.   |  `{}` |
-| <a id="cc_xls_ir_jit_wrapper-tags"></a>tags |  normal tags to pass to actions.   |  `[]` |
-| <a id="cc_xls_ir_jit_wrapper-aot_tags"></a>aot_tags |  Tags to apply to the AOT compiler only.   |  `[]` |
-| <a id="cc_xls_ir_jit_wrapper-jobs"></a>jobs |  Number of jobs to use for AOT compilation.   |  `1` |
-| <a id="cc_xls_ir_jit_wrapper-alwayslink"></a>alwayslink |  Whether to always link the generated library.   |  `False` |
-| <a id="cc_xls_ir_jit_wrapper-enable_llvm_coverage"></a>enable_llvm_coverage |  Whether to enable LLVM coverage for the AOT compiled code.   |  `False` |
-| <a id="cc_xls_ir_jit_wrapper-kwargs"></a>kwargs |  Keyword arguments. Named arguments.   |  none |
+| <a id="cc_xls_ir_wrapper-name"></a>name |  The name of the cc_library target.   |  none |
+| <a id="cc_xls_ir_wrapper-src"></a>src |  The path to the IR file.   |  none |
+| <a id="cc_xls_ir_wrapper-jit_wrapper_args"></a>jit_wrapper_args |  Arguments of the JIT wrapper tool. Note: argument 'output_name' cannot be defined.   |  `{}` |
+| <a id="cc_xls_ir_wrapper-wrapper_type"></a>wrapper_type |  The type of XLS construct to wrap. Must be one of 'BLOCK', 'FUNCTION', or 'PROC'. You should use the exported FUNCTION_WRAPPER_TYPE, BLOCK_WRAPPER_TYPE, or PROC_WRAPPER_TYPE symbols. Defaults to FUNCTION_WRAPPER_TYPE for compatibility.   |  `"FUNCTION"` |
+| <a id="cc_xls_ir_wrapper-top"></a>top |  Name of the top function/proc/block.   |  `""` |
+| <a id="cc_xls_ir_wrapper-llvm_opt_level"></a>llvm_opt_level |  what opt level to configure aot compiled code to use.   |  `3` |
+| <a id="cc_xls_ir_wrapper-exec_properties"></a>exec_properties |  normal exec-properties to pass to actions.   |  `{}` |
+| <a id="cc_xls_ir_wrapper-tags"></a>tags |  normal tags to pass to actions.   |  `[]` |
+| <a id="cc_xls_ir_wrapper-aot_tags"></a>aot_tags |  Tags to apply to the AOT compiler only.   |  `[]` |
+| <a id="cc_xls_ir_wrapper-jobs"></a>jobs |  Number of jobs to use for AOT compilation.   |  `1` |
+| <a id="cc_xls_ir_wrapper-alwayslink"></a>alwayslink |  Whether to always link the generated library.   |  `False` |
+| <a id="cc_xls_ir_wrapper-enable_llvm_coverage"></a>enable_llvm_coverage |  Whether to enable LLVM coverage for the AOT compiled code.   |  `False` |
+| <a id="cc_xls_ir_wrapper-deprecation"></a>deprecation |  Deprecation message to add to the target.   |  `None` |
+| <a id="cc_xls_ir_wrapper-kwargs"></a>kwargs |  Keyword arguments. Named arguments.   |  none |
 
 
 <a id="check_sha256sum_frozen"></a>
@@ -497,7 +521,7 @@ A macro that instantiates a DSLX fuzz test.
 
 The macro instantiates:
 1. An xls_dslx_ir target to generate non-optimized IR.
-2. A cc_xls_ir_jit_wrapper target to generate C++ fuzz test wrapper code.
+2. A cc_xls_ir_wrapper target to generate C++ fuzz test wrapper code.
 3. A cc_test target to run the fuzz test.
 
 

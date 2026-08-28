@@ -35,7 +35,7 @@ The steps are:
 1.  Call the "Run" API with XLS-understood values.
 
 The
-[`cc_xls_ir_jit_wrapper` rule](https://google.github.io/xls/bazel_rules_macros/#cc_xls_ir_jit_wrapper)
+[`cc_xls_ir_wrapper` rule](https://google.github.io/xls/bazel_rules_macros/#cc_xls_ir_wrapper)
 in the Bazel rule set invokes a tool (the
 [JIT wrapper generator](https://github.com/google/xls/tree/main/xls/jit/jit_wrapper_generator_main.py))
 that makes a shim that provides an API for running the wrapped code. Despite the

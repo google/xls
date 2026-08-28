@@ -8,10 +8,9 @@ XLS provides a JIT and AOT compiler for evaluating functions written in the
 Given a DSLX file and build target, one can build and run it through the JIT by:
 
 1.  Declaring a
-    [`cc_xls_ir_jit_wrapper`](https://github.com/google/xls/tree/main/xls/build_rules/xls_build_defs.bzl)
+    [`cc_xls_ir_wrapper`](https://github.com/google/xls/tree/main/xls/build_rules/xls_build_defs.bzl)
     target matching the DSLX build target. Note this actually compiles the IR
-    ahead-of-time (AOT) so there is minimal start-up time. The 'jit' name is
-    historical and may be changed in the future.
+    ahead-of-time (AOT) so there is minimal start-up time.
 
 1.  Creating a JIT object and calling its `Run()` method. Using the 2-way
     floating-point adder as an example:

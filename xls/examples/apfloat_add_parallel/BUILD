@@ -15,7 +15,7 @@
 load("@rules_cc//cc:cc_test.bzl", "cc_test")
 load(
     "//xls/build_rules:xls_build_defs.bzl",
-    "cc_xls_ir_jit_wrapper",
+    "cc_xls_ir_wrapper",
     "xls_dslx_library",
     "xls_dslx_opt_ir",
     "xls_dslx_test",
@@ -52,7 +52,7 @@ xls_dslx_opt_ir(
     opt_ir_file = "apfloat_add_parallel.opt.ir",
 )
 
-cc_xls_ir_jit_wrapper(
+cc_xls_ir_wrapper(
     name = "apfloat_add_parallel_jit_wrapper",
     src = ":apfloat_add_parallel_opt_ir",
     jit_wrapper_args = {

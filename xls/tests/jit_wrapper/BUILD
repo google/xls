@@ -17,7 +17,7 @@
 load("@rules_cc//cc:cc_test.bzl", "cc_test")
 load(
     "//xls/build_rules:xls_build_defs.bzl",
-    "cc_xls_ir_jit_wrapper",
+    "cc_xls_ir_wrapper",
     "xls_dslx_opt_ir",
     "xls_dslx_test",
 )
@@ -45,7 +45,7 @@ xls_dslx_opt_ir(
     ir_conv_args = {"lower_to_proc_scoped_channels": "true"},
 )
 
-cc_xls_ir_jit_wrapper(
+cc_xls_ir_wrapper(
     name = "identity",
     src = ":simple_identity",
     jit_wrapper_args = {
@@ -62,7 +62,7 @@ xls_dslx_opt_ir(
     ir_conv_args = {"lower_to_proc_scoped_channels": "true"},
 )
 
-cc_xls_ir_jit_wrapper(
+cc_xls_ir_wrapper(
     name = "wide_identity",
     src = ":simple_wide_identity",
     jit_wrapper_args = {
@@ -79,7 +79,7 @@ xls_dslx_opt_ir(
     ir_conv_args = {"lower_to_proc_scoped_channels": "true"},
 )
 
-cc_xls_ir_jit_wrapper(
+cc_xls_ir_wrapper(
     name = "is_inf",
     src = ":simple_is_inf",
     jit_wrapper_args = {
@@ -96,7 +96,7 @@ xls_dslx_opt_ir(
     ir_conv_args = {"lower_to_proc_scoped_channels": "true"},
 )
 
-cc_xls_ir_jit_wrapper(
+cc_xls_ir_wrapper(
     name = "fail_on_42",
     src = ":simple_fail_on_42",
     jit_wrapper_args = {
@@ -113,7 +113,7 @@ xls_dslx_opt_ir(
     ir_conv_args = {"lower_to_proc_scoped_channels": "true"},
 )
 
-cc_xls_ir_jit_wrapper(
+cc_xls_ir_wrapper(
     name = "make_tuple",
     src = ":simple_make_tuple",
     jit_wrapper_args = {

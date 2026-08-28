@@ -20,10 +20,10 @@ load(
     xls_dslx_ir = "xls_dslx_ir_macro",
 )
 load(
-    "//xls/build_rules:xls_jit_wrapper_rules.bzl",
+    "//xls/build_rules:xls_ir_wrapper_rules.bzl",
     "FUNCTION_WRAPPER_TYPE",
     "FUZZTEST_WRAPPER_TYPE",
-    "cc_xls_ir_jit_wrapper",
+    "cc_xls_ir_wrapper",
 )
 load(
     "//xls/build_rules:xls_macros.bzl",
@@ -41,7 +41,7 @@ def dslx_fuzz_test(
 
     The macro instantiates:
     1. An xls_dslx_ir target to generate non-optimized IR.
-    2. A cc_xls_ir_jit_wrapper target to generate C++ fuzz test wrapper code.
+    2. A cc_xls_ir_wrapper target to generate C++ fuzz test wrapper code.
     3. A cc_test target to run the fuzz test.
 
     Args:
@@ -71,7 +71,7 @@ def dslx_fuzz_test(
 
     lib_name = name + "_lib"
     lib_class_name = name + "_" + test_function + "_lib"
-    cc_xls_ir_jit_wrapper(
+    cc_xls_ir_wrapper(
         name = lib_name,
         src = ":" + ir_name,
         wrapper_type = FUNCTION_WRAPPER_TYPE,
@@ -86,7 +86,7 @@ def dslx_fuzz_test(
 
     fuzzer_name = name + "_fuzzer"
     lib_header_path = "%s/%s.h" % (native.package_name(), lib_name)
-    cc_xls_ir_jit_wrapper(
+    cc_xls_ir_wrapper(
         name = fuzzer_name,
         src = ":" + ir_name,
         wrapper_type = FUZZTEST_WRAPPER_TYPE,

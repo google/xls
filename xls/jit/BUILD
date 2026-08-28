@@ -25,7 +25,7 @@ load("@rules_cc//cc:cc_test.bzl", "cc_test")
 load("//xls/build_rules:py_oss_defs.bzl", "pytype_strict_binary", "pytype_strict_contrib_test", "pytype_strict_library")
 load(
     "//xls/build_rules:xls_build_defs.bzl",
-    "cc_xls_ir_jit_wrapper",
+    "cc_xls_ir_wrapper",
     "xls_dslx_ir",
     "xls_dslx_library",
     "xls_dslx_opt_ir",
@@ -1341,7 +1341,7 @@ xls_ir_verilog(
     verilog_file = "multi_func.sv",
 )
 
-cc_xls_ir_jit_wrapper(
+cc_xls_ir_wrapper(
     name = "multi_func_block_wrapper",
     src = ":multi_func.block.ir",
     jit_wrapper_args = {
@@ -1432,7 +1432,7 @@ xls_ir_verilog(
     verilog_file = "multi_func_with_trace.sv",
 )
 
-cc_xls_ir_jit_wrapper(
+cc_xls_ir_wrapper(
     name = "multi_func_with_trace_block_wrapper",
     src = ":multi_func_with_trace.block.ir",
     jit_wrapper_args = {
@@ -1443,7 +1443,7 @@ cc_xls_ir_jit_wrapper(
     wrapper_type = "BLOCK",
 )
 
-cc_xls_ir_jit_wrapper(
+cc_xls_ir_wrapper(
     name = "multi_function_with_trace_a",
     src = ":multi_function_with_trace",
     jit_wrapper_args = {
@@ -1454,7 +1454,7 @@ cc_xls_ir_jit_wrapper(
     top = "multi_function_one",
 )
 
-cc_xls_ir_jit_wrapper(
+cc_xls_ir_wrapper(
     name = "multi_function_with_trace_b",
     src = ":multi_function_with_trace",
     jit_wrapper_args = {
@@ -1498,7 +1498,7 @@ xls_ir_cc_library(
     top = "fun_test_function",
 )
 
-cc_xls_ir_jit_wrapper(
+cc_xls_ir_wrapper(
     name = "compound_type_jit_wrapper",
     src = ":compound_type.ir",
     jit_wrapper_args = {
@@ -1618,7 +1618,7 @@ bzl_library(
     deps = ["//xls/build_rules:xls_providers_bzl"],
 )
 
-cc_xls_ir_jit_wrapper(
+cc_xls_ir_wrapper(
     name = "parameterized_design_wrapper",
     src = "//xls/examples/parameterized:design.block.ir",
     jit_wrapper_args = {
@@ -1629,7 +1629,7 @@ cc_xls_ir_jit_wrapper(
     wrapper_type = "BLOCK",
 )
 
-cc_xls_ir_jit_wrapper(
+cc_xls_ir_wrapper(
     name = "parameterized_design_func_wrapper",
     src = "//xls/examples/parameterized:design_opt_ir.opt.ir",
     jit_wrapper_args = {

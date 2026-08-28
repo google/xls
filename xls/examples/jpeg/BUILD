@@ -20,7 +20,7 @@ load("@rules_hdl//synthesis:build_defs.bzl", "synthesize_rtl")
 load("@rules_hdl//verilog:providers.bzl", "verilog_library")
 load(
     "//xls/build_rules:xls_build_defs.bzl",
-    "cc_xls_ir_jit_wrapper",
+    "cc_xls_ir_wrapper",
     "xls_benchmark_ir",
     "xls_dslx_opt_ir",
     "xls_dslx_test",
@@ -180,7 +180,7 @@ xls_eval_ir_test(
     tags = ["optonly"],
 )
 
-cc_xls_ir_jit_wrapper(
+cc_xls_ir_wrapper(
     name = "idct_chen_jit_wrapper",
     src = ":idct_chen",
     jit_wrapper_args = {

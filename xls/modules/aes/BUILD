@@ -20,7 +20,7 @@ load("@rules_cc//cc:cc_test.bzl", "cc_test")
 load(
     "//xls/build_rules:xls_build_defs.bzl",
     "PROC_WRAPPER_TYPE",
-    "cc_xls_ir_jit_wrapper",
+    "cc_xls_ir_wrapper",
     "xls_benchmark_ir",
     "xls_dslx_ir",
     "xls_dslx_library",
@@ -73,7 +73,7 @@ xls_dslx_ir(
     library = ":aes_ctr_dslx",
 )
 
-cc_xls_ir_jit_wrapper(
+cc_xls_ir_wrapper(
     name = "aes_ctr_wrapper",
     src = ":aes_ctr.ir",
     jit_wrapper_args = {
@@ -171,7 +171,7 @@ xls_dslx_ir(
     library = ":aes_gcm_dslx",
 )
 
-cc_xls_ir_jit_wrapper(
+cc_xls_ir_wrapper(
     name = "aes_gcm_wrapper",
     src = ":aes_gcm.ir",
     jit_wrapper_args = {

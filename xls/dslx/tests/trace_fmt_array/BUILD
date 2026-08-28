@@ -15,7 +15,7 @@
 load("@rules_cc//cc:cc_test.bzl", "cc_test")
 load(
     "//xls/build_rules:xls_build_defs.bzl",
-    "cc_xls_ir_jit_wrapper",
+    "cc_xls_ir_wrapper",
     "xls_dslx_ir",
     "xls_dslx_library",
 )
@@ -37,7 +37,7 @@ xls_dslx_ir(
     library = ":test_target_library",
 )
 
-cc_xls_ir_jit_wrapper(
+cc_xls_ir_wrapper(
     name = "test_target_wrapper",
     src = ":test_target.ir",
     jit_wrapper_args = {

@@ -4,7 +4,7 @@ load("@rules_cc//cc:cc_test.bzl", "cc_test")
 load("@rules_license//rules:license.bzl", "license")
 load(
     "//xls/build_rules:xls_build_defs.bzl",
-    "cc_xls_ir_jit_wrapper",
+    "cc_xls_ir_wrapper",
     "xls_benchmark_ir",
     "xls_dslx_library",
     "xls_dslx_opt_ir",
@@ -61,7 +61,7 @@ xls_benchmark_ir(
     synthesize = False,
 )
 
-cc_xls_ir_jit_wrapper(
+cc_xls_ir_wrapper(
     name = "fpexp_32_jit_wrapper",
     src = ":fpexp_32.opt.ir",
     jit_wrapper_args = {
@@ -134,7 +134,7 @@ xls_benchmark_ir(
     synthesize = False,
 )
 
-cc_xls_ir_jit_wrapper(
+cc_xls_ir_wrapper(
     name = "fp_sincos_32_jit_wrapper",
     src = ":fp_sincos_32.opt.ir",
     jit_wrapper_args = {
@@ -200,7 +200,7 @@ xls_benchmark_ir(
     synthesize = False,
 )
 
-cc_xls_ir_jit_wrapper(
+cc_xls_ir_wrapper(
     name = "fp_trig_reduce_jit_wrapper",
     src = ":fp_trig_reduce.opt.ir",
     jit_wrapper_args = {
@@ -263,7 +263,7 @@ xls_benchmark_ir(
     src = ":fpsqrt_32.ir",
 )
 
-cc_xls_ir_jit_wrapper(
+cc_xls_ir_wrapper(
     name = "fpsqrt_32_jit_wrapper",
     src = ":fpsqrt_32.opt.ir",
     jit_wrapper_args = {

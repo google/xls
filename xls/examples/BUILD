@@ -23,7 +23,7 @@ load("@rules_hdl//synthesis:build_defs.bzl", "benchmark_synth", "synthesize_rtl"
 load("@rules_hdl//verilog:providers.bzl", "verilog_library")
 load(
     "//xls/build_rules:xls_build_defs.bzl",
-    "cc_xls_ir_jit_wrapper",
+    "cc_xls_ir_wrapper",
     "xls_benchmark_ir",
     "xls_dslx_fmt_test",
     "xls_dslx_ir",
@@ -145,7 +145,7 @@ xls_dslx_test(
     },
 )
 
-cc_xls_ir_jit_wrapper(
+cc_xls_ir_wrapper(
     name = "configured_value_or_jit_wrapper",
     src = ":configured_value_or",
     jit_wrapper_args = {
@@ -448,7 +448,7 @@ xls_benchmark_ir(
     tags = ["optonly"],
 )
 
-cc_xls_ir_jit_wrapper(
+cc_xls_ir_wrapper(
     name = "sha256_jit_wrapper",
     src = ":sha256",
     jit_wrapper_args = {

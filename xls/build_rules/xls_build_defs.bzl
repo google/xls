@@ -58,11 +58,12 @@ load(
     _xls_ir_equivalence_test = "xls_ir_equivalence_test",
 )
 load(
-    "//xls/build_rules:xls_jit_wrapper_rules.bzl",
+    "//xls/build_rules:xls_ir_wrapper_rules.bzl",
     _BLOCK_WRAPPER_TYPE = "BLOCK_WRAPPER_TYPE",
     _FUNCTION_WRAPPER_TYPE = "FUNCTION_WRAPPER_TYPE",
     _PROC_WRAPPER_TYPE = "PROC_WRAPPER_TYPE",
     _cc_xls_ir_jit_wrapper = "cc_xls_ir_jit_wrapper",
+    _cc_xls_ir_wrapper = "cc_xls_ir_wrapper",
 )
 load(
     "//xls/build_rules:xls_macros.bzl",
@@ -102,6 +103,7 @@ xls_eval_ir_test = _xls_eval_ir_test
 xls_dslx_opt_ir_test = _xls_dslx_opt_ir_test
 
 # XLS Macros
+cc_xls_ir_wrapper = _cc_xls_ir_wrapper
 cc_xls_ir_jit_wrapper = _cc_xls_ir_jit_wrapper
 PROC_WRAPPER_TYPE = _PROC_WRAPPER_TYPE
 FUNCTION_WRAPPER_TYPE = _FUNCTION_WRAPPER_TYPE

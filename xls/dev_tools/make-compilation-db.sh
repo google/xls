@@ -44,7 +44,7 @@ BAZEL_OPTS="-c opt --remote_download_outputs=all"
   //xls/dslx/stdlib/tests:bfloat16_{eq,gt,gte,lt,lte}_2_jit_wrapper.h \
   //xls/contrib/mlir:{math,arith}_to_xls \
   $("${BANT}" list-targets @or-tools//... -g "cc_proto_library" -c3) \
-  $("${BANT}" list-targets ... -g "cc_proto_library|genrule|xls_dslx_cpp_type_library|cc_xls_ir_jit_wrapper|xls_ir_cc_library|gentbl_cc_library|cc_grpc_library" -c3)
+  $("${BANT}" list-targets ... -g "cc_proto_library|genrule|xls_dslx_cpp_type_library|cc_xls_ir_wrapper|cc_xls_ir_jit_wrapper|xls_ir_cc_library|gentbl_cc_library|cc_grpc_library" -c3)
 
 # Create compilation DB. Command 'compilation-db' creates a huge *.json file,
 # but compile_flags.txt is perfectly sufficient and easier for tools to use.

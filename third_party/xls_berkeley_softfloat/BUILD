@@ -4,7 +4,7 @@ load("@rules_cc//cc:cc_test.bzl", "cc_test")
 load("@rules_license//rules:license.bzl", "license")
 load(
     "//xls/build_rules:xls_build_defs.bzl",
-    "cc_xls_ir_jit_wrapper",
+    "cc_xls_ir_wrapper",
     "xls_dslx_library",
     "xls_dslx_opt_ir",
     "xls_dslx_test",
@@ -47,7 +47,7 @@ xls_dslx_test(
     tags = ["optonly"],
 )
 
-cc_xls_ir_jit_wrapper(
+cc_xls_ir_wrapper(
     name = "fpdiv_2x32_jit_wrapper",
     src = ":fpdiv_2x32.opt.ir",
     jit_wrapper_args = {
