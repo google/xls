@@ -1242,6 +1242,8 @@ AnnotationType GetAnnotationType(
       return AnnotationType::kNone;
     case xls::verilog::CodegenOptions::SourceAnnotationStrategy::kComment:
       return AnnotationType::kComment;
+    case xls::verilog::CodegenOptions::SourceAnnotationStrategy::kSrcAttribute:
+      return AnnotationType::kSrcAttribute;
     case xls::verilog::CodegenOptions::SourceAnnotationStrategy::kLineDirective:
       if (file_type == FileType::kSystemVerilog) {
         return AnnotationType::kLineDirective;

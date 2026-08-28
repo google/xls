@@ -425,6 +425,10 @@ absl::StatusOr<verilog::CodegenOptions> CodegenOptionsFromProto(
         options.source_annotation_strategy(
             verilog::CodegenOptions::SourceAnnotationStrategy::kComment);
         break;
+      case ANNOTATION_STRATEGY_SRC_ATTRIBUTE:
+        options.source_annotation_strategy(
+            verilog::CodegenOptions::SourceAnnotationStrategy::kSrcAttribute);
+        break;
       case ANNOTATION_STRATEGY_DIRECTIVE:
         options.source_annotation_strategy(
             verilog::CodegenOptions::SourceAnnotationStrategy::kLineDirective);

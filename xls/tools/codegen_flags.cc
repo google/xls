@@ -216,7 +216,8 @@ ABSL_FLAG(std::string, block_metrics_path, "",
           "materials, for the generated Verilog file");
 ABSL_FLAG(std::string, source_annotation_strategy, "none",
           "What strategy to use annotating generated code with references "
-          "the DSLX source code. Options are 'none', 'comment', 'directive'");
+          "the DSLX source code. Options are 'none', 'comment', 'attribute', "
+          "and 'directive'");
 ABSL_FLAG(
     bool, preserve_ports, true,
     "True by default; specifies that XLS should use a consistent naming scheme "
@@ -300,6 +301,9 @@ SourceAnnotationStrategyFromString(std::string_view s) {
   }
   if (s == "comment") {
     return ANNOTATION_STRATEGY_COMMENT;
+  }
+  if (s == "attribute") {
+    return ANNOTATION_STRATEGY_SRC_ATTRIBUTE;
   }
   if (s == "directive") {
     return ANNOTATION_STRATEGY_DIRECTIVE;

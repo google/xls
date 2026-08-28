@@ -42,6 +42,13 @@ codegen can generate files useful for understanding or integrating the RTL.
 -   `--block_metrics_file` is the path to write a textproto containing the block
     metrics of the generated Verilog.
 
+# Output specification
+
+-   `--source_annotation_strategy=...` controls how source annotations are
+    generated. Options are `comment` (generate comments), `attribute` (generate
+    SystemVerilog `src` attributes), `directive` (generate SystemVerilog `line`
+    directives), or `none` (generate no annotations). Defaults to `none`.
+
 # Pipelining and Scheduling Options
 
 The following flags control how XLS maps IR operations to RTL, and if applicable

@@ -56,6 +56,7 @@ enum class FileType {
 enum class AnnotationType {
   kNone,
   kComment,
+  kSrcAttribute,
   kLineDirective,
 };
 
@@ -180,6 +181,8 @@ class VastNode {
 
   virtual std::string Emit(LineInfo* line_info) const = 0;
 
+  virtual bool CanAcceptAttributes() const { return true; }
+
  private:
   VerilogFile* file_;
   SourceInfo loc_;
@@ -206,6 +209,8 @@ class Statement : public VastNode {
 class DataType : public VastNode {
  public:
   DataType(VerilogFile* file, const SourceInfo& loc) : VastNode(file, loc) {}
+
+  bool CanAcceptAttributes() const override { return false; }
 
   // Returns whether this is a scalar signal type (for example, "wire foo").
   virtual bool IsScalar() const { return false; }
@@ -720,6 +725,8 @@ class StatementBlock final : public VastNode {
  public:
   using VastNode::VastNode;
 
+  bool CanAcceptAttributes() const override { return false; }
+
   // Constructs and adds a statement to the block. Ownership is maintained by
   // the parent VerilogFile. Example:
   //   Case* c = Add<Case>(subject);
@@ -763,6 +770,8 @@ using CaseLabel = std::variant<Expression*, DefaultSentinel>;
 class CaseArm final : public VastNode {
  public:
   CaseArm(CaseLabel label, VerilogFile* file, const SourceInfo& loc);
+
+  bool CanAcceptAttributes() const override { return false; }
 
   std::string Emit(LineInfo* line_info) const final;
   StatementBlock* statements() { return statements_; }
@@ -857,6 +866,8 @@ class StatementConditionalDirective final : public Statement {
                                 std::string identifier, VerilogFile* file,
                                 const SourceInfo& loc);
 
+  bool CanAcceptAttributes() const override { return false; }
+
   // Returns a pointer to the statement block of the consequent.
   MacroStatementBlock* consequent() const { return consequent_; }
 
@@ -926,6 +937,8 @@ class EventControl final : public Statement {
 class Expression : public VastNode {
  public:
   using VastNode::VastNode;
+
+  bool CanAcceptAttributes() const override { return false; }
 
   virtual bool IsLiteral() const { return false; }
 
@@ -1935,6 +1948,8 @@ class BlankLine final : public Statement {
   BlankLine(VerilogFile* file, const SourceInfo& loc) : Statement(file, loc) {}
   using Statement::Statement;
 
+  bool CanAcceptAttributes() const override { return false; }
+
   std::string Emit(LineInfo* line_info) const final { return ""; }
 };
 
@@ -2017,6 +2032,8 @@ class Comment final : public Statement {
  public:
   Comment(std::string_view text, VerilogFile* file, const SourceInfo& loc)
       : Statement(file, loc), text_(text) {}
+
+  bool CanAcceptAttributes() const override { return false; }
 
   std::string Emit(LineInfo* line_info) const final;
 
@@ -2333,6 +2350,8 @@ class ModuleSection final : public VastNode {
  public:
   using VastNode::VastNode;
 
+  bool CanAcceptAttributes() const override { return false; }
+
   // Constructs and adds a module member of type T to the section. Ownership is
   // maintained by the parent VerilogFile. Templatized on T in order to return a
   // pointer to the derived type.
@@ -2359,6 +2378,8 @@ class ModuleConditionalDirective final : public VastNode {
   ModuleConditionalDirective(ConditionalDirectiveKind kind,
                              std::string identifier, VerilogFile* file,
                              const SourceInfo& loc);
+
+  bool CanAcceptAttributes() const override { return false; }
 
   // Returns a pointer to the statement block of the consequent.
   ModuleSection* consequent() const { return consequent_; }
@@ -2544,6 +2565,8 @@ class VerilogPackageSection final : public VastNode {
  public:
   using VastNode::VastNode;
 
+  bool CanAcceptAttributes() const override { return false; }
+
   // Constructs and adds a package member of type T to the section. Ownership is
   // maintained by the parent VerilogFile. Templatized on T in order to return a
   // pointer to the derived type.  Most constructs should be added to the
@@ -2629,6 +2652,8 @@ class Include final : public VastNode {
  public:
   Include(std::string_view path, VerilogFile* file, const SourceInfo& loc)
       : VastNode(file, loc), path_(path) {}
+
+  bool CanAcceptAttributes() const override { return false; }
 
   std::string Emit(LineInfo* line_info) const final;
 

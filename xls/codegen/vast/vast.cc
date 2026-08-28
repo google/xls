@@ -76,6 +76,20 @@ std::string VastNode::PreEmit(LineInfo* line_info) {
       auto res = absl::StrJoin(loc().locations, " ", append_location);
       return absl::StrFormat("// %s", res);
     }
+    case AnnotationType::kSrcAttribute: {
+      if (!CanAcceptAttributes()) {
+        return {};
+      }
+      auto append_location = [&](std::string* out,
+                                 const SourceLocation& location) {
+        auto f = GetFilename(location.fileno(), file());
+        auto l = location.lineno().value();
+        auto c = location.colno().value();
+        absl::StrAppendFormat(out, "%s:%d.%d-%d.%d", f, l, c, l, c);
+      };
+      auto res = absl::StrJoin(loc().locations, "|", append_location);
+      return absl::StrFormat("(* src = \"%s\" *)", res);
+    }
     case AnnotationType::kLineDirective: {
       auto first_loc = loc().locations.begin();
       auto fileno = first_loc->fileno();

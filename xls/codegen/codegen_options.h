@@ -143,6 +143,8 @@ class CodegenOptions {
     kNone,
     // Generate comments with source information
     kComment,
+    // Generate src attributes `(* src = "..." *)` with source information
+    kSrcAttribute,
     // Generate SystemVerilog `line directives
     kLineDirective,
 

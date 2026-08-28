@@ -147,8 +147,8 @@ CODEGEN_FIELDS = {
                             "If empty, will use a default order. This can be useful for creating " +
                             "multiple equivalent Verilog outputs to exercise a synthesis pipeline.",
     "source_annotation_strategy": "The strategy to use for generating source annotations. Use 'comment'" +
-                                  "to generate comments, 'directive' to generate SystemVerilog `line directives, " +
-                                  "or 'none'",
+                                  "to generate comments, 'attribute' to generate src attributes, " +
+                                  "'directive' to generate SystemVerilog `line directives, or 'none'",
     "find_bounds_strategy": "Scheduler algorithm to use for finding minimum bounds.",
     "preserve_ports": "If true, use a consistent naming scheme for boundary ports. If false, may " +
                       "vary port names and/or reuse ports at the boundary, and users are " +
