@@ -561,6 +561,15 @@ class AstGenerator {
   absl::StatusOr<TypedExpr> GenerateExprOfType(Context* ctx,
                                                TypeAnnotation* type);
 
+  // Generates a constexpr boolean expression (literal, constant ref, or
+  // constant comparison) suitable for the condition of a `const if`.
+  Expr* GenerateConstexprBool();
+
+  // Generates a `const if` conditional expression.
+  // If `type` is null, generates a type annotation. If `type` is non-null,
+  // generates an expression of that type.
+  absl::StatusOr<TypedExpr> GenerateConstIf(Context* ctx, TypeAnnotation* type);
+
   // Generates a match-arm PatternTree with type 'type'.
   absl::StatusOr<PatternTree> GenerateMatchArmPattern(
       Context* ctx, const TypeAnnotation* type);
