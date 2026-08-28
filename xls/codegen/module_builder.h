@@ -180,14 +180,14 @@ class ModuleBuilder {
   //
   // Declared registers must be passed to a subsequent AssignRegisters call for
   // assignment within an always block.
-  absl::StatusOr<Register> DeclareRegister(std::string_view name, Type* type,
-                                           Expression* next,
-                                           Expression* reset_value = nullptr);
+  absl::StatusOr<Register> DeclareRegister(
+      std::string_view name, Type* type, Expression* next,
+      Expression* reset_value = nullptr, const SourceInfo& loc = SourceInfo());
 
   // As above, but declares a register of a given bit width.
-  absl::StatusOr<Register> DeclareRegister(std::string_view name,
-                                           int64_t bit_count, Expression* next,
-                                           Expression* reset_value = nullptr);
+  absl::StatusOr<Register> DeclareRegister(
+      std::string_view name, int64_t bit_count, Expression* next,
+      Expression* reset_value = nullptr, const SourceInfo& loc = SourceInfo());
 
   // Construct an always block to assign values to the registers.
   absl::Status AssignRegisters(absl::Span<const Register> registers);

@@ -151,6 +151,7 @@ struct AbstractStateElement {
   std::vector<AbstractStateRead> state_reads;
   std::vector<NextValue> next_values;
   bool non_synthesizable;
+  SourceInfo loc;
 };
 
 // Replaces the state of the given proc with the given state elements. The
@@ -171,7 +172,7 @@ absl::Status ReplaceProcState(Proc* proc,
     XLS_ASSIGN_OR_RETURN(
         StateElement * state_element,
         proc->AppendUnreadStateElement(element.name, element.initial_value,
-                                       element.non_synthesizable));
+                                       element.non_synthesizable, element.loc));
     for (const AbstractStateRead& read : element.state_reads) {
       XLS_ASSIGN_OR_RETURN(
           StateRead * state_read,
@@ -223,6 +224,7 @@ absl::Status FlattenState(Proc* proc) {
       element.name = absl::StrCat(state_element->name(), component_suffix(i));
       element.non_synthesizable = state_element->non_synthesizable();
       element.initial_value = init_values[i];
+      element.loc = state_element->loc();
       elements.push_back(std::move(element));
     }
     // Construct AbstractStateReads for each component of the flattened state

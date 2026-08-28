@@ -21,9 +21,14 @@
 namespace xls {
 
 std::string StateElement::ToString() const {
-  return absl::StrFormat("state %s(%s, initial_value=%s, non_synth=%s)", name(),
-                         type()->ToString(), initial_value().ToHumanString(),
-                         non_synthesizable() ? "true" : "false");
+  std::string result = absl::StrFormat(
+      "state %s(%s, initial_value=%s, non_synth=%s", name(), type()->ToString(),
+      initial_value().ToHumanString(), non_synthesizable() ? "true" : "false");
+  if (!loc().Empty()) {
+    absl::StrAppendFormat(&result, ", pos=%s", loc().ToString());
+  }
+  absl::StrAppend(&result, ")");
+  return result;
 }
 
 }  // namespace xls

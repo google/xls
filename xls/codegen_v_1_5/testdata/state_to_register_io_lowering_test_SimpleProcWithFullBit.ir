@@ -3,9 +3,7 @@ package test
 top scheduled_block __test__P_0_next(clk: clock, rst: bits[1]) {
   #![reset(port="rst", asynchronous=false, active_low=false)]
   reg ____state(bits[32], reset_value=0)
-
   reg ____state_full(bits[1], reset_value=1)
-
   source proc __test__P_0_next__src<a: bits[32] in, b: bits[32] in, result: bits[32] out>() {
     chan_interface a(direction=receive, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
     chan_interface b(direction=receive, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)

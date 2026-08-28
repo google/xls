@@ -246,12 +246,12 @@ class Proc : public FunctionBase {
   // be added separately before verification.
   absl::StatusOr<StateElement*> InsertUnreadStateElement(
       int64_t index, std::string_view requested_state_name,
-      const Value& init_value, bool non_synthesizable);
+      const Value& init_value, const SourceInfo& loc, bool non_synthesizable);
   absl::StatusOr<StateElement*> AppendUnreadStateElement(
       std::string_view requested_state_name, const Value& init_value,
       bool non_synthesizable, const SourceInfo& loc = SourceInfo()) {
     return InsertUnreadStateElement(GetStateElementCount(),
-                                    requested_state_name, init_value,
+                                    requested_state_name, init_value, loc,
                                     non_synthesizable);
   }
 

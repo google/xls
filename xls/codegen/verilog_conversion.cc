@@ -905,7 +905,7 @@ class BlockGenerator {
       XLS_ASSIGN_OR_RETURN(
           mb_registers_[reg],
           mb_.DeclareRegister(absl::StrCat(reg->name()), reg->type(),
-                              /*next=*/nullptr, reset_expr));
+                              /*next=*/nullptr, reset_expr, reg->loc()));
     }
     return absl::OkStatus();
   }

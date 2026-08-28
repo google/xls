@@ -92,8 +92,9 @@ absl::StatusOr<RegisterRead*> CreatePipelineRegister(
     reset_signal = block->GetResetPort();
   }
 
-  XLS_ASSIGN_OR_RETURN(Register * reg,
-                       block->AddRegister(name, node->GetType(), reset_value));
+  XLS_ASSIGN_OR_RETURN(
+      Register * reg,
+      block->AddRegister(name, node->GetType(), reset_value, node->loc()));
 
   XLS_ASSIGN_OR_RETURN(Node * stage_done,
                        block->GetOrCreateStageDone(stage_index));

@@ -131,28 +131,48 @@ absl::StatusOr<std::vector<Parser::TypedArgument>> Parser::ParseTypedArguments(
                            scanner_.PopTokenOrError(LexicalTokenType::kIdent));
       XLS_RETURN_IF_ERROR(scanner_.DropTokenOrError(LexicalTokenType::kColon));
       XLS_ASSIGN_OR_RETURN(Type * type, ParseType(package));
-      // The typed argument can include an optional `id=XX` following the type.
+      // The typed argument can include optional keyword arguments such as
+      // `id=XX` and `pos=[...]` following the type.
       std::optional<int64_t> id;
-      if (scanner_.PeekTokenIs(LexicalTokenType::kIdent)) {
+      SourceInfo loc;
+      while (scanner_.PeekTokenIs(LexicalTokenType::kIdent)) {
         Token keyword = scanner_.PopToken();
-        if (keyword.value() != "id") {
+        if (keyword.value() == "id") {
+          if (id.has_value()) {
+            return absl::InvalidArgumentError(absl::StrFormat(
+                "Duplicate parameter keyword argument `id` @ %s",
+                name.pos().ToHumanString()));
+          }
+          XLS_RETURN_IF_ERROR(
+              scanner_.DropTokenOrError(LexicalTokenType::kEquals));
+          XLS_ASSIGN_OR_RETURN(Token literal, scanner_.PopTokenOrError(
+                                                  LexicalTokenType::kLiteral));
+          XLS_ASSIGN_OR_RETURN(id, literal.GetValueInt64());
+          if (id.value() <= 0) {
+            return absl::InvalidArgumentError(absl::StrFormat(
+                "Invalid node id %d, must be greater than zero @ %s",
+                id.value(), name.pos().ToHumanString()));
+          }
+        } else if (keyword.value() == "pos") {
+          if (!loc.Empty()) {
+            return absl::InvalidArgumentError(absl::StrFormat(
+                "Duplicate parameter keyword argument `pos` @ %s",
+                name.pos().ToHumanString()));
+          }
+          XLS_RETURN_IF_ERROR(
+              scanner_.DropTokenOrError(LexicalTokenType::kEquals));
+          XLS_ASSIGN_OR_RETURN(loc, ParseSourceInfo());
+        } else {
           return absl::InvalidArgumentError(
               absl::StrFormat("Invalid parameter keyword argument `%s` @ %s",
                               keyword.value(), name.pos().ToHumanString()));
         }
-        XLS_RETURN_IF_ERROR(
-            scanner_.PopTokenOrError(LexicalTokenType::kEquals).status());
-        XLS_ASSIGN_OR_RETURN(Token literal, scanner_.PopTokenOrError(
-                                                LexicalTokenType::kLiteral));
-        XLS_ASSIGN_OR_RETURN(id, literal.GetValueInt64());
-        if (id.value() <= 0) {
-          return absl::InvalidArgumentError(absl::StrFormat(
-              "Invalid node id %d, must be greater than zero @ %s", id.value(),
-              name.pos().ToHumanString()));
-        }
       }
-      args.push_back(TypedArgument{
-          .name = name.value(), .type = type, .id = id, .token = name});
+      args.push_back(TypedArgument{.name = name.value(),
+                                   .type = type,
+                                   .id = id,
+                                   .loc = loc,
+                                   .token = name});
     } while (scanner_.TryDropToken(LexicalTokenType::kComma));
   }
   return args;
@@ -1534,12 +1554,17 @@ absl::StatusOr<Register*> Parser::ParseRegister(Block* block) {
       scanner_.PopTokenOrError(LexicalTokenType::kIdent, "register name"));
   XLS_RETURN_IF_ERROR(scanner_.DropTokenOrError(LexicalTokenType::kParenOpen));
   XLS_ASSIGN_OR_RETURN(Type * reg_type, ParseType(block->package()));
-  // Parse optional reset attributes.
+  // Parse optional reset attributes and pos.
   std::optional<Value> reset_value;
+  SourceInfo loc;
   if (scanner_.TryDropToken(LexicalTokenType::kComma)) {
     absl::flat_hash_map<std::string, std::function<absl::Status()>> handlers;
     handlers["reset_value"] = [&]() -> absl::Status {
       XLS_ASSIGN_OR_RETURN(reset_value, ParseValueInternal(reg_type));
+      return absl::OkStatus();
+    };
+    handlers["pos"] = [&]() -> absl::Status {
+      XLS_ASSIGN_OR_RETURN(loc, ParseSourceInfo());
       return absl::OkStatus();
     };
     XLS_RETURN_IF_ERROR(ParseKeywordArguments(handlers));
@@ -1548,7 +1573,7 @@ absl::StatusOr<Register*> Parser::ParseRegister(Block* block) {
 
   XLS_ASSIGN_OR_RETURN(
       Register * reg,
-      block->AddRegister(reg_name.value(), reg_type, reset_value));
+      block->AddRegister(reg_name.value(), reg_type, reset_value, loc));
   if (reg->name() != reg_name.value()) {
     return absl::InvalidArgumentError(absl::StrFormat(
         "Register already exists with name %s", reg_name.value()));
@@ -2113,7 +2138,7 @@ Parser::ParseFunctionSignature(
   XLS_ASSIGN_OR_RETURN(std::vector<TypedArgument> params,
                        Parser::ParseTypedArguments(package));
   for (const TypedArgument& param : params) {
-    BValue param_bvalue = fb->Param(param.name, param.type);
+    BValue param_bvalue = fb->Param(param.name, param.type, param.loc);
     if (!param_bvalue.valid()) {
       return fb->GetError();
     }
@@ -2294,8 +2319,9 @@ absl::StatusOr<std::unique_ptr<ProcBuilder>> Parser::ParseProcSignature(
   for (int64_t i = 0; i < state_params.size(); ++i) {
     bool non_synthesizable =
         non_synthesizable_states.contains(state_params[i].name);
-    BValue param_bvalue = builder->ReadStateElement(
-        state_params[i].name, init_values[i], non_synthesizable);
+    BValue param_bvalue =
+        builder->ReadStateElement(state_params[i].name, init_values[i],
+                                  non_synthesizable, state_params[i].loc);
     (*name_to_value)[state_params[i].name] = param_bvalue;
     param_bvalue.node()->SetId(state_params[i].id.value_or(kUnassignedNodeId));
   }

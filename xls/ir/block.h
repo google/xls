@@ -207,7 +207,8 @@ class Block : public FunctionBase {
   // to get the actual name used by the register.
   absl::StatusOr<Register*> AddRegister(
       std::string_view requested_name, Type* type,
-      std::optional<Value> reset_value = std::nullopt);
+      std::optional<Value> reset_value = std::nullopt,
+      SourceInfo loc = SourceInfo());
 
   // Adds a register with a reset value of zero.
   absl::StatusOr<Register*> AddRegisterWithZeroResetValue(

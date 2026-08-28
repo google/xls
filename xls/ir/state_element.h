@@ -20,6 +20,7 @@
 #include <utility>
 
 #include "absl/log/check.h"
+#include "xls/ir/source_location.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
 #include "xls/ir/value_utils.h"
@@ -31,10 +32,11 @@ namespace xls {
 class StateElement {
  public:
   StateElement(std::string_view name, Type* type, Value initial_value,
-               bool non_synthesizable = false)
+               SourceInfo loc, bool non_synthesizable = false)
       : name_(name),
         type_(type),
         initial_value_(initial_value),
+        loc_(loc),
         non_synthesizable_(non_synthesizable) {
     CHECK(ValueConformsToType(initial_value, type));
   }
@@ -42,6 +44,7 @@ class StateElement {
   const std::string& name() const { return name_; }
   Type* type() const { return type_; }
   const Value& initial_value() const { return initial_value_; }
+  const SourceInfo& loc() const { return loc_; }
   bool non_synthesizable() const { return non_synthesizable_; }
 
   void SetName(std::string_view name) { name_ = name; }
@@ -53,6 +56,7 @@ class StateElement {
   std::string name_;
   Type* type_;
   Value initial_value_;
+  SourceInfo loc_;
   bool non_synthesizable_;
 };
 

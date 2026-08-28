@@ -100,7 +100,8 @@ absl::StatusOr<Register*> CreateFullRegisterAndRead(
   XLS_ASSIGN_OR_RETURN(
       Register * reg_full,
       block->AddRegister(absl::StrCat("__", state_element.name(), "_full"),
-                         block->package()->GetBitsType(1), Value(UBits(1, 1))));
+                         block->package()->GetBitsType(1), Value(UBits(1, 1)),
+                         state_element.loc()));
 
   XLS_ASSIGN_OR_RETURN(RegisterRead * reg_full_read,
                        block->MakeNodeWithNameInStage<RegisterRead>(
@@ -191,9 +192,10 @@ absl::Status LowerStateElement(ScheduledBlock* block,
   Node* reg_read_or_zero = nullptr;
   Register* state_register = nullptr;
   if (has_data) {
-    XLS_ASSIGN_OR_RETURN(state_register,
-                         block->AddRegister(name, state_element.type(),
-                                            state_element.initial_value()));
+    XLS_ASSIGN_OR_RETURN(
+        state_register,
+        block->AddRegister(name, state_element.type(),
+                           state_element.initial_value(), state_element.loc()));
     XLS_ASSIGN_OR_RETURN(reg_read_or_zero,
                          block->MakeNodeWithNameInStage<RegisterRead>(
                              read_stage_index, read->loc(), state_register,

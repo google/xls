@@ -39,11 +39,13 @@
 #include "xls/ir/block.h"
 #include "xls/ir/channel.h"
 #include "xls/ir/channel_ops.h"
+#include "xls/ir/fileno.h"
 #include "xls/ir/instantiation.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
 #include "xls/ir/package.h"
 #include "xls/ir/register.h"
+#include "xls/ir/source_location.h"
 #include "xls/ir/state_element.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
@@ -1435,6 +1437,73 @@ fn main(x: bits[32]) -> bits[32] {
       Parser::ParsePackage(program).status(),
       StatusIs(absl::StatusCode::kInvalidArgument,
                HasSubstr("Expected token of type \"backticked string\"")));
+}
+
+TEST(IrParserTest, FunctionParamWithSourceInfo) {
+  std::string program = R"(package test
+file_number 1 "path/to/source.x"
+
+fn foo(x: bits[32] pos=[(1, 20, 5)]) -> bits[32] {
+  ret x: bits[32] = param(name=x, pos=[(1, 20, 5)])
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(auto package, Parser::ParsePackage(program));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * func, package->GetFunction("foo"));
+  ASSERT_EQ(func->params().size(), 1);
+  Param* param = func->params().front();
+  EXPECT_FALSE(param->loc().Empty());
+  EXPECT_EQ(param->loc().ToString(), "[(1,20,5)]");
+}
+
+TEST(IrParserTest, ProcStateWithSourceInfoAndRoundTrip) {
+  std::string program = R"(package test
+file_number 1 "path/to/source.x"
+
+proc foo(x: bits[32] pos=[(1, 10, 2)], init={42}) {
+  next (x)
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(auto package, Parser::ParsePackage(program));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, package->GetProc("foo"));
+  ASSERT_EQ(proc->GetStateElementCount(), 1);
+  StateElement* state = proc->GetStateElement(0);
+  EXPECT_FALSE(state->loc().Empty());
+  EXPECT_EQ(state->loc().ToString(), "[(1,10,2)]");
+
+  std::string dumped = proc->DumpIr();
+  EXPECT_THAT(dumped, HasSubstr("x: bits[32] pos=[(1,10,2)]"));
+
+  Package p2("p2");
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc2, Parser::ParseProc(dumped, &p2));
+  ASSERT_EQ(proc2->GetStateElementCount(), 1);
+  EXPECT_EQ(proc2->GetStateElement(0)->loc().ToString(), "[(1,10,2)]");
+}
+
+TEST(IrParserTest, ProcStateWithIdAndPosInAnyOrder) {
+  std::string program = R"(package test
+file_number 1 "path/to/source.x"
+
+proc foo(a: bits[32] id=5 pos=[(1, 10, 2)], b: bits[32] pos=[(1, 20, 4)] id=12, init={42, 100}) {
+  next (a, b)
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(auto package, Parser::ParsePackage(program));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, package->GetProc("foo"));
+  ASSERT_EQ(proc->GetStateElementCount(), 2);
+  StateElement* a = proc->GetStateElement(0);
+  StateElement* b = proc->GetStateElement(1);
+  EXPECT_EQ(a->loc().ToString(), "[(1,10,2)]");
+  EXPECT_EQ(b->loc().ToString(), "[(1,20,4)]");
+}
+
+TEST(IrParserTest, StateElementToStringWithPos) {
+  Package p("my_package");
+  StateElement state(
+      "my_state", p.GetBitsType(32), Value(UBits(42, 32)),
+      SourceInfo(SourceLocation(Fileno(1), Lineno(10), Colno(5))));
+  EXPECT_EQ(state.ToString(),
+            "state my_state(bits[32], initial_value=42, non_synth=false, "
+            "pos=[(1,10,5)])");
 }
 
 }  // namespace xls

@@ -32,12 +32,16 @@ std::string ResetBehavior::ToString() const {
 }
 
 std::string Register::ToString() const {
+  std::string result = absl::StrFormat("reg %s(%s", name(), type()->ToString());
   if (reset_value().has_value()) {
-    return absl::StrFormat("reg %s(%s, reset_value=%s)\n", name(),
-                           type()->ToString(),
-                           reset_value().value().ToHumanString());
+    absl::StrAppendFormat(&result, ", reset_value=%s",
+                          reset_value().value().ToHumanString());
   }
-  return absl::StrFormat("reg %s(%s)", name(), type()->ToString());
+  if (!loc().Empty()) {
+    absl::StrAppendFormat(&result, ", pos=%s", loc().ToString());
+  }
+  absl::StrAppend(&result, ")");
+  return result;
 }
 
 }  // namespace xls

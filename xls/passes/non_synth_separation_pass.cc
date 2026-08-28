@@ -310,10 +310,10 @@ class CloneProcAsFunctionVisitor : public DfsVisitorWithDefault {
       return it->second;
     }
     std::string name = absl::StrCat(state_element->name(), "_non_synth");
-    XLS_ASSIGN_OR_RETURN(
-        StateElement * new_element,
-        proc->AppendUnreadStateElement(name, state_element->initial_value(),
-                                       /*non_synthesizable=*/true));
+    XLS_ASSIGN_OR_RETURN(StateElement * new_element,
+                         proc->AppendUnreadStateElement(
+                             name, state_element->initial_value(),
+                             /*non_synthesizable=*/true, state_element->loc()));
     non_synth_element_map_[state_element] = new_element;
     return new_element;
   }

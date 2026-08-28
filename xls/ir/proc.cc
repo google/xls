@@ -80,6 +80,9 @@ std::string Proc::DumpIr(const IrAnnotator& annotate) const {
     auto state_note = annotate.StateElementAnnotation(state);
     std::string base =
         absl::StrFormat("%s: %s", state->name(), state->type()->ToString());
+    if (!state->loc().Empty()) {
+      absl::StrAppendFormat(&base, " pos=%s", state->loc().ToString());
+    }
     absl::StrAppend(s, state_note.Decorate(base));
   };
   absl::StrAppend(&res, "(",
@@ -257,11 +260,11 @@ absl::StatusOr<StateRead*> Proc::AppendStateElement(
 
 absl::StatusOr<StateElement*> Proc::InsertUnreadStateElement(
     int64_t index, std::string_view requested_state_name,
-    const Value& init_value, bool non_synthesizable) {
+    const Value& init_value, const SourceInfo& loc, bool non_synthesizable) {
   XLS_RET_CHECK_LE(index, GetStateElementCount());
   std::string state_name = UniquifyStateName(requested_state_name);
   state_elements_[state_name] = std::make_unique<StateElement>(
-      state_name, package()->GetTypeForValue(init_value), init_value,
+      state_name, package()->GetTypeForValue(init_value), init_value, loc,
       non_synthesizable);
   StateElement* state_element = state_elements_.at(state_name).get();
   state_vec_.insert(state_vec_.begin() + index, state_element);
@@ -285,9 +288,10 @@ absl::StatusOr<StateRead*> Proc::InsertStateElement(
     const Value& init_value, std::optional<Node*> read_predicate,
     std::optional<Node*> next_state, bool non_synthesizable,
     const SourceInfo& loc) {
-  XLS_ASSIGN_OR_RETURN(StateElement * state_element,
-                       InsertUnreadStateElement(index, requested_state_name,
-                                                init_value, non_synthesizable));
+  XLS_ASSIGN_OR_RETURN(
+      StateElement * state_element,
+      InsertUnreadStateElement(index, requested_state_name, init_value, loc,
+                               non_synthesizable));
   XLS_ASSIGN_OR_RETURN(StateRead * state_read,
                        MakeNodeWithName<StateRead>(
                            loc, state_element, read_predicate,
@@ -371,7 +375,7 @@ absl::StatusOr<Proc*> Proc::Clone(
             ->InsertUnreadStateElement(
                 cloned_proc->GetStateElementCount(),
                 remap_name(state_name_remapping, state_element->name()),
-                state_element->initial_value(),
+                state_element->initial_value(), state_element->loc(),
                 state_element->non_synthesizable())
             .status());
   }
@@ -944,10 +948,11 @@ absl::StatusOr<StateElement*> Proc::TransformStateElement(
     StateElement* old_state_element, const Value& init_value,
     Proc::StateElementTransformer& transform) {
   std::string orig_name(old_state_element->name());
-  XLS_ASSIGN_OR_RETURN(StateElement * new_state_element,
-                       AppendUnreadStateElement(
-                           absl::StrFormat("TEMP_NAME__%s__", orig_name),
-                           init_value, old_state_element->non_synthesizable()));
+  XLS_ASSIGN_OR_RETURN(
+      StateElement * new_state_element,
+      AppendUnreadStateElement(
+          absl::StrFormat("TEMP_NAME__%s__", orig_name), init_value,
+          old_state_element->non_synthesizable(), old_state_element->loc()));
 
   std::string temp_name = new_state_element->name();
   absl::Span<StateRead* const> old_state_reads =

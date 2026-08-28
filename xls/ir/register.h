@@ -23,6 +23,7 @@
 
 #include "absl/status/status.h"
 #include "absl/strings/str_format.h"
+#include "xls/ir/source_location.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
 #include "xls/ir/value_utils.h"
@@ -50,11 +51,15 @@ class RegisterWrite;
 // contained in and owned by Blocks and lower to registers in Verilog.
 class Register {
  public:
-  Register(std::string_view name, Type* type,
+  Register(std::string_view name, Type* type, SourceInfo loc = SourceInfo(),
            std::optional<Value> reset_value = std::nullopt)
-      : name_(name), type_(type), reset_value_(std::move(reset_value)) {}
+      : name_(name),
+        type_(type),
+        loc_(loc),
+        reset_value_(std::move(reset_value)) {}
 
   const std::string& name() const { return name_; }
+  const SourceInfo& loc() const { return loc_; }
   Type* type() const { return type_; }
   const std::optional<Value>& reset_value() const { return reset_value_; }
 
@@ -73,6 +78,7 @@ class Register {
  private:
   std::string name_;
   Type* type_;
+  SourceInfo loc_;
   std::optional<Value> reset_value_;
 };
 

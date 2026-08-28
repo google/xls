@@ -326,7 +326,7 @@ class UntupleVisitor : public DfsVisitorWithDefault {
                 absl::StrFormat("%s_tuple_element_%d", state_element->name(),
                                 i),
                 std::move(element_array), state_element->non_synthesizable(),
-                state_read->loc()));
+                state_element->loc()));
         split_elements.push_back(new_element);
       }
       split_state_elements_[state_element] = std::move(split_elements);

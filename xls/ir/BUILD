@@ -552,6 +552,7 @@ cc_library(
     ],
     hdrs = ["state_element.h"],
     deps = [
+        ":source_location",
         ":type",
         ":value",
         ":value_utils",
@@ -567,6 +568,7 @@ cc_library(
     ],
     hdrs = ["register.h"],
     deps = [
+        ":source_location",
         ":type",
         ":value",
         ":value_utils",
@@ -943,6 +945,7 @@ cc_test(
         ":ir_parser",
         ":op",
         ":register",
+        ":source_location",
         ":state_element",
         ":type",
         ":value",

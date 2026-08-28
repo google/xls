@@ -477,7 +477,8 @@ absl::StatusOr<OutputPort*> Block::AddOutputPort(std::string_view name,
 
 absl::StatusOr<Register*> Block::AddRegister(std::string_view requested_name,
                                              Type* type,
-                                             std::optional<Value> reset_value) {
+                                             std::optional<Value> reset_value,
+                                             SourceInfo loc) {
   std::string name =
       register_name_uniquer_.GetSanitizedUniqueName(requested_name);
   if (name != requested_name) {
@@ -492,7 +493,7 @@ absl::StatusOr<Register*> Block::AddRegister(std::string_view requested_name,
     }
   }
   registers_[name] =
-      std::make_unique<Register>(std::string(name), type, reset_value);
+      std::make_unique<Register>(std::string(name), type, loc, reset_value);
   register_vec_.push_back(registers_[name].get());
   Register* reg = register_vec_.back();
   register_reads_[reg] = {};

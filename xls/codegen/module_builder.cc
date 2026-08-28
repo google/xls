@@ -1307,7 +1307,7 @@ absl::Status ModuleBuilder::Assign(LogicRef* lhs, Expression* rhs, Type* type) {
 
 absl::StatusOr<ModuleBuilder::Register> ModuleBuilder::DeclareRegister(
     std::string_view name, Type* type, Expression* next,
-    Expression* reset_value) {
+    Expression* reset_value, const SourceInfo& loc) {
   if (clk_ == nullptr) {
     return absl::InvalidArgumentError("Clock signal required for register.");
   }
@@ -1328,7 +1328,7 @@ absl::StatusOr<ModuleBuilder::Register> ModuleBuilder::DeclareRegister(
                              file_->UnpackedArrayType(
                                  element_bit_count,
                                  NestedArrayBounds(array_type), SourceInfo()),
-                             SourceInfo(),
+                             loc,
                              /*init=*/nullptr, declaration_section()));
   } else {
     XLS_RET_CHECK(type->GetFlatBitCount() > 0);
@@ -1336,7 +1336,7 @@ absl::StatusOr<ModuleBuilder::Register> ModuleBuilder::DeclareRegister(
         reg, module_->AddReg(
                  SanitizeAndUniquifyName(name),
                  file_->BitVectorType(type->GetFlatBitCount(), SourceInfo()),
-                 SourceInfo(), /*init=*/nullptr, declaration_section()));
+                 loc, /*init=*/nullptr, declaration_section()));
   }
   return Register{.ref = reg,
                   .next = next,
@@ -1347,7 +1347,7 @@ absl::StatusOr<ModuleBuilder::Register> ModuleBuilder::DeclareRegister(
 
 absl::StatusOr<ModuleBuilder::Register> ModuleBuilder::DeclareRegister(
     std::string_view name, int64_t bit_count, Expression* next,
-    Expression* reset_value) {
+    Expression* reset_value, const SourceInfo& loc) {
   if (clk_ == nullptr) {
     return absl::InvalidArgumentError("Clock signal required for register.");
   }
@@ -1360,8 +1360,8 @@ absl::StatusOr<ModuleBuilder::Register> ModuleBuilder::DeclareRegister(
   XLS_ASSIGN_OR_RETURN(
       LogicRef * ref,
       module_->AddReg(SanitizeAndUniquifyName(name),
-                      file_->BitVectorType(bit_count, SourceInfo()),
-                      SourceInfo(), /*init=*/nullptr, declaration_section()));
+                      file_->BitVectorType(bit_count, SourceInfo()), loc,
+                      /*init=*/nullptr, declaration_section()));
   return Register{.ref = ref,
                   .next = next,
                   .reset_value = reset_value,

@@ -266,6 +266,7 @@ class Parser {
     std::string name;
     Type* type;
     std::optional<int64_t> id;
+    SourceInfo loc = SourceInfo();
     Token token;
   };
   absl::StatusOr<std::vector<TypedArgument>> ParseTypedArguments(

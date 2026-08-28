@@ -703,7 +703,8 @@ absl::StatusOr<Node*> CloneNodesIntoBlockHandler::HandleStateRead(Node* node,
 
     XLS_ASSIGN_OR_RETURN(reg,
                          block()->AddRegister(name, node->GetType(),
-                                              state_element->initial_value()));
+                                              state_element->initial_value(),
+                                              state_element->loc()));
 
     XLS_ASSIGN_OR_RETURN(reg_read, block()->MakeNodeWithName<RegisterRead>(
                                        node->loc(), reg,
@@ -825,7 +826,7 @@ absl::Status CloneNodesIntoBlockHandler::HandleNextValue(Node* node,
         state_register.reg_full,
         block()->AddRegister(absl::StrCat("__", state_register.name, "_full"),
                              block()->package()->GetBitsType(1),
-                             Value(UBits(1, 1))));
+                             Value(UBits(1, 1)), next->loc()));
     XLS_ASSIGN_OR_RETURN(state_register.reg_full_read,
                          block()->MakeNodeWithName<RegisterRead>(
                              next->loc(), state_register.reg_full,
@@ -1054,7 +1055,8 @@ CloneNodesIntoBlockHandler::CreatePipelineRegister(std::string_view name,
   }
 
   XLS_ASSIGN_OR_RETURN(
-      Register * reg, block()->AddRegister(name, node->GetType(), reset_value));
+      Register * reg,
+      block()->AddRegister(name, node->GetType(), reset_value, node->loc()));
 
   XLS_ASSIGN_OR_RETURN(
       RegisterWrite * reg_write,

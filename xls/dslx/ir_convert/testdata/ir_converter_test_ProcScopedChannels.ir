@@ -2,7 +2,7 @@ package test_module
 
 file_number 0 "test_module.x"
 
-top proc __test_module__passthrough_0_next<_c_in: bits[32] in, _c_out: bits[32] out>(__state: (), init={()}) {
+top proc __test_module__passthrough_0_next<_c_in: bits[32] in, _c_out: bits[32] out>(__state: () pos=[(0,8,6)], init={()}) {
   chan_interface _c_in(direction=receive, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
   chan_interface _c_out(direction=send, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
   after_all.5: token = after_all(id=5)
@@ -12,7 +12,7 @@ top proc __test_module__passthrough_0_next<_c_in: bits[32] in, _c_out: bits[32] 
   data: bits[32] = tuple_index(receive.6, index=1, id=9, pos=[(0,9,14)])
   tuple.11: () = tuple(id=11, pos=[(0,11,4)])
   __token: token = literal(value=token, id=1)
-  __state: () = state_read(state_element=__state, id=2)
+  __state: () = state_read(state_element=__state, id=2, pos=[(0,8,6)])
   tuple.4: () = tuple(id=4, pos=[(0,6,4)])
   tuple_index.7: token = tuple_index(receive.6, index=0, id=7)
   tok__1: token = send(tok, data, predicate=literal.3, channel=_c_out, id=10)
