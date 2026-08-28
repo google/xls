@@ -67,6 +67,21 @@ inline std::ostream& operator<<(std::ostream& os, ValueKind kind) {
 // some discussion around this, maybe they should be?
 class Value {
  public:
+  Value() : kind_(ValueKind::kInvalid), payload_(nullptr) {}
+  Value& operator=(const Value&) = default;
+  Value& operator=(Value&& v) {
+    kind_ = v.kind_;
+    payload_ = std::move(v.payload_);
+    v.kind_ = ValueKind::kInvalid;
+    v.payload_ = nullptr;
+    return *this;
+  }
+  Value(const Value&) = default;
+  Value(Value&& v) : kind_(v.kind_), payload_(std::move(v.payload_)) {
+    v.kind_ = ValueKind::kInvalid;
+    v.payload_ = nullptr;
+  }
+
   static Value Tuple(absl::Span<const Value> elements) {
     return Value(ValueKind::kTuple, elements);
   }
@@ -116,8 +131,6 @@ class Value {
     return Value(
         UBits(/*value=*/static_cast<uint64_t>(enabled), /*bit_count=*/1));
   }
-
-  Value() : kind_(ValueKind::kInvalid), payload_(nullptr) {}
 
   explicit Value(Bits bits)
       : kind_(ValueKind::kBits), payload_(std::move(bits)) {}
