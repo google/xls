@@ -18,46 +18,55 @@
 #include <cstdint>
 #include <vector>
 
+#include "absl/container/flat_hash_map.h"
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/types/span.h"
 #include "xls/ir/function.h"
+#include "xls/ir/node.h"
+#include "xls/ir/nodes.h"
 #include "xls/solvers/symex/symbolic_path.h"
+#include "xls/solvers/symex/z3_semantics_encoder.h"
 #include "z3/src/api/z3.h"  // IWYU pragma: keep
 #include "z3/src/api/z3_api.h"
 
 namespace xls::solvers::symex {
 
-// Configuration options for symbolic execution path exploration.
-struct SymExOptions {
-  // Maximum number of feasible paths to explore before terminating.
-  int64_t max_paths = 1000;
-
-  // Maximum search depth (multiplexer branch depth) along any path.
-  int64_t max_depth = 256;
-};
-
-// Control Flow Graph (CFG) Symbolic Execution Engine for XLS IR functions.
+// Control Flow Graph (CFG) Symbolic Execution Engine for XLS functions.
 //
-// Explores symbolic execution paths by performing a forward Depth-First Search
-// (DFS) over the linearized (topologically sorted) sequence of XLS IR nodes.
+// Performs forward Depth-First Search (DFS) over a topologically linearized
+// sequence of XLS IR nodes. Multiplexers (`xls::Select`, `xls::PrioritySelect`)
+// act as branch points: the engine forks execution across each candidate arm,
+// asserting the arm's predicate into an incremental Z3 solver stack
+// (`Z3_solver_push`/`pop`) and pruning infeasible paths.
+//
+// Non-branching arithmetic, logic, and tuple operations are translated
+// symbolically using `Z3SemanticsEncoder` and propagated through an on-the-fly
+// symbolic environment. At each completed path leaf, the engine extracts a
+// concrete witness input assignment from the active solver model and returns
+// the resulting `SymbolicPath`.
 class CfgSymExEngine {
  public:
-  explicit CfgSymExEngine(Z3_context ctx,
-                          SymExOptions options = SymExOptions());
+  explicit CfgSymExEngine(Z3_context ctx);
 
   CfgSymExEngine(const CfgSymExEngine&) = delete;
   CfgSymExEngine& operator=(const CfgSymExEngine&) = delete;
 
-  // Explores feasible symbolic execution paths through `fn`.
+  // Explores all feasible symbolic execution paths through `fn`.
   absl::StatusOr<std::vector<SymbolicPath>> ExplorePaths(Function* fn);
 
-  int64_t total_explored_paths() const { return total_explored_paths_; }
-  int64_t feasible_paths() const { return feasible_paths_; }
-
  private:
+  // Recursive DFS step traversing linearized nodes starting at `node_idx`.
+  absl::Status ExploreDfs(Function* fn,
+                          absl::Span<const Node* const> topo_nodes,
+                          int64_t node_idx,
+                          absl::flat_hash_map<const Node*, Z3_ast>& env,
+                          std::vector<BranchDecision>& current_decisions,
+                          Z3_ast current_path_condition, Z3_solver solver,
+                          std::vector<SymbolicPath>& completed_paths);
+
   Z3_context ctx_;
-  SymExOptions options_;
-  int64_t total_explored_paths_ = 0;
-  int64_t feasible_paths_ = 0;
+  Z3SemanticsEncoder encoder_;
 };
 
 }  // namespace xls::solvers::symex

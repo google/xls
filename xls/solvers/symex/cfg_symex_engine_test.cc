@@ -14,59 +14,50 @@
 
 #include "xls/solvers/symex/cfg_symex_engine.h"
 
+#include <cstdint>
+#include <optional>
+#include <vector>
+
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "absl/status/status.h"
+#include "absl/types/span.h"
 #include "xls/common/status/matchers.h"
+#include "xls/interpreter/function_interpreter.h"
 #include "xls/ir/bits.h"
+#include "xls/ir/bits_ops.h"
+#include "xls/ir/events.h"
 #include "xls/ir/function.h"
 #include "xls/ir/function_builder.h"
-#include "xls/ir/ir_test_base.h"
 #include "xls/ir/package.h"
+#include "xls/ir/value.h"
+#include "xls/solvers/symex/symbolic_path.h"
+#include "xls/solvers/symex/test_util.h"
 #include "z3/src/api/z3.h"  // IWYU pragma: keep
 #include "z3/src/api/z3_api.h"
 
 namespace xls::solvers::symex {
 namespace {
 
-using ::absl_testing::StatusIs;
+using ::testing::ElementsAre;
+using ::testing::Optional;
+using ::testing::UnorderedElementsAre;
 
-class CfgSymExEngineTest : public IrTestBase {
- protected:
-  void SetUp() override {
-    IrTestBase::SetUp();
-    config_ = Z3_mk_config();
-    ctx_ = Z3_mk_context(config_);
-  }
+using CfgSymExEngineTest = SymExTestBase;
 
-  void TearDown() override {
-    if (ctx_ != nullptr) {
-      Z3_del_context(ctx_);
-    }
-    if (config_ != nullptr) {
-      Z3_del_config(config_);
-    }
-    IrTestBase::TearDown();
-  }
+TEST_F(CfgSymExEngineTest, ExploresNonBranchingFunction) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  auto a = fb.Param("a", p->GetBitsType(8));
+  auto b = fb.Param("b", p->GetBitsType(8));
+  fb.Add(a, b);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * func, fb.Build());
 
-  Z3_config config_ = nullptr;
-  Z3_context ctx_ = nullptr;
-};
-
-TEST_F(CfgSymExEngineTest, InitializesWithDefaultOptions) {
   CfgSymExEngine engine(ctx_);
-  EXPECT_EQ(engine.total_explored_paths(), 0);
-  EXPECT_EQ(engine.feasible_paths(), 0);
-}
-
-TEST_F(CfgSymExEngineTest, RespectsCustomOptions) {
-  SymExOptions options;
-  options.max_paths = 42;
-  options.max_depth = 128;
-
-  CfgSymExEngine engine(ctx_, options);
-  EXPECT_EQ(engine.total_explored_paths(), 0);
-  EXPECT_EQ(engine.feasible_paths(), 0);
+  XLS_ASSERT_OK_AND_ASSIGN(std::vector<SymbolicPath> paths,
+                           engine.ExplorePaths(func));
+  ASSERT_EQ(paths.size(), 1);
+  EXPECT_TRUE(paths[0].branch_decisions.empty());
+  EXPECT_TRUE(IsExhaustiveCoverage(ctx_, paths));
 }
 
 TEST_F(CfgSymExEngineTest, ExploresDirectIrSelectMux) {
@@ -79,8 +70,32 @@ TEST_F(CfgSymExEngineTest, ExploresDirectIrSelectMux) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * func, fb.Build());
 
   CfgSymExEngine engine(ctx_);
-  EXPECT_THAT(engine.ExplorePaths(func).status(),
-              StatusIs(absl::StatusCode::kUnimplemented));
+  XLS_ASSERT_OK_AND_ASSIGN(std::vector<SymbolicPath> paths,
+                           engine.ExplorePaths(func));
+  ASSERT_EQ(paths.size(), 2);
+
+  // Path 0: case 0 (a).
+  EXPECT_THAT(
+      paths[0].branch_decisions,
+      ElementsAre(BranchDecisionIs(/*arm_index=*/0, /*is_default=*/false)));
+  EXPECT_THAT(paths[0].GetParamValue("cond"), Optional(Value(UBits(0, 1))));
+  XLS_ASSERT_OK_AND_ASSIGN(InterpreterResult<Value> interp0,
+                           InterpretFunction(func, paths[0].input_values()));
+  EXPECT_THAT(paths[0].GetParamValue("a"), Optional(interp0.value));
+
+  // Path 1: case 1 (b).
+  EXPECT_THAT(
+      paths[1].branch_decisions,
+      ElementsAre(BranchDecisionIs(/*arm_index=*/1, /*is_default=*/false)));
+  EXPECT_THAT(paths[1].GetParamValue("cond"), Optional(Value(UBits(1, 1))));
+  XLS_ASSERT_OK_AND_ASSIGN(InterpreterResult<Value> interp1,
+                           InterpretFunction(func, paths[1].input_values()));
+  EXPECT_THAT(paths[1].GetParamValue("b"), Optional(interp1.value));
+
+  // Verify paths are mutually exclusive and collectively exhaustive.
+  EXPECT_TRUE(AreMutuallyExclusive(ctx_, paths[0].path_condition,
+                                   paths[1].path_condition));
+  EXPECT_TRUE(IsExhaustiveCoverage(ctx_, paths));
 }
 
 TEST_F(CfgSymExEngineTest, ExploresDirectIrThreeWayCompareMuxTree) {
@@ -99,8 +114,46 @@ TEST_F(CfgSymExEngineTest, ExploresDirectIrThreeWayCompareMuxTree) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * func, fb.Build());
 
   CfgSymExEngine engine(ctx_);
-  EXPECT_THAT(engine.ExplorePaths(func).status(),
-              StatusIs(absl::StatusCode::kUnimplemented));
+  XLS_ASSERT_OK_AND_ASSIGN(std::vector<SymbolicPath> paths,
+                           engine.ExplorePaths(func));
+  ASSERT_EQ(paths.size(), 3);
+
+  std::vector<uint64_t> results;
+  for (const SymbolicPath& path : paths) {
+    ASSERT_EQ(path.generated_test.size(), 2);
+    std::optional<Value> a_val = path.GetParamValue("a");
+    std::optional<Value> b_val = path.GetParamValue("b");
+    ASSERT_TRUE(a_val.has_value());
+    ASSERT_TRUE(b_val.has_value());
+    XLS_ASSERT_OK_AND_ASSIGN(InterpreterResult<Value> interp_res,
+                             InterpretFunction(func, path.input_values()));
+    XLS_ASSERT_OK_AND_ASSIGN(uint64_t result_int,
+                             interp_res.value.bits().ToUint64());
+    results.push_back(result_int);
+
+    // Check witness input values match the branch taken.
+    if (result_int == 10) {
+      EXPECT_TRUE(bits_ops::ULessThan(a_val->bits(), b_val->bits()));
+    } else if (result_int == 20) {
+      EXPECT_EQ(a_val->bits(), b_val->bits());
+    } else if (result_int == 30) {
+      EXPECT_TRUE(bits_ops::UGreaterThan(a_val->bits(), b_val->bits()));
+    } else {
+      FAIL() << "Unexpected interpreter result: " << result_int;
+    }
+  }
+
+  // Verify all 3 outcomes (10: lt, 20: eq, 30: ugt) were explored.
+  EXPECT_THAT(results, UnorderedElementsAre(10, 20, 30));
+
+  // Verify pairwise mutual exclusivity and collective exhaustiveness.
+  for (int i = 0; i < paths.size(); ++i) {
+    for (int j = i + 1; j < paths.size(); ++j) {
+      EXPECT_TRUE(AreMutuallyExclusive(ctx_, paths[i].path_condition,
+                                       paths[j].path_condition));
+    }
+  }
+  EXPECT_TRUE(IsExhaustiveCoverage(ctx_, paths));
 }
 
 }  // namespace
