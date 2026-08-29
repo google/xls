@@ -105,6 +105,11 @@ absl::StatusOr<std::optional<ModuleInfo*>> GetImportedModuleInfo(
 absl::StatusOr<std::optional<const EnumDef*>> GetEnumDef(
     const TypeAnnotation* annotation, const ImportData& import_data);
 
+// Resolves an enum member through type aliases. Returns `nullopt` if the
+// reference does not identify an enum or the enum has no matching member.
+absl::StatusOr<std::optional<const NameDef*>> ResolveEnumMember(
+    const ColonRef* colon_ref, const ImportData& import_data);
+
 // Returns whether `f` is a `next` function in an impl-style proc.
 absl::StatusOr<bool> IsProcDefNextFunction(const Function* f,
                                            const ImportData& import_data);
