@@ -23,6 +23,8 @@ compound_passes: [
     short_name: "to_scheduled_ir"
     passes: [
       "scheduling",
+      "opt_pass<dce>",
+      "opt_pass<concat_select_removal>",
       "opt_pass<dce>"
     ]
     comment: "Convert the package to scheduled IR, trimming any dead code."

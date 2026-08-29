@@ -686,6 +686,7 @@ class GenericSelect {
   GenericSelect& operator=(const GenericSelect&) = default;
   GenericSelect& operator=(GenericSelect&&) = default;
   static absl::StatusOr<GenericSelect> From(Node* n);
+  static std::optional<GenericSelect> TryFrom(Node* n);
   static bool IsSelect(const Node* n) {
     return n->OpIn({Op::kSel, Op::kPrioritySel, Op::kOneHotSel});
   }

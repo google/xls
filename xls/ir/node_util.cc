@@ -1741,6 +1741,14 @@ absl::StatusOr<Node*> GenericSelect::MakePredicateForDefault() const {
       sel_);
 }
 /* static */ absl::StatusOr<GenericSelect> GenericSelect::From(Node* n) {
+  if (std::optional<GenericSelect> result = GenericSelect::TryFrom(n)) {
+    return *result;
+  }
+  return absl::InvalidArgumentError(
+      absl::StrCat("Node is not a select-like node: ", n->ToString()));
+}
+
+/* static */ std::optional<GenericSelect> GenericSelect::TryFrom(Node* n) {
   switch (n->op()) {
     case Op::kOneHotSel:
       return GenericSelect(n->As<OneHotSelect>());
@@ -1749,8 +1757,7 @@ absl::StatusOr<Node*> GenericSelect::MakePredicateForDefault() const {
     case Op::kPrioritySel:
       return GenericSelect(n->As<PrioritySelect>());
     default:
-      return absl::InvalidArgumentError(
-          absl::StrFormat("%s is not a select like operation.", n->ToString()));
+      return std::nullopt;
   }
 }
 
