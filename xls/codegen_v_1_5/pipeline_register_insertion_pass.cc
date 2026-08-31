@@ -206,13 +206,13 @@ absl::StatusOr<ConcurrentStageGroups> CalculateConcurrentStages(
     absl::Span<StateRead* const> state_reads =
         block->source()->AsProcOrDie()->GetStateReadsByStateElement(
             state_element);
-    XLS_RET_CHECK_EQ(state_reads.size(), 1);
-    StateRead* state_read = state_reads.front();
-    if (state_read->predicate().has_value()) {
+    if (state_reads.size() != 1 ||
+        state_reads.front()->predicate().has_value()) {
       // If the state read is predicated, then it doesn't start a mutual
       // exclusion zone.
       continue;
     }
+    StateRead* state_read = state_reads.front();
     XLS_ASSIGN_OR_RETURN(read_by_stage[state_element],
                          block->GetStageIndex(state_read));
 

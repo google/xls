@@ -581,6 +581,76 @@ TEST_F(PipelineRegisterInsertionPassTest, TestCombinedRegistersWithState) {
 }
 
 TEST_F(PipelineRegisterInsertionPassTest,
+       TestNoMutexRegionWithMultiplePredicatedStateReads) {
+  auto p = CreatePackage();
+  ScheduledBlockBuilder sbb(TestName(), p.get());
+  Proc* source;
+  {
+    std::unique_ptr<Proc> owned_source = std::make_unique<Proc>(
+        absl::StrCat("__", TestName(), "_source"), p.get());
+    source = owned_source.get();
+    sbb.SetSource(std::move(owned_source));
+  }
+  XLS_ASSERT_OK(sbb.block()->AddClockPort("clk"));
+  BValue x = sbb.InputPort("x", p->GetBitsType(32));
+  BValue cond = sbb.InputPort("cond", p->GetBitsType(1));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      StateElement * source_se,
+      source->AppendUnreadStateElement("acc", Value(UBits(0, 32)),
+                                       /*non_synthesizable=*/false));
+
+  // Stage 0 - first predicated read
+  sbb.StartStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
+  BValue acc0 = sbb.StateRead(BStateElement(source_se), cond);
+  BValue v0 = sbb.Add(x, acc0, SourceInfo(), "v0");
+  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)),
+               sbb.Literal(UBits(1, 1)));
+
+  // Stage 1
+  sbb.StartStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
+  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)),
+               sbb.Literal(UBits(1, 1)));
+
+  // Stage 2 - second mutually exclusive predicated read
+  sbb.StartStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
+  BValue not_cond = sbb.Not(cond, SourceInfo(), "not_cond");
+  BValue acc1 = sbb.StateRead(BStateElement(source_se), not_cond);
+  BValue v1 = sbb.UMul(x, acc1, SourceInfo(), "v1");
+  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)),
+               sbb.Literal(UBits(1, 1)));
+
+  // Stage 3
+  sbb.StartStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
+  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)),
+               sbb.Literal(UBits(1, 1)));
+
+  // Stage 4 - select between branches and write next state
+  sbb.StartStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
+  BValue result = sbb.Select(cond, v0, v1, SourceInfo(), "result");
+  sbb.Next(BStateElement(source_se), result);
+  sbb.OutputPort("out", result);
+  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)),
+               sbb.Literal(UBits(1, 1)));
+
+  XLS_ASSERT_OK_AND_ASSIGN(ScheduledBlock * sb, sbb.Build());
+
+  BlockConversionPassOptions options;
+  options.codegen_options.register_merge_strategy(
+      verilog::CodegenOptions::RegisterMergeStrategy::kIdentityOnly);
+  EXPECT_THAT(Run(p.get(), options), IsOkAndHolds(true));
+  // Because reads are predicated, no unconditional mutex zone is created.
+  // Intermediate pipeline registers must be inserted for live values.
+  EXPECT_THAT(sb->GetRegisters(),
+              UnorderedElementsAre(m2::Register("p0_v0", m::Type("bits[32]")),
+                                   m2::Register("p1_v0", m::Type("bits[32]")),
+                                   m2::Register("p2_v0", m::Type("bits[32]")),
+                                   m2::Register("p3_v0", m::Type("bits[32]")),
+                                   m2::Register("p2_v1", m::Type("bits[32]")),
+                                   m2::Register("p3_v1", m::Type("bits[32]"))));
+}
+
+TEST_F(PipelineRegisterInsertionPassTest,
        TestCombinedRegistersWithPredicatedWrites) {
   auto p = CreatePackage();
   ScheduledBlockBuilder sbb(TestName(), p.get());
