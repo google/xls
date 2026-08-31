@@ -19,12 +19,12 @@
 #include <string>
 #include <utility>
 
-#include "gmock/gmock.h"
-#include "gtest/gtest.h"
-#include "xls/common/fuzzing/fuzztest.h"
 #include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/substitute.h"
+#include "gmock/gmock.h"
+#include "gtest/gtest.h"
+#include "xls/common/fuzzing/fuzztest.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/fuzzer/ir_fuzzer/ir_fuzz_domain.h"
@@ -1185,6 +1185,189 @@ TEST_P(SelectSimplificationPassTest, PrioritySelectWithOnlyNonzeroCaseDefault) {
   EXPECT_THAT(f->return_value(),
               m::And(m::Param("x"),
                      m::SignExt(m::Eq(m::Param("p"), m::Literal(0b00)))));
+}
+
+TEST_P(SelectSimplificationPassTest, SelectWithConstantXorCaseCrcShift) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+     fn f(feedback: bits[1], crc: bits[16]) -> bits[16] {
+        literal.shift: bits[16] = literal(value=1)
+        literal.poly: bits[16] = literal(value=0x1021)
+        shll.shift_3: bits[16] = shll(crc, literal.shift)
+        xor.4: bits[16] = xor(shll.shift_3, literal.poly)
+        ret sel.5: bits[16] = sel(feedback, cases=[shll.shift_3, xor.4])
+     }
+  )",
+                                                       p.get()));
+
+  solvers::ScopedVerifyEquivalence stays_equivalent{f};
+  EXPECT_THAT(Run(f), IsOkAndHolds(true));
+  // The masked-xor strength reduction:
+  //   (crc << 1) ^ (sign_ext(feedback, 16) & 0x1021)
+  EXPECT_THAT(f->return_value(), m::Xor(m::Shll(m::Param("crc"), m::Literal(1)),
+                                        m::And(m::SignExt(m::Param("feedback")),
+                                               m::Literal("bits[16]:0x1021"))));
+}
+
+TEST_P(SelectSimplificationPassTest, SelectWithConstantXorCaseReversed) {
+  // Same strength reduction with the xor arm in the on-false slot.
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+     fn f(p: bits[1], x: bits[8]) -> bits[8] {
+        literal.1: bits[8] = literal(value=0x5a)
+        xor.2: bits[8] = xor(x, literal.1)
+        ret sel.3: bits[8] = sel(p, cases=[xor.2, x])
+     }
+  )",
+                                                       p.get()));
+
+  solvers::ScopedVerifyEquivalence stays_equivalent{f};
+  EXPECT_THAT(Run(f), IsOkAndHolds(true));
+  // The xor arm is the on-false case here, so the mask condition is the
+  // complemented selector:
+  //   x ^ (sign_ext(~p, 8) & 0x5a)
+  EXPECT_THAT(f->return_value(),
+              m::Xor(m::Param("x"), m::And(m::SignExt(m::Not(m::Param("p"))),
+                                           m::Literal("bits[8]:0x5a"))));
+}
+
+TEST_P(SelectSimplificationPassTest, SelectWithConstantXorCaseDefaulted) {
+  // A select with one explicit case and a default value is still a binary mux
+  // when the selector is a single bit; the same strength reduction applies.
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+     fn f(p: bits[1], x: bits[8]) -> bits[8] {
+        literal.1: bits[8] = literal(value=0x5a)
+        xor.2: bits[8] = xor(x, literal.1)
+        ret sel.3: bits[8] = sel(p, cases=[x], default=xor.2)
+     }
+  )",
+                                                       p.get()));
+
+  solvers::ScopedVerifyEquivalence stays_equivalent{f};
+  EXPECT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::Xor(m::Param("x"), m::And(m::SignExt(m::Param("p")),
+                                           m::Literal("bits[8]:0x5a"))));
+}
+
+TEST_P(SelectSimplificationPassTest, SelectWithNonConstantXorCaseUnchanged) {
+  // If the xor term is not fully known, the rewrite does not apply.
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+     fn f(p: bits[1], x: bits[8], y: bits[8]) -> bits[8] {
+       xor.1: bits[8] = xor(x, y)
+       ret sel.2: bits[8] = sel(p, cases=[x, xor.1])
+     }
+  )",
+                                                       p.get()));
+  EXPECT_THAT(Run(f), IsOkAndHolds(false));
+}
+
+TEST_P(SelectSimplificationPassTest, SelectWithConstantXorCaseOneBit) {
+  // For a 1-bit result the masked xor uses the (complemented) selector directly
+  // as the mask, without sign-extension.
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+     fn f(p: bits[1], x: bits[1]) -> bits[1] {
+        literal.1: bits[1] = literal(value=1)
+        xor.2: bits[1] = xor(x, literal.1)
+        ret sel.3: bits[1] = sel(p, cases=[xor.2, x])
+     }
+  )",
+                                                       p.get()));
+
+  solvers::ScopedVerifyEquivalence stays_equivalent{f};
+  EXPECT_THAT(Run(f), IsOkAndHolds(true));
+  // The xor arm is the on-false case, so the mask is the complemented selector:
+  //   x ^ (~p & 1)
+  EXPECT_THAT(
+      f->return_value(),
+      m::Xor(m::Param("x"), m::And(m::Not(m::Param("p")), m::Literal(1))));
+}
+
+TEST_P(SelectSimplificationPassTest, SelectWithSplitXorCase) {
+  // Regression test for a binary select whose xor arm is not a literal
+  // `xor(x, c)` node, because `concat_simp` (or similar) already split the wide
+  // xor limb into per-slice pieces:
+  //
+  //   sel(p, [concat(x_hi, 0), concat(xor(x_hi, c_hi), xor(0, c_lo))])
+  //
+  // i.e. the arm structure of an unrolled CRC/shift loop after concat
+  // simplification. The masked-xor rewrite still applies because the arms
+  // provably differ by the fully-known constant 0x1021 (the CRC polynomial).
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+  fn f(p: bits[1], x: bits[16]) -> bits[16] {
+    bit_slice.1: bits[15] = bit_slice(x, start=0, width=15)
+    literal.2: bits[1] = literal(value=0)
+    shifted: bits[16] = concat(bit_slice.1, literal.2)
+    literal.3: bits[15] = literal(value=2064)
+    xor.4: bits[15] = xor(bit_slice.1, literal.3)
+    literal.5: bits[1] = literal(value=1)
+    split_xor: bits[16] = concat(xor.4, literal.5)
+    ret sel.6: bits[16] = sel(p, cases=[shifted, split_xor])
+  }
+  )",
+                                                       p.get()));
+
+  solvers::ScopedVerifyEquivalence stays_equivalent{f};
+  EXPECT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(
+      f->return_value(),
+      m::Xor(m::Concat(m::BitSlice(m::Param("x"), /*start=*/0, /*width=*/15),
+                       m::Literal(0)),
+             m::And(m::SignExt(m::Param("p")), m::Literal("bits[16]:0x1021"))));
+}
+
+TEST_P(SelectSimplificationPassTest, SelectWithSplitXorCaseOnFalse) {
+  // Same as SelectWithSplitXorCase but with the decomposed xor limb in the
+  // on-false case; the masked-xor rewrite is orientation-invariant.
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+  fn f(p: bits[1], x: bits[16]) -> bits[16] {
+    bit_slice.1: bits[15] = bit_slice(x, start=0, width=15)
+    literal.2: bits[1] = literal(value=0)
+    shifted: bits[16] = concat(bit_slice.1, literal.2)
+    literal.3: bits[15] = literal(value=2064)
+    xor.4: bits[15] = xor(bit_slice.1, literal.3)
+    literal.5: bits[1] = literal(value=1)
+    xor_limb: bits[16] = concat(xor.4, literal.5)
+    ret sel.6: bits[16] = sel(p, cases=[xor_limb, shifted])
+  }
+  )",
+                                                       p.get()));
+
+  solvers::ScopedVerifyEquivalence stays_equivalent{f};
+  EXPECT_THAT(Run(f), IsOkAndHolds(true));
+  // `sel = on_false ^ (sign_ext(p, W) & delta)` with delta = on_false ^ on_true
+  // = 0x1021; the on-false arm is itself the concat/xor limb.
+  EXPECT_THAT(
+      f->return_value(),
+      m::Xor(m::Concat(m::Xor(m::BitSlice(m::Param("x"), /*start=*/0,
+                                          /*width=*/15),
+                              m::Literal("bits[15]:0x810")),
+                       m::Literal(1)),
+             m::And(m::SignExt(m::Param("p")), m::Literal("bits[16]:0x1021"))));
+}
+
+TEST_P(SelectSimplificationPassTest, SelectWithUnresolvableSplitXorCase) {
+  // If the corresponding pieces of the two arms do not provably differ by a
+  // fully-known constant, the masked-xor rewrite is not applied.
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+    fn f(p: bits[1], x: bits[16], y: bits[16]) -> bits[16] {
+      bit_slice.1: bits[8] = bit_slice(x, start=0, width=8)
+      bit_slice.2: bits[8] = bit_slice(x, start=8, width=8)
+      bit_slice.3: bits[8] = bit_slice(y, start=0, width=8)
+      bit_slice.4: bits[8] = bit_slice(y, start=8, width=8)
+      arm_a: bits[16] = concat(bit_slice.1, bit_slice.2)
+      arm_b: bits[16] = concat(bit_slice.3, bit_slice.4)
+      ret sel.5: bits[16] = sel(p, cases=[arm_a, arm_b])
+    }
+  )",
+                                                       p.get()));
+  EXPECT_THAT(Run(f), IsOkAndHolds(false));
 }
 
 TEST_P(SelectSimplificationPassTest, TwoWayOneHotSelectWhichIsNotOneHot) {
