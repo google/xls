@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <algorithm>
 #include <cstdint>
 #include <functional>
 #include <memory>
@@ -21,9 +22,12 @@
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
+#include "absl/strings/str_replace.h"
 #include "clang/include/clang/AST/Attr.h"
 #include "clang/include/clang/AST/Decl.h"
 #include "clang/include/clang/AST/DeclTemplate.h"
@@ -44,6 +48,21 @@
 #include "xls/ir/source_location.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
+
+namespace {
+
+bool IsTraceStreamType(clang::QualType type) {
+  type = type.getNonReferenceType().getUnqualifiedType();
+  if (const auto* record_type = type->getAs<clang::RecordType>()) {
+    if (record_type->getDecl()->getNameAsString() ==
+        "__xlscc_trace_stream_type") {
+      return true;
+    }
+  }
+  return false;
+}
+
+}  // namespace
 
 namespace xlscc {
 
@@ -523,6 +542,95 @@ absl::StatusOr<std::shared_ptr<CChannelType>> Translator::GetChannelType(
   return std::make_shared<CChannelType>(item_type, memory_size, op_type);
 }
 
+absl::StatusOr<Translator::IOOpReturn> Translator::InterceptTraceStreamOp(
+    const clang::Expr* expr, const xls::SourceInfo& loc,
+    CValue assignment_value) {
+  if (assignment_value.valid()) {
+    return absl::UnimplementedError(
+        ErrorMessage(loc, "Assignment to trace stream not supported"));
+  }
+
+  std::vector<const clang::Expr*> stream_args;
+  const clang::Expr* current_expr = expr;
+  while (true) {
+    while (auto cast = clang::dyn_cast<const clang::CastExpr>(current_expr)) {
+      current_expr = cast->getSubExpr();
+    }
+    while (auto paren = clang::dyn_cast<const clang::ParenExpr>(current_expr)) {
+      current_expr = paren->getSubExpr();
+    }
+    auto cur_op_call =
+        clang::dyn_cast<const clang::CXXOperatorCallExpr>(current_expr);
+    if (cur_op_call == nullptr ||
+        cur_op_call->getOperator() !=
+            clang::OverloadedOperatorKind::OO_LessLess ||
+        !IsTraceStreamType(cur_op_call->getType())) {
+      break;
+    }
+    XLSCC_CHECK_EQ(cur_op_call->getNumArgs(), 2, loc);
+    stream_args.push_back(cur_op_call->getArg(1));
+    current_expr = cur_op_call->getArg(0);
+  }
+  std::reverse(stream_args.begin(), stream_args.end());
+
+  std::string format_string;
+  TrackedBValue condition = context().full_condition_bval(loc);
+  std::vector<TrackedBValue> tuple_parts = {condition};
+
+  for (const clang::Expr* arg_expr : stream_args) {
+    absl::StatusOr<std::string> str_literal = GetStringLiteral(arg_expr, loc);
+    if (str_literal.ok()) {
+      std::string escaped =
+          absl::StrReplaceAll(*str_literal, {{"{", "{{"}, {"}", "}}"}});
+      absl::StrAppend(&format_string, escaped);
+    } else {
+      XLS_ASSIGN_OR_RETURN(CValue arg_cval, GenerateIR_Expr(arg_expr, loc));
+      if (!arg_cval.rvalue().valid()) {
+        return absl::InvalidArgumentError(ErrorMessage(
+            loc,
+            "Argument to trace stream must have R-Value (eg cannot "
+            "be pure pointer etc)"));
+      }
+      XLS_ASSIGN_OR_RETURN(bool arg_contains_lvalues,
+                           arg_cval.type()->ContainsLValues(*this));
+      if (arg_contains_lvalues) {
+        LOG(WARNING) << WarningMessage(
+            loc, "Only R-Value part of argument will be traced");
+      }
+      tuple_parts.push_back(arg_cval.rvalue());
+
+      if (arg_cval.type()->Is<CIntType>()) {
+        const auto* int_type = arg_cval.type()->As<CIntType>();
+        if (int_type->is_signed()) {
+          absl::StrAppend(&format_string, "{:d}");
+        } else {
+          absl::StrAppend(&format_string, "{:u}");
+        }
+      } else if (arg_cval.type()->Is<CBitsType>()) {
+        absl::StrAppend(&format_string, "{:x}");
+      } else if (arg_cval.type()->Is<CBoolType>()) {
+        absl::StrAppend(&format_string, "{:d}");
+      } else {
+        return absl::UnimplementedError(
+            ErrorMessage(loc, "Unsupported type for trace stream: %s",
+                         arg_cval.type()->debug_string()));
+      }
+    }
+  }
+
+  IOOp op = {.op = OpType::kTrace, .trace_message_string = format_string};
+  op.trace_type = TraceType::kTrace;
+  op.ret_value = context().fb->Tuple(ToNativeBValues(tuple_parts), loc);
+
+  XLS_RETURN_IF_ERROR(
+      AddOpToChannel(op, /*channel_param=*/nullptr, loc).status());
+
+  IOOpReturn ret;
+  ret.generate_expr = false;
+  ret.value = CValue();
+  return ret;
+}
+
 absl::StatusOr<Translator::IOOpReturn> Translator::InterceptIOOp(
     const clang::Expr* expr, const xls::SourceInfo& loc,
     CValue assignment_value) {
@@ -558,6 +666,12 @@ absl::StatusOr<Translator::IOOpReturn> Translator::InterceptIOOp(
     }
   } else if (auto operator_call =
                  clang::dyn_cast<const clang::CXXOperatorCallExpr>(expr)) {
+    if (operator_call->getOperator() ==
+            clang::OverloadedOperatorKind::OO_LessLess &&
+        IsTraceStreamType(operator_call->getType())) {
+      return InterceptTraceStreamOp(expr, loc, assignment_value);
+    }
+
     if (operator_call->getOperator() !=
         clang::OverloadedOperatorKind::OO_Subscript) {
       return no_op_return;
