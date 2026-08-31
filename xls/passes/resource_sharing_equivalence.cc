@@ -14,13 +14,14 @@
 
 #include "xls/passes/resource_sharing_equivalence.h"
 
-#include <algorithm>
 #include <cstdint>
 #include <functional>
 #include <memory>
 #include <optional>
+#include <utility>
 #include <vector>
 
+#include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/synchronization/mutex.h"
@@ -43,13 +44,13 @@ namespace xls {
 namespace {
 
 // Returns true if both nodes are bits-typed.
-bool BothBitsTyped(const Node* a, const Node* b) {
+bool BothBitsTyped(Node* a, Node* b) {
   return a->GetType()->IsBits() && b->GetType()->IsBits();
 }
 
 // Returns true if `src` and `dst` are bit-typed and `src` is
 // narrower or equal in width to `dst`.
-bool LessThanOrEqualBitwidth(const Node* src, const Node* dst) {
+bool LessThanOrEqualBitwidth(Node* src, Node* dst) {
   if (!BothBitsTyped(src, dst)) {
     return false;
   }
@@ -80,23 +81,29 @@ absl::StatusOr<double> EstimateAreaForNodes(
   return area;
 }
 
+using NodeToMappings =
+    absl::flat_hash_map<Node*, std::unique_ptr<EquivalenceMapping>>;
+
 // `BitwidthExtendingEquivalenceMapping` handles nodes with identical ops where
 // the src node and its operands are narrower than or equal to the dst
 // node's bit widths.
 class BitwidthExtendingEquivalenceMapping : public EquivalenceMapping {
  public:
-  static std::optional<std::unique_ptr<EquivalenceMapping>> TryCreate(
-      const Node* src, const Node* dst) {
-    if (src->op() != dst->op()) {
-      return std::nullopt;
+  static absl::StatusOr<std::optional<NodeToMappings>> TryCreate(
+      absl::Span<Node* const> sources, Node* dst) {
+    for (Node* src : sources) {
+      if (src->op() != dst->op()) {
+        return std::nullopt;
+      }
+      if (src->operand_count() != dst->operand_count()) {
+        return std::nullopt;
+      }
+      if (!LessThanOrEqualBitwidth(src, dst)) {
+        return std::nullopt;
+      }
     }
-    if (src->operand_count() != dst->operand_count()) {
-      return std::nullopt;
-    }
-    if (!LessThanOrEqualBitwidth(src, dst)) {
-      return std::nullopt;
-    }
-    return std::make_unique<BitwidthExtendingEquivalenceMapping>(src, dst);
+    return ComputeMappingsSourcesToDest<BitwidthExtendingEquivalenceMapping>(
+        sources, dst);
   }
 
   using EquivalenceMapping::EquivalenceMapping;
@@ -155,18 +162,23 @@ class BitwidthExtendingEquivalenceMapping : public EquivalenceMapping {
 // `AddSubEquivalenceMapping` handles folding between `add` and `sub` nodes.
 class AddSubEquivalenceMapping : public EquivalenceMapping {
  public:
-  static std::optional<std::unique_ptr<EquivalenceMapping>> TryCreate(
-      const Node* src, const Node* dst) {
-    if (!src->OpIn({Op::kAdd, Op::kSub}) || !dst->OpIn({Op::kAdd, Op::kSub})) {
+  static absl::StatusOr<std::optional<NodeToMappings>> TryCreate(
+      absl::Span<Node* const> sources, Node* dst) {
+    if (!dst->OpIn({Op::kAdd, Op::kSub}) || dst->operand_count() != 2) {
       return std::nullopt;
     }
-    if (src->operand_count() != 2 || dst->operand_count() != 2) {
-      return std::nullopt;
+    for (Node* src : sources) {
+      if (!src->OpIn({Op::kAdd, Op::kSub})) {
+        return std::nullopt;
+      }
+      if (src->operand_count() != 2) {
+        return std::nullopt;
+      }
+      if (!LessThanOrEqualBitwidth(src, dst)) {
+        return std::nullopt;
+      }
     }
-    if (!LessThanOrEqualBitwidth(src, dst)) {
-      return std::nullopt;
-    }
-    return std::make_unique<AddSubEquivalenceMapping>(src, dst);
+    return ComputeMappingsSourcesToDest<AddSubEquivalenceMapping>(sources, dst);
   }
 
   using EquivalenceMapping::EquivalenceMapping;
@@ -225,7 +237,7 @@ class AddSubEquivalenceMapping : public EquivalenceMapping {
 
   absl::StatusOr<double> EstimateAreaOverhead(
       const AreaEstimator& area_estimator, absl::Span<Node* const> operands,
-      const Node* output) const override {
+      Node* output) const override {
     if (src_->op() != dst_->op()) {
       Node* op_to_negate = operands[1];
       if (op_to_negate->op() != Op::kNeg) {
@@ -272,6 +284,23 @@ absl::StatusOr<Node*> XorWithSignExtendedMsb(FunctionBase* f, Node* target,
                              Op::kXor);
 }
 
+struct PackageAndNode {
+  std::shared_ptr<Package> package;
+  Node* node;
+};
+
+absl::StatusOr<PackageAndNode> CreatePaddedShraPackage(Node* original) {
+  auto tmp_package = std::make_shared<Package>("tmp_shift_package");
+  FunctionBuilder fb("tmp_fn", tmp_package.get());
+  BValue p0 = fb.Param(
+      "a", tmp_package->GetBitsType(original->operand(0)->BitCountOrDie() + 1));
+  BValue p1 = fb.Param(
+      "b", tmp_package->GetBitsType(original->operand(1)->BitCountOrDie()));
+  BValue shra = fb.Shra(p0, p1);
+  XLS_RETURN_IF_ERROR(fb.Build().status());
+  return PackageAndNode{std::move(tmp_package), shra.node()};
+}
+
 // Equivalence mapping between shift operations (shll, shrl, and shra).
 //
 // y = x << s is equivalent to y = reverse(reverse(x) >> s)
@@ -284,41 +313,63 @@ absl::StatusOr<Node*> XorWithSignExtendedMsb(FunctionBase* f, Node* target,
 //    where zero-extending (padding) ensures shra shifts in 0s.
 class ShiftEquivalenceMapping : public EquivalenceMapping {
  public:
-  static std::optional<std::unique_ptr<EquivalenceMapping>> TryCreate(
-      const Node* src, const Node* dst) {
-    if (!src->OpIn({Op::kShll, Op::kShrl, Op::kShra}) ||
-        !dst->OpIn({Op::kShll, Op::kShrl, Op::kShra}) ||
-        src->op() == dst->op()) {
+  static absl::StatusOr<std::optional<NodeToMappings>> TryCreate(
+      absl::Span<Node* const> sources, Node* dst) {
+    auto bit_typed_two_op_shift = [](Node* node) {
+      return node->OpIn({Op::kShll, Op::kShrl, Op::kShra}) &&
+             node->operand_count() == 2 && node->GetType()->IsBits() &&
+             node->operand(0)->GetType()->IsBits() &&
+             node->operand(1)->GetType()->IsBits();
+    };
+    if (!bit_typed_two_op_shift(dst)) {
       return std::nullopt;
     }
-    if (!BothBitsTyped(src, dst) ||
-        !BothBitsTyped(src->operand(0), dst->operand(0)) ||
-        !BothBitsTyped(src->operand(1), dst->operand(1))) {
-      return std::nullopt;
+    bool needs_dst_widening = false;
+    for (Node* src : sources) {
+      // We gain nothing by handling edge case where src and dst have same op.
+      if (!bit_typed_two_op_shift(src) || src->op() == dst->op()) {
+        return std::nullopt;
+      }
+      // Cannot shift by a larger bit width amount.
+      if (src->operand(1)->BitCountOrDie() > dst->operand(1)->BitCountOrDie()) {
+        return std::nullopt;
+      }
+      if (dst->op() == Op::kShra) {
+        // Cannot shift a value that is a larger bit width.
+        if (src->BitCountOrDie() > dst->BitCountOrDie() ||
+            src->operand(0)->BitCountOrDie() >
+                dst->operand(0)->BitCountOrDie()) {
+          return std::nullopt;
+        }
+        // The destination must be 0-padded if the source is not shra and the
+        // bit-widths are equal, since an arithmetic shift would fill in 1s.
+        if (src->op() != Op::kShra && (src->operand(0)->BitCountOrDie() ==
+                                       dst->operand(0)->BitCountOrDie())) {
+          needs_dst_widening = true;
+        }
+      } else {
+        if (!LessThanOrEqualBitwidth(src, dst)) {
+          return std::nullopt;
+        }
+      }
     }
-    // If dst is not shra, src must be narrower than or equal to
-    // dst.
-    if (dst->op() != Op::kShra && !LessThanOrEqualBitwidth(src, dst)) {
-      return std::nullopt;
+
+    if (!needs_dst_widening) {
+      return ComputeMappingsSourcesToDest<ShiftEquivalenceMapping>(sources,
+                                                                   dst);
     }
-    return std::make_unique<ShiftEquivalenceMapping>(src, dst);
+
+    XLS_ASSIGN_OR_RETURN((PackageAndNode p_and_shra),
+                         CreatePaddedShraPackage(dst));
+    NodeToMappings mappings =
+        ComputeMappingsSourcesToDest<ShiftEquivalenceMapping>(sources,
+                                                              p_and_shra.node);
+    mappings[dst] = std::make_unique<BitwidthExtendingEquivalenceMapping>(
+        dst, p_and_shra.node, p_and_shra.package);
+    return mappings;
   }
 
   using EquivalenceMapping::EquivalenceMapping;
-
-  int64_t GetTargetWidth() const {
-    if (dst_->op() == Op::kShra &&
-        src_->BitCountOrDie() >= dst_->BitCountOrDie()) {
-      // Requires padding `src` so when we fold into an arithmetic shift
-      // we can shift in 0s.
-      return src_->BitCountOrDie() + 1;
-    }
-    return dst_->BitCountOrDie();
-  }
-
-  bool ModifiesDestinationNode() const override {
-    return dst_->op() == Op::kShra && dst_->BitCountOrDie() < GetTargetWidth();
-  }
 
   bool RequiresOperandTransformation() const override { return true; }
   bool RequiresOutputTransformation() const override { return true; }
@@ -344,7 +395,7 @@ class ShiftEquivalenceMapping : public EquivalenceMapping {
     }
 
     // Extend shifted value to target width if necessary.
-    int64_t target_width = GetTargetWidth();
+    int64_t target_width = dst_->BitCountOrDie();
     if (op0->BitCountOrDie() < target_width) {
       XLS_ASSIGN_OR_RETURN(
           op0,
@@ -353,8 +404,7 @@ class ShiftEquivalenceMapping : public EquivalenceMapping {
     }
 
     // Extend shift amount to target width if necessary.
-    int64_t target_shift_width = std::max(src_->operand(1)->BitCountOrDie(),
-                                          dst_->operand(1)->BitCountOrDie());
+    int64_t target_shift_width = dst_->operand(1)->BitCountOrDie();
     if (op1->BitCountOrDie() < target_shift_width) {
       XLS_ASSIGN_OR_RETURN(
           op1, f->MakeNode<ExtendOp>(op1->loc(), op1,
@@ -366,9 +416,8 @@ class ShiftEquivalenceMapping : public EquivalenceMapping {
   }
 
   absl::StatusOr<Node*> ApplyToOutput(FunctionBase* f,
-                                      Node* unified_output) const override {
-    XLS_RET_CHECK(unified_output->GetType()->IsBits());
-    Node* result = unified_output;
+                                      Node* dst_output) const override {
+    Node* result = dst_output;
     int64_t orig_width = src_->BitCountOrDie();
 
     // If the src node is narrower, bit-slice to the src width.
@@ -394,25 +443,9 @@ class ShiftEquivalenceMapping : public EquivalenceMapping {
     return result;
   }
 
-  std::unique_ptr<EquivalenceMapping> GetDestinationMapping(
-      const Node* unified_node) const override {
-    if (!ModifiesDestinationNode()) {
-      return std::make_unique<IdentityEquivalenceMapping>(dst_, unified_node);
-    }
-    return std::make_unique<BitwidthExtendingEquivalenceMapping>(dst_,
-                                                                 unified_node);
-  }
-
-  absl::StatusOr<Node*> CreateUnifiedNode(
-      FunctionBase* f, absl::Span<Node* const> operands) const override {
-    XLS_RET_CHECK_EQ(operands.size(), 2);
-    return f->MakeNode<BinOp>(dst_->loc(), operands[0], operands[1],
-                              dst_->op());
-  }
-
   absl::StatusOr<double> EstimateAreaOverhead(
       const AreaEstimator& area_estimator, absl::Span<Node* const> src_operands,
-      const Node* src_node) const override {
+      Node* src_node) const override {
     if (src_->op() == Op::kShra) {
       int64_t orig_width = src_->BitCountOrDie();
       XLS_ASSIGN_OR_RETURN(
@@ -433,22 +466,20 @@ class ShiftEquivalenceMapping : public EquivalenceMapping {
 
 }  // namespace
 
-std::unique_ptr<EquivalenceMapping> EquivalenceMapping::GetDestinationMapping(
-    const Node* unified_node) const {
-  return std::make_unique<IdentityEquivalenceMapping>(dst_, unified_node);
-}
-
 void NodeEquivalenceMapper::Register(Factory factory) {
   absl::MutexLock lock(mutex_);
   factories_.push_back(factory);
 }
 
-std::optional<std::unique_ptr<EquivalenceMapping>>
-NodeEquivalenceMapper::ComputeMapping(const Node* src, const Node* dst) const {
+absl::StatusOr<std::optional<NodeToMappings>>
+NodeEquivalenceMapper::ComputeMappings(absl::Span<Node* const> sources,
+                                       Node* dst) const {
   absl::MutexLock lock(mutex_);
   for (Factory factory : factories_) {
-    if (auto mapping = factory(src, dst); mapping.has_value()) {
-      return mapping;
+    XLS_ASSIGN_OR_RETURN((std::optional<NodeToMappings> mappings),
+                         factory(sources, dst));
+    if (mappings.has_value()) {
+      return mappings;
     }
   }
   return std::nullopt;

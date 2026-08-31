@@ -69,6 +69,11 @@
 
 namespace xls {
 
+namespace {
+using NodeToMappings =
+    absl::flat_hash_map<Node*, std::unique_ptr<EquivalenceMapping>>;
+}  // namespace
+
 // GetDelayIncrease computes the maximum difference in delay between any pair
 // of folded nodes, used to determine whether @next_folding_action should be
 // merged into the group of @current_folding_actions.
@@ -241,12 +246,15 @@ ResourceSharingPass::GetFoldableActionForMutuallyExclusiveNodes(
   // CanTarget and ShouldTarget have already been vetted, so all that is left
   // is to see if the types and bit widths are compatible
 
-  std::optional<std::unique_ptr<EquivalenceMapping>> mapping =
-      GetNodeEquivalenceMapper().ComputeMapping(from_node, to_node);
-  // For the time being, we do not support representing the needed mapping on
-  // the destination node that would make a nary fold valid, i.e. some kind of
-  // group equivalence mapper. And so we require the destination is unchanging.
-  if (!mapping.has_value() || (*mapping)->ModifiesDestinationNode()) {
+  XLS_ASSIGN_OR_RETURN(
+      std::optional<NodeToMappings> mappings,
+      GetNodeEquivalenceMapper().ComputeMappings({from_node}, to_node));
+  if (!mappings.has_value() || absl::c_any_of(*mappings, [&](const auto& pair) {
+        // If the destination node is not to_node, then the destination required
+        // modification itself, and we do not yet handle that in this pass.
+        // Theoretically, nothing prevents this apart from transform details.
+        return pair.second->dst() != to_node;
+      })) {
     return nullptr;
   }
 
@@ -302,7 +310,7 @@ ResourceSharingPass::GetFoldableActionForMutuallyExclusiveNodes(
   // defer computing area saved until then
   return std::make_unique<BinaryFoldingAction>(
       from_node, to_node, std::move(from_edges), std::move(to_edges), 0.0,
-      std::move(*mapping), std::move(sinks));
+      std::move(mappings->at(from_node)), std::move(sinks));
 }
 
 absl::StatusOr<std::vector<std::unique_ptr<BinaryFoldingAction>>>
@@ -1872,19 +1880,20 @@ absl::StatusOr<bool> ResourceSharingPass::PerformFoldingActions(
     for (const auto& [from_node, _] : folding->GetFrom()) {
       Node* renamed_node = final_renamed_node(from_node);
 
-      std::optional<std::unique_ptr<EquivalenceMapping>> mapping =
-          GetNodeEquivalenceMapper().ComputeMapping(renamed_node, to_node);
-      XLS_RET_CHECK(mapping.has_value())
+      XLS_ASSIGN_OR_RETURN(
+          std::optional<NodeToMappings> mappings,
+          GetNodeEquivalenceMapper().ComputeMappings({renamed_node}, to_node));
+      XLS_RET_CHECK(mappings.has_value())
           << "No equivalence mapping found for " << renamed_node->ToString()
           << " -> " << to_node->ToString();
 
-      XLS_ASSIGN_OR_RETURN(
-          std::vector<Node*> coerced_operands,
-          (*mapping)->ApplyToOperands(f, renamed_node->operands()));
+      XLS_ASSIGN_OR_RETURN(std::vector<Node*> coerced_operands,
+                           mappings->at(renamed_node)
+                               ->ApplyToOperands(f, renamed_node->operands()));
 
       froms_to_use.push_back(FromSource{
           .node = renamed_node,
-          .mapping = std::move(*mapping),
+          .mapping = std::move(mappings->at(renamed_node)),
           .coerced_operands = std::move(coerced_operands),
       });
 

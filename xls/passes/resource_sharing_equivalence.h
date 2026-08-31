@@ -18,69 +18,46 @@
 #include <memory>
 #include <optional>
 #include <type_traits>
+#include <utility>
 #include <vector>
 
 #include "absl/base/thread_annotations.h"
+#include "absl/container/flat_hash_map.h"
 #include "absl/status/statusor.h"
 #include "absl/synchronization/mutex.h"
 #include "absl/types/span.h"
 #include "xls/estimators/area_model/area_estimator.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/node.h"
+#include "xls/ir/package.h"
 
 namespace xls {
 
 // `EquivalenceMapping` is an abstract class representing a concrete plan to
 // map a source node onto a destination node by transforming some combination
-// of the `src` node's operands, the node that unifies `src` with `dst`, and/or
-// the output of the unified node.
-//
-// Implementations of this class decide their own internal data structures to
-// represent the required transformations and provide a `TryCreate` static
-// method to test if a mapping is supported:
-//
-//   static std::optional<std::unique_ptr<EquivalenceMapping>> TryCreate(
-//       const Node* src, const Node* dst);
-//
-// For simple mappings, `dst` is left unchanged, e.g. if `src` inputs need to be
-// bit width extended before they can be used by `dst`. For more complicated
-// mappings, `dst` may require slight modification. Still, the intent is that
-// this mapping leaves `dst` mostly unchanged.
+// of the `src` node's operands and/or the output as used by the original users
+// of `src`. The `dst` node is then usable as-is in place of `src`.
 class EquivalenceMapping {
  public:
-  EquivalenceMapping(const Node* src, const Node* dst) : src_(src), dst_(dst) {}
+  EquivalenceMapping(Node* src, Node* dst,
+                     std::shared_ptr<Package> tmp_package = nullptr)
+      : src_(src), dst_(dst), tmp_package_(std::move(tmp_package)) {}
   virtual ~EquivalenceMapping() = default;
 
-  // Returns the src node this mapping was created for.
-  const Node* src() const { return src_; }
-
-  // Returns the dst node this mapping maps to.
-  const Node* dst() const { return dst_; }
+  Node* dst() const { return dst_; }
 
   // Applies this mapping's operand transformations to `src_operands`,
-  // returning a new vector of operands suitable for `dst`, or the unified
-  // version of `dst` if `dst` itself requires modification too.
+  // returning a new vector of operands suitable for `dst`.
   // `src_operands` can be `src()->operands()` or any other vector of
   // operands (e.g. from cloned nodes).
   virtual absl::StatusOr<std::vector<Node*>> ApplyToOperands(
       FunctionBase* f, absl::Span<Node* const> src_operands) const = 0;
 
-  // Applies the output transformation to `unified_output`, returning a node
-  // that is functionally equivalent to `src()`.
+  // Applies output transformations to `dst_output`, returning a node that is
+  // functionally equivalent to `src()`. Note that `dst_output` is commonly a
+  // clone of `dst` or a node that will replace both `src` and `dst`.
   virtual absl::StatusOr<Node*> ApplyToOutput(FunctionBase* f,
-                                              Node* unified_output) const = 0;
-
-  // Returns an EquivalenceMapping that adapts `dst()` to `unified_node`
-  // when `ModifiesdstNode()` is true, e.g. a bit width extending mapper if
-  // `unified_node` requires more bits than either `src` or `dst`.
-  virtual std::unique_ptr<EquivalenceMapping> GetDestinationMapping(
-      const Node* unified_node) const;
-
-  // Creates the unified node given the multiplexed operands.
-  virtual absl::StatusOr<Node*> CreateUnifiedNode(
-      FunctionBase* f, absl::Span<Node* const> operands) const {
-    return dst_->CloneInNewFunction(operands, f);
-  }
+                                              Node* dst_output) const = 0;
 
   // Returns the estimated area overhead incurred by this mapping (e.g.
   // negation logic, bit-extension, output slicing). `operands` and `output`
@@ -88,33 +65,39 @@ class EquivalenceMapping {
   // (defaulting to `src()->operands()` and `src()`).
   virtual absl::StatusOr<double> EstimateAreaOverhead(
       const AreaEstimator& area_estimator, absl::Span<Node* const> operands,
-      const Node* output) const {
+      Node* output) const {
     return 0.0;
   }
 
   // Returns true if this mapping modifies any of the operands.
   virtual bool RequiresOperandTransformation() const { return true; }
 
-  // Returns true if this mapping modifies the output of the unified node.
+  // Returns true if this mapping modifies the output of the dst node.
   virtual bool RequiresOutputTransformation() const { return false; }
 
-  // Returns true if this mapping modifies dst_ when creating the unified
-  // node, e.g. widening needed to accommodate transformations done to make
-  // `src` and `dst` compatible.
-  virtual bool ModifiesDestinationNode() const { return false; }
-
  protected:
-  const Node* src_;
-  const Node* dst_;
+  Node* src_;
+  Node* dst_;
+  // Used to hold `dst_` if `dst` is a temporary created by the caller that
+  // constructed this mapping. Uses shared_ptr because multiple mappings may be
+  // created to the same temporary `dst`.
+  std::shared_ptr<Package> tmp_package_;
 };
 
 // `NodeEquivalenceMapper` is a thread-safe registry of `EquivalenceMapping`
 // implementations. It iterates over all registered `EquivalenceMapping`
-// `TryCreate` factories to find a valid mapping between two nodes.
+// `TryCreate` factories to find a valid mapping between source nodes and a
+// destination node. The returned mappings are for each source, and optionally
+// for the destination, if it must be modified to support the sources. If `dst`
+// must be modified, all mappings are to that modified version of `dst`, NOT to
+// `dst`; in other words, the original `dst` becomes a source of sorts, e.g:
+//   if you want to map shrl -> shra then the shra needs to be 0-padded, so
+//   the returned mappings are shrl -> wide_shra and shra -> wide_shra.
 class NodeEquivalenceMapper {
  public:
-  using Factory = std::optional<std::unique_ptr<EquivalenceMapping>> (*)(
-      const Node* src, const Node* dst);
+  using Factory = absl::StatusOr<std::optional<
+      absl::flat_hash_map<Node*, std::unique_ptr<EquivalenceMapping>>>> (*)(
+      absl::Span<Node* const> sources, Node* dst);
 
   NodeEquivalenceMapper() = default;
   ~NodeEquivalenceMapper() = default;
@@ -137,11 +120,13 @@ class NodeEquivalenceMapper {
     Register(&EqMapping::TryCreate);
   }
 
-  // Returns an `EquivalenceMapping` if `src` can be mapped to `dst` using any
-  // registered `EquivalenceMapping` implementation, or `std::nullopt` if no
-  // mapping applies.
-  std::optional<std::unique_ptr<EquivalenceMapping>> ComputeMapping(
-      const Node* src, const Node* dst) const;
+  // Returns an `EquivalenceMapping` map if `sources` can be mapped to `dst`
+  // using any registered `EquivalenceMapping` implementation, or `std::nullopt`
+  // if no mapping applies. The map contains mappings for every source AND for
+  // the dst such that the dst mapping suffices for all the sources.
+  absl::StatusOr<std::optional<
+      absl::flat_hash_map<Node*, std::unique_ptr<EquivalenceMapping>>>>
+  ComputeMappings(absl::Span<Node* const> sources, Node* dst) const;
 
  private:
   mutable absl::Mutex mutex_;
@@ -158,16 +143,32 @@ void RegisterEquivalenceMapping() {
   GetNodeEquivalenceMapper().Register<T>();
 }
 
+// Populates hash map of the equivalence mappings from each source to the dest.
+template <typename EqMapping>
+absl::flat_hash_map<Node*, std::unique_ptr<EquivalenceMapping>>
+ComputeMappingsSourcesToDest(absl::Span<Node* const> sources, Node* dst) {
+  absl::flat_hash_map<Node*, std::unique_ptr<EquivalenceMapping>> mappings;
+  mappings.reserve(sources.size());
+  for (Node* src : sources) {
+    mappings[src] = std::make_unique<EqMapping>(src, dst);
+  }
+  return mappings;
+}
+
 // `IdentityEquivalenceMapping` handles nodes with identical ops and bit widths.
 // This mapping is exposed for ease of default mapping in constructors.
 class IdentityEquivalenceMapping : public EquivalenceMapping {
  public:
-  static std::optional<std::unique_ptr<EquivalenceMapping>> TryCreate(
-      const Node* src, const Node* dst) {
-    if (!src->IsDefinitelyEqualTo(dst)) {
-      return std::nullopt;
+  static absl::StatusOr<std::optional<
+      absl::flat_hash_map<Node*, std::unique_ptr<EquivalenceMapping>>>>
+  TryCreate(absl::Span<Node* const> sources, Node* dst) {
+    for (Node* src : sources) {
+      if (!src->IsDefinitelyEqualTo(dst)) {
+        return std::nullopt;
+      }
     }
-    return std::make_unique<IdentityEquivalenceMapping>(src, dst);
+    return ComputeMappingsSourcesToDest<IdentityEquivalenceMapping>(sources,
+                                                                    dst);
   }
 
   using EquivalenceMapping::EquivalenceMapping;
