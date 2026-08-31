@@ -1329,7 +1329,7 @@ void ConcatHelper(int64_t idx,
         return;
       }
     }
-    result_intervals.push_back(Interval(lower, upper));
+    result_intervals.push_back(Interval(std::move(lower), std::move(upper)));
     return;
   }
 
@@ -1343,6 +1343,29 @@ void ConcatHelper(int64_t idx,
     ConcatHelper(idx + 1, imprecise_operands, lower_bits, upper_bits,
                  result_intervals);
   }
+}
+
+// Greedily keeps imprecise operands from MSB to LSB up to the interval budget,
+// collapsing all remaining lower operands to their single ConvexHull.
+std::vector<IntervalSet> PreFilterConcatOperands(
+    absl::Span<const IntervalSet> operands,
+    int64_t max_segments = kMaxIntervalSegments) {
+  std::vector<IntervalSet> filtered;
+  filtered.reserve(operands.size());
+  int64_t accumulated_intervals = 1;
+  for (const IntervalSet& op : operands) {
+    if (op.NumberOfIntervals() <= 1 ||
+        accumulated_intervals * op.NumberOfIntervals() <= max_segments) {
+      accumulated_intervals *= op.NumberOfIntervals();
+      filtered.push_back(op);
+    } else {
+      // Exceeds budget: safely bridge internal gaps with the single ConvexHull
+      // [L_min, U_max]
+      filtered.push_back(
+          IntervalSet::UnsafeFromNormalized(op.BitCount(), {*op.ConvexHull()}));
+    }
+  }
+  return filtered;
 }
 
 }  // namespace
@@ -1359,7 +1382,7 @@ IntervalSet Concat(absl::Span<IntervalSet const> sets) {
     return IntervalSet(0);
   }
 
-  std::vector<IntervalSet> operands = ReduceIntervalFragmentationForOp(sets);
+  std::vector<IntervalSet> operands = PreFilterConcatOperands(sets);
 
   // Fill in all the precise operands directly into the workspaces, while
   // collecting the imprecise operands for recursive processing.

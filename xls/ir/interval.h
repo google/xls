@@ -52,24 +52,26 @@ class Interval {
   // that of the upper bound.
   //
   // The upper/lower bound are both considered inclusive.
-  Interval(const Bits& lower_bound, const Bits& upper_bound)
-      : is_valid_(true), lower_bound_(lower_bound), upper_bound_(upper_bound) {
+  Interval(Bits lower_bound, Bits upper_bound)
+      : is_valid_(true),
+        lower_bound_(std::move(lower_bound)),
+        upper_bound_(std::move(upper_bound)) {
     CHECK_EQ(lower_bound_.bit_count(), upper_bound_.bit_count());
   }
 
   // Returns the interval [lower_bound, upper_bound].
-  static Interval Closed(const Bits& lower_bound, const Bits& upper_bound) {
-    return Interval(lower_bound, upper_bound);
+  static Interval Closed(Bits lower_bound, Bits upper_bound) {
+    return Interval(std::move(lower_bound), std::move(upper_bound));
   }
 
   // Returns the interval (lower_bound, upper_bound].
-  static Interval LeftOpen(const Bits& lower_bound, const Bits& upper_bound) {
-    return Interval(bits_ops::Increment(lower_bound), upper_bound);
+  static Interval LeftOpen(const Bits& lower_bound, Bits upper_bound) {
+    return Interval(bits_ops::Increment(lower_bound), std::move(upper_bound));
   }
 
   // Returns the interval [lower_bound, upper_bound).
-  static Interval RightOpen(const Bits& lower_bound, const Bits& upper_bound) {
-    return Interval(lower_bound, bits_ops::Decrement(upper_bound));
+  static Interval RightOpen(Bits lower_bound, const Bits& upper_bound) {
+    return Interval(std::move(lower_bound), bits_ops::Decrement(upper_bound));
   }
 
   // Returns the interval (lower_bound, upper_bound).
