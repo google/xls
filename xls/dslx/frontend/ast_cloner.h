@@ -116,9 +116,12 @@ absl::StatusOr<std::unique_ptr<Module>> CloneModule(
 // Returns a clone of `module` that omits any top-level members whose
 // definitions appear in `members_to_remove`. References to those members are
 // not validated or rewritten; the caller is responsible for handling any
-// resulting dangling references.
+// resulting dangling references. Optionally populates `old_to_new` with the
+// mapping from original nodes to their clones, in case the caller wants to
+// perform additional replacements or fix dangling references.
 absl::StatusOr<std::unique_ptr<Module>> CloneModuleRemovingMembers(
-    const Module& module, absl::Span<const AstNode* const> members_to_remove);
+    const Module& module, absl::Span<const AstNode* const> members_to_remove,
+    absl::flat_hash_map<const AstNode*, AstNode*>* old_to_new = nullptr);
 
 // Returns a CloneReplacer that runs `first` and then runs `second` on the
 // preliminary result, short-circuiting if `first` returns an error.
