@@ -564,6 +564,7 @@ cc_library(
         "//xls/dslx/frontend:pos",
         "//xls/dslx/frontend:scanner",
         "//xls/dslx/frontend:semantics_analysis",
+        "//xls/dslx/frontend:test_function_transformer",
         "//xls/dslx/ir_convert:convert_options",
         "//xls/dslx/type_system:type_info",
         "//xls/dslx/type_system_v2:builtin_trait_deriver",
