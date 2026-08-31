@@ -14,10 +14,12 @@
 
 #include "xls/dslx/type_system_v2/import_utils.h"
 
+#include <iterator>
 #include <optional>
 #include <variant>
 #include <vector>
 
+#include "absl/algorithm/container.h"
 #include "absl/base/casts.h"
 #include "absl/log/check.h"
 #include "absl/status/status.h"
@@ -432,6 +434,20 @@ bool IsProcConstructor(const Function* function, const ProcDef* proc_def,
                        const FunctionType& function_type) {
   return function_type.return_type().IsProc() &&
          &function_type.return_type().AsProc().struct_def_base() == proc_def;
+}
+
+absl::StatusOr<std::vector<ParametricBinding*>>
+GetFunctionAndStructParametricBindings(const ImportData& import_data,
+                                       const Function& f) {
+  std::vector<ParametricBinding*> bindings = f.parametric_bindings();
+  if (f.IsFunctionOnParametricStruct()) {
+    XLS_ASSIGN_OR_RETURN(
+        std::optional<const StructDefBase*> struct_def,
+        GetStructOrProcDef((*f.impl())->struct_ref(), import_data));
+    absl::c_copy((*struct_def)->parametric_bindings(),
+                 std::back_inserter(bindings));
+  }
+  return bindings;
 }
 
 }  // namespace xls::dslx

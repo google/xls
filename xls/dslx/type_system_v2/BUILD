@@ -799,6 +799,7 @@ cc_library(
         "//xls/dslx/frontend:pos",
         "//xls/dslx/type_system:type",
         "//xls/dslx/type_system:type_info",
+        "@abseil-cpp//absl/algorithm:container",
         "@abseil-cpp//absl/base",
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/status",

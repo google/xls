@@ -58,6 +58,7 @@
 #include "xls/dslx/type_system/parametric_env.h"
 #include "xls/dslx/type_system/type.h"
 #include "xls/dslx/type_system/type_info.h"
+#include "xls/dslx/type_system_v2/import_utils.h"
 #include "xls/dslx/value_format_descriptor.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/format_preference.h"
@@ -152,6 +153,19 @@ BytecodeEmitter::~BytecodeEmitter() = default;
 absl::Status BytecodeEmitter::Init(const Function& f) {
   for (const auto* param : f.params()) {
     namedef_to_slot_[param->name_def()] = next_slotno_++;
+  }
+
+  if (f.impl().has_value()) {
+    XLS_ASSIGN_OR_RETURN(
+        std::vector<ParametricBinding*> parametric_bindings,
+        GetFunctionAndStructParametricBindings(*import_data_, f));
+    for (const ParametricBinding* binding : parametric_bindings) {
+      std::optional<InterpValue> value =
+          type_info_->GetConstExprOption(binding->name_def());
+      if (value.has_value()) {
+        parametrics_.emplace(binding->name_def(), std::move(*value));
+      }
+    }
   }
 
   return absl::OkStatus();
@@ -1574,6 +1588,11 @@ BytecodeEmitter::HandleNameDefInternal(const NameDef* node) {
   if (namedef_to_slot_.contains(node)) {
     int64_t slotno = namedef_to_slot_.at(node);
     return Bytecode::SlotIndex(slotno);
+  }
+
+  const auto parametric_it = parametrics_.find(node);
+  if (parametric_it != parametrics_.end()) {
+    return parametric_it->second;
   }
 
   if (caller_bindings_.has_value()) {

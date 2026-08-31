@@ -2633,6 +2633,24 @@ fn g() -> u32[3] {
   EXPECT_EQ(bit_value, 8);
 }
 
+TEST_F(BytecodeInterpreterTest, ImplFunctionUsingDefaultParametricValue) {
+  constexpr std::string_view kProgram = R"(
+struct Foo<U: u32, V: u32 = {U + 10}> {
+  value: u32
+}
+
+impl Foo<U, V> {
+  fn default() -> Self { Foo<U, V> { value: U + V } }
+}
+
+fn main() -> u32 {
+  Foo<2>::default().value
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue result, Interpret(kProgram, "main", {}));
+  EXPECT_EQ(result, InterpValue::MakeU32(14));
+}
+
 TEST_F(BytecodeInterpreterTest, GenericTypePassthroughFunction) {
   constexpr std::string_view kProgram = R"(
 #![feature(generics)]

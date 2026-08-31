@@ -137,6 +137,13 @@ absl::StatusOr<std::optional<const ProcDef*>> GetProcConstructedByFunction(
 bool IsProcConstructor(const Function* function, const ProcDef* proc_def,
                        const FunctionType& function_type);
 
+// Returns the parametric bindings of the given function, as well as its
+// enclosing struct, if any. The struct bindings are after the function bindings
+// in the resulting vector.
+absl::StatusOr<std::vector<ParametricBinding*>>
+GetFunctionAndStructParametricBindings(const ImportData& import_data,
+                                       const Function& f);
+
 }  // namespace xls::dslx
 
 #endif  // XLS_DSLX_TYPE_SYSTEM_V2_IMPORT_UTILS_H_
