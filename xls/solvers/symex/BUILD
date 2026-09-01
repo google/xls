@@ -36,7 +36,85 @@ cc_library(
     hdrs = ["symbolic_path.h"],
     deps = [
         "//xls/ir",
+        "//xls/ir:value",
         "@z3//:api",
+    ],
+)
+
+cc_test(
+    name = "symbolic_path_test",
+    srcs = ["symbolic_path_test.cc"],
+    deps = [
+        ":symbolic_path",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/ir",
+        "//xls/ir:bits",
+        "//xls/ir:ir_test_base",
+        "//xls/ir:value",
+        "@googletest//:gtest",
+        "@z3//:api",
+    ],
+)
+
+cc_library(
+    name = "z3_semantics_encoder",
+    srcs = ["z3_semantics_encoder.cc"],
+    hdrs = ["z3_semantics_encoder.h"],
+    deps = [
+        "//xls/common/status:status_macros",
+        "//xls/ir",
+        "//xls/ir:bits",
+        "//xls/ir:op",
+        "//xls/ir:type",
+        "//xls/ir:value",
+        "//xls/solvers:z3_utils",
+        "@abseil-cpp//absl/container:flat_hash_map",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/types:span",
+        "@z3//:api",
+    ],
+)
+
+cc_test(
+    name = "z3_semantics_encoder_test",
+    srcs = ["z3_semantics_encoder_test.cc"],
+    deps = [
+        ":z3_semantics_encoder",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/ir",
+        "//xls/ir:bits",
+        "//xls/ir:ir_test_base",
+        "//xls/ir:type",
+        "//xls/ir:value",
+        "@abseil-cpp//absl/types:span",
+        "@googletest//:gtest",
+        "@z3//:api",
+    ],
+)
+
+cc_library(
+    name = "concolic_input_spec",
+    srcs = ["concolic_input_spec.cc"],
+    hdrs = ["concolic_input_spec.h"],
+    deps = [
+        "//xls/ir:value",
+        "@abseil-cpp//absl/container:flat_hash_map",
+    ],
+)
+
+cc_test(
+    name = "concolic_input_spec_test",
+    srcs = ["concolic_input_spec_test.cc"],
+    deps = [
+        ":concolic_input_spec",
+        "//xls/common:xls_gunit_main",
+        "//xls/ir:bits",
+        "//xls/ir:value",
+        "@googletest//:gtest",
     ],
 )
 
@@ -45,10 +123,18 @@ cc_library(
     srcs = ["cfg_symex_engine.cc"],
     hdrs = ["cfg_symex_engine.h"],
     deps = [
+        ":concolic_input_spec",
         ":symbolic_path",
+        ":z3_semantics_encoder",
+        "//xls/common/status:status_macros",
         "//xls/ir",
+        "//xls/ir:value",
+        "//xls/solvers:z3_utils",
+        "@abseil-cpp//absl/cleanup",
+        "@abseil-cpp//absl/container:flat_hash_map",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/types:span",
         "@z3//:api",
     ],
 )
@@ -58,13 +144,19 @@ cc_test(
     srcs = ["cfg_symex_engine_test.cc"],
     deps = [
         ":cfg_symex_engine",
+        ":concolic_input_spec",
+        ":symbolic_path",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
+        "//xls/interpreter:ir_interpreter",
         "//xls/ir",
         "//xls/ir:bits",
+        "//xls/ir:bits_ops",
+        "//xls/ir:events",
         "//xls/ir:function_builder",
         "//xls/ir:ir_test_base",
-        "@abseil-cpp//absl/status",
+        "//xls/ir:value",
+        "@abseil-cpp//absl/types:span",
         "@googletest//:gtest",
         "@z3//:api",
     ],
@@ -78,14 +170,20 @@ cc_test(
     ],
     deps = [
         ":cfg_symex_engine",
+        ":concolic_input_spec",
+        ":symbolic_path",
         "//xls/common:xls_gunit_main",
         "//xls/common/file:filesystem",
         "//xls/common/file:get_runfile_path",
         "//xls/common/status:matchers",
+        "//xls/interpreter:ir_interpreter",
         "//xls/ir",
+        "//xls/ir:bits",
+        "//xls/ir:events",
         "//xls/ir:ir_parser",
         "//xls/ir:ir_test_base",
-        "@abseil-cpp//absl/status",
+        "//xls/ir:value",
+        "@abseil-cpp//absl/types:span",
         "@googletest//:gtest",
         "@z3//:api",
     ],
