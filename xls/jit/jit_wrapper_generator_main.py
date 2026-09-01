@@ -19,6 +19,7 @@ Output source code is saved according to output_name
 
 from collections.abc import Sequence
 import itertools
+import re
 import subprocess
 from typing import Optional, TypeVar
 
@@ -166,6 +167,9 @@ def interpret_interface(
       .upper()
   )
   header_filename = f"{_OUTPUT_DIR.value}/{output_name}.h"
+  header_filename = re.sub(
+      r"^bazel-out/[^/]+/(?:bin|genfiles)/", "", header_filename
+  )
   if _FUNCTION_TYPE.value in (None, "FUNCTION", "FUZZTEST"):
     func_ir = find_named_entry(
         interface.functions,
