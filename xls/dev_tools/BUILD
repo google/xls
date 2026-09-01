@@ -1105,3 +1105,47 @@ pytype_strict_contrib_test(
         "@abseil-py//absl/testing:absltest",
     ],
 )
+
+cc_binary(
+    name = "symex_main",
+    srcs = ["symex_main.cc"],
+    deps = [
+        "//xls/common:exit_status",
+        "//xls/common:init_xls",
+        "//xls/common/file:filesystem",
+        "//xls/common/status:status_macros",
+        "//xls/interpreter:ir_interpreter",
+        "//xls/ir",
+        "//xls/ir:events",
+        "//xls/ir:format_preference",
+        "//xls/ir:ir_parser",
+        "//xls/ir:value",
+        "//xls/solvers/symex:cfg_symex_engine",
+        "//xls/solvers/symex:concolic_input_spec",
+        "//xls/solvers/symex:symbolic_path",
+        "//xls/tests:testvector_cc_proto",
+        "@abseil-cpp//absl/flags:flag",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/strings:str_format",
+        "@abseil-cpp//absl/types:span",
+        "@z3//:api",
+    ],
+)
+
+pytype_strict_contrib_test(
+    name = "symex_main_test",
+    srcs = ["symex_main_test.py"],
+    data = [
+        ":symex_main",
+    ],
+    deps = [
+        "//xls/common:gfile",
+        "//xls/common:runfiles",
+        "//xls/common:test_base",
+        "//xls/tests:testvector_py_pb2",
+        "@abseil-py//absl/testing:absltest",
+        "@protobuf//:protobuf_python",
+    ],
+)
