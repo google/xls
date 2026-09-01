@@ -23,6 +23,8 @@
 #include "xls/contrib/eco/graph.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/ir_parser.h"
+#include "xls/ir/node.h"
+#include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
 #include "xls/ir/package.h"
 
@@ -131,8 +133,17 @@ top proc main(st: bits[32], init={42}) {
 
   XLS_ASSERT_OK_AND_ASSIGN(XLSGraph graph, XlsIrToGraph(*top));
 
-  ASSERT_TRUE(graph.node_name_to_index.contains("st"));
-  const int state_read = graph.node_name_to_index.at("st");
+  // The parser uniquifies the state read's name away from its state element
+  // (e.g. st -> st__1), so look the node up by name from the IR.
+  Node* state_read_node = nullptr;
+  for (Node* node : (*top)->nodes()) {
+    if (node->Is<StateRead>()) {
+      state_read_node = node;
+    }
+  }
+  ASSERT_NE(state_read_node, nullptr);
+  ASSERT_TRUE(graph.node_name_to_index.contains(state_read_node->GetName()));
+  const int state_read = graph.node_name_to_index.at(state_read_node->GetName());
   EXPECT_EQ(graph.nodes[state_read].cost_attributes.op, Op::kStateRead);
   EXPECT_EQ(graph.nodes[state_read].cost_attributes.state_element, "st");
   ASSERT_TRUE(
