@@ -160,7 +160,7 @@ std::optional<DocRef> Formatter::FormatCommentsBetween(
   // If running_comment is not empty, flush it. We don't add a hardline
   // to maintain the property that emitted comment docs do not have
   // trailing hardlines.
-  if (running_comment != "") {
+  if (!running_comment.empty()) {
     pieces.push_back(arena_.MakePrefixedReflow("//", running_comment));
   }
 
