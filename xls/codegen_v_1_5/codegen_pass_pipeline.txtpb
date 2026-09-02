@@ -57,6 +57,10 @@ compound_passes: [
     passes: [
       "register_cleanup",
       "opt_pass<ident_remove>",
+      "opt_pass<concat_simp>",
+      "opt_pass<dce>",
+      "opt_pass<bitwise_recombine>",
+      "opt_pass<dce>",
       "opt_pass<dataflow>",
       "opt_pass<dce>"
     ]

@@ -520,6 +520,58 @@ TEST(InlineBitmapTest, Intersect) {
   }
 }
 
+TEST(InlineBitmapTest, ToggleBit) {
+  InlineBitmap b(10);
+  EXPECT_FALSE(b.Get(3));
+  b.Toggle(3);
+  EXPECT_TRUE(b.Get(3));
+  b.Toggle(3);
+  EXPECT_FALSE(b.Get(3));
+}
+
+TEST(InlineBitmapTest, ToggleBitmap) {
+  {
+    InlineBitmap b(0);
+    b.Toggle(InlineBitmap(0));
+  }
+
+  {
+    InlineBitmap b(1);
+    EXPECT_FALSE(b.Get(0));
+    b.Toggle(InlineBitmap(1));
+    EXPECT_FALSE(b.Get(0));
+    b.Toggle(InlineBitmap::FromWord(1, 1));
+    EXPECT_TRUE(b.Get(0));
+    b.Toggle(InlineBitmap::FromWord(1, 1));
+    EXPECT_FALSE(b.Get(0));
+  }
+
+  {
+    InlineBitmap b1 = InlineBitmap::FromWord(0b00001111, 8);
+    b1.Toggle(InlineBitmap::FromWord(0b11001100, 8));
+    EXPECT_EQ(b1.GetWord(0), 0b11000011);
+  }
+
+  {
+    InlineBitmap b1(80);
+    b1.SetByte(0, 0xab);
+    b1.SetByte(1, 0xcd);
+    b1.SetByte(9, 0x84);
+
+    InlineBitmap b2(80);
+    b2.SetByte(0, 0xfb);
+    b2.SetByte(1, 0xee);
+    b2.SetByte(5, 0x42);
+    b2.SetByte(9, 0x31);
+
+    b1.Toggle(b2);
+    EXPECT_EQ(b1.GetByte(0), 0xab ^ 0xfb);
+    EXPECT_EQ(b1.GetByte(1), 0xcd ^ 0xee);
+    EXPECT_EQ(b1.GetByte(5), 0x42);
+    EXPECT_EQ(b1.GetByte(9), 0x84 ^ 0x31);
+  }
+}
+
 TEST(InlineBitmapTest, WithSize) {
   {
     InlineBitmap b1(80);

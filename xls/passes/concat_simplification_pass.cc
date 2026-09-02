@@ -119,6 +119,177 @@ absl::StatusOr<Concat*> FlattenConcatTree(Concat* concat) {
   return concat->ReplaceUsesWithNew<Concat>(new_operands);
 }
 
+struct ReversedSliceInfo {
+  Node* source;
+  int64_t start;
+  int64_t width;
+};
+
+// Checks if `node` represents a slice of a source node whose internal bits are
+// reversed (either an explicit reverse of a slice, or a 1-bit slice which is
+// trivially its own reverse), and returns the represented reversed slice.
+std::optional<ReversedSliceInfo> GetReversedSliceInfo(const Node* node) {
+  if (node->op() == Op::kReverse && node->operand(0)->Is<BitSlice>()) {
+    const BitSlice* slice = node->operand(0)->As<BitSlice>();
+    return ReversedSliceInfo{
+        .source = slice->operand(0),
+        .start = slice->start(),
+        .width = slice->width(),
+    };
+  }
+  if (node->Is<BitSlice>() && node->BitCountOrDie() == 1) {
+    const BitSlice* slice = node->As<BitSlice>();
+    return ReversedSliceInfo{
+        .source = slice->operand(0),
+        .start = slice->start(),
+        .width = 1,
+    };
+  }
+  return std::nullopt;
+}
+
+// Merges any consecutive forward bit slices from the same source into a single
+// bit slice. For example:
+//   concat(..., slice(x, 4, 4), slice(x, 0, 4), ...) =>
+//   concat(..., slice(x, 0, 8), ...)
+absl::StatusOr<bool> ReplaceConsecutiveBitSlices(
+    Concat* concat, std::deque<Concat*>* worklist) {
+  std::vector<Node*> new_operands;
+  std::vector<const BitSlice*> current_run;
+
+  auto flush_run = [&]() -> absl::Status {
+    if (current_run.size() > 1) {
+      const BitSlice* lowest_slice = current_run.back();
+      Node* source = lowest_slice->operand(0);
+      const int64_t start = lowest_slice->start();
+      int64_t total_width = 0;
+      for (const BitSlice* s : current_run) {
+        total_width += s->width();
+      }
+      Node* merged_slice;
+      if (start == 0 && total_width == source->BitCountOrDie()) {
+        merged_slice = source;
+      } else {
+        XLS_ASSIGN_OR_RETURN(merged_slice,
+                             concat->function_base()->MakeNode<BitSlice>(
+                                 concat->loc(), source, start, total_width));
+      }
+      new_operands.push_back(merged_slice);
+    } else if (current_run.size() == 1) {
+      new_operands.push_back(const_cast<BitSlice*>(current_run.front()));
+    }
+    current_run.clear();
+    return absl::OkStatus();
+  };
+
+  for (Node* op : concat->operands()) {
+    if (op->Is<BitSlice>()) {
+      const BitSlice* slice = op->As<BitSlice>();
+      if (!current_run.empty()) {
+        const BitSlice* prev = current_run.back();
+        if (slice->operand(0) == prev->operand(0) &&
+            slice->start() + slice->width() == prev->start()) {
+          current_run.push_back(slice);
+          continue;
+        }
+      }
+      XLS_RETURN_IF_ERROR(flush_run());
+      current_run.push_back(slice);
+    } else {
+      XLS_RETURN_IF_ERROR(flush_run());
+      new_operands.push_back(op);
+    }
+  }
+  XLS_RETURN_IF_ERROR(flush_run());
+
+  if (new_operands.size() < concat->operand_count()) {
+    if (new_operands.size() == 1) {
+      XLS_RETURN_IF_ERROR(concat->ReplaceUsesWith(new_operands[0]));
+      return true;
+    }
+    XLS_ASSIGN_OR_RETURN(Concat * new_concat,
+                         concat->ReplaceUsesWithNew<Concat>(new_operands));
+    worklist->push_back(new_concat);
+    return true;
+  }
+  return false;
+}
+
+// Merges any consecutive reversed bit slices from the same source into a single
+// reversed slice. For example:
+//   concat(..., rev(slice(x, 0, 4)), rev(slice(x, 4, 4)), ...) =>
+//   concat(..., rev(slice(x, 0, 8)), ...)
+absl::StatusOr<bool> ReplaceConsecutiveReversedSlices(
+    Concat* concat, std::deque<Concat*>* worklist) {
+  std::vector<Node*> new_operands;
+  struct RunElement {
+    Node* node;
+    ReversedSliceInfo info;
+  };
+  std::vector<RunElement> current_run;
+
+  auto flush_run = [&]() -> absl::Status {
+    if (current_run.size() > 1) {
+      const ReversedSliceInfo& first_info = current_run.front().info;
+      Node* source = first_info.source;
+      const int64_t start = first_info.start;
+      int64_t total_width = 0;
+      for (const RunElement& elem : current_run) {
+        total_width += elem.info.width;
+      }
+      Node* merged_slice_or_source;
+      if (start == 0 && total_width == source->BitCountOrDie()) {
+        merged_slice_or_source = source;
+      } else {
+        XLS_ASSIGN_OR_RETURN(merged_slice_or_source,
+                             concat->function_base()->MakeNode<BitSlice>(
+                                 concat->loc(), source, start, total_width));
+      }
+      XLS_ASSIGN_OR_RETURN(
+          Node * merged_rev,
+          concat->function_base()->MakeNode<UnOp>(
+              concat->loc(), merged_slice_or_source, Op::kReverse));
+      new_operands.push_back(merged_rev);
+    } else if (current_run.size() == 1) {
+      new_operands.push_back(current_run.front().node);
+    }
+    current_run.clear();
+    return absl::OkStatus();
+  };
+
+  for (Node* op : concat->operands()) {
+    std::optional<ReversedSliceInfo> info = GetReversedSliceInfo(op);
+    if (info.has_value()) {
+      if (!current_run.empty()) {
+        const ReversedSliceInfo& prev = current_run.back().info;
+        if (info->source == prev.source &&
+            prev.start + prev.width == info->start) {
+          current_run.push_back(RunElement{op, *info});
+          continue;
+        }
+      }
+      XLS_RETURN_IF_ERROR(flush_run());
+      current_run.push_back(RunElement{op, *info});
+    } else {
+      XLS_RETURN_IF_ERROR(flush_run());
+      new_operands.push_back(op);
+    }
+  }
+  XLS_RETURN_IF_ERROR(flush_run());
+
+  if (new_operands.size() < concat->operand_count()) {
+    if (new_operands.size() == 1) {
+      XLS_RETURN_IF_ERROR(concat->ReplaceUsesWith(new_operands[0]));
+      return true;
+    }
+    XLS_ASSIGN_OR_RETURN(Concat * new_concat,
+                         concat->ReplaceUsesWithNew<Concat>(new_operands));
+    worklist->push_back(new_concat);
+    return true;
+  }
+  return false;
+}
+
 // Attempts to replace the given concat with a simpler or more canonical
 // form. Returns true if the concat was replaced.
 absl::StatusOr<bool> SimplifyConcat(Concat* concat, int64_t opt_level,
@@ -214,63 +385,19 @@ absl::StatusOr<bool> SimplifyConcat(Concat* concat, int64_t opt_level,
     return true;
   }
 
-  // If consecutive concat inputs are consecutive bit slices, create a new,
-  // merged bit slice and a new concat that consumes the merged bit slice.
-  for (int64_t idx = 0; idx < concat->operand_count() - 1; ++idx) {
-    // Check if consecutive operands are bit slices.
-    const Node* higher_op = concat->operands().at(idx);
-    const Node* lower_op = concat->operands().at(idx + 1);
-    if (!higher_op->Is<BitSlice>() || !lower_op->Is<BitSlice>()) {
-      continue;
-    }
-    const BitSlice* higher_slice = higher_op->As<BitSlice>();
-    const BitSlice* lower_slice = lower_op->As<BitSlice>();
+  // If consecutive concat inputs are consecutive bit slices, merge each run
+  // into a single bit slice.
+  XLS_ASSIGN_OR_RETURN(bool merged_slices,
+                       ReplaceConsecutiveBitSlices(concat, worklist));
+  if (merged_slices) {
+    return true;
+  }
 
-    // Note: May want to do some checks for use cases of the slices.
-    // If the original slices will not be removed by dead-code elimination,
-    // making another merged slice may not be useful. This is complicated
-    // by the fact that the number of uses of slice may change during
-    // optimization.
-
-    // Check if bit slices have the same input operand.
-    if (higher_slice->operand(0) != lower_op->operand(0)) {
-      continue;
-    }
-
-    // Check if bit slices slice consecutive bits.
-    if (lower_slice->start() + lower_slice->width() != higher_slice->start()) {
-      continue;
-    }
-
-    // Create merged slice node.
-    XLS_ASSIGN_OR_RETURN(
-        Node * merged_slice,
-        concat->function_base()->MakeNode<BitSlice>(
-            concat->loc(), higher_slice->operand(0), lower_slice->start(),
-            lower_slice->width() + higher_slice->width()));
-
-    // Collect operands for new concat.
-    std::vector<Node*> new_operands;
-    new_operands.reserve(concat->operands().size() - 1);
-    for (int64_t copy_idx = 0; copy_idx < concat->operands().size();
-         ++copy_idx) {
-      if (copy_idx == idx) {
-        new_operands.push_back(merged_slice);
-        continue;
-      }
-      if (copy_idx == idx + 1) {
-        continue;
-      }
-      new_operands.push_back(concat->operand(copy_idx));
-    }
-
-    // Add new concat to function, replace uses of original concat.
-    // Note: We only merge one pair of slices at a time for simplicity /
-    // clarity. If there are mulitple consecutive slices, they will be merged
-    // over multiple calls to SimplifyConcat.
-    XLS_ASSIGN_OR_RETURN(Concat * new_concat,
-                         concat->ReplaceUsesWithNew<Concat>(new_operands));
-    worklist->push_back(new_concat);
+  // If consecutive concat inputs are consecutive reversed bit slices, merge
+  // each run into a single reversed bit slice.
+  XLS_ASSIGN_OR_RETURN(bool merged_reversed_slices,
+                       ReplaceConsecutiveReversedSlices(concat, worklist));
+  if (merged_reversed_slices) {
     return true;
   }
 

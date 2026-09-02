@@ -58,12 +58,13 @@ class OptimizationPipelineTest : public IrTestBase {
  protected:
   OptimizationPipelineTest() = default;
 
-  absl::StatusOr<bool> Run(Package* p) {
-    return RunOptimizationPassPipeline(p);
+  absl::StatusOr<bool> Run(Package* p, int64_t opt_level = kMaxOptLevel) {
+    return RunOptimizationPassPipeline(p, opt_level);
   }
 
   void TestAssociativeWithConstants(std::string_view xls_op, Op op,
-                                    int64_t value) {
+                                    int64_t value,
+                                    int64_t opt_level = kMaxOptLevel) {
     auto p = CreatePackage();
     std::string xls_func = absl::StrFormat(R"(
      fn simple_assoc(x:bits[8]) -> bits[8] {
@@ -75,7 +76,7 @@ class OptimizationPipelineTest : public IrTestBase {
   )",
                                            xls_op, xls_op, xls_op, xls_op);
     XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(xls_func, p.get()));
-    ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+    ASSERT_THAT(Run(p.get(), opt_level), IsOkAndHolds(true));
     EXPECT_EQ(f->return_value()->op(), op);
     EXPECT_EQ(f->return_value()->operand(1)->op(), Op::kLiteral);
     EXPECT_EQ(f->return_value()->operand(1)->As<Literal>()->value().bits(),
@@ -197,7 +198,7 @@ TEST_F(OptimizationPipelineTest, AssociateAdd) {
 }
 
 TEST_F(OptimizationPipelineTest, AssociateXor) {
-  TestAssociativeWithConstants("xor", Op::kXor, 7 ^ 12);
+  TestAssociativeWithConstants("xor", Op::kXor, 7 ^ 12, /*opt_level=*/2);
 }
 
 TEST_F(OptimizationPipelineTest, SubSubTest) {
@@ -363,6 +364,44 @@ TEST_F(OptimizationPipelineTest, ProcScopedChannels) {
   }
 
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+}
+
+TEST_F(OptimizationPipelineTest, HackersDelightBitReversal) {
+  auto p = CreatePackage();
+  FunctionBuilder fb("rev32", p.get());
+  BValue x = fb.Param("x", p->GetBitsType(32));
+
+  // x16 = ((x & 0x55555555) << 1) | ((x >> 1) & 0x55555555)
+  BValue c55 = fb.Literal(UBits(0x55555555, 32));
+  BValue x16 = fb.Or(fb.Shll(fb.And(x, c55), fb.Literal(UBits(1, 32))),
+                     fb.And(fb.Shrl(x, fb.Literal(UBits(1, 32))), c55));
+
+  // x8 = ((x16 & 0x33333333) << 2) | ((x16 >> 2) & 0x33333333)
+  BValue c33 = fb.Literal(UBits(0x33333333, 32));
+  BValue x8 = fb.Or(fb.Shll(fb.And(x16, c33), fb.Literal(UBits(2, 32))),
+                    fb.And(fb.Shrl(x16, fb.Literal(UBits(2, 32))), c33));
+
+  // x4 = ((x8 & 0x0F0F0F0F) << 4) | ((x8 >> 4) & 0x0F0F0F0F)
+  BValue c0f = fb.Literal(UBits(0x0f0f0f0f, 32));
+  BValue x4 = fb.Or(fb.Shll(fb.And(x8, c0f), fb.Literal(UBits(4, 32))),
+                    fb.And(fb.Shrl(x8, fb.Literal(UBits(4, 32))), c0f));
+
+  // x2 = ((x4 & 0x00FF00FF) << 8) | ((x4 >> 8) & 0x00FF00FF)
+  BValue cff = fb.Literal(UBits(0x00ff00ff, 32));
+  BValue x2 = fb.Or(fb.Shll(fb.And(x4, cff), fb.Literal(UBits(8, 32))),
+                    fb.And(fb.Shrl(x4, fb.Literal(UBits(8, 32))), cff));
+
+  // ret = (x2 << 16) | (x2 >> 16)
+  BValue ret = fb.Or(fb.Shll(x2, fb.Literal(UBits(16, 32))),
+                     fb.Shrl(x2, fb.Literal(UBits(16, 32))));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(ret));
+  ScopedVerifyEquivalence stays_equivalent(f, kProverTimeout);
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+
+  // The entire software bit-reversal collapses into a single reverse operation,
+  // completely eliminating all shifters, masks, and OR gates.
+  EXPECT_THAT(f->return_value(), m::Reverse(m::Param("x")));
 }
 
 // Wait for 1 million passes (http://memegen/9906133131144705) to run before we
