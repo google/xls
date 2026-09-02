@@ -15,6 +15,8 @@
 #ifndef XLS_DSLX_IR_CONVERT_CONVERT_OPTIONS_H_
 #define XLS_DSLX_IR_CONVERT_CONVERT_OPTIONS_H_
 
+#include <bitset>
+#include <cstddef>
 #include <optional>
 #include <string>
 #include <vector>
@@ -23,6 +25,38 @@
 #include "xls/ir/channel.h"
 
 namespace xls::dslx {
+
+// Kinds of automatically generated cover ops that can be synthesized during
+// IR conversion (as opposed to explicit `cover!()` ops, which are governed by
+// `ConvertOptions::emit_cover`). New auto-coverage functionality should add a
+// kind here, before the `kCount` sentinel.
+enum class AutoCoverKind {
+  kBranch,  // One cover op per if/else branch and match arm.
+  kCount,   // Sentinel; must remain the last enumerator.
+};
+
+// A growable set of `AutoCoverKind` values backed by a fixed bitmask.
+//
+// `ConvertOptions` is used to form shared option constants (e.g. in tests), so
+// it must remain a literal type; a hash-based container is not
+// constexpr-constructible, while this type is. The bitset is sized directly
+// from the enum, so adding a kind automatically grows it and can never
+// overflow.
+class AutoCoverKindSet {
+ public:
+  constexpr AutoCoverKindSet() = default;
+
+  void Insert(AutoCoverKind kind) { bits_.set(Index(kind)); }
+
+  bool Contains(AutoCoverKind kind) const { return bits_.test(Index(kind)); }
+
+ private:
+  static constexpr std::size_t Index(AutoCoverKind kind) {
+    return static_cast<std::size_t>(kind);
+  }
+
+  std::bitset<static_cast<std::size_t>(AutoCoverKind::kCount)> bits_;
+};
 
 // Bundles together options (common among the API routines below) used in
 // DSLX-to-IR conversion.
@@ -42,6 +76,16 @@ struct ConvertOptions {
   // Whether to emit cover operations.
   bool emit_cover = true;
 
+  // Which kinds of automatic cover ops to synthesize. Empty by default (no
+  // automatic covers).
+  AutoCoverKindSet emit_auto_cover;
+
+  // Whether an automatic cover of `kind` should be synthesized. Requires the
+  // kind to be enabled AND `emit_cover` (the master switch for all covers).
+  constexpr bool ShouldEmitAutoCover(AutoCoverKind kind) const {
+    return emit_cover && emit_auto_cover.Contains(kind);
+  }
+
   // Should the generated IR be verified?
   bool verify_ir = true;
 
@@ -59,7 +103,6 @@ struct ConvertOptions {
   // If present, the default FIFO config to use for any FIFO that does not
   // specify a config.
   std::optional<FifoConfig> default_fifo_config;
-
 
   // Whether to use type system v2 to perform type checking.
   bool type_inference_v2 = false;
