@@ -365,6 +365,50 @@ TEST_F(OptimizationPipelineTest, ProcScopedChannels) {
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
 }
 
+TEST_F(OptimizationPipelineTest, HackersDelightBitReversal) {
+  auto p = CreatePackage();
+  FunctionBuilder fb("rev32", p.get());
+  BValue x = fb.Param("x", p->GetBitsType(32));
+
+  // x16 = ((x & 0x55555555) << 1) | ((x >> 1) & 0x55555555)
+  BValue c55 = fb.Literal(UBits(0x55555555, 32));
+  BValue x16 = fb.Or(fb.Shll(fb.And(x, c55), fb.Literal(UBits(1, 32))),
+                     fb.And(fb.Shrl(x, fb.Literal(UBits(1, 32))), c55));
+
+  // x8 = ((x16 & 0x33333333) << 2) | ((x16 >> 2) & 0x33333333)
+  BValue c33 = fb.Literal(UBits(0x33333333, 32));
+  BValue x8 = fb.Or(fb.Shll(fb.And(x16, c33), fb.Literal(UBits(2, 32))),
+                    fb.And(fb.Shrl(x16, fb.Literal(UBits(2, 32))), c33));
+
+  // x4 = ((x8 & 0x0F0F0F0F) << 4) | ((x8 >> 4) & 0x0F0F0F0F)
+  BValue c0f = fb.Literal(UBits(0x0f0f0f0f, 32));
+  BValue x4 = fb.Or(fb.Shll(fb.And(x8, c0f), fb.Literal(UBits(4, 32))),
+                    fb.And(fb.Shrl(x8, fb.Literal(UBits(4, 32))), c0f));
+
+  // x2 = ((x4 & 0x00FF00FF) << 8) | ((x4 >> 8) & 0x00FF00FF)
+  BValue cff = fb.Literal(UBits(0x00ff00ff, 32));
+  BValue x2 = fb.Or(fb.Shll(fb.And(x4, cff), fb.Literal(UBits(8, 32))),
+                    fb.And(fb.Shrl(x4, fb.Literal(UBits(8, 32))), cff));
+
+  // ret = (x2 << 16) | (x2 >> 16)
+  BValue ret = fb.Or(fb.Shll(x2, fb.Literal(UBits(16, 32))),
+                     fb.Shrl(x2, fb.Literal(UBits(16, 32))));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(ret));
+  ScopedVerifyEquivalence stays_equivalent(f, kProverTimeout);
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+
+  // The entire software bit-reversal collapses into pure wire routing: a single
+  // concat of 1-bit slices of `x` in reverse bit order (from bit 0 to 31),
+  // completely eliminating all shifters, masks, and OR gates.
+  std::vector<::testing::Matcher<const Node*>> slices;
+  slices.reserve(32);
+  for (int64_t i = 0; i < 32; ++i) {
+    slices.push_back(m::BitSlice(m::Param("x"), /*start=*/i, /*width=*/1));
+  }
+  EXPECT_THAT(f->return_value(), m::Concat(slices));
+}
+
 // Wait for 1 million passes (http://memegen/9906133131144705) to run before we
 // decide we're stuck in an infinite loop.
 //

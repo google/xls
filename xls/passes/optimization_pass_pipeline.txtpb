@@ -78,6 +78,8 @@ compound_passes: [
       "dce",
       "narrow(Ternary)",
       "dce",
+      "bitwise_simp",
+      "dce",
       "bool_simp",
       "dce",
       "token_simp",
