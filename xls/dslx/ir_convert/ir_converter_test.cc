@@ -2154,6 +2154,49 @@ impl TopProc {
   ExpectIr(conv.DumpIr());
 }
 
+TEST_F(IrConverterTest, ParametricProcDefWithState) {
+  constexpr std::string_view kModule = R"(
+#![feature(explicit_state_access)]
+#![feature(generics)]
+
+proc ParametricProc<N: u32> {
+  state: u32,
+}
+
+impl ParametricProc<N> {
+  fn new() -> Self {
+    ParametricProc { state: N }
+  }
+
+  fn next(self) {
+    let s = read(self.state);
+    write(self.state, s + 1);
+  }
+}
+
+proc TopProc {
+}
+
+impl TopProc {
+  fn new() -> Self {
+    ParametricProc<42>::new().spawn();
+    TopProc {}
+  }
+
+  fn next(self) {}
+}
+)";
+
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(kModule, "test_module.x", "test_module", &import_data));
+  XLS_ASSERT_OK_AND_ASSIGN(PackageConversionData conv,
+                           ConvertModuleToPackage(tm.module, &import_data,
+                                                  kProcScopedChannelOptions));
+  ExpectIr(conv.DumpIr());
+}
+
 TEST_F(IrConverterTest, ProcDefWith2DChannelArrayDealingOutSubArrays) {
   constexpr std::string_view kModule = R"(
 proc SomeProc {

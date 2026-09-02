@@ -1,0 +1,39 @@
+package test_module
+
+file_number 0 "test_module.x"
+
+proc __test_module__ParametricProc__42_next<>(__state: bits[32], init={42}) {
+  literal.2: bits[1] = literal(value=1, id=2)
+  literal.3: bits[1] = literal(value=0, id=3)
+  not.6: bits[1] = not(literal.2, id=6)
+  not.7: bits[1] = not(literal.3, id=7)
+  __token: token = literal(value=token, id=1)
+  or.8: bits[1] = or(not.6, not.7, id=8)
+  not.16: bits[1] = not(literal.2, id=16)
+  or.10: bits[1] = or(literal.3, literal.2, id=10)
+  literal.4: bits[1] = literal(value=0, id=4)
+  __state__1: bits[32] = state_read(state_element=__state, predicate=literal.2, id=11)
+  assert.9: token = assert(__token, or.8, message="State element read after read in same activation.", id=9)
+  or.17: bits[1] = or(not.16, or.10, id=17)
+  not.19: bits[1] = not(literal.2, id=19)
+  not.20: bits[1] = not(literal.4, id=20)
+  s: bits[32] = identity(__state__1, id=12)
+  literal.14: bits[32] = literal(value=1, id=14)
+  assert.18: token = assert(assert.9, or.17, message="State element written before read in same activation.", id=18)
+  or.21: bits[1] = or(not.19, not.20, id=21)
+  add.15: bits[32] = add(s, literal.14, id=15)
+  __state: bits[32] = state_read(state_element=__state, id=5)
+  or.13: bits[1] = or(literal.3, literal.2, id=13)
+  assert.22: token = assert(assert.18, or.21, message="State element written after write in same activation.", id=22)
+  or.23: bits[1] = or(literal.4, literal.2, id=23)
+  next_value.24: () = next_value(state_element=__state, value=add.15, predicate=literal.2, id=24)
+  tuple.25: () = tuple(id=25)
+  tuple.26: () = tuple(id=26)
+}
+
+proc __test_module__TopProc_next<>() {
+  proc_instantiation __test_module__ParametricProc__42_next_inst(proc=__test_module__ParametricProc__42_next)
+  __token: token = literal(value=token, id=27)
+  literal.28: bits[1] = literal(value=1, id=28)
+  tuple.29: () = tuple(id=29)
+}

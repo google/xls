@@ -1020,6 +1020,9 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
       VLOG(6) << "Concrete member type for `" << member->ToString()
               << "` is: " << concrete_member_type->ToString();
       dest_type_info->SetItem(member, *concrete_member_type);
+      dest_type_info->SetItem(
+          member->type(),
+          std::make_unique<MetaType>(std::move(concrete_member_type)));
     }
 
     return absl::OkStatus();
