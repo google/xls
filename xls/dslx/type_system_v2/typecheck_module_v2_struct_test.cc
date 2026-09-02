@@ -2502,5 +2502,61 @@ fn create_f_domain() -> MyStruct {
       TypecheckFails(HasSubstr("is missing member(s): `y`")));
 }
 
+TEST(TypecheckV2StructTest, ParametricStructWithEnumParametricDefault) {
+  XLS_EXPECT_OK(TypecheckV2(
+      R"(
+enum MyEnum : u2 {
+  A = 0,
+  B = 1,
+}
+
+struct S<N: u32, E: MyEnum = {MyEnum::A}> {
+  a: uN[N],
+}
+
+impl S<N, E> {
+  fn new(a: uN[N]) -> Self {
+    S<N, E> { a }
+  }
+
+  fn get_enum(self) -> MyEnum {
+    E
+  }
+}
+
+const X = S<32>::new(5);
+const E_VAL = X.get_enum();
+const_assert!(E_VAL == MyEnum::A);
+)"));
+}
+
+TEST(TypecheckV2StructTest, ParametricStructWithExplicitEnumParametric) {
+  XLS_EXPECT_OK(TypecheckV2(
+      R"(
+enum MyEnum : u2 {
+  A = 0,
+  B = 1,
+}
+
+struct S<N: u32, E: MyEnum = {MyEnum::A}> {
+  a: uN[N],
+}
+
+impl S<N, E> {
+  fn new(a: uN[N]) -> Self {
+    S<N, E> { a }
+  }
+
+  fn get_enum(self) -> MyEnum {
+    E
+  }
+}
+
+const X = S<32, MyEnum::B>::new(5);
+const E_VAL = X.get_enum();
+const_assert!(E_VAL == MyEnum::B);
+)"));
+}
+
 }  // namespace
 }  // namespace xls::dslx

@@ -2204,10 +2204,10 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
           }
           return module_.span();
         };
-        XLS_ASSIGN_OR_RETURN(
-            Number * value_expr,
-            MakeTypeCheckedNumber(module_, table_, local_span(), value,
-                                  binding->type_annotation()));
+        XLS_ASSIGN_OR_RETURN(Expr * value_expr,
+                             MakeTypeCheckedNumberOrEnumValue(
+                                 module_, table_, local_span(), value,
+                                 binding->type_annotation(), *binding_type));
         actual_parametrics.emplace(binding->name_def(), value_expr);
       }
     }
@@ -2683,6 +2683,8 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
       const Span& span =
           binding->owner() == &module ? binding->span() : module.span();
       const TypeAnnotation* value_type_annotation = binding->type_annotation();
+      const Type* effective_type = binding_type.get();
+      std::unique_ptr<Type> resolved_binding_type;
       if (binding->type_annotation()
               ->IsAnnotation<TypeVariableTypeAnnotation>() &&
           binding->type_annotation()
@@ -2696,10 +2698,15 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
         XLS_RET_CHECK(std::holds_alternative<TypeAnnotation*>(resolved_type));
         value_type_annotation = const_cast<const TypeAnnotation*>(
             std::get<TypeAnnotation*>(resolved_type));
+        XLS_ASSIGN_OR_RETURN(
+            resolved_binding_type,
+            Concretize(value_type_annotation, concretize_context));
+        effective_type = resolved_binding_type.get();
       }
-      XLS_ASSIGN_OR_RETURN(Number * value_expr,
-                           MakeTypeCheckedNumber(module, table_, span, value,
-                                                 value_type_annotation));
+      XLS_ASSIGN_OR_RETURN(Expr * value_expr,
+                           MakeTypeCheckedNumberOrEnumValue(
+                               module, table_, span, value,
+                               value_type_annotation, *effective_type));
       resolved_parametrics.emplace(binding->identifier(), value_expr);
       return absl::OkStatus();
     };

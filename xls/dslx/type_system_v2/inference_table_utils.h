@@ -25,6 +25,7 @@
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/interp_value.h"
+#include "xls/dslx/type_system/type.h"
 #include "xls/dslx/type_system_v2/inference_table.h"
 
 namespace xls::dslx {
@@ -39,6 +40,12 @@ absl::StatusOr<Number*> MakeTypeCheckedNumber(
 absl::StatusOr<Number*> MakeTypeCheckedNumber(
     Module& module, InferenceTable& table, const Span& span, int64_t value,
     const TypeAnnotation* type_annotation);
+
+// Variant of MakeTypeCheckedNumber that preserves enum values as ColonRefs.
+absl::StatusOr<Expr*> MakeTypeCheckedNumberOrEnumValue(
+    Module& module, InferenceTable& table, const Span& span,
+    const InterpValue& value, const TypeAnnotation* type_annotation,
+    const Type& type);
 
 // Returns whether the given `expr` is a `ColonRef` to a type as opposed to a
 // value. The determination is based on table data for `expr`; this function

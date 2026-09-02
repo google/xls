@@ -1287,5 +1287,68 @@ fn normal_fn() -> u32 {
           "Test utility function 'helper' can only be called from tests")));
 }
 
+TEST(TypecheckV2FunctionTest, ParametricFunctionWithEnumParametricDefault) {
+  XLS_EXPECT_OK(TypecheckV2(
+      R"(
+enum MyEnum : u2 {
+  A = 0,
+  B = 1,
+}
+
+fn foo<N: u32, E: MyEnum = {MyEnum::A}>(x: uN[N]) -> MyEnum {
+  E
+}
+
+const X = foo<32>(5);
+const_assert!(X == MyEnum::A);
+)"));
+}
+
+TEST(TypecheckV2FunctionTest,
+     ParametricFunctionWithImportedEnumParametricDefault) {
+  constexpr std::string_view kImported = R"(
+pub enum MyEnum : u2 {
+  A = 0,
+  B = 1,
+}
+     )";
+
+  constexpr std::string_view kProgram = R"(
+import imported;
+
+fn foo<N: u32, E: imported::MyEnum = {imported::MyEnum::A}>(x: uN[N])
+    -> imported::MyEnum {
+  E
+}
+
+const X = foo<32>(5);
+const_assert!(X == imported::MyEnum::A);
+)";
+
+  ImportData import_data = CreateImportDataForTest();
+  XLS_EXPECT_OK(TypecheckV2(kImported, "imported", &import_data));
+  XLS_EXPECT_OK(TypecheckV2(kProgram, "main", &import_data));
+}
+
+TEST(TypecheckV2FunctionTest,
+     ParametricFunctionWithAliasEnumParametricDefault) {
+  XLS_EXPECT_OK(TypecheckV2(
+      R"(
+enum MyEnum : u2 {
+  A = 0,
+  B = 1,
+}
+
+type MyEnumAlias = MyEnum;
+
+fn foo<N: u32, E: MyEnumAlias = {MyEnumAlias::A}>(x: uN[N]) -> MyEnumAlias {
+  E
+}
+
+const X = foo<32>(5);
+const_assert!(X == MyEnum::A);
+)"));
+}
+
 }  // namespace
 }  // namespace xls::dslx

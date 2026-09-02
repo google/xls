@@ -14,6 +14,7 @@
 
 #include <cstdint>
 #include <optional>
+#include <string>
 #include <string_view>
 #include <utility>
 #include <variant>
@@ -25,6 +26,7 @@
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/match.h"
 #include "absl/strings/substitute.h"
@@ -39,6 +41,7 @@
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/interp_value.h"
+#include "xls/dslx/type_system/type.h"
 #include "xls/dslx/type_system_v2/import_utils.h"
 #include "xls/dslx/type_system_v2/inference_table.h"
 #include "xls/dslx/type_system_v2/type_annotation_utils.h"
@@ -92,6 +95,58 @@ absl::StatusOr<Number*> MakeTypeCheckedNumber(
     const TypeAnnotation* type_annotation) {
   return MakeTypeCheckedNumber(module, table, span, InterpValue::MakeS64(value),
                                type_annotation);
+}
+
+absl::StatusOr<Expr*> MakeTypeCheckedNumberOrEnumValue(
+    Module& module, InferenceTable& table, const Span& span,
+    const InterpValue& value, const TypeAnnotation* type_annotation,
+    const Type& type) {
+  if (!value.IsEnum() || !type.IsEnum()) {
+    return MakeTypeCheckedNumber(module, table, span, value, type_annotation);
+  }
+
+  const auto& enum_type = type.AsEnum();
+  const EnumDef& enum_def = enum_type.nominal_type();
+  std::optional<std::string> member_name;
+  for (int i = 0; i < enum_def.values().size(); ++i) {
+    if (enum_type.members().at(i) == value) {
+      member_name = enum_def.GetMemberName(i);
+      break;
+    }
+  }
+  XLS_RET_CHECK(member_name.has_value())
+      << "Could not find enum member matching value " << value.ToString()
+      << " in enum " << enum_def.identifier();
+
+  std::optional<ColonRef::Subject> subject;
+  const NameDef* target_name_def = nullptr;
+
+  if (type_annotation->IsAnnotation<TypeRefTypeAnnotation>()) {
+    const auto* trta = type_annotation->AsAnnotation<TypeRefTypeAnnotation>();
+    const TypeDefinition& type_def = trta->type_ref()->type_definition();
+    if (std::holds_alternative<ColonRef*>(type_def)) {
+      subject = std::get<ColonRef*>(type_def);
+    } else if (std::holds_alternative<EnumDef*>(type_def)) {
+      EnumDef* def = std::get<EnumDef*>(type_def);
+      subject = module.Make<NameRef>(span, def->identifier(), def->name_def());
+      target_name_def = def->name_def();
+    } else if (std::holds_alternative<UseTreeEntry*>(type_def)) {
+      return absl::UnimplementedError("`use` syntax is not yet supported.");
+    } else if (std::holds_alternative<TypeAlias*>(type_def)) {
+      TypeAlias* alias = std::get<TypeAlias*>(type_def);
+      subject =
+          module.Make<NameRef>(span, alias->identifier(), &alias->name_def());
+      target_name_def = &alias->name_def();
+    }
+  }
+
+  XLS_RET_CHECK(subject.has_value());
+  ColonRef* colon_ref = module.Make<ColonRef>(span, *subject, *member_name);
+  if (target_name_def != nullptr) {
+    table.SetColonRefTarget(colon_ref, target_name_def);
+  }
+  XLS_RETURN_IF_ERROR(table.SetTypeAnnotation(colon_ref, type_annotation));
+  return colon_ref;
 }
 
 bool IsColonRefWithTypeTarget(const InferenceTable& table, const Expr* expr) {
