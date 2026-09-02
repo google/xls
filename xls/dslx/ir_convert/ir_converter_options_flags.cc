@@ -22,6 +22,10 @@
 #include "absl/flags/flag.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/ascii.h"
+#include "absl/strings/str_cat.h"
+#include "absl/strings/str_split.h"
+#include "absl/strings/string_view.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/default_dslx_stdlib_path.h"
@@ -55,6 +59,12 @@ ABSL_FLAG(bool, emit_trace, true,
           "Feature flag for emitting trace!() in the DSL as a trace IR op.");
 ABSL_FLAG(bool, emit_cover, true,
           "Feature flag for emitting cover!() in the DSL as a cover IR op.");
+ABSL_FLAG(
+    std::optional<std::string>, emit_auto_cover, std::nullopt,
+    "Comma-delimited list of auto-coverage kinds to synthesize during IR "
+    "conversion (independent of explicit cover!() ops). Supported values: "
+    "\"branch\" (a cover IR op for each if/else branch and match arm). e.g. "
+    "--emit_auto_cover=branch");
 ABSL_FLAG(bool, convert_tests, false,
           "Feature flag for emitting test procs/functions to IR.");
 ABSL_FLAG(bool, verify, true,
@@ -104,6 +114,15 @@ ABSL_FLAG(std::optional<std::string>, ir_converter_options_used_textproto_file,
 
 namespace xls {
 namespace {
+// Maps a user-facing auto-coverage kind name (e.g. "branch") to the proto
+// enum value. Returns std::nullopt for unknown names.
+std::optional<AutoCoverKind> AutoCoverKindFromName(absl::string_view name) {
+  if (name == "branch") {
+    return AutoCoverKind::AUTO_COVER_KIND_BRANCH;
+  }
+  return std::nullopt;
+}
+
 absl::StatusOr<bool> SetOptionsFromFlags(IrConverterOptionsFlagsProto& proto) {
   bool any_flags_set = false;
 
@@ -156,6 +175,24 @@ absl::StatusOr<bool> SetOptionsFromFlags(IrConverterOptionsFlagsProto& proto) {
   POPULATE_FLAG(emit_assert);
   POPULATE_FLAG(emit_trace);
   POPULATE_FLAG(emit_cover);
+  {
+    const std::optional<std::string>& auto_cover =
+        absl::GetFlag(FLAGS_emit_auto_cover);
+    if (auto_cover.has_value()) {
+      any_flags_set = true;
+      for (absl::string_view piece :
+           absl::StrSplit(*auto_cover, ',', absl::SkipEmpty())) {
+        std::optional<AutoCoverKind> kind =
+            AutoCoverKindFromName(absl::AsciiStrToLower(piece));
+        if (!kind.has_value()) {
+          return absl::InvalidArgumentError(
+              absl::StrCat("Unknown auto-coverage kind: \"", piece,
+                           "\". Supported kinds are: \"branch\"."));
+        }
+        proto.add_emit_auto_cover(*kind);
+      }
+    }
+  }
 
 #undef POPULATE_FLAG
 

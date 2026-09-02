@@ -97,6 +97,37 @@ namespace {
 
 constexpr WarningCollector* kNoWarningCollector = nullptr;
 
+// Generates a unique, human-readable label identifying the given conditional
+// branch (or match arm) for use as a synthesized coverpoint name. The label
+// contains the enclosing function name, the branch kind, and a line/pos; it
+// deliberately excludes any file path so the label can be used as a Verilog
+// cover property name.
+std::string CoverpointLabel(const FunctionBase* function, const Expr* node,
+                            bool then_arm) {
+  std::string_view function_name = function->name();
+  std::optional<Span> span = node->GetSpan();
+  if (span.has_value()) {
+    return absl::StrFormat(
+        "%s_%s_line_%d_pos_%d", function_name, then_arm ? "then" : "else",
+        span->start().GetHumanLineno(), span->start().colno() + 1);
+  }
+  return absl::StrFormat("%s_%s_line_0_pos_0", function_name,
+                         then_arm ? "then" : "else");
+}
+
+std::string MatchArmLabel(const FunctionBase* function, const Match* node,
+                          int64_t arm_index) {
+  std::string_view function_name = function->name();
+  std::optional<Span> span = node->GetSpan();
+  if (span.has_value()) {
+    return absl::StrFormat("%s_match_arm%d_line_%d_pos_%d", function_name,
+                           arm_index, span->start().GetHumanLineno(),
+                           span->start().colno() + 1);
+  }
+  return absl::StrFormat("%s_match_arm%d_line_0_pos_0", function_name,
+                         arm_index);
+}
+
 // For values that are generic sizes (e.g. indexing into an array) we prefer to
 // use this bitwidth, which should suffice for all programs we can compile in
 // effect.
@@ -1388,6 +1419,17 @@ absl::Status FunctionConverter::HandleMatch(const Match* node) {
                                            not_any_prev_selected,
                                            this_arm_selected});
           });
+      if (options_.emit_auto_cover.Contains(AutoCoverKind::kBranch)) {
+        if (implicit_token_data_.has_value()) {
+          function_builder_->Cover(
+              implicit_token_data_->create_control_predicate(),
+              MatchArmLabel(function_builder_->function(), node,
+                            /*arm_index=*/i),
+              ToSourceInfo(node->GetSpan()));
+        } else {
+          WarnSkippedAutoCovers(node);
+        }
+      }
       XLS_RETURN_IF_ERROR(Visit(arm->expr()));
     }
 
@@ -1423,6 +1465,17 @@ absl::Status FunctionConverter::HandleMatch(const Match* node) {
   XLS_RETURN_IF_ERROR(
       HandleMatcher(default_arm->patterns()[0], matched, *matched_type)
           .status());
+  if (options_.emit_auto_cover.Contains(AutoCoverKind::kBranch)) {
+    if (implicit_token_data_.has_value()) {
+      function_builder_->Cover(
+          implicit_token_data_->create_control_predicate(),
+          MatchArmLabel(function_builder_->function(), node,
+                        /*arm_index=*/node->arms().size() - 1),
+          ToSourceInfo(node->GetSpan()));
+    } else {
+      WarnSkippedAutoCovers(node);
+    }
+  }
   XLS_RETURN_IF_ERROR(Visit(default_arm->expr()));
 
   // So now we have the following representation of the match arms:
@@ -2662,6 +2715,20 @@ absl::Status FunctionConverter::HandleFormatMacro(const FormatMacro* node) {
   return absl::OkStatus();
 }
 
+void FunctionConverter::WarnSkippedAutoCovers(const AstNode* node) {
+  if (warned_skipped_auto_covers_) {
+    return;
+  }
+  warned_skipped_auto_covers_ = true;
+  LOG(WARNING) << "Auto-coverpoint insertion requested "
+                  "(emit_auto_cover) but skipped: function `"
+               << function_builder_->function()->name() << "` is converted "
+               << "without an implicit token, so per-branch covers cannot be "
+               << "emitted. To also instrument such functions, re-run with "
+               << "`--force_implicit_token_calling_convention`. Skipped branch "
+               << "at " << SpanToString(node->GetSpan(), file_table());
+}
+
 absl::Status FunctionConverter::HandleCoverBuiltin(const Invocation* node,
                                                    BValue condition) {
   // TODO(https://github.com/google/xls/issues/232): 2021-05-21: Control cover!
@@ -3506,6 +3573,8 @@ absl::Status FunctionConverter::HandleFunction(
   Function& f = *node;
 
   VLOG(5) << "HandleFunction: " << f.ToString();
+
+  warned_skipped_auto_covers_ = false;
 
   if (parametric_env != nullptr) {
     SetParametricEnv(parametric_env);
@@ -5055,6 +5124,17 @@ absl::Status FunctionConverter::HandleConditional(const Conditional* node) {
           CHECK_EQ(activated.GetType()->AsBitsOrDie()->bit_count(), 1);
           return function_builder_->And(activated, arg0);
         });
+    if (options_.emit_auto_cover.Contains(AutoCoverKind::kBranch)) {
+      if (implicit_token_data_.has_value()) {
+        function_builder_->Cover(
+            implicit_token_data_->create_control_predicate(),
+            CoverpointLabel(function_builder_->function(), node,
+                            /*then_arm=*/true),
+            ToSourceInfo(node->GetSpan()));
+      } else {
+        WarnSkippedAutoCovers(node);
+      }
+    }
     XLS_RETURN_IF_ERROR(Visit(node->consequent()));
   }
 
@@ -5068,6 +5148,17 @@ absl::Status FunctionConverter::HandleConditional(const Conditional* node) {
           return function_builder_->And(orig_control_predicate(),
                                         function_builder_->Not(arg0));
         });
+    if (options_.emit_auto_cover.Contains(AutoCoverKind::kBranch)) {
+      if (implicit_token_data_.has_value()) {
+        function_builder_->Cover(
+            implicit_token_data_->create_control_predicate(),
+            CoverpointLabel(function_builder_->function(), node,
+                            /*then_arm=*/false),
+            ToSourceInfo(node->GetSpan()));
+      } else {
+        WarnSkippedAutoCovers(node);
+      }
+    }
     XLS_RETURN_IF_ERROR(Visit(ToExprNode(node->alternate())));
   }
 
