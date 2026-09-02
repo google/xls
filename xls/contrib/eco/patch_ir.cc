@@ -521,7 +521,8 @@ absl::Status PatchIr::ApplyInsertPath(
       XLS_ASSIGN_OR_RETURN(n, proc_->InsertStateElement(
                                   patch_node.unique_args(0).index(),
                                   patch_node.unique_args(1).state_element(), v,
-                                  predicate, std::nullopt));
+                                  predicate, /*next_state=*/std::nullopt,
+                                  /*non_synthesizable=*/false));
       proc_->StateElements()[patch_node.unique_args(0).index()]->SetName(
           patch_node.unique_args(1).state_element());
       XLS_RETURN_IF_ERROR(
@@ -641,9 +642,10 @@ absl::Status PatchIr::ApplyInsertPath(
         predicate = dummy_operands.back();
       }
       XLS_ASSIGN_OR_RETURN(
-          n, function_base_->MakeNode<Next>(SourceInfo(), dummy_operands[0],
-                                            dummy_operands[1], predicate,
-                                            /*label=*/std::nullopt));
+          n, function_base_->MakeNode<Next>(
+                 SourceInfo(),
+                 dummy_operands[0]->As<StateRead>()->state_element(),
+                 dummy_operands[1], predicate, /*label=*/std::nullopt));
       XLS_RETURN_IF_ERROR(
           UpdateNodeMaps(n, all_dummy_operands, patch_node.name()));
       break;
