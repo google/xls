@@ -523,6 +523,55 @@ cc_test(
 )
 
 xls_pass(
+    name = "merge_selector_pass",
+    srcs = ["merge_selector_pass.cc"],
+    hdrs = ["merge_selector_pass.h"],
+    pass_class = "MergeSelectorPass",
+    deps = [
+        ":lazy_ternary_query_engine",
+        ":optimization_pass",
+        ":pass_base",
+        ":query_engine",
+        ":stateless_query_engine",
+        ":union_query_engine",
+        "//xls/common/status:status_macros",
+        "//xls/ir",
+        "//xls/ir:bits",
+        "//xls/ir:bits_ops",
+        "//xls/ir:op",
+        "//xls/ir:value",
+        "@abseil-cpp//absl/algorithm:container",
+        "@abseil-cpp//absl/container:fixed_array",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/log:vlog_is_on",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings:str_format",
+    ],
+)
+
+cc_test(
+    name = "merge_selector_pass_test",
+    srcs = ["merge_selector_pass_test.cc"],
+    deps = [
+        ":merge_selector_pass",
+        ":optimization_pass",
+        ":pass_base",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/fuzzing:fuzztest",
+        "//xls/common/status:matchers",
+        "//xls/fuzzer/ir_fuzzer:ir_fuzz_domain",
+        "//xls/fuzzer/ir_fuzzer:ir_fuzz_test_library",
+        "//xls/ir",
+        "//xls/ir:ir_matcher",
+        "//xls/ir:ir_parser",
+        "//xls/ir:ir_test_base",
+        "@googletest//:gtest",
+    ],
+)
+
+xls_pass(
     name = "cse_pass",
     srcs = ["cse_pass.cc"],
     hdrs = ["cse_pass.h"],
