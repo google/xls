@@ -138,7 +138,6 @@ cc_library(
 cc_library(
     name = "collect_logs",
     hdrs = ["collect_logs.h"],
-    visibility = ["//xls:xls_internal"],
     deps = [
         "@abseil-cpp//absl/base:core_headers",
         "@abseil-cpp//absl/log:log_entry",
