@@ -283,7 +283,7 @@ absl::StatusOr<Term> IrTranslator::TranslateLiteralValue(const Type* type,
         }
         XLS_ASSIGN_OR_RETURN(Term e, TranslateLiteralValue(tt->element_type(i),
                                                            val.elements()[i]));
-        elems.push_back(e);
+        elems.push_back(FlattenToBv(e, tt->element_type(i)));
       }
       return ConcatN(elems);
     }

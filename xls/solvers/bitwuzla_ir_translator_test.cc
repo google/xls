@@ -555,6 +555,26 @@ TEST_F(BitwuzlaIrTranslatorTest, ZeroWidthAggregateCounterexample) {
             0);
 }
 
+TEST_F(BitwuzlaIrTranslatorTest, TupleWithArrayLiteral) {
+  auto package = CreatePackage();
+  FunctionBuilder fb("f", package.get());
+  Type* u32 = package->GetBitsType(32);
+  Type* arr_t = package->GetArrayType(3, u32);
+  Type* tup_t = package->GetTupleType({arr_t, package->GetBitsType(1)});
+
+  XLS_ASSERT_OK_AND_ASSIGN(Value val_arr, Value::UBitsArray({1, 2, 3}, 32));
+  Value val_tup = Value::Tuple({val_arr, Value(UBits(0, 1))});
+
+  auto lit = fb.Literal(val_tup);
+  EXPECT_EQ(lit.node()->GetType(), tup_t);
+  auto prop = fb.Eq(lit, lit);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(prop));
+  EXPECT_THAT(solver_->TryProve(f, prop.node(), Predicate::NotEqualToZero(),
+                                SolverLimit()),
+              IsOkAndHolds(IsProvenTrue()));
+}
+
 // Microbenchmarks comparing Bitwuzla against Z3 on representative IR operations
 
 static void BM_OneHotLsb(benchmark::State& state, SolverKind kind) {
