@@ -18,6 +18,7 @@
 #include <optional>
 #include <vector>
 
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/module.h"
@@ -143,6 +144,12 @@ bool IsProcConstructor(const Function* function, const ProcDef* proc_def,
 absl::StatusOr<std::vector<ParametricBinding*>>
 GetFunctionAndStructParametricBindings(const ImportData& import_data,
                                        const Function& f);
+
+// If `annotation` refers to a struct, and either `annotation` or the struct has
+// parametrics, then this errors if the parametric count doesn't match.
+// Otherwise it does nothing.
+absl::Status CheckFormalParametricConsistency(const ImportData& import_data,
+                                              const TypeAnnotation* annotation);
 
 }  // namespace xls::dslx
 

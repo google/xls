@@ -2441,6 +2441,12 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
             resolver_->ResolveIndirectTypeAnnotations(
                 target_context, actual_args[i], formal_types[i],
                 TypeAnnotationFilter::None()));
+
+        XLS_RETURN_IF_ERROR(CheckFormalParametricConsistency(
+            import_data_, direct_actual_arg_type));
+        XLS_RETURN_IF_ERROR(CheckFormalParametricConsistency(
+            import_data_, direct_formal_arg_type));
+
         absl::Status error = TypeMismatchError(
             actual_arg_context, direct_actual_arg_type, direct_formal_arg_type);
         AddSpanToStatusPayload(error, actual_args[i]->span(),

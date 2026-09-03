@@ -2558,5 +2558,19 @@ const_assert!(E_VAL == MyEnum::B);
 )"));
 }
 
+TEST(TypecheckV2StructTest, NotEnoughParametricsInParametricStructParam) {
+  EXPECT_THAT(
+      R"(
+struct Foo<U: u32, V:u32 = {U + 1}> {}
+
+fn bar<U:u32>(x: Foo<U>) {}
+
+fn main() {
+  bar(Foo<3> {});
+}
+ )",
+      TypecheckFails(HasSubstr("must have the same parametric count")));
+}
+
 }  // namespace
 }  // namespace xls::dslx

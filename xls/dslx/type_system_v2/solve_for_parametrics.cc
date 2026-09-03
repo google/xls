@@ -205,17 +205,22 @@ class Resolver {
       if (resolvable_annotation->IsAnnotation<TypeRefTypeAnnotation>() &&
           dependent_annotation->IsAnnotation<TypeRefTypeAnnotation>()) {
         XLS_ASSIGN_OR_RETURN(
-            resolvable_annotation,
+            const TypeAnnotation* canonical_resolvable_annotation,
             CanonicalizeTypeRefTypeAnnotation(
                 resolvable_annotation->AsAnnotation<TypeRefTypeAnnotation>(),
                 import_data_));
         XLS_ASSIGN_OR_RETURN(
-            dependent_annotation,
+            const TypeAnnotation* canonical_dependent_annotation,
             CanonicalizeTypeRefTypeAnnotation(
                 dependent_annotation->AsAnnotation<TypeRefTypeAnnotation>(),
                 import_data_));
-        return ZipAst(resolvable_annotation, dependent_annotation,
-                      resolvable_visitor_, dependent_visitor_, options());
+
+        if (canonical_resolvable_annotation != resolvable_annotation ||
+            canonical_dependent_annotation != dependent_annotation) {
+          return ZipAst(canonical_resolvable_annotation,
+                        canonical_dependent_annotation, resolvable_visitor_,
+                        dependent_visitor_, options());
+        }
       }
     }
 

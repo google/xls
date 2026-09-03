@@ -25,6 +25,7 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
+#include "absl/strings/substitute.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/errors.h"
@@ -448,6 +449,26 @@ GetFunctionAndStructParametricBindings(const ImportData& import_data,
                  std::back_inserter(bindings));
   }
   return bindings;
+}
+
+absl::Status CheckFormalParametricConsistency(
+    const ImportData& import_data, const TypeAnnotation* annotation) {
+  XLS_ASSIGN_OR_RETURN(std::optional<const StructDefBase*> struct_def,
+                       GetStructOrProcDef(annotation, import_data));
+  if (struct_def.has_value() &&
+      annotation->AsAnnotation<TypeRefTypeAnnotation>()->parametrics().size() !=
+          (*struct_def)->parametric_bindings().size()) {
+    return TypeInferenceErrorStatus(
+        annotation->span(), /*type=*/nullptr,
+        absl::Substitute(
+            "Formal use of struct `$0` must have the same parametric count as "
+            "the struct ($1). Note that default values in the struct "
+            "definition are only used at the point of instantiation.",
+            (*struct_def)->identifier(),
+            (*struct_def)->parametric_bindings().size()),
+        *annotation->owner()->file_table());
+  }
+  return absl::OkStatus();
 }
 
 }  // namespace xls::dslx
