@@ -3837,6 +3837,11 @@ absl::StatusOr<DocRef> Formatter::FormatModule(const Module& n) {
           pieces.push_back(arena_.MakeText("#[feature(traits)]"));
           pieces.push_back(arena_.hard_line());
           break;
+        case ModuleAttribute::kSourceSinkChannelSyntax:
+          pieces.push_back(
+              arena_.MakeText("#![feature(source_sink_channel_syntax)]"));
+          pieces.push_back(arena_.hard_line());
+          break;
       }
     }
     pieces.push_back(arena_.hard_line());

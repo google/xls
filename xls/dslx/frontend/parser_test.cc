@@ -4411,6 +4411,14 @@ proc simple {
   EXPECT_EQ(init.return_type()->ToString(), "((u32, u32), u32)");
 }
 
+TEST_F(ParserTest, ParseSourceSinkChannelSyntaxAttribute) {
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> module, Parse(R"(
+#![feature(source_sink_channel_syntax)]
+)"));
+  EXPECT_THAT(module->attributes(),
+              testing::ElementsAre(ModuleAttribute::kSourceSinkChannelSyntax));
+}
+
 // Verifies that we can walk backwards through a tree. In this case, from the
 // terminal node to the defining expr.
 TEST(ParserBackrefTest, CanFindDefiner) {
