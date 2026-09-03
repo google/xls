@@ -125,3 +125,57 @@ trait ToBits {
 trait Spawn {
   fn spawn(self);
 }
+
+enum ChannelStrictness : u2 {
+  PROVEN_MUTUALLY_EXCLUSIVE = 0,
+  RUNTIME_MUTUALLY_EXCLUSIVE = 1,
+  TOTAL_ORDER = 2,
+  RUNTIME_ORDERED = 3,
+  ARBITRARY_STATIC_ORDER = 4,
+}
+
+enum FlowControl : u1 {
+  NONE = 0,
+  READY_VALID = 1,
+  VALID_DATA = 2,
+}
+
+struct ChannelConfig {
+  fifo_depth: u32,
+  strictness: ChannelStrictness,
+  flow_control: FlowControl,
+}
+
+struct IOResult<T: type> {}
+
+struct Source<T: type> {}
+
+impl Source<T> {
+  // Callable in `new`:
+  fn forward(self, target: Source<T>);
+  fn config(self) -> ChannelConfig;
+  fn set_config(self, c: ChannelConfig);
+  fn set_name<N: u32>(self, name: u8[N]);
+
+  // Callable in `next`:
+  fn recv(self) -> IOResult<T>;
+  fn recv_if(self, pred: bool, default: T) -> IOResult<T>;
+  fn after<U: type>(self, r: IOResult<U>) -> Self;
+  fn non_blocking(self) -> Source<(T, bool)>;
+}
+
+struct Sink<T: type> {}
+
+impl Sink<T> {
+  // Callable in `new`:
+  fn forward(self, target: Sink<T>);
+  fn bind(self, target: Source<T>);
+  fn config(self) -> ChannelConfig;
+  fn set_config(self, c: ChannelConfig);
+  fn set_name<N: u32>(self, name: u8[N]);
+
+  // Callable in `next`:
+  fn send(self, val: T) -> IOResult<()>;
+  fn send_if(self, pred: bool, val: T) -> IOResult<()>;
+  fn after<U: type>(self, r: IOResult<U>) -> Self;
+}

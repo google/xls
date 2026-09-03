@@ -81,6 +81,12 @@ constexpr std::string_view kConstAssertIdentifier = "const_assert!";
 constexpr std::string_view kAssertFmtMacroIdentifier = "assert_fmt!";
 constexpr std::string_view kSpawnIdentifier = "spawn";
 
+bool IsSourceOrSinkBuiltin(std::string_view name) {
+  return name == "Source" || name == "Sink" || name == "ChannelConfig" ||
+         name == "IOResult" || name == "ChannelStrictness" ||
+         name == "FlowControl";
+}
+
 absl::StatusOr<std::vector<ExprOrType>> CloneParametrics(
     absl::Span<const ExprOrType> eots) {
   std::vector<ExprOrType> results;
@@ -413,6 +419,9 @@ absl::Status Parser::ParseModuleAttribute() {
       module_->AddAttribute(ModuleAttribute::kGenerics, attribute_span);
     } else if (feature == "traits") {
       module_->AddAttribute(ModuleAttribute::kTraits, attribute_span);
+    } else if (feature == "source_sink_channel_syntax") {
+      module_->AddAttribute(ModuleAttribute::kSourceSinkChannelSyntax,
+                            attribute_span);
     } else {
       return ParseErrorStatus(
           attribute_span,
@@ -1518,6 +1527,17 @@ absl::StatusOr<TypeRefOrAnnotation> Parser::ParseTypeRef(Bindings& bindings,
   }
   VLOG(5) << "ParseTypeRef token " << tok.ToString();
 
+  if (!parse_fn_stubs_ && IsSourceOrSinkBuiltin(*tok.GetValue())) {
+    if (!module_->attributes().contains(
+            ModuleAttribute::kSourceSinkChannelSyntax)) {
+      return ParseErrorStatus(
+          tok.span(),
+          absl::StrFormat(
+              "`%s` requires #![feature(source_sink_channel_syntax)]",
+              *tok.GetValue()));
+    }
+  }
+
   XLS_ASSIGN_OR_RETURN(bool peek_is_double_colon,
                        PeekTokenIs(TokenKind::kDoubleColon));
   if (peek_is_double_colon) {
@@ -1731,6 +1751,18 @@ absl::StatusOr<NameRef*> Parser::ParseNameRef(Bindings& bindings,
   if (tok->GetValue() == "_") {
     return ParseErrorStatus(
         tok->span(), "Wildcard pattern `_` cannot be used as a reference");
+  }
+
+  if (!parse_fn_stubs_ && tok->GetValue().has_value() &&
+      IsSourceOrSinkBuiltin(*tok->GetValue())) {
+    if (!module_->attributes().contains(
+            ModuleAttribute::kSourceSinkChannelSyntax)) {
+      return ParseErrorStatus(
+          tok->span(),
+          absl::StrFormat(
+              "`%s` requires #![feature(source_sink_channel_syntax)]",
+              *tok->GetValue()));
+    }
   }
 
   XLS_ASSIGN_OR_RETURN(
