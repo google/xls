@@ -203,7 +203,7 @@ std::optional<uint32_t> GetSelectCaseNumberOfNode(
 bool CanTarget(Node* n) {
   if (n->OpIn({Op::kUMul, Op::kSMul, Op::kAdd, Op::kSub, Op::kShrl, Op::kShra,
                Op::kShll, Op::kDynamicBitSlice}) ||
-      n->OpIn(NaryOp::kOps)) {
+      n->OpIn(NaryOp::kOps) || OpIsCompare(n->op())) {
     return true;
   }
 
