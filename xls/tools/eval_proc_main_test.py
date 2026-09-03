@@ -583,6 +583,104 @@ class EvalProcTest(parameterized.TestCase):
     output = run_command(shared_args + ["--backend", "serial_jit"])
     self.assertIn("Proc __eval_proc_main_test__test_proc_0_next", output.stderr)
 
+  @parameterized.named_parameters(
+      ("proc_serial_jit", PROC_PATH, "serial_jit", []),
+      ("block_jit", BLOCK_PATH, "block_jit", ["--block_signature_proto",
+                                               BLOCK_SIG_PATH, "--show_trace"]),
+  )
+  def test_llvm_opt_level(self, ir_path, backend, backend_extra_args):
+    input_file = self.create_tempfile(content=textwrap.dedent("""
+          eval_proc_main_test__in_ch : {
+            bits[64]:42
+            bits[64]:101
+          }
+          eval_proc_main_test__in_ch_2 : {
+            bits[64]:10
+            bits[64]:6
+          }
+        """))
+    output_file = self.create_tempfile(content=textwrap.dedent("""
+          eval_proc_main_test__out_ch : {
+            bits[64]:62
+            bits[64]:127
+          }
+          eval_proc_main_test__out_ch_2 : {
+            bits[64]:55
+            bits[64]:55
+          }
+        """))
+
+    shared_args = [
+        EVAL_PROC_MAIN_PATH,
+        ir_path,
+        "--ticks",
+        "2",
+        "-v=3",
+        "--logtostderr",
+        "--inputs_for_all_channels",
+        input_file.full_path,
+        "--expected_outputs_for_all_channels",
+        output_file.full_path,
+        "--backend",
+        backend,
+    ] + backend_extra_args
+
+    for opt_level in (0, 1, 2, 3):
+      output = run_command(shared_args + ["--llvm_opt_level", str(opt_level)])
+      if backend == "serial_jit":
+        self.assertIn(
+            "Proc __eval_proc_main_test__test_proc_0_next", output.stderr
+        )
+      else:
+        self.assertIn("Cycle[5]: resetting? false", output.stderr)
+
+  def test_llvm_opt_level_invalid(self):
+    input_file = self.create_tempfile(content=textwrap.dedent("""
+          eval_proc_main_test__in_ch : {
+            bits[64]:42
+            bits[64]:101
+          }
+          eval_proc_main_test__in_ch_2 : {
+            bits[64]:10
+            bits[64]:6
+          }
+        """))
+    output_file = self.create_tempfile(content=textwrap.dedent("""
+          eval_proc_main_test__out_ch : {
+            bits[64]:62
+            bits[64]:127
+          }
+          eval_proc_main_test__out_ch_2 : {
+            bits[64]:55
+            bits[64]:55
+          }
+        """))
+    shared_args = [
+        EVAL_PROC_MAIN_PATH,
+        PROC_PATH,
+        "--ticks",
+        "2",
+        "-v=3",
+        "--logtostderr",
+        "--inputs_for_all_channels",
+        input_file.full_path,
+        "--expected_outputs_for_all_channels",
+        output_file.full_path,
+        "--backend",
+        "serial_jit",
+    ]
+
+    for opt_level in ("-1", "4"):
+      comp = subprocess.run(
+          shared_args + ["--llvm_opt_level", opt_level],
+          stdout=subprocess.PIPE,
+          stderr=subprocess.PIPE,
+          encoding="utf-8",
+          check=False,
+      )
+      self.assertNotEqual(comp.returncode, 0)
+      self.assertIn("--llvm_opt_level must be between 0 and 3", comp.stderr)
+
   def test_reset_static(self):
     input_file = self.create_tempfile(content=textwrap.dedent("""
           bits[64]:42
