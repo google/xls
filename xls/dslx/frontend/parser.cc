@@ -413,6 +413,9 @@ absl::Status Parser::ParseModuleAttribute() {
       module_->AddAttribute(ModuleAttribute::kGenerics, attribute_span);
     } else if (feature == "traits") {
       module_->AddAttribute(ModuleAttribute::kTraits, attribute_span);
+    } else if (feature == "source_sink_channel_syntax") {
+      module_->AddAttribute(ModuleAttribute::kSourceSinkChannelSyntax,
+                            attribute_span);
     } else {
       return ParseErrorStatus(
           attribute_span,

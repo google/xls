@@ -93,6 +93,9 @@ enum class ModuleAttribute : uint8_t {
 
   // Enable `trait` declarations.
   kTraits,
+
+  // Enable `source` and `sink` channel syntax in this module.
+  kSourceSinkChannelSyntax,
 };
 
 // Represents a syntactic module in the AST.
