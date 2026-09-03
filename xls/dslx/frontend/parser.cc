@@ -413,6 +413,8 @@ absl::Status Parser::ParseModuleAttribute() {
       module_->AddAttribute(ModuleAttribute::kGenerics, attribute_span);
     } else if (feature == "traits") {
       module_->AddAttribute(ModuleAttribute::kTraits, attribute_span);
+    } else if (feature == "io_objects") {
+      module_->AddAttribute(ModuleAttribute::kIOObjects, attribute_span);
     } else {
       return ParseErrorStatus(
           attribute_span,
