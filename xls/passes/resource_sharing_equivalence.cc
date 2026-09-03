@@ -18,11 +18,16 @@
 #include <functional>
 #include <memory>
 #include <optional>
+#include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
+#include "absl/base/const_init.h"
 #include "absl/base/no_destructor.h"
+#include "absl/base/thread_annotations.h"
 #include "absl/container/flat_hash_map.h"
+#include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/synchronization/mutex.h"
@@ -118,7 +123,7 @@ class BitwidthExtendingEquivalenceMapping : public EquivalenceMapping {
         new_src, new_dst, tmp_package_);
   }
 
-  bool RequiresOperandTransformation() const override {
+  absl::StatusOr<bool> RequiresOperandTransformation() const override {
     for (int i = 0; i < src_->operand_count(); ++i) {
       if (src_->operand(i)->BitCountOrDie() <
           dst_->operand(i)->BitCountOrDie()) {
@@ -128,7 +133,7 @@ class BitwidthExtendingEquivalenceMapping : public EquivalenceMapping {
     return false;
   }
 
-  bool RequiresOutputTransformation() const override {
+  absl::StatusOr<bool> RequiresOutputTransformation() const override {
     return src_->BitCountOrDie() < dst_->BitCountOrDie();
   }
 
@@ -169,6 +174,14 @@ class BitwidthExtendingEquivalenceMapping : public EquivalenceMapping {
   }
 };
 
+absl::StatusOr<Node*> ExtendIf(FunctionBase* f, Node* node,
+                               int64_t target_width, Op ext_op) {
+  if (node->BitCountOrDie() >= target_width) {
+    return node;
+  }
+  return f->MakeNode<ExtendOp>(node->loc(), node, target_width, ext_op);
+}
+
 // `AddSubEquivalenceMapping` handles folding between `add` and `sub` nodes.
 class AddSubEquivalenceMapping : public EquivalenceMapping {
  public:
@@ -199,9 +212,11 @@ class AddSubEquivalenceMapping : public EquivalenceMapping {
     return CloneEqMapping(this, original_node_to_clone);
   }
 
-  bool RequiresOperandTransformation() const override { return true; }
+  absl::StatusOr<bool> RequiresOperandTransformation() const override {
+    return true;
+  }
 
-  bool RequiresOutputTransformation() const override {
+  absl::StatusOr<bool> RequiresOutputTransformation() const override {
     return src_->BitCountOrDie() < dst_->BitCountOrDie();
   }
 
@@ -212,8 +227,10 @@ class AddSubEquivalenceMapping : public EquivalenceMapping {
     Node* op1 = src_operands[1];
     XLS_RET_CHECK(op0->GetType()->IsBits());
     XLS_RET_CHECK(op1->GetType()->IsBits());
-    XLS_RET_CHECK(dst_->operand(0)->GetType()->IsBits());
-    XLS_RET_CHECK(dst_->operand(1)->GetType()->IsBits());
+    Node* dst_lhs = dst_->operand(0);
+    Node* dst_rhs = dst_->operand(1);
+    XLS_RET_CHECK(dst_lhs->GetType()->IsBits());
+    XLS_RET_CHECK(dst_rhs->GetType()->IsBits());
 
     if (src_->op() != dst_->op()) {
       if (op1->op() == Op::kNeg) {
@@ -223,18 +240,10 @@ class AddSubEquivalenceMapping : public EquivalenceMapping {
       }
     }
 
-    if (op0->BitCountOrDie() < dst_->operand(0)->BitCountOrDie()) {
-      XLS_ASSIGN_OR_RETURN(
-          op0, f->MakeNode<ExtendOp>(op0->loc(), op0,
-                                     dst_->operand(0)->BitCountOrDie(),
-                                     Op::kZeroExt));
-    }
-    if (op1->BitCountOrDie() < dst_->operand(1)->BitCountOrDie()) {
-      XLS_ASSIGN_OR_RETURN(
-          op1, f->MakeNode<ExtendOp>(op1->loc(), op1,
-                                     dst_->operand(1)->BitCountOrDie(),
-                                     Op::kZeroExt));
-    }
+    XLS_ASSIGN_OR_RETURN(
+        op0, ExtendIf(f, op0, dst_lhs->BitCountOrDie(), Op::kZeroExt));
+    XLS_ASSIGN_OR_RETURN(
+        op1, ExtendIf(f, op1, dst_rhs->BitCountOrDie(), Op::kZeroExt));
 
     return std::vector<Node*>{op0, op1};
   }
@@ -269,6 +278,158 @@ class AddSubEquivalenceMapping : public EquivalenceMapping {
       }
     }
     return 0.0;
+  }
+};
+
+// Returns true if `src` and `dst` belong to the same comparator grouping:
+// equality, unsigned inequality, or signed inequality.
+bool AreCompatibleComparators(Node* src, Node* dst) {
+  if (!OpIsCompare(src->op()) || !OpIsCompare(dst->op())) {
+    return false;
+  }
+  return (IsSignedCompare(src) == IsSignedCompare(dst)) &&
+         (IsUnsignedCompare(src) == IsUnsignedCompare(dst));
+}
+
+// Returns the area of a single bit NOT gate, cached by AreaEstimator
+absl::StatusOr<double> EstimateAreaForSingleBitInversion(
+    const AreaEstimator& area_estimator) {
+  static absl::Mutex mutex(absl::kConstInit);
+  static absl::NoDestructor<absl::flat_hash_map<std::string, double>> cache
+      ABSL_GUARDED_BY(mutex);
+  std::string estimator_name = area_estimator.name();
+  {
+    absl::MutexLock lock(mutex);
+    if (auto it = cache->find(estimator_name); it != cache->end()) {
+      return it->second;
+    }
+  }
+  XLS_ASSIGN_OR_RETURN(
+      double area,
+      EstimateAreaForNodes(
+          area_estimator, [](Package* p, FunctionBuilder* fb) -> absl::Status {
+            fb->Not(fb->Param("bit_to_invert", p->GetBitsType(1)));
+            return absl::OkStatus();
+          }));
+  {
+    absl::MutexLock lock(mutex);
+    cache->emplace(estimator_name, area);
+  }
+  return area;
+}
+
+// `ComparatorEquivalenceMapping` handles folding within comparator operation
+// groups: equality, unsigned inequalities, and signed inequalities.
+class ComparatorEquivalenceMapping : public EquivalenceMapping {
+ public:
+  static absl::StatusOr<std::optional<NodeToMappings>> TryCreate(
+      absl::Span<Node* const> sources, Node* dst) {
+    if (!OpIsCompare(dst->op()) || dst->operand_count() != 2) {
+      return std::nullopt;
+    }
+    for (Node* src : sources) {
+      if (!OpIsCompare(src->op()) || src->operand_count() != 2) {
+        return std::nullopt;
+      }
+      if (!AreCompatibleComparators(src, dst)) {
+        return std::nullopt;
+      }
+      if (!LessThanOrEqualBitwidth(src, dst)) {
+        return std::nullopt;
+      }
+    }
+    return ComputeMappingsSourcesToDest<ComparatorEquivalenceMapping>(sources,
+                                                                      dst);
+  }
+
+  using EquivalenceMapping::EquivalenceMapping;
+
+  absl::StatusOr<std::unique_ptr<EquivalenceMapping>> Clone(
+      std::optional<const absl::flat_hash_map<Node*, Node*>*>
+          original_node_to_clone) const override {
+    return CloneEqMapping(this, original_node_to_clone);
+  }
+
+  absl::StatusOr<bool> RequiresOperandTransformation() const override {
+    XLS_ASSIGN_OR_RETURN(bool requires_swap,
+                         RequiresOperandSwap(src_->op(), dst_->op()));
+    if (requires_swap) {
+      return true;
+    }
+    for (int i = 0; i < src_->operand_count(); ++i) {
+      if (src_->operand(i)->BitCountOrDie() <
+          dst_->operand(i)->BitCountOrDie()) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  absl::StatusOr<bool> RequiresOutputTransformation() const override {
+    return RequiresOutputInversion(src_->op(), dst_->op());
+  }
+
+  absl::StatusOr<std::vector<Node*>> ApplyToOperands(
+      FunctionBase* f, absl::Span<Node* const> src_operands) const override {
+    XLS_RET_CHECK_EQ(src_operands.size(), 2);
+    Node* op0 = src_operands[0];
+    Node* op1 = src_operands[1];
+    XLS_RET_CHECK(op0->GetType()->IsBits());
+    XLS_RET_CHECK(op1->GetType()->IsBits());
+    Node* dst_lhs = dst_->operand(0);
+    Node* dst_rhs = dst_->operand(1);
+    XLS_RET_CHECK(dst_lhs->GetType()->IsBits());
+    XLS_RET_CHECK(dst_rhs->GetType()->IsBits());
+
+    XLS_ASSIGN_OR_RETURN(bool requires_swap,
+                         RequiresOperandSwap(src_->op(), dst_->op()));
+    if (requires_swap) {
+      std::swap(op0, op1);
+    }
+
+    Op ext_op = IsSigned(dst_) ? Op::kSignExt : Op::kZeroExt;
+    XLS_ASSIGN_OR_RETURN(op0,
+                         ExtendIf(f, op0, dst_lhs->BitCountOrDie(), ext_op));
+    XLS_ASSIGN_OR_RETURN(op1,
+                         ExtendIf(f, op1, dst_rhs->BitCountOrDie(), ext_op));
+
+    return std::vector<Node*>{op0, op1};
+  }
+
+  absl::StatusOr<Node*> ApplyToOutput(FunctionBase* f,
+                                      Node* dst_output) const override {
+    XLS_RET_CHECK(src_->GetType()->IsBits());
+    XLS_RET_CHECK(dst_->GetType()->IsBits());
+    XLS_ASSIGN_OR_RETURN(bool requires_inversion,
+                         RequiresOutputInversion(src_->op(), dst_->op()));
+    if (requires_inversion) {
+      return f->MakeNode<UnOp>(dst_output->loc(), dst_output, Op::kNot);
+    }
+    return dst_output;
+  }
+
+  absl::StatusOr<double> EstimateAreaOverhead(
+      const AreaEstimator& area_estimator, absl::Span<Node* const> operands,
+      Node* output) const override {
+    XLS_ASSIGN_OR_RETURN(bool requires_inversion,
+                         RequiresOutputTransformation());
+    if (requires_inversion) {
+      return EstimateAreaForSingleBitInversion(area_estimator);
+    }
+    return 0.0;
+  }
+
+  static absl::StatusOr<bool> RequiresOutputInversion(Op src_op, Op dst_op) {
+    XLS_ASSIGN_OR_RETURN(Op invert_dst_op, InvertComparisonOp(dst_op));
+    XLS_ASSIGN_OR_RETURN(Op rev_dst_op, ReverseComparisonOp(dst_op));
+    XLS_ASSIGN_OR_RETURN(Op invert_rev_dst_op, InvertComparisonOp(rev_dst_op));
+    return src_op == invert_dst_op || src_op == invert_rev_dst_op;
+  }
+
+  static absl::StatusOr<bool> RequiresOperandSwap(Op src_op, Op dst_op) {
+    XLS_ASSIGN_OR_RETURN(Op rev_dst_op, ReverseComparisonOp(dst_op));
+    XLS_ASSIGN_OR_RETURN(Op invert_rev_dst_op, InvertComparisonOp(rev_dst_op));
+    return src_op == rev_dst_op || src_op == invert_rev_dst_op;
   }
 };
 
@@ -393,8 +554,12 @@ class ShiftEquivalenceMapping : public EquivalenceMapping {
     return CloneEqMapping(this, original_node_to_clone);
   }
 
-  bool RequiresOperandTransformation() const override { return true; }
-  bool RequiresOutputTransformation() const override { return true; }
+  absl::StatusOr<bool> RequiresOperandTransformation() const override {
+    return true;
+  }
+  absl::StatusOr<bool> RequiresOutputTransformation() const override {
+    return true;
+  }
 
   absl::StatusOr<std::vector<Node*>> ApplyToOperands(
       FunctionBase* f, absl::Span<Node* const> src_operands) const override {
@@ -529,6 +694,7 @@ NodeEquivalenceMapper& GetNodeEquivalenceMapper() {
     m->Register<IdentityEquivalenceMapping>();
     m->Register<BitwidthExtendingEquivalenceMapping>();
     m->Register<AddSubEquivalenceMapping>();
+    m->Register<ComparatorEquivalenceMapping>();
     m->Register<ShiftEquivalenceMapping>();
     return true;
   }();

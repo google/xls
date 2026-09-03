@@ -82,10 +82,14 @@ class EquivalenceMapping {
   }
 
   // Returns true if this mapping modifies any of the operands.
-  virtual bool RequiresOperandTransformation() const { return true; }
+  virtual absl::StatusOr<bool> RequiresOperandTransformation() const {
+    return true;
+  }
 
   // Returns true if this mapping modifies the output of the dst node.
-  virtual bool RequiresOutputTransformation() const { return false; }
+  virtual absl::StatusOr<bool> RequiresOutputTransformation() const {
+    return false;
+  }
 
  protected:
   absl::StatusOr<Node*> MapNode(
@@ -220,8 +224,12 @@ class IdentityEquivalenceMapping : public EquivalenceMapping {
     return dst_output;
   }
 
-  bool RequiresOperandTransformation() const override { return false; }
-  bool RequiresOutputTransformation() const override { return false; }
+  absl::StatusOr<bool> RequiresOperandTransformation() const override {
+    return false;
+  }
+  absl::StatusOr<bool> RequiresOutputTransformation() const override {
+    return false;
+  }
 };
 
 }  // namespace xls

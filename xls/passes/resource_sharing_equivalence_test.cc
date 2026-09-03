@@ -22,7 +22,9 @@
 #include "gtest/gtest.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
+#include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
+#include "absl/types/span.h"
 #include "xls/common/status/matchers.h"
 #include "xls/estimators/area_model/area_estimator.h"
 #include "xls/ir/function.h"
@@ -37,6 +39,7 @@
 namespace xls {
 namespace {
 
+using ::absl_testing::IsOkAndHolds;
 using ::absl_testing::StatusIs;
 using ::testing::ElementsAre;
 using ::xls::solvers::ScopedVerifyEquivalence;
@@ -84,8 +87,8 @@ TEST_F(ResourceSharingEquivalenceTest, IdentityEquivalenceMapping) {
   ASSERT_TRUE(mappings.has_value());
   const std::unique_ptr<EquivalenceMapping>& mapping =
       mappings->at(add0.node());
-  EXPECT_FALSE(mapping->RequiresOperandTransformation());
-  EXPECT_FALSE(mapping->RequiresOutputTransformation());
+  EXPECT_THAT(mapping->RequiresOperandTransformation(), IsOkAndHolds(false));
+  EXPECT_THAT(mapping->RequiresOutputTransformation(), IsOkAndHolds(false));
 
   ScopedVerifyEquivalence sve(f);
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -130,8 +133,8 @@ TEST_F(ResourceSharingEquivalenceTest, BitwidthExtendingEquivalenceMapping) {
     ASSERT_TRUE(mappings.has_value());
     const std::unique_ptr<EquivalenceMapping>& mapping =
         mappings->at(mul_narrow.node());
-    EXPECT_TRUE(mapping->RequiresOperandTransformation());
-    EXPECT_TRUE(mapping->RequiresOutputTransformation());
+    EXPECT_THAT(mapping->RequiresOperandTransformation(), IsOkAndHolds(true));
+    EXPECT_THAT(mapping->RequiresOutputTransformation(), IsOkAndHolds(true));
 
     // Create mapped node to confirm equivalence
     ScopedVerifyEquivalence sve(f);
@@ -201,8 +204,8 @@ TEST_F(ResourceSharingEquivalenceTest, AddSubEquivalenceMapping) {
     ASSERT_TRUE(mappings.has_value());
     const std::unique_ptr<EquivalenceMapping>& mapping =
         mappings->at(add32.node());
-    EXPECT_TRUE(mapping->RequiresOperandTransformation());
-    EXPECT_FALSE(mapping->RequiresOutputTransformation());
+    EXPECT_THAT(mapping->RequiresOperandTransformation(), IsOkAndHolds(true));
+    EXPECT_THAT(mapping->RequiresOutputTransformation(), IsOkAndHolds(false));
 
     // Confirm area estimation
     XLS_ASSERT_OK_AND_ASSIGN(
@@ -266,8 +269,8 @@ TEST_F(ResourceSharingEquivalenceTest, AddSubEquivalenceMapping) {
     ASSERT_TRUE(mappings.has_value());
     const std::unique_ptr<EquivalenceMapping>& mapping =
         mappings->at(add16.node());
-    EXPECT_TRUE(mapping->RequiresOperandTransformation());
-    EXPECT_TRUE(mapping->RequiresOutputTransformation());
+    EXPECT_THAT(mapping->RequiresOperandTransformation(), IsOkAndHolds(true));
+    EXPECT_THAT(mapping->RequiresOutputTransformation(), IsOkAndHolds(true));
 
     // Create mapped node to confirm equivalence
     XLS_ASSERT_OK(f->set_return_value(add16.node()));
@@ -327,8 +330,8 @@ TEST_F(ResourceSharingEquivalenceTest, ShiftEquivalenceMapping) {
     ASSERT_TRUE(mappings.has_value());
     const std::unique_ptr<EquivalenceMapping>& mapping =
         mappings->at(shll.node());
-    EXPECT_TRUE(mapping->RequiresOperandTransformation());
-    EXPECT_TRUE(mapping->RequiresOutputTransformation());
+    EXPECT_THAT(mapping->RequiresOperandTransformation(), IsOkAndHolds(true));
+    EXPECT_THAT(mapping->RequiresOutputTransformation(), IsOkAndHolds(true));
 
     // Confirm area estimation
     XLS_ASSERT_OK_AND_ASSIGN(
@@ -362,8 +365,8 @@ TEST_F(ResourceSharingEquivalenceTest, ShiftEquivalenceMapping) {
     ASSERT_TRUE(mappings.has_value());
     const std::unique_ptr<EquivalenceMapping>& mapping =
         mappings->at(shrl.node());
-    EXPECT_TRUE(mapping->RequiresOperandTransformation());
-    EXPECT_TRUE(mapping->RequiresOutputTransformation());
+    EXPECT_THAT(mapping->RequiresOperandTransformation(), IsOkAndHolds(true));
+    EXPECT_THAT(mapping->RequiresOutputTransformation(), IsOkAndHolds(true));
 
     // Confirm area estimation
     XLS_ASSERT_OK_AND_ASSIGN(
@@ -412,8 +415,8 @@ TEST_F(ResourceSharingEquivalenceTest, ArithShiftEquivalenceMapping) {
     ASSERT_TRUE(mappings.has_value());
     const std::unique_ptr<EquivalenceMapping>& mapping =
         mappings->at(shra.node());
-    EXPECT_TRUE(mapping->RequiresOperandTransformation());
-    EXPECT_TRUE(mapping->RequiresOutputTransformation());
+    EXPECT_THAT(mapping->RequiresOperandTransformation(), IsOkAndHolds(true));
+    EXPECT_THAT(mapping->RequiresOutputTransformation(), IsOkAndHolds(true));
 
     // Confirm area estimation (2 * 5.0 * 4 = 40.0)
     XLS_ASSERT_OK_AND_ASSIGN(
@@ -447,8 +450,8 @@ TEST_F(ResourceSharingEquivalenceTest, ArithShiftEquivalenceMapping) {
     ASSERT_TRUE(mappings.has_value());
     const std::unique_ptr<EquivalenceMapping>& mapping =
         mappings->at(shra.node());
-    EXPECT_TRUE(mapping->RequiresOperandTransformation());
-    EXPECT_TRUE(mapping->RequiresOutputTransformation());
+    EXPECT_THAT(mapping->RequiresOperandTransformation(), IsOkAndHolds(true));
+    EXPECT_THAT(mapping->RequiresOutputTransformation(), IsOkAndHolds(true));
 
     // Confirm area estimation (2 * 5.0 * 4 = 40.0)
     XLS_ASSERT_OK_AND_ASSIGN(
@@ -609,8 +612,8 @@ TEST_F(ResourceSharingEquivalenceTest, ArithShiftEquivalenceMappingWidening) {
     ASSERT_TRUE(mappings.has_value());
     const std::unique_ptr<EquivalenceMapping>& mapping =
         mappings->at(shrl4.node());
-    EXPECT_TRUE(mapping->RequiresOperandTransformation());
-    EXPECT_TRUE(mapping->RequiresOutputTransformation());
+    EXPECT_THAT(mapping->RequiresOperandTransformation(), IsOkAndHolds(true));
+    EXPECT_THAT(mapping->RequiresOutputTransformation(), IsOkAndHolds(true));
 
     // Create mapped node to confirm equivalence
     XLS_ASSERT_OK(f->set_return_value(shrl4.node()));
@@ -638,8 +641,8 @@ TEST_F(ResourceSharingEquivalenceTest, ArithShiftEquivalenceMappingWidening) {
     ASSERT_TRUE(mappings.has_value());
     const std::unique_ptr<EquivalenceMapping>& mapping =
         mappings->at(shll4.node());
-    EXPECT_TRUE(mapping->RequiresOperandTransformation());
-    EXPECT_TRUE(mapping->RequiresOutputTransformation());
+    EXPECT_THAT(mapping->RequiresOperandTransformation(), IsOkAndHolds(true));
+    EXPECT_THAT(mapping->RequiresOutputTransformation(), IsOkAndHolds(true));
 
     // Create mapped node to confirm equivalence
     XLS_ASSERT_OK(f->set_return_value(shll4.node()));
@@ -762,6 +765,139 @@ TEST_F(ResourceSharingEquivalenceTest, ArithShiftEquivalenceMappingMSBPadding) {
   }
 }
 
+TEST_F(ResourceSharingEquivalenceTest, ComparatorEquivalenceMapping) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue a = fb.Param("a", p->GetBitsType(32));
+  BValue b = fb.Param("b", p->GetBitsType(32));
+  BValue a16 = fb.Param("a16", p->GetBitsType(16));
+  BValue b16 = fb.Param("b16", p->GetBitsType(16));
+
+  // Unsigned inequalities
+  BValue ult = fb.ULt(a, b);
+  BValue ugt = fb.UGt(a, b);
+  BValue ule = fb.ULe(a, b);
+  BValue uge = fb.UGe(a, b);
+  BValue ult16 = fb.ULt(a16, b16);
+
+  // Signed inequalities
+  BValue slt = fb.SLt(a, b);
+  BValue sgt = fb.SGt(a, b);
+  BValue sle = fb.SLe(a, b);
+  BValue sge = fb.SGe(a, b);
+  BValue slt16 = fb.SLt(a16, b16);
+
+  // Equalities
+  BValue eq = fb.Eq(a, b);
+  BValue ne = fb.Ne(a, b);
+  BValue eq16 = fb.Eq(a16, b16);
+
+  // Default return value to be overwritten by each test case.
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(eq));
+  FakeAreaEstimator area_estimator;
+
+  // Helper to test swapping either the equality or inequality comparison.
+  auto test_swap = [&](Node* src, Node* dst, int tuple_index,
+                       double expected_overhead) {
+    XLS_ASSERT_OK_AND_ASSIGN(
+        std::optional<NodeToMappings> mappings,
+        GetNodeEquivalenceMapper().ComputeMappings({src}, dst));
+    ASSERT_TRUE(mappings.has_value());
+    const std::unique_ptr<EquivalenceMapping>& mapping = mappings->at(src);
+
+    XLS_ASSERT_OK_AND_ASSIGN(
+        double overhead,
+        mapping->EstimateAreaOverhead(area_estimator, src->operands(), src));
+    EXPECT_EQ(overhead, expected_overhead);
+
+    XLS_ASSERT_OK(f->set_return_value(src));
+    ScopedVerifyEquivalence sve(f);
+    absl::Span<Node* const> src_ops = src->operands();
+    XLS_ASSERT_OK_AND_ASSIGN(std::vector<Node*> coerced,
+                             mapping->ApplyToOperands(f, src_ops));
+    // Confirm the mapping knows when it has to transform operands.
+    ASSERT_EQ(coerced.size(), src_ops.size());
+    for (int i = 0; i < coerced.size(); ++i) {
+      XLS_ASSERT_OK_AND_ASSIGN(bool requires_transform,
+                               mapping->RequiresOperandTransformation());
+      EXPECT_EQ(coerced[i] != src_ops[i], requires_transform);
+    }
+    XLS_ASSERT_OK_AND_ASSIGN(Node * new_dst,
+                             dst->CloneInNewFunction(coerced, f));
+    XLS_ASSERT_OK_AND_ASSIGN(Node * output, mapping->ApplyToOutput(f, new_dst));
+    // Confirm the mapping knows when it has to transform the output.
+    XLS_ASSERT_OK_AND_ASSIGN(bool requires_output_transform,
+                             mapping->RequiresOutputTransformation());
+    EXPECT_EQ(output != new_dst, requires_output_transform);
+    XLS_ASSERT_OK(f->set_return_value(output));
+  };
+
+  // Test unsigned inequality swaps (tuple element 0):
+  // ult -> ugt: swap operands (overhead 0.0)
+  test_swap(ult.node(), ugt.node(), /*tuple_index=*/0, 0.0);
+  // ult -> ule: swap operands + invert output (overhead 1.0)
+  test_swap(ult.node(), ule.node(), /*tuple_index=*/0, 1.0);
+  // ult -> uge: invert output (overhead 1.0)
+  test_swap(ult.node(), uge.node(), /*tuple_index=*/0, 1.0);
+  // ult16 -> ugt (with zero extension): swap operands + extend (overhead 0.0)
+  test_swap(ult16.node(), ugt.node(), /*tuple_index=*/0, 0.0);
+  // ult16 -> uge (with zero extension): extend + invert output (overhead 1.0)
+  test_swap(ult16.node(), uge.node(), /*tuple_index=*/0, 1.0);
+
+  // Test signed inequality swaps (tuple element 0):
+  // slt -> sgt: swap operands (overhead 0.0)
+  test_swap(slt.node(), sgt.node(), /*tuple_index=*/0, 0.0);
+  // slt -> sle: swap operands + invert output (overhead 1.0)
+  test_swap(slt.node(), sle.node(), /*tuple_index=*/0, 1.0);
+  // slt -> sge: invert output (overhead 1.0)
+  test_swap(slt.node(), sge.node(), /*tuple_index=*/0, 1.0);
+  // slt16 -> sgt (with sign extension): swap operands + extend (overhead 0.0)
+  test_swap(slt16.node(), sgt.node(), /*tuple_index=*/0, 0.0);
+  // slt16 -> sge (with sign extension): extend + invert output (overhead 1.0)
+  test_swap(slt16.node(), sge.node(), /*tuple_index=*/0, 1.0);
+
+  // Test equality swaps (tuple element 1):
+  // eq -> ne: invert output (overhead 1.0)
+  test_swap(eq.node(), ne.node(), /*tuple_index=*/1, 1.0);
+  // ne -> eq: invert output (overhead 1.0)
+  test_swap(ne.node(), eq.node(), /*tuple_index=*/1, 1.0);
+  // eq16 -> ne (with zero extension): extend + invert output (overhead 1.0)
+  test_swap(eq16.node(), ne.node(), /*tuple_index=*/1, 1.0);
+
+  // Incompatible comparator mappings
+  {
+    // Equality -> Inequality
+    XLS_ASSERT_OK_AND_ASSIGN(
+        std::optional<NodeToMappings> eq_ult,
+        GetNodeEquivalenceMapper().ComputeMappings({eq.node()}, ult.node()));
+    EXPECT_FALSE(eq_ult.has_value());
+
+    // Inequality -> Equality
+    XLS_ASSERT_OK_AND_ASSIGN(
+        std::optional<NodeToMappings> ult_eq,
+        GetNodeEquivalenceMapper().ComputeMappings({ult.node()}, eq.node()));
+    EXPECT_FALSE(ult_eq.has_value());
+
+    // Signed -> Unsigned
+    XLS_ASSERT_OK_AND_ASSIGN(
+        std::optional<NodeToMappings> slt_ult,
+        GetNodeEquivalenceMapper().ComputeMappings({slt.node()}, ult.node()));
+    EXPECT_FALSE(slt_ult.has_value());
+
+    // Unsigned -> Signed
+    XLS_ASSERT_OK_AND_ASSIGN(
+        std::optional<NodeToMappings> ult_slt,
+        GetNodeEquivalenceMapper().ComputeMappings({ult.node()}, slt.node()));
+    EXPECT_FALSE(ult_slt.has_value());
+
+    // Narrowing unsupported (32-bit -> 16-bit)
+    XLS_ASSERT_OK_AND_ASSIGN(
+        std::optional<NodeToMappings> ult_ult16,
+        GetNodeEquivalenceMapper().ComputeMappings({ult.node()}, ult16.node()));
+    EXPECT_FALSE(ult_ult16.has_value());
+  }
+}
+
 TEST_F(ResourceSharingEquivalenceTest, CloneEquivalenceMapping) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
@@ -772,6 +908,10 @@ TEST_F(ResourceSharingEquivalenceTest, CloneEquivalenceMapping) {
   BValue sub0 = fb.Subtract(a, b);
   BValue shra0 = fb.Shra(a, b);
   BValue shrl0 = fb.Shrl(a, b);
+  BValue eq0 = fb.Eq(a, b);
+  BValue ne0 = fb.Ne(a, b);
+  BValue ult0 = fb.ULt(a, b);
+  BValue uge0 = fb.UGe(a, b);
   XLS_ASSERT_OK(fb.BuildWithReturnValue(add0).status());
 
   // confirm cloning does node remapping and complains when original to clone
@@ -809,6 +949,9 @@ TEST_F(ResourceSharingEquivalenceTest, CloneEquivalenceMapping) {
   eq_mapping_clone(add0.node(), sub0.node());
   // ShiftEquivalenceMapping
   eq_mapping_clone(shra0.node(), shrl0.node());
+  // ComparatorEquivalenceMapping
+  eq_mapping_clone(eq0.node(), ne0.node());
+  eq_mapping_clone(ult0.node(), uge0.node());
 }
 
 }  // namespace
