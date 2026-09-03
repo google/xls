@@ -21,6 +21,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/base/no_destructor.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -108,6 +109,15 @@ class BitwidthExtendingEquivalenceMapping : public EquivalenceMapping {
 
   using EquivalenceMapping::EquivalenceMapping;
 
+  absl::StatusOr<std::unique_ptr<EquivalenceMapping>> Clone(
+      std::optional<const absl::flat_hash_map<Node*, Node*>*>
+          original_node_to_clone) const override {
+    XLS_ASSIGN_OR_RETURN(Node * new_src, MapNode(src_, original_node_to_clone));
+    XLS_ASSIGN_OR_RETURN(Node * new_dst, MapNode(dst_, original_node_to_clone));
+    return std::make_unique<BitwidthExtendingEquivalenceMapping>(
+        new_src, new_dst, tmp_package_);
+  }
+
   bool RequiresOperandTransformation() const override {
     for (int i = 0; i < src_->operand_count(); ++i) {
       if (src_->operand(i)->BitCountOrDie() <
@@ -182,6 +192,12 @@ class AddSubEquivalenceMapping : public EquivalenceMapping {
   }
 
   using EquivalenceMapping::EquivalenceMapping;
+
+  absl::StatusOr<std::unique_ptr<EquivalenceMapping>> Clone(
+      std::optional<const absl::flat_hash_map<Node*, Node*>*>
+          original_node_to_clone) const override {
+    return CloneEqMapping(this, original_node_to_clone);
+  }
 
   bool RequiresOperandTransformation() const override { return true; }
 
@@ -371,6 +387,12 @@ class ShiftEquivalenceMapping : public EquivalenceMapping {
 
   using EquivalenceMapping::EquivalenceMapping;
 
+  absl::StatusOr<std::unique_ptr<EquivalenceMapping>> Clone(
+      std::optional<const absl::flat_hash_map<Node*, Node*>*>
+          original_node_to_clone) const override {
+    return CloneEqMapping(this, original_node_to_clone);
+  }
+
   bool RequiresOperandTransformation() const override { return true; }
   bool RequiresOutputTransformation() const override { return true; }
 
@@ -466,6 +488,22 @@ class ShiftEquivalenceMapping : public EquivalenceMapping {
 
 }  // namespace
 
+absl::StatusOr<Node*> EquivalenceMapping::MapNode(
+    Node* node, std::optional<const absl::flat_hash_map<Node*, Node*>*>
+                    original_node_to_clone) const {
+  // If no mapping is given, or the node is from a temporary package, return
+  // the node itself.
+  if (!original_node_to_clone.has_value() ||
+      (tmp_package_ != nullptr && node->package() == tmp_package_.get())) {
+    return node;
+  }
+  auto it = (*original_node_to_clone)->find(node);
+  XLS_RET_CHECK(it != (*original_node_to_clone)->end())
+      << "Node " << node->ToString()
+      << " not found in original_node_to_clone map";
+  return it->second;
+}
+
 void NodeEquivalenceMapper::Register(Factory factory) {
   absl::MutexLock lock(mutex_);
   factories_.push_back(factory);
@@ -486,15 +524,15 @@ NodeEquivalenceMapper::ComputeMappings(absl::Span<Node* const> sources,
 }
 
 NodeEquivalenceMapper& GetNodeEquivalenceMapper() {
-  static auto* mapper = []() {
-    auto* m = new NodeEquivalenceMapper();
+  static absl::NoDestructor<NodeEquivalenceMapper> m;
+  [[maybe_unused]] static const bool initialized = [&] {
     m->Register<IdentityEquivalenceMapping>();
     m->Register<BitwidthExtendingEquivalenceMapping>();
     m->Register<AddSubEquivalenceMapping>();
     m->Register<ShiftEquivalenceMapping>();
-    return m;
+    return true;
   }();
-  return *mapper;
+  return *m;
 }
 
 }  // namespace xls

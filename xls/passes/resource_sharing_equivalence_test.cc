@@ -21,6 +21,7 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/container/flat_hash_map.h"
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "xls/common/status/matchers.h"
 #include "xls/estimators/area_model/area_estimator.h"
@@ -36,6 +37,7 @@
 namespace xls {
 namespace {
 
+using ::absl_testing::StatusIs;
 using ::testing::ElementsAre;
 using ::xls::solvers::ScopedVerifyEquivalence;
 namespace m = ::xls::op_matchers;
@@ -758,6 +760,55 @@ TEST_F(ResourceSharingEquivalenceTest, ArithShiftEquivalenceMappingMSBPadding) {
                                        /*start=*/0, /*width=*/4)));
     XLS_ASSERT_OK(f->set_return_value(output));
   }
+}
+
+TEST_F(ResourceSharingEquivalenceTest, CloneEquivalenceMapping) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue a = fb.Param("a", p->GetBitsType(32));
+  BValue b = fb.Param("b", p->GetBitsType(32));
+  BValue add0 = fb.Add(a, b);
+  BValue add1 = fb.Add(a, b);
+  BValue sub0 = fb.Subtract(a, b);
+  BValue shra0 = fb.Shra(a, b);
+  BValue shrl0 = fb.Shrl(a, b);
+  XLS_ASSERT_OK(fb.BuildWithReturnValue(add0).status());
+
+  // confirm cloning does node remapping and complains when original to clone
+  // node pairs are incomplete.
+  auto eq_mapping_clone = [&](Node* src, Node* dst) {
+    XLS_ASSERT_OK_AND_ASSIGN(
+        auto mappings, GetNodeEquivalenceMapper().ComputeMappings({src}, dst));
+    ASSERT_TRUE(mappings.has_value());
+    XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<EquivalenceMapping> clone_same,
+                             mappings->at(src)->Clone(std::nullopt));
+    EXPECT_EQ(clone_same->src(), src);
+    EXPECT_EQ(clone_same->dst(), dst);
+
+    // Illogical remapping is accepted; we trust the user's node pairings.
+    absl::flat_hash_map<Node*, Node*> remapping = {
+        {src, dst},
+        {dst, src},
+    };
+    XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<EquivalenceMapping> clone_remapped,
+                             mappings->at(src)->Clone(&remapping));
+    EXPECT_EQ(clone_remapped->src(), dst);
+    EXPECT_EQ(clone_remapped->dst(), src);
+
+    // Missing node in non-empty remapping returns an error.
+    absl::flat_hash_map<Node*, Node*> incomplete_remapping = {
+        {src, dst},
+    };
+    EXPECT_THAT(mappings->at(src)->Clone(&incomplete_remapping),
+                StatusIs(absl::StatusCode::kInternal));
+  };
+
+  // IdentityEquivalenceMapping
+  eq_mapping_clone(add0.node(), add1.node());
+  // AddSubEquivalenceMapping
+  eq_mapping_clone(add0.node(), sub0.node());
+  // ShiftEquivalenceMapping
+  eq_mapping_clone(shra0.node(), shrl0.node());
 }
 
 }  // namespace

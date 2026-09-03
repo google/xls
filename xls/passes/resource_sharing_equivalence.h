@@ -26,6 +26,7 @@
 #include "absl/status/statusor.h"
 #include "absl/synchronization/mutex.h"
 #include "absl/types/span.h"
+#include "xls/common/status/status_macros.h"
 #include "xls/estimators/area_model/area_estimator.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/node.h"
@@ -42,9 +43,20 @@ class EquivalenceMapping {
   EquivalenceMapping(Node* src, Node* dst,
                      std::shared_ptr<Package> tmp_package = nullptr)
       : src_(src), dst_(dst), tmp_package_(std::move(tmp_package)) {}
+  EquivalenceMapping(const EquivalenceMapping&) = delete;
+  EquivalenceMapping& operator=(const EquivalenceMapping&) = delete;
+  EquivalenceMapping(EquivalenceMapping&&) = default;
+  EquivalenceMapping& operator=(EquivalenceMapping&&) = default;
   virtual ~EquivalenceMapping() = default;
 
+  Node* src() const { return src_; }
   Node* dst() const { return dst_; }
+
+  // Clones this mapping. If `original_node_to_clone` is non-empty, `src_` and
+  // `dst_`, if not from `tmp_package_`, must be in `original_node_to_clone`.
+  virtual absl::StatusOr<std::unique_ptr<EquivalenceMapping>> Clone(
+      std::optional<const absl::flat_hash_map<Node*, Node*>*>
+          original_node_to_clone) const = 0;
 
   // Applies this mapping's operand transformations to `src_operands`,
   // returning a new vector of operands suitable for `dst`.
@@ -76,6 +88,25 @@ class EquivalenceMapping {
   virtual bool RequiresOutputTransformation() const { return false; }
 
  protected:
+  absl::StatusOr<Node*> MapNode(
+      Node* node, std::optional<const absl::flat_hash_map<Node*, Node*>*>
+                      original_node_to_clone) const;
+
+  // Clones EquivalenceMapping if it has only the members from the base class.
+  template <typename EqMapping>
+  absl::StatusOr<std::unique_ptr<EquivalenceMapping>> CloneEqMapping(
+      const EqMapping* mapping,
+      std::optional<const absl::flat_hash_map<Node*, Node*>*>
+          original_node_to_clone) const {
+    XLS_ASSIGN_OR_RETURN(
+        Node * new_src,
+        mapping->MapNode(mapping->src_, original_node_to_clone));
+    XLS_ASSIGN_OR_RETURN(
+        Node * new_dst,
+        mapping->MapNode(mapping->dst_, original_node_to_clone));
+    return std::make_unique<EqMapping>(new_src, new_dst, mapping->tmp_package_);
+  }
+
   Node* src_;
   Node* dst_;
   // Used to hold `dst_` if `dst` is a temporary created by the caller that
@@ -172,6 +203,12 @@ class IdentityEquivalenceMapping : public EquivalenceMapping {
   }
 
   using EquivalenceMapping::EquivalenceMapping;
+
+  absl::StatusOr<std::unique_ptr<EquivalenceMapping>> Clone(
+      std::optional<const absl::flat_hash_map<Node*, Node*>*>
+          original_node_to_clone) const override {
+    return CloneEqMapping(this, original_node_to_clone);
+  }
 
   absl::StatusOr<std::vector<Node*>> ApplyToOperands(
       FunctionBase* f, absl::Span<Node* const> src_operands) const override {

@@ -16,16 +16,22 @@
 #define XLS_PASSES_RESOURCE_SHARING_PASS_TEST_BASE_H_
 
 #include <cstdint>
+#include <memory>
+#include <utility>
 #include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/container/btree_set.h"
+#include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
 #include "absl/time/time.h"
 #include "absl/types/span.h"
 #include "cppitertools/zip.hpp"
 #include "xls/common/status/matchers.h"
+#include "xls/common/status/ret_check.h"
+#include "xls/common/status/status_macros.h"
 #include "xls/interpreter/function_interpreter.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/events.h"
@@ -38,6 +44,13 @@
 #include "xls/ir/package.h"
 #include "xls/ir/source_location.h"
 #include "xls/ir/value.h"
+#include "xls/passes/bit_provenance_analysis.h"
+#include "xls/passes/folding_graph.h"
+#include "xls/passes/node_dependency_analysis.h"
+#include "xls/passes/optimization_pass.h"
+#include "xls/passes/resource_sharing_equivalence.h"
+#include "xls/passes/resource_sharing_pass.h"
+#include "xls/passes/visibility_expr_builder.h"
 #include "xls/solvers/ir_equivalence_testutils.h"
 
 namespace xls {
@@ -1479,10 +1492,60 @@ TYPED_TEST_P(ResourceSharingPassTestBase,
   EXPECT_EQ(NumberOfShifts(f), 2);
 }
 
+// Wraps mutual exclusion analysis and binary folding creation
+inline absl::StatusOr<std::vector<std::unique_ptr<BinaryFoldingAction>>>
+GetBinaryFoldings(Function* f,
+                  const ResourceSharingPass::VisibilityAnalyses& visibilities) {
+  OptimizationContext context;
+  XLS_ASSIGN_OR_RETURN(
+      const absl::btree_set<ResourceSharingPass::MutuallyExclPair>
+          mutual_exclusivity,
+      ResourceSharingPass::ComputeMutualExclusionAnalysis(
+          f, context, [](Node* n) { return true; }, visibilities));
+  return ResourceSharingPass::ComputeFoldableActions(
+      f, mutual_exclusivity, visibilities, ResourceSharingPass::kDefaultConfig);
+}
+
+// Wraps nary folding creation, analysis construction, and folding application
+// Allows tests to intercept exact binary foldings they want to apply.
+inline absl::StatusOr<bool> ApplyBinaryFoldings(
+    std::vector<BinaryFoldingAction*> selected_folds, Function* f,
+    const ResourceSharingPass::VisibilityAnalyses& visibilities) {
+  XLS_RET_CHECK(!selected_folds.empty());
+  std::vector<Node*> sources;
+  sources.reserve(selected_folds.size());
+  for (const auto& fold : selected_folds) {
+    sources.push_back(fold->GetFrom());
+  }
+  XLS_ASSIGN_OR_RETURN(auto mappings,
+                       GetNodeEquivalenceMapper().ComputeMappings(
+                           sources, selected_folds[0]->GetTo()));
+  XLS_RET_CHECK(mappings.has_value());
+
+  XLS_ASSIGN_OR_RETURN(
+      std::unique_ptr<NaryFoldingAction> nary_action,
+      ResourceSharingPass::MakeNaryFoldingAction(
+          selected_folds, /*area_saved=*/1.0, visibilities,
+          std::move(*mappings), ResourceSharingPass::kDefaultConfig));
+
+  int64_t next_node_id = f->node_count() + 1;
+  BitProvenanceAnalysis bpa;
+  XLS_RETURN_IF_ERROR(bpa.Populate(f));
+  VisibilityBuilder visibility_builder(
+      next_node_id, visibilities.bdd_engine.get(), *visibilities.nda, bpa);
+  NodeBackwardDependencyAnalysis nda_backwards;
+  XLS_RETURN_IF_ERROR(nda_backwards.Attach(f).status());
+
+  std::vector<std::unique_ptr<NaryFoldingAction>> folding_actions;
+  folding_actions.push_back(std::move(nary_action));
+
+  return ResourceSharingPass::PerformFoldingActions(
+      f, next_node_id, &visibility_builder, nda_backwards, folding_actions);
+}
+
 TYPED_TEST_P(ResourceSharingPassTestBase, MergeShiftLeftAndRight) {
-  // Test folding Shll and Shrl in both directions.
-  {
-    // Shll -> Shrl
+  auto fold_shift = [&](Op to_op)
+      -> absl::StatusOr<std::pair<std::unique_ptr<Package>, Function*>> {
     auto p = this->CreatePackage();
     FunctionBuilder fb(this->TestName(), p.get());
     Type* u16 = p->GetBitsType(16);
@@ -1490,32 +1553,64 @@ TYPED_TEST_P(ResourceSharingPassTestBase, MergeShiftLeftAndRight) {
     BValue y = fb.Param("y", u16);
     BValue s = fb.Param("s", u16);
     BValue cond = fb.Param("cond", p->GetBitsType(1));
-
     BValue shll = fb.Shll(x, s);
     BValue shrl = fb.Shrl(y, s);
     BValue sel = fb.Select(cond, {shll, shrl});
 
-    XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(sel));
-
+    XLS_ASSIGN_OR_RETURN(Function * f, fb.BuildWithReturnValue(sel));
     EXPECT_EQ(NumberOfShifts(f), 2);
-    ScopedVerifyEquivalence check_equivalent(f, absl::Seconds(10));
-    EXPECT_THAT(this->Run(f), IsOkAndHolds(true));
 
-    // Verify resulting IR has one shift with appropriate reverses and select.
+    XLS_ASSIGN_OR_RETURN(ResourceSharingPass::VisibilityAnalyses visibilities,
+                         ResourceSharingPass::VisibilityAnalyses::Create(
+                             f, ResourceSharingPass::kDefaultConfig));
+    XLS_ASSIGN_OR_RETURN(
+        std::vector<std::unique_ptr<BinaryFoldingAction>> foldable_actions,
+        GetBinaryFoldings(f, visibilities));
+    std::vector<BinaryFoldingAction*> selected_folds;
+    for (const auto& action : foldable_actions) {
+      if (action->GetTo()->op() == to_op) {
+        selected_folds.push_back(action.get());
+      }
+    }
+    XLS_RET_CHECK_EQ(selected_folds.size(), 1);
+
+    ScopedVerifyEquivalence check_equivalent(f, absl::Seconds(10));
+    XLS_RETURN_IF_ERROR(
+        ApplyBinaryFoldings(selected_folds, f, visibilities).status());
     EXPECT_EQ(NumberOfShifts(f), 1);
+    return std::make_pair(std::move(p), f);
+  };
+
+  {
+    // Shrl -> Shll
+    XLS_ASSERT_OK_AND_ASSIGN((auto [package, f]), fold_shift(Op::kShll));
+    XLS_ASSERT_OK_AND_ASSIGN(Node * cond, f->GetParamByName("cond"));
     auto shift =
-        m::Shll(m::PrioritySelect(m::Eq(cond.node(), m::Literal(1)),
+        m::Shll(m::PrioritySelect(m::Eq(cond, m::Literal(1)),
                                   /*cases=*/{m::Reverse(m::Param("y"))},
                                   /*default=*/m::Param("x")),
                 m::Param("s"));
-    auto matcher1 = m::Select(cond.node(),
-                              /*cases=*/
-                              {shift, m::Reverse(shift)});
+    auto matcher1 = m::Select(cond, {shift, m::Reverse(shift)});
     EXPECT_THAT(f->return_value(), matcher1);
   }
 
   {
     // Shll -> Shrl
+    XLS_ASSERT_OK_AND_ASSIGN((auto [package, f]), fold_shift(Op::kShrl));
+    XLS_ASSERT_OK_AND_ASSIGN(Node * cond, f->GetParamByName("cond"));
+    auto shift =
+        m::Shrl(m::PrioritySelect(m::Eq(cond, m::Literal(0)),
+                                  /*cases=*/{m::Reverse(m::Param("x"))},
+                                  /*default=*/m::Param("y")),
+                m::Param("s"));
+    auto matcher2 = m::Select(cond, {m::Reverse(shift), shift});
+    EXPECT_THAT(f->return_value(), matcher2);
+  }
+}
+
+TYPED_TEST_P(ResourceSharingPassTestBase, MergeShiftLogicalAndArithmetic) {
+  auto fold_shift = [&](Op to_op)
+      -> absl::StatusOr<std::pair<std::unique_ptr<Package>, Function*>> {
     auto p = this->CreatePackage();
     FunctionBuilder fb(this->TestName(), p.get());
     Type* u16 = p->GetBitsType(16);
@@ -1525,61 +1620,100 @@ TYPED_TEST_P(ResourceSharingPassTestBase, MergeShiftLeftAndRight) {
     BValue cond = fb.Param("cond", p->GetBitsType(1));
 
     BValue shrl = fb.Shrl(x, s);
-    BValue shll = fb.Shll(y, s);
-    BValue sel = fb.Select(cond, {shrl, shll});
+    BValue shra = fb.Shra(y, s);
+    BValue sel = fb.Select(cond, {shrl, shra});
 
-    XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(sel));
-
+    XLS_ASSIGN_OR_RETURN(Function * f, fb.BuildWithReturnValue(sel));
     EXPECT_EQ(NumberOfShifts(f), 2);
-    ScopedVerifyEquivalence check_equivalent(f, absl::Seconds(1));
-    EXPECT_THAT(this->Run(f), IsOkAndHolds(true));
 
-    // Verify resulting IR has one shift with appropriate reverses and select.
+    XLS_ASSIGN_OR_RETURN(ResourceSharingPass::VisibilityAnalyses visibilities,
+                         ResourceSharingPass::VisibilityAnalyses::Create(
+                             f, ResourceSharingPass::kDefaultConfig));
+    XLS_ASSIGN_OR_RETURN(
+        std::vector<std::unique_ptr<BinaryFoldingAction>> foldable_actions,
+        GetBinaryFoldings(f, visibilities));
+    std::vector<BinaryFoldingAction*> selected_folds;
+    for (const auto& action : foldable_actions) {
+      if (action->GetTo()->op() == to_op) {
+        selected_folds.push_back(action.get());
+      }
+    }
+    XLS_RET_CHECK_EQ(selected_folds.size(), 1);
+
+    ScopedVerifyEquivalence check_equivalent(f, absl::Seconds(10));
+    XLS_RETURN_IF_ERROR(
+        ApplyBinaryFoldings(selected_folds, f, visibilities).status());
+
     EXPECT_EQ(NumberOfShifts(f), 1);
+    return std::make_pair(std::move(p), f);
+  };
+
+  {
+    // Shrl -> Shra (widening shra to 17 bits).
+    XLS_ASSERT_OK_AND_ASSIGN((auto [package, f]), fold_shift(Op::kShra));
+    XLS_ASSERT_OK_AND_ASSIGN(Node * cond, f->GetParamByName("cond"));
+    auto shift = m::BitSlice(
+        m::Shra(m::PrioritySelect(m::Eq(cond, m::Literal(0)),
+                                  /*cases=*/{m::ZeroExt(m::Param("x"))},
+                                  /*default=*/m::SignExt(m::Param("y"))),
+                m::Param("s")),
+        /*start=*/0, /*width=*/16);
+    auto matcher = m::Select(cond, /*cases=*/{shift, shift});
+    EXPECT_THAT(f->return_value(), matcher);
+  }
+
+  {
+    // Shra -> Shrl (masking shrl with XOR masks).
+    XLS_ASSERT_OK_AND_ASSIGN((auto [package, f]), fold_shift(Op::kShrl));
+    XLS_ASSERT_OK_AND_ASSIGN(Node * cond, f->GetParamByName("cond"));
+    auto msb_mask =
+        m::SignExt(m::BitSlice(m::Param("y"), /*start=*/15, /*width=*/1));
     auto shift =
-        m::Shrl(m::PrioritySelect(m::Eq(cond.node(), m::Literal(1)),
-                                  /*cases=*/{m::Reverse(m::Param("y"))},
+        m::Shrl(m::PrioritySelect(m::Eq(cond, m::Literal(1)),
+                                  /*cases=*/{m::Xor(m::Param("y"), msb_mask)},
                                   /*default=*/m::Param("x")),
                 m::Param("s"));
-    auto matcher2 = m::Select(cond.node(),
-                              /*cases=*/
-                              {shift, m::Reverse(shift)});
-    EXPECT_THAT(f->return_value(), matcher2);
+    auto matcher = m::Select(cond, /*cases=*/{shift, m::Xor(shift, msb_mask)});
+    EXPECT_THAT(f->return_value(), matcher);
   }
 }
 
-TYPED_TEST_P(ResourceSharingPassTestBase, MergeShiftLogicalAndArithmetic) {
-  // Test folding shra -> shrl of same bit width.
+TYPED_TEST_P(ResourceSharingPassTestBase, MergeAllShiftsTogether) {
   auto p = this->CreatePackage();
   FunctionBuilder fb(this->TestName(), p.get());
   Type* u16 = p->GetBitsType(16);
   BValue x = fb.Param("x", u16);
   BValue y = fb.Param("y", u16);
+  BValue z = fb.Param("z", u16);
   BValue s = fb.Param("s", u16);
-  BValue cond = fb.Param("cond", p->GetBitsType(1));
+  BValue cond = fb.Param("cond", p->GetBitsType(2));
 
-  BValue shrl = fb.Shrl(x, s);
-  BValue shra = fb.Shra(y, s);
-  BValue sel = fb.Select(cond, {shrl, shra});
+  BValue shll = fb.Shll(x, s);
+  BValue shrl = fb.Shrl(y, s);
+  BValue shra = fb.Shra(z, s);
+  BValue sel = fb.Select(cond, {shll, shrl, shra}, fb.Literal(UBits(0, 16)));
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(sel));
+  EXPECT_EQ(NumberOfShifts(f), 3);
 
-  EXPECT_EQ(NumberOfShifts(f), 2);
+  XLS_ASSERT_OK_AND_ASSIGN(ResourceSharingPass::VisibilityAnalyses visibilities,
+                           ResourceSharingPass::VisibilityAnalyses::Create(
+                               f, ResourceSharingPass::kDefaultConfig));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::vector<std::unique_ptr<BinaryFoldingAction>> foldable_actions,
+      GetBinaryFoldings(f, visibilities));
+  // Select all folds into the left shift.
+  std::vector<BinaryFoldingAction*> selected_folds;
+  for (const auto& action : foldable_actions) {
+    if (action->GetTo()->op() == Op::kShll) {
+      selected_folds.push_back(action.get());
+    }
+  }
+  ASSERT_EQ(selected_folds.size(), 2);
+
   ScopedVerifyEquivalence check_equivalent(f, absl::Seconds(10));
-  EXPECT_THAT(this->Run(f), IsOkAndHolds(true));
-
-  // Verify resulting IR has only one shrl with XOR masks.
+  XLS_ASSERT_OK(ApplyBinaryFoldings(selected_folds, f, visibilities).status());
   EXPECT_EQ(NumberOfShifts(f), 1);
-  auto msb_mask =
-      m::SignExt(m::BitSlice(m::Param("y"), /*start=*/15, /*width=*/1));
-  auto shift =
-      m::Shrl(m::PrioritySelect(m::Eq(cond.node(), m::Literal(1)),
-                                /*cases=*/{m::Xor(m::Param("y"), msb_mask)},
-                                /*default=*/m::Param("x")),
-              m::Param("s"));
-  auto shra_out = m::Xor(shift, msb_mask);
-  auto matcher = m::Select(cond.node(), /*cases=*/{shift, shra_out});
-  EXPECT_THAT(f->return_value(), matcher);
 }
 
 REGISTER_TYPED_TEST_SUITE_P(
@@ -1596,8 +1730,9 @@ REGISTER_TYPED_TEST_SUITE_P(
     MergeAddsWithDifferentBitwidths, MergeSubs, MergeSubs2,
     MergeSubsWithDifferentBitwidths, MergeAddsAndSubs, MergeShift,
     MergeShiftLeftAndRight, MergeShiftLogicalAndArithmetic,
-    MergeMultipliesAndAddsUsedByTwoSelects, PreventCyclesInFoldingChains,
-    PreventCyclesInFoldingChainsNary, PreventCyclesInFoldingChainsIndirect);
+    MergeAllShiftsTogether, MergeMultipliesAndAddsUsedByTwoSelects,
+    PreventCyclesInFoldingChains, PreventCyclesInFoldingChainsNary,
+    PreventCyclesInFoldingChainsIndirect);
 
 }  // namespace xls
 

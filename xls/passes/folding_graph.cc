@@ -38,6 +38,7 @@
 #include "xls/ir/node.h"
 #include "xls/ir/op.h"
 #include "xls/passes/node_dependency_analysis.h"
+#include "xls/passes/resource_sharing_equivalence.h"
 #include "xls/passes/visibility_analysis.h"
 #include "ortools/graph/connected_components.h"
 
@@ -411,10 +412,22 @@ absl::StatusOr<std::unique_ptr<NaryFoldingAction>> NaryFoldingAction::Clone(
     clone_sinks.insert(it->second);
   }
 
+  absl::flat_hash_map<Node*, std::unique_ptr<EquivalenceMapping>>
+      clone_mappings;
+  for (const auto& [orig_node, mapping] : other.mappings()) {
+    auto it = original_node_to_clone.find(orig_node);
+    XLS_RET_CHECK(it != original_node_to_clone.end())
+        << "Mapped node " << orig_node->ToString()
+        << " not found in original_node_to_clone map";
+    XLS_ASSIGN_OR_RETURN(std::unique_ptr<EquivalenceMapping> cloned_mapping,
+                         mapping->Clone(&original_node_to_clone));
+    clone_mappings[it->second] = std::move(cloned_mapping);
+  }
+
   // Create the cloned object
   auto clone_action = std::make_unique<NaryFoldingAction>(
       std::move(clone_froms), clone_to, std::move(clone_to_edges),
-      other.area_saved(), std::move(clone_sinks));
+      other.area_saved(), std::move(clone_sinks), std::move(clone_mappings));
 
   return clone_action;
 }

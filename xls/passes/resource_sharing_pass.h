@@ -40,6 +40,7 @@
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/pass_base.h"
 #include "xls/passes/post_dominator_analysis.h"
+#include "xls/passes/resource_sharing_equivalence.h"
 #include "xls/passes/visibility_analysis.h"
 #include "xls/passes/visibility_expr_builder.h"
 
@@ -179,6 +180,9 @@ namespace xls {
 class ResourceSharingPass : public OptimizationFunctionBasePass {
  public:
   static constexpr std::string_view kName = "resource_sharing";
+
+  using NodeToMappings =
+      absl::flat_hash_map<Node*, std::unique_ptr<EquivalenceMapping>>;
 
   struct Config {
     const double min_area_savings;
@@ -374,6 +378,16 @@ class ResourceSharingPass : public OptimizationFunctionBasePass {
       const absl::btree_set<MutuallyExclPair>& mutual_exclusivity,
       const VisibilityAnalyses& visibility, const Config& config);
 
+  // Returns node mappings if all sources from the binary folding actions can be
+  // mapped to the destination simultaneously. Theoretically, this should always
+  // by possible, but equivalence mapping implementations may have limitations.
+  static absl::StatusOr<std::optional<NodeToMappings>> CompatibleNaryMappings(
+      absl::Span<BinaryFoldingAction* const> prev_folds,
+      BinaryFoldingAction* next_fold, const NodeEquivalenceMapper& mapper);
+  static absl::StatusOr<std::optional<NodeToMappings>> CompatibleNaryMappings(
+      absl::Span<BinaryFoldingAction* const> binary_folds,
+      const NodeEquivalenceMapper& mapper);
+
   // MakeNaryFoldingActions creates a single n-ary folding action from as many
   // of the provided binary foldings as possible, given our understanding of the
   // visibility of these nodes. It is possible that one of the binary foldings
@@ -382,7 +396,7 @@ class ResourceSharingPass : public OptimizationFunctionBasePass {
   static absl::StatusOr<std::unique_ptr<NaryFoldingAction>>
   MakeNaryFoldingAction(std::vector<BinaryFoldingAction*>& subset_of_edges_to_n,
                         double area_saved, const VisibilityAnalyses& visibility,
-                        const Config& config);
+                        NodeToMappings mappings, const Config& config);
 
   // Legalizes a sequence of folding actions by removing or modifying actions
   // that conflict.
@@ -408,7 +422,7 @@ class ResourceSharingPass : public OptimizationFunctionBasePass {
   SelectFoldingActionsForGraph(
       FunctionBase* f, FoldingGraph* folding_graph,
       const absl::btree_set<MutuallyExclPair>& mutual_exclusivity,
-      const VisibilityAnalyses& visibility,
+      const VisibilityAnalyses& visibility, const NodeEquivalenceMapper& mapper,
       const OptimizationPassOptions& options,
       OptimizationContext& context) const;
 
@@ -486,6 +500,7 @@ class ResourceSharingPass : public OptimizationFunctionBasePass {
       const VisibilityAnalyses& visibility,
       const NodeBackwardDependencyAnalysis& nda,
       const CriticalPathDelayAnalysis& critical_path_delay,
+      const NodeEquivalenceMapper& mapper,
       const OptimizationPassOptions& options,
       VisibilityEstimator* visibility_estimator) const;
 

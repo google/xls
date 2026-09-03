@@ -15,17 +15,21 @@
 
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <utility>
 #include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "xls/common/fuzzing/fuzztest.h"
+#include "absl/container/btree_set.h"
+#include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
 #include "absl/time/time.h"
+#include "absl/types/span.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/estimators/area_model/area_estimators.h"
@@ -33,9 +37,9 @@
 #include "xls/estimators/delay_model/delay_estimators.h"
 #include "xls/fuzzer/ir_fuzzer/ir_fuzz_domain.h"
 #include "xls/fuzzer/ir_fuzzer/ir_fuzz_test_library.h"
+#include "xls/ir/bits.h"
 #include "xls/ir/function.h"
 #include "xls/ir/function_builder.h"
-#include "xls/ir/ir_matcher.h"
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
@@ -48,7 +52,9 @@
 #include "xls/passes/node_dependency_analysis.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/pass_base.h"
+#include "xls/passes/resource_sharing_equivalence.h"
 #include "xls/passes/resource_sharing_pass_test_base.h"
+#include "xls/passes/visibility_analysis.h"
 #include "xls/passes/visibility_expr_builder.h"
 #include "xls/solvers/ir_equivalence_testutils.h"
 
@@ -58,6 +64,8 @@ namespace {
 
 using ::absl_testing::StatusIs;
 using ::testing::HasSubstr;
+using ::testing::Pair;
+using ::testing::UnorderedElementsAre;
 using ::xls::solvers::ScopedVerifyEquivalence;
 
 struct ResourceSharingPassRunner {
@@ -303,6 +311,99 @@ TEST_F(
   EXPECT_EQ(sort_and_get_names(make_sub_highest(), make_sub_mid(),
                                make_add_high(), make_add_low()),
             kExpected);
+}
+
+TEST_F(ResourceSharingPassTest,
+       SelectFoldingActionsAvoidsGroupingIncompatibleEquivalenceMapping) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* u8 = p->GetBitsType(8);
+  BValue x = fb.Param("x", u8);
+  BValue y = fb.Param("y", u8);
+  BValue cond = fb.Param("cond", p->GetBitsType(2));
+  BValue a = fb.Add(x, y, SourceInfo(), "a");
+  BValue b = fb.Add(x, y, SourceInfo(), "b");
+  BValue c = fb.Add(x, y, SourceInfo(), "c");
+  BValue d = fb.Add(x, y, SourceInfo(), "d");
+  BValue sel = fb.Select(cond, {a, b, c, d});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(sel));
+
+  XLS_ASSERT_OK_AND_ASSIGN(ResourceSharingPass::VisibilityAnalyses visibilities,
+                           ResourceSharingPass::VisibilityAnalyses::Create(
+                               f, ResourceSharingPass::kDefaultConfig));
+
+  // All pairs of a, b, c, and d are mutually exclusive.
+  absl::btree_set<ResourceSharingPass::MutuallyExclPair> mutual_exclusivity = {
+      {a.node(), b.node()}, {a.node(), c.node()}, {a.node(), d.node()},
+      {b.node(), c.node()}, {b.node(), d.node()}, {c.node(), d.node()}};
+
+  // Folding graph contains all edges to d.
+  auto make_folding_graph = [&]() {
+    auto make_binary_fold = [&](Node* from, Node* to) {
+      absl::flat_hash_map<Node*, std::unique_ptr<EquivalenceMapping>> mappings;
+      mappings[from] = std::make_unique<IdentityEquivalenceMapping>(from, to);
+      return std::make_unique<BinaryFoldingAction>(
+          from, to, /*from_edges=*/FoldingAction::VisibilityEdges(),
+          /*to_edges=*/FoldingAction::VisibilityEdges(), /*area_saved=*/10.0,
+          std::move(mappings));
+    };
+    std::vector<std::unique_ptr<BinaryFoldingAction>> foldable_actions;
+    foldable_actions.push_back(make_binary_fold(a.node(), d.node()));
+    foldable_actions.push_back(make_binary_fold(b.node(), d.node()));
+    foldable_actions.push_back(make_binary_fold(c.node(), d.node()));
+    return FoldingGraph(f, std::move(foldable_actions));
+  };
+
+  OptimizationPassOptions opts{};
+  opts.enable_resource_sharing = true;
+  opts.force_resource_sharing = true;
+  XLS_ASSERT_OK_AND_ASSIGN(opts.area_estimator, GetAreaEstimator("unit"));
+  XLS_ASSERT_OK_AND_ASSIGN(opts.delay_estimator, GetDelayEstimator("unit"));
+  OptimizationContext context;
+
+  // Equivalence mapper that only supports mapping up to 2 sources to a dest.
+  // An artificial way to test whether invalid nary foldings are avoided.
+  NodeEquivalenceMapper mapper;
+  mapper.Register([](absl::Span<Node* const> sources, Node* dst)
+                      -> absl::StatusOr<std::optional<absl::flat_hash_map<
+                          Node*, std::unique_ptr<EquivalenceMapping>>>> {
+    if (sources.size() > 2) {
+      return std::nullopt;
+    }
+    return ComputeMappingsSourcesToDest<IdentityEquivalenceMapping>(sources,
+                                                                    dst);
+  });
+
+  // Confirm with the above restrictive eq mapping, only ab -> d is chosen.
+  ResourceSharingPass pass;
+  FoldingGraph graph1 = make_folding_graph();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::vector<std::unique_ptr<NaryFoldingAction>> actions1,
+      pass.SelectFoldingActionsForGraph(f, &graph1, mutual_exclusivity,
+                                        visibilities, mapper, opts, context));
+  ASSERT_EQ(actions1.size(), 1);
+  EXPECT_EQ(actions1[0]->GetTo(), d.node());
+  EXPECT_EQ(actions1[0]->GetNumberOfFroms(), 2);
+  EXPECT_THAT(actions1[0]->GetFrom(),
+              UnorderedElementsAre(Pair(a.node(), testing::_),
+                                   Pair(b.node(), testing::_)));
+
+  // Add the identity equivalence mapping so the full nary folding is allowed.
+  mapper.Register<IdentityEquivalenceMapping>();
+
+  // Confirm with the above flexible eq mapping, abc -> d is chosen.
+  FoldingGraph graph2 = make_folding_graph();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::vector<std::unique_ptr<NaryFoldingAction>> actions2,
+      pass.SelectFoldingActionsForGraph(f, &graph2, mutual_exclusivity,
+                                        visibilities, mapper, opts, context));
+  ASSERT_EQ(actions2.size(), 1);
+  EXPECT_EQ(actions2[0]->GetTo(), d.node());
+  EXPECT_EQ(actions2[0]->GetNumberOfFroms(), 3);
+  EXPECT_THAT(actions2[0]->GetFrom(),
+              UnorderedElementsAre(Pair(a.node(), testing::_),
+                                   Pair(b.node(), testing::_),
+                                   Pair(c.node(), testing::_)));
 }
 
 void IrFuzzResourceSharing(FuzzPackageWithArgs fuzz_package_with_args) {

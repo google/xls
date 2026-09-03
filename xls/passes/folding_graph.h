@@ -90,19 +90,28 @@ class FoldingAction {
 
   const absl::flat_hash_set<Node*>& GetSinks() const { return sinks_; }
 
+  const absl::flat_hash_map<Node*, std::unique_ptr<EquivalenceMapping>>&
+  mappings() const {
+    return mappings_;
+  }
+
  protected:
   FoldingAction(Node* to, VisibilityEdges to_edges, double area_saved,
-                absl::flat_hash_set<Node*> sinks = {})
+                absl::flat_hash_set<Node*> sinks = {},
+                absl::flat_hash_map<Node*, std::unique_ptr<EquivalenceMapping>>
+                    mappings = {})
       : to_(to),
         to_edges_(std::move(to_edges)),
         area_saved_(area_saved),
-        sinks_(std::move(sinks)) {}
+        sinks_(std::move(sinks)),
+        mappings_(std::move(mappings)) {}
 
  private:
   Node* to_;
   VisibilityEdges to_edges_;
   double area_saved_;
   absl::flat_hash_set<Node*> sinks_;
+  absl::flat_hash_map<Node*, std::unique_ptr<EquivalenceMapping>> mappings_;
 };
 
 // This class represents a single folding action from an IR node into another IR
@@ -126,23 +135,20 @@ class FoldingAction {
 //   r   = umul lhs, rhs
 class BinaryFoldingAction : public FoldingAction {
  public:
-  BinaryFoldingAction(Node* from, Node* to, VisibilityEdges from_edges = {},
-                      VisibilityEdges to_edges = {}, double area_saved = 0.0,
-                      std::unique_ptr<EquivalenceMapping> mapping = nullptr,
-                      absl::flat_hash_set<Node*> sinks = {})
-      : FoldingAction{to, std::move(to_edges), area_saved, std::move(sinks)},
+  BinaryFoldingAction(
+      Node* from, Node* to, VisibilityEdges from_edges = {},
+      VisibilityEdges to_edges = {}, double area_saved = 0.0,
+      absl::flat_hash_map<Node*, std::unique_ptr<EquivalenceMapping>> mappings =
+          {},
+      absl::flat_hash_set<Node*> sinks = {})
+      : FoldingAction{to, std::move(to_edges), area_saved, std::move(sinks),
+                      std::move(mappings)},
         from_{from},
-        from_edges_{std::move(from_edges)},
-        mapping_{mapping != nullptr
-                     ? std::move(mapping)
-                     : std::make_unique<IdentityEquivalenceMapping>(from, to)} {
-  }
+        from_edges_{std::move(from_edges)} {}
 
   Node* GetFrom() const { return from_; }
 
   const VisibilityEdges& GetFromVisibilityEdges() const { return from_edges_; }
-
-  const EquivalenceMapping& mapping() const { return *mapping_; }
 
   std::string GetName() const {
     return absl::StrCat(from_->GetName(), "->", GetTo()->GetName());
@@ -151,7 +157,6 @@ class BinaryFoldingAction : public FoldingAction {
  private:
   Node* from_;
   VisibilityEdges from_edges_;
-  std::unique_ptr<EquivalenceMapping> mapping_;
 };
 
 // This class represents a single folding action from a set of IR nodes into
@@ -177,10 +182,14 @@ class BinaryFoldingAction : public FoldingAction {
 //   r   = umul lhs, rhs
 class NaryFoldingAction : public FoldingAction {
  public:
-  NaryFoldingAction(std::vector<std::pair<Node*, VisibilityEdges>>&& froms,
-                    Node* to, VisibilityEdges to_edges, double area_saved = 0.0,
-                    absl::flat_hash_set<Node*> sinks = {})
-      : FoldingAction{to, std::move(to_edges), area_saved, std::move(sinks)},
+  NaryFoldingAction(
+      std::vector<std::pair<Node*, VisibilityEdges>>&& froms, Node* to,
+      VisibilityEdges to_edges, double area_saved = 0.0,
+      absl::flat_hash_set<Node*> sinks = {},
+      absl::flat_hash_map<Node*, std::unique_ptr<EquivalenceMapping>> mappings =
+          {})
+      : FoldingAction{to, std::move(to_edges), area_saved, std::move(sinks),
+                      std::move(mappings)},
         from_(std::move(froms)) {}
 
   absl::Span<const std::pair<Node*, VisibilityEdges>> GetFrom() const {
