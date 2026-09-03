@@ -547,9 +547,26 @@ void SortFoldingActionsInDescendingOrderOfTheirAreaSavings(
     TimingAnalysis& ta);
 
 // Estimates the area of a single input selection (multiplexing) logic required
-// for resource sharing.
+// for resource sharing for the specified operand of `destination`.
 absl::StatusOr<double> EstimateAreaForSelectingASingleInput(
-    Node* destination, const AreaEstimator& ae);
+    Node* destination, int64_t op_idx, const AreaEstimator& ae);
+
+struct NaryFoldEstimate {
+  std::vector<BinaryFoldingAction*> folds;
+  double area_saved;
+  double delay_spread;
+  uint64_t delay_increase;
+};
+
+// Select the subset of folds based on the configured estimate thresholds.
+// Note that 'config' fields are not used in favor of explicit max_* parameters.
+absl::StatusOr<NaryFoldEstimate> SelectSubsetOfFolds(
+    const std::vector<BinaryFoldingAction*>& possible_folds,
+    const AreaEstimator& area_estimator,
+    const CriticalPathDelayAnalysis& critical_path_delay,
+    VisibilityEstimator* visibility_estimator, double min_area,
+    int64_t max_delay_spread, uint64_t max_delay_increase,
+    const ResourceSharingPass::Config& config);
 
 // Estimates the area of a negation operation for a node, typically used when
 // mapping between addition and subtraction during resource sharing.

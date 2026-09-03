@@ -14,6 +14,7 @@
 #include "xls/passes/resource_sharing_pass.h"
 
 #include <cstdint>
+#include <limits>
 #include <memory>
 #include <optional>
 #include <utility>
@@ -32,6 +33,7 @@
 #include "absl/types/span.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/estimators/area_model/area_estimator.h"
 #include "xls/estimators/area_model/area_estimators.h"
 #include "xls/estimators/delay_model/delay_estimator.h"
 #include "xls/estimators/delay_model/delay_estimators.h"
@@ -404,6 +406,104 @@ TEST_F(ResourceSharingPassTest,
               UnorderedElementsAre(Pair(a.node(), testing::_),
                                    Pair(b.node(), testing::_),
                                    Pair(c.node(), testing::_)));
+}
+
+class BitWidthMockAreaEstimator : public AreaEstimator {
+ public:
+  BitWidthMockAreaEstimator() : AreaEstimator("bit_width_mock") {}
+
+  absl::StatusOr<double> GetOperationAreaInSquareMicrons(
+      Node* node) const override {
+    return static_cast<double>(node->GetType()->GetFlatBitCount());
+  }
+
+  absl::StatusOr<double> GetOneBitRegisterAreaInSquareMicrons() const override {
+    return 1.0;
+  }
+};
+
+TEST_F(ResourceSharingPassTest, SelectSubsetOfFoldsEachInputMuxEstimated) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* u64 = p->GetBitsType(64);
+  Type* u6 = p->GetBitsType(6);
+  BValue x = fb.Param("x", u64);
+  BValue sa0 = fb.Param("sa0", u6);
+  BValue sa1 = fb.Param("sa1", u6);
+  BValue shift0 = fb.Shll(x, sa0, SourceInfo(), "shift0");
+  BValue shift1 = fb.Shll(x, sa1, SourceInfo(), "shift1");
+  BValue cond = fb.Param("cond", p->GetBitsType(1));
+  BValue sel = fb.Select(cond, {shift0, shift1});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(sel));
+
+  BitWidthMockAreaEstimator area_estimator;
+  XLS_ASSERT_OK_AND_ASSIGN(DelayEstimator * delay_estimator,
+                           GetDelayEstimator("unit"));
+
+  // Estimate area for selecting operand 0 (shifted value, 64 bits) vs
+  // operand 1 (shift amount, 6 bits).
+  XLS_ASSERT_OK_AND_ASSIGN(
+      double area_select_value,
+      EstimateAreaForSelectingASingleInput(shift1.node(), 0, area_estimator));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      double area_select_amount,
+      EstimateAreaForSelectingASingleInput(shift1.node(), 1, area_estimator));
+  EXPECT_DOUBLE_EQ(area_select_value, 64.0);
+  EXPECT_DOUBLE_EQ(area_select_amount, 6.0);
+
+  CriticalPathDelayAnalysis critical_path_delay(delay_estimator);
+  XLS_ASSERT_OK(critical_path_delay.Attach(f));
+  BddQueryEngine bdd_engine;
+  XLS_ASSERT_OK(bdd_engine.Populate(f));
+  NodeForwardDependencyAnalysis nda;
+  XLS_ASSERT_OK(nda.Attach(f));
+  BitProvenanceAnalysis bpa;
+  XLS_ASSERT_OK(bpa.Populate(f));
+  VisibilityEstimator visibility_estimator(
+      f->node_count(), &bdd_engine, nda, bpa, &area_estimator, delay_estimator);
+
+  // The shifted value is the same, so only the 6-bit shift amount needs muxing.
+  absl::flat_hash_map<Node*, std::unique_ptr<EquivalenceMapping>> mappings;
+  mappings[shift0.node()] = std::make_unique<IdentityEquivalenceMapping>(
+      shift0.node(), shift1.node());
+  BinaryFoldingAction fold(shift0.node(), shift1.node(),
+                           /*from_edges=*/FoldingAction::VisibilityEdges(),
+                           /*to_edges=*/FoldingAction::VisibilityEdges(),
+                           /*area_saved=*/0.0, std::move(mappings));
+  std::vector<BinaryFoldingAction*> folds = {&fold};
+
+  XLS_ASSERT_OK_AND_ASSIGN(VisibilityEstimator::AreaDelay selector_cost,
+                           visibility_estimator.GetAreaAndDelayOfVisibilityExpr(
+                               fold.GetFrom(), fold.GetFromVisibilityEdges()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      double area_shift0,
+      area_estimator.GetOperationAreaInSquareMicrons(shift0.node()));
+  double expected_area_saved =
+      area_shift0 - (area_select_amount + selector_cost.area);
+
+  // When min_area is less or equal to expected area saved, the folding is kept.
+  XLS_ASSERT_OK_AND_ASSIGN(
+      NaryFoldEstimate estimate_accepted,
+      SelectSubsetOfFolds(
+          folds, area_estimator, critical_path_delay, &visibility_estimator,
+          /*min_area=*/expected_area_saved,
+          /*max_delay_spread=*/std::numeric_limits<int64_t>::max(),
+          /*max_delay_increase=*/std::numeric_limits<uint64_t>::max(),
+          ResourceSharingPass::kDefaultConfig));
+  EXPECT_EQ(estimate_accepted.folds.size(), 1);
+  EXPECT_DOUBLE_EQ(estimate_accepted.area_saved, expected_area_saved);
+
+  // When min_area exceeds the expected area saved, the folding is filtered out.
+  XLS_ASSERT_OK_AND_ASSIGN(
+      NaryFoldEstimate estimate_rejected,
+      SelectSubsetOfFolds(
+          folds, area_estimator, critical_path_delay, &visibility_estimator,
+          /*min_area=*/expected_area_saved + 1.0,
+          /*max_delay_spread=*/std::numeric_limits<int64_t>::max(),
+          /*max_delay_increase=*/std::numeric_limits<uint64_t>::max(),
+          ResourceSharingPass::kDefaultConfig));
+  EXPECT_TRUE(estimate_rejected.folds.empty());
+  EXPECT_DOUBLE_EQ(estimate_rejected.area_saved, 0.0);
 }
 
 void IrFuzzResourceSharing(FuzzPackageWithArgs fuzz_package_with_args) {

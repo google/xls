@@ -527,7 +527,9 @@ SelectFoldingActionsBasedOnCliques(
 }
 
 absl::StatusOr<double> EstimateAreaForSelectingASingleInput(
-    Node* destination, const AreaEstimator& ae) {
+    Node* destination, int64_t op_idx, const AreaEstimator& ae) {
+  XLS_RET_CHECK_GE(op_idx, 0);
+  XLS_RET_CHECK_LT(op_idx, destination->operand_count());
   // Get the type of the input that will need to be forwarded.
   //
   // Notice that we need to use the type of the operand of the destination of
@@ -537,7 +539,7 @@ absl::StatusOr<double> EstimateAreaForSelectingASingleInput(
   Package p("area_check");
   XLS_ASSIGN_OR_RETURN(
       Type * input_type,
-      p.MapTypeFromOtherPackage(destination->operand(0)->GetType()));
+      p.MapTypeFromOtherPackage(destination->operand(op_idx)->GetType()));
 
   // Create the IR that selects which inputs to forward to a given operand of
   // the destination of the folding action.
@@ -595,13 +597,6 @@ bool CanFoldTogether(
   return false;
 }
 
-struct NaryFoldEstimate {
-  std::vector<BinaryFoldingAction*> folds;
-  double area_saved;
-  double delay_spread;
-  uint64_t delay_increase;
-};
-
 // Select the subset of folds. Note that the 'config' fields are not used in
 // favor of the explicit max* parameters.
 absl::StatusOr<NaryFoldEstimate> SelectSubsetOfFolds(
@@ -616,6 +611,7 @@ absl::StatusOr<NaryFoldEstimate> SelectSubsetOfFolds(
   double area_saved = 0;
   double total_spread = 0;
   int64_t max_selector_delay_increase = 0;
+  absl::flat_hash_map<Node*, std::vector<double>> dest_to_input_select_areas;
   for (BinaryFoldingAction* folding : possible_folds) {
     // Get the source of the binary folding
     Node* from = folding->GetFrom();
@@ -626,13 +622,23 @@ absl::StatusOr<NaryFoldEstimate> SelectSubsetOfFolds(
                          area_estimator.GetOperationAreaInSquareMicrons(from));
     VLOG(4) << "          Area of the source " << area_of_from;
 
-    // Estimate the area overhead that will be paid to forward one input of
-    // the current source (i.e.,
-    // @from) to the destination of the folding.
-    XLS_ASSIGN_OR_RETURN(
-        double area_select,
-        EstimateAreaForSelectingASingleInput(folding->GetTo(), area_estimator));
-    VLOG(4) << "          Area of selecting a single input " << area_select;
+    // Estimate the area overhead that will be paid to forward inputs of
+    // the destination of the folding.
+    Node* destination = folding->GetTo();
+    auto [it_cache, inserted] =
+        dest_to_input_select_areas.try_emplace(destination);
+    if (inserted) {
+      it_cache->second.resize(destination->operand_count());
+      for (int64_t op_idx = 0; op_idx < destination->operand_count();
+           ++op_idx) {
+        XLS_ASSIGN_OR_RETURN(it_cache->second[op_idx],
+                             EstimateAreaForSelectingASingleInput(
+                                 destination, op_idx, area_estimator));
+        VLOG(4) << "          Area of selecting input " << op_idx << ": "
+                << it_cache->second[op_idx];
+      }
+    }
+    const std::vector<double>& area_input_select = it_cache->second;
 
     // Estimate the area the selector takes up: all instructions that did not
     // already exist in determining which source or destination is being used.
@@ -643,16 +649,14 @@ absl::StatusOr<NaryFoldEstimate> SelectSubsetOfFolds(
 
     // Estimate the area overhead that will be paid to forward all inputs to
     // the destination of the current binary folding.
-    uint32_t number_of_inputs_that_require_select = 0;
-    Node* destination = folding->GetTo();
-    for (uint32_t op_id = 0; op_id < destination->operand_count(); op_id++) {
-      if (destination->operand(op_id) != from->operand(op_id)) {
-        number_of_inputs_that_require_select++;
+    double input_mux_overhead = 0.0;
+    for (int64_t op_idx = 0; op_idx < destination->operand_count(); ++op_idx) {
+      if (op_idx >= from->operand_count() ||
+          destination->operand(op_idx) != from->operand(op_idx)) {
+        input_mux_overhead += area_input_select[op_idx];
       }
     }
-    double area_selects_overhead =
-        (area_select * number_of_inputs_that_require_select) +
-        selector_cost.area;
+    double area_selects_overhead = input_mux_overhead + selector_cost.area;
 
     // Add overhead incurred by mapping operands and output
     // e.g. negation when folding between add/sub

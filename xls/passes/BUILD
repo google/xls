@@ -4825,6 +4825,7 @@ cc_test(
         "//xls/common/status:matchers",
         "//xls/common/status:status_macros",
         "//xls/estimators",
+        "//xls/estimators/area_model:area_estimator",
         "//xls/estimators/area_model:area_estimators",
         "//xls/estimators/delay_model:delay_estimator",
         "//xls/estimators/delay_model:delay_estimators",
