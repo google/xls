@@ -106,6 +106,9 @@ std::string Module::ToString() const {
             case ModuleAttribute::kTraits:
               absl::StrAppend(out, "#![feature(traits)]");
               break;
+            case ModuleAttribute::kSourceSinkChannelSyntax:
+              absl::StrAppend(out, "#![feature(source_sink_channel_syntax)]");
+              break;
           }
         });
     return absl::StrCat(header, "\n\n", body);
