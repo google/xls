@@ -14,6 +14,7 @@
 
 #include "xls/passes/resource_sharing_equivalence.h"
 
+#include <algorithm>
 #include <cstdint>
 #include <functional>
 #include <memory>
@@ -433,6 +434,171 @@ class ComparatorEquivalenceMapping : public EquivalenceMapping {
   }
 };
 
+struct PackageAndNode {
+  std::shared_ptr<Package> package;
+  Node* node;
+};
+
+template <typename BuilderFn>
+absl::StatusOr<PackageAndNode> CreateModifiedDstAndPackage(BuilderFn builder) {
+  auto tmp_package = std::make_shared<Package>("tmp_package");
+  FunctionBuilder fb("tmp_fn", tmp_package.get());
+  BValue modified_dst = builder(tmp_package.get(), fb);
+  XLS_RETURN_IF_ERROR(fb.Build().status());
+  return PackageAndNode{std::move(tmp_package), modified_dst.node()};
+}
+
+absl::StatusOr<PackageAndNode> CreatePaddedSubPackage(int64_t target_width) {
+  return CreateModifiedDstAndPackage(
+      [target_width](Package* p, FunctionBuilder& fb) -> BValue {
+        Type* bits_type = p->GetBitsType(target_width);
+        return fb.Subtract(fb.Param("a", bits_type), fb.Param("b", bits_type));
+      });
+}
+
+absl::StatusOr<PackageAndNode> CreatePaddedShraPackage(Node* original) {
+  return CreateModifiedDstAndPackage([original](Package* p,
+                                                FunctionBuilder& fb) -> BValue {
+    Type* padded_shift_ty =
+        p->GetBitsType(original->operand(0)->BitCountOrDie() + 1);
+    Type* shift_amt_ty = p->GetBitsType(original->operand(1)->BitCountOrDie());
+    return fb.Shra(fb.Param("a", padded_shift_ty), fb.Param("b", shift_amt_ty));
+  });
+}
+
+// `CompareToArithEquivalenceMapping` handles folding comparison operations
+// into subtraction nodes then taking the msb.
+class CompareToArithEquivalenceMapping : public EquivalenceMapping {
+ public:
+  static absl::StatusOr<std::optional<NodeToMappings>> TryCreate(
+      absl::Span<Node* const> sources, Node* dst) {
+    if (dst->op() != Op::kSub || dst->operand_count() != 2) {
+      return std::nullopt;
+    }
+    Node* dst_lhs = dst->operand(0);
+    Node* dst_rhs = dst->operand(1);
+    if (!dst->GetType()->IsBits() || !BothBitsTyped(dst_lhs, dst_rhs)) {
+      return std::nullopt;
+    }
+    int64_t target_width = dst->BitCountOrDie();
+    bool needs_dst_widening = false;
+    for (Node* src : sources) {
+      if (!OpIsCompare(src->op()) || src->operand_count() != 2 ||
+          src->OpIn({Op::kEq, Op::kNe})) {
+        return std::nullopt;
+      }
+      Node* src_lhs = src->operand(0);
+      Node* src_rhs = src->operand(1);
+      if (!BothBitsTyped(src_lhs, src_rhs)) {
+        return std::nullopt;
+      }
+      int64_t required_width =
+          std::max(src_lhs->BitCountOrDie(), src_rhs->BitCountOrDie()) + 1;
+      needs_dst_widening |= required_width > dst->BitCountOrDie();
+      target_width = std::max(target_width, required_width);
+    }
+
+    if (!needs_dst_widening) {
+      return ComputeMappingsSourcesToDest<CompareToArithEquivalenceMapping>(
+          sources, dst);
+    }
+
+    XLS_ASSIGN_OR_RETURN((PackageAndNode p_and_sub),
+                         CreatePaddedSubPackage(target_width));
+    NodeToMappings mappings =
+        ComputeMappingsSourcesToDest<CompareToArithEquivalenceMapping>(
+            sources, p_and_sub.node, p_and_sub.package);
+    mappings[dst] = std::make_unique<BitwidthExtendingEquivalenceMapping>(
+        dst, p_and_sub.node, p_and_sub.package);
+    return mappings;
+  }
+
+  using EquivalenceMapping::EquivalenceMapping;
+
+  absl::StatusOr<std::unique_ptr<EquivalenceMapping>> Clone(
+      std::optional<const absl::flat_hash_map<Node*, Node*>*>
+          original_node_to_clone) const override {
+    return CloneEqMapping(this, original_node_to_clone);
+  }
+
+  absl::StatusOr<bool> RequiresOperandTransformation() const override {
+    return true;
+  }
+  absl::StatusOr<bool> RequiresOutputTransformation() const override {
+    return true;
+  }
+
+  absl::StatusOr<std::vector<Node*>> ApplyToOperands(
+      FunctionBase* f, absl::Span<Node* const> src_operands) const override {
+    XLS_RET_CHECK_EQ(src_operands.size(), 2);
+    Node* op0 = src_operands[0];
+    Node* op1 = src_operands[1];
+    XLS_RET_CHECK(op0->GetType()->IsBits());
+    XLS_RET_CHECK(op1->GetType()->IsBits());
+    Node* dst_lhs = dst_->operand(0);
+    Node* dst_rhs = dst_->operand(1);
+    XLS_RET_CHECK(dst_lhs->GetType()->IsBits());
+    XLS_RET_CHECK(dst_rhs->GetType()->IsBits());
+
+    XLS_ASSIGN_OR_RETURN(bool requires_swap, RequiresOperandSwap(src_->op()));
+    if (requires_swap) {
+      std::swap(op0, op1);
+    }
+
+    Op ext_op = IsSignedCompare(src_) ? Op::kSignExt : Op::kZeroExt;
+    XLS_ASSIGN_OR_RETURN(op0,
+                         ExtendIf(f, op0, dst_lhs->BitCountOrDie(), ext_op));
+    XLS_ASSIGN_OR_RETURN(op1,
+                         ExtendIf(f, op1, dst_rhs->BitCountOrDie(), ext_op));
+
+    return std::vector<Node*>{op0, op1};
+  }
+
+  absl::StatusOr<Node*> ApplyToOutput(FunctionBase* f,
+                                      Node* dst_output) const override {
+    XLS_RET_CHECK(src_->GetType()->IsBits());
+    XLS_RET_CHECK(dst_->GetType()->IsBits());
+    XLS_ASSIGN_OR_RETURN(
+        Node * msb,
+        f->MakeNode<BitSlice>(dst_output->loc(), dst_output,
+                              /*start=*/dst_output->BitCountOrDie() - 1,
+                              /*width=*/1));
+    XLS_ASSIGN_OR_RETURN(bool requires_inversion,
+                         RequiresOutputInversion(src_->op()));
+    if (requires_inversion) {
+      return f->MakeNode<UnOp>(dst_output->loc(), msb, Op::kNot);
+    }
+    return msb;
+  }
+
+  absl::StatusOr<double> EstimateAreaOverhead(
+      const AreaEstimator& area_estimator, absl::Span<Node* const> operands,
+      Node* output) const override {
+    XLS_ASSIGN_OR_RETURN(bool requires_inversion,
+                         RequiresOutputInversion(src_->op()));
+    if (requires_inversion) {
+      return EstimateAreaForSingleBitInversion(area_estimator);
+    }
+    return 0.0;
+  }
+
+  static bool IsSignedCompareOp(Op src_op) {
+    return src_op == Op::kSLt || src_op == Op::kSGt || src_op == Op::kSLe ||
+           src_op == Op::kSGe;
+  }
+
+  static absl::StatusOr<bool> RequiresOutputInversion(Op src_op) {
+    Op base_lt = IsSignedCompareOp(src_op) ? Op::kSLt : Op::kULt;
+    return ComparatorEquivalenceMapping::RequiresOutputInversion(src_op,
+                                                                 base_lt);
+  }
+
+  static absl::StatusOr<bool> RequiresOperandSwap(Op src_op) {
+    Op base_lt = IsSignedCompareOp(src_op) ? Op::kSLt : Op::kULt;
+    return ComparatorEquivalenceMapping::RequiresOperandSwap(src_op, base_lt);
+  }
+};
+
 // Returns `target` XORed with a sign-extended mask created from the MSB of
 // `msb_source`. Reuses existing BitSlice and SignExt nodes if available.
 absl::StatusOr<Node*> XorWithSignExtendedMsb(FunctionBase* f, Node* target,
@@ -440,8 +606,8 @@ absl::StatusOr<Node*> XorWithSignExtendedMsb(FunctionBase* f, Node* target,
   int64_t target_width = target->BitCountOrDie();
   int64_t source_width = msb_source->BitCountOrDie();
   XLS_ASSIGN_OR_RETURN(
-      Node * msb,
-      FindOrMakeBitSlice(msb_source, /*start=*/source_width - 1, /*width=*/1));
+      Node * msb, FindOrMakeBitSlice(msb_source, /*start=*/source_width - 1,
+                                     /*width=*/1));
 
   Node* mask = nullptr;
   for (Node* user : msb->users()) {
@@ -461,31 +627,14 @@ absl::StatusOr<Node*> XorWithSignExtendedMsb(FunctionBase* f, Node* target,
                              Op::kXor);
 }
 
-struct PackageAndNode {
-  std::shared_ptr<Package> package;
-  Node* node;
-};
-
-absl::StatusOr<PackageAndNode> CreatePaddedShraPackage(Node* original) {
-  auto tmp_package = std::make_shared<Package>("tmp_shift_package");
-  FunctionBuilder fb("tmp_fn", tmp_package.get());
-  BValue p0 = fb.Param(
-      "a", tmp_package->GetBitsType(original->operand(0)->BitCountOrDie() + 1));
-  BValue p1 = fb.Param(
-      "b", tmp_package->GetBitsType(original->operand(1)->BitCountOrDie()));
-  BValue shra = fb.Shra(p0, p1);
-  XLS_RETURN_IF_ERROR(fb.Build().status());
-  return PackageAndNode{std::move(tmp_package), shra.node()};
-}
-
 // Equivalence mapping between shift operations (shll, shrl, and shra).
 //
 // y = x << s is equivalent to y = reverse(reverse(x) >> s)
 // y = x >> s is equivalent to y = reverse(reverse(x) << s)
 // y = x >>> s is equivalent to y = ((x xor m) >> s) xor m
-//    where m = sign_ext(msb(x)). If m = 0, then the XORs are no-ops. If m = 1s,
-//    then xors are no-ops on shifted bits, flipping those bits twice, meanwhile
-//    converting all 0s shifted into the MSBs into 1s.
+//    where m = sign_ext(msb(x)). If m = 0, then the XORs are no-ops. If m =
+//    1s, then xors are no-ops on shifted bits, flipping those bits twice,
+//    meanwhile converting all 0s shifted into the MSBs into 1s.
 // y = x >> s is equivalent to y = slice(zero_ext(x, N) >>> s, 0, W) for W < N
 //    where zero-extending (padding) ensures shra shifts in 0s.
 class ShiftEquivalenceMapping : public EquivalenceMapping {
@@ -539,8 +688,8 @@ class ShiftEquivalenceMapping : public EquivalenceMapping {
     XLS_ASSIGN_OR_RETURN((PackageAndNode p_and_shra),
                          CreatePaddedShraPackage(dst));
     NodeToMappings mappings =
-        ComputeMappingsSourcesToDest<ShiftEquivalenceMapping>(sources,
-                                                              p_and_shra.node);
+        ComputeMappingsSourcesToDest<ShiftEquivalenceMapping>(
+            sources, p_and_shra.node, p_and_shra.package);
     mappings[dst] = std::make_unique<BitwidthExtendingEquivalenceMapping>(
         dst, p_and_shra.node, p_and_shra.package);
     return mappings;
@@ -695,6 +844,7 @@ NodeEquivalenceMapper& GetNodeEquivalenceMapper() {
     m->Register<BitwidthExtendingEquivalenceMapping>();
     m->Register<AddSubEquivalenceMapping>();
     m->Register<ComparatorEquivalenceMapping>();
+    m->Register<CompareToArithEquivalenceMapping>();
     m->Register<ShiftEquivalenceMapping>();
     return true;
   }();

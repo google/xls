@@ -181,11 +181,12 @@ void RegisterEquivalenceMapping() {
 // Populates hash map of the equivalence mappings from each source to the dest.
 template <typename EqMapping>
 absl::flat_hash_map<Node*, std::unique_ptr<EquivalenceMapping>>
-ComputeMappingsSourcesToDest(absl::Span<Node* const> sources, Node* dst) {
+ComputeMappingsSourcesToDest(absl::Span<Node* const> sources, Node* dst,
+                             std::shared_ptr<Package> tmp_package = nullptr) {
   absl::flat_hash_map<Node*, std::unique_ptr<EquivalenceMapping>> mappings;
   mappings.reserve(sources.size());
   for (Node* src : sources) {
-    mappings[src] = std::make_unique<EqMapping>(src, dst);
+    mappings[src] = std::make_unique<EqMapping>(src, dst, tmp_package);
   }
   return mappings;
 }
