@@ -1325,7 +1325,7 @@ TEST_F(ContinuationsTest, PipelinedLoopNothingOutside) {
 
   EXPECT_TRUE(SliceOutputsDecl(first_slice, "a", /*direct_in*/ false));
   EXPECT_TRUE(SliceOutputsDecl(first_slice, "i", /*direct_in*/ false));
-  EXPECT_TRUE(SliceOutputsDecl(first_slice, "c", /*direct_in*/ false));
+  EXPECT_FALSE(SliceOutputsDecl(first_slice, "c", /*direct_in*/ false));
 
   EXPECT_FALSE(SliceInputsDecl(second_slice, "i"));
   EXPECT_FALSE(SliceInputsDecl(second_slice, "a"));

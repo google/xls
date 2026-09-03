@@ -18,6 +18,7 @@
 #include <iterator>
 #include <list>
 #include <memory>
+#include <numeric>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -699,7 +700,7 @@ absl::Status Translator::AddContinuationsToNewSlice(
     int64_t total_bvals, const xls::SourceInfo& loc) {
   // Create continuation inputs
 
-  absl::flat_hash_map<const ContinuationInput*, TrackedBValue*>
+  absl::flat_hash_map<const ContinuationInput*, std::vector<TrackedBValue*>>
       bvals_by_continuation_input;
 
   for (ContinuationValue& continuation_out : last_slice.continuations_out) {
@@ -710,18 +711,40 @@ absl::Status Translator::AddContinuationsToNewSlice(
     const std::vector<TrackedBValue*>& bvals =
         bvalues_by_continuation_output.at(&continuation_out);
 
+    ContinuationInput* feed_forward_input = nullptr;
+
+    // Only need to create separate inputs for loop begin slice, and then
+    // only for the top context
+
     for (TrackedBValue* bval : bvals) {
-      const std::string& name_found = name_found_for_bval.at(bval);
-      NATIVE_BVAL input_bval = context().fb->Param(
-          /*name*/ name_found, continuation_out.output_node->GetType(), loc);
+      ContinuationInput* input = nullptr;
+      bool is_feed_forward = false;
 
-      new_slice.continuations_in.push_back(
-          ContinuationInput{.continuation_out = &continuation_out,
-                            .input_node = input_bval.node()->As<xls::Param>(),
-                            .name = name_found,
-                            .decls = continuation_out.decls});
+      // Top context only, loop begin slice only
+      if (!(after_op_type == OpType::kLoopBegin &&
+            decls_by_bval_top_context.contains(bval))) {
+        is_feed_forward = true;
+        input = feed_forward_input;
+      }
 
-      bvals_by_continuation_input[&new_slice.continuations_in.back()] = bval;
+      if (input == nullptr) {
+        const std::string& name_found = name_found_for_bval.at(bval);
+        NATIVE_BVAL input_bval = context().fb->Param(
+            /*name*/ name_found, continuation_out.output_node->GetType(), loc);
+
+        new_slice.continuations_in.push_back(
+            ContinuationInput{.continuation_out = &continuation_out,
+                              .input_node = input_bval.node()->As<xls::Param>(),
+                              .name = name_found,
+                              .decls = continuation_out.decls});
+
+        input = &new_slice.continuations_in.back();
+        if (is_feed_forward) {
+          feed_forward_input = input;
+        }
+      }
+
+      bvals_by_continuation_input[input].push_back(bval);
 
       if (decls_by_bval_top_context.contains(bval)) {
         const clang::NamedDecl* top_context_decl =
@@ -729,15 +752,19 @@ absl::Status Translator::AddContinuationsToNewSlice(
         CHECK(!new_slice.continuation_inputs_by_decl_top_context.contains(
             top_context_decl));
         new_slice.continuation_inputs_by_decl_top_context[top_context_decl] =
-            &new_slice.continuations_in.back();
+            input;
       }
     }
   }
 
-  // Each TrackedBValue gets its own input
-  XLSCC_CHECK(bvals_by_continuation_input.size() == total_bvals, loc);
+  XLSCC_CHECK_EQ(std::accumulate(bvals_by_continuation_input.begin(),
+                                 bvals_by_continuation_input.end(), 0,
+                                 [](int64_t sum, const auto& pair) {
+                                   return sum + pair.second.size();
+                                 }),
+                 total_bvals, loc);
   XLSCC_CHECK_GE(new_slice.continuations_in.size(),
-                 bvalues_by_continuation_output.size(), loc);
+                 bvals_by_continuation_input.size(), loc);
   XLSCC_CHECK_GE(last_slice.continuations_out.size(),
                  bvalues_by_continuation_output.size(), loc);
 
@@ -782,12 +809,13 @@ absl::Status Translator::AddContinuationsToNewSlice(
     }
     XLSCC_CHECK(in_bval.valid(), loc);
 
-    TrackedBValue* bval = bvals_by_continuation_input.at(&continuation_in);
+    for (TrackedBValue* bval :
+         bvals_by_continuation_input.at(&continuation_in)) {
+      *bval = in_bval;
 
-    *bval = in_bval;
-
-    XLSCC_CHECK(!bvals_set.contains(bval), loc);
-    bvals_set.insert(bval);
+      auto [_, inserted] = bvals_set.insert(bval);
+      XLSCC_CHECK(inserted, loc);
+    }
   }
 
   XLSCC_CHECK(bvals_set.size() == total_bvals, loc);
