@@ -440,7 +440,7 @@ OptimizationContext::GetBlankTypeTreeForType(xls::Type* type) {
 
 absl::StatusOr<bool> OptimizationContext::CheckNodeSourcesInSet(
     xls::FunctionBase* in_function, xls::Node* node,
-    absl::flat_hash_set<const xls::Param*> sources_set,
+    const absl::flat_hash_set<const xls::Param*>& sources_set,
     bool allow_empty_sources_result) {
   // Save lazy node analysis for each function for efficiency
   XLS_ASSIGN_OR_RETURN(SourcesSetNodeInfo * info,

@@ -1450,7 +1450,7 @@ class OptimizationContext {
 
   absl::StatusOr<bool> CheckNodeSourcesInSet(
       xls::FunctionBase* in_function, xls::Node* node,
-      absl::flat_hash_set<const xls::Param*> sources_set,
+      const absl::flat_hash_set<const xls::Param*>& sources_set,
       bool allow_empty_sources_result = true);
 
  private:
