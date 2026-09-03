@@ -14,6 +14,7 @@
 
 load("@protobuf//bazel:cc_proto_library.bzl", "cc_proto_library")
 load("@protobuf//bazel:proto_library.bzl", "proto_library")
+load("@protobuf//bazel:py_proto_library.bzl", "py_proto_library")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_cc//cc:cc_test.bzl", "cc_test")
 load("//xls/build_rules:py_oss_defs.bzl", "pytype_strict_contrib_test")
@@ -168,5 +169,10 @@ proto_library(
 
 cc_proto_library(
     name = "testvector_cc_proto",
+    deps = [":testvector_proto"],
+)
+
+py_proto_library(
+    name = "testvector_py_pb2",
     deps = [":testvector_proto"],
 )
