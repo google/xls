@@ -5787,15 +5787,14 @@ absl::StatusOr<xls::Value> Translator::EvaluateNode(xls::Node* node,
   xls::IrInterpreter visitor;
   absl::Status status = node->Accept(&visitor);
   if (!status.ok()) {
-    auto err = absl::UnavailableError(
-        ErrorMessage(loc,
-                     "Couldn't evaluate node as a constant. Error from IR "
-                     "interpreter was: %s",
-                     status.message()));
     if (do_check) {
-      LOG(ERROR) << err.ToString();
+      LOG(ERROR) << ErrorMessage(
+          loc,
+          "Couldn't evaluate node as a constant. Error from IR "
+          "interpreter was: %s",
+          status.message());
     } else {
-      return err;
+      return absl::UnavailableError("");
     }
   }
   xls::Value result = visitor.ResolveAsValue(node);
