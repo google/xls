@@ -70,6 +70,19 @@ cc_library(
 )
 
 cc_library(
+    name = "block_conversion_checker",
+    srcs = ["block_conversion_checker.cc"],
+    hdrs = ["block_conversion_checker.h"],
+    deps = [
+        ":block_conversion_pass",
+        "//xls/ir",
+        "//xls/ir:verifier",
+        "//xls/passes:pass_base",
+        "@abseil-cpp//absl/status",
+    ],
+)
+
+cc_library(
     name = "block_conversion_pass_pipeline",
     srcs = ["block_conversion_pass_pipeline.cc"],
     hdrs = ["block_conversion_pass_pipeline.h"],
@@ -96,6 +109,7 @@ cc_library(
     srcs = ["codegen_pass_registry.cc"],
     hdrs = ["codegen_pass_registry.h"],
     deps = [
+        ":block_conversion_checker",
         ":block_conversion_pass",
         ":block_conversion_wrapper_pass",
         ":codegen_pass_pipeline_cc_proto",
@@ -1332,6 +1346,7 @@ cc_library(
         ":block_conversion_pass",
         ":convert_to_block",
         "//xls/codegen:block_metrics",
+        "//xls/codegen:codegen_checker",
         "//xls/codegen:codegen_options",
         "//xls/codegen:codegen_pass",
         "//xls/codegen:codegen_residual_data_cc_proto",
