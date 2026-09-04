@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-struct State<T: type> {}
+struct BuiltinProcState<T: type> {}
 
 fn and_reduce<N: u32>(x: uN[N]) -> u1;
 
@@ -71,7 +71,7 @@ fn or_reduce<N: u32>(x: uN[N]) -> u1;
 
 fn priority_sel<N: u32, M: u32, S: bool>(x: uN[N], y: xN[S][M][N], z: xN[S][M]) -> xN[S][M];
 
-fn read<T: type>(source: State<T>) -> T;
+fn read<T: type>(source: BuiltinProcState<T>) -> T;
 
 fn recv_if_non_blocking<T: type>(tok: token, channel: chan<T> in, predicate: bool, value: T) -> (token, T, bool);
 
@@ -106,7 +106,7 @@ fn umulp<N: u32>(x: uN[N], y: uN[N]) -> (uN[N], uN[N]);
 
 fn widening_cast<DEST: type, SRC: type>(x: SRC) -> DEST;
 
-fn write<T: type>(dest: State<T>, value: T);
+fn write<T: type>(dest: BuiltinProcState<T>, value: T);
 
 fn xor_reduce<N: u32>(x: uN[N]) -> u1;
 

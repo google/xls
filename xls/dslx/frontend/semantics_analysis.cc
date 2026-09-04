@@ -40,6 +40,7 @@
 #include "xls/dslx/frontend/ast_node_visitor_with_default.h"
 #include "xls/dslx/frontend/ast_utils.h"
 #include "xls/dslx/frontend/bindings.h"
+#include "xls/dslx/frontend/builtin_stubs_utils.h"
 #include "xls/dslx/frontend/fuzz_domain_rewriter.h"
 #include "xls/dslx/frontend/lambda_rewriter.h"
 #include "xls/dslx/frontend/module.h"
@@ -563,12 +564,13 @@ class CollectUseDef : public AstNodeRecursiveVisitor {
 };
 
 // Replaces the type annotation for proc state members with
-// State<TheOriginalType>. In legacy procs, this affects the next() param nodes.
-// In impl-style procs, it affects the declared state members of the proc.
+// BuiltinProcState<TheOriginalType>. In legacy procs, this affects the next()
+// param nodes. In impl-style procs, it affects the declared state members of
+// the proc.
 class ProcStateVisitor : public AstNodeRecursiveVisitor {
  public:
   // Creates a visitor using `import_data` and the given `StructDef` for the
-  // builtin `State` struct.
+  // builtin `BuiltinProcState` struct.
   ProcStateVisitor(ImportData& import_data, StructDef* state_struct_def,
                    const TypecheckModuleFn& typecheck_imported_module)
       : import_data_(import_data),
@@ -710,8 +712,9 @@ absl::Status SemanticsAnalysis::RunPreTypeCheckPass(
   if (module.attributes().contains(ModuleAttribute::kExplicitStateAccess)) {
     XLS_ASSIGN_OR_RETURN(Module * builtins,
                          import_data.GetBuiltinStubsModule());
-    XLS_ASSIGN_OR_RETURN(StructDef * state_struct_def,
-                         builtins->GetMemberOrError<StructDef>("State"));
+    XLS_ASSIGN_OR_RETURN(
+        StructDef * state_struct_def,
+        builtins->GetMemberOrError<StructDef>(kBuiltinProcStateStructName));
     ProcStateVisitor state_visitor(import_data, state_struct_def,
                                    typecheck_imported_module);
     XLS_RETURN_IF_ERROR(module.Accept(&state_visitor));

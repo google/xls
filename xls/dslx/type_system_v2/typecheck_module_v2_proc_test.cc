@@ -342,7 +342,7 @@ proc Counter {
   }
 }
 )",
-              TypecheckFails(HasTypeMismatch("State<u32>", "u32")));
+              TypecheckFails(HasTypeMismatch("BuiltinProcState<u32>", "u32")));
 }
 
 TEST(TypecheckV2ProcTest, ExplicitStateAccessAddingStateToState) {
@@ -355,14 +355,15 @@ proc Counter {
   }
 }
 )",
-              TypecheckFails(HasSubstr("State {} Binary operations can only be "
-                                       "applied to bits-typed operands.")));
+              TypecheckFails(
+                  HasSubstr("BuiltinProcState {} Binary operations can only be "
+                            "applied to bits-typed operands.")));
 }
 
 TEST(TypecheckV2ProcTest, ProcWithImpl) {
   constexpr std::string_view kProcType =
       "P { input: chan(uN[32], dir=in), output: "
-      "chan(uN[32], dir=out), state: State {} }";
+      "chan(uN[32], dir=out), state: BuiltinProcState {} }";
 
   EXPECT_THAT(
       R"(
@@ -969,9 +970,10 @@ impl Main {
                        /*additional_search_paths=*/{std::filesystem::path("/")},
                        kAllWarningsSet, std::move(vfs));
 
-  EXPECT_THAT(TypecheckV2(kProgram, "main", &import_data),
-              IsOkAndHolds(HasTypeInfo(
-                  HasNodeWithType("foo: State<imported::Foo>", "State {}"))));
+  EXPECT_THAT(
+      TypecheckV2(kProgram, "main", &import_data),
+      IsOkAndHolds(HasTypeInfo(HasNodeWithType(
+          "foo: BuiltinProcState<imported::Foo>", "BuiltinProcState {}"))));
 }
 
 TEST(TypecheckV2ProcTest, ProcDefWithImportedProcMember) {
@@ -1012,6 +1014,32 @@ impl Main {
   EXPECT_THAT(TypecheckV2(kProgram, "main", &import_data),
               IsOkAndHolds(HasTypeInfo(
                   HasNodeWithType("foo: imported::Foo", "Foo {}"))));
+}
+
+TEST(TypecheckV2ProcTest, UserDefinedStateStructDoesNotClash) {
+  constexpr std::string_view kProgram = R"(
+#![feature(explicit_state_access)]
+
+struct State {
+  x: u32,
+}
+
+proc Counter {
+  state: State,
+}
+
+impl Counter {
+  fn new() -> Self {
+    Counter { state: State { x: u32:0 } }
+  }
+
+  fn next(self) {
+    let s = read(self.state);
+    write(self.state, State { x: s.x + u32:1 });
+  }
+}
+)";
+  XLS_EXPECT_OK(TypecheckV2(kProgram));
 }
 
 }  // namespace

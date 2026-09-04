@@ -32,6 +32,7 @@
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/ast_node_visitor_with_default.h"
 #include "xls/dslx/frontend/ast_utils.h"
+#include "xls/dslx/frontend/builtin_stubs_utils.h"
 #include "xls/dslx/frontend/module.h"
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/import_data.h"
@@ -380,15 +381,15 @@ absl::StatusOr<bool> IsProcDefSpawnFunction(const Function* f) {
 
 bool IsProcDefStateType(const Type& type, const ImportData& import_data) {
   // A state element in a `ProcDef` always uses explicit state access, so should
-  // have been made into a State<T> by semantics analysis, i.e. it is always a
-  // struct in type inference.
+  // have been made into a BuiltinProcState<T> by semantics analysis, i.e. it is
+  // always a struct in type inference.
   if (!type.IsStruct()) {
     return false;
   }
 
   Module* builtin_stubs = *import_data.GetBuiltinStubsModule();
   const StructDef* state_struct_def =
-      *builtin_stubs->GetMember<StructDef>("State");
+      *builtin_stubs->GetMember<StructDef>(kBuiltinProcStateStructName);
   return &type.AsStruct().struct_def_base() == state_struct_def;
 }
 

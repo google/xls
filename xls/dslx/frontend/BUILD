@@ -829,6 +829,7 @@ cc_library(
         ":ast_node_visitor_with_default",
         ":ast_utils",
         ":bindings",
+        ":builtin_stubs_utils",
         ":fuzz_domain_rewriter",
         ":lambda_rewriter",
         ":module",

@@ -61,7 +61,7 @@ proc Counter {
                            tm.module->GetMemberOrError<ProcDef>("Counter"));
   ASSERT_EQ(proc->members().size(), 1);
   StructMemberNode* member = proc->members()[0];
-  EXPECT_EQ(member->type()->ToString(), "State<u32>");
+  EXPECT_EQ(member->type()->ToString(), "BuiltinProcState<u32>");
 }
 
 }  // namespace

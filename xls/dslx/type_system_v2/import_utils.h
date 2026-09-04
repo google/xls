@@ -119,8 +119,8 @@ bool IsImport(const ColonRef* colon_ref);
 
 // Returns whether the given `type` of a member of a `ProcDef` indicates that
 // the member is a state element. All state members of a `ProcDef` have the
-// inferred type `State<T>` where `T` is the type written by the programmer, so
-// this amounts to checking if `type` is a "State-wrapped" type.
+// inferred type `BuiltinProcState<T>` where `T` is the type written by the
+// programmer, so this amounts to checking if `type` is a "State-wrapped" type.
 bool IsProcDefStateType(const Type& type, const ImportData& import_data);
 
 // Returns all the members of `proc_def` that are state elements.
