@@ -14,6 +14,7 @@
 
 #include "xls/dslx/interp_value.h"
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <limits>
@@ -30,6 +31,7 @@
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
@@ -349,6 +351,10 @@ static std::string IndentString(std::string_view s, int64_t n) {
   return absl::StrFormat("%s%s", std::string(n * kIndentAmount, ' '), s);
 }
 
+static bool IsSingleLine(std::string_view s) {
+  return !absl::StrContains(s, '\n');
+}
+
 absl::StatusOr<std::string> InterpValue::ToArrayString(
     const ValueFormatDescriptor& fmt_desc, bool include_type_prefix,
     int64_t indentation) const {
@@ -447,6 +453,92 @@ absl::StatusOr<std::string> InterpValue::ToEnumString(
                          underlying.ToString());
 }
 
+absl::StatusOr<std::string> InterpValue::ToSumString(
+    const ValueFormatDescriptor& fmt_desc, bool include_type_prefix,
+    int64_t indentation) const {
+  XLS_ASSIGN_OR_RETURN(EncodedSumView sum_view, GetEncodedSumView(*this));
+  const InterpValue& tag_value = sum_view.tag;
+  if (!tag_value.HasBits()) {
+    return absl::InvalidArgumentError("Expected sum tag to be bits-valued.");
+  }
+  XLS_ASSIGN_OR_RETURN(uint64_t variant_index, tag_value.GetBitValueUnsigned());
+  if (variant_index >= fmt_desc.sum_variant_count()) {
+    return absl::InvalidArgumentError(absl::StrFormat(
+        "Sum tag %d is out of bounds for `%s` with %d variants",
+        static_cast<int64_t>(variant_index), fmt_desc.sum_name(),
+        static_cast<int64_t>(fmt_desc.sum_variant_count())));
+  }
+  const size_t payload_slot_count = fmt_desc.sum_payload_slot_count();
+  if (sum_view.payload_slots.size() != payload_slot_count) {
+    return absl::InvalidArgumentError(absl::StrFormat(
+        "Sum `%s` expected %d payload slots; got %d", fmt_desc.sum_name(),
+        static_cast<int64_t>(payload_slot_count),
+        static_cast<int64_t>(sum_view.payload_slots.size())));
+  }
+
+  const ValueFormatSumVariantView variant = fmt_desc.sum_variant(variant_index);
+  const absl::Span<const ValueFormatDescriptor> payload_formats =
+      variant.payload_formats();
+  const size_t payload_size = variant.payload_slot_count();
+  const size_t payload_slot_offset = variant.payload_start();
+  const std::string prefix =
+      absl::StrFormat("%s::%s", fmt_desc.sum_name(), variant.name());
+
+  switch (variant.kind()) {
+    case ValueFormatSumVariantKind::kUnit:
+      return prefix;
+    case ValueFormatSumVariantKind::kTuple: {
+      std::vector<std::string> payload_pieces;
+      payload_pieces.reserve(payload_size);
+      for (size_t i = 0; i < payload_size; ++i) {
+        XLS_ASSIGN_OR_RETURN(
+            std::string payload_piece,
+            sum_view.payload_slots[payload_slot_offset + i].ToFormattedString(
+                payload_formats[i], include_type_prefix, indentation + 1));
+        payload_pieces.push_back(std::move(payload_piece));
+      }
+      if (std::all_of(
+              payload_pieces.begin(), payload_pieces.end(),
+              [](const std::string& piece) { return IsSingleLine(piece); })) {
+        return absl::StrCat(prefix, "(", absl::StrJoin(payload_pieces, ", "),
+                            ")");
+      }
+      std::vector<std::string> pieces = {absl::StrCat(prefix, "(")};
+      for (size_t i = 0; i < payload_pieces.size(); ++i) {
+        std::string piece = IndentString(payload_pieces[i], indentation + 1);
+        if (i + 1 != payload_pieces.size()) {
+          absl::StrAppend(&piece, ",");
+        }
+        pieces.push_back(std::move(piece));
+      }
+      pieces.push_back(IndentString(")", indentation));
+      return absl::StrJoin(pieces, "\n");
+    }
+    case ValueFormatSumVariantKind::kStruct: {
+      const absl::Span<const std::string> field_names = variant.field_names();
+      XLS_RET_CHECK_EQ(payload_size, field_names.size());
+      if (payload_size == 0) {
+        return absl::StrCat(prefix, " {}");
+      }
+      std::vector<std::string> pieces;
+      for (size_t i = 0; i < payload_size; ++i) {
+        XLS_ASSIGN_OR_RETURN(
+            std::string payload_piece,
+            sum_view.payload_slots[payload_slot_offset + i].ToFormattedString(
+                payload_formats[i], include_type_prefix, indentation + 1));
+        pieces.push_back(IndentString(
+            absl::StrFormat("%s: %s", field_names[i], payload_piece),
+            indentation + 1));
+      }
+      std::string body = absl::StrJoin(pieces, ",\n");
+      return absl::StrJoin(
+          {absl::StrCat(prefix, " {"), body, IndentString("}", indentation)},
+          "\n");
+    }
+  }
+  return absl::InternalError("Unhandled ValueFormatSumVariantKind.");
+}
+
 absl::StatusOr<std::string> InterpValue::ToFormattedString(
     const ValueFormatDescriptor& fmt_desc, bool include_type_prefix,
     int64_t indentation) const {
@@ -470,6 +562,11 @@ absl::StatusOr<std::string> InterpValue::ToFormattedString(
     }
     absl::Status HandleEnum(const ValueFormatDescriptor& d) override {
       XLS_ASSIGN_OR_RETURN(result_, v_.ToEnumString(d));
+      return absl::OkStatus();
+    }
+    absl::Status HandleSum(const ValueFormatDescriptor& d) override {
+      XLS_ASSIGN_OR_RETURN(
+          result_, v_.ToSumString(d, include_type_prefix_, indentation_));
       return absl::OkStatus();
     }
     absl::Status HandleTuple(const ValueFormatDescriptor& d) override {
@@ -1478,6 +1575,30 @@ const std::vector<InterpValue>& InterpValue::GetValuesOrDie() const {
     return GetChannelArrayOrDie().elements();
   }
   return std::get<std::vector<InterpValue>>(payload_);
+}
+
+absl::StatusOr<EncodedSumView> GetEncodedSumView(const InterpValue& value) {
+  if (!value.IsTuple()) {
+    return absl::InvalidArgumentError(
+        "Expected encoded sum value to be tuple-valued.");
+  }
+  const std::vector<InterpValue>& sum_elements = value.GetValuesOrDie();
+  if (sum_elements.size() != 2) {
+    return absl::InvalidArgumentError(
+        absl::StrFormat("Expected encoded sum value to have 2 elements; got %d",
+                        static_cast<int64_t>(sum_elements.size())));
+  }
+
+  const InterpValue& payload_slots = sum_elements[1];
+  if (!payload_slots.IsTuple()) {
+    return absl::InvalidArgumentError(
+        "Expected encoded sum payload slots to be tuple-valued.");
+  }
+
+  return EncodedSumView{
+      .tag = sum_elements[0],
+      .payload_slots = payload_slots.GetValuesOrDie(),
+  };
 }
 
 }  // namespace xls::dslx

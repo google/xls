@@ -14,11 +14,17 @@
 #include "xls/dslx/ir_convert/ir_conversion_utils.h"
 
 #include <memory>
+#include <optional>
 #include <utility>
 #include <vector>
 
+#include "absl/status/status.h"
+#include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "xls/common/status/matchers.h"
+#include "xls/dslx/frontend/ast.h"
+#include "xls/dslx/frontend/module.h"
+#include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/type_system/parametric_env.h"
 #include "xls/dslx/type_system/type.h"
 #include "xls/ir/package.h"
@@ -66,6 +72,50 @@ TEST(IrConversionUtilsTest, BitsConstructorTypeToIr) {
 
   XLS_ASSERT_OK_AND_ASSIGN(xls::Type * type, TypeToIr(&package, *s4, bindings));
   EXPECT_EQ(type->ToString(), "bits[4]");
+}
+
+class IrConversionUtilsSemanticSumTest : public ::testing::Test {
+ protected:
+  IrConversionUtilsSemanticSumTest()
+      : module_("test", /*fs_path=*/std::nullopt, file_table_) {
+    const Span span = Span::Fake();
+    auto* sum_name = module_.Make<NameDef>(span, "Example", nullptr);
+    auto* variant_name = module_.Make<NameDef>(span, "X", nullptr);
+    auto* variant = module_.Make<SumVariant>(
+        span, variant_name, SumVariant::PayloadShape::kUnit,
+        std::vector<TypeAnnotation*>{}, std::vector<StructMemberNode*>{});
+    auto* sum_def = module_.Make<SumDef>(
+        span, sum_name, std::vector<ParametricBinding*>{},
+        std::vector<SumVariant*>{variant}, /*is_public=*/false);
+    sum_name->set_definer(sum_def);
+
+    std::vector<SumTypeVariant> variants;
+    variants.push_back(SumTypeVariant::MakeUnit(*variant));
+    sum_type_ = std::make_unique<SumType>(*sum_def, std::move(variants));
+  }
+
+  FileTable file_table_;
+  Module module_;
+  Package package_{"semantic_sum"};
+  std::unique_ptr<SumType> sum_type_;
+};
+
+TEST_F(IrConversionUtilsSemanticSumTest, SemanticSumLoweringIsRejected) {
+  EXPECT_THAT(
+      TypeToIr(&package_, *sum_type_, ParametricEnv{}),
+      ::absl_testing::StatusIs(
+          absl::StatusCode::kUnimplemented,
+          ::testing::HasSubstr("Semantic sum type lowering is not supported")));
+}
+
+TEST_F(IrConversionUtilsSemanticSumTest, AggregateContainingSumIsRejected) {
+  std::unique_ptr<TupleType> aggregate =
+      TupleType::Create2(BitsType::MakeU8(), sum_type_->CloneToUnique());
+  EXPECT_THAT(
+      TypeToIr(&package_, *aggregate, ParametricEnv{}),
+      ::absl_testing::StatusIs(
+          absl::StatusCode::kUnimplemented,
+          ::testing::HasSubstr("Semantic sum type lowering is not supported")));
 }
 
 }  // namespace xls::dslx

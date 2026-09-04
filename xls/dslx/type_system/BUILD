@@ -156,6 +156,7 @@ cc_library(
         "//xls/dslx:errors",
         "//xls/dslx:import_data",
         "//xls/dslx:interp_value",
+        "//xls/dslx:interp_value_utils",
         "//xls/dslx/frontend:ast",
         "//xls/dslx/frontend:pos",
         "//xls/ir:bits",
@@ -163,6 +164,27 @@ cc_library(
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings:str_format",
+    ],
+)
+
+cc_test(
+    name = "type_zero_value_test",
+    srcs = ["type_zero_value_test.cc"],
+    deps = [
+        ":type",
+        ":type_info",
+        ":type_zero_value",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/dslx:create_import_data",
+        "//xls/dslx:interp_value",
+        "//xls/dslx:parse_and_typecheck",
+        "//xls/dslx/frontend:ast",
+        "//xls/dslx/frontend:module",
+        "//xls/dslx/frontend:pos",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:status_matchers",
+        "@googletest//:gtest",
     ],
 )
 
@@ -227,6 +249,8 @@ cc_test(
     srcs = ["type_info_to_proto_test.cc"],
     data = glob(["testdata/*.txt"]),
     deps = [
+        ":type",
+        ":type_info",
         ":type_info_cc_proto",
         ":type_info_to_proto",
         "//xls/common:golden_files",
@@ -235,6 +259,9 @@ cc_test(
         "//xls/dslx:create_import_data",
         "//xls/dslx:import_data",
         "//xls/dslx:parse_and_typecheck",
+        "//xls/dslx/frontend:ast",
+        "//xls/dslx/frontend:module",
+        "//xls/dslx/frontend:pos",
         "@abseil-cpp//absl/strings:str_format",
         "@googletest//:gtest",
         "@re2",
