@@ -225,38 +225,14 @@ class ProcDefChannelManager : public InterpValueChannelManager {
     auto& value = channels_[channel_id];
     if (value == nullptr) {
       value = std::make_unique<InterpValueChannel>(channel_id);
-      definers_[channel_id] = definer;
-    } else if (definers_.at(channel_id) != definer) {
-      return absl::AlreadyExistsError(absl::StrCat(
-          "There is already a channel allocated to ID: ", channel_id));
     }
     return value.get();
-  }
-
-  // When a ProcDef constructor forwards a channel to another ProcDef
-  // constructor, this function should be used to associate the original channel
-  // ID with the Param that is the definer of the forwarded ChannelReference.
-  void Forward(int64_t channel_id, const TypeInfo* ti, const Param* param) {
-    const auto it = channels_.find(channel_id);
-    CHECK(it != channels_.end()) << "Channel ID " << channel_id
-                                 << " was not allocated before forwarding.";
-    forwarded_channels_.insert_or_assign(std::make_pair(ti, param),
-                                         it->second.get());
   }
 
   InterpValueChannel& GetChannel(
       const TypeInfo* ti,
       const InterpValue::ChannelReference& channel_ref) override {
     CHECK(channel_ref.GetChannelId().has_value());
-    if (channel_ref.GetDefiner().has_value() &&
-        (*channel_ref.GetDefiner())->kind() == AstNodeKind::kParam) {
-      auto it = forwarded_channels_.find(
-          std::make_pair(ti, *channel_ref.GetDefiner()));
-      if (it != forwarded_channels_.end()) {
-        return *it->second;
-      }
-    }
-
     const auto it_by_id = channels_.find(*channel_ref.GetChannelId());
     if (it_by_id != channels_.end()) {
       return *it_by_id->second;
@@ -265,12 +241,6 @@ class ProcDefChannelManager : public InterpValueChannelManager {
     LOG(FATAL) << "Channel reference not found for channel ID: "
                << *channel_ref.GetChannelId();
   }
-
- private:
-  absl::flat_hash_map<int64_t, const AstNode*> definers_;
-  absl::flat_hash_map<std::pair<const TypeInfo*, const AstNode*>,
-                      InterpValueChannel*>
-      forwarded_channels_;
 };
 
 // Bytecode interpreter for DSLX. Accepts sequence of "bytecode" "instructions"

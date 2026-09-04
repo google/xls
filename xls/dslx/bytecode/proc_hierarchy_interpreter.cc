@@ -24,6 +24,7 @@
 #include <vector>
 
 #include "absl/base/casts.h"
+#include "absl/container/flat_hash_map.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
@@ -67,16 +68,84 @@ bool HasExplicitStateAccess(const Proc& proc, const TypeInfo* ti,
   return IsProcDefStateType(**type, import_data);
 }
 
-void ForwardProcDefChannels(ProcDefChannelManager* channel_manager,
-                            const ProcDef* proc, TypeInfo* ti,
-                            const Param* param, const InterpValue& val) {
-  for (const InterpValue& leaf : GetLeafChannelReferences(val)) {
-    const InterpValue::ChannelReference& channel_ref =
-        leaf.GetChannelReferenceOrDie();
-    VLOG(5) << "Binding forwarded channel " << leaf.ToString() << " in proc "
-            << proc->identifier() << " with param: " << param->ToString();
-    channel_manager->Forward(*channel_ref.GetChannelId(), ti, param);
+// Records (in `canonical_id_to_runtime_channel`) the mapping of the given
+// canonical channel or array to the given runtime channel or array. If it is an
+// array, this recursively maps each channel in the array.
+void RecordChannelMapping(const InterpValue& canonical,
+                          const InterpValue& runtime,
+                          absl::flat_hash_map<int64_t, InterpValue>&
+                              canonical_id_to_runtime_channel) {
+  if (canonical.IsChannelReference()) {
+    CHECK(runtime.IsChannelReference());
+    const auto& canonical_ref = canonical.GetChannelReferenceOrDie();
+    if (canonical_ref.GetChannelId().has_value()) {
+      canonical_id_to_runtime_channel.insert_or_assign(
+          *canonical_ref.GetChannelId(), runtime);
+    }
+  } else if (canonical.IsChannelArray()) {
+    CHECK(runtime.IsChannelArray());
+    const auto& canonical_elements =
+        canonical.GetChannelArrayOrDie().elements();
+    const auto& runtime_elements = runtime.GetChannelArrayOrDie().elements();
+    if (canonical_elements.size() == runtime_elements.size()) {
+      for (int i = 0; i < canonical_elements.size(); ++i) {
+        RecordChannelMapping(canonical_elements[i], runtime_elements[i],
+                             canonical_id_to_runtime_channel);
+      }
+    }
   }
+}
+
+// Resolves (using `canonical_id_to_runtime_channel`) a canonical channel or
+// channel array InterpValue to its runtime equivalent.
+InterpValue ResolveChannelArg(const InterpValue& canonical_channel_value,
+                              const absl::flat_hash_map<int64_t, InterpValue>&
+                                  canonical_id_to_runtime_channel) {
+  if (canonical_channel_value.IsChannelReference()) {
+    const auto& ref = canonical_channel_value.GetChannelReferenceOrDie();
+    if (ref.GetChannelId().has_value()) {
+      auto it = canonical_id_to_runtime_channel.find(*ref.GetChannelId());
+      if (it != canonical_id_to_runtime_channel.end()) {
+        return it->second;
+      }
+    }
+  } else if (canonical_channel_value.IsChannelArray()) {
+    std::vector<InterpValue> new_elements;
+    const InterpValue::ChannelArray& canonical_array =
+        canonical_channel_value.GetChannelArrayOrDie();
+    new_elements.reserve(canonical_array.elements().size());
+    for (const InterpValue& element : canonical_array.elements()) {
+      new_elements.push_back(
+          ResolveChannelArg(element, canonical_id_to_runtime_channel));
+    }
+    return InterpValue::MakeChannelArray(
+        canonical_array.direction(), canonical_array.channel_array_id(),
+        canonical_array.definer(), std::move(new_elements));
+  }
+
+  return canonical_channel_value;
+}
+
+InterpValue ResolveProcInitializerChannels(
+    const InterpValue& external_initializer,
+    const absl::flat_hash_map<int64_t, InterpValue>&
+        canonical_id_to_runtime_channel) {
+  const auto& init = external_initializer.GetProcInitializerOrDie();
+  std::vector<InterpValue> resolved_members;
+  resolved_members.reserve(init.members().size());
+  for (const InterpValue& member : init.members()) {
+    resolved_members.push_back(
+        ResolveChannelArg(member, canonical_id_to_runtime_channel));
+  }
+  std::vector<std::pair<const Param*, InterpValue>> resolved_forwarded_values;
+  resolved_forwarded_values.reserve(init.forwarded_values().size());
+  for (const auto& [param, fwd_val] : init.forwarded_values()) {
+    resolved_forwarded_values.emplace_back(
+        param, ResolveChannelArg(fwd_val, canonical_id_to_runtime_channel));
+  }
+  return InterpValue::MakeProcInitializer(
+      init.proc_def(), init.definer(), init.parametrics(),
+      std::move(resolved_members), std::move(resolved_forwarded_values));
 }
 
 // Specialization of BytecodeInterpreter for executing Proc `config` functions.
@@ -340,20 +409,24 @@ ProcHierarchyInterpreter::Create(ImportData* import_data, TypeInfo* type_info,
   for (const ProcInitializerWithTypeInfo& variant : variants) {
     XLS_RETURN_IF_ERROR(hierarchy_interpreter->AddProcDefInstance(
         /*spawner_id=*/std::nullopt, top_proc, variant.initializer,
-        variant.next_type_info, variant.constructor_env, import_data, options));
+        variant.initializer, variant.next_type_info, variant.constructor_env,
+        import_data, options));
   }
   return hierarchy_interpreter;
 }
 
 absl::Status ProcHierarchyInterpreter::AddProcDefInstance(
     std::optional<ProcId> spawner_id, const ProcDef* proc,
-    const InterpValue& initializer, TypeInfo* ti, const ParametricEnv& env,
-    ImportData* import_data, const BytecodeInterpreterOptions& options) {
+    const InterpValue& runtime_initializer,
+    const InterpValue& canonical_initializer, TypeInfo* ti,
+    const ParametricEnv& env, ImportData* import_data,
+    const BytecodeInterpreterOptions& options) {
   VLOG(5) << "Adding proc instance for: " << proc->identifier()
-          << " with initializer " << initializer.ToString();
+          << " with runtime initializer: " << runtime_initializer.ToString()
+          << " and canonical initializer: " << canonical_initializer.ToString();
 
   const std::vector<InterpValue>& member_values =
-      initializer.GetProcInitializerOrDie().members();
+      runtime_initializer.GetProcInitializerOrDie().members();
 
   std::optional<Function*> next_fn = GetProcNextFunction(proc);
   XLS_RET_CHECK(next_fn.has_value());
@@ -389,11 +462,8 @@ absl::Status ProcHierarchyInterpreter::AddProcDefInstance(
   }
 
   for (const auto& [param, forwarded_value] :
-       initializer.GetProcInitializerOrDie().forwarded_values()) {
+       runtime_initializer.GetProcInitializerOrDie().forwarded_values()) {
     XLS_RETURN_IF_ERROR(AllocateChannelOrArray(proc, forwarded_value));
-    ForwardProcDefChannels(
-        absl::down_cast<ProcDefChannelManager*>(channel_manager_.get()), proc,
-        ti, param, forwarded_value);
   }
 
   AddProcInstance(ProcInstance(proc, std::move(next_interpreter),
@@ -404,13 +474,44 @@ absl::Status ProcHierarchyInterpreter::AddProcDefInstance(
   // Recursively add the procs that are spawned by this one.
   XLS_ASSIGN_OR_RETURN(std::vector<InterpValue> spawns,
                        ti->GetProcDefSpawnsFrom(proc));
+  if (spawns.empty()) {
+    return absl::OkStatus();
+  }
+
+  absl::flat_hash_map<int64_t, InterpValue> canonical_id_to_runtime_channel;
+  const auto& canonical_members =
+      canonical_initializer.GetProcInitializerOrDie().members();
+  const auto& runtime_members =
+      runtime_initializer.GetProcInitializerOrDie().members();
+  if (canonical_members.size() == runtime_members.size()) {
+    for (int i = 0; i < canonical_members.size(); ++i) {
+      RecordChannelMapping(canonical_members[i], runtime_members[i],
+                           canonical_id_to_runtime_channel);
+    }
+  }
+  const auto& canonical_forwarded =
+      canonical_initializer.GetProcInitializerOrDie().forwarded_values();
+  const auto& runtime_forwarded =
+      runtime_initializer.GetProcInitializerOrDie().forwarded_values();
+  if (canonical_forwarded.size() == runtime_forwarded.size()) {
+    for (int i = 0; i < canonical_forwarded.size(); ++i) {
+      RecordChannelMapping(canonical_forwarded[i].second,
+                           runtime_forwarded[i].second,
+                           canonical_id_to_runtime_channel);
+    }
+  }
   for (const InterpValue& external_initializer : spawns) {
-    XLS_ASSIGN_OR_RETURN(ProcInitializerWithTypeInfo canonical_initializer,
-                         ti->GetCanonicalProcInitializer(external_initializer));
+    XLS_ASSIGN_OR_RETURN(
+        ProcInitializerWithTypeInfo spawnee_canonical_initializer,
+        ti->GetCanonicalProcInitializer(external_initializer));
+    InterpValue spawnee_runtime_initializer = ResolveProcInitializerChannels(
+        external_initializer, canonical_id_to_runtime_channel);
     XLS_RETURN_IF_ERROR(AddProcDefInstance(
-        proc_id, external_initializer.GetProcInitializerOrDie().proc_def(),
-        external_initializer, canonical_initializer.next_type_info,
-        canonical_initializer.constructor_env, import_data, options));
+        proc_id,
+        spawnee_runtime_initializer.GetProcInitializerOrDie().proc_def(),
+        spawnee_runtime_initializer, spawnee_canonical_initializer.initializer,
+        spawnee_canonical_initializer.next_type_info,
+        spawnee_canonical_initializer.constructor_env, import_data, options));
   }
 
   return absl::OkStatus();

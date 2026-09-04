@@ -1654,5 +1654,69 @@ impl TopProc {
   EXPECT_EQ(result.result(), TestResult::kAllPassed);
 }
 
+TEST_F(ProcHierarchyInterpreterTest,
+       MultiLevelParametricProcDefWithForwardedChannel) {
+  constexpr std::string_view kProgram = R"(
+#![feature(explicit_state_access)]
+#![feature(generics)]
+
+pub proc ChildProc<N: u32> {
+  in_ch: chan<u32> in,
+  out_ch: chan<u32> out,
+}
+
+impl ChildProc {
+  pub fn new(in_ch: chan<u32> in, out_ch: chan<u32> out) -> Self {
+    ChildProc<N> { in_ch, out_ch }
+  }
+
+  fn next(self) {
+    let (tok, val) = recv(token(), self.in_ch);
+    let _tok = send(tok, self.out_ch, val + N);
+  }
+}
+
+proc DelegateProc {}
+
+impl DelegateProc {
+  fn new(in_ch: chan<u32> in, out_ch: chan<u32> out) -> Self {
+    ChildProc<u32:100>::new(in_ch, out_ch).spawn();
+    DelegateProc {}
+  }
+}
+
+#[test]
+proc TopProc {
+  terminator: chan<bool> out,
+  out_ch: chan<u32> out,
+  in_ch: chan<u32> in,
+}
+
+impl TopProc {
+  fn new(terminator: chan<bool> out) -> Self {
+    let (outs, ins) = chan<u32>("ch1");
+    let (reply_outs, reply_ins) = chan<u32>("ch2");
+    DelegateProc::new(ins, reply_outs).spawn();
+    TopProc { terminator, out_ch: outs, in_ch: reply_ins }
+  }
+
+  fn next(self) {
+    let tok = send(token(), self.out_ch, u32:50);
+    let (tok, val) = recv(tok, self.in_ch);
+    assert_eq(val, u32:150);
+    send(tok, self.terminator, true);
+  }
+}
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(auto temp_file,
+                           TempFile::CreateWithContent(kProgram, "_test.x"));
+  ParseAndTestOptions options;
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TestResultData result,
+      ParseAndTest(kProgram, "test", std::string{temp_file.path()}, options));
+  EXPECT_EQ(result.result(), TestResult::kAllPassed);
+}
+
 }  // namespace
 }  // namespace xls::dslx
