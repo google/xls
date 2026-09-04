@@ -29,6 +29,7 @@
 #include "absl/strings/str_format.h"
 #include "xls/common/status/matchers.h"
 #include "xls/ir/bits.h"
+#include "xls/ir/bits_ops.h"
 #include "xls/ir/function.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/ir_test_base.h"
@@ -573,6 +574,119 @@ TEST_F(BitwuzlaIrTranslatorTest, TupleWithArrayLiteral) {
   EXPECT_THAT(solver_->TryProve(f, prop.node(), Predicate::NotEqualToZero(),
                                 SolverLimit()),
               IsOkAndHolds(IsProvenTrue()));
+}
+
+TEST_F(BitwuzlaIrTranslatorTest, WideLiteralTranslation) {
+  // Test that literals wider than 64 bits with multiple non-zero words
+  // and non-power-of-two widths preserve exact bit order and endianness.
+
+  // 1. 128-bit literal: two 64-bit words
+  {
+    auto package = CreatePackage();
+    FunctionBuilder fb("wide_128", package.get());
+    Bits hi_64 = UBits(0x1122334455667788ULL, 64);
+    Bits lo_64 = UBits(0x99aabbccddeeff01ULL, 64);
+    Bits val_128 = bits_ops::Concat({hi_64, lo_64});
+    BValue lit_128 = fb.Literal(val_128);
+
+    BValue slice_lo = fb.BitSlice(lit_128, /*start=*/0, /*width=*/64);
+    BValue slice_hi = fb.BitSlice(lit_128, /*start=*/64, /*width=*/64);
+
+    BValue eq_lo = fb.Eq(slice_lo, fb.Literal(lo_64));
+    BValue eq_hi = fb.Eq(slice_hi, fb.Literal(hi_64));
+    BValue swapped = fb.Eq(slice_lo, fb.Literal(hi_64));
+    BValue eq_concat =
+        fb.Eq(lit_128, fb.Concat({fb.Literal(hi_64), fb.Literal(lo_64)}));
+
+    XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(eq_lo));
+    EXPECT_THAT(solver_->TryProve(f, eq_lo.node(), Predicate::NotEqualToZero(),
+                                  SolverLimit()),
+                IsOkAndHolds(IsProvenTrue()));
+    EXPECT_THAT(solver_->TryProve(f, eq_hi.node(), Predicate::NotEqualToZero(),
+                                  SolverLimit()),
+                IsOkAndHolds(IsProvenTrue()));
+    EXPECT_THAT(solver_->TryProve(f, swapped.node(),
+                                  Predicate::NotEqualToZero(), SolverLimit()),
+                IsOkAndHolds(IsProvenFalse()));
+    EXPECT_THAT(solver_->TryProve(f, eq_concat.node(),
+                                  Predicate::NotEqualToZero(), SolverLimit()),
+                IsOkAndHolds(IsProvenTrue()));
+  }
+
+  // 2. 100-bit literal: 36-bit top word (MSB) + 64-bit bottom word (LSB)
+  {
+    auto package = CreatePackage();
+    FunctionBuilder fb("wide_100", package.get());
+    Bits hi_36 = UBits(0x123456789ULL, 36);
+    Bits lo_64 = UBits(0xfedcba9876543210ULL, 64);
+    Bits val_100 = bits_ops::Concat({hi_36, lo_64});
+    BValue lit_100 = fb.Literal(val_100);
+
+    BValue slice_lo = fb.BitSlice(lit_100, /*start=*/0, /*width=*/64);
+    BValue slice_hi = fb.BitSlice(lit_100, /*start=*/64, /*width=*/36);
+    // Cross-boundary slice: bits 60..67 (8 bits spanning the 64-bit word
+    // boundary) Low 4 bits come from lo_64 bits 60..63 (top nibble of
+    // 0xfedcba9876543210: 0xf) High 4 bits come from hi_36 bits 0..3 (bottom
+    // nibble of 0x123456789: 0x9) Combined byte: (0x9 << 4) | 0xf = 0x9f.
+    BValue slice_cross = fb.BitSlice(lit_100, /*start=*/60, /*width=*/8);
+    BValue expected_cross = fb.Literal(UBits(0x9f, 8));
+
+    BValue eq_lo = fb.Eq(slice_lo, fb.Literal(lo_64));
+    BValue eq_hi = fb.Eq(slice_hi, fb.Literal(hi_36));
+    BValue eq_cross = fb.Eq(slice_cross, expected_cross);
+    BValue eq_concat =
+        fb.Eq(lit_100, fb.Concat({fb.Literal(hi_36), fb.Literal(lo_64)}));
+
+    XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(eq_lo));
+    EXPECT_THAT(solver_->TryProve(f, eq_lo.node(), Predicate::NotEqualToZero(),
+                                  SolverLimit()),
+                IsOkAndHolds(IsProvenTrue()));
+    EXPECT_THAT(solver_->TryProve(f, eq_hi.node(), Predicate::NotEqualToZero(),
+                                  SolverLimit()),
+                IsOkAndHolds(IsProvenTrue()));
+    EXPECT_THAT(solver_->TryProve(f, eq_cross.node(),
+                                  Predicate::NotEqualToZero(), SolverLimit()),
+                IsOkAndHolds(IsProvenTrue()));
+    EXPECT_THAT(solver_->TryProve(f, eq_concat.node(),
+                                  Predicate::NotEqualToZero(), SolverLimit()),
+                IsOkAndHolds(IsProvenTrue()));
+  }
+
+  // 3. 256-bit literal: 4 distinct 64-bit words
+  {
+    auto package = CreatePackage();
+    FunctionBuilder fb("wide_256", package.get());
+    Bits w3 = UBits(0x0123456789abcdefULL, 64);
+    Bits w2 = UBits(0xfedcba9876543210ULL, 64);
+    Bits w1 = UBits(0xa5a5a5a55a5a5a5aULL, 64);
+    Bits w0 = UBits(0x5a5a5a5aa5a5a5a5ULL, 64);
+    Bits val_256 = bits_ops::Concat({w3, w2, w1, w0});
+    BValue lit_256 = fb.Literal(val_256);
+
+    BValue s0 = fb.BitSlice(lit_256, /*start=*/0, /*width=*/64);
+    BValue s1 = fb.BitSlice(lit_256, /*start=*/64, /*width=*/64);
+    BValue s2 = fb.BitSlice(lit_256, /*start=*/128, /*width=*/64);
+    BValue s3 = fb.BitSlice(lit_256, /*start=*/192, /*width=*/64);
+
+    BValue eq_s0 = fb.Eq(s0, fb.Literal(w0));
+    BValue eq_s1 = fb.Eq(s1, fb.Literal(w1));
+    BValue eq_s2 = fb.Eq(s2, fb.Literal(w2));
+    BValue eq_s3 = fb.Eq(s3, fb.Literal(w3));
+
+    XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(eq_s0));
+    EXPECT_THAT(solver_->TryProve(f, eq_s0.node(), Predicate::NotEqualToZero(),
+                                  SolverLimit()),
+                IsOkAndHolds(IsProvenTrue()));
+    EXPECT_THAT(solver_->TryProve(f, eq_s1.node(), Predicate::NotEqualToZero(),
+                                  SolverLimit()),
+                IsOkAndHolds(IsProvenTrue()));
+    EXPECT_THAT(solver_->TryProve(f, eq_s2.node(), Predicate::NotEqualToZero(),
+                                  SolverLimit()),
+                IsOkAndHolds(IsProvenTrue()));
+    EXPECT_THAT(solver_->TryProve(f, eq_s3.node(), Predicate::NotEqualToZero(),
+                                  SolverLimit()),
+                IsOkAndHolds(IsProvenTrue()));
+  }
 }
 
 // Microbenchmarks comparing Bitwuzla against Z3 on representative IR operations

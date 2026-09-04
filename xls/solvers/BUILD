@@ -354,6 +354,7 @@ cc_test(
         "//xls/common/status:matchers",
         "//xls/ir",
         "//xls/ir:bits",
+        "//xls/ir:bits_ops",
         "//xls/ir:function_builder",
         "//xls/ir:ir_test_base",
         "//xls/ir:value",
