@@ -336,19 +336,20 @@ BlockJit::InterfaceMetadata::CreateFromAotEntrypoint(
 }
 
 absl::StatusOr<std::unique_ptr<BlockJit>> BlockJit::Create(
-    Block* block, bool support_observer_callbacks) {
+    Block* block, bool support_observer_callbacks, int64_t opt_level) {
   XLS_ASSIGN_OR_RETURN(BlockElaboration elab,
                        BlockElaboration::Elaborate(block));
-  return BlockJit::Create(elab, support_observer_callbacks);
+  return BlockJit::Create(elab, support_observer_callbacks, opt_level);
 }
 
 absl::StatusOr<std::unique_ptr<BlockJit>> BlockJit::Create(
-    const BlockElaboration& elab, bool support_observer_callbacks) {
+    const BlockElaboration& elab, bool support_observer_callbacks,
+    int64_t opt_level) {
   Block* block;
   XLS_ASSIGN_OR_RETURN(
       std::unique_ptr<OrcJit> orc_jit,
       OrcJit::Create(
-          LlvmCompiler::kDefaultOptLevel,
+          opt_level,
           /*include_observer_callbacks=*/support_observer_callbacks));
   XLS_ASSIGN_OR_RETURN(auto data_layout, orc_jit->CreateDataLayout());
   auto jit_runtime = std::make_unique<JitRuntime>(data_layout);
@@ -881,7 +882,8 @@ JitBlockEvaluator::MakeNewContinuation(
   XLS_ASSIGN_OR_RETURN(
       auto jit,
       BlockJit::Create(elaboration,
-                       /*support_observer_callbacks=*/supports_observer_));
+                       /*support_observer_callbacks=*/supports_observer_,
+                       opt_level_));
   auto jit_cont = jit->NewContinuation(sample_time);
   XLS_RETURN_IF_ERROR(jit_cont->SetRegisters(initial_registers));
   return std::make_unique<BlockContinuationJitWrapper>(std::move(jit_cont),

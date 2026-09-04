@@ -234,12 +234,13 @@ absl::StatusOr<std::unique_ptr<SerialProcRuntime>> CreateAotRuntime(
 }
 
 absl::StatusOr<std::unique_ptr<SerialProcRuntime>> CreateRuntime(
-    ProcElaboration elaboration, const EvaluatorOptions& options) {
+    ProcElaboration elaboration, const EvaluatorOptions& options,
+    const JitEvaluatorOptions& jit_options) {
   // We use the compiler to know the data layout.
   XLS_ASSIGN_OR_RETURN(
       std::unique_ptr<OrcJit> comp,
       OrcJit::Create(
-          LlvmCompiler::kDefaultOptLevel,
+          jit_options.opt_level(),
           /*include_observer_callbacks=*/options.support_observers()));
   XLS_ASSIGN_OR_RETURN(llvm::DataLayout layout, comp->CreateDataLayout());
   // Create a queue manager for the queues. This factory verifies that there an
@@ -254,10 +255,10 @@ absl::StatusOr<std::unique_ptr<SerialProcRuntime>> CreateRuntime(
   for (Proc* proc : queue_manager->elaboration().procs()) {
     XLS_ASSIGN_OR_RETURN(
         std::unique_ptr<ProcJit> proc_jit,
-        ProcJit::Create(proc, &queue_manager->runtime(), queue_manager.get(),
-                        options,
-                        JitEvaluatorOptions().set_include_observer_callbacks(
-                            options.support_observers())));
+        ProcJit::Create(
+            proc, &queue_manager->runtime(), queue_manager.get(), options,
+            JitEvaluatorOptions(jit_options).set_include_observer_callbacks(
+                options.support_observers())));
     proc_jits.push_back(std::move(proc_jit));
   }
 
@@ -275,21 +276,23 @@ absl::StatusOr<std::unique_ptr<SerialProcRuntime>> CreateRuntime(
 }  // namespace
 
 absl::StatusOr<std::unique_ptr<SerialProcRuntime>> CreateJitSerialProcRuntime(
-    Package* package, const EvaluatorOptions& options) {
+    Package* package, const EvaluatorOptions& options,
+    const JitEvaluatorOptions& jit_options) {
   if (package->ChannelsAreProcScoped()) {
     XLS_ASSIGN_OR_RETURN(Proc * top, package->GetTopAsProc());
-    return CreateJitSerialProcRuntime(top, options);
+    return CreateJitSerialProcRuntime(top, options, jit_options);
   }
   XLS_ASSIGN_OR_RETURN(ProcElaboration elaboration,
                        ProcElaboration::ElaborateOldStylePackage(package));
-  return CreateRuntime(std::move(elaboration), options);
+  return CreateRuntime(std::move(elaboration), options, jit_options);
 }
 
 absl::StatusOr<std::unique_ptr<SerialProcRuntime>> CreateJitSerialProcRuntime(
-    Proc* top, const EvaluatorOptions& options) {
+    Proc* top, const EvaluatorOptions& options,
+    const JitEvaluatorOptions& jit_options) {
   XLS_ASSIGN_OR_RETURN(ProcElaboration elaboration,
                        ProcElaboration::Elaborate(top));
-  return CreateRuntime(std::move(elaboration), options);
+  return CreateRuntime(std::move(elaboration), options, jit_options);
 }
 
 absl::StatusOr<JitObjectCode> CreateProcAotObjectCode(
