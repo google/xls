@@ -845,6 +845,36 @@ class NarrowVisitor final : public DfsVisitorWithDefault {
       narrowed_shift_amnt = shift_amnt;
     }
 
+    // Trailing Zero Narrowing:
+    // If shift_value has Z trailing known zeros, we can slice off the bottom Z
+    // bits, perform a narrower dynamic shift of width (W - Z), and concatenate
+    // Z zero bits onto the LSB.
+    int64_t trailing_zeros = CountTrailingKnownZeros(shift_value, shll);
+    if (trailing_zeros >= shll->BitCountOrDie()) {
+      XLS_RETURN_IF_ERROR(shll->ReplaceUsesWithNew<Literal>(
+                                  Value(UBits(0, shll->BitCountOrDie())))
+                              .status());
+      return Change();
+    }
+    if (trailing_zeros > 0) {
+      int64_t narrowed_width = shll->BitCountOrDie() - trailing_zeros;
+      XLS_ASSIGN_OR_RETURN(
+          Node * upper_slice,
+          ExtractMostSignificantBits(shift_value, narrowed_width));
+      XLS_ASSIGN_OR_RETURN(Node * narrowed_shll,
+                           shll->function_base()->MakeNodeWithName<BinOp>(
+                               shll->loc(), upper_slice, narrowed_shift_amnt,
+                               Op::kShll, NodeNameFormat("%s_narrowed", shll)));
+      XLS_ASSIGN_OR_RETURN(Node * zeros,
+                           shll->function_base()->MakeNodeWithName<Literal>(
+                               shll->loc(), Value(UBits(0, trailing_zeros)),
+                               NodeNameFormat("%s_trailing_zeros", shll)));
+      XLS_ASSIGN_OR_RETURN(Node * res,
+                           shll->ReplaceUsesWithNew<Concat>(
+                               absl::Span<Node* const>{narrowed_shll, zeros}));
+      return Change(shll, res);
+    }
+
     // If op is like (SSSSSSSABCD) << (X) where X+4 < value-width we can narrow
     // cutting off some of the high shift-value bits.
     // If sign bit isn't known we always want to keep it around to allow

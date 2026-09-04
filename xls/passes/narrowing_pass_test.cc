@@ -372,6 +372,23 @@ TEST_P(NarrowingPassTest, ShiftWithKnownZeroPrefix) {
               m::Shll(m::Param("in"), m::BitSlice(/*start=*/0, /*width=*/2)));
 }
 
+TEST_P(NarrowingPassTest, ShiftWithKnownTrailingZerosNarrowed) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue in = fb.Param("in", p->GetBitsType(16));
+  BValue amt = fb.Param("amt", p->GetBitsType(4));
+  // in_with_zeros has 8 trailing zeros and 16 + 8 = 24 bits.
+  BValue in_with_zeros = fb.Concat({in, fb.Literal(UBits(0, 8))});
+  fb.Shll(in_with_zeros, amt);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  ScopedVerifyEquivalence stays_equivalent{f};
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::Concat(m::Shll(m::Type("bits[16]"), m::Param("amt")),
+                        m::Literal(UBits(0, 8))));
+}
+
 TEST_P(NarrowingPassTest, ShraNarrowValueAndAmount) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
