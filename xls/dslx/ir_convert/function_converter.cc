@@ -4088,14 +4088,15 @@ absl::Status FunctionConverter::InitProcDefStateElements(
     VLOG(10) << "Init value for " << state_name << ": `"
              << member_value.ToString() << "`";
     XLS_ASSIGN_OR_RETURN(Value init, member_value.ConvertToIr());
-    IrValue state_element_value = proc_builder->ReadStateElement(
+    BStateElement state_element = proc_builder->StateElement(
         state_name, init, /*non_synthesizable=*/false,
         ToSourceInfo(state_member_node->GetSpan()));
+    XLS_RETURN_IF_ERROR(proc_builder->GetError());
     state_name_proto->set_name(state_name);
     XLS_ASSIGN_OR_RETURN(auto type, ResolveTypeToIr(state_member_node->type()));
     *state_name_proto->mutable_type() = type->ToProto();
-    SetNodeToIr(state_member_node, state_element_value);
-    SetNodeToIr(state_member_node->name_def(), state_element_value);
+    SetNodeToIr(state_member_node, state_element.state_element());
+    SetNodeToIr(state_member_node->name_def(), state_element.state_element());
   }
 
   return absl::OkStatus();

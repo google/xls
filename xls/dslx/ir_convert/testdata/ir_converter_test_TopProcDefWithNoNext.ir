@@ -9,6 +9,5 @@ top proc __test_module__Main_next<_c_in: bits[32] in, _c_out: bits[32] out>(__i:
   literal.2: bits[1] = literal(value=1, id=2)
   literal.3: bits[1] = literal(value=0, id=3)
   literal.4: bits[1] = literal(value=0, id=4)
-  __i: bits[32] = state_read(state_element=__i, id=5)
-  tuple.6: () = tuple(id=6)
+  tuple.5: () = tuple(id=5)
 }
