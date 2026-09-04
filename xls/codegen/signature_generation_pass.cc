@@ -14,18 +14,53 @@
 
 #include "xls/codegen/signature_generation_pass.h"
 
+#include "absl/base/casts.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "xls/codegen/codegen_pass.h"
 #include "xls/codegen/module_signature.h"
+#include "xls/codegen/module_signature.pb.h"
 #include "xls/codegen/signature_generator.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/ir/block.h"
+#include "xls/ir/instantiation.h"
 #include "xls/ir/package.h"
 #include "xls/passes/pass_base.h"
 
 namespace xls::verilog {
+namespace {
+
+// Returns `block`'s signature with `block_signature` embedded recursively.
+ModuleSignatureProto ResolveEmbeddedSignature(Block* block) {
+  ModuleSignatureProto proto = *block->GetSignature();
+  for (InstantiationProto& instantiation : *proto.mutable_instantiations()) {
+    if (!instantiation.has_block_instantiation()) {
+      continue;
+    }
+    BlockInstantiationProto* block_instantiation =
+        instantiation.mutable_block_instantiation();
+    for (const ::xls::Instantiation* child_instantiation :
+         block->GetInstantiations()) {
+      if (child_instantiation->kind() != ::xls::InstantiationKind::kBlock ||
+          child_instantiation->name() != block_instantiation->instance_name()) {
+        continue;
+      }
+      Block* child_block =
+          absl::down_cast<const BlockInstantiation*>(child_instantiation)
+              ->instantiated_block();
+      if (child_block->GetSignature().has_value()) {
+        *block_instantiation->mutable_block_signature() =
+            ResolveEmbeddedSignature(child_block);
+      }
+      break;
+    }
+  }
+  return proto;
+}
+
+}  // namespace
 
 absl::StatusOr<bool> SignatureGenerationPass::RunInternal(
     Package* package, const CodegenPassOptions& options, PassResults* results,
@@ -44,6 +79,10 @@ absl::StatusOr<bool> SignatureGenerationPass::RunInternal(
             metadata.streaming_io_and_pipeline.node_to_stage_map));
     block->SetSignature(signature.proto());
     changed = true;
+  }
+  // All blocks now have their own signature; embed children recursively.
+  for (auto& [block, metadata] : context.metadata()) {
+    block->SetSignature(ResolveEmbeddedSignature(block));
   }
   return changed;
 }
