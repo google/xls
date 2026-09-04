@@ -1105,3 +1105,78 @@ pytype_strict_contrib_test(
         "@abseil-py//absl/testing:absltest",
     ],
 )
+
+cc_library(
+    name = "annotate_types",
+    srcs = ["annotate_types.cc"],
+    hdrs = ["annotate_types.h"],
+    deps = [
+        "//xls/common/status:status_macros",
+        "//xls/dslx:create_import_data",
+        "//xls/dslx:default_dslx_stdlib_path",
+        "//xls/dslx:import_data",
+        "//xls/dslx:parse_and_typecheck",
+        "//xls/dslx:virtualizable_file_system",
+        "//xls/dslx:warning_kind",
+        "//xls/dslx/frontend:ast",
+        "//xls/dslx/frontend:pos",
+        "//xls/dslx/frontend:type_to_type_annotation",
+        "//xls/dslx/ir_convert:convert_options",
+        "//xls/dslx/type_system:type",
+        "//xls/dslx/type_system:type_info",
+        "@abseil-cpp//absl/base",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/strings:str_format",
+        "@abseil-cpp//absl/types:span",
+    ],
+)
+
+cc_test(
+    name = "annotate_types_test",
+    srcs = ["annotate_types_test.cc"],
+    deps = [
+        ":annotate_types",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "@abseil-cpp//absl/status:statusor",
+        "@googletest//:gtest",
+    ],
+)
+
+cc_binary(
+    name = "annotate_types_main",
+    srcs = ["annotate_types_main.cc"],
+    deps = [
+        ":annotate_types",
+        "//xls/common:exit_status",
+        "//xls/common:init_xls",
+        "//xls/common/file:filesystem",
+        "//xls/common/status:status_macros",
+        "//xls/dslx:extract_module_name",
+        "//xls/dslx:warning_kind",
+        "//xls/dslx/ir_convert:ir_converter_options_flags",
+        "//xls/dslx/ir_convert:ir_converter_options_flags_cc_proto",
+        "@abseil-cpp//absl/flags:flag",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/strings:str_format",
+        "@abseil-cpp//absl/types:span",
+    ],
+)
+
+pytype_strict_contrib_test(
+    name = "annotate_types_main_test",
+    srcs = ["annotate_types_main_test.py"],
+    data = [
+        ":annotate_types_main",
+    ],
+    deps = [
+        "//xls/common:runfiles",
+        "@abseil-py//absl/testing:absltest",
+    ],
+)
