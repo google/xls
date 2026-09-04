@@ -724,6 +724,17 @@ class FunctionConverter {
   // The current type of function being processed.
   FunctionTag current_fn_tag_ = FunctionTag::kNormal;
 
+  // Whether we've already reported that auto-coverpoints were requested but
+  // skipped because the current function has no implicit token. Reset at the
+  // start of each function conversion to warn at most once per function.
+  bool warned_skipped_auto_covers_ = false;
+
+  // Emits (at most once per function) a warning explaining that synthesized
+  // auto-coverpoints were requested but skipped because the current function is
+  // converted without an implicit token. `node` is the branch/arm expression
+  // whose cover was skipped, used only for diagnostics.
+  void WarnSkippedAutoCovers(const AstNode* node);
+
   // The last tuple converted. Used for mapping the return tuple of a proc
   // `config` method to actual proc members.
   std::vector<IrValue> last_tuple_;

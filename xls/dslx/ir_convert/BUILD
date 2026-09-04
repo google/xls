@@ -331,6 +331,32 @@ cc_test(
 )
 
 cc_test(
+    name = "coverpoint_insertion_fe_test",
+    srcs = ["coverpoint_insertion_fe_test.cc"],
+    deps = [
+        ":convert_options",
+        ":ir_converter_test_utils",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/dslx:parse_and_typecheck",
+        "//xls/interpreter:evaluator_options",
+        "//xls/interpreter:ir_interpreter",
+        "//xls/interpreter:observer",
+        "//xls/ir",
+        "//xls/ir:ir_parser",
+        "//xls/ir:source_location",
+        "//xls/ir:value",
+        "@abseil-cpp//absl/container:flat_hash_map",
+        "@abseil-cpp//absl/container:flat_hash_set",
+        "@abseil-cpp//absl/status:status_matchers",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings:str_format",
+        "@abseil-cpp//absl/types:span",
+        "@googletest//:gtest",
+    ],
+)
+
+cc_test(
     name = "ir_converter_explicit_state_access_test",
     srcs = ["ir_converter_explicit_state_access_test.cc"],
     data = glob(["testdata/*.ir"]),
@@ -686,6 +712,7 @@ cc_library(
         "@abseil-cpp//absl/flags:flag",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
     ],
 )
 
