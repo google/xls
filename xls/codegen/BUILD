@@ -114,6 +114,22 @@ cc_test(
 )
 
 cc_test(
+    name = "node_expressions_test",
+    srcs = ["node_expressions_test.cc"],
+    deps = [
+        ":node_expressions",
+        "//xls/codegen/vast",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/ir",
+        "//xls/ir:bits",
+        "//xls/ir:function_builder",
+        "//xls/simulation:verilog_test_base",
+        "@googletest//:gtest",
+    ],
+)
+
+cc_test(
     name = "trace_test",
     srcs = ["trace_test.cc"],
     data = glob([
