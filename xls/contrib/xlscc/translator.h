@@ -1114,9 +1114,11 @@ class Translator final : public GeneratorBase,
       absl::flat_hash_set<const xls::Param*>& output);
   absl::StatusOr<std::vector<NATIVE_BVAL>>
   ConvertBValuesToContinuationOutputsForCurrentSlice(
+      OpType after_op_type,
       absl::flat_hash_map<const ContinuationValue*,
                           std::vector<TrackedBValue*>>&
           bvalues_by_continuation_output,
+      std::vector<ContinuationValue*>& continuation_output_order,
       absl::flat_hash_map<const TrackedBValue*, ContinuationValue*>&
           continuation_outputs_by_bval,
       absl::flat_hash_map<const TrackedBValue*, std::string>&
@@ -1130,6 +1132,7 @@ class Translator final : public GeneratorBase,
       const absl::flat_hash_map<const ContinuationValue*,
                                 std::vector<TrackedBValue*>>&
           bvalues_by_continuation_output,
+      const std::vector<ContinuationValue*>& continuation_output_order,
       const absl::flat_hash_map<const TrackedBValue*, ContinuationValue*>&
           continuation_outputs_by_bval,
       const absl::flat_hash_map<const TrackedBValue*, std::string>&
