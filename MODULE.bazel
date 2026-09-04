@@ -4,7 +4,7 @@ module(
 )
 
 # Compiler toolchain
-bazel_dep(name = "llvm", version = "0.8.11", dev_dependency = True)
+bazel_dep(name = "llvm", version = "0.8.18", dev_dependency = True)
 
 register_toolchains("@llvm//toolchain:all")
 
