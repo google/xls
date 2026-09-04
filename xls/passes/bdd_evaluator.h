@@ -68,9 +68,19 @@ inline std::vector<BddNodeIndex> ToBddNodeVector(
   return result;
 }
 
+class SaturatingBddEvaluator;
+
+// BDD evaluator is built on ITE so we want to use ITE implementations of the
+// operations.
+struct BddAbstractEvaluatorOptions
+    : public AbstractEvaluatorOptions<SaturatingBddEvaluator> {
+  static constexpr bool kIsITEFundamental = true;
+};
+
 // The abstract evaluator based on a BDD with path-saturating logic.
 class SaturatingBddEvaluator
-    : public AbstractEvaluator<SaturatingBddNodeIndex, SaturatingBddEvaluator> {
+    : public AbstractEvaluator<SaturatingBddNodeIndex, SaturatingBddEvaluator,
+                               BddAbstractEvaluatorOptions> {
  public:
   SaturatingBddEvaluator(int64_t path_limit, BinaryDecisionDiagram* bdd)
       : path_limit_(path_limit), bdd_(bdd) {}
