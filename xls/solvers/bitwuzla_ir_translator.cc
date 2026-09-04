@@ -256,12 +256,26 @@ Term IrTranslator::TranslateLiteralBits(const Bits& bits) {
   if (bc == 0) {
     return tm_.mk_bv_value_uint64(tm_.mk_bv_sort(1), 0);
   }
-  std::string str;
-  str.reserve(bc);
-  for (int64_t i = bc - 1; i >= 0; --i) {
-    str.push_back(bits.Get(i) ? '1' : '0');
+  if (bits.IsZero()) {
+    return tm_.mk_bv_zero(tm_.mk_bv_sort(bc));
   }
-  return tm_.mk_bv_value(tm_.mk_bv_sort(bc), str, 2);
+  if (bits.IsAllOnes()) {
+    return tm_.mk_bv_ones(tm_.mk_bv_sort(bc));
+  }
+  if (bits.FitsInUint64()) {
+    return tm_.mk_bv_value_uint64(tm_.mk_bv_sort(bc), bits.ToUint64().value());
+  }
+  int64_t num_words = bits.bitmap().word_count();
+  std::vector<Term> words;
+  words.reserve(num_words);
+  int64_t top_width = bc - (num_words - 1) * 64;
+  words.push_back(tm_.mk_bv_value_uint64(tm_.mk_bv_sort(top_width),
+                                         bits.bitmap().GetWord(num_words - 1)));
+  for (int64_t i = num_words - 2; i >= 0; --i) {
+    words.push_back(
+        tm_.mk_bv_value_uint64(tm_.mk_bv_sort(64), bits.bitmap().GetWord(i)));
+  }
+  return ConcatN(words);
 }
 
 absl::StatusOr<Term> IrTranslator::TranslateLiteralValue(const Type* type,
