@@ -15,20 +15,27 @@
 #include "xls/common/subprocess.h"
 
 #include <fcntl.h>
-#include <linux/memfd.h>
 #include <signal.h>  // NOLINT
 #include <spawn.h>
 #include <stdlib.h>  // NOLINT for WIFEXITED, WEXITSTATUS; not in <cstdlib>
-#include <sys/mman.h>
 #include <sys/poll.h>
+#include <sys/stat.h>
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <unistd.h>
 
+#if defined(__linux__)
+#include <linux/memfd.h>
+#include <sys/mman.h>
+#endif
+
 #include <atomic>
 #include <cerrno>
+#include <cstdint>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
+#include <memory>
 #include <ctime>
 #include <filesystem>
 #include <optional>
@@ -129,49 +136,121 @@ absl::StatusOr<posix_spawn_file_actions_t> CreateChildFileActions(
   return actions;
 }
 
+// Owns whatever storage the embedded subprocess_helper was written to and
+// names a path that can be exec'd. Cleanup happens in the destructor, so the
+// static instance in ExecInChildProcess releases the storage at exit.
 class CleanableFd {
  public:
   explicit CleanableFd(int fd) : fd_(fd) {}
   CleanableFd(const CleanableFd&) = delete;
   CleanableFd& operator=(const CleanableFd&) = delete;
-  CleanableFd(CleanableFd&& o) : fd_(o.fd_) { o.fd_ = -1; }
-  CleanableFd& operator=(CleanableFd&& o) {
-    if (this != &o) {
-      fd_ = o.fd_;
-      o.fd_ = -1;
-    }
-    return *this;
-  }
-  ~CleanableFd() {
+  virtual ~CleanableFd() {
     if (fd_ != -1) {
       close(fd_);
     }
   }
+
+  // Path to hand to posix_spawn to execute the helper.
+  virtual std::string file_name() const = 0;
+
   operator int() const { return fd_; }
+
+ protected:
+  int fd() const { return fd_; }
 
  private:
   int fd_ = -1;
 };
 
-absl::StatusOr<CleanableFd> GetSubprocessHelperFd() {
-  int raw_fd = memfd_create("subprocess_helper", MFD_CLOEXEC);
-  CleanableFd fd(raw_fd);
-  if (fd == -1) {
+absl::Status WriteSubprocessHelperTo(int fd) {
+  absl::Span<uint8_t const> helper = get_subprocess_helper_embedded();
+  if (write(fd, helper.data(), helper.size()) !=
+      static_cast<ssize_t>(helper.size())) {
+    return absl::InternalError(absl::StrCat(
+        "Failed to write subprocess helper: ", Strerror(errno)));
+  }
+  return absl::OkStatus();
+}
+
+#if defined(__linux__)
+
+// Holds the helper in an anonymous in-memory file, so that nothing on disk has
+// to outlive the build that produced it. The descriptor stays open for the
+// lifetime of this object because every spawn resolves the helper through it.
+class MemfdSubprocessHelper : public CleanableFd {
+ public:
+  explicit MemfdSubprocessHelper(int fd) : CleanableFd(fd) {}
+
+  std::string file_name() const override {
+    return absl::StrCat("/proc/self/fd/", fd());
+  }
+};
+
+absl::StatusOr<std::unique_ptr<CleanableFd>> CreateSubprocessHelper() {
+  auto helper = std::make_unique<MemfdSubprocessHelper>(
+      memfd_create("subprocess_helper", MFD_CLOEXEC));
+  if (*helper == -1) {
     return absl::InternalError(absl::StrCat(
         "Failed to create memfd for subprocess helper: ", Strerror(errno)));
   }
-  if (write(fd, get_subprocess_helper_embedded().data(),
-            get_subprocess_helper_embedded().size()) !=
-      get_subprocess_helper_embedded().size()) {
-    return absl::InternalError(absl::StrCat(
-        "Failed to write subprocess helper to memfd: ", Strerror(errno)));
-  }
-  if (lseek(fd, 0, SEEK_SET) != 0) {
+  XLS_RETURN_IF_ERROR(WriteSubprocessHelperTo(*helper));
+  if (lseek(*helper, 0, SEEK_SET) != 0) {
     return absl::InternalError(absl::StrCat(
         "Failed to seek subprocess helper in memfd: ", Strerror(errno)));
   }
-  return std::move(fd);
+  return helper;
 }
+
+#else
+
+// Fallback for platforms without memfd_create() and /proc (macOS in
+// particular), where the helper has to be exec'able from a real path. The
+// descriptor is closed as soon as the file is written, since macOS refuses to
+// exec a file that is still open for writing (ETXTBSY), so this owns only the
+// path and removes it on destruction.
+class TempFileSubprocessHelper : public CleanableFd {
+ public:
+  explicit TempFileSubprocessHelper(std::string path)
+      : CleanableFd(-1), path_(std::move(path)) {}
+  ~TempFileSubprocessHelper() override { unlink(path_.c_str()); }
+
+  std::string file_name() const override { return path_; }
+
+ private:
+  std::string path_;
+};
+
+absl::StatusOr<std::unique_ptr<CleanableFd>> CreateSubprocessHelper() {
+  const char* tmpdir = getenv("TMPDIR");
+  std::string path_template =
+      absl::StrCat(tmpdir == nullptr || *tmpdir == '\0' ? "/tmp" : tmpdir,
+                   "/xls_subprocess_helper.XXXXXX");
+  std::vector<char> path(path_template.begin(), path_template.end());
+  path.push_back('\0');
+
+  int fd = mkstemp(path.data());
+  if (fd == -1) {
+    return absl::InternalError(
+        absl::StrCat("Failed to create temporary file for subprocess helper: ",
+                     Strerror(errno)));
+  }
+  auto helper = std::make_unique<TempFileSubprocessHelper>(path.data());
+
+  absl::Status written = WriteSubprocessHelperTo(fd);
+  if (!written.ok()) {
+    close(fd);
+    return written;
+  }
+  if (fchmod(fd, 0700) != 0) {
+    close(fd);
+    return absl::InternalError(absl::StrCat(
+        "Failed to make subprocess helper executable: ", Strerror(errno)));
+  }
+  close(fd);
+  return helper;
+}
+
+#endif
 
 absl::StatusOr<pid_t> ExecInChildProcess(
     const std::vector<const char*>& argv_pointers,
@@ -191,13 +270,12 @@ absl::StatusOr<pid_t> ExecInChildProcess(
   // actually wanted to run.
 
   // To avoid having dependencies on the bazel build artifacts continuing to
-  // exist we run subprocess_helper out of a memfd.
-  static const absl::StatusOr<CleanableFd> subprocess_helper_fd =
-      GetSubprocessHelperFd();
-  XLS_RETURN_IF_ERROR(subprocess_helper_fd.status());
-  int fd = *subprocess_helper_fd;
+  // exist we run subprocess_helper out of storage we materialize ourselves.
+  static const absl::StatusOr<std::unique_ptr<CleanableFd>> helper =
+      CreateSubprocessHelper();
+  XLS_RETURN_IF_ERROR(helper.status());
 
-  std::string subprocess_helper = absl::StrCat("/proc/self/fd/", fd);
+  std::string subprocess_helper = (*helper)->file_name();
   std::vector<const char*> helper_argv_pointers;
   helper_argv_pointers.reserve(argv_pointers.size() + 2);
   helper_argv_pointers.push_back(subprocess_helper.c_str());
