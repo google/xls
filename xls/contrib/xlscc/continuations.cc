@@ -641,7 +641,7 @@ Translator::ConvertBValuesToContinuationOutputsForCurrentSlice(
         // Ensure the name is unique, even if it's a decl name
         std::string name_found_base = name_found;
         for (int64_t id = 1; names_inserted.contains(name_found); ++id) {
-          name_found = absl::StrFormat("%s_%li", name_found_base, id);
+          name_found = absl::StrCat(name_found_base, "_", id);
         }
         names_inserted.insert(name_found);
       }
