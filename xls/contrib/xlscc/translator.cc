@@ -3330,7 +3330,11 @@ absl::StatusOr<std::pair<bool, CValue>> Translator::GenerateIR_BuiltInCall(
                                                   /*width=*/64, loc);
     return std::make_pair(true, CValue(sliced, return_type));
   }
-
+  if (funcdecl->getNameAsString() == "__builtin_memcpy") {
+    XLS_ASSIGN_OR_RETURN(CValue memcpy_cval,
+                         GenerateIR_BuiltInMemcpy(call, loc));
+    return std::make_pair(true, memcpy_cval);
+  }
   // Side-effecting handled below
   std::string message_string;
 
@@ -3410,6 +3414,66 @@ absl::StatusOr<std::pair<bool, CValue>> Translator::GenerateIR_BuiltInCall(
   XLS_RETURN_IF_ERROR(
       AddOpToChannel(op, /*channel_param=*/nullptr, loc).status());
   return std::make_pair(true, CValue());
+}
+
+absl::StatusOr<CValue> Translator::GenerateIR_BuiltInMemcpy(
+    const clang::CallExpr* call, const xls::SourceInfo& loc) {
+  if (call->getNumArgs() != 3) {
+    return absl::InvalidArgumentError(
+        ErrorMessage(loc, "__builtin_memcpy expects 3 arguments"));
+  }
+  const clang::Expr* dst_expr = call->getArg(0);
+  const clang::Expr* src_expr = call->getArg(1);
+  const clang::Expr* size_expr = call->getArg(2);
+
+  if (auto implicit_cast = clang::dyn_cast<clang::ImplicitCastExpr>(dst_expr)) {
+    XLSCC_CHECK(implicit_cast->getType()->isPointerType(), loc);
+    dst_expr = implicit_cast->getSubExpr();
+  }
+  if (auto unary_op = clang::dyn_cast<clang::UnaryOperator>(dst_expr)) {
+    XLSCC_CHECK(
+        unary_op->getOpcode() == clang::UnaryOperator::Opcode::UO_AddrOf, loc);
+    dst_expr = unary_op->getSubExpr();
+  }
+  if (auto implicit_cast = clang::dyn_cast<clang::ImplicitCastExpr>(src_expr)) {
+    XLSCC_CHECK(implicit_cast->getType()->isPointerType(), loc);
+    src_expr = implicit_cast->getSubExpr();
+  }
+  if (auto unary_op = clang::dyn_cast<clang::UnaryOperator>(src_expr)) {
+    XLSCC_CHECK(
+        unary_op->getOpcode() == clang::UnaryOperator::Opcode::UO_AddrOf, loc);
+    src_expr = unary_op->getSubExpr();
+  }
+  XLS_ASSIGN_OR_RETURN(std::shared_ptr<CType> dst_type,
+                       TranslateTypeFromClang(dst_expr->getType(), loc));
+  XLS_ASSIGN_OR_RETURN(xls::Type * dst_xls_type,
+                       TranslateTypeToXLS(dst_type, loc));
+  XLS_ASSIGN_OR_RETURN(std::shared_ptr<CType> src_type,
+                       TranslateTypeFromClang(src_expr->getType(), loc));
+  XLS_ASSIGN_OR_RETURN(xls::Type * src_xls_type,
+                       TranslateTypeToXLS(src_type, loc));
+
+  XLS_ASSIGN_OR_RETURN(int64_t size,
+                       EvaluateInt64(*size_expr, *context().ast_context, loc));
+  if (!dst_xls_type->IsEqualTo(src_xls_type)) {
+    return absl::UnimplementedError(
+        ErrorMessage(loc,
+                     "__builtin_memcpy with incompatible src/dst types is "
+                     "unimplemented: %s vs %s",
+                     dst_type->debug_string(), src_type->debug_string()));
+  }
+  if (dst_xls_type->GetFlatBitCount() != size * 8) {
+    return absl::UnimplementedError(
+        ErrorMessage(loc,
+                     "__builtin_memcpy with size different from XLS type is "
+                     "unimplemented: XLS %li vs argument %li (bits)",
+                     dst_xls_type->GetFlatBitCount(), size * 8));
+  }
+
+  XLS_ASSIGN_OR_RETURN(CValue src_cval, GenerateIR_Expr(src_expr, loc));
+  XLS_RETURN_IF_ERROR(Assign(dst_expr, src_cval, loc));
+
+  return CValue();
 }
 
 absl::Status Translator::InsertActivationBarrier(

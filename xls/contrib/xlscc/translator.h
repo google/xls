@@ -785,6 +785,8 @@ class Translator final : public GeneratorBase,
   // Returns true if built-in call generated
   absl::StatusOr<std::pair<bool, CValue>> GenerateIR_BuiltInCall(
       const clang::CallExpr* call, const xls::SourceInfo& loc);
+  absl::StatusOr<CValue> GenerateIR_BuiltInMemcpy(const clang::CallExpr* call,
+                                                  const xls::SourceInfo& loc);
   absl::Status InsertActivationBarrier(
       ActivationBarrierType type, const xls::SourceInfo& loc,
       std::optional<IOOp*> start_op = std::nullopt);

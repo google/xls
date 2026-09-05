@@ -4088,9 +4088,7 @@ TEST_F(TranslatorLogicTest, DefaultArrayInit) {
       return 1+y.a[1].v;
     })";
 
-  ASSERT_THAT(SourceToIr(content).status(),
-              absl_testing::StatusIs(absl::StatusCode::kNotFound,
-                                     testing::HasSubstr("__builtin_memcpy")));
+  Run({{"a", 10}}, 11, content);
 }
 
 TEST_F(TranslatorLogicTest, ZeroIterationForLoop) {
