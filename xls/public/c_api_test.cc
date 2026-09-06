@@ -2257,6 +2257,77 @@ fn main(x: u32) -> u32 {
   EXPECT_EQ(cloned_tm, nullptr);
 }
 
+// Pruning through the C API re-typechecks a cloned module. This previously
+// threw std::bad_optional_access for imported parametric structs because the
+// clone had lost the module span needed to instantiate their parametrics.
+TEST(XlsCApiTest, DslxCloneRetypesImportedParametricStruct) {
+  constexpr char kImported[] = R"(
+pub struct Pair<A: u32, B: u32> {
+  first: uN[A],
+  second: uN[B],
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(xls::TempDirectory tempdir,
+                           xls::TempDirectory::Create());
+  XLS_ASSERT_OK(
+      xls::SetFileContents(tempdir.path() / "imported.x", kImported));
+
+  constexpr char kProgram[] = R"(
+import imported;
+
+pub fn unused(x: u4) -> u4 { x }
+
+pub fn identity(x: imported::Pair<u32:2, u32:1>)
+    -> imported::Pair<u32:2, u32:1> { x }
+)";
+  const char* search_paths[] = {tempdir.path().c_str()};
+  xls_dslx_import_data* import_data = xls_dslx_import_data_create(
+      std::string{xls::kDefaultDslxStdlibPath}.c_str(), search_paths,
+      std::size(search_paths));
+  ASSERT_NE(import_data, nullptr);
+  absl::Cleanup free_import_data(
+      [=] { xls_dslx_import_data_free(import_data); });
+
+  char* error = nullptr;
+  absl::Cleanup free_error([&] { xls_c_str_free(error); });
+  xls_dslx_typechecked_module* tm = nullptr;
+  absl::Cleanup free_tm([&] { xls_dslx_typechecked_module_free(tm); });
+  ASSERT_TRUE(xls_dslx_parse_and_typecheck(kProgram, "main.x", "main",
+                                           import_data, &error, &tm))
+      << (error == nullptr ? "" : error);
+  ASSERT_EQ(error, nullptr);
+  ASSERT_NE(tm, nullptr);
+
+  xls_dslx_module* module = xls_dslx_typechecked_module_get_module(tm);
+  ASSERT_EQ(xls_dslx_module_get_member_count(module), 3);
+  xls_dslx_module_member* unused = xls_dslx_module_get_member(module, 1);
+  xls_dslx_function* unused_fn = xls_dslx_module_member_get_function(unused);
+  ASSERT_NE(unused_fn, nullptr);
+  char* unused_name = xls_dslx_function_get_identifier(unused_fn);
+  absl::Cleanup free_unused_name([&] { xls_c_str_free(unused_name); });
+  ASSERT_EQ(std::string_view{unused_name}, "unused");
+
+  xls_dslx_module_member* removed[] = {unused};
+  xls_dslx_typechecked_module* pruned = nullptr;
+  absl::Cleanup free_pruned([&] { xls_dslx_typechecked_module_free(pruned); });
+  ASSERT_TRUE(xls_dslx_typechecked_module_clone_removing_members(
+      tm, removed, std::size(removed), "main_pruned", import_data, &error,
+      &pruned))
+      << (error == nullptr ? "" : error);
+  ASSERT_EQ(error, nullptr);
+  ASSERT_NE(pruned, nullptr);
+
+  xls_dslx_module* pruned_module = xls_dslx_typechecked_module_get_module(pruned);
+  ASSERT_EQ(xls_dslx_module_get_member_count(pruned_module), 2);
+  xls_dslx_module_member* identity =
+      xls_dslx_module_get_member(pruned_module, 1);
+  xls_dslx_function* identity_fn = xls_dslx_module_member_get_function(identity);
+  ASSERT_NE(identity_fn, nullptr);
+  char* identity_name = xls_dslx_function_get_identifier(identity_fn);
+  absl::Cleanup free_identity_name([&] { xls_c_str_free(identity_name); });
+  EXPECT_EQ(std::string_view{identity_name}, "identity");
+}
+
 TEST(XlsCApiTest, ValueGetElementCount) {
   const std::initializer_list<
       std::pair<const char*, std::variant<int64_t, std::string_view>>>

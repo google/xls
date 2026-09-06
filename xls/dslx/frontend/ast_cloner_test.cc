@@ -3008,6 +3008,44 @@ TEST(AstClonerTest, CloneModuleRemovingMembersPreservesExternalNodes) {
             ext_struct);
 }
 
+TEST(AstClonerTest, RetypePrunedModuleWithImportedParametricStruct) {
+  constexpr std::string_view kImported = R"(
+pub struct Pair<A: u32, B: u32> {
+  first: uN[A],
+  second: uN[B],
+}
+)";
+  constexpr std::string_view kProgram = R"(
+import imported;
+
+pub fn unused(x: u4) -> u4 { x }
+
+pub fn identity(x: imported::Pair<u32:2, u32:1>)
+    -> imported::Pair<u32:2, u32:1> { x }
+)";
+
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK(ParseAndTypecheck(kImported, "imported.x", "imported",
+                                  &import_data));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(kProgram, "main.x", "main", &import_data));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * unused,
+                           tm.module->GetMemberOrError<Function>("unused"));
+  const std::array<const AstNode*, 1> removed = {unused};
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> pruned,
+                           CloneModuleRemovingMembers(*tm.module, removed));
+  ASSERT_TRUE(pruned->GetSpan().has_value());
+  EXPECT_EQ(pruned->GetSpan(), tm.module->GetSpan());
+  pruned->SetName("main.prune");
+
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckedModule retyped,
+                           TypecheckModule(std::move(pruned), "main.x",
+                                           &import_data));
+  EXPECT_TRUE(retyped.module->GetFunction("identity").has_value());
+  EXPECT_FALSE(retyped.module->GetFunction("unused").has_value());
+}
+
 TEST(AstClonerTest, DerivedTrait) {
   constexpr std::string_view kProgram = R"(
 #[derive(ToBits)]
