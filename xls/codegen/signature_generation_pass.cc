@@ -80,9 +80,10 @@ absl::StatusOr<bool> SignatureGenerationPass::RunInternal(
     block->SetSignature(signature.proto());
     changed = true;
   }
-  // All blocks now have their own signature; embed children recursively.
-  for (auto& [block, metadata] : context.metadata()) {
-    block->SetSignature(ResolveEmbeddedSignature(block));
+  if (options.codegen_options.embed_child_block_signatures()) {
+    for (auto& [block, metadata] : context.metadata()) {
+      block->SetSignature(ResolveEmbeddedSignature(block));
+    }
   }
   return changed;
 }

@@ -23,13 +23,16 @@ backpressure and pinpoint pipeline bottlenecks.
 Call `busperf_yaml` in a `BUILD` file, pointing `signature` at the
 `.sig.textproto` output of the `xls_dslx_verilog` target for the design you
 want to analyze, to generate its busperf YAML bus description as a build
-artifact:
+artifact. Since `busperf_yaml_generator` finds channels by recursing into
+each instantiation's embedded child signature, that target must be codegen'd
+with `codegen_args = {"embed_child_block_signatures": "true"}`:
 
 ```python
 xls_dslx_verilog(
     name = "foo_verilog",
     dslx_top = "Foo",
     library = ":foo_dslx",
+    codegen_args = {"embed_child_block_signatures": "true"},
     ...
 )
 

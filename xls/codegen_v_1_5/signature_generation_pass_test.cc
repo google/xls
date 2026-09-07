@@ -698,7 +698,8 @@ top block my_block() {
                              .streaming_channel_data_suffix("_data")
                              .streaming_channel_valid_suffix("_valid")
                              .streaming_channel_ready_suffix("_ready")
-                             .module_name("pipelined_proc"),
+                             .module_name("pipelined_proc")
+                             .embed_child_block_signatures(true),
   };
   ASSERT_THAT(Run(p.get(), options), IsOkAndHolds(true));
   ASSERT_NE(my_block->GetSignature(), std::nullopt);
@@ -835,6 +836,40 @@ top block my_block() {
                                    )pb")));
 }
 
+TEST_F(SignatureGenerationPassTest, NoEmbeddedSignatureByDefault) {
+  constexpr std::string_view ir_text = R"(package test
+
+block child(in: bits[32], out: bits[32]) {
+  in: bits[32] = input_port(name=in)
+  out: () = output_port(in, name=out)
+}
+
+top block parent(in: bits[32], out: bits[32]) {
+  instantiation child_inst(block=child, kind=block)
+  in: bits[32] = input_port(name=in)
+  child_in: () = instantiation_input(in, instantiation=child_inst, port_name=in)
+  child_out: bits[32] = instantiation_output(instantiation=child_inst, port_name=out)
+  out: () = output_port(child_out, name=out)
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> p,
+                           Parser::ParsePackage(ir_text));
+  XLS_ASSERT_OK_AND_ASSIGN(Block * parent, p->GetBlock("parent"));
+
+  // embed_child_block_signatures left at its default (false).
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      verilog::ModuleSignature sig,
+      verilog::ModuleSignature::FromProto(*parent->GetSignature()));
+
+  EXPECT_THAT(sig.instantiations(), ElementsAre(EqualsProto(R"pb(
+                block_instantiation {
+                  instance_name: "child_inst"
+                  block_name: "child"
+                }
+              )pb")));
+}
+
 TEST_F(SignatureGenerationPassTest,
        InstantiatedSubblockWithPassThroughChannel) {
   constexpr std::string_view ir_text = R"(package test
@@ -893,7 +928,8 @@ top block my_block(in: bits[32], in_valid: bits[1], in_ready: bits[1],
                              .streaming_channel_data_suffix("_data")
                              .streaming_channel_valid_suffix("_valid")
                              .streaming_channel_ready_suffix("_ready")
-                             .module_name("pipelined_proc"),
+                             .module_name("pipelined_proc")
+                             .embed_child_block_signatures(true),
   };
   ASSERT_THAT(Run(p.get(), options), IsOkAndHolds(true));
   ASSERT_NE(my_block->GetSignature(), std::nullopt);

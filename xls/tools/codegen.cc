@@ -391,6 +391,7 @@ absl::StatusOr<verilog::CodegenOptions> CodegenOptionsFromProto(
   options.ram_configurations(ram_configurations);
 
   options.gate_recvs(p.gate_recvs());
+  options.embed_child_block_signatures(p.embed_child_block_signatures());
   options.set_fifo_module(p.fifo_module());
   options.set_nodata_fifo_module(p.nodata_fifo_module());
   options.array_index_bounds_checking(p.array_index_bounds_checking());
