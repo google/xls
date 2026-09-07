@@ -409,8 +409,8 @@ ProcHierarchyInterpreter::Create(ImportData* import_data, TypeInfo* type_info,
   for (const ProcInitializerWithTypeInfo& variant : variants) {
     XLS_RETURN_IF_ERROR(hierarchy_interpreter->AddProcDefInstance(
         /*spawner_id=*/std::nullopt, top_proc, variant.initializer,
-        variant.initializer, variant.next_type_info, variant.constructor_env,
-        import_data, options));
+        variant.initializer, variant.constructor_type_info,
+        variant.next_type_info, variant.constructor_env, import_data, options));
   }
   return hierarchy_interpreter;
 }
@@ -418,8 +418,8 @@ ProcHierarchyInterpreter::Create(ImportData* import_data, TypeInfo* type_info,
 absl::Status ProcHierarchyInterpreter::AddProcDefInstance(
     std::optional<ProcId> spawner_id, const ProcDef* proc,
     const InterpValue& runtime_initializer,
-    const InterpValue& canonical_initializer, TypeInfo* ti,
-    const ParametricEnv& env, ImportData* import_data,
+    const InterpValue& canonical_initializer, TypeInfo* constructor_ti,
+    TypeInfo* next_ti, const ParametricEnv& env, ImportData* import_data,
     const BytecodeInterpreterOptions& options) {
   VLOG(5) << "Adding proc instance for: " << proc->identifier()
           << " with runtime initializer: " << runtime_initializer.ToString()
@@ -434,7 +434,7 @@ absl::Status ProcHierarchyInterpreter::AddProcDefInstance(
   XLS_ASSIGN_OR_RETURN(
       std::unique_ptr<BytecodeFunction> next_bf,
       BytecodeEmitter::EmitProcNext(
-          import_data, ti, **next_fn, env,
+          import_data, next_ti, **next_fn, env,
           /*legacy_proc_members=*/{},
           BytecodeEmitterOptions{.format_preference =
                                      options.format_preference()}));
@@ -449,7 +449,8 @@ absl::Status ProcHierarchyInterpreter::AddProcDefInstance(
 
   for (int i = 0; i < proc->members().size(); i++) {
     const StructMemberNode* member = proc->members()[i];
-    XLS_ASSIGN_OR_RETURN(const Type* member_type, ti->GetItemOrError(member));
+    XLS_ASSIGN_OR_RETURN(const Type* member_type,
+                         next_ti->GetItemOrError(member));
     VLOG(5) << "Initializing member " << member->name() << " of proc "
             << proc->identifier();
     if (member_type->GetDirectOrElementChannelType().has_value()) {
@@ -468,12 +469,12 @@ absl::Status ProcHierarchyInterpreter::AddProcDefInstance(
 
   AddProcInstance(ProcInstance(proc, std::move(next_interpreter),
                                std::move(next_bf), member_values, self_object,
-                               ti, std::move(events),
+                               next_ti, std::move(events),
                                /*explicit_state_access=*/true));
 
   // Recursively add the procs that are spawned by this one.
   XLS_ASSIGN_OR_RETURN(std::vector<InterpValue> spawns,
-                       ti->GetProcDefSpawnsFrom(proc));
+                       constructor_ti->GetProcDefSpawnsFrom(proc));
   if (spawns.empty()) {
     return absl::OkStatus();
   }
@@ -503,13 +504,14 @@ absl::Status ProcHierarchyInterpreter::AddProcDefInstance(
   for (const InterpValue& external_initializer : spawns) {
     XLS_ASSIGN_OR_RETURN(
         ProcInitializerWithTypeInfo spawnee_canonical_initializer,
-        ti->GetCanonicalProcInitializer(external_initializer));
+        constructor_ti->GetCanonicalProcInitializer(external_initializer));
     InterpValue spawnee_runtime_initializer = ResolveProcInitializerChannels(
         external_initializer, canonical_id_to_runtime_channel);
     XLS_RETURN_IF_ERROR(AddProcDefInstance(
         proc_id,
         spawnee_runtime_initializer.GetProcInitializerOrDie().proc_def(),
         spawnee_runtime_initializer, spawnee_canonical_initializer.initializer,
+        spawnee_canonical_initializer.constructor_type_info,
         spawnee_canonical_initializer.next_type_info,
         spawnee_canonical_initializer.constructor_env, import_data, options));
   }

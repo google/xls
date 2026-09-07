@@ -391,28 +391,29 @@ class ConversionRecordVisitor : public AstNodeRecursiveVisitor {
       return absl::OkStatus();
     }
 
-    XLS_ASSIGN_OR_RETURN(std::vector<InterpValue> spawns,
-                         proc_owner_ti->GetProcDefSpawnsFrom(p));
-    for (const InterpValue& external_initializer : spawns) {
-      const ProcDef* spawnee =
-          external_initializer.GetProcInitializerOrDie().proc_def();
-
-      // Get additional conversion records from the spawned proc and add to our
-      // list of records.
-      XLS_ASSIGN_OR_RETURN(
-          ProcInitializerWithTypeInfo canonical_initializer,
-          proc_owner_ti->GetCanonicalProcInitializer(external_initializer));
-      ConversionRecordVisitor visitor(
-          spawnee->owner(), canonical_initializer.next_type_info,
-          include_tests_, proc_id_factory_, top_, resolved_proc_alias_,
-          records_, processed_invocations_);
-      XLS_RETURN_IF_ERROR(spawnee->Accept(&visitor));
-    }
-
     for (const ProcInitializerWithTypeInfo& canonical_initializer :
          canonical_initializers) {
       // TODO: https://github.com/google/xls/issues/4125 - Exclude test-only
       // procs, and those only used in test-only contexts, if desired.
+
+      XLS_ASSIGN_OR_RETURN(
+          std::vector<InterpValue> spawns,
+          canonical_initializer.constructor_type_info->GetProcDefSpawnsFrom(p));
+      for (const InterpValue& external_initializer : spawns) {
+        const ProcDef* spawnee =
+            external_initializer.GetProcInitializerOrDie().proc_def();
+
+        // Get additional conversion records from the spawned proc and add to
+        // our list of records.
+        XLS_ASSIGN_OR_RETURN(
+            ProcInitializerWithTypeInfo spawnee_canonical_initializer,
+            proc_owner_ti->GetCanonicalProcInitializer(external_initializer));
+        ConversionRecordVisitor visitor(
+            spawnee->owner(), spawnee_canonical_initializer.next_type_info,
+            include_tests_, proc_id_factory_, top_, resolved_proc_alias_,
+            records_, processed_invocations_);
+        XLS_RETURN_IF_ERROR(spawnee->Accept(&visitor));
+      }
 
       VLOG(5)
           << "Making conversion record for canonical initializer of ProcDef: "

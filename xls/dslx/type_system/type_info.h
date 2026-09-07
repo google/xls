@@ -614,7 +614,8 @@ class TypeInfo {
   absl::btree_map<InterpValue, InterpValue>
       external_to_canonical_proc_initializer_;
 
-  // External proc initializers, mapped by caller proc.
+  // External proc initializers, mapped by caller proc, stored on the
+  // constructor TypeInfo where the spawn occurred.
   absl::flat_hash_map<const ProcDef*, std::vector<InterpValue>>
       proc_def_spawns_by_caller_proc_;
 

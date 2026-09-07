@@ -1393,16 +1393,22 @@ bool InterpValue::operator<(const InterpValue& rhs) const {
       return inst.parametrics().size() < rhs_inst.parametrics().size();
     }
     for (int i = 0; i < inst.parametrics().size(); i++) {
-      if (!inst.parametrics()[i].Eq(rhs_inst.parametrics()[i])) {
-        return inst.parametrics()[i] < rhs_inst.parametrics()[i];
+      if (inst.parametrics()[i] < rhs_inst.parametrics()[i]) {
+        return true;
+      }
+      if (rhs_inst.parametrics()[i] < inst.parametrics()[i]) {
+        return false;
       }
     }
     if (inst.members().size() != rhs_inst.members().size()) {
       return inst.members().size() < rhs_inst.members().size();
     }
     for (int i = 0; i < inst.members().size(); i++) {
-      if (!inst.members()[i].Eq(rhs_inst.members()[i])) {
-        return inst.members()[i] < rhs_inst.members()[i];
+      if (inst.members()[i] < rhs_inst.members()[i]) {
+        return true;
+      }
+      if (rhs_inst.members()[i] < inst.members()[i]) {
+        return false;
       }
     }
 
@@ -1416,8 +1422,11 @@ bool InterpValue::operator<(const InterpValue& rhs) const {
       if (inst_param != rhs_param) {
         return inst_param->identifier() < rhs_param->identifier();
       }
-      if (inst_value != rhs_value) {
-        return inst_value < rhs_value;
+      if (inst_value < rhs_value) {
+        return true;
+      }
+      if (rhs_value < inst_value) {
+        return false;
       }
     }
 
