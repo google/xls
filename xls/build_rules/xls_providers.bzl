@@ -153,6 +153,8 @@ CODEGEN_FIELDS = {
     "preserve_ports": "If true, use a consistent naming scheme for boundary ports. If false, may " +
                       "vary port names and/or reuse ports at the boundary, and users are " +
                       "expected to use the block signature to find ports.",
+    "embed_child_block_signatures": "If true, recursively embed each instantiated child block's " +
+                                    "signature into the parent block's signature.",
 }
 
 SCHEDULING_FIELDS = {

@@ -301,9 +301,10 @@ absl::StatusOr<bool> SignatureGenerationPass::RunInternal(
     block->SetSignature(signature.proto());
     changed = true;
   }
-  // All blocks now have their own signature; embed children recursively.
-  for (const std::unique_ptr<Block>& block : package->blocks()) {
-    block->SetSignature(ResolveEmbeddedSignature(block.get()));
+  if (options.codegen_options.embed_child_block_signatures()) {
+    for (const std::unique_ptr<Block>& block : package->blocks()) {
+      block->SetSignature(ResolveEmbeddedSignature(block.get()));
+    }
   }
   return changed;
 }

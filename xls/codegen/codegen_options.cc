@@ -205,6 +205,11 @@ CodegenOptions& CodegenOptions::gate_recvs(bool value) {
   return *this;
 }
 
+CodegenOptions& CodegenOptions::embed_child_block_signatures(bool value) {
+  embed_child_block_signatures_ = value;
+  return *this;
+}
+
 CodegenOptions& CodegenOptions::ram_configurations(
     absl::Span<const RamConfiguration> ram_configurations) {
   ram_configurations_.clear();
