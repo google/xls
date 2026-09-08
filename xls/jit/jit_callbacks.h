@@ -76,6 +76,10 @@ struct InstanceContextVTable {
   // event.
   const RecordAssertionFn record_assertion;
 
+  using QueuePeekWrapperFn = bool (*)(InstanceContext* thiz,
+                                      int64_t queue_index, uint8_t* buffer);
+  const QueuePeekWrapperFn queue_peek_wrapper;
+
   using QueueReceiveWrapperFn = bool (*)(InstanceContext* thiz,
                                          int64_t queue_index, uint8_t* buffer);
   const QueueReceiveWrapperFn queue_receive_wrapper;
@@ -145,6 +149,8 @@ struct InstanceContext {
       offsetof(InstanceContextVTable, create_trace_buffer);
   static constexpr int64_t kRecordAssertionOffset =
       offsetof(InstanceContextVTable, record_assertion);
+  static constexpr int64_t kQueuePeekWrapperOffset =
+      offsetof(InstanceContextVTable, queue_peek_wrapper);
   static constexpr int64_t kQueueReceiveWrapperOffset =
       offsetof(InstanceContextVTable, queue_receive_wrapper);
   static constexpr int64_t kQueueSendWrapperOffset =
@@ -159,7 +165,7 @@ struct InstanceContext {
       offsetof(InstanceContextVTable, deallocate_buffer);
   static constexpr int64_t kRecordActiveRegisterWrite =
       offsetof(InstanceContextVTable, record_active_register_write);
-  static constexpr int64_t kVTableLength = 12;
+  static constexpr int64_t kVTableLength = 13;
   using VTableArrayType = std::array<void (*)(), kVTableLength>;
 
   static constexpr bool IsVtableOffset(int64_t v) {
@@ -168,7 +174,8 @@ struct InstanceContext {
            v == kRecordAssertionOffset || v == kQueueReceiveWrapperOffset ||
            v == kQueueSendWrapperOffset || v == kRecordActiveNextValueOffset ||
            v == kRecordNodeResultOffset || v == kAllocateBufferOffset ||
-           v == kDeallocateBufferOffset || v == kRecordActiveRegisterWrite;
+           v == kDeallocateBufferOffset || v == kRecordActiveRegisterWrite ||
+           v == kQueuePeekWrapperOffset;
   }
 
   Type* ParseTypeFromProto(absl::Span<uint8_t const> data);
