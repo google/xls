@@ -1,0 +1,24 @@
+package proc
+
+file_number 0 "xls/spin/testdata/proc.x"
+
+top proc __proc__MyProc_0_next<_req_r: bits[8] in, _resp_s: bits[32] out>(__state: bits[16], init={0}) {
+  chan_interface _req_r(direction=receive, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
+  chan_interface _resp_s(direction=send, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
+  after_all.5: token = after_all(id=5)
+  literal.3: bits[1] = literal(value=1, id=3)
+  receive.6: (token, bits[8]) = receive(after_all.5, predicate=literal.3, channel=_req_r, id=6)
+  data: bits[8] = tuple_index(receive.6, index=1, id=9, pos=[(0,14,18)])
+  zero_ext.10: bits[16] = zero_ext(data, new_bit_count=16, id=10)
+  __state: bits[16] = state_read(state_element=__state, id=2)
+  add.11: bits[16] = add(zero_ext.10, __state, id=11, pos=[(0,15,37)])
+  literal.14: bits[16] = literal(value=1, id=14, pos=[(0,16,16)])
+  tok: token = tuple_index(receive.6, index=0, id=8, pos=[(0,14,13)])
+  zero_ext.12: bits[32] = zero_ext(add.11, new_bit_count=32, id=12)
+  add.15: bits[16] = add(__state, literal.14, id=15, pos=[(0,16,8)])
+  __token: token = literal(value=token, id=1)
+  tuple.4: () = tuple(id=4, pos=[(0,9,8)])
+  tuple_index.7: token = tuple_index(receive.6, index=0, id=7)
+  tok__1: token = send(tok, zero_ext.12, predicate=literal.3, channel=_resp_s, id=13)
+  next_value.16: () = next_value(param=__state, value=add.15, id=16)
+}

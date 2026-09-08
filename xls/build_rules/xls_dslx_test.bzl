@@ -76,10 +76,15 @@ def get_dslx_test_cmd(ctx, src_files_to_test):
     dslx_interpreter_tool_runfiles = (
         ctx.attr._xls_dslx_interpreter_tool[DefaultInfo].default_runfiles
     )
+    extra_runfiles = [dslx_interpreter_tool_runfiles]
+    needs_spin = (ctx.attr.dslx_test_args.get("guided_model_check") == "True" or
+                  ctx.attr.dslx_test_args.get("exhaustive_model_check") == "True")
+    if needs_spin:
+        extra_runfiles.append(ctx.attr._spin[DefaultInfo].default_runfiles)
     runfiles = get_runfiles_for_xls(
         ctx,
-        [dslx_interpreter_tool_runfiles],
-        src_files_to_test,
+        extra_runfiles,
+        src_files_to_test + ([ctx.executable._spin] if needs_spin else []),
     )
 
     cmds = []
@@ -120,6 +125,9 @@ def _get_dslx_test_cmdline(ctx, src, all_srcs, append_cmd_line_args = True):
         "lower_to_proc_scoped_channels",
         "lower_to_ir",
         "convert_tests",
+        "guided_model_check",
+        "exhaustive_model_check",
+        "trace_channels",
     )
 
     dslx_test_args = dict(_dslx_test_args)
@@ -203,6 +211,13 @@ xls_dslx_test = rule(
         xls_dslx_library_as_input_attrs,
         xls_dslx_test_common_attrs,
         dicts.pick(xls_toolchain_attrs, ["_xls_dslx_interpreter_tool"]),
+        {
+            "_spin": attr.label(
+                default = Label("@spin//:spin"),
+                executable = True,
+                cfg = "target",
+            ),
+        },
     ),
     test = True,
 )
