@@ -25,6 +25,7 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
+#include "xls/codegen_v_1_5/block_conversion_checker.h"
 #include "xls/codegen_v_1_5/block_conversion_pass.h"
 #include "xls/codegen_v_1_5/block_conversion_wrapper_pass.h"
 #include "xls/common/status/status_macros.h"
@@ -111,6 +112,7 @@ class CompoundPassAdder final : public CodegenPassGenerator {
       res = std::make_unique<BlockConversionCompoundPass>(
           compound_.short_name(), compound_.long_name());
     }
+    res->AddInvariantChecker<BlockConversionChecker>();
     for (const auto& pass : compound_.passes()) {
       XLS_ASSIGN_OR_RETURN(auto* generator, registry().Generator(pass));
       XLS_ASSIGN_OR_RETURN(std::unique_ptr<BlockConversionPass> pass_instance,
