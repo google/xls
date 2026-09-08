@@ -21,6 +21,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/container/flat_hash_map.h"
 #include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -55,6 +56,88 @@ struct MismatchData {
   std::vector<TupleMismatchData> tuple_extra;
 };
 
+void AddSumMemberPrefixes(
+    const SumType& parent,
+    absl::flat_hash_map<const Type*, std::string>& member_prefixes) {
+  int64_t previous_payload_variant = -1;
+  for (int64_t variant_index = 0; variant_index < parent.variant_count();
+       ++variant_index) {
+    const SumTypeVariant& variant = parent.variants().at(variant_index);
+    for (int64_t member_index = 0; member_index < variant.size();
+         ++member_index) {
+      std::string prefix;
+      if (member_index != 0) {
+        if (variant.is_struct()) {
+          prefix =
+              absl::StrCat(", ", variant.GetMemberName(member_index), ": ");
+        } else {
+          prefix = ", ";
+        }
+      } else {
+        if (previous_payload_variant >= 0) {
+          const SumTypeVariant& previous =
+              parent.variants().at(previous_payload_variant);
+          absl::StrAppend(&prefix, previous.is_struct() ? " }" : ")", " | ");
+        }
+        for (int64_t empty_index = previous_payload_variant + 1;
+             empty_index < variant_index; ++empty_index) {
+          const SumTypeVariant& empty = parent.variants().at(empty_index);
+          absl::StrAppend(&prefix, empty.variant().identifier());
+          if (empty.is_tuple()) {
+            absl::StrAppend(&prefix, "()");
+          } else if (empty.is_struct()) {
+            absl::StrAppend(&prefix, " {}");
+          }
+          absl::StrAppend(&prefix, " | ");
+        }
+        absl::StrAppend(&prefix, variant.variant().identifier());
+        if (variant.is_struct()) {
+          absl::StrAppend(&prefix, " { ", variant.GetMemberName(0), ": ");
+        } else {
+          absl::StrAppend(&prefix, "(");
+        }
+      }
+      member_prefixes.emplace(&variant.GetMemberType(member_index),
+                              std::move(prefix));
+    }
+    if (variant.size() != 0) {
+      previous_payload_variant = variant_index;
+    }
+  }
+}
+
+std::string GetSumTrailingSuffix(const SumType& parent) {
+  int64_t last_payload_variant = -1;
+  for (int64_t variant_index = 0; variant_index < parent.variant_count();
+       ++variant_index) {
+    if (parent.variants().at(variant_index).size() != 0) {
+      last_payload_variant = variant_index;
+    }
+  }
+
+  std::string suffix;
+  if (last_payload_variant >= 0) {
+    const SumTypeVariant& variant = parent.variants().at(last_payload_variant);
+    absl::StrAppend(&suffix, variant.is_struct() ? " }" : ")");
+  }
+  for (int64_t variant_index = last_payload_variant + 1;
+       variant_index < parent.variant_count(); ++variant_index) {
+    const SumTypeVariant& variant = parent.variants().at(variant_index);
+    if (last_payload_variant >= 0 ||
+        variant_index != last_payload_variant + 1) {
+      absl::StrAppend(&suffix, " | ");
+    }
+    absl::StrAppend(&suffix, variant.variant().identifier());
+    if (variant.is_tuple()) {
+      absl::StrAppend(&suffix, "()");
+    } else if (variant.is_struct()) {
+      absl::StrAppend(&suffix, " {}");
+    }
+  }
+  absl::StrAppend(&suffix, " }");
+  return suffix;
+}
+
 // Populates the ref given as `mismatches` with the mismatches.
 //
 // Note: we could have this use the auto-formatting pretty printer to get more
@@ -65,6 +148,14 @@ class Callbacks : public ZipTypesCallbacks {
   explicit Callbacks(MismatchData& mismatches) : mismatches_(mismatches) {}
 
   absl::Status NoteAggregateStart(const AggregatePair& aggregates) override {
+    const Type* aggregate_type = absl::visit(
+        [](auto pair) -> const Type* { return pair.first; }, aggregates);
+    if (!aggregate_stack_.empty()) {
+      if (dynamic_cast<const SumType*>(aggregate_stack_.back()) != nullptr) {
+        AddMatchedBoth(sum_member_prefixes_.at(aggregate_type));
+      }
+    }
+    aggregate_stack_.push_back(aggregate_type);
     return absl::visit(
         Visitor{
             [&](std::pair<const TupleType*, const TupleType*>) {
@@ -79,6 +170,12 @@ class Callbacks : public ZipTypesCallbacks {
             [&](std::pair<const ProcType*, const ProcType*> p) {
               AddMatchedBoth(
                   absl::StrCat(p.first->nominal_type().identifier(), "{"));
+              return absl::OkStatus();
+            },
+            [&](std::pair<const SumType*, const SumType*> p) {
+              AddSumMemberPrefixes(*p.first, sum_member_prefixes_);
+              AddMatchedBoth(
+                  absl::StrCat(p.first->nominal_type().identifier(), " { "));
               return absl::OkStatus();
             },
             [&](std::pair<const ArrayType*, const ArrayType*> p) {
@@ -113,12 +210,15 @@ class Callbacks : public ZipTypesCallbacks {
               AddMatchedBoth(", ");
               return absl::OkStatus();
             },
+            [&](std::pair<const SumType*, const SumType*> p) {
+              return absl::OkStatus();
+            },
         },
         aggregates);
   }
 
   absl::Status NoteAggregateEnd(const AggregatePair& aggregates) override {
-    return absl::visit(
+    absl::Status status = absl::visit(
         Visitor{
             [&](std::pair<const TupleType*, const TupleType*>) {
               AddMatchedBoth(")");
@@ -131,6 +231,10 @@ class Callbacks : public ZipTypesCallbacks {
             [&](std::pair<const ProcType*, const ProcType*> p) {
               AddMatchedBoth(
                   absl::StrCat(p.first->nominal_type().identifier(), "{"));
+              return absl::OkStatus();
+            },
+            [&](std::pair<const SumType*, const SumType*> p) {
+              AddMatchedBoth(GetSumTrailingSuffix(*p.first));
               return absl::OkStatus();
             },
             [&](std::pair<const ArrayType*, const ArrayType*> p) {
@@ -154,6 +258,8 @@ class Callbacks : public ZipTypesCallbacks {
             },
         },
         aggregates);
+    aggregate_stack_.pop_back();
+    return status;
   }
 
   absl::Status NoteMatchedLeafType(const Type& lhs, const Type* lhs_parent,
@@ -213,6 +319,10 @@ class Callbacks : public ZipTypesCallbacks {
       int64_t index = parent_struct->IndexOf(lhs).value();
       AddMatchedBoth(absl::StrCat(parent_struct->GetMemberName(index), ": "));
     }
+    if (auto* parent_sum = dynamic_cast<const SumType*>(lhs_parent);
+        parent_sum != nullptr) {
+      AddMatchedBoth(sum_member_prefixes_.at(&lhs));
+    }
   }
 
   void AddMismatched(std::string_view lhs, std::string_view rhs) {
@@ -235,6 +345,8 @@ class Callbacks : public ZipTypesCallbacks {
   std::string colorized_rhs_;
   MismatchData& mismatches_;
   int64_t match_count_ = 0;
+  std::vector<const Type*> aggregate_stack_;
+  absl::flat_hash_map<const Type*, std::string> sum_member_prefixes_;
 };
 
 }  // namespace

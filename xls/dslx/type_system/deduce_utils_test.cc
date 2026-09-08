@@ -60,6 +60,34 @@ TEST(DeduceUtilsTest, ValidateNumber) {
                       "Value '256' does not fit in the bitwidth of a uN[8]")));
 }
 
+TEST(DeduceUtilsTest, RejectsSemanticSumNestedInFormattedTuple) {
+  const Span kFakeSpan = Span::Fake();
+  FileTable file_table;
+  Module module("test_module", /*fs_path=*/std::nullopt, file_table);
+  NameDef* sum_name = module.Make<NameDef>(kFakeSpan, "Option", nullptr);
+  NameDef* none_name = module.Make<NameDef>(kFakeSpan, "None", nullptr);
+  SumVariant* none = module.Make<SumVariant>(
+      kFakeSpan, none_name, SumVariant::PayloadShape::kUnit,
+      std::vector<TypeAnnotation*>{}, std::vector<StructMemberNode*>{});
+  SumDef* sum_def = module.Make<SumDef>(
+      kFakeSpan, sum_name, std::vector<ParametricBinding*>{},
+      std::vector<SumVariant*>{none}, /*is_public=*/false);
+  sum_name->set_definer(sum_def);
+
+  std::vector<SumTypeVariant> variants;
+  variants.push_back(SumTypeVariant::MakeUnit(*none));
+  std::vector<std::unique_ptr<Type>> tuple_members;
+  tuple_members.push_back(
+      std::make_unique<SumType>(*sum_def, std::move(variants)));
+  TupleType nested_sum(std::move(tuple_members));
+
+  EXPECT_THAT(ValidateFormatMacroArgument(nested_sum, kFakeSpan, file_table),
+              absl_testing::StatusIs(
+                  absl::StatusCode::kInvalidArgument,
+                  testing::HasSubstr(
+                      "Formatting semantic sum values is not supported")));
+}
+
 TEST(ProcConfigIrConverterTest, ResolveProcNameRef) {
   FileTable file_table;
   Module module("test_module", /*fs_path=*/std::nullopt, file_table);

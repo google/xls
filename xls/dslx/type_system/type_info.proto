@@ -234,7 +234,26 @@ message EnumTypeProto {
   optional TypeDimProto size = 1;
   optional EnumDefProto enum_def = 2;
   optional bool is_signed = 3;
+  // When present, contains every enum member in declaration order. Older
+  // serialized values may omit the complete list and remain readable.
   repeated InterpValueProto members = 4;
+}
+
+// Concrete payload types for the corresponding variant in the source SumDef.
+// payload_members[j] is the concrete type of source payload member j, and the
+// list must contain exactly one entry per declared member. The source AST owns
+// the variant's identifier, shape, and member names.
+message SumTypeVariantProto {
+  repeated TypeProto payload_members = 1;
+}
+
+// A nominal sum and its concrete payload types. The required source span
+// identifies the SumDef, which owns declaration order and variant metadata.
+// variants[i] corresponds to SumDef.variants()[i], and the list must contain
+// exactly one entry per declared variant.
+message SumTypeProto {
+  optional SpanProto sum_def_span = 1;
+  repeated SumTypeVariantProto variants = 2;
 }
 
 message MetaTypeProto {
@@ -274,6 +293,7 @@ message TypeProto {
     BitsConstructorTypeProto bits_constructor_type = 10;
     ProcTypeProto proc_type = 11;
     ModuleTypeProto module_type = 12;
+    SumTypeProto sum_type = 13;
   }
 }
 

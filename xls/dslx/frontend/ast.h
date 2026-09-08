@@ -3362,6 +3362,16 @@ class SumVariant : public AstNode {
   bool is_unit() const { return payload_shape_ == PayloadShape::kUnit; }
   bool is_tuple() const { return payload_shape_ == PayloadShape::kTuple; }
   bool is_struct() const { return payload_shape_ == PayloadShape::kStruct; }
+  // Returns the number of members for the variant's declared payload shape.
+  int64_t payload_member_count() const {
+    if (is_unit()) {
+      return 0;
+    } else if (is_tuple()) {
+      return tuple_members_.size();
+    } else {
+      return struct_members_.size();
+    }
+  }
   std::optional<Expr*> discriminant() const { return discriminant_; }
   // These source-only spans are absent for synthesized variants.
   const std::optional<Span>& payload_span() const { return payload_span_; }

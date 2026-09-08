@@ -184,6 +184,17 @@ absl::StatusOr<const ProcDef*> ImportData::FindProcDef(const Span& span) const {
   return proc_def;
 }
 
+absl::StatusOr<const SumDef*> ImportData::FindSumDef(const Span& span) const {
+  XLS_ASSIGN_OR_RETURN(const Module* module, FindModule(span));
+  const SumDef* sum_def = module->FindSumDef(span);
+  if (sum_def == nullptr) {
+    return absl::NotFoundError(
+        absl::Substitute("Could not find sum def @ $0 within module $1",
+                         span.ToString(file_table_), module->name()));
+  }
+  return sum_def;
+}
+
 absl::StatusOr<const Module*> ImportData::FindModule(const Span& span) const {
   auto it = path_to_module_info_.find(span.GetFilename(file_table_));
   if (it == path_to_module_info_.end()) {
