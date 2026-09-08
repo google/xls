@@ -15,6 +15,7 @@
 #include "xls/codegen_v_1_5/merge_ports_pass.h"
 
 #include <memory>
+#include <optional>
 #include <string>
 #include <tuple>
 #include <utility>
@@ -22,6 +23,9 @@
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/statusor.h"
+#include "google/protobuf/message_static_reflection.h"
+#include "xls/codegen/module_signature.pb.h"
+#include "xls/codegen/module_signature.proto.static_reflection.h"
 #include "xls/codegen_v_1_5/block_conversion_pass.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/block.h"
@@ -34,6 +38,17 @@
 namespace xls::codegen {
 
 namespace {
+
+template <google::protobuf::FieldId field, typename Msg>
+void MaybeRemap(Msg& msg,
+                const absl::flat_hash_map<std::string, std::string>& remap) {
+  auto field_info = google::protobuf::FieldInfo<Msg, field>();
+  if (field_info.Has(msg)) {
+    if (auto it = remap.find(field_info.Get(msg)); it != remap.end()) {
+      field_info.Set(msg, it->second);
+    }
+  }
+}
 
 absl::StatusOr<bool> MergeOutputPorts(Block* block) {
   // Collect the channel ports, mapping them back to the associated channels.
@@ -105,6 +120,18 @@ absl::StatusOr<bool> MergeOutputPorts(Block* block) {
     }
   }
 
+  // If the signature exists, collect the authoritative ports for each port
+  // we're removing; we'll use them to update the signature in a single pass at
+  // the end.
+  absl::flat_hash_map<std::string, std::string> remapped_port;
+  if (block->GetSignature().has_value()) {
+    for (const auto& [source, ports] : ports_by_source) {
+      for (OutputPort* port : ports.equivalent_ports) {
+        remapped_port[port->name()] = ports.authoritative_port->name();
+      }
+    }
+  }
+
   for (const auto& [source, ports] : ports_by_source) {
     if (ports.equivalent_ports.empty()) {
       // No ports to merge.
@@ -137,6 +164,41 @@ absl::StatusOr<bool> MergeOutputPorts(Block* block) {
     }
     changed = true;
   }
+
+  if (changed && block->GetSignature().has_value()) {
+    // We need to update the signature, updating all port references & deleting
+    // the old ports.
+    verilog::ModuleSignatureProto signature = *block->GetSignature();
+
+    for (verilog::ChannelInterfaceProto& channel_interface :
+         *signature.mutable_channel_interfaces()) {
+      if (channel_interface.has_streaming()) {
+        verilog::StreamingChannelInterfaceProto* streaming =
+            channel_interface.mutable_streaming();
+        MaybeRemap<"data_port_name">(*streaming, remapped_port);
+        MaybeRemap<"ready_port_name">(*streaming, remapped_port);
+        MaybeRemap<"valid_port_name">(*streaming, remapped_port);
+      }
+      if (channel_interface.has_single_value()) {
+        verilog::SingleValueChannelInterfaceProto* single_value =
+            channel_interface.mutable_single_value();
+        MaybeRemap<"data_port_name">(*single_value, remapped_port);
+      }
+    }
+
+    // Now that all the references are updated, we can delete the old ports.
+    for (auto it = signature.mutable_data_ports()->begin();
+         it != signature.mutable_data_ports()->end();) {
+      if (remapped_port.contains(it->name())) {
+        it = signature.mutable_data_ports()->erase(it);
+      } else {
+        ++it;
+      }
+    }
+
+    block->SetSignature(std::move(signature));
+  }
+
   return changed;
 }
 
