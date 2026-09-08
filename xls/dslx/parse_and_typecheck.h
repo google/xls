@@ -98,10 +98,13 @@ absl::StatusOr<std::unique_ptr<Module>> ParseModuleFromFileAtPath(
 //
 // "path" is used for error reporting (`Span`s)
 // "import_data" is used to get-or-insert any imported modules.
+// "transform_test_functions" is whether to transform test functions into
+// test procs.
 absl::StatusOr<TypecheckedModule> TypecheckModule(
     std::unique_ptr<Module> module, std::string_view path,
     ImportData* import_data, TypeInferenceErrorHandler error_handler = nullptr,
-    TraitDeriver* trait_deriver = nullptr);
+    TraitDeriver* trait_deriver = nullptr,
+    bool transform_test_functions = true);
 
 }  // namespace xls::dslx
 

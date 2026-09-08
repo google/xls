@@ -34,6 +34,7 @@
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/frontend/scanner.h"
 #include "xls/dslx/frontend/semantics_analysis.h"
+#include "xls/dslx/frontend/test_function_transformer.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/ir_convert/convert_options.h"
 #include "xls/dslx/type_system/type_info.h"
@@ -69,7 +70,7 @@ absl::StatusOr<TypecheckedModule> ParseAndTypecheck(
 
   XLS_RETURN_IF_ERROR(module->SetConfiguredValues(options.configured_values));
   return TypecheckModule(std::move(module), path, import_data, error_handler,
-                         trait_deriver);
+                         trait_deriver, /*transform_test_functions=*/true);
 }
 
 absl::StatusOr<std::unique_ptr<Module>> ParseModule(
@@ -100,7 +101,7 @@ absl::StatusOr<std::unique_ptr<Module>> ParseModuleFromFileAtPath(
 absl::StatusOr<TypecheckedModule> TypecheckModule(
     std::unique_ptr<Module> module, std::string_view path,
     ImportData* import_data, TypeInferenceErrorHandler error_handler,
-    TraitDeriver* trait_deriver) {
+    TraitDeriver* trait_deriver, bool transform_test_functions) {
   XLS_RET_CHECK(module.get() != nullptr);
   XLS_RET_CHECK(import_data != nullptr);
 
@@ -111,9 +112,6 @@ absl::StatusOr<TypecheckedModule> TypecheckModule(
   std::string_view module_name = module->name();
 
   WarningCollector warnings(import_data->enabled_warnings());
-  Module* module_ptr = module.get();
-  XLS_ASSIGN_OR_RETURN(ImportTokens subject,
-                       ImportTokens::FromString(module_name));
 
   std::unique_ptr<SemanticsAnalysis> semantics_analysis =
       std::make_unique<SemanticsAnalysis>();
@@ -125,10 +123,34 @@ absl::StatusOr<TypecheckedModule> TypecheckModule(
                             ? std::nullopt
                             : std::make_optional(trait_deriver)));
 
+  if (transform_test_functions) {
+    // Transform proc-spawning test functions into test procs.
+    TestFunctionTransformer transformer(module_info->module(),
+                                        *module_info->type_info());
+    XLS_ASSIGN_OR_RETURN(std::unique_ptr<Module> new_module,
+                         transformer.TransformTestFunctions());
+    if (new_module != nullptr) {
+      // The module was modified, so we will re-parse and typecheck it again.
+      std::string new_module_as_string = new_module->ToString();
+      XLS_ASSIGN_OR_RETURN(std::unique_ptr<Module> newly_parsed_module,
+                           ParseModule(new_module_as_string, path, module_name,
+                                       import_data->file_table(),
+                                       /*comments=*/nullptr));
+      // Keep the old module alive until import_data is destroyed.
+      import_data->KeepAlive(std::move(module_info));
+      return TypecheckModule(std::move(newly_parsed_module), path, import_data,
+                             error_handler, trait_deriver,
+                             // Prevent infinite recursion.
+                             /*transform_test_functions=*/false);
+    }
+  }
+
   TypeInfo* type_info = module_info->type_info();
-  XLS_RETURN_IF_ERROR(
-      import_data->Put(subject, std::move(module_info)).status());
-  return TypecheckedModule{.module = module_ptr,
+  XLS_ASSIGN_OR_RETURN(ImportTokens subject,
+                       ImportTokens::FromString(module_name));
+  XLS_ASSIGN_OR_RETURN(ModuleInfo * stored_info,
+                       import_data->Put(subject, std::move(module_info)));
+  return TypecheckedModule{.module = &stored_info->module(),
                            .type_info = type_info,
                            .warnings = std::move(warnings)};
 }

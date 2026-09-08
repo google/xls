@@ -37,6 +37,16 @@
 namespace xls::dslx {
 namespace {
 
+// Helper that typechecks a module without automatically running test
+// function transformations, so the transformer can be tested directly.
+absl::StatusOr<TypecheckedModule> TypecheckModuleUntransformed(
+    std::unique_ptr<Module> module, std::string_view path,
+    ImportData* import_data) {
+  return TypecheckModule(std::move(module), path, import_data,
+                         /*error_handler=*/nullptr, /*trait_deriver=*/nullptr,
+                         /*transform_test_functions=*/false);
+}
+
 // Helper function to transform a test function into a test proc, and typecheck
 // the resulting module.
 absl::StatusOr<std::string> TransformAndTypecheck(std::string_view program) {
@@ -46,7 +56,7 @@ absl::StatusOr<std::string> TransformAndTypecheck(std::string_view program) {
       ParseModule(program, "test.x", "test", import_data.file_table()));
   XLS_ASSIGN_OR_RETURN(
       TypecheckedModule tm,
-      TypecheckModule(std::move(module), "test.x", &import_data));
+      TypecheckModuleUntransformed(std::move(module), "test.x", &import_data));
   TestFunctionTransformer transformer(*tm.module, *tm.type_info);
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<Module> new_module,
                        transformer.TransformTestFunctions());
@@ -491,9 +501,9 @@ fn main() {
     XLS_ASSERT_OK_AND_ASSIGN(
         std::unique_ptr<Module> module,
         ParseModule(kProgram, "test.x", "test", import_data.file_table()));
-    XLS_ASSERT_OK_AND_ASSIGN(
-        TypecheckedModule tm,
-        TypecheckModule(std::move(module), "test.x", &import_data));
+    XLS_ASSERT_OK_AND_ASSIGN(TypecheckedModule tm,
+                             TypecheckModuleUntransformed(
+                                 std::move(module), "test.x", &import_data));
     TestFunctionTransformer transformer(*tm.module, *tm.type_info);
     XLS_ASSERT_OK_AND_ASSIGN(new_module, transformer.TransformTestFunctions());
   }
@@ -751,7 +761,7 @@ fn main() {
       ParseModule(kProgram, "test.x", "test", import_data.file_table()));
   XLS_ASSERT_OK_AND_ASSIGN(
       TypecheckedModule tm,
-      TypecheckModule(std::move(module), "test.x", &import_data));
+      TypecheckModuleUntransformed(std::move(module), "test.x", &import_data));
   // We manually perform the transformation and verify the generated string
   // representation here instead of using `TransformAndTypecheck`.
   // `TransformAndTypecheck` fails because it attempts to re-typecheck the
@@ -873,7 +883,7 @@ fn main() {
       ParseModule(kProgram, "test.x", "test", import_data.file_table()));
   XLS_ASSERT_OK_AND_ASSIGN(
       TypecheckedModule tm,
-      TypecheckModule(std::move(module), "test.x", &import_data));
+      TypecheckModuleUntransformed(std::move(module), "test.x", &import_data));
 
   TestFunctionTransformer transformer(*tm.module, *tm.type_info);
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> new_module,
@@ -925,7 +935,7 @@ fn main() {
       ParseModule(kProgram, "test.x", "test", import_data.file_table()));
   XLS_ASSERT_OK_AND_ASSIGN(
       TypecheckedModule tm,
-      TypecheckModule(std::move(module), "test.x", &import_data));
+      TypecheckModuleUntransformed(std::move(module), "test.x", &import_data));
 
   TestFunctionTransformer transformer(*tm.module, *tm.type_info);
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> new_module,
@@ -976,7 +986,7 @@ fn main() {
       ParseModule(kProgram, "test.x", "test", import_data.file_table()));
   XLS_ASSERT_OK_AND_ASSIGN(
       TypecheckedModule tm,
-      TypecheckModule(std::move(module), "test.x", &import_data));
+      TypecheckModuleUntransformed(std::move(module), "test.x", &import_data));
 
   TestFunctionTransformer transformer(*tm.module, *tm.type_info);
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> new_module,
@@ -1028,7 +1038,7 @@ fn main() {
       ParseModule(kProgram, "test.x", "test", import_data.file_table()));
   XLS_ASSERT_OK_AND_ASSIGN(
       TypecheckedModule tm,
-      TypecheckModule(std::move(module), "test.x", &import_data));
+      TypecheckModuleUntransformed(std::move(module), "test.x", &import_data));
 
   TestFunctionTransformer transformer(*tm.module, *tm.type_info);
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> new_module,
@@ -1063,7 +1073,7 @@ fn main() {
       ParseModule(kProgram, "test.x", "test", import_data.file_table()));
   XLS_ASSERT_OK_AND_ASSIGN(
       TypecheckedModule tm,
-      TypecheckModule(std::move(module), "test.x", &import_data));
+      TypecheckModuleUntransformed(std::move(module), "test.x", &import_data));
   TestFunctionTransformer transformer(*tm.module, *tm.type_info);
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> new_module,
                            transformer.TransformTestFunctions());

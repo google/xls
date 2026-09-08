@@ -1284,6 +1284,45 @@ impl Main {
   EXPECT_THAT(result, IsTestResult(TestResult::kAllPassed, 1, 0, 0));
 }
 
+TEST_P(ParseAndTestTest, TransformedTestFunctionRunsAndSucceeds) {
+  if (GetParam() == RunnerType::kIrInterpreter ||
+      GetParam() == RunnerType::kIrJit) {
+    GTEST_SKIP()
+        << "New-style proc tests only supported with proc-scoped channels";
+  }
+  constexpr std::string_view kProgram = R"(
+proc PassThrough {
+  c_in: chan<u32> in,
+  c_out: chan<u32> out,
+}
+
+impl PassThrough {
+  fn new(c_in: chan<u32> in, c_out: chan<u32> out) -> Self {
+    PassThrough { c_in, c_out }
+  }
+  fn next(self) {
+    let (tok, val) = recv(join(), self.c_in);
+    send(tok, self.c_out, val);
+  }
+}
+
+#[test]
+fn test_pass_through() {
+  let (in_w, in_r) = chan<u32>("in");
+  let (out_w, out_r) = chan<u32>("out");
+  PassThrough::new(in_r, out_w).spawn();
+  let tok = send(join(), in_w, u32:42);
+  let (tok, val) = recv(tok, out_r);
+  assert_eq(val, u32:42)
+}
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TestResultData result,
+      ParseAndTest(kProgram, "test", "test.x", ParseAndTestOptions{}));
+  EXPECT_THAT(result, IsTestResult(TestResult::kAllPassed, 1, 0, 0));
+}
+
 INSTANTIATE_TEST_SUITE_P(RunRoutinesTest, RunRoutinesTest,
                          testing::Values(RunnerType::kDslxInterpreter,
                                          RunnerType::kIrInterpreter,
