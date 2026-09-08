@@ -39,3 +39,27 @@ xls_dslx_ir(
     ir_file = "execute_alu.ir",
     library = ":execute_alu_dslx",
 )
+
+xls_dslx_library(
+    name = "three_way_compare_dslx",
+    srcs = ["three_way_compare.x"],
+)
+
+xls_dslx_ir(
+    name = "three_way_compare_ir",
+    dslx_top = "three_way_compare",
+    ir_file = "three_way_compare.ir",
+    library = ":three_way_compare_dslx",
+)
+
+xls_dslx_library(
+    name = "priority_encoder_dslx",
+    srcs = ["priority_encoder.x"],
+)
+
+xls_dslx_ir(
+    name = "priority_encoder_ir",
+    dslx_top = "priority_encoder",
+    ir_file = "priority_encoder.ir",
+    library = ":priority_encoder_dslx",
+)
