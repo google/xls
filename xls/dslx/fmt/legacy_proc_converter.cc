@@ -765,15 +765,25 @@ class LegacyProcConverter : public Formatter {
         -> absl::StatusOr<std::optional<AstNode*>> {
       if (auto* name_ref = dynamic_cast<const NameRef*>(node);
           name_ref != nullptr) {
-        bool is_member =
-            current_proc_member_names_.has_value() &&
-            current_proc_member_names_->contains(name_ref->identifier());
+        bool is_member = false;
+        if (std::holds_alternative<const NameDef*>(name_ref->name_def())) {
+          const NameDef* def = std::get<const NameDef*>(name_ref->name_def());
+          bool is_proc_member =
+              def->definer() != nullptr &&
+              def->definer()->kind() == AstNodeKind::kProcMember;
+          is_member =
+              is_proc_member && current_proc_member_names_.has_value() &&
+              current_proc_member_names_->contains(name_ref->identifier());
+        }
         bool is_state_param = false;
         if (already_has_explicit_state_access) {
-          for (const Param* state_param : state_params) {
-            if (name_ref->identifier() == state_param->identifier()) {
-              is_state_param = true;
-              break;
+          if (std::holds_alternative<const NameDef*>(name_ref->name_def())) {
+            const NameDef* def = std::get<const NameDef*>(name_ref->name_def());
+            for (const Param* state_param : state_params) {
+              if (def == state_param->name_def()) {
+                is_state_param = true;
+                break;
+              }
             }
           }
         }

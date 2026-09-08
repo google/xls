@@ -1788,5 +1788,84 @@ TEST_F(LegacyProcConverterTest, ErrorConstAssertInsideProc) {
       "Const asserts inside a proc are not supported");
 }
 
+TEST_F(LegacyProcConverterTest, MemberShadowedByLocalVariable) {
+  DoLegacyProcConversionFmt(
+      R"(struct Req {
+    addr: u32,
+}
+
+proc MyProc {
+    req: chan<Req> in;
+    config(req: chan<Req> in) {
+        (req,)
+    }
+    init { () }
+    next(state: ()) {
+        let zero = Req { addr: u32:0 };
+        let (tok, req, valid) = recv_non_blocking(join(), req, zero);
+        let a = req.addr;
+        ()
+    }
+}
+)",
+      R"(#![feature(explicit_state_access)]
+#![feature(generics)]
+
+struct Req { addr: u32 }
+
+proc MyProc {
+    req: chan<Req> in,
+}
+
+impl MyProc {
+    fn new(req: chan<Req> in) -> Self {
+        MyProc { req }
+    }
+
+    fn next(self) {
+        let zero = Req { addr: u32:0 };
+        let (tok, req, valid) = recv_non_blocking(join(), self.req, zero);
+        let a = req.addr;
+    }
+}
+)");
+}
+
+TEST_F(LegacyProcConverterTest, StateParamShadowedByLocalVariable) {
+  DoLegacyProcConversionFmt(
+      R"(#![feature(explicit_state_access)]
+proc Counter {
+    init { 0 }
+    config() { }
+    next(state: u32) {
+        let current = read(state);
+        write(state, current + 1);
+        let state = 42;
+        let next_val = state * 2;
+    }
+}
+)",
+      R"(#![feature(explicit_state_access)]
+#![feature(generics)]
+
+proc Counter {
+    state: u32,
+}
+
+impl Counter {
+    fn new() -> Self {
+        Counter { state: 0 }
+    }
+
+    fn next(self) {
+        let current = read(self.state);
+        write(self.state, current + 1);
+        let state = 42;
+        let next_val = state * 2;
+    }
+}
+)");
+}
+
 }  // namespace
 }  // namespace xls::dslx
