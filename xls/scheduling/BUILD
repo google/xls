@@ -726,6 +726,7 @@ cc_test(
         "//xls/passes:dce_pass",
         "//xls/passes:optimization_pass",
         "//xls/passes:pass_base",
+        "//xls/solvers:solver",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",

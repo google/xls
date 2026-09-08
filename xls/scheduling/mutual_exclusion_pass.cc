@@ -416,12 +416,12 @@ absl::StatusOr<std::vector<absl::flat_hash_set<Node*>>> ComputeMergeClasses(
            scm.at(x) == scm.at(y);
   };
 
-  for (Node* x : nodes) {
+  for (Node* x : ordered_nodes) {
     if (!(p->GetPredicate(x).has_value())) {
       continue;
     }
     Node* px = p->GetPredicate(x).value();
-    for (Node* y : nodes) {
+    for (Node* y : ordered_nodes) {
       if (!(p->GetPredicate(y).has_value())) {
         continue;
       }

@@ -18,6 +18,7 @@
 #include <memory>
 #include <optional>
 #include <string_view>
+#include <variant>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
@@ -43,6 +44,7 @@
 #include "xls/passes/pass_base.h"
 #include "xls/scheduling/scheduling_options.h"
 #include "xls/scheduling/scheduling_pass.h"
+#include "xls/solvers/solver.h"
 
 namespace xls {
 namespace {
@@ -623,6 +625,44 @@ TEST_P(MutualExclusionPassTest, MassiveNumberOfChannelsNoChange) {
 
   EXPECT_THAT(RunMutualExclusionPass(p.get()), IsOkAndHolds(false));
   EXPECT_EQ(NumberOfOp(proc, Op::kSend), kNumChannels);
+}
+
+TEST_P(MutualExclusionPassTest, NonOrderRequestsCauseNonDeterministicResults) {
+  auto p = std::make_unique<Package>("p");
+  FunctionBuilder fb("f", p.get());
+  BValue c = fb.Param("c", p->GetBitsType(1));
+  BValue x = fb.Param("x", p->GetBitsType(16));
+  BValue y = fb.Param("y", p->GetBitsType(16));
+
+  BValue mul = fb.UMul(x, y);
+  BValue hard = fb.Eq(mul, fb.Literal(UBits(0x5555, 16)));
+  BValue c_is_1 = fb.Eq(c, fb.Literal(UBits(1, 1)));
+  BValue pa = fb.And(c_is_1, hard);
+  BValue pb = fb.Eq(c, fb.Literal(UBits(0, 1)));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  XLS_ASSERT_OK_AND_ASSIGN(auto solver,
+                           solvers::CreateSolver(solvers::SolverKind::kZ3));
+
+  // At rlimit = 484, proving mutual exclusion in order (pa, pb) succeeds within
+  // the deterministic resource limit (taking 483 steps), but in reverse order
+  // (pb, pa) it exhausts the resource limit (requiring 485 steps).
+  solvers::SolverLimit limit;
+  limit.deterministic_limit = 484;
+
+  auto i1 = solver->CreateSolverInstance(f, /*allow_unsupported=*/true).value();
+  i1->SetLimit(limit);
+  auto res1 =
+      i1->TryProve(pa.node(), solvers::Predicate::IsExclusiveWith(pb.node()));
+  ASSERT_THAT(res1, absl_testing::IsOk());
+  EXPECT_TRUE(std::holds_alternative<solvers::ProvenTrue>(*res1));
+
+  auto i2 = solver->CreateSolverInstance(f, /*allow_unsupported=*/true).value();
+  i2->SetLimit(limit);
+  auto res2 =
+      i2->TryProve(pb.node(), solvers::Predicate::IsExclusiveWith(pa.node()));
+  EXPECT_THAT(res2.status(),
+              absl_testing::StatusIs(absl::StatusCode::kDeadlineExceeded));
 }
 
 INSTANTIATE_TEST_SUITE_P(MutualExclusionPassTestSuite, MutualExclusionPassTest,
