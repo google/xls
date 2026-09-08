@@ -240,6 +240,7 @@ class ParametricContext {
   const std::optional<const TypeAnnotation*>& self_type() const {
     return self_type_;
   }
+  void SetSelfType(const TypeAnnotation* self_type) { self_type_ = self_type; }
 
   // Returns the parametric bindings of the function or struct that this context
   // is for.
@@ -326,7 +327,7 @@ class ParametricContext {
   const AstNode* node_;
   Details details_;
   const std::optional<const ParametricContext*> parent_context_;
-  const std::optional<const TypeAnnotation*> self_type_;
+  std::optional<const TypeAnnotation*> self_type_;
   TypeInfo* type_info_;
   std::optional<ParametricEnv> invocation_env_;
 };

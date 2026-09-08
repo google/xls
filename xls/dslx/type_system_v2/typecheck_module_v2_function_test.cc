@@ -1350,5 +1350,54 @@ const_assert!(X == MyEnum::A);
 )"));
 }
 
+TEST(TypecheckV2FunctionTest, TwoFunctionWrappersForParametricStruct) {
+  XLS_EXPECT_OK(TypecheckV2(R"(
+struct Foo<U:u32> {}
+impl Foo<U> {
+    fn get_u(self) -> u32 { U }
+}
+
+fn fun_1<P:u32>() -> u32 {
+    let x = Foo<P>{};
+    x.get_u()
+}
+
+fn fun_2<P:u32>() -> u32 {
+    let x = Foo<P>{};
+    x.get_u()
+}
+
+const_assert!(fun_1<8>() == 8);
+const_assert!(fun_2<8>() == 8);
+)"));
+}
+
+TEST(TypecheckV2StructTest, TwoDifferentInstantiationsOfStructWithDefault) {
+  XLS_EXPECT_OK(TypecheckV2(
+      R"(
+fn foo<N: u32>(a: uN[N]) -> uN[N] { a }
+
+struct S<A: u32, B: bool = {false}, C: u32 = {foo(A)}> {
+  x: uN[C],
+}
+
+impl S<A, B, C> {
+  fn new(x: uN[C]) -> Self {
+    S<A, B, C> { x }
+  }
+}
+
+fn test1() -> u32 {
+  let s = S<32>::new(0);
+  0
+}
+
+fn test2() -> u32 {
+  let s = S<32, true>::new(0);
+  0
+}
+)"));
+}
+
 }  // namespace
 }  // namespace xls::dslx

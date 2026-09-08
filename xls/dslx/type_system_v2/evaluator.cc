@@ -140,10 +140,8 @@ class EvaluatorImpl : public Evaluator {
                                 /*needs_conversion_before_eval=*/false));
       type_info->SetItem(type_annotation, MetaType(type->CloneToUnique()));
     }
-    if (!type_info->Contains(const_cast<Expr*>(expr))) {
-      XLS_RETURN_IF_ERROR(converter_.ConvertSubtree(
-          expr, /*function=*/std::nullopt, parametric_context));
-    }
+    XLS_RETURN_IF_ERROR(converter_.ConvertSubtree(
+        expr, /*function=*/std::nullopt, parametric_context));
 
     // TODO(williamjhuang) - See ConstexprEvaluator::InterpretExpr(const Expr*)
     bool warn_rollover = expr->parent() && expr->parent()->kind() ==
