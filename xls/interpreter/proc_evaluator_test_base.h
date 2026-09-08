@@ -30,7 +30,8 @@ namespace xls {
 class ProcEvaluatorTestParam {
  public:
   ProcEvaluatorTestParam(
-      std::function<std::unique_ptr<ProcEvaluator>(Proc*, ChannelQueueManager*)>
+      std::function<std::unique_ptr<ProcEvaluator>(Proc*, ChannelQueueManager*,
+                                                   const EvaluatorOptions&)>
           evaluator_factory,
       std::function<std::unique_ptr<ChannelQueueManager>(Package*)>
           queue_manager_factory,
@@ -46,14 +47,16 @@ class ProcEvaluatorTestParam {
   }
 
   std::unique_ptr<ProcEvaluator> CreateEvaluator(
-      Proc* proc, ChannelQueueManager* queue_manager) const {
-    return evaluator_factory_(proc, queue_manager);
+      Proc* proc, ChannelQueueManager* queue_manager,
+      const EvaluatorOptions& options = EvaluatorOptions()) const {
+    return evaluator_factory_(proc, queue_manager, options);
   }
 
   bool supports_observers() const { return supports_observers_; }
 
  private:
-  std::function<std::unique_ptr<ProcEvaluator>(Proc*, ChannelQueueManager*)>
+  std::function<std::unique_ptr<ProcEvaluator>(Proc*, ChannelQueueManager*,
+                                               const EvaluatorOptions&)>
       evaluator_factory_;
   std::function<std::unique_ptr<ChannelQueueManager>(Package*)>
       queue_manager_factory_;

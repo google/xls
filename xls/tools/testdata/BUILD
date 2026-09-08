@@ -394,3 +394,15 @@ xls_ir_verilog(
     },
     verilog_file = "eval_proc_main_test_memory.sv",
 )
+
+xls_dslx_library(
+    name = "eval_proc_main_test_vtrace_fmt_lib",
+    srcs = ["eval_proc_main_test_vtrace_fmt.x"],
+)
+
+xls_dslx_ir(
+    name = "eval_proc_main_test_vtrace_fmt",
+    dslx_top = "Vprinter",
+    ir_conv_args = {"lower_to_proc_scoped_channels": "false"},
+    library = ":eval_proc_main_test_vtrace_fmt_lib",
+)

@@ -304,6 +304,57 @@ top fn foo(x: bits[8]) -> bits[8] {
         results_proto.results[0].events.trace_msgs[0].message, 'x is 2a'
     )
 
+  def test_vtrace_fmt(self):
+    trace_ir = """package vtrace_fmt
+
+fn vtrace_fmt(a: bits[32], b: bits[32]) -> (token, bits[32]) {
+  tkn: token = literal(value=token)
+  on: bits[1] = literal(value=1)
+  VERBOSITY_LEV_0: bits[32] = literal(value=0)
+  VERBOSITY_LEV_1: bits[32] = literal(value=2)
+  VERBOSITY_LEV_2: bits[32] = literal(value=4)
+  VERBOSITY_LEV_3: bits[32] = literal(value=8)
+  VERBOSITY_LEV_4: bits[32] = literal(value=16)
+  VERBOSITY_LEV_5: bits[32] = literal(value=32)
+  VERBOSITY_LEV_6: bits[32] = literal(value=64)
+  trace.12: token = trace(tkn, on, format="Verbosity level {:d}", data_operands=[VERBOSITY_LEV_0])
+  trace.13: token = trace(tkn, on, format="Verbosity level {:d}", data_operands=[VERBOSITY_LEV_1], verbosity=2)
+  trace.14: token = trace(tkn, on, format="Verbosity level {:d}", data_operands=[VERBOSITY_LEV_2], verbosity=4)
+  trace.15: token = trace(tkn, on, format="Verbosity level {:d}", data_operands=[VERBOSITY_LEV_3], verbosity=8)
+  trace.16: token = trace(tkn, on, format="Verbosity level {:d}", data_operands=[VERBOSITY_LEV_4], verbosity=16)
+  trace.17: token = trace(tkn, on, format="Verbosity level {:d}", data_operands=[VERBOSITY_LEV_5], verbosity=32)
+  trace.18: token = trace(tkn, on, format="Verbosity level {:d}", data_operands=[VERBOSITY_LEV_6], verbosity=64)
+  trace.19: token = trace(tkn, on, format="Trace verification.", data_operands=[])
+  after_all.21: token = after_all(trace.12, trace.13, trace.14, trace.15, trace.16, trace.17, trace.18, trace.19)
+  add.20: bits[32] = add(a, b)
+  ret tuple.22: (token, bits[32]) = tuple(after_all.21, add.20)
+}
+"""
+    ir_file = self.create_tempfile(content=trace_ir)
+    comp = subprocess.run(
+        [
+            EVAL_IR_MAIN_PATH,
+            '--use_llvm_jit',
+            '--test_llvm_jit',
+            '--input=bits[32]:0x1; bits[32]:0x2',
+            '--trace_to_stderr',
+            '--max_trace_verbosity=10',
+            '--top=vtrace_fmt',
+            ir_file.full_path,
+        ],
+        stderr=subprocess.PIPE,
+        check=True,
+    )
+
+    self.assertIn('Verbosity level 0', comp.stderr.decode('utf-8'))
+    self.assertIn('Verbosity level 2', comp.stderr.decode('utf-8'))
+    self.assertIn('Verbosity level 4', comp.stderr.decode('utf-8'))
+    self.assertIn('Verbosity level 8', comp.stderr.decode('utf-8'))
+    self.assertIn('Trace verification.', comp.stderr.decode('utf-8'))
+    self.assertNotIn('Verbosity level 16', comp.stderr.decode('utf-8'))
+    self.assertNotIn('Verbosity level 32', comp.stderr.decode('utf-8'))
+    self.assertNotIn('Verbosity level 64', comp.stderr.decode('utf-8'))
+
   def test_trace_to_stderr(self):
     trace_ir = """package foo
 

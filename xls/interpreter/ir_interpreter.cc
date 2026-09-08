@@ -554,13 +554,13 @@ absl::Status IrInterpreter::HandleTrace(Trace* trace_op) {
     }
 
     VLOG(3) << "Trace output: " << trace_output;
-    std::optional<std::string> filename;
-    if (!trace_op->loc().locations.empty()) {
-      const SourceLocation& loc = trace_op->loc().locations.front();
-      filename = trace_op->package()->GetFilename(loc.fileno());
+
+    const int64_t max_v = options_.max_trace_verbosity();
+    if (!max_v || trace_op->verbosity() <= max_v) {
+      GetInterpreterEvents().AddTraceStatementMessage(
+          trace_op->verbosity(), trace_output, trace_op->loc(),
+          trace_op->filename());
     }
-    GetInterpreterEvents().AddTraceStatementMessage(
-        trace_op->verbosity(), trace_output, trace_op->loc(), filename);
   }
   return SetValueResult(trace_op, Value::Token());
 }

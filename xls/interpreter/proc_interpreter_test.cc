@@ -35,10 +35,11 @@ INSTANTIATE_TEST_SUITE_P(
     ProcInterpreterTest, ProcEvaluatorTestBase,
     testing::Values(
         ProcEvaluatorTestParam(
-            [](Proc* proc, ChannelQueueManager* queue_manager)
+            [](Proc* proc, ChannelQueueManager* queue_manager,
+               const EvaluatorOptions& options = EvaluatorOptions())
                 -> std::unique_ptr<ProcEvaluator> {
               absl::StatusOr<std::unique_ptr<ProcInterpreter>> interpreter =
-                  ProcInterpreter::Create(proc, queue_manager);
+                  ProcInterpreter::Create(proc, queue_manager, options);
               CHECK_OK(interpreter);
               return std::move(*interpreter);
             },
@@ -47,10 +48,11 @@ INSTANTIATE_TEST_SUITE_P(
             }),
         // Convert to Proc-scoped channels.
         ProcEvaluatorTestParam(
-            [](Proc* proc, ChannelQueueManager* queue_manager)
+            [](Proc* proc, ChannelQueueManager* queue_manager,
+               const EvaluatorOptions& options = EvaluatorOptions())
                 -> std::unique_ptr<ProcEvaluator> {
               absl::StatusOr<std::unique_ptr<ProcInterpreter>> interpreter =
-                  ProcInterpreter::Create(proc, queue_manager);
+                  ProcInterpreter::Create(proc, queue_manager, options);
               CHECK_OK(interpreter);
               return std::move(*interpreter);
             },
