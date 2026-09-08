@@ -18,6 +18,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <functional>
+#include <list>
 #include <type_traits>
 #include <utility>
 #include <vector>
@@ -260,6 +261,31 @@ void SortByKeyInPlace(Container& container, KeyFunc&& key_func,
   }
 }
 
+// Sorts `container` by building a (Key, Iterator) buffer, sorting it, and
+// using the result to permute `container` in-place.
+//
+// Ideal for linked lists and other types that don't support random access.
+template <typename T, typename Alloc, typename KeyFunc, typename Compare>
+void SortListByKey(std::list<T, Alloc>& container, KeyFunc&& key_func,
+                   Compare&& comp) {
+  using Key = std::decay_t<std::invoke_result_t<KeyFunc, const T&>>;
+  using Iter = typename std::list<T, Alloc>::iterator;
+  absl::InlinedVector<std::pair<Key, Iter>, kSortByKeyInlineStorageCount>
+      keyed_iters;
+  keyed_iters.reserve(container.size());
+  for (auto it = container.begin(); it != container.end(); ++it) {
+    keyed_iters.emplace_back(key_func(*it), it);
+  }
+  absl::c_sort(keyed_iters, [&](const auto& a, const auto& b) {
+    return comp(a.first, b.first);
+  });
+  std::list<T, Alloc> sorted_list(container.get_allocator());
+  for (auto& [key, it] : keyed_iters) {
+    sorted_list.splice(sorted_list.end(), container, it);
+  }
+  container.swap(sorted_list);
+}
+
 }  // namespace internal
 
 // Sorts `container` by evaluating `key_func` on each element.
@@ -276,6 +302,15 @@ void SortByKey(Container& container, KeyFunc&& key_func, Compare&& comp = {}) {
     internal::SortByKeyInPlace(container, std::forward<KeyFunc>(key_func),
                                std::forward<Compare>(comp));
   }
+}
+
+// Special overload for std::list
+template <typename T, typename Alloc, typename KeyFunc,
+          typename Compare = std::less<>>
+void SortByKey(std::list<T, Alloc>& container, KeyFunc&& key_func,
+               Compare&& comp = {}) {
+  internal::SortListByKey(container, std::forward<KeyFunc>(key_func),
+                          std::forward<Compare>(comp));
 }
 
 }  // namespace xls

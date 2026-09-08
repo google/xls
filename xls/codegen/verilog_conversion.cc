@@ -652,6 +652,17 @@ class BlockGenerator {
       std::optional<OpOverride> op_override =
           options_.GetOpOverride(node->op());
 
+      // Ignorable-value gates are emitted as identity, so they don't need to
+      // support overrides.
+      //
+      // TODO(epastor): We might want to allow ignorable-value gates to have
+      // overrides; e.g., users might want to replace them with something that
+      // propagates X, though safety gets touchy in that case.
+      if (node->op() == Op::kGate &&
+          node->As<Gate>()->gate_type() == GateType::kIgnorableGate) {
+        op_override = std::nullopt;
+      }
+
       if (op_override.has_value()) {
         std::vector<NodeRepresentation> inputs;
         for (const Node* operand : node->operands()) {

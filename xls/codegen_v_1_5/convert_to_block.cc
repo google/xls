@@ -58,6 +58,7 @@ absl::Status ConvertToBlock(
   BlockConversionPassOptions options{
       .codegen_options = std::move(codegen_options),
       .package_schedule = std::move(schedule),
+      .delay_estimator = delay_estimator,
   };
   options.ir_dump_path = options.codegen_options.ir_dump_path().value_or("");
 

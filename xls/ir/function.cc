@@ -135,17 +135,12 @@ std::string Function::DumpIr(const IrAnnotator& annotate) const {
    private:
     Node* return_value_;
   };
-  if (IsScheduled()) {
-    absl::StrAppend(&res,
-                    DumpFunctionBaseNodes(IrAnnotatorJoiner(
-                        SkipParamsAnnotator{}, AddRetAnnotator{return_value()},
-                        IrAnnotatorRef(annotate))));
-  } else {
-    absl::StrAppend(
-        &res,
-        DumpFunctionBaseNodes(IrAnnotatorJoiner(
-            SkipParamsAnnotator{}, AddRetAnnotator{return_value()},
-            IrAnnotatorRef(annotate), TopoSortAnnotator(!is_block_source_))));
+  absl::StrAppend(
+      &res,
+      DumpFunctionBaseNodes(IrAnnotatorJoiner(
+          SkipParamsAnnotator{}, AddRetAnnotator{return_value()},
+          IrAnnotatorRef(annotate), TopoSortAnnotator(!is_block_source_))));
+  if (!IsScheduled()) {
     // Need to add the 'ret' specially if the ret is also a parameter.
     if (return_value() != nullptr && return_value()->op() == Op::kParam) {
       absl::StrAppendFormat(&res, "  ret %s\n",

@@ -639,6 +639,13 @@ std::string Node::ToStringInternal(bool include_operand_types) const {
       }
       break;
     }
+    case Op::kGate: {
+      const Gate* gate = As<Gate>();
+      if (gate->gate_type() == GateType::kIgnorableGate) {
+        args.push_back("gate_type=ignorable");
+      }
+      break;
+    }
     case Op::kNext: {
       const Next* next = As<Next>();
       std::string target_arg =
