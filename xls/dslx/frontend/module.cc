@@ -106,6 +106,9 @@ std::string Module::ToString() const {
             case ModuleAttribute::kTraits:
               absl::StrAppend(out, "#![feature(traits)]");
               break;
+            case ModuleAttribute::kIOObjects:
+              absl::StrAppend(out, "#![feature(io_objects)]");
+              break;
           }
         });
     return absl::StrCat(header, "\n\n", body);
