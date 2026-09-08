@@ -100,16 +100,30 @@ absl::Status Translator::GenerateIR_Loop(
   const bool inferred_loop_warning_on =
       debug_ir_trace_flags_ & DebugIrTraceFlags_OptimizationWarnings;
 
+  // Early exit for pure unroll
   if (default_unroll ||
       (unroll_factor_optional.has_value() &&
        unroll_factor_optional.value() == std::numeric_limits<int64_t>::max())) {
     const bool warn_inferred_loop_type =
         default_unroll && inferred_loop_warning_on;
 
-    return GenerateIR_LoopImpl(always_first_iter, warn_inferred_loop_type, init,
-                               /*trial_unroll_init=*/init, cond_expr, inc, body,
-                               /*max_iters=*/std::nullopt,
-                               /*propagate_break_up=*/false, ctx, loc);
+    auto saved_outer_pipelined_loop_init_interval =
+        context().outer_pipelined_loop_init_interval;
+    auto saved_for_loops_default_unroll = context().for_loops_default_unroll;
+
+    context().outer_pipelined_loop_init_interval = -1;
+    context().for_loops_default_unroll = true;
+    absl::Status ret =
+        GenerateIR_LoopImpl(always_first_iter, warn_inferred_loop_type, init,
+                            /*trial_unroll_init=*/init, cond_expr, inc, body,
+                            /*max_iters=*/std::nullopt,
+                            /*propagate_break_up=*/false, ctx, loc);
+
+    context().outer_pipelined_loop_init_interval =
+        saved_outer_pipelined_loop_init_interval;
+    context().for_loops_default_unroll = saved_for_loops_default_unroll;
+
+    return ret;
   }
 
   int64_t init_interval = -1;
@@ -136,7 +150,7 @@ absl::Status Translator::GenerateIR_Loop(
         ErrorMessage(loc, "Loop statement missing #pragma or attribute"));
   }
 
-  CHECK(init_interval > 0 && unroll_factor > 0);
+  XLSCC_CHECK(init_interval > 0 && unroll_factor > 0, loc);
 
   bool is_asap = HasAnnotation(attrs, "xlscc_asap");
 

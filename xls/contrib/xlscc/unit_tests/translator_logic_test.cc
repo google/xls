@@ -4138,10 +4138,7 @@ TEST_F(TranslatorLogicTest, NonPragmaNestedLoop) {
       return a;
     })";
 
-  ASSERT_THAT(SourceToIr(content).status(),
-              absl_testing::StatusIs(
-                  absl::StatusCode::kUnimplemented,
-                  testing::HasSubstr("missing #pragma or attribute")));
+  Run({{"a", 20}}, 120, content);
 }
 
 TEST_F(TranslatorLogicTest, Label) {
