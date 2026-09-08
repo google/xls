@@ -96,19 +96,34 @@ namespace xls {
 //     ```
 //
 //
-// 6.  **Merging Consecutive Bit Slices**:
+// 6.  **Merging Runs of Consecutive Bit Slices**:
 //     If a `concat` has consecutive operands that are `bit_slice` operations
-//     from the *same source node* and slice *consecutive bits*, these two
-//     `bit_slice`s are merged into a single, wider `bit_slice`. This simplifies
-//     the slicing logic and reduces the number of intermediate nodes.
+//     from the *same source node* and slice *consecutive bits* in descending
+//     order (higher bits first), the entire run of slices is merged in a single
+//     pass into a single, wider `bit_slice` (or directly into the source node
+//     if it covers the entire width of the source).
 //
 //     ```
-//     concat(bit_slice(x, start=2, width=2), bit_slice(x, start=0, width=2))
-//     // => concat(bit_slice(x, start=0, width=4))
+//     concat(bit_slice(x, start=4, width=4), bit_slice(x, start=0, width=4))
+//     // => x  (if x is bits[8])
 //     ```
 //
 //
-// 7.  **Hoisting Bitwise Operations above `Concat`s
+// 7.  **Merging Runs of Consecutive Reversed Bit Slices**:
+//     If a `concat` has consecutive operands that are `reverse` operations on
+//     slices (or 1-bit slices, which are trivially self-reversed) from the
+//     *same source node* in ascending bit order (lower bits first), the entire
+//     run is merged into a single `reverse` of a wider `bit_slice` (or
+//     `reverse(x)` if it covers the entire width of the source).
+//
+//     ```
+//     concat(reverse(bit_slice(x, start=0, width=4)),
+//            reverse(bit_slice(x, start=4, width=4)))
+//     // => reverse(x)  (if x is bits[8])
+//     ```
+//
+//
+// 8.  **Hoisting Bitwise Operations above `Concat`s
 //     (`TryHoistBitWiseOperation`)**: If a bitwise operation (e.g., `and`,
 //     `or`, `xor`) has all its operands as `concat` operations, the bitwise
 //     operation can be "hoisted" above the concatenations. This means the
@@ -123,7 +138,7 @@ namespace xls {
 //     ```
 //
 //
-// 8.  **Hoisting Bitwise Operations with Constants above `Concat`s
+// 9.  **Hoisting Bitwise Operations with Constants above `Concat`s
 //     (`TryHoistBitWiseWithConstant`)**: This is a specialized version of
 //     hoisting bitwise operations. If a binary bitwise operation has one
 //     constant operand and one `concat` operand, the bitwise operation can be
@@ -138,7 +153,7 @@ namespace xls {
 //     ```
 //
 //
-// 9.  **Narrowing and Hoisting Bitwise Operations
+// 10. **Narrowing and Hoisting Bitwise Operations
 //     (`TryNarrowAndHoistBitWiseOperation`)**: This optimization specifically
 //     targets scenarios where a `concat` is used as an operand to a bitwise
 //     operation (like `and`, `or`, `xor`), and the `concat` itself has one
@@ -154,7 +169,7 @@ namespace xls {
 //     ```
 //
 //
-// 10. **Bypassing Reduction of Concatenation
+// 11. **Bypassing Reduction of Concatenation
 //     (`TryBypassReductionOfConcatenation`)**: If a bitwise reduction
 //     operation (e.g., `or_reduce`, `and_reduce`, `xor_reduce`) is applied to
 //     a `concat` operation, it can be bypassed. The reduction is distributed
@@ -167,7 +182,7 @@ namespace xls {
 //     ```
 //
 //
-// 11. **Distributing Reducible Operations
+// 12. **Distributing Reducible Operations
 //     (`TryDistributeReducibleOperation`)**: This optimization distributes
 //     `eq` and `ne` operations across `concat`s. If `eq(concat(A, B), C)` is
 //     found, it's transformed into `and(eq(A, slice(C)), eq(B, slice(C)))`.

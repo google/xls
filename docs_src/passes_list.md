@@ -1067,6 +1067,51 @@ generation.
 
 
 
+## bitwise_recombine - bitwise recombination {#bitwise_recombine}
+
+
+Pass which recombines concats of contiguous bit slices & inverted bit slices
+from a single source node (and constants) into masked bitwise operations:
+
+  - all inverted slices                 => not(x)
+  - raw slices + inverted slices        => (x ^ mask)
+  - raw slices + 0 literals             => (x & mask)
+  - raw slices + 1 literals             => (x | mask)
+  - raw slices + 0s + 1s (no inv)       => ((x & mask_and) | mask_or)
+  - inverted + 1s (no raw)              => (not(x) | mask_or)
+  - raw + inverted + 1s                 => ((x ^ mask_xor) | mask_or)
+  - inverted + 0s (no raw)              => (not(x) & mask_and)
+  - raw + inverted + 0s                 => ((x ^ mask_xor) & mask_and)
+  - inverted + 0s + 1s (no raw)         => ((not(x) & mask_and) | mask_or)
+  - all four (raw, inv, 0s, 1s)         => ((x & mask_and) ^ mask_xor)
+
+This is typically run late in the compiler pipeline (e.g. in codegen 1.5
+block cleanup and optimization) to fold un-cancelled bitwise splits back into
+clean, idiomatic hardware operations before Verilog emission.
+
+
+[Header](http://github.com/google/xls/tree/main/xls/passes/bitwise_recombination_pass.h)
+
+
+
+
+
+
+## bitwise_simp - bitwise simplification {#bitwise_simp}
+
+
+Pass which simplifies bitwise operations (AND, OR, XOR) with constant masks
+by transforming them into concats of BitSlices, Literals, and Nots. This
+optimization is only enabled when SplitsEnabled is true.
+
+
+[Header](http://github.com/google/xls/tree/main/xls/passes/bitwise_simplification_pass.h)
+
+
+
+
+
+
 ## bool_simp - boolean simplification {#bool_simp}
 
 
@@ -1752,19 +1797,34 @@ Here's a detailed breakdown of the key optimizations performed:
     ```
 
 
-6.  **Merging Consecutive Bit Slices**:
+6.  **Merging Runs of Consecutive Bit Slices**:
     If a `concat` has consecutive operands that are `bit_slice` operations
-    from the *same source node* and slice *consecutive bits*, these two
-    `bit_slice`s are merged into a single, wider `bit_slice`. This simplifies
-    the slicing logic and reduces the number of intermediate nodes.
+    from the *same source node* and slice *consecutive bits* in descending
+    order (higher bits first), the entire run of slices is merged in a single
+    pass into a single, wider `bit_slice` (or directly into the source node
+    if it covers the entire width of the source).
 
     ```
-    concat(bit_slice(x, start=2, width=2), bit_slice(x, start=0, width=2))
-    // => concat(bit_slice(x, start=0, width=4))
+    concat(bit_slice(x, start=4, width=4), bit_slice(x, start=0, width=4))
+    // => x  (if x is bits[8])
     ```
 
 
-7.  **Hoisting Bitwise Operations above `Concat`s
+7.  **Merging Runs of Consecutive Reversed Bit Slices**:
+    If a `concat` has consecutive operands that are `reverse` operations on
+    slices (or 1-bit slices, which are trivially self-reversed) from the
+    *same source node* in ascending bit order (lower bits first), the entire
+    run is merged into a single `reverse` of a wider `bit_slice` (or
+    `reverse(x)` if it covers the entire width of the source).
+
+    ```
+    concat(reverse(bit_slice(x, start=0, width=4)),
+           reverse(bit_slice(x, start=4, width=4)))
+    // => reverse(x)  (if x is bits[8])
+    ```
+
+
+8.  **Hoisting Bitwise Operations above `Concat`s
     (`TryHoistBitWiseOperation`)**: If a bitwise operation (e.g., `and`,
     `or`, `xor`) has all its operands as `concat` operations, the bitwise
     operation can be "hoisted" above the concatenations. This means the
@@ -1779,7 +1839,7 @@ Here's a detailed breakdown of the key optimizations performed:
     ```
 
 
-8.  **Hoisting Bitwise Operations with Constants above `Concat`s
+9.  **Hoisting Bitwise Operations with Constants above `Concat`s
     (`TryHoistBitWiseWithConstant`)**: This is a specialized version of
     hoisting bitwise operations. If a binary bitwise operation has one
     constant operand and one `concat` operand, the bitwise operation can be
@@ -1794,7 +1854,7 @@ Here's a detailed breakdown of the key optimizations performed:
     ```
 
 
-9.  **Narrowing and Hoisting Bitwise Operations
+10. **Narrowing and Hoisting Bitwise Operations
     (`TryNarrowAndHoistBitWiseOperation`)**: This optimization specifically
     targets scenarios where a `concat` is used as an operand to a bitwise
     operation (like `and`, `or`, `xor`), and the `concat` itself has one
@@ -1810,7 +1870,7 @@ Here's a detailed breakdown of the key optimizations performed:
     ```
 
 
-10. **Bypassing Reduction of Concatenation
+11. **Bypassing Reduction of Concatenation
     (`TryBypassReductionOfConcatenation`)**: If a bitwise reduction
     operation (e.g., `or_reduce`, `and_reduce`, `xor_reduce`) is applied to
     a `concat` operation, it can be bypassed. The reduction is distributed
@@ -1823,7 +1883,7 @@ Here's a detailed breakdown of the key optimizations performed:
     ```
 
 
-11. **Distributing Reducible Operations
+12. **Distributing Reducible Operations
     (`TryDistributeReducibleOperation`)**: This optimization distributes
     `eq` and `ne` operations across `concat`s. If `eq(concat(A, B), C)` is
     found, it's transformed into `and(eq(A, slice(C)), eq(B, slice(C)))`.
@@ -6501,6 +6561,8 @@ This is run a large number of times and avoids many time-consuming analyses.
 - [arith_simp](#arith_simp)
 - [dce](#dce)
 - [narrow(Ternary)](#narrowTernary)
+- [dce](#dce)
+- [bitwise_simp](#bitwise_simp)
 - [dce](#dce)
 - [bool_simp](#bool_simp)
 - [dce](#dce)
