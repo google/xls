@@ -535,26 +535,14 @@ class StatefulResolver : public TypeAnnotationResolver {
       std::optional<const AstNode*> context_node,
       const ConstConditionalTypeAnnotation* conditional_type,
       TypeAnnotationFilter filter) {
-    if (!context_node.has_value()) {
-      return TypeInferenceErrorStatus(
-          conditional_type->span(), /*type=*/nullptr,
-          "context_node is required for ResolveConstConditionalType()",
-          file_table_);
-    }
-
-    const Conditional* conditional =
-        absl::down_cast<const Conditional*>(*context_node);
     absl::StatusOr<bool> evaluated_value = evaluator_.EvaluateBoolOrExpr(
         parametric_context, conditional_type->test());
     if (evaluated_value.ok()) {
-      const AstNode* selected_branch =
-          *evaluated_value ? conditional->consequent()
-                           : ToExprNode(conditional->alternate());
-      XLS_ASSIGN_OR_RETURN(
-          std::optional<const TypeAnnotation*> selected_annotation,
-          ResolveAndUnifyTypeAnnotationsForNode(parametric_context,
-                                                selected_branch, filter));
-      return *selected_annotation;
+      const TypeAnnotation* selected_type =
+          *evaluated_value ? conditional_type->consequent_type()
+                           : conditional_type->alternate_type();
+      return ResolveIndirectTypeAnnotations(parametric_context, context_node,
+                                            selected_type, filter);
     }
 
     return TypeInferenceErrorStatus(conditional_type->span(), /*type=*/nullptr,
