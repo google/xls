@@ -81,6 +81,24 @@ constexpr std::string_view kConstAssertIdentifier = "const_assert!";
 constexpr std::string_view kAssertFmtMacroIdentifier = "assert_fmt!";
 constexpr std::string_view kSpawnIdentifier = "spawn";
 
+inline constexpr std::string_view kIOObjectsBuiltinNames[] = {
+    "Source",
+    "Sink",
+    "ChannelConfig",
+    "IOResult",
+    "ChannelStrictness",
+    "DefaultChannelConfig",
+    "FlowControl"};
+
+bool IsIOObjectsBuiltin(std::string_view name) {
+  for (std::string_view builtin : kIOObjectsBuiltinNames) {
+    if (name == builtin) {
+      return true;
+    }
+  }
+  return false;
+}
+
 absl::StatusOr<std::vector<ExprOrType>> CloneParametrics(
     absl::Span<const ExprOrType> eots) {
   std::vector<ExprOrType> results;
@@ -181,6 +199,7 @@ absl::StatusOr<TypeDefinition> BoundNodeToTypeDefinition(BoundNode bn) {
   if (auto* e = TryGet<EnumDef*>(bn)) { return TypeDefinition(e); }
   if (auto* e = TryGet<SumDef*>(bn)) { return TypeDefinition(e); }
   if (auto* e = TryGet<UseTreeEntry*>(bn)) { return TypeDefinition(e); }
+  if (auto* e = TryGet<BuiltinNameDef*>(bn)) { return TypeDefinition(e); }
   // clang-format on
 
   return absl::InvalidArgumentError("Could not convert to type definition: " +
@@ -413,6 +432,8 @@ absl::Status Parser::ParseModuleAttribute() {
       module_->AddAttribute(ModuleAttribute::kGenerics, attribute_span);
     } else if (feature == "traits") {
       module_->AddAttribute(ModuleAttribute::kTraits, attribute_span);
+    } else if (feature == "io_objects") {
+      module_->AddAttribute(ModuleAttribute::kIOObjects, attribute_span);
     } else {
       return ParseErrorStatus(
           attribute_span,
@@ -463,6 +484,12 @@ absl::StatusOr<std::unique_ptr<Module>> Parser::ParseModule(
   for (auto const& it : GetParametricBuiltins()) {
     std::string name(it.first);
     bindings->Add(name, module_->GetOrCreateBuiltinNameDef(name));
+  }
+  if (!parse_fn_stubs_) {
+    for (std::string_view name : kIOObjectsBuiltinNames) {
+      bindings->Add(std::string(name),
+                    module_->GetOrCreateBuiltinNameDef(name));
+    }
   }
 
 #define ADD_SIZED_TYPE_KEYWORD(__enum, __caps, __str) \
@@ -1518,6 +1545,14 @@ absl::StatusOr<TypeRefOrAnnotation> Parser::ParseTypeRef(Bindings& bindings,
   }
   VLOG(5) << "ParseTypeRef token " << tok.ToString();
 
+  if (!parse_fn_stubs_ && IsIOObjectsBuiltin(*tok.GetValue())) {
+    if (!module_->attributes().contains(ModuleAttribute::kIOObjects)) {
+      return ParseErrorStatus(
+          tok.span(), absl::StrFormat("`%s` requires #![feature(io_objects)]",
+                                      *tok.GetValue()));
+    }
+  }
+
   XLS_ASSIGN_OR_RETURN(bool peek_is_double_colon,
                        PeekTokenIs(TokenKind::kDoubleColon));
   if (peek_is_double_colon) {
@@ -1537,8 +1572,8 @@ absl::StatusOr<TypeRefOrAnnotation> Parser::ParseTypeRef(Bindings& bindings,
           /*internal=*/false);
     }
   }
-  if (!IsOneOf<TypeAlias, EnumDef, SumDef, StructDef, ProcDef, UseTreeEntry>(
-          ToAstNode(type_def))) {
+  if (!IsOneOf<TypeAlias, EnumDef, SumDef, StructDef, ProcDef, UseTreeEntry,
+               BuiltinNameDef>(ToAstNode(type_def))) {
     return ParseErrorStatus(
         tok.span(),
         absl::StrFormat(
@@ -1731,6 +1766,15 @@ absl::StatusOr<NameRef*> Parser::ParseNameRef(Bindings& bindings,
   if (tok->GetValue() == "_") {
     return ParseErrorStatus(
         tok->span(), "Wildcard pattern `_` cannot be used as a reference");
+  }
+
+  if (!parse_fn_stubs_ && tok->GetValue().has_value() &&
+      IsIOObjectsBuiltin(*tok->GetValue())) {
+    if (!module_->attributes().contains(ModuleAttribute::kIOObjects)) {
+      return ParseErrorStatus(
+          tok->span(), absl::StrFormat("`%s` requires #![feature(io_objects)]",
+                                       *tok->GetValue()));
+    }
   }
 
   XLS_ASSIGN_OR_RETURN(

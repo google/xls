@@ -481,6 +481,115 @@ impl Loopback<T> {
 })");
 }
 
+TEST_F(ParserTest, IOObjectsNoFeatureFlagSourceUsed) {
+  constexpr std::string_view kProgram = R"(
+proc Loopback<N: u32> {
+    c_in: Source<uN[N]>,
+    c_out: chan<uN[N]> out,
+}
+impl Loopback<N> {
+    fn new(c_in: Source<uN[N]>, c_out: chan<uN[N]> out) -> Self {
+        Loopback { c_in: c_in, c_out: c_out }
+    }
+    fn next(self) {}
+}
+)";
+  Scanner s{file_table_, Fileno(0), std::string(kProgram)};
+  Parser parser{"test", &s};
+  EXPECT_THAT(parser.ParseModule(),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("`Source` requires "
+                                 "#![feature(io_objects)]")));
+}
+
+TEST_F(ParserTest, IOObjectsNoFeatureFlagSinkUsed) {
+  constexpr std::string_view kProgram = R"(
+proc Loopback<N: u32> {
+    c_in: chan<uN[N]> in,
+    c_out: Sink<uN[N]>,
+}
+impl Loopback<N> {
+    fn new(c_in: chan<uN[N]> in, c_out: Sink<uN[N]>) -> Self {
+        Loopback { c_in: c_in, c_out: c_out }
+    }
+    fn next(self) {}
+}
+)";
+  Scanner s{file_table_, Fileno(0), std::string(kProgram)};
+  Parser parser{"test", &s};
+  EXPECT_THAT(parser.ParseModule(),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("`Sink` requires "
+                                 "#![feature(io_objects)]")));
+}
+
+TEST_F(ParserTest, IOObjectsNoFeatureFlagChannelConfigCreation) {
+  constexpr std::string_view kProgram = R"(
+proc Main {
+    i: u32,
+}
+impl Main {
+    fn new() -> Self {
+        let config = ChannelConfig {
+            fifo_depth: u32:8,
+            strictness: ChannelStrictness::TOTAL_ORDER,
+            flow_control: FlowControl::READY_VALID,
+        };
+        Main { i: u32:0 }
+    }
+    fn next(self) {}
+}
+)";
+  Scanner s{file_table_, Fileno(0), std::string(kProgram)};
+  Parser parser{"test", &s};
+  EXPECT_THAT(parser.ParseModule(),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("`ChannelConfig` requires "
+                                 "#![feature(io_objects)]")));
+}
+
+TEST_F(ParserTest, IOObjectsNoFeatureFlagChannelStrictness) {
+  constexpr std::string_view kProgram = R"(
+proc Main {
+    i: u32,
+}
+impl Main {
+    fn new() -> Self {
+        let strictness = ChannelStrictness::TOTAL_ORDER;
+        Main { i: u32:0 }
+    }
+    fn next(self) {}
+}
+)";
+  Scanner s{file_table_, Fileno(0), std::string(kProgram)};
+  Parser parser{"test", &s};
+  EXPECT_THAT(parser.ParseModule(),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("`ChannelStrictness` requires "
+                                 "#![feature(io_objects)]")));
+}
+
+TEST_F(ParserTest, IOObjectsNoFeatureFlagFlowControl) {
+  constexpr std::string_view kProgram = R"(
+proc Main {
+    i: u32,
+}
+impl Main {
+    fn new() -> Self {
+        let flow_control = FlowControl::READY_VALID;
+        Main { i: u32:0 }
+    }
+    fn next(self) {}
+}
+)";
+  Scanner s{file_table_, Fileno(0), std::string(kProgram)};
+  Parser parser{"test", &s};
+  EXPECT_THAT(parser.ParseModule(),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("`FlowControl` requires "
+                                 "#![feature(io_objects)]")));
+}
+
 TEST_F(ParserTest, EmptyTrait) {
   RoundTrip(R"(pub trait Foo {
 })",
@@ -4409,6 +4518,14 @@ proc simple {
   const Function& init = proc->init();
   ASSERT_NE(init.return_type(), nullptr);
   EXPECT_EQ(init.return_type()->ToString(), "((u32, u32), u32)");
+}
+
+TEST_F(ParserTest, ParseSourceSinkChannelSyntaxAttribute) {
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> module, Parse(R"(
+#![feature(io_objects)]
+)"));
+  EXPECT_THAT(module->attributes(),
+              testing::ElementsAre(ModuleAttribute::kIOObjects));
 }
 
 // Verifies that we can walk backwards through a tree. In this case, from the
