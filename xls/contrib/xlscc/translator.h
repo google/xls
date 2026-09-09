@@ -669,7 +669,8 @@ class Translator final : public GeneratorBase,
                       std::unique_ptr<GeneratedFunction>>
       inst_functions_;
 
-  absl::flat_hash_map<const clang::NamedDecl*, SharedFunctionImpl>
+  absl::flat_hash_map<const clang::NamedDecl*,
+                      std::unique_ptr<GeneratedFunction>>
       shared_function_impls_;
 
   // Functions are put into this map between GenerateIR_Function_Header
