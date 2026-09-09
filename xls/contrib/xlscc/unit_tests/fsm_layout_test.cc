@@ -108,7 +108,8 @@ class FSMLayoutTest : public XlsccTestBase {
     }
 
     return generator.LayoutNewFSM(*func, state_element_for_static,
-                                  xls::SourceInfo());
+                                  /*is_sub_fsm=*/false, xls::SourceInfo(),
+                                  /*fsm_name=*/std::nullopt);
   }
 
   bool TypeContainsArray(xls::Type* type) {

@@ -220,7 +220,8 @@ absl::Status GenerateLayoutAndInsertChooseInStates(GeneratedFunction& func,
   NewFSMLayout layout_ref;
 
   XLS_RETURN_IF_ERROR(
-      generator.LayoutNewFSMNoStateElements(layout_ref, func.slices, loc));
+      generator.LayoutNewFSMNoStateElements(layout_ref, func.slices, loc,
+                                            /*fsm_name=*/std::nullopt));
 
   absl::flat_hash_map<std::tuple<const xls::Param*, const ContinuationValue*>,
                       ContinuationInput*>

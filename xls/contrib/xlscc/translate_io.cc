@@ -115,7 +115,8 @@ absl::StatusOr<IOOp*> Translator::AddOpToChannel(
 
   CHECK(op.op == OpType::kTrace || op.op == OpType::kLoopBegin ||
         op.op == OpType::kLoopEndJump || op.op == OpType::kActivationBarrier ||
-        op.op == OpType::kSharedCall || channel != nullptr);
+        op.op == OpType::kSharedCall || op.op == OpType::kNoOp ||
+        channel != nullptr);
   CHECK_EQ(op.channel, nullptr);
 
   std::shared_ptr<CType> channel_item_type;
@@ -144,7 +145,7 @@ absl::StatusOr<IOOp*> Translator::AddOpToChannel(
   }
 
   if (op.op != OpType::kLoopBegin && op.op != OpType::kLoopEndJump &&
-      op.op != OpType::kSharedCall) {
+      op.op != OpType::kSharedCall && op.op != OpType::kNoOp) {
     absl::InlinedVector<xls::Type*, 2> param_tup_types;
     param_tup_types.push_back(package_->GetTokenType());
     if (xls_param_type != nullptr) {
@@ -159,7 +160,8 @@ absl::StatusOr<IOOp*> Translator::AddOpToChannel(
     IOOpReturn ret;
     ret.generate_expr = false;
     if (op.op != OpType::kTrace && op.op != OpType::kLoopBegin &&
-        op.op != OpType::kLoopEndJump && op.op != OpType::kActivationBarrier) {
+        op.op != OpType::kLoopEndJump && op.op != OpType::kActivationBarrier &&
+        op.op != OpType::kNoOp) {
       XLS_ASSIGN_OR_RETURN(TrackedBValue default_bval,
                            CreateMaskedIOOpInput(channel, xls_param_type, loc));
 
@@ -1126,7 +1128,8 @@ absl::StatusOr<TrackedBValue> Translator::AddConditionToIOReturn(
       break;
     case OpType::kLoopEndJump:
     case OpType::kLoopBegin:
-    case OpType::kActivationBarrier: {
+    case OpType::kActivationBarrier:
+    case OpType::kNoOp: {
       op_condition = retval;
       break;
     }
@@ -1181,7 +1184,8 @@ absl::StatusOr<TrackedBValue> Translator::AddConditionToIOReturn(
       break;
     case OpType::kLoopBegin:
     case OpType::kLoopEndJump:
-    case OpType::kActivationBarrier: {
+    case OpType::kActivationBarrier:
+    case OpType::kNoOp: {
       new_retval = op_condition;
       break;
     }
@@ -1245,6 +1249,7 @@ absl::StatusOr<TrackedBValue> Translator::GetOpCondition(
   TrackedBValue io_condition;
 
   switch (op.op) {
+    case OpType::kNoOp:
     case OpType::kActivationBarrier: {
       io_condition = ret_val;
       break;
@@ -1494,7 +1499,7 @@ absl::StatusOr<GenerateIOReturn> Translator::GenerateIO(
     XLS_ASSIGN_OR_RETURN(new_token, GenerateTrace(ret_io_value, before_token,
                                                   condition, op, pb));
   } else if (op.op == OpType::kLoopBegin || op.op == OpType::kLoopEndJump ||
-             op.op == OpType::kActivationBarrier) {
+             op.op == OpType::kActivationBarrier || op.op == OpType::kNoOp) {
     new_token = before_token;
   } else {
     CHECK_EQ("Unknown IOOp type", nullptr);
