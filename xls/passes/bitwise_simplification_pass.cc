@@ -21,7 +21,10 @@
 
 #include "absl/algorithm/container.h"
 #include "absl/container/inlined_vector.h"
+#include "absl/log/check.h"
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_cat.h"
 #include "absl/types/span.h"
 #include "cppitertools/zip.hpp"
 #include "xls/common/status/ret_check.h"
@@ -45,18 +48,18 @@
 namespace xls {
 namespace {
 
-// Simplifies an AND or OR operation using known bits across all operands.
+// Simplifies an AND, OR, or XOR operation using known bits across all operands.
 //
 // Full collapse to a known value is always performed even when splits are
 // disabled. When splits are enabled, the operation is decomposed into concats
-// of literals and bit-slices of non-constant operands.
+// of literals, bit-slices, and inverters of non-constant operands.
 absl::StatusOr<bool> SimplifyBitwiseLogic(Node* n,
                                           const QueryEngine& query_engine,
                                           bool splits_enabled) {
   if (n->IsDead()) {
     return false;
   }
-  if (n->op() != Op::kAnd && n->op() != Op::kOr) {
+  if (!n->OpIn({Op::kAnd, Op::kOr, Op::kXor})) {
     return false;
   }
   XLS_RET_CHECK(n->GetType()->IsBits());
@@ -69,9 +72,12 @@ absl::StatusOr<bool> SimplifyBitwiseLogic(Node* n,
 
   const int64_t bit_count = n->BitCountOrDie();
   const bool is_and = (n->op() == Op::kAnd);
+  const bool is_xor = (n->op() == Op::kXor);
 
   // Accumulate a mask of known bits, remapping unknown bits to the identity
-  // value (1 for AND, 0 for OR), while recording the non-constant operands.
+  // value (1 for AND, 0 for OR/XOR), while recording the non-constant operands.
+  // For XOR, we don't accumulate partially-known operands into the mask; doing
+  // so would complicate the logic to apply the mask later.
   InlineBitmap mask(bit_count, /*fill=*/is_and);
   std::vector<Node*> non_constant_operands;
   std::vector<std::optional<SharedLeafTypeTree<TernaryVector>>>
@@ -81,28 +87,46 @@ absl::StatusOr<bool> SimplifyBitwiseLogic(Node* n,
   for (Node* op : n->operands()) {
     std::optional<SharedLeafTypeTree<TernaryVector>> ternary =
         query_engine.GetTernary(op);
+    const bool is_fully_known =
+        ternary.has_value() && ternary_ops::IsFullyKnown(ternary->Get({}));
     if (ternary.has_value()) {
       Bits operand_as_mask = ternary_ops::ToKnownBitsValues(
           ternary->Get({}), /*default_set=*/is_and);
-      if (is_and) {
-        mask.Intersect(operand_as_mask.bitmap());
-      } else {
-        mask.Union(operand_as_mask.bitmap());
+      switch (n->op()) {
+        case Op::kAnd:
+          mask.Intersect(operand_as_mask.bitmap());
+          break;
+        case Op::kOr:
+          mask.Union(operand_as_mask.bitmap());
+          break;
+        case Op::kXor:
+          if (is_fully_known) {
+            mask.Toggle(operand_as_mask.bitmap());
+          }
+          break;
+        default:
+          return absl::InternalError(absl::StrCat("Unexpected op: ", n->op()));
       }
     }
-    if (!ternary.has_value() || !ternary_ops::IsFullyKnown(ternary->Get({}))) {
+    if (!is_fully_known) {
       non_constant_operands.push_back(op);
       non_constant_ternaries.push_back(std::move(ternary));
     }
   }
 
-  // If the composite mask is the identity, no bits are forced.
+  // If the composite mask is the identity, no bits are forced or inverted.
   if (is_and ? mask.IsAllOnes() : mask.IsAllZeroes()) {
     return false;
   }
 
   // If splits are not enabled, do not decompose into slices.
   if (!splits_enabled) {
+    if (is_xor && mask.IsAllOnes() && non_constant_operands.size() == 1) {
+      XLS_RETURN_IF_ERROR(
+          n->ReplaceUsesWithNew<UnOp>(non_constant_operands[0], Op::kNot)
+              .status());
+      return true;
+    }
     return false;
   }
 
@@ -118,13 +142,14 @@ absl::StatusOr<bool> SimplifyBitwiseLogic(Node* n,
   int64_t pos = 0;
   while (pos < bit_count) {
     const bool mask_val = mask.Get(pos);
-    const bool is_absorbing = is_and ^ mask_val;
+    const bool is_non_identity = is_and ^ mask_val;
     int64_t end = pos + 1;
     while (end < bit_count && mask.Get(end) == mask_val) {
       ++end;
     }
 
-    if (is_absorbing) {
+    if (!is_xor && is_non_identity) {
+      // For AND/OR, the non-identity value is absorbing (0 for AND, 1 for OR).
       Bits const_bits = is_and ? UBits(0, end - pos) : Bits::AllOnes(end - pos);
       XLS_ASSIGN_OR_RETURN(
           Node * lit,
@@ -150,17 +175,27 @@ absl::StatusOr<bool> SimplifyBitwiseLogic(Node* n,
       }
       if (sub_slices.empty()) {
         // All the non-constant operands are the identity on this slice.
-        Bits const_bits =
-            is_and ? Bits::AllOnes(end - pos) : UBits(0, end - pos);
+        Bits const_bits = (is_and || (is_xor && is_non_identity))
+                              ? Bits::AllOnes(end - pos)
+                              : UBits(0, end - pos);
         XLS_ASSIGN_OR_RETURN(
             Node * const_slice,
             f->MakeNode<Literal>(n->loc(), Value(std::move(const_bits))));
         slices.push_back(const_slice);
       } else if (sub_slices.size() == 1) {
-        slices.push_back(sub_slices.front());
+        Node* sub_slice = sub_slices.front();
+        if (is_xor && is_non_identity) {
+          XLS_ASSIGN_OR_RETURN(
+              sub_slice, f->MakeNode<UnOp>(n->loc(), sub_slice, Op::kNot));
+        }
+        slices.push_back(sub_slice);
       } else {
         XLS_ASSIGN_OR_RETURN(
             Node * sub_op, f->MakeNode<NaryOp>(n->loc(), sub_slices, n->op()));
+        if (is_xor && is_non_identity) {
+          XLS_ASSIGN_OR_RETURN(sub_op,
+                               f->MakeNode<UnOp>(n->loc(), sub_op, Op::kNot));
+        }
         slices.push_back(sub_op);
       }
     }

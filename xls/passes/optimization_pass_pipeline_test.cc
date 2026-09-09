@@ -58,12 +58,13 @@ class OptimizationPipelineTest : public IrTestBase {
  protected:
   OptimizationPipelineTest() = default;
 
-  absl::StatusOr<bool> Run(Package* p) {
-    return RunOptimizationPassPipeline(p);
+  absl::StatusOr<bool> Run(Package* p, int64_t opt_level = kMaxOptLevel) {
+    return RunOptimizationPassPipeline(p, opt_level);
   }
 
   void TestAssociativeWithConstants(std::string_view xls_op, Op op,
-                                    int64_t value) {
+                                    int64_t value,
+                                    int64_t opt_level = kMaxOptLevel) {
     auto p = CreatePackage();
     std::string xls_func = absl::StrFormat(R"(
      fn simple_assoc(x:bits[8]) -> bits[8] {
@@ -75,7 +76,7 @@ class OptimizationPipelineTest : public IrTestBase {
   )",
                                            xls_op, xls_op, xls_op, xls_op);
     XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(xls_func, p.get()));
-    ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+    ASSERT_THAT(Run(p.get(), opt_level), IsOkAndHolds(true));
     EXPECT_EQ(f->return_value()->op(), op);
     EXPECT_EQ(f->return_value()->operand(1)->op(), Op::kLiteral);
     EXPECT_EQ(f->return_value()->operand(1)->As<Literal>()->value().bits(),
@@ -197,7 +198,7 @@ TEST_F(OptimizationPipelineTest, AssociateAdd) {
 }
 
 TEST_F(OptimizationPipelineTest, AssociateXor) {
-  TestAssociativeWithConstants("xor", Op::kXor, 7 ^ 12);
+  TestAssociativeWithConstants("xor", Op::kXor, 7 ^ 12, /*opt_level=*/2);
 }
 
 TEST_F(OptimizationPipelineTest, SubSubTest) {

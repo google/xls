@@ -464,5 +464,120 @@ TEST_F(BitwiseSimplificationPassTest, AlternatingBitMask) {
                         m::BitSlice(m::Param("x"), /*start=*/0, /*width=*/1)));
 }
 
+TEST_F(BitwiseSimplificationPassTest, XorWithMaskSplitsEnabled) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetBitsType(16));
+  BValue mask = fb.Literal(UBits(0x00ff, 16));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
+                           fb.BuildWithReturnValue(fb.Xor(x, mask)));
+
+  ScopedVerifyEquivalence sve(f);
+  EXPECT_THAT(Run(f, /*opt_level=*/3), IsOkAndHolds(true));
+  EXPECT_THAT(
+      f->return_value(),
+      m::Concat(m::BitSlice(m::Param("x"), /*start=*/8, /*width=*/8),
+                m::Not(m::BitSlice(m::Param("x"), /*start=*/0, /*width=*/8))));
+}
+
+TEST_F(BitwiseSimplificationPassTest, XorWithMaskSplitsDisabled) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetBitsType(16));
+  BValue mask = fb.Literal(UBits(0x00ff, 16));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
+                           fb.BuildWithReturnValue(fb.Xor(x, mask)));
+
+  // SplitsEnabled requires opt_level >= 3, and this mask doesn't fully
+  // collapse to Not.
+  EXPECT_THAT(Run(f, /*opt_level=*/2), IsOkAndHolds(false));
+  EXPECT_THAT(f->return_value(), m::Xor());
+}
+
+TEST_F(BitwiseSimplificationPassTest, XorWithAllOnesSplitsDisabled) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetBitsType(16));
+  BValue mask = fb.Literal(UBits(0xffff, 16));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
+                           fb.BuildWithReturnValue(fb.Xor(x, mask)));
+
+  ScopedVerifyEquivalence sve(f);
+  // Full collapse to Not works even with splits disabled (opt_level = 2).
+  EXPECT_THAT(Run(f, /*opt_level=*/2), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(), m::Not(m::Param("x")));
+}
+
+TEST_F(BitwiseSimplificationPassTest, XorWithAllOnesSplitsEnabled) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetBitsType(16));
+  BValue mask = fb.Literal(UBits(0xffff, 16));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
+                           fb.BuildWithReturnValue(fb.Xor(x, mask)));
+
+  ScopedVerifyEquivalence sve(f);
+  EXPECT_THAT(Run(f, /*opt_level=*/3), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(), m::Not(m::Param("x")));
+}
+
+TEST_F(BitwiseSimplificationPassTest, XorSignBitToggle) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetBitsType(32));
+  BValue mask = fb.Literal(UBits(0x8000'0000, 32));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
+                           fb.BuildWithReturnValue(fb.Xor(x, mask)));
+
+  ScopedVerifyEquivalence sve(f);
+  EXPECT_THAT(Run(f, /*opt_level=*/3), IsOkAndHolds(true));
+  EXPECT_THAT(
+      f->return_value(),
+      m::Concat(m::Not(m::BitSlice(m::Param("x"), /*start=*/31, /*width=*/1)),
+                m::BitSlice(m::Param("x"), /*start=*/0, /*width=*/31)));
+}
+
+TEST_F(BitwiseSimplificationPassTest, XorMultipleOperands) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetBitsType(16));
+  BValue y = fb.Param("y", p->GetBitsType(16));
+  BValue mask = fb.Literal(UBits(0xff00, 16));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
+                           fb.BuildWithReturnValue(fb.Xor({x, y, mask})));
+
+  ScopedVerifyEquivalence sve(f);
+  EXPECT_THAT(Run(f, /*opt_level=*/3), IsOkAndHolds(true));
+  EXPECT_THAT(
+      f->return_value(),
+      m::Concat(
+          m::Not(m::Xor(m::BitSlice(m::Param("x"), /*start=*/8, /*width=*/8),
+                        m::BitSlice(m::Param("y"), /*start=*/8, /*width=*/8))),
+          m::Xor(m::BitSlice(m::Param("x"), /*start=*/0, /*width=*/8),
+                 m::BitSlice(m::Param("y"), /*start=*/0, /*width=*/8))));
+}
+
+TEST_F(BitwiseSimplificationPassTest, XorAlternatingMask) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetBitsType(8));
+  BValue mask = fb.Literal(UBits(0x55, 8));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
+                           fb.BuildWithReturnValue(fb.Xor(x, mask)));
+
+  ScopedVerifyEquivalence sve(f);
+  EXPECT_THAT(Run(f, /*opt_level=*/3), IsOkAndHolds(true));
+  EXPECT_THAT(
+      f->return_value(),
+      m::Concat(m::BitSlice(m::Param("x"), /*start=*/7, /*width=*/1),
+                m::Not(m::BitSlice(m::Param("x"), /*start=*/6, /*width=*/1)),
+                m::BitSlice(m::Param("x"), /*start=*/5, /*width=*/1),
+                m::Not(m::BitSlice(m::Param("x"), /*start=*/4, /*width=*/1)),
+                m::BitSlice(m::Param("x"), /*start=*/3, /*width=*/1),
+                m::Not(m::BitSlice(m::Param("x"), /*start=*/2, /*width=*/1)),
+                m::BitSlice(m::Param("x"), /*start=*/1, /*width=*/1),
+                m::Not(m::BitSlice(m::Param("x"), /*start=*/0, /*width=*/1))));
+}
+
 }  // namespace
 }  // namespace xls

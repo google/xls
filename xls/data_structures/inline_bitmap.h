@@ -207,14 +207,14 @@ class InlineBitmap {
     }
     return true;
   }
-  inline bool Get(int64_t index) const {
+  bool Get(int64_t index) const {
     DCHECK_GE(index, 0);
     DCHECK_LT(index, bit_count());
     uint64_t word = data_[index / kWordBits];
     uint64_t bitno = index % kWordBits;
     return (word >> bitno) & 1ULL;
   }
-  inline void Set(int64_t index, bool value = true) {
+  void Set(int64_t index, bool value = true) {
     DCHECK_GE(index, 0);
     DCHECK_LT(index, bit_count());
     uint64_t& word = data_[index / kWordBits];
@@ -225,10 +225,17 @@ class InlineBitmap {
       word &= ~(1ULL << bitno);
     }
   }
+  // Toggles the value of the bit at the given index.
+  void Toggle(int64_t index) {
+    DCHECK_GE(index, 0);
+    DCHECK_LT(index, bit_count());
+    uint64_t& word = data_[index / kWordBits];
+    uint64_t bitno = index % kWordBits;
+    word ^= (1ULL << bitno);
+  }
   // Sets the values of a range. The range is defined as:
   // [lower_index, upper_index).
-  inline void SetRange(int64_t lower_index, int64_t upper_index,
-                       bool value = true) {
+  void SetRange(int64_t lower_index, int64_t upper_index, bool value = true) {
     DCHECK_GE(lower_index, 0);
     DCHECK_LE(upper_index, bit_count());
     for (int64_t index = lower_index; index < upper_index; ++index) {
@@ -236,9 +243,7 @@ class InlineBitmap {
     }
   }
   // Sets all the values of the bitmap to false.
-  inline void SetAllBitsToFalse() {
-    std::fill(data_.begin(), data_.end(), 0ULL);
-  }
+  void SetAllBitsToFalse() { std::fill(data_.begin(), data_.end(), 0ULL); }
 
   // Fast path for users of the InlineBitmap to get at the 64-bit word that
   // backs a group of 64 bits.
@@ -341,6 +346,14 @@ class InlineBitmap {
     CHECK_EQ(bit_count(), other.bit_count());
     for (int64_t i = 0; i < data_.size(); ++i) {
       data_[i] &= other.data_[i];
+    }
+  }
+
+  // Sets this bitmap to the bitwise 'xor' of this bitmap and `other`.
+  void Toggle(const InlineBitmap& other) {
+    CHECK_EQ(bit_count(), other.bit_count());
+    for (int64_t i = 0; i < data_.size(); ++i) {
+      data_[i] ^= other.data_[i];
     }
   }
 
