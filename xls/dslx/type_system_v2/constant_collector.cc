@@ -18,6 +18,7 @@
 #include <filesystem>
 #include <memory>
 #include <optional>
+#include <string>
 #include <utility>
 #include <variant>
 #include <vector>
@@ -981,19 +982,25 @@ class Visitor : public AstNodeVisitorWithDefault {
 
     std::vector<InterpValue> parametrics;
     parametrics.reserve(type.struct_def_base().parametric_bindings().size());
+    std::vector<std::pair<std::string, InterpValue>> env_items;
+    env_items.reserve(type.struct_def_base().parametric_bindings().size());
     for (const ParametricBinding* binding :
          type.struct_def_base().parametric_bindings()) {
       XLS_ASSIGN_OR_RETURN(InterpValue value,
                            ti_->GetConstExpr(binding->name_def()));
       parametrics.push_back(value);
+      env_items.emplace_back(binding->identifier(), value);
     }
 
     auto inst = InterpValue::MakeProcInitializer(
         &absl::down_cast<const ProcDef&>(type.struct_def_base()), node,
         parametrics, member_values, std::move(forwarded_values));
 
-    ti_->NoteCanonicalProcInitializer(
-        node, table_.GetParametricEnv(parametric_context_), inst);
+    // Note: the env that we put in the initializer has values for the defaulted
+    // bindings, while in some other situations, a ParametricEnv omits those.
+    // `table_.GetParametricEnv()` would also yield an env without the defaulted
+    // binding values, which is why we don't use that.
+    ti_->NoteCanonicalProcInitializer(node, ParametricEnv(env_items), inst);
     return absl::OkStatus();
   }
 

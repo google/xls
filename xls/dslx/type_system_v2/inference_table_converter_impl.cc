@@ -1459,6 +1459,10 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
         if (auto it = env_values.find(binding->identifier());
             it != env_values.end()) {
           XLS_ASSIGN_OR_RETURN(cleansed_type, it->second.GetTypeReference());
+          XLS_RETURN_IF_ERROR(
+              table_.AddTypeAnnotationToVariableForParametricContext(
+                  struct_context, binding, cleansed_type));
+          ti->NoteConstExpr(binding->name_def(), it->second);
         } else if (binding->default_expr_or_type().has_value() &&
                    std::holds_alternative<TypeAnnotation*>(
                        *binding->default_expr_or_type())) {

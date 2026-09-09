@@ -2798,6 +2798,207 @@ impl Main {
   ExpectIr(conv.DumpIr());
 }
 
+TEST_F(IrConverterTest, ParametricProcDefWithDefault) {
+  constexpr std::string_view kModule = R"(
+#![feature(explicit_state_access)]
+
+proc Loopback<N: u32, M: u32 = {N * 2}> {
+  c_in: chan<uN[N]> in,
+  c_out: chan<uN[N]> out,
+}
+
+impl Loopback<N, M> {
+  fn new(c_in: chan<uN[N]> in, c_out: chan<uN[N]> out) -> Self {
+    Loopback { c_in, c_out }
+  }
+
+  fn next(self) {
+    let (t, val) = recv(join(), self.c_in);
+    send(t, self.c_out, val);
+  }
+}
+
+proc Main {
+  c_in: chan<u32> in,
+  c_out: chan<u32> out,
+  c_in_from_loopback: chan<u32> in,
+  c_out_to_loopback: chan<u32> out,
+  i: u32,
+}
+
+impl Main {
+  fn new(c_in: chan<u32> in, c_out: chan<u32> out) -> Self {
+    let (out_to_loopback, loopback_in) = chan<u32>("main_to_loopback");
+    let (loopback_out, in_from_loopback) = chan<u32>("loopback_to_main");
+    Loopback<32>::new(loopback_in, loopback_out).spawn();
+
+    Main {
+      c_in: c_in,
+      c_out: c_out,
+      c_in_from_loopback: in_from_loopback,
+      c_out_to_loopback: out_to_loopback,
+      i: 1
+    }
+  }
+
+  fn next(self) {
+    let i_val = read(self.i);
+    let (_, j) = recv(join(), self.c_in);
+    let loopback_tok = send(join(), self.c_out_to_loopback, j);
+    let (_, loopback_val) = recv(loopback_tok, self.c_in_from_loopback);
+    send(join(), self.c_out, i_val + loopback_val);
+    write(self.i, i_val + loopback_val);
+  }
+}
+)";
+
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(kModule, "test_module.x", "test_module", &import_data));
+  XLS_ASSERT_OK_AND_ASSIGN(PackageConversionData conv,
+                           ConvertModuleToPackage(tm.module, &import_data,
+                                                  kProcScopedChannelOptions));
+  ExpectIr(conv.DumpIr());
+}
+
+TEST_F(IrConverterTest, ParametricProcDefWithTypeParametric) {
+  constexpr std::string_view kModule = R"(
+#![feature(explicit_state_access)]
+#![feature(generics)]
+
+proc Loopback<T: type> {
+  c_in: chan<T> in,
+  c_out: chan<T> out,
+}
+
+impl Loopback<T> {
+  fn new(c_in: chan<T> in, c_out: chan<T> out) -> Self {
+    Loopback { c_in, c_out }
+  }
+
+  fn next(self) {
+    let (t, val) = recv(join(), self.c_in);
+    send(t, self.c_out, val);
+  }
+}
+
+proc Main {
+  c_in: chan<u32> in,
+  c_out: chan<u32> out,
+  c_in_from_loopback: chan<u32> in,
+  c_out_to_loopback: chan<u32> out,
+}
+
+impl Main {
+  fn new(c_in: chan<u32> in, c_out: chan<u32> out) -> Self {
+    let (out_to_loopback, loopback_in) = chan<u32>("main_to_loopback");
+    let (loopback_out, in_from_loopback) = chan<u32>("loopback_to_main");
+    Loopback<u32>::new(loopback_in, loopback_out).spawn();
+
+    Main {
+      c_in: c_in,
+      c_out: c_out,
+      c_in_from_loopback: in_from_loopback,
+      c_out_to_loopback: out_to_loopback,
+    }
+  }
+
+  fn next(self) {
+    let (_, j) = recv(join(), self.c_in);
+    let loopback_tok = send(join(), self.c_out_to_loopback, j);
+    let (_, loopback_val) = recv(loopback_tok, self.c_in_from_loopback);
+    send(join(), self.c_out, loopback_val);
+  }
+}
+)";
+
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(kModule, "test_module.x", "test_module", &import_data));
+  XLS_ASSERT_OK_AND_ASSIGN(PackageConversionData conv,
+                           ConvertModuleToPackage(tm.module, &import_data,
+                                                  kProcScopedChannelOptions));
+  ExpectIr(conv.DumpIr());
+}
+
+TEST_F(IrConverterTest, ImportedParametricProcDefWithTypeParametric) {
+  ImportData import_data = CreateImportDataForTest();
+  constexpr std::string_view imported = R"(
+#![feature(explicit_state_access)]
+#![feature(generics)]
+
+fn get_width<T: type>() -> u32 {
+  bit_count<T>()
+}
+
+pub proc Loopback<T: type, W: u32 = {get_width<T>()}> {
+  c_in: chan<T> in,
+  c_out: chan<T> out,
+}
+
+impl Loopback<T, W> {
+  pub fn new(c_in: chan<T> in, c_out: chan<T> out) -> Self {
+    Loopback { c_in, c_out }
+  }
+
+  pub fn next(self) {
+    let (t, val) = recv(join(), self.c_in);
+    send(t, self.c_out, val);
+  }
+}
+)";
+  XLS_ASSERT_OK(
+      ParseAndTypecheck(imported, "imported.x", "imported", &import_data));
+
+  constexpr std::string_view program = R"(
+#![feature(explicit_state_access)]
+import imported;
+
+struct Foo<N: u32> {
+  a: uN[N],
+}
+
+pub proc Main {
+  c_in: chan<Foo<32>> in,
+  c_out: chan<Foo<32>> out,
+  c_in_from_loopback: chan<Foo<32>> in,
+  c_out_to_loopback: chan<Foo<32>> out,
+}
+
+impl Main {
+  pub fn new(c_in: chan<Foo<32>> in, c_out: chan<Foo<32>> out) -> Self {
+    let (out_to_loopback, loopback_in) = chan<Foo<32>>("main_to_loopback");
+    let (loopback_out, in_from_loopback) = chan<Foo<32>>("loopback_to_main");
+    imported::Loopback<Foo<32>>::new(loopback_in, loopback_out).spawn();
+
+    Main {
+      c_in,
+      c_out,
+      c_in_from_loopback: in_from_loopback,
+      c_out_to_loopback: out_to_loopback,
+    }
+  }
+
+  pub fn next(self) {
+    let (_, j) = recv(join(), self.c_in);
+    let loopback_tok = send(join(), self.c_out_to_loopback, j);
+    let (_, loopback_val) = recv(loopback_tok, self.c_in_from_loopback);
+    send(join(), self.c_out, loopback_val);
+  }
+}
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(program, "main.x", "main", &import_data));
+  XLS_ASSERT_OK_AND_ASSIGN(PackageConversionData conv,
+                           ConvertModuleToPackage(tm.module, &import_data,
+                                                  kProcScopedChannelOptions));
+  ExpectIr(conv.DumpIr());
+}
+
 TEST_F(IrConverterTest, TopProcDefWithIndrectConstructorResult) {
   constexpr std::string_view program = R"(
 #![feature(explicit_state_access)]
