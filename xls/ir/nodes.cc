@@ -1302,8 +1302,8 @@ bool InstantiationInput::IsDefinitelyEqualTo(const Node* other) const {
 absl::StatusOr<GateType> ParseGateType(std::string_view gate_type) {
   if (gate_type == "zero") {
     return GateType::kZeroGate;
-  } else if (gate_type == "ignorable") {
-    return GateType::kIgnorableGate;
+  } else if (gate_type == "observable") {
+    return GateType::kObservableGate;
   }
   return absl::InvalidArgumentError(
       absl::StrCat("Unknown gate type: ", gate_type));

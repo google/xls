@@ -102,8 +102,8 @@ absl::StatusOr<RegisterRead*> CreatePipelineRegister(
   Node* load_enable = stage_done;
 
   if (node->Is<Gate>() &&
-      node->As<Gate>()->gate_type() == GateType::kIgnorableGate) {
-    // Ignorable gates are used to indicate that the node is conditionally
+      node->As<Gate>()->gate_type() == GateType::kObservableGate) {
+    // Observable gates are used to indicate that the node is conditionally
     // visible. We can strengthen the logic for gating the pipeline register by
     // ANDing the stage done signal with the gate's predicate, reducing the
     // number of times the register needs to be updated.
@@ -161,7 +161,7 @@ absl::StatusOr<Node*> AddPipelineRegisterFor(
     const BlockConversionPassOptions& options) {
   Node* name_source = node;
   if (node->Is<Gate>() &&
-      node->As<Gate>()->gate_type() == GateType::kIgnorableGate) {
+      node->As<Gate>()->gate_type() == GateType::kObservableGate) {
     name_source = node->As<Gate>()->data();
   }
   std::string base_name =

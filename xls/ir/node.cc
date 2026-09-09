@@ -641,8 +641,8 @@ std::string Node::ToStringInternal(bool include_operand_types) const {
     }
     case Op::kGate: {
       const Gate* gate = As<Gate>();
-      if (gate->gate_type() == GateType::kIgnorableGate) {
-        args.push_back("gate_type=ignorable");
+      if (gate->gate_type() == GateType::kObservableGate) {
+        args.push_back("gate_type=observable");
       }
       break;
     }

@@ -517,10 +517,11 @@ class ExtendOp final : public Node {
 enum class GateType : uint8_t {
   // The default gate type; replaces the value with 0 if the condition is false.
   kZeroGate,
-  // Marks the value as unused/ignorable if the condition is false; does not
-  // mandate replacing the value in any way, merely represents a promise that no
-  // change to the output will be observed.
-  kIgnorableGate,
+  // Marks the value as unused/non-observable if the condition is false; does
+  // not mandate replacing the value in any way, merely represents a promise
+  // that no change to the output will be observed. In other words, if the
+  // predicate is false, this is a don't-care value.
+  kObservableGate,
 };
 
 template <typename Sink>
@@ -529,8 +530,8 @@ void AbslStringify(Sink& sink, const GateType& gate_type) {
     case GateType::kZeroGate:
       absl::Format(&sink, "zero");
       return;
-    case GateType::kIgnorableGate:
-      absl::Format(&sink, "ignorable");
+    case GateType::kObservableGate:
+      absl::Format(&sink, "observable");
       return;
   }
 }
