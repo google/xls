@@ -398,15 +398,9 @@ TEST_F(OptimizationPipelineTest, HackersDelightBitReversal) {
   ScopedVerifyEquivalence stays_equivalent(f, kProverTimeout);
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
 
-  // The entire software bit-reversal collapses into pure wire routing: a single
-  // concat of 1-bit slices of `x` in reverse bit order (from bit 0 to 31),
+  // The entire software bit-reversal collapses into a single reverse operation,
   // completely eliminating all shifters, masks, and OR gates.
-  std::vector<::testing::Matcher<const Node*>> slices;
-  slices.reserve(32);
-  for (int64_t i = 0; i < 32; ++i) {
-    slices.push_back(m::BitSlice(m::Param("x"), /*start=*/i, /*width=*/1));
-  }
-  EXPECT_THAT(f->return_value(), m::Concat(slices));
+  EXPECT_THAT(f->return_value(), m::Reverse(m::Param("x")));
 }
 
 // Wait for 1 million passes (http://memegen/9906133131144705) to run before we

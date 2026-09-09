@@ -38,6 +38,7 @@
 #include "xls/passes/dce_pass.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/pass_base.h"
+#include "xls/solvers/ir_equivalence_testutils.h"
 
 namespace m = ::xls::op_matchers;
 
@@ -45,6 +46,7 @@ namespace xls {
 namespace {
 
 using ::absl_testing::IsOkAndHolds;
+using ::xls::solvers::ScopedVerifyEquivalence;
 
 class ConcatSimplificationPassTest : public IrTestBase {
  protected:
@@ -935,6 +937,211 @@ TEST_F(ConcatSimplificationPassTest,
       f->return_value(),
       m::Concat(m::BitSlice(m::Param("x"), 4, 6),
                 m::And(m::BitSlice(m::Param("x"), 0, 4), m::Param("b"))));
+}
+
+TEST_F(ConcatSimplificationPassTest, ConcatOfReversedSlicesToReverse) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetBitsType(4));
+  BValue s0 = fb.BitSlice(x, 0, 1);
+  BValue s1 = fb.BitSlice(x, 1, 1);
+  BValue s2 = fb.BitSlice(x, 2, 1);
+  BValue s3 = fb.BitSlice(x, 3, 1);
+  BValue concat = fb.Concat({s0, s1, s2, s3});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(concat));
+
+  ScopedVerifyEquivalence sve(f);
+  EXPECT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(), m::Reverse(m::Param("x")));
+}
+
+TEST_F(ConcatSimplificationPassTest,
+       ConcatOfReversedSubrangeSlicesToReversedSlice) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetBitsType(8));
+  BValue s0 = fb.BitSlice(x, 2, 1);
+  BValue s1 = fb.BitSlice(x, 3, 1);
+  BValue s2 = fb.BitSlice(x, 4, 1);
+  BValue s3 = fb.BitSlice(x, 5, 1);
+  BValue concat = fb.Concat({s0, s1, s2, s3});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(concat));
+
+  ScopedVerifyEquivalence sve(f);
+  EXPECT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::Reverse(m::BitSlice(m::Param("x"), /*start=*/2, /*width=*/4)));
+}
+
+TEST_F(ConcatSimplificationPassTest, ConcatOfTwoReversedMultiBitSlices) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetBitsType(8));
+  BValue s0 = fb.BitSlice(x, 0, 4);
+  BValue s1 = fb.BitSlice(x, 4, 4);
+  BValue r0 = fb.Reverse(s0);
+  BValue r1 = fb.Reverse(s1);
+  BValue concat = fb.Concat({r0, r1});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(concat));
+
+  ScopedVerifyEquivalence sve(f);
+  EXPECT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(), m::Reverse(m::Param("x")));
+}
+
+TEST_F(ConcatSimplificationPassTest,
+       ConcatOfTwoReversedMultiBitSubrangeSlices) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetBitsType(12));
+  BValue s0 = fb.BitSlice(x, 2, 3);
+  BValue s1 = fb.BitSlice(x, 5, 3);
+  BValue r0 = fb.Reverse(s0);
+  BValue r1 = fb.Reverse(s1);
+  BValue concat = fb.Concat({r0, r1});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(concat));
+
+  ScopedVerifyEquivalence sve(f);
+  EXPECT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::Reverse(m::BitSlice(m::Param("x"), /*start=*/2, /*width=*/6)));
+}
+
+TEST_F(ConcatSimplificationPassTest, ConcatOfReversedSliceAnd1BitSlice) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetBitsType(4));
+  BValue s0 = fb.BitSlice(x, 0, 3);
+  BValue s1 = fb.BitSlice(x, 3, 1);
+  BValue r0 = fb.Reverse(s0);
+  BValue concat = fb.Concat({r0, s1});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(concat));
+
+  ScopedVerifyEquivalence sve(f);
+  EXPECT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(), m::Reverse(m::Param("x")));
+}
+
+TEST_F(ConcatSimplificationPassTest, ConcatOf1BitSliceAndReversedSlice) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetBitsType(4));
+  BValue s0 = fb.BitSlice(x, 0, 1);
+  BValue s1 = fb.BitSlice(x, 1, 3);
+  BValue r1 = fb.Reverse(s1);
+  BValue concat = fb.Concat({s0, r1});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(concat));
+
+  ScopedVerifyEquivalence sve(f);
+  EXPECT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(), m::Reverse(m::Param("x")));
+}
+
+TEST_F(ConcatSimplificationPassTest, ConcatWithPartialReversedSlices) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue a = fb.Param("a", p->GetBitsType(2));
+  BValue x = fb.Param("x", p->GetBitsType(8));
+  BValue b = fb.Param("b", p->GetBitsType(2));
+  BValue s0 = fb.BitSlice(x, 0, 4);
+  BValue s1 = fb.BitSlice(x, 4, 4);
+  BValue r0 = fb.Reverse(s0);
+  BValue r1 = fb.Reverse(s1);
+  BValue concat = fb.Concat({a, r0, r1, b});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(concat));
+
+  ScopedVerifyEquivalence sve(f);
+  EXPECT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(
+      f->return_value(),
+      m::Concat(m::Param("a"), m::Reverse(m::Param("x")), m::Param("b")));
+}
+
+TEST_F(ConcatSimplificationPassTest, ConcatOfFourForwardSlicesSinglePass) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetBitsType(8));
+  BValue s3 = fb.BitSlice(x, 6, 2);
+  BValue s2 = fb.BitSlice(x, 4, 2);
+  BValue s1 = fb.BitSlice(x, 2, 2);
+  BValue s0 = fb.BitSlice(x, 0, 2);
+  BValue concat = fb.Concat({s3, s2, s1, s0});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(concat));
+
+  ScopedVerifyEquivalence sve(f);
+  EXPECT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(), m::Param("x"));
+}
+
+TEST_F(ConcatSimplificationPassTest, ConcatOfMultipleForwardRuns) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue a = fb.Param("a", p->GetBitsType(2));
+  BValue x = fb.Param("x", p->GetBitsType(8));
+  BValue b = fb.Param("b", p->GetBitsType(2));
+  BValue y = fb.Param("y", p->GetBitsType(8));
+  BValue c = fb.Param("c", p->GetBitsType(2));
+  BValue sx0 = fb.BitSlice(x, 0, 4);
+  BValue sx1 = fb.BitSlice(x, 4, 4);
+  BValue sy0 = fb.BitSlice(y, 0, 2);
+  BValue sy1 = fb.BitSlice(y, 2, 2);
+  BValue concat = fb.Concat({a, sx1, sx0, b, sy1, sy0, c});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(concat));
+
+  ScopedVerifyEquivalence sve(f);
+  EXPECT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::Concat(m::Param("a"), m::Param("x"), m::Param("b"),
+                        m::BitSlice(m::Param("y"), /*start=*/0, /*width=*/4),
+                        m::Param("c")));
+}
+
+TEST_F(ConcatSimplificationPassTest, ConcatOfFourReversedSlicesSinglePass) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetBitsType(8));
+  BValue s0 = fb.BitSlice(x, 0, 2);
+  BValue s1 = fb.BitSlice(x, 2, 2);
+  BValue s2 = fb.BitSlice(x, 4, 2);
+  BValue s3 = fb.BitSlice(x, 6, 2);
+  BValue r0 = fb.Reverse(s0);
+  BValue r1 = fb.Reverse(s1);
+  BValue r2 = fb.Reverse(s2);
+  BValue r3 = fb.Reverse(s3);
+  BValue concat = fb.Concat({r0, r1, r2, r3});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(concat));
+
+  ScopedVerifyEquivalence sve(f);
+  EXPECT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(), m::Reverse(m::Param("x")));
+}
+
+TEST_F(ConcatSimplificationPassTest, ConcatOfMultipleReversedRuns) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue a = fb.Param("a", p->GetBitsType(2));
+  BValue x = fb.Param("x", p->GetBitsType(8));
+  BValue b = fb.Param("b", p->GetBitsType(2));
+  BValue y = fb.Param("y", p->GetBitsType(8));
+  BValue c = fb.Param("c", p->GetBitsType(2));
+  BValue sx0 = fb.BitSlice(x, 0, 4);
+  BValue sx1 = fb.BitSlice(x, 4, 4);
+  BValue rx0 = fb.Reverse(sx0);
+  BValue rx1 = fb.Reverse(sx1);
+  BValue sy0 = fb.BitSlice(y, 0, 2);
+  BValue sy1 = fb.BitSlice(y, 2, 2);
+  BValue ry0 = fb.Reverse(sy0);
+  BValue ry1 = fb.Reverse(sy1);
+  BValue concat = fb.Concat({a, rx0, rx1, b, ry0, ry1, c});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(concat));
+
+  ScopedVerifyEquivalence sve(f);
+  EXPECT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::Concat(m::Param("a"), m::Reverse(m::Param("x")), m::Param("b"),
+                        m::Reverse(m::BitSlice(m::Param("y"), /*start=*/0,
+                                               /*width=*/4)),
+                        m::Param("c")));
 }
 
 void IrFuzzConcatSimplification(FuzzPackageWithArgs fuzz_package_with_args) {
