@@ -46,8 +46,13 @@ void ExpectEqualToGoldenFile(const std::filesystem::path& golden_file_path,
     std::string xls_source_dir = absl::GetFlag(FLAGS_xls_source_dir);
     xls_source_dir = std::string(absl::StripSuffix(xls_source_dir, "/"));
     std::filesystem::path xls_source_pardir =
-        std::filesystem::path(xls_source_dir).remove_filename();
-    std::filesystem::path abs_path = xls_source_pardir / golden_file_path;
+        std::filesystem::path(xls_source_dir).parent_path();
+    std::filesystem::path abs_path;
+    if (!golden_file_path.empty() && *golden_file_path.begin() == "xls") {
+      abs_path = xls_source_pardir / golden_file_path;
+    } else {
+      abs_path = xls_source_pardir.parent_path() / golden_file_path;
+    }
 
     LOG(INFO) << "Updating golden file; abs_path: " << abs_path;
     CHECK_OK(SetFileContents(abs_path, text));

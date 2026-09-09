@@ -56,7 +56,12 @@ def expect_equal_to_golden_file(golden_file_path: str, text: str) -> None:
         'should end with `/xls/` got',
         xls,
     )
-    path_to_write: str = os.path.join(dirpath, golden_file_path)
+    if golden_file_path.startswith('xls/'):
+      path_to_write: str = os.path.join(dirpath, golden_file_path)
+    else:
+      path_to_write: str = os.path.join(
+          os.path.dirname(dirpath), golden_file_path
+      )
     logging.info('Updating golden file: %s', path_to_write)
     with open(path_to_write, 'w') as f:
       f.write(text)

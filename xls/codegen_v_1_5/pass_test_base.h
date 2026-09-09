@@ -45,11 +45,12 @@ namespace xls::codegen {
 template <typename PassType>
 class PassTestBase : public IrTestBase {
  protected:
-  static constexpr std::string_view kTestDataPath =
+  static constexpr std::string_view kDefaultTestDataPath =
       "xls/codegen_v_1_5/testdata";
 
-  explicit PassTestBase(std::string_view test_suite_name)
-      : test_suite_name_(test_suite_name) {}
+  explicit PassTestBase(std::string_view test_suite_name,
+                        std::string_view test_data_path = kDefaultTestDataPath)
+      : test_suite_name_(test_suite_name), test_data_path_(test_data_path) {}
 
   absl::StatusOr<std::string> RunPassAndRoundTripIrText(
       std::string_view input_ir, bool expect_change = true,
@@ -93,13 +94,14 @@ class PassTestBase : public IrTestBase {
       std::string_view actual_ir,
       xabsl::SourceLocation loc = xabsl::SourceLocation::current()) {
     ::xls::ExpectEqualToGoldenFile(
-        absl::Substitute("$0/$1_$2.ir", kTestDataPath, test_suite_name_,
+        absl::Substitute("$0/$1_$2.ir", test_data_path_, test_suite_name_,
                          TestName()),
         actual_ir, loc);
   }
 
  private:
   std::string test_suite_name_;
+  std::string test_data_path_;
 };
 
 }  // namespace xls::codegen
