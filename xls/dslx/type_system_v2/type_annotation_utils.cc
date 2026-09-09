@@ -34,6 +34,7 @@
 #include "xls/dslx/errors.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/ast_node.h"
+#include "xls/dslx/frontend/ast_utils.h"
 #include "xls/dslx/frontend/module.h"
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/interp_value.h"
@@ -484,6 +485,13 @@ std::string GetParametricBindingOwnerDescription(
 bool IsChannelOrChannelArrayAnnotation(const TypeAnnotation* annotation) {
   if (annotation->IsAnnotation<ChannelTypeAnnotation>()) {
     return true;
+  }
+  if (annotation->IsAnnotation<TypeRefTypeAnnotation>()) {
+    std::optional<std::string_view> id =
+        GetIdentifier(annotation->AsAnnotation<TypeRefTypeAnnotation>()
+                          ->type_ref()
+                          ->type_definition());
+    return id.has_value() && (*id == "Source" || *id == "Sink");
   }
   if (annotation->IsAnnotation<ArrayTypeAnnotation>()) {
     return IsChannelOrChannelArrayAnnotation(
