@@ -1711,6 +1711,9 @@ absl::StatusOr<std::unique_ptr<Module>> CloneModule(const Module& module,
                                                     CloneReplacer replacer) {
   auto new_module = std::make_unique<Module>(module.name(), module.fs_path(),
                                              *module.file_table());
+  if (std::optional<Span> span = module.GetSpan(); span.has_value()) {
+    new_module->set_span(*span);
+  }
   std::optional<Span> attribute_span = module.GetAttributeSpan();
   for (const ModuleAttribute& dir : module.attributes()) {
     new_module->AddAttribute(dir, attribute_span);
@@ -1752,6 +1755,9 @@ absl::StatusOr<std::unique_ptr<Module>> CloneModuleRemovingMembers(
 
   auto new_module = std::make_unique<Module>(module.name(), module.fs_path(),
                                              *module.file_table());
+  if (std::optional<Span> span = module.GetSpan(); span.has_value()) {
+    new_module->set_span(*span);
+  }
   std::optional<Span> attribute_span = module.GetAttributeSpan();
   for (const ModuleAttribute& attribute : module.attributes()) {
     new_module->AddAttribute(attribute, attribute_span);
