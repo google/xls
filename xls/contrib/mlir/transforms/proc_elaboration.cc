@@ -140,6 +140,7 @@ class ElaborationContext
     StringRef originalName = originalSymbolName(sproc);
     EprocOp eproc = EprocOp::create(
         builder, sproc.getLoc(), originalName,
+        /*sym_visibility=*/StringAttr(),
         /*discardable=*/true,
         /*min_pipeline_stages=*/sproc.getMinPipelineStagesAttr());
 
@@ -157,7 +158,7 @@ class ElaborationContext
       auto chan = ChanOp::create(
           builder, sproc.getLoc(),
           absl::StrFormat("%s_arg%d", eproc.getSymName().str(), i),
-          schan_type.getElementType(),
+          /*sym_visibility=*/StringAttr(), schan_type.getElementType(),
           /*fifo_config=*/nullptr,
           /*input_flop_kind=*/nullptr,
           /*output_flop_kind=*/nullptr);
@@ -274,10 +275,10 @@ class ElaborationInterpreter
   absl::Status Interpret(SchanOp op, ElaborationContext& ctx) {
     std::string name = op.getName().str();
     auto uniqueName = ctx.Uniquify(op.getNameAttr());
-    ChanOp chan =
-        ChanOp::create(ctx.getBuilder(), op.getLoc(), uniqueName, op.getType(),
-                       op.getFifoConfigAttr(), op.getInputFlopKindAttr(),
-                       op.getOutputFlopKindAttr());
+    ChanOp chan = ChanOp::create(
+        ctx.getBuilder(), op.getLoc(), uniqueName,
+        /*sym_visibility=*/StringAttr(), op.getType(), op.getFifoConfigAttr(),
+        op.getInputFlopKindAttr(), op.getOutputFlopKindAttr());
 
     ctx.getSymbolTable().insert(chan);
     ctx.Set(op.getResult(0), chan);
@@ -375,8 +376,8 @@ void ProcElaborationPass::runOnOperation() {
         // generated automatically.
         auto echan = ChanOp::create(
             builder, sproc.getLoc(), boundaryChannel.getName(),
-            schan.getElementType(), boundaryChannel.getFifoConfig(),
-            boundaryChannel.getInputFlopKind(),
+            /*sym_visibility=*/StringAttr(), schan.getElementType(),
+            boundaryChannel.getFifoConfig(), boundaryChannel.getInputFlopKind(),
             boundaryChannel.getOutputFlopKind());
         // We insert the channel in the symbol table, since there might be
         // a clash with an *eproc* name later, so we need to know. Alternatively

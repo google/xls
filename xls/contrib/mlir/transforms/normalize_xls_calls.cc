@@ -73,7 +73,8 @@ void NormalizeXlsCallsPass::runOnOperation() {
         if (inserted) {
           auto pkgImport = ImportDslxFilePackageOp::create(
               builder, op->getLoc(), call.getFilenameAttr(),
-              builder.getStringAttr(path.stem().string()));
+              builder.getStringAttr(path.stem().string()),
+              /*sym_visibility=*/StringAttr());
           // Ensure unique symbol name.
           symbolTable.insert(pkgImport);
           it->second.push_back(pkgImport);

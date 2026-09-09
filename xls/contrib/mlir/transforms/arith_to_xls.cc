@@ -82,7 +82,7 @@ xls::ImportDslxFilePackageOp maybeImportDslxFilePackage(
   }
   return xls::ImportDslxFilePackageOp::create(
       builder, builder.getUnknownLoc(), builder.getStringAttr(packageName),
-      builder.getStringAttr(symbolName));
+      builder.getStringAttr(symbolName), /*sym_visibility=*/StringAttr());
 }
 
 StringAttr getFloatLib(Type type) {

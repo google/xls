@@ -1582,6 +1582,7 @@ absl::StatusOr<Operation*> translateProc(::xls::Proc& xls_proc,
   EprocOp eproc =
       EprocOp::create(builder, builder.getUnknownLoc(),
                       /*name=*/builder.getStringAttr(xls_proc.name()),
+                      /*sym_visibility=*/StringAttr(),
                       /*discardable=*/false,
                       /*min_pipeline_stages=*/nullptr);
 
@@ -1805,6 +1806,7 @@ absl::StatusOr<Operation*> translateBlock(::xls::Block& xls_block,
   auto block_op =
       BlockOp::create(builder, builder.getUnknownLoc(),
                       /*sym_name=*/builder.getStringAttr(xls_block.name()),
+                      /*sym_visibility=*/StringAttr(),
                       /*function_type=*/TypeAttr::get(funcType),
                       /*input_names=*/builder.getArrayAttr(inputNameAttrs),
                       /*output_names=*/builder.getArrayAttr(outputNameAttrs),
@@ -1853,7 +1855,8 @@ absl::StatusOr<Operation*> translateBlock(::xls::Block& xls_block,
     }
     RegisterOp::create(builder, builder.getUnknownLoc(),
                        builder.getStringAttr(reg->name()),
-                       TypeAttr::get(regType), resetValueAttr);
+                       /*sym_visibility=*/StringAttr(), TypeAttr::get(regType),
+                       resetValueAttr);
   }
 
   // Track output port values.
@@ -2167,6 +2170,7 @@ absl::Status translateChannel(::xls::Channel& xls_chn, OpBuilder& builder,
   auto chn = xls::ChanOp::create(
       builder, builder.getUnknownLoc(),
       /*name=*/builder.getStringAttr(xls_chn.name()),
+      /*sym_visibility=*/StringAttr(),
       /*type=*/TypeAttr::get(translateType(xls_chn.type(), builder)),
       /*fifo_config=*/nullptr,
       /*input_flop_kind=*/nullptr,

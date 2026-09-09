@@ -73,6 +73,7 @@ SprocOp createSprocSkeleton(ImplicitLocOpBuilder& builder, TypeRange inputs,
                             SymbolTable& symbolTable) {
   OpBuilder::InsertionGuard guard(builder);
   auto sproc = SprocOp::create(builder, builder.getStringAttr(name),
+                               /*sym_visibility=*/nullptr,
                                /*is_top=*/false,
                                /*boundary_channel_names=*/nullptr,
                                /*min_pipeline_stages=*/nullptr);

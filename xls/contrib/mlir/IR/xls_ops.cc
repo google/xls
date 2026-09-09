@@ -692,7 +692,7 @@ void EprocOp::print(OpAsmPrinter& printer) {
 ParseResult EprocOp::parse(OpAsmParser& parser, OperationState& result) {
   // Parse the name as a symbol.
   StringAttr nameAttr;
-  if (parser.parseSymbolName(nameAttr, SymbolTable::getSymbolAttrName(),
+  if (parser.parseSymbolName(nameAttr, getSymNameAttrName(result.name),
                              result.attributes)) {
     return failure();
   }
@@ -794,7 +794,7 @@ void SprocOp::print(OpAsmPrinter& printer) {
 ParseResult SprocOp::parse(OpAsmParser& parser, OperationState& result) {
   // Parse the name as a symbol.
   StringAttr nameAttr;
-  if (parser.parseSymbolName(nameAttr, SymbolTable::getSymbolAttrName(),
+  if (parser.parseSymbolName(nameAttr, getSymNameAttrName(result.name),
                              result.attributes)) {
     return failure();
   }
@@ -1065,7 +1065,7 @@ ParseResult BlockOp::parse(OpAsmParser& parser, OperationState& result) {
 
   // Parse the name as a symbol.
   StringAttr nameAttr;
-  if (parser.parseSymbolName(nameAttr, mlir::SymbolTable::getSymbolAttrName(),
+  if (parser.parseSymbolName(nameAttr, getSymNameAttrName(result.name),
                              result.attributes)) {
     return failure();
   }

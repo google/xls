@@ -1583,7 +1583,11 @@ def Xls_LiteralOp : Xls_Op<"literal", [
 // DSLX operations
 //===----------------------------------------------------------------------===//
 
-def Xls_ImportDslxFilePackageOp : Xls_Op<"import_dslx_file_package", [Symbol]> {
+def Xls_ImportDslxFilePackageOp : Xls_Op<"import_dslx_file_package", [
+  Symbol,
+  SymbolName,
+  SymbolVisibility
+]> {
   let summary = "DSLX package import operation";
   let description = [{
     Represents importing a DSLX file package into the current package. The
@@ -1595,7 +1599,8 @@ def Xls_ImportDslxFilePackageOp : Xls_Op<"import_dslx_file_package", [Symbol]> {
   }];
   let arguments = (ins
     StrAttr:$filename,
-    SymbolNameAttr:$sym_name
+    SymbolNameAttr:$sym_name,
+    OptionalAttr<StrAttr>:$sym_visibility
     // TODO(jpienaar): Expand to include search paths, define symbols etc.
   );
   let assemblyFormat = [{
@@ -1676,6 +1681,8 @@ def Xls_ExportDslxOp : Xls_Op<"export_dslx", []> {
 // and cannot spawn new procs. Trees of procs can be lowered to eprocs.
 def Xls_EprocOp : Xls_Op<"eproc", [
   Symbol,
+  SymbolName,
+  SymbolVisibility,
   SingleBlockImplicitTerminator<"YieldOp">,
   IsolatedFromAbove,
   DeclareOpInterfaceMethods<XlsRegionOpInterface>,
@@ -1708,6 +1715,7 @@ def Xls_EprocOp : Xls_Op<"eproc", [
   }];
   let arguments = (ins
     SymbolNameAttr:$sym_name,
+    OptionalAttr<StrAttr>:$sym_visibility,
     UnitAttr:$discardable,
     OptionalAttr<I64Attr>:$min_pipeline_stages,
     DefaultValuedAttr<Xls_IoConstraintsAttr, "::llvm::ArrayRef<IoConstraintAttr>{}">:$io_constraints
@@ -1747,6 +1755,8 @@ def Xls_EprocOp : Xls_Op<"eproc", [
 
 def Xls_ChanOp : Xls_Op<"chan", [
   Symbol,
+  SymbolName,
+  SymbolVisibility,
   // While a channel isn't theoretically "callable", it is referred to by sends
   // an receives in enough of a "call-like" way to participate in the CallGraph.
   CallableOpInterface]> {
@@ -1760,6 +1770,7 @@ def Xls_ChanOp : Xls_Op<"chan", [
   }];
   let arguments = (ins
     SymbolNameAttr:$sym_name,
+    OptionalAttr<StrAttr>:$sym_visibility,
     TypeAttr:$type,
     OptionalAttr<Xls_FifoConfig>: $fifo_config,
     OptionalAttr<Xls_FlopKindAttr>: $input_flop_kind,
@@ -1924,6 +1935,8 @@ def Xls_SchanOp : Xls_Op<"schan", [Pure, HasParent<"SprocOp">]> {
 
 def Xls_SprocOp : Xls_Op<"sproc", [
   Symbol,
+  SymbolName,
+  SymbolVisibility,
   SingleBlockImplicitTerminator<"YieldOp">,
   IsolatedFromAbove,
   CallableOpInterface,
@@ -1992,6 +2005,7 @@ def Xls_SprocOp : Xls_Op<"sproc", [
   }];
   let arguments = (ins
     SymbolNameAttr:$sym_name,
+    OptionalAttr<StrAttr>:$sym_visibility,
     BoolAttr:$is_top,
     OptionalAttr<Xls_BoundaryChannelArrayAttr>:$boundary_channels,
     OptionalAttr<I64Attr>:$min_pipeline_stages
@@ -2120,6 +2134,8 @@ def Xls_SpawnOp : Xls_Op<"spawn", [
 
 def Xls_ExternSprocOp : Xls_Op<"extern_sproc", [
   Symbol,
+  SymbolName,
+  SymbolVisibility,
   CallableOpInterface
 ]> {
   let summary = "extern sproc";
@@ -2137,6 +2153,7 @@ def Xls_ExternSprocOp : Xls_Op<"extern_sproc", [
   }];
   let arguments = (ins
     SymbolNameAttr:$sym_name,
+    OptionalAttr<StrAttr>:$sym_visibility,
     StrArrayAttr:$boundary_channel_names,
     TypeArrayAttr:$channel_argument_types
   );
@@ -2424,7 +2441,11 @@ def Xls_GateOp :
 // lowered to Blocks during codegen.
 //===----------------------------------------------------------------------===//
 
-def Xls_RegisterOp : Xls_Op<"register", [Symbol]> {
+def Xls_RegisterOp : Xls_Op<"register", [
+  Symbol,
+  SymbolName,
+  SymbolVisibility
+]> {
   let summary = "Declares a hardware register";
   let description = [{
     Declares a named hardware register with a given type and optional reset
@@ -2442,6 +2463,7 @@ def Xls_RegisterOp : Xls_Op<"register", [Symbol]> {
   }];
   let arguments = (ins
     SymbolNameAttr:$sym_name,
+    OptionalAttr<StrAttr>:$sym_visibility,
     TypeAttr:$type,
     OptionalAttr<AnyAttr>:$reset_value
   );
@@ -2487,6 +2509,8 @@ def Xls_BlockOutputOp : Xls_Op<"block_output", [
 
 def Xls_BlockOp : Xls_Op<"block", [
   Symbol,
+  SymbolName,
+  SymbolVisibility,
   SymbolTable,
   SingleBlockImplicitTerminator<"BlockOutputOp">,
   IsolatedFromAbove,
@@ -2525,6 +2549,7 @@ def Xls_BlockOp : Xls_Op<"block", [
   }];
   let arguments = (ins
     SymbolNameAttr:$sym_name,
+    OptionalAttr<StrAttr>:$sym_visibility,
     TypeAttrOf<FunctionType>:$function_type,
     StrArrayAttr:$input_names,
     StrArrayAttr:$output_names,
@@ -2785,8 +2810,12 @@ def VectorizedCallOp : Xls_Op<"vectorized_call",
 // Verilog operations
 //===----------------------------------------------------------------------===//
 
-def Xls_ImportVerilogFileOp : Xls_Op<"import_verilog_file", [Symbol,
-     DeclareOpInterfaceMethods<SymbolUserOpInterface>]> {
+def Xls_ImportVerilogFileOp : Xls_Op<"import_verilog_file", [
+  Symbol,
+  SymbolName,
+  SymbolVisibility,
+  DeclareOpInterfaceMethods<SymbolUserOpInterface>
+]> {
   let summary = "Verilog import operation";
   let description = [{
     Represents importing a Verilog file. The symbol name is used to refer to the
@@ -2800,7 +2829,8 @@ def Xls_ImportVerilogFileOp : Xls_Op<"import_verilog_file", [Symbol,
   }];
   let arguments = (ins
     StrAttr:$filename,
-    SymbolNameAttr:$sym_name
+    SymbolNameAttr:$sym_name,
+    OptionalAttr<StrAttr>:$sym_visibility
   );
   let assemblyFormat = [{
     $filename `as` $sym_name attr-dict
