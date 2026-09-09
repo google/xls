@@ -15,6 +15,7 @@
 #include "xls/ir/abstract_evaluator.h"
 
 #include <cstdint>
+#include <optional>
 #include <vector>
 
 #include "gtest/gtest.h"
@@ -29,6 +30,13 @@
 
 namespace xls {
 namespace {
+
+template <typename EvaluatorT>
+class AbstractEvaluatorTest : public ::testing::Test {
+ public:
+  using Evaluator = EvaluatorT;
+};
+using testing::Types;
 
 // How many bytes we will let fuzz inputs to mul/div operations be. This is
 // chosen to avoid timeout with inordinately long fuzz test cases.
@@ -59,8 +67,21 @@ Bits FromBoxedVector(absl::Span<BoxedBool const> input) {
   return rope.Build();
 }
 
+template <bool kIsITEFundamentalArg>
+class TestAbstractEvaluator;
+
+template <bool kIsITEFundamentalArg>
+struct AbstractEvaluatorOptionsForTest
+    : public AbstractEvaluatorOptions<
+          TestAbstractEvaluator<kIsITEFundamentalArg>> {
+  static constexpr bool kIsITEFundamental = kIsITEFundamentalArg;
+};
+
+template <bool kIsITEFundamental>
 class TestAbstractEvaluator
-    : public AbstractEvaluator<BoxedBool, TestAbstractEvaluator> {
+    : public AbstractEvaluator<
+          BoxedBool, TestAbstractEvaluator<kIsITEFundamental>,
+          AbstractEvaluatorOptionsForTest<kIsITEFundamental>> {
  public:
   BoxedBool One() const { return {true}; }
   BoxedBool Zero() const { return {false}; }
@@ -82,8 +103,13 @@ class TestAbstractEvaluator
   }
 };
 
-TEST(AbstractEvaluatorTest, Add) {
-  TestAbstractEvaluator eval;
+using Implementations =
+    Types<TestAbstractEvaluator<false>, TestAbstractEvaluator<true>>;
+
+TYPED_TEST_SUITE(AbstractEvaluatorTest, Implementations);
+
+TYPED_TEST(AbstractEvaluatorTest, Add) {
+  typename TestFixture::Evaluator eval;
   Bits a = UBits(2, 32);
   Bits b = UBits(4, 32);
   Bits c = FromBoxedVector(eval.Add(ToBoxedVector(a), ToBoxedVector(b)));
@@ -105,8 +131,8 @@ TEST(AbstractEvaluatorTest, Add) {
   EXPECT_EQ(c.ToInt64().value(), -1);
 }
 
-TEST(AbstractEvaluatorTest, AddWithCarry) {
-  TestAbstractEvaluator eval;
+TYPED_TEST(AbstractEvaluatorTest, AddWithCarry) {
+  typename TestFixture::Evaluator eval;
   {
     Bits a = UBits(2, 32);
     Bits b = UBits(4, 32);
@@ -138,8 +164,9 @@ TEST(AbstractEvaluatorTest, AddWithCarry) {
   }
 }
 
+template <bool kIsITEFundamentalArg>
 void AddWithCarryFuzz(uint8_t lhs, uint8_t rhs) {
-  TestAbstractEvaluator eval;
+  TestAbstractEvaluator<kIsITEFundamentalArg> eval;
   Bits a = UBits(lhs, 8);
   Bits b = UBits(rhs, 8);
   uint64_t l_big = lhs;
@@ -155,12 +182,24 @@ void AddWithCarryFuzz(uint8_t lhs, uint8_t rhs) {
   EXPECT_EQ(FromBoxedVector(c.result), UBits(c_big, 64).Slice(0, 8));
 }
 
-FUZZ_TEST(AbstractEvaluatorFuzzTest, AddWithCarryFuzz)
+void AddWithCarryFuzzNormal(uint8_t lhs, uint8_t rhs) {
+  AddWithCarryFuzz<false>(lhs, rhs);
+}
+
+void AddWithCarryFuzzITE(uint8_t lhs, uint8_t rhs) {
+  AddWithCarryFuzz<true>(lhs, rhs);
+}
+
+FUZZ_TEST(AbstractEvaluatorFuzzTest, AddWithCarryFuzzNormal)
     .WithDomains(fuzztest::Arbitrary<uint8_t>(),
                  fuzztest::Arbitrary<uint8_t>());
 
-TEST(AbstractEvaluatorTest, AddWithSignedOverflow) {
-  TestAbstractEvaluator eval;
+FUZZ_TEST(AbstractEvaluatorFuzzTest, AddWithCarryFuzzITE)
+    .WithDomains(fuzztest::Arbitrary<uint8_t>(),
+                 fuzztest::Arbitrary<uint8_t>());
+
+TYPED_TEST(AbstractEvaluatorTest, AddWithSignedOverflow) {
+  typename TestFixture::Evaluator eval;
   {
     Bits a = UBits(2, 32);
     Bits b = UBits(4, 32);
@@ -237,8 +276,9 @@ TEST(AbstractEvaluatorTest, AddWithSignedOverflow) {
   }
 }
 
+template <bool kIsITEFundamentalArg>
 void AddWithOverflowFuzz(int8_t lhs, int8_t rhs) {
-  TestAbstractEvaluator eval;
+  TestAbstractEvaluator<kIsITEFundamentalArg> eval;
   Bits a = SBits(lhs, 8);
   Bits b = SBits(rhs, 8);
   int64_t l_big = lhs;
@@ -253,11 +293,23 @@ void AddWithOverflowFuzz(int8_t lhs, int8_t rhs) {
   }
   EXPECT_EQ(FromBoxedVector(c.result), SBits(c_big, 64).Slice(0, 8));
 }
-FUZZ_TEST(AbstractEvaluatorFuzzTest, AddWithOverflowFuzz)
+
+void AddWithOverflowFuzzNormal(int8_t lhs, int8_t rhs) {
+  AddWithOverflowFuzz<false>(lhs, rhs);
+}
+
+void AddWithOverflowFuzzITE(int8_t lhs, int8_t rhs) {
+  AddWithOverflowFuzz<true>(lhs, rhs);
+}
+
+FUZZ_TEST(AbstractEvaluatorFuzzTest, AddWithOverflowFuzzNormal)
     .WithDomains(fuzztest::Arbitrary<int8_t>(), fuzztest::Arbitrary<int8_t>());
 
-TEST(AbstractEvaluatorTest, Sub) {
-  TestAbstractEvaluator eval;
+FUZZ_TEST(AbstractEvaluatorFuzzTest, AddWithOverflowFuzzITE)
+    .WithDomains(fuzztest::Arbitrary<int8_t>(), fuzztest::Arbitrary<int8_t>());
+
+TYPED_TEST(AbstractEvaluatorTest, Sub) {
+  typename TestFixture::Evaluator eval;
   {
     Bits a = UBits(2, 32);
     Bits b = UBits(4, 32);
@@ -278,8 +330,9 @@ TEST(AbstractEvaluatorTest, Sub) {
   }
 }
 
+template <bool kIsITEFundamentalArg>
 void SubFuzz(uint8_t lhs, uint8_t rhs) {
-  TestAbstractEvaluator eval;
+  TestAbstractEvaluator<kIsITEFundamentalArg> eval;
   Bits a = UBits(lhs, 8);
   Bits b = UBits(rhs, 8);
   uint64_t l_big = lhs;
@@ -288,11 +341,19 @@ void SubFuzz(uint8_t lhs, uint8_t rhs) {
   uint64_t c_big = l_big - r_big;
   EXPECT_EQ(FromBoxedVector(c), SBits(c_big, 64).Slice(0, 8));
 }
-FUZZ_TEST(AbstractEvaluatorFuzzTest, SubFuzz)
+
+void SubFuzzNormal(uint8_t lhs, uint8_t rhs) { SubFuzz<false>(lhs, rhs); }
+
+void SubFuzzITE(uint8_t lhs, uint8_t rhs) { SubFuzz<true>(lhs, rhs); }
+
+FUZZ_TEST(AbstractEvaluatorFuzzTest, SubFuzzNormal)
     .WithDomains(fuzztest::Arbitrary<int8_t>(), fuzztest::Arbitrary<int8_t>());
 
-TEST(AbstractEvaluatorTest, SubWithUnsignedUnderflow) {
-  TestAbstractEvaluator eval;
+FUZZ_TEST(AbstractEvaluatorFuzzTest, SubFuzzITE)
+    .WithDomains(fuzztest::Arbitrary<int8_t>(), fuzztest::Arbitrary<int8_t>());
+
+TYPED_TEST(AbstractEvaluatorTest, SubWithUnsignedUnderflow) {
+  typename TestFixture::Evaluator eval;
   {
     Bits a = UBits(2, 32);
     Bits b = UBits(4, 32);
@@ -340,8 +401,9 @@ TEST(AbstractEvaluatorTest, SubWithUnsignedUnderflow) {
   }
 }
 
+template <bool kIsITEFundamentalArg>
 void SubWithUnsignedUnderflowFuzz(uint8_t lhs, uint8_t rhs) {
-  TestAbstractEvaluator eval;
+  TestAbstractEvaluator<kIsITEFundamentalArg> eval;
   Bits a = UBits(lhs, 8);
   Bits b = UBits(rhs, 8);
   uint64_t l_big = lhs;
@@ -358,11 +420,23 @@ void SubWithUnsignedUnderflowFuzz(uint8_t lhs, uint8_t rhs) {
   }
   EXPECT_EQ(FromBoxedVector(c.result), SBits(c_big, 64).Slice(0, 8));
 }
-FUZZ_TEST(AbstractEvaluatorFuzzTest, SubWithUnsignedUnderflowFuzz)
+
+void SubWithUnsignedUnderflowFuzzNormal(uint8_t lhs, uint8_t rhs) {
+  SubWithUnsignedUnderflowFuzz<false>(lhs, rhs);
+}
+
+void SubWithUnsignedUnderflowFuzzITE(uint8_t lhs, uint8_t rhs) {
+  SubWithUnsignedUnderflowFuzz<true>(lhs, rhs);
+}
+
+FUZZ_TEST(AbstractEvaluatorFuzzTest, SubWithUnsignedUnderflowFuzzNormal)
     .WithDomains(fuzztest::Arbitrary<int8_t>(), fuzztest::Arbitrary<int8_t>());
 
-TEST(AbstractEvaluatorTest, SubWithSignedUnderflow) {
-  TestAbstractEvaluator eval;
+FUZZ_TEST(AbstractEvaluatorFuzzTest, SubWithUnsignedUnderflowFuzzITE)
+    .WithDomains(fuzztest::Arbitrary<int8_t>(), fuzztest::Arbitrary<int8_t>());
+
+TYPED_TEST(AbstractEvaluatorTest, SubWithSignedUnderflow) {
+  typename TestFixture::Evaluator eval;
   {
     Bits a = SBits(2, 32);
     Bits b = SBits(4, 32);
@@ -428,8 +502,9 @@ TEST(AbstractEvaluatorTest, SubWithSignedUnderflow) {
   }
 }
 
+template <bool kIsITEFundamentalArg>
 void SubWithSignedUnderflowFuzz(int8_t lhs, int8_t rhs) {
-  TestAbstractEvaluator eval;
+  TestAbstractEvaluator<kIsITEFundamentalArg> eval;
   Bits a = SBits(lhs, 8);
   Bits b = SBits(rhs, 8);
   int64_t l_big = lhs;
@@ -447,11 +522,22 @@ void SubWithSignedUnderflowFuzz(int8_t lhs, int8_t rhs) {
   EXPECT_EQ(FromBoxedVector(c.result), SBits(c_big, 64).Slice(0, 8));
 }
 
-FUZZ_TEST(AbstractEvaluatorFuzzTest, SubWithSignedUnderflowFuzz)
+void SubWithSignedUnderflowFuzzNormal(int8_t lhs, int8_t rhs) {
+  SubWithSignedUnderflowFuzz<false>(lhs, rhs);
+}
+
+void SubWithSignedUnderflowFuzzITE(int8_t lhs, int8_t rhs) {
+  SubWithSignedUnderflowFuzz<true>(lhs, rhs);
+}
+
+FUZZ_TEST(AbstractEvaluatorFuzzTest, SubWithSignedUnderflowFuzzNormal)
     .WithDomains(fuzztest::Arbitrary<int8_t>(), fuzztest::Arbitrary<int8_t>());
 
-TEST(AbstractEvaluatorTest, Neg) {
-  TestAbstractEvaluator eval;
+FUZZ_TEST(AbstractEvaluatorFuzzTest, SubWithSignedUnderflowFuzzITE)
+    .WithDomains(fuzztest::Arbitrary<int8_t>(), fuzztest::Arbitrary<int8_t>());
+
+TYPED_TEST(AbstractEvaluatorTest, Neg) {
+  typename TestFixture::Evaluator eval;
   Bits a = SBits(4, 32);
   Bits b = FromBoxedVector(eval.Neg(ToBoxedVector(a)));
   EXPECT_EQ(b.ToInt64().value(), -4);
@@ -473,8 +559,8 @@ TEST(AbstractEvaluatorTest, Neg) {
   EXPECT_EQ(b.ToInt64().value(), 0);
 }
 
-TEST(AbstractEvaluatorTest, UMul) {
-  TestAbstractEvaluator eval;
+TYPED_TEST(AbstractEvaluatorTest, UMul) {
+  typename TestFixture::Evaluator eval;
   Bits a = UBits(3, 8);
   Bits b = UBits(3, 8);
   Bits c = FromBoxedVector(eval.UMul(ToBoxedVector(a), ToBoxedVector(b)));
@@ -486,8 +572,9 @@ TEST(AbstractEvaluatorTest, UMul) {
   EXPECT_EQ(c.ToUint64().value(), 8128);
 }
 
+template <bool kIsITEFundamentalArg>
 void EvaluatorMatchesReferenceUMul(const Bits& lhs, const Bits& rhs) {
-  TestAbstractEvaluator eval;
+  TestAbstractEvaluator<kIsITEFundamentalArg> eval;
   Bits got = FromBoxedVector(eval.UMul(ToBoxedVector(lhs), ToBoxedVector(rhs)));
   Bits want = bits_ops::UMul(lhs, rhs);
 
@@ -496,12 +583,25 @@ void EvaluatorMatchesReferenceUMul(const Bits& lhs, const Bits& rhs) {
                        << BigInt::MakeUnsigned(got)
                        << ", should be: " << BigInt::MakeUnsigned(want);
 }
-FUZZ_TEST(AbstractEvaluatorFuzzTest, EvaluatorMatchesReferenceUMul)
+
+void EvaluatorMatchesReferenceUMulNormal(const Bits& lhs, const Bits& rhs) {
+  EvaluatorMatchesReferenceUMul<false>(lhs, rhs);
+}
+
+void EvaluatorMatchesReferenceUMulITE(const Bits& lhs, const Bits& rhs) {
+  EvaluatorMatchesReferenceUMul<true>(lhs, rhs);
+}
+
+FUZZ_TEST(AbstractEvaluatorFuzzTest, EvaluatorMatchesReferenceUMulNormal)
     .WithDomains(NonemptyBits(/*max_byte_count=*/kMaxMulBytes),
                  NonemptyBits(/*max_byte_count=*/kMaxMulBytes));
 
-TEST(AbstractEvaluatorTest, UMulWithOverflow) {
-  TestAbstractEvaluator eval;
+FUZZ_TEST(AbstractEvaluatorFuzzTest, EvaluatorMatchesReferenceUMulITE)
+    .WithDomains(NonemptyBits(/*max_byte_count=*/kMaxMulBytes),
+                 NonemptyBits(/*max_byte_count=*/kMaxMulBytes));
+
+TYPED_TEST(AbstractEvaluatorTest, UMulWithOverflow) {
+  typename TestFixture::Evaluator eval;
   Bits a = UBits(3, 8);
   Bits b = UBits(3, 8);
   auto c = eval.UMulWithOverflow(ToBoxedVector(a), ToBoxedVector(b), 8);
@@ -515,8 +615,8 @@ TEST(AbstractEvaluatorTest, UMulWithOverflow) {
   EXPECT_TRUE(c.overflow.value);
 }
 
-TEST(AbstractEvaluatorTest, SMulWithOverflow) {
-  TestAbstractEvaluator eval;
+TYPED_TEST(AbstractEvaluatorTest, SMulWithOverflow) {
+  typename TestFixture::Evaluator eval;
   {
     Bits a = SBits(3, 8);
     Bits b = SBits(5, 8);
@@ -575,8 +675,9 @@ TEST(AbstractEvaluatorTest, SMulWithOverflow) {
   }
 }
 
+template <bool kIsITEFundamentalArg>
 void EvaluatorMatchesReferenceSMul(const Bits& lhs, const Bits& rhs) {
-  TestAbstractEvaluator eval;
+  TestAbstractEvaluator<kIsITEFundamentalArg> eval;
   Bits got = FromBoxedVector(eval.SMul(ToBoxedVector(lhs), ToBoxedVector(rhs)));
   Bits want = bits_ops::SMul(lhs, rhs);
   EXPECT_EQ(got, want) << "signed: " << BigInt::MakeSigned(lhs) << " * "
@@ -584,12 +685,25 @@ void EvaluatorMatchesReferenceSMul(const Bits& lhs, const Bits& rhs) {
                        << BigInt::MakeSigned(got)
                        << ", should be: " << BigInt::MakeSigned(want);
 }
-FUZZ_TEST(AbstractEvaluatorFuzzTest, EvaluatorMatchesReferenceSMul)
+
+void EvaluatorMatchesReferenceSMulNormal(const Bits& lhs, const Bits& rhs) {
+  EvaluatorMatchesReferenceSMul<false>(lhs, rhs);
+}
+
+void EvaluatorMatchesReferenceSMulITE(const Bits& lhs, const Bits& rhs) {
+  EvaluatorMatchesReferenceSMul<true>(lhs, rhs);
+}
+
+FUZZ_TEST(AbstractEvaluatorFuzzTest, EvaluatorMatchesReferenceSMulNormal)
     .WithDomains(NonemptyBits(/*max_byte_count=*/kMaxMulBytes),
                  NonemptyBits(/*max_byte_count=*/kMaxMulBytes));
 
-TEST(AbstractEvaluatorTest, UDiv) {
-  TestAbstractEvaluator eval;
+FUZZ_TEST(AbstractEvaluatorFuzzTest, EvaluatorMatchesReferenceSMulITE)
+    .WithDomains(NonemptyBits(/*max_byte_count=*/kMaxMulBytes),
+                 NonemptyBits(/*max_byte_count=*/kMaxMulBytes));
+
+TYPED_TEST(AbstractEvaluatorTest, UDiv) {
+  typename TestFixture::Evaluator eval;
   Bits a = UBits(4, 8);
   Bits b = UBits(1, 8);
   Bits c = FromBoxedVector(eval.UDiv(ToBoxedVector(a), ToBoxedVector(b)));
@@ -606,8 +720,8 @@ TEST(AbstractEvaluatorTest, UDiv) {
   EXPECT_EQ(c.ToUint64().value(), 4);
 }
 
-TEST(AbstractEvaluatorTest, Gate) {
-  TestAbstractEvaluator eval;
+TYPED_TEST(AbstractEvaluatorTest, Gate) {
+  typename TestFixture::Evaluator eval;
   Bits b = UBits(4, 8);
   Bits c = FromBoxedVector(eval.Gate(BoxedBool{true}, ToBoxedVector(b)));
   EXPECT_EQ(c.ToUint64().value(), 4);
@@ -617,8 +731,8 @@ TEST(AbstractEvaluatorTest, Gate) {
   EXPECT_EQ(c.ToUint64().value(), 0);
 }
 
-TEST(AbstractEvaluatorTest, SDiv) {
-  TestAbstractEvaluator eval;
+TYPED_TEST(AbstractEvaluatorTest, SDiv) {
+  typename TestFixture::Evaluator eval;
   Bits a = SBits(4, 8);
   Bits b = SBits(1, 8);
   Bits c = FromBoxedVector(eval.SDiv(ToBoxedVector(a), ToBoxedVector(b)));
@@ -651,11 +765,12 @@ TEST(AbstractEvaluatorTest, SDiv) {
   EXPECT_EQ(c.ToInt64().value(), -4);
 }
 
+template <bool kIsITEFundamentalArg>
 void EvaluatorMatchesReferenceUDiv(const Bits& lhs, const Bits& rhs) {
   if (rhs.IsZero()) {
     return;
   }
-  TestAbstractEvaluator eval;
+  TestAbstractEvaluator<kIsITEFundamentalArg> eval;
   Bits got = FromBoxedVector(eval.UDiv(ToBoxedVector(lhs), ToBoxedVector(rhs)));
   Bits want = bits_ops::UDiv(lhs, rhs);
   EXPECT_EQ(got, want) << "unsigned: " << BigInt::MakeUnsigned(lhs) << " / "
@@ -663,15 +778,29 @@ void EvaluatorMatchesReferenceUDiv(const Bits& lhs, const Bits& rhs) {
                        << BigInt::MakeUnsigned(got)
                        << ", should be: " << BigInt::MakeUnsigned(want);
 }
-FUZZ_TEST(AbstractEvaluatorFuzzTest, EvaluatorMatchesReferenceUDiv)
+
+void EvaluatorMatchesReferenceUDivNormal(const Bits& lhs, const Bits& rhs) {
+  EvaluatorMatchesReferenceUDiv<false>(lhs, rhs);
+}
+
+void EvaluatorMatchesReferenceUDivITE(const Bits& lhs, const Bits& rhs) {
+  EvaluatorMatchesReferenceUDiv<true>(lhs, rhs);
+}
+
+FUZZ_TEST(AbstractEvaluatorFuzzTest, EvaluatorMatchesReferenceUDivNormal)
     .WithDomains(NonemptyBits(/*max_byte_count=*/kMaxMulBytes),
                  NonemptyBits(/*max_byte_count=*/kMaxMulBytes));
 
+FUZZ_TEST(AbstractEvaluatorFuzzTest, EvaluatorMatchesReferenceUDivITE)
+    .WithDomains(NonemptyBits(/*max_byte_count=*/kMaxMulBytes),
+                 NonemptyBits(/*max_byte_count=*/kMaxMulBytes));
+
+template <bool kIsITEFundamentalArg>
 void EvaluatorMatchesReferenceSDiv(const Bits& lhs, const Bits& rhs) {
   if (rhs.IsZero()) {
     return;
   }
-  TestAbstractEvaluator eval;
+  TestAbstractEvaluator<kIsITEFundamentalArg> eval;
   Bits got = FromBoxedVector(eval.SDiv(ToBoxedVector(lhs), ToBoxedVector(rhs)));
   Bits want = bits_ops::SDiv(lhs, rhs);
   EXPECT_EQ(got, want) << "signed: " << BigInt::MakeSigned(lhs) << " / "
@@ -679,15 +808,29 @@ void EvaluatorMatchesReferenceSDiv(const Bits& lhs, const Bits& rhs) {
                        << BigInt::MakeSigned(got)
                        << ", should be: " << BigInt::MakeSigned(want);
 }
-FUZZ_TEST(AbstractEvaluatorFuzzTest, EvaluatorMatchesReferenceSDiv)
+
+void EvaluatorMatchesReferenceSDivNormal(const Bits& lhs, const Bits& rhs) {
+  EvaluatorMatchesReferenceSDiv<false>(lhs, rhs);
+}
+
+void EvaluatorMatchesReferenceSDivITE(const Bits& lhs, const Bits& rhs) {
+  EvaluatorMatchesReferenceSDiv<true>(lhs, rhs);
+}
+
+FUZZ_TEST(AbstractEvaluatorFuzzTest, EvaluatorMatchesReferenceSDivNormal)
     .WithDomains(NonemptyBits(/*max_byte_count=*/kMaxMulBytes),
                  NonemptyBits(/*max_byte_count=*/kMaxMulBytes));
 
+FUZZ_TEST(AbstractEvaluatorFuzzTest, EvaluatorMatchesReferenceSDivITE)
+    .WithDomains(NonemptyBits(/*max_byte_count=*/kMaxMulBytes),
+                 NonemptyBits(/*max_byte_count=*/kMaxMulBytes));
+
+template <bool kIsITEFundamentalArg>
 void EvaluatorMatchesReferenceUMod(const Bits& lhs, const Bits& rhs) {
   if (rhs.IsZero()) {
     return;
   }
-  TestAbstractEvaluator eval;
+  TestAbstractEvaluator<kIsITEFundamentalArg> eval;
   Bits got = FromBoxedVector(eval.UMod(ToBoxedVector(lhs), ToBoxedVector(rhs)));
   Bits want = bits_ops::UMod(lhs, rhs);
   EXPECT_EQ(got, want) << "unsigned: " << BigInt::MakeUnsigned(lhs) << " % "
@@ -695,15 +838,29 @@ void EvaluatorMatchesReferenceUMod(const Bits& lhs, const Bits& rhs) {
                        << BigInt::MakeUnsigned(got)
                        << ", should be: " << BigInt::MakeUnsigned(want);
 }
-FUZZ_TEST(AbstractEvaluatorFuzzTest, EvaluatorMatchesReferenceUMod)
+
+void EvaluatorMatchesReferenceUModNormal(const Bits& lhs, const Bits& rhs) {
+  EvaluatorMatchesReferenceUMod<false>(lhs, rhs);
+}
+
+void EvaluatorMatchesReferenceUModITE(const Bits& lhs, const Bits& rhs) {
+  EvaluatorMatchesReferenceUMod<true>(lhs, rhs);
+}
+
+FUZZ_TEST(AbstractEvaluatorFuzzTest, EvaluatorMatchesReferenceUModNormal)
     .WithDomains(NonemptyBits(/*max_byte_count=*/kMaxMulBytes),
                  NonemptyBits(/*max_byte_count=*/kMaxMulBytes));
 
+FUZZ_TEST(AbstractEvaluatorFuzzTest, EvaluatorMatchesReferenceUModITE)
+    .WithDomains(NonemptyBits(/*max_byte_count=*/kMaxMulBytes),
+                 NonemptyBits(/*max_byte_count=*/kMaxMulBytes));
+
+template <bool kIsITEFundamentalArg>
 void EvaluatorMatchesReferenceSMod(const Bits& lhs, const Bits& rhs) {
   if (rhs.IsZero()) {
     return;
   }
-  TestAbstractEvaluator eval;
+  TestAbstractEvaluator<kIsITEFundamentalArg> eval;
   Bits got = FromBoxedVector(eval.SMod(ToBoxedVector(lhs), ToBoxedVector(rhs)));
   Bits want = bits_ops::SMod(lhs, rhs);
   EXPECT_EQ(got, want) << "signed: " << BigInt::MakeSigned(lhs) << " % "
@@ -711,12 +868,25 @@ void EvaluatorMatchesReferenceSMod(const Bits& lhs, const Bits& rhs) {
                        << BigInt::MakeSigned(got)
                        << ", should be: " << BigInt::MakeSigned(want);
 }
-FUZZ_TEST(AbstractEvaluatorFuzzTest, EvaluatorMatchesReferenceSMod)
+
+void EvaluatorMatchesReferenceSModNormal(const Bits& lhs, const Bits& rhs) {
+  EvaluatorMatchesReferenceSMod<false>(lhs, rhs);
+}
+
+void EvaluatorMatchesReferenceSModITE(const Bits& lhs, const Bits& rhs) {
+  EvaluatorMatchesReferenceSMod<true>(lhs, rhs);
+}
+
+FUZZ_TEST(AbstractEvaluatorFuzzTest, EvaluatorMatchesReferenceSModNormal)
     .WithDomains(NonemptyBits(/*max_byte_count=*/kMaxMulBytes),
                  NonemptyBits(/*max_byte_count=*/kMaxMulBytes));
 
-TEST(AbstractEvaluatorTest, SMul) {
-  TestAbstractEvaluator eval;
+FUZZ_TEST(AbstractEvaluatorFuzzTest, EvaluatorMatchesReferenceSModITE)
+    .WithDomains(NonemptyBits(/*max_byte_count=*/kMaxMulBytes),
+                 NonemptyBits(/*max_byte_count=*/kMaxMulBytes));
+
+TYPED_TEST(AbstractEvaluatorTest, SMul) {
+  typename TestFixture::Evaluator eval;
   Bits a = SBits(3, 8);
   Bits b = SBits(5, 8);
   Bits c = FromBoxedVector(eval.SMul(ToBoxedVector(a), ToBoxedVector(b)));
@@ -743,8 +913,8 @@ TEST(AbstractEvaluatorTest, SMul) {
   EXPECT_EQ(c.ToInt64().value(), 8128);
 }
 
-TEST(AbstractEvaluatorTest, SLessThan) {
-  TestAbstractEvaluator eval;
+TYPED_TEST(AbstractEvaluatorTest, SLessThan) {
+  typename TestFixture::Evaluator eval;
   for (int a = -4; a <= 3; ++a) {
     for (int b = -4; b <= 3; ++b) {
       EXPECT_EQ(
@@ -782,8 +952,8 @@ TEST(AbstractEvaluatorTest, SLessThan) {
   EXPECT_EQ(eval.SLessThan(ToBoxedVector(a), ToBoxedVector(b)).value, 0);
 }
 
-TEST(AbstractEvaluatorTest, PrioritySelect) {
-  TestAbstractEvaluator eval;
+TYPED_TEST(AbstractEvaluatorTest, PrioritySelect) {
+  typename TestFixture::Evaluator eval;
   auto test_eq = [&](int64_t expected, const Bits& selector,
                      absl::Span<const Bits> cases, bool selector_can_be_zero,
                      const Bits& default_value) {
@@ -816,8 +986,36 @@ TEST(AbstractEvaluatorTest, PrioritySelect) {
   test_eq(0x0FF0, UBits(0, 0), {}, true, UBits(0x0FF0, 16));
 }
 
-TEST(AbstractEvaluatorTest, Shift) {
-  TestAbstractEvaluator eval;
+TYPED_TEST(AbstractEvaluatorTest, Select) {
+  typename TestFixture::Evaluator eval;
+  auto test_it = [&](Bits selector, absl::Span<uint32_t const> cases,
+                     std::optional<uint32_t> default_value = std::nullopt) {
+    std::vector<std::vector<BoxedBool>> cases_vec;
+    for (const auto& case_val : cases) {
+      cases_vec.push_back(ToBoxedVector(UBits(case_val, 32)));
+    }
+    std::optional<std::vector<BoxedBool>> default_val = std::nullopt;
+    if (default_value.has_value()) {
+      default_val = ToBoxedVector(UBits(*default_value, 32));
+    }
+    int64_t expected = selector.ToUint64().value() < cases.size()
+                           ? cases[selector.ToUint64().value()]
+                           : default_value.value_or(0);
+    EXPECT_EQ(UBits(expected, 32),
+              FromBoxedVector(eval.Select(
+                  ToBoxedVector(selector),
+                  eval.SpanOfVectorsToVectorOfSpans(cases_vec), default_val)));
+  };
+  test_it(UBits(0, 1), {0, 1});
+  test_it(UBits(1, 1), {0, 1});
+  test_it(UBits(4, 8), {0, 1}, 2);
+  test_it(UBits(4, 8), {0, 1, 2, 3, 4, 5, 6}, 7);
+  test_it(UBits(4, 3), {0, 1, 2, 3, 4, 5, 6, 7});
+  test_it(UBits(2, 4), {0, 1, 2, 3, 4, 5, 6, 7}, 8);
+}
+
+TYPED_TEST(AbstractEvaluatorTest, Shift) {
+  typename TestFixture::Evaluator eval;
   auto test_eq = [&](int64_t expected, const Bits& input, const Bits& amount) {
     EXPECT_EQ(UBits(expected, input.bit_count()),
               FromBoxedVector(eval.ShiftRightArith(ToBoxedVector(input),
@@ -829,8 +1027,8 @@ TEST(AbstractEvaluatorTest, Shift) {
   test_eq(0x01, UBits(0x40, 8), UBits(6, 12));
 }
 
-TEST(AbstractEvaluatorTest, BitSliceUpdate) {
-  TestAbstractEvaluator eval;
+TYPED_TEST(AbstractEvaluatorTest, BitSliceUpdate) {
+  typename TestFixture::Evaluator eval;
   auto test_eq = [&](int64_t expected, const Bits& a, const Bits& start,
                      const Bits& value) {
     EXPECT_EQ(
@@ -850,8 +1048,8 @@ TEST(AbstractEvaluatorTest, BitSliceUpdate) {
   test_eq(0x12, UBits(0x12, 8), UBits(8, 32), UBits(0xabcd, 16));
 }
 
-TEST(AbstractEvaluatorTest, BitSliceUpdateConsts) {
-  TestAbstractEvaluator eval;
+TYPED_TEST(AbstractEvaluatorTest, BitSliceUpdateConsts) {
+  typename TestFixture::Evaluator eval;
   auto test_eq = [&](int64_t expected, const Bits& a, const int64_t& start,
                      const Bits& value) {
     EXPECT_EQ(UBits(expected, a.bit_count()),
@@ -870,18 +1068,29 @@ TEST(AbstractEvaluatorTest, BitSliceUpdateConsts) {
   test_eq(0x12, UBits(0x12, 8), 8, UBits(0xabcd, 16));
 }
 
+template <bool kIsITEFundamentalArg>
 void UMulMatches32BitMultiplication(uint32_t a, uint32_t b) {
-  TestAbstractEvaluator eval;
+  TestAbstractEvaluator<kIsITEFundamentalArg> eval;
   Bits a_bits = UBits(a, 32);
   Bits b_bits = UBits(b, 32);
   Bits c =
       FromBoxedVector(eval.UMul(ToBoxedVector(a_bits), ToBoxedVector(b_bits)));
   EXPECT_EQ(static_cast<uint32_t>(c.ToUint64().value()), a * b);
 }
-FUZZ_TEST(AbstractEvaluatorFuzzTest, UMulMatches32BitMultiplication);
 
-TEST(AbstractEvaluatorTest, Decode) {
-  TestAbstractEvaluator eval;
+void UMulMatches32BitMultiplicationNormal(uint32_t a, uint32_t b) {
+  UMulMatches32BitMultiplication<false>(a, b);
+}
+
+void UMulMatches32BitMultiplicationITE(uint32_t a, uint32_t b) {
+  UMulMatches32BitMultiplication<true>(a, b);
+}
+
+FUZZ_TEST(AbstractEvaluatorFuzzTest, UMulMatches32BitMultiplicationNormal);
+FUZZ_TEST(AbstractEvaluatorFuzzTest, UMulMatches32BitMultiplicationITE);
+
+TYPED_TEST(AbstractEvaluatorTest, Decode) {
+  typename TestFixture::Evaluator eval;
   EXPECT_EQ(UBits(0b00001000, 8),
             FromBoxedVector(eval.Decode(ToBoxedVector(UBits(3, 4)), 8)));
   EXPECT_EQ(UBits(0b00001000, 8),
@@ -933,8 +1142,37 @@ TEST(AbstractEvaluatorTest, Decode) {
             FromBoxedVector(eval.Decode(ToBoxedVector(UBits(9, 4)), 10)));
 }
 
+TYPED_TEST(AbstractEvaluatorTest, DynamicBitSlice) {
+  typename TestFixture::Evaluator eval;
+  auto test_eq = [&](int64_t expected, const Bits& a, const Bits& start,
+                     const int64_t& width) {
+    EXPECT_EQ(UBits(expected, width),
+              FromBoxedVector(eval.DynamicBitSlice(
+                  ToBoxedVector(a), ToBoxedVector(start), width)))
+        << "expected: " << expected << ", a: " << a.ToDebugString() << " (" << a
+        << "), start: " << start.ToDebugString() << " (" << start
+        << "), width: " << width;
+  };
+
+  // NB 0x1234 == 4660
+  test_eq(0x4, UBits(0x1234, 16), UBits(0, 32), 4);
+  test_eq(0x4, UBits(0x1234, 16), UBits(0, 1), 4);
+  test_eq(0x3, UBits(0x1234, 16), UBits(4, 32), 4);
+  test_eq(0x2, UBits(0x1234, 16), UBits(8, 32), 4);
+  test_eq(0x2, UBits(0x1234, 16), UBits(8, 32), 4);
+  test_eq(0x2, UBits(0x1234, 16), UBits(8, 4), 4);
+  test_eq(0x1, UBits(0x1234, 16), UBits(12, 32), 4);
+  test_eq(0x0, UBits(0x1234, 16), UBits(16, 32), 4);
+  test_eq(0x0, UBits(0x1234, 16), UBits(20, 32), 4);
+
+  test_eq(0b1011, UBits(0b1000110011101111, 16), UBits(2, 32), 4);
+  test_eq(0b1011, UBits(0b1000110011101111, 16), UBits(2, 2), 4);
+  test_eq(0b1101, UBits(0b1000110011101111, 16), UBits(3, 2), 4);
+}
+
+template <bool kIsITEFundamentalArg>
 void DecodeMatchesReference(const Bits& a, int32_t result_width) {
-  TestAbstractEvaluator eval;
+  TestAbstractEvaluator<kIsITEFundamentalArg> eval;
   Bits got = FromBoxedVector(eval.Decode(ToBoxedVector(a), result_width));
   Bits want;
   if (a.FitsInNBitsUnsigned(63)) {
@@ -946,12 +1184,26 @@ void DecodeMatchesReference(const Bits& a, int32_t result_width) {
   EXPECT_EQ(got, want) << "Decode(" << a << ", " << result_width
                        << ") = " << got << ", should be: " << want;
 }
-FUZZ_TEST(AbstractEvaluatorFuzzTest, DecodeMatchesReference)
+
+void DecodeMatchesReferenceNormal(const Bits& a, int32_t result_width) {
+  DecodeMatchesReference<false>(a, result_width);
+}
+
+void DecodeMatchesReferenceITE(const Bits& a, int32_t result_width) {
+  DecodeMatchesReference<true>(a, result_width);
+}
+
+FUZZ_TEST(AbstractEvaluatorFuzzTest, DecodeMatchesReferenceNormal)
+    .WithDomains(NonemptyBits(/*max_byte_count=*/kMaxMulBytes),
+                 fuzztest::Positive<int32_t>());
+
+FUZZ_TEST(AbstractEvaluatorFuzzTest, DecodeMatchesReferenceITE)
     .WithDomains(NonemptyBits(/*max_byte_count=*/kMaxMulBytes),
                  fuzztest::Positive<int32_t>());
 
 TEST(AbstractEvaluatorFuzzTest, DecodeMatchesReferenceRegression) {
-  DecodeMatchesReference(UBits(1, 1), 1054074905);
+  DecodeMatchesReferenceNormal(UBits(1, 1), 1054074905);
+  DecodeMatchesReferenceITE(UBits(1, 1), 1054074905);
 }
 
 }  // namespace
