@@ -211,7 +211,14 @@ static absl::StatusOr<std::unique_ptr<ModuleInfo>> DslxPathToModuleInfo(
   Fileno fileno = file_table.GetOrCreate(dslx_path.source_path.c_str());
   Scanner scanner(file_table, fileno, contents);
   Parser parser(/*module_name=*/fully_qualified_name, &scanner);
-  XLS_ASSIGN_OR_RETURN(std::unique_ptr<Module> module, parser.ParseModule());
+  // Some callers (e.g. `DslxBuilder`) import modules into an `ImportData` that
+  // never loaded the builtin stubs. Parse without the I/O builtin bindings in
+  // that case; any use of them then fails as an undefined name.
+  absl::StatusOr<Module*> builtin_stubs = import_data->GetBuiltinStubsModule();
+  XLS_ASSIGN_OR_RETURN(
+      std::unique_ptr<Module> module,
+      parser.ParseModule(/*bindings=*/nullptr,
+                         builtin_stubs.ok() ? *builtin_stubs : nullptr));
   module->SetConfiguredValuesMap(import_data->ResolveConfiguredValuesForModule(
       fully_qualified_name, dslx_path.source_path, /*is_entry_module=*/false));
   return ftypecheck(std::move(module), dslx_path.source_path);

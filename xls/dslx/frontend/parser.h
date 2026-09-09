@@ -136,8 +136,10 @@ class Parser : public TokenParser {
   absl::StatusOr<ModuleMember> ParseProc(const Pos& start_pos, bool is_public,
                                          Bindings& bindings);
 
+  // Parses a Module, if `builtin_stubs` is given, the builtin I/O object struct
+  // names (e.g. `Source`, `Sink`) are bound to its definitions.
   absl::StatusOr<std::unique_ptr<Module>> ParseModule(
-      Bindings* bindings = nullptr);
+      Bindings* bindings = nullptr, const Module* builtin_stubs = nullptr);
 
   // Parses an expression out of the token stream.
   absl::StatusOr<Expr*> ParseExpression(
