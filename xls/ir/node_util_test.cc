@@ -1558,5 +1558,21 @@ TEST_F(NodeUtilTest, ReplaceWithOrWithFilter) {
   EXPECT_EQ(xor_ac_node->operand(0), replacement);
 }
 
+TEST_F(NodeUtilTest, ResolveLocMergesAndDedups) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  SourceLocation loc_a(Fileno(0), Lineno(1), Colno(1));
+  SourceLocation loc_b(Fileno(0), Lineno(2), Colno(1));
+  BValue a = fb.Param("a", p->GetBitsType(32), SourceInfo(loc_a));
+  BValue b = fb.Param("b", p->GetBitsType(32), SourceInfo(loc_b));
+  BValue c = fb.Param("c", p->GetBitsType(32), SourceInfo(loc_a));
+  XLS_ASSERT_OK(fb.Build().status());
+
+  SourceInfo resolved = MergeLocs({a.node(), b.node(), c.node()});
+  ASSERT_EQ(resolved.locations.size(), 2);
+  EXPECT_EQ(resolved.locations[0].ToString(), loc_a.ToString());
+  EXPECT_EQ(resolved.locations[1].ToString(), loc_b.ToString());
+}
+
 }  // namespace
 }  // namespace xls
