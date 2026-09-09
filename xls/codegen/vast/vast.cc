@@ -548,6 +548,7 @@ std::string VerilogFile::Emit(LineInfo* line_info) const {
         [=](auto* m) {
           std::string pre_emit = m->PreEmit(line_info);
           if (!pre_emit.empty()) {
+            LineInfoIncrease(line_info, 1);
             return pre_emit + "\n" + m->Emit(line_info);
           }
           return m->Emit(line_info);
@@ -585,6 +586,7 @@ std::string CaseArm::Emit(LineInfo* line_info) const {
       Visitor{[=](Expression* named) {
                 std::string pre_emit = named->PreEmit(line_info);
                 if (!pre_emit.empty()) {
+                  LineInfoIncrease(line_info, 1);
                   return pre_emit + "\n" + named->Emit(line_info);
                 }
                 return named->Emit(line_info);
@@ -610,6 +612,7 @@ std::string StatementBlock::Emit(LineInfo* line_info) const {
     std::string pre_emit = statement->PreEmit(line_info);
     if (!pre_emit.empty()) {
       lines.push_back(pre_emit);
+      LineInfoIncrease(line_info, 1);
     }
     lines.push_back(statement->Emit(line_info));
     LineInfoIncrease(line_info, 1);
@@ -665,6 +668,7 @@ std::string MacroStatementBlock::Emit(LineInfo* line_info) const {
     std::string pre_emit = statement->PreEmit(line_info);
     if (!pre_emit.empty()) {
       absl::StrAppend(&result, Indent(pre_emit), "\n");
+      LineInfoIncrease(line_info, 1);
     }
     absl::StrAppend(&result, Indent(statement->Emit(line_info)), "\n");
     LineInfoIncrease(line_info, 1);
@@ -796,6 +800,7 @@ std::string VerilogFunction::Emit(LineInfo* line_info) const {
     std::string pre_emit = reg_def->PreEmit(line_info);
     if (!pre_emit.empty()) {
       lines.push_back(pre_emit);
+      LineInfoIncrease(line_info, 1);
     }
     lines.push_back(reg_def->Emit(line_info));
     LineInfoIncrease(line_info, 1);
@@ -1344,6 +1349,7 @@ std::string EmitModuleMember(LineInfo* line_info, const ModuleMember& member) {
       [=](auto* d) {
         std::string pre_emit = d->PreEmit(line_info);
         if (!pre_emit.empty()) {
+          LineInfoIncrease(line_info, 1);
           return pre_emit + "\n" + d->Emit(line_info);
         }
         return d->Emit(line_info);
