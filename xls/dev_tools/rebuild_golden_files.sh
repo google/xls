@@ -1,4 +1,4 @@
-#!/bin/bash -ex
+#!/usr/bin/env -S bash -ex
 
 # Rebuilds the golden files of all tests using
 # `xls/common/golden_files.h` infrastructure.
@@ -20,11 +20,11 @@ else
   UPDATE_TARGET_PATTERN="$XLS_TARGET_PATTERN except (attr(tags, \"no_update_golden\", $XLS_TARGET_PATTERN) + $XLS_TARGET_EXCLUDE)"
 fi
 
-TEST_TARGETS=($(bazel query "kind('(py_test|cc_test)', $TEST_TARGET_PATTERN)" --keep_going || /bin/true))
+TEST_TARGETS=($(bazel query "kind('(py_test|cc_test)', $TEST_TARGET_PATTERN)" --keep_going || true))
 
 # Run frozen file sha256 updates first so downstream consumers of the frozen files can build.
-FROZEN_UPDATE_TARGETS=($(bazel query "attr(target_name, '.*_frozen$', kind(_xls_update_sha256, $UPDATE_TARGET_PATTERN))" --keep_going || /bin/true))
-OTHER_RUN_TARGETS=($(bazel query "(kind(_xls_update_golden, $UPDATE_TARGET_PATTERN) + kind(_xls_update_sha256, $UPDATE_TARGET_PATTERN)) except attr(target_name, '.*_frozen$', kind(_xls_update_sha256, $UPDATE_TARGET_PATTERN))" --keep_going || /bin/true))
+FROZEN_UPDATE_TARGETS=($(bazel query "attr(target_name, '.*_frozen$', kind(_xls_update_sha256, $UPDATE_TARGET_PATTERN))" --keep_going || true))
+OTHER_RUN_TARGETS=($(bazel query "(kind(_xls_update_golden, $UPDATE_TARGET_PATTERN) + kind(_xls_update_sha256, $UPDATE_TARGET_PATTERN)) except attr(target_name, '.*_frozen$', kind(_xls_update_sha256, $UPDATE_TARGET_PATTERN))" --keep_going || true))
 RUN_TARGETS=("${FROZEN_UPDATE_TARGETS[@]}" "${OTHER_RUN_TARGETS[@]}")
 
 if [[ ! -f "$(pwd)/WORKSPACE" ]]
@@ -45,7 +45,7 @@ bazel test -c opt \
   --test_arg=--xls_source_dir="$(pwd)"/xls/ \
   --test_arg=--alsologtostderr \
   --nocache_test_results \
-  --test_output=errors || /bin/true
+  --test_output=errors || true
 
 # bazel run can't run multiple targets
 # TODO(allight): It would be nice to run these all in parallel.
