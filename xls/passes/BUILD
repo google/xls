@@ -950,6 +950,7 @@ xls_pass(
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "//xls/ir",
+        "//xls/ir:node_util",
         "//xls/ir:op",
         "//xls/ir:source_location",
         "//xls/ir:type",

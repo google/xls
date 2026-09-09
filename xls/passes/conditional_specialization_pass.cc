@@ -632,26 +632,28 @@ absl::StatusOr<std::optional<Node*>> CheckMatch(
       } else {
         XLS_ASSIGN_OR_RETURN(Node * negated,
                              node->function_base()->MakeNode<UnOp>(
-                                 SourceInfo(), node, Op::kNot));
+                                 MergeLocs({user, node}), node, Op::kNot));
         return negated;
       }
     }
     XLS_ASSIGN_OR_RETURN(Node * matched_value,
                          node->function_base()->MakeNode<Literal>(
-                             SourceInfo(), Value(*precise_value)));
+                             user->loc(), Value(*precise_value)));
     XLS_ASSIGN_OR_RETURN(Node * matched_value_check,
                          node->function_base()->MakeNode<CompareOp>(
-                             SourceInfo(), node, matched_value, Op::kEq));
+                             MergeLocs({user, node, matched_value}), node,
+                             matched_value, Op::kEq));
     return matched_value_check;
   }
   if (std::optional<Bits> punctured_value = partial.GetPuncturedValue();
       punctured_value.has_value()) {
     XLS_ASSIGN_OR_RETURN(Node * punctured_literal,
                          node->function_base()->MakeNode<Literal>(
-                             SourceInfo(), Value(*punctured_value)));
+                             user->loc(), Value(*punctured_value)));
     XLS_ASSIGN_OR_RETURN(Node * punctured_value_check,
                          node->function_base()->MakeNode<CompareOp>(
-                             SourceInfo(), node, punctured_literal, Op::kNe));
+                             MergeLocs({user, node, punctured_literal}), node,
+                             punctured_literal, Op::kNe));
     return punctured_value_check;
   }
 

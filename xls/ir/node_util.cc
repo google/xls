@@ -87,6 +87,18 @@ std::vector<Node*> RemoveRedundantNodes(
 
 }  // namespace
 
+SourceInfo MergeLocs(absl::Span<Node* const> operands) {
+  SourceInfo loc;
+  for (Node* operand : operands) {
+    for (const SourceLocation& location : operand->loc().locations) {
+      if (!absl::c_linear_search(loc.locations, location)) {
+        loc.locations.push_back(location);
+      }
+    }
+  }
+  return loc;
+}
+
 bool IsLiteralWithRunOfSetBits(Node* node, int64_t* leading_zero_count,
                                int64_t* set_bit_count,
                                int64_t* trailing_zero_count) {
@@ -610,10 +622,7 @@ absl::StatusOr<Node*> JoinWithAnd(FunctionBase* f,
   }
 
   if (!loc.has_value()) {
-    loc = unique_operands.front()->loc();
-    for (Node* operand : unique_operands) {
-      loc = loc->Extend(operand->loc());
-    }
+    loc = MergeLocs(new_operands);
   }
 
   return NaryAndIfNeeded(f, unique_operands, name, *loc);
@@ -719,10 +728,7 @@ absl::StatusOr<Node*> JoinWithOr(FunctionBase* f,
   }
 
   if (!loc.has_value()) {
-    loc = operands.front()->loc();
-    for (Node* operand : operands) {
-      loc = loc->Extend(operand->loc());
-    }
+    loc = MergeLocs(new_operands);
   }
 
   return NaryOrIfNeeded(f, unique_operands, name, *loc);
