@@ -2594,6 +2594,22 @@ TEST_F(ArithSimplificationPassTest, SDivByShiftedVariablePowerOfTwoWideShift) {
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(false));
 }
 
+TEST_F(ArithSimplificationPassTest, UDivByOverflowingShiftedSelf) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+fn FuzzTest(p0: bits[1]) -> bits[14] {
+  wide: bits[14] = sign_ext(p0, new_bit_count=14)
+  shift: bits[2] = sign_ext(p0, new_bit_count=2)
+  shifted: bits[14] = shll(wide, shift)
+  ret result: bits[14] = udiv(shifted, shifted)
+}
+  )",
+                                                       p.get()));
+
+  ScopedVerifyEquivalence sve(f);
+  ASSERT_THAT(Run(p.get()), IsOk());
+}
+
 TEST_F(ArithSimplificationPassTest, FuzzTestInvalidSDivTransform) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
