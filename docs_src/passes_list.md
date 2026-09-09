@@ -1067,6 +1067,22 @@ generation.
 
 
 
+## bitwise_simp - bitwise simplification {#bitwise_simp}
+
+
+Pass which simplifies bitwise operations (AND, OR) with constant masks by
+transforming them into concats of BitSlices and Literals (literal 0s for AND,
+literal 1s for OR). This optimization is only enabled when SplitsEnabled is
+true.
+
+
+[Header](http://github.com/google/xls/tree/main/xls/passes/bitwise_simplification_pass.h)
+
+
+
+
+
+
 ## bool_simp - boolean simplification {#bool_simp}
 
 
@@ -6501,6 +6517,8 @@ This is run a large number of times and avoids many time-consuming analyses.
 - [arith_simp](#arith_simp)
 - [dce](#dce)
 - [narrow(Ternary)](#narrowTernary)
+- [dce](#dce)
+- [bitwise_simp](#bitwise_simp)
 - [dce](#dce)
 - [bool_simp](#bool_simp)
 - [dce](#dce)
