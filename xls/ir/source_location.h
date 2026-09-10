@@ -48,6 +48,8 @@ class SourceLocation {
                            colno_.value());
   }
 
+  bool operator==(const SourceLocation& other) const = default;
+
   std::strong_ordering operator<=>(const SourceLocation& other) const {
     if (fileno_ != other.fileno_) {
       return fileno_.value() <=> other.fileno_.value();
