@@ -697,6 +697,10 @@ absl::StatusOr<PackageConversionData> ConvertFilesToPackage(
         "Top cannot be supplied with multiple input paths (need a single input "
         "path to know where to resolve the entry function");
   }
+  bool dummy_printed_error = false;
+  if (!printed_error) {
+    printed_error = &dummy_printed_error;
+  }
   for (std::string_view path : paths) {
     ImportData import_data(
         CreateImportData(stdlib_path, dslx_paths, convert_options.warnings,
@@ -724,10 +728,6 @@ absl::StatusOr<PackageConversionData> ConvertFilesToPackage(
               "Warnings encountered and warnings-as-errors set.");
         }
       }
-    }
-    bool dummy_printed_error = false;
-    if (!printed_error) {
-      printed_error = &dummy_printed_error;
     }
     XLS_RETURN_IF_ERROR(AddContentsToPackage(
         text, module_name, /*path=*/path, /*entry=*/top, convert_options,
