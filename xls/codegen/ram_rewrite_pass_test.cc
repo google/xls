@@ -26,8 +26,7 @@
 #include <variant>
 #include <vector>
 
-#include "gmock/gmock.h"
-#include "gtest/gtest.h"
+#include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
@@ -38,19 +37,27 @@
 #include "absl/strings/str_replace.h"
 #include "absl/types/span.h"
 #include "absl/types/variant.h"
+#include "gmock/gmock.h"
+#include "gtest/gtest.h"
 #include "xls/codegen/block_conversion.h"
 #include "xls/codegen/codegen_options.h"
 #include "xls/codegen/codegen_pass.h"
 #include "xls/codegen/codegen_pass_pipeline.h"
 #include "xls/codegen/module_signature.h"
 #include "xls/codegen/module_signature.pb.h"
+#include "xls/codegen/port_legalization_pass.h"
 #include "xls/codegen/ram_configuration.h"
+#include "xls/codegen_v_1_5/codegen.h"
+#include "xls/common/file/filesystem.h"
 #include "xls/common/proto_test_utils.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/common/undeclared_outputs.h"
 #include "xls/common/visitor.h"
 #include "xls/estimators/delay_model/delay_estimators.h"
+#include "xls/interpreter/block_interpreter.h"
+#include "xls/ir/bits.h"
 #include "xls/ir/block.h"
 #include "xls/ir/channel.h"
 #include "xls/ir/ir_matcher.h"
@@ -58,6 +65,7 @@
 #include "xls/ir/nodes.h"
 #include "xls/ir/package.h"
 #include "xls/ir/proc.h"
+#include "xls/ir/value.h"
 #include "xls/ir/verifier.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/pass_base.h"
@@ -325,6 +333,444 @@ class RamRewritePassTest
     return "";
   }
 };
+
+TEST(RamRewriteHandshakeTest, Held1RWRequestIssuesOnceAfterResponseStall) {
+  constexpr std::string_view kIr = R"(package test
+
+top block held_valid_ram_request(
+    clk: clock, rst: bits[1], source_addr: bits[4],
+    source_valid: bits[1], source_write: bits[1], source_ready: bits[1],
+    consumer_ready: bits[1], consumer_data: bits[32], consumer_valid: bits[1],
+    req_data: (bits[4], bits[32], (), (), bits[1], bits[1]),
+    req_valid: bits[1], req_ready: bits[1],
+    resp_data: (bits[32]), resp_valid: bits[1], resp_ready: bits[1],
+    wr_comp_data: (), wr_comp_valid: bits[1], wr_comp_ready: bits[1]) {
+  #![reset(port="rst", asynchronous=false, active_low=false)]
+  #![channel_ports(name=req, type=(bits[4], bits[32], (), (), bits[1], bits[1]), direction=send, kind=streaming, data_port=req_data, ready_port=req_ready, valid_port=req_valid)]
+  #![channel_ports(name=resp, type=(bits[32]), direction=receive, kind=streaming, data_port=resp_data, ready_port=resp_ready, valid_port=resp_valid)]
+  #![channel_ports(name=wr_comp, type=(), direction=receive, kind=streaming, data_port=wr_comp_data, ready_port=wr_comp_ready, valid_port=wr_comp_valid)]
+  rst: bits[1] = input_port(name=rst)
+  source_addr: bits[4] = input_port(name=source_addr)
+  source_valid: bits[1] = input_port(name=source_valid)
+  source_write: bits[1] = input_port(name=source_write)
+  consumer_ready: bits[1] = input_port(name=consumer_ready)
+  req_ready: bits[1] = input_port(name=req_ready)
+  resp_data: (bits[32]) = input_port(name=resp_data)
+  resp_valid: bits[1] = input_port(name=resp_valid)
+  wr_comp_data: () = input_port(name=wr_comp_data)
+  wr_comp_valid: bits[1] = input_port(name=wr_comp_valid)
+  one1: bits[1] = literal(value=1)
+  write_data: bits[32] = literal(value=0x55)
+  empty: () = tuple()
+  source_read: bits[1] = not(source_write)
+  held_valid: bits[1] = identity(source_valid)
+  req_tuple: (bits[4], bits[32], (), (), bits[1], bits[1]) = tuple(source_addr, write_data, empty, empty, source_write, source_read)
+  rd_value: bits[32] = tuple_index(resp_data, index=0)
+  req_data: () = output_port(req_tuple, name=req_data)
+  req_valid: () = output_port(held_valid, name=req_valid)
+  source_ready: () = output_port(req_ready, name=source_ready)
+  consumer_data: () = output_port(rd_value, name=consumer_data)
+  consumer_valid: () = output_port(resp_valid, name=consumer_valid)
+  resp_ready: () = output_port(consumer_ready, name=resp_ready)
+  wr_comp_ready: () = output_port(one1, name=wr_comp_ready)
+}
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(auto package, IrTestBase::ParsePackage(kIr));
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block,
+                           package->GetBlock("held_valid_ram_request"));
+  const CodegenOptions codegen_options =
+      CodegenOptions()
+          .reset("rst", false, false, false)
+          .ram_configurations(
+              {Ram1RWConfiguration("ram", 1, "req", "resp", "wr_comp")});
+  const CodegenPassOptions pass_options{.codegen_options = codegen_options};
+  CodegenContext context(block);
+  PassResults results;
+  XLS_ASSERT_OK_AND_ASSIGN(
+      bool changed,
+      RamRewritePass().Run(package.get(), pass_options, &results, context));
+  EXPECT_TRUE(changed);
+  // Legalize empty mask ports before using the integer-valued interpreter.
+  XLS_ASSERT_OK(PortLegalizationPass()
+                    .Run(package.get(), pass_options, &results, context)
+                    .status());
+
+  for (uint64_t second_is_write : {0, 1}) {
+    SCOPED_TRACE(second_is_write);
+    std::vector<absl::flat_hash_map<std::string, uint64_t>> inputs = {
+        {{"rst", 1},
+         {"source_addr", 0},
+         {"source_valid", 0},
+         {"source_write", 0},
+         {"consumer_ready", 1},
+         {"ram_rd_data", 0}},
+        {{"rst", 0},
+         {"source_addr", 1},
+         {"source_valid", 1},
+         {"source_write", 0},
+         {"consumer_ready", 1},
+         {"ram_rd_data", 0}},
+        {{"rst", 0},
+         {"source_addr", 2},
+         {"source_valid", 1},
+         {"source_write", second_is_write},
+         {"consumer_ready", 0},
+         {"ram_rd_data", 0xa1}},
+        {{"rst", 0},
+         {"source_addr", 2},
+         {"source_valid", 1},
+         {"source_write", second_is_write},
+         {"consumer_ready", 0},
+         {"ram_rd_data", 0}},
+        {{"rst", 0},
+         {"source_addr", 2},
+         {"source_valid", 1},
+         {"source_write", second_is_write},
+         {"consumer_ready", 1},
+         {"ram_rd_data", 0}},
+        {{"rst", 0},
+         {"source_addr", 0},
+         {"source_valid", 0},
+         {"source_write", 0},
+         {"consumer_ready", 1},
+         {"ram_rd_data", 0xb2}},
+        {{"rst", 0},
+         {"source_addr", 0},
+         {"source_valid", 0},
+         {"source_write", 0},
+         {"consumer_ready", 1},
+         {"ram_rd_data", 0}},
+    };
+    XLS_ASSERT_OK_AND_ASSIGN(auto outputs,
+                             InterpretSequentialBlock(block, inputs));
+    EXPECT_EQ(outputs[1].at("ram_re"), 1);
+    for (int64_t cycle : {2, 3}) {
+      EXPECT_EQ(outputs[cycle].at("source_ready"), 0);
+      EXPECT_EQ(outputs[cycle].at("ram_re"), 0);
+      EXPECT_EQ(outputs[cycle].at("ram_we"), 0);
+      EXPECT_EQ(outputs[cycle].at("consumer_valid"), 1);
+      EXPECT_EQ(outputs[cycle].at("consumer_data"), 0xa1);
+    }
+    EXPECT_EQ(outputs[4].at("source_ready"), 1);
+    EXPECT_EQ(outputs[4].at("ram_re"), 1 - second_is_write);
+    EXPECT_EQ(outputs[4].at("ram_we"), second_is_write);
+    EXPECT_EQ(outputs[4].at("consumer_data"), 0xa1);
+    EXPECT_EQ(outputs[5].at("consumer_valid"), 1 - second_is_write);
+    if (second_is_write == 0) {
+      EXPECT_EQ(outputs[5].at("consumer_data"), 0xb2);
+    }
+    EXPECT_EQ(outputs[6].at("consumer_valid"), 0);
+    uint64_t read_count = 0;
+    uint64_t write_count = 0;
+    for (const auto& cycle : outputs) {
+      read_count += cycle.at("ram_re");
+      write_count += cycle.at("ram_we");
+    }
+    EXPECT_EQ(read_count, 2 - second_is_write);
+    EXPECT_EQ(write_count, second_is_write);
+  }
+}
+
+TEST(RamRewriteHandshakeTest, HeldReadIssuesOnceAfterResponseStall) {
+  constexpr std::string_view kIr = R"(package test
+
+top block held_valid_ram_request(
+    clk: clock, rst: bits[1], source_addr: bits[4],
+    source_valid: bits[1], source_ready: bits[1],
+    consumer_ready: bits[1], consumer_data: bits[32],
+    consumer_valid: bits[1], rd_req_data: (bits[4], ()),
+    rd_req_valid: bits[1], rd_req_ready: bits[1],
+    rd_resp_data: (bits[32]), rd_resp_valid: bits[1],
+    rd_resp_ready: bits[1],
+    wr_req_data: (bits[4], bits[32], ()), wr_req_valid: bits[1],
+    wr_req_ready: bits[1], wr_comp_data: (),
+    wr_comp_valid: bits[1], wr_comp_ready: bits[1]) {
+  #![reset(port="rst", asynchronous=false, active_low=false)]
+  #![channel_ports(name=rd_req, type=(bits[4], ()), direction=send, kind=streaming, data_port=rd_req_data, ready_port=rd_req_ready, valid_port=rd_req_valid)]
+  #![channel_ports(name=rd_resp, type=(bits[32]), direction=receive, kind=streaming, data_port=rd_resp_data, ready_port=rd_resp_ready, valid_port=rd_resp_valid)]
+  #![channel_ports(name=wr_req, type=(bits[4], bits[32], ()), direction=send, kind=streaming, data_port=wr_req_data, ready_port=wr_req_ready, valid_port=wr_req_valid)]
+  #![channel_ports(name=wr_comp, type=(), direction=receive, kind=streaming, data_port=wr_comp_data, ready_port=wr_comp_ready, valid_port=wr_comp_valid)]
+  rst: bits[1] = input_port(name=rst)
+  source_addr: bits[4] = input_port(name=source_addr)
+  source_valid: bits[1] = input_port(name=source_valid)
+  consumer_ready: bits[1] = input_port(name=consumer_ready)
+  rd_req_ready: bits[1] = input_port(name=rd_req_ready)
+  rd_resp_data: (bits[32]) = input_port(name=rd_resp_data)
+  rd_resp_valid: bits[1] = input_port(name=rd_resp_valid)
+  wr_req_ready: bits[1] = input_port(name=wr_req_ready)
+  wr_comp_data: () = input_port(name=wr_comp_data)
+  wr_comp_valid: bits[1] = input_port(name=wr_comp_valid)
+  zero1: bits[1] = literal(value=0)
+  one1: bits[1] = literal(value=1)
+  zero4: bits[4] = literal(value=0)
+  zero32: bits[32] = literal(value=0)
+  empty: () = tuple()
+  held_valid: bits[1] = identity(source_valid)
+  write_valid: bits[1] = identity(zero1)
+  rd_tuple: (bits[4], ()) = tuple(source_addr, empty)
+  wr_tuple: (bits[4], bits[32], ()) = tuple(zero4, zero32, empty)
+  rd_value: bits[32] = tuple_index(rd_resp_data, index=0)
+  rd_req_data: () = output_port(rd_tuple, name=rd_req_data)
+  rd_req_valid: () = output_port(held_valid, name=rd_req_valid)
+  source_ready: () = output_port(rd_req_ready, name=source_ready)
+  consumer_data: () = output_port(rd_value, name=consumer_data)
+  consumer_valid: () = output_port(rd_resp_valid, name=consumer_valid)
+  rd_resp_ready: () = output_port(consumer_ready, name=rd_resp_ready)
+  wr_req_data: () = output_port(wr_tuple, name=wr_req_data)
+  wr_req_valid: () = output_port(write_valid, name=wr_req_valid)
+  wr_comp_ready: () = output_port(one1, name=wr_comp_ready)
+}
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(auto package, IrTestBase::ParsePackage(kIr));
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block,
+                           package->GetBlock("held_valid_ram_request"));
+
+  std::vector<RamConfiguration> ram_configurations;
+  ram_configurations.push_back(
+      Ram1R1WConfiguration("ram", 1, "rd_req", "rd_resp", "wr_req", "wr_comp"));
+  const CodegenOptions codegen_options =
+      CodegenOptions()
+          .reset("rst", false, false, false)
+          .ram_configurations(ram_configurations);
+  const CodegenPassOptions pass_options{.codegen_options = codegen_options};
+  CodegenContext context(block);
+  PassResults results;
+  XLS_ASSERT_OK_AND_ASSIGN(
+      bool changed,
+      RamRewritePass().Run(package.get(), pass_options, &results, context));
+  EXPECT_TRUE(changed);
+  // Legalize empty mask ports before using the integer-valued interpreter.
+  XLS_ASSERT_OK(PortLegalizationPass()
+                    .Run(package.get(), pass_options, &results, context)
+                    .status());
+
+  std::vector<absl::flat_hash_map<std::string, uint64_t>> inputs = {
+      {{"rst", 1},
+       {"source_addr", 0},
+       {"source_valid", 0},
+       {"consumer_ready", 1},
+       {"ram_rd_data", 0}},
+      {{"rst", 0},
+       {"source_addr", 1},
+       {"source_valid", 1},
+       {"consumer_ready", 1},
+       {"ram_rd_data", 0}},
+      {{"rst", 0},
+       {"source_addr", 2},
+       {"source_valid", 1},
+       {"consumer_ready", 0},
+       {"ram_rd_data", 0xa1}},
+      {{"rst", 0},
+       {"source_addr", 2},
+       {"source_valid", 1},
+       {"consumer_ready", 0},
+       {"ram_rd_data", 0}},
+      {{"rst", 0},
+       {"source_addr", 2},
+       {"source_valid", 1},
+       {"consumer_ready", 1},
+       {"ram_rd_data", 0}},
+      {{"rst", 0},
+       {"source_addr", 0},
+       {"source_valid", 0},
+       {"consumer_ready", 1},
+       {"ram_rd_data", 0xb2}},
+      {{"rst", 0},
+       {"source_addr", 0},
+       {"source_valid", 0},
+       {"consumer_ready", 1},
+       {"ram_rd_data", 0}},
+  };
+  XLS_ASSERT_OK_AND_ASSIGN(auto outputs,
+                           InterpretSequentialBlock(block, inputs));
+
+  // The second request remains valid throughout the response stall, but it
+  // must issue to the physical RAM exactly once, when request ready returns.
+  EXPECT_EQ(outputs[1].at("ram_rd_en"), 1);
+  EXPECT_EQ(outputs[2].at("source_ready"), 0);
+  EXPECT_EQ(outputs[2].at("ram_rd_en"), 0);
+  EXPECT_EQ(outputs[3].at("source_ready"), 0);
+  EXPECT_EQ(outputs[3].at("ram_rd_en"), 0);
+  EXPECT_EQ(outputs[4].at("source_ready"), 1);
+  EXPECT_EQ(outputs[4].at("ram_rd_en"), 1);
+  int64_t read_count = 0;
+  for (const auto& cycle_outputs : outputs) {
+    read_count += cycle_outputs.at("ram_rd_en");
+  }
+  EXPECT_EQ(read_count, 2);
+
+  EXPECT_EQ(outputs[2].at("consumer_valid"), 1);
+  EXPECT_EQ(outputs[2].at("consumer_data"), 0xa1);
+  EXPECT_EQ(outputs[3].at("consumer_valid"), 1);
+  EXPECT_EQ(outputs[3].at("consumer_data"), 0xa1);
+  EXPECT_EQ(outputs[4].at("consumer_valid"), 1);
+  EXPECT_EQ(outputs[4].at("consumer_data"), 0xa1);
+  EXPECT_EQ(outputs[5].at("consumer_valid"), 1);
+  EXPECT_EQ(outputs[5].at("consumer_data"), 0xb2);
+}
+
+class GeneratedRamStallTest : public testing::TestWithParam<bool> {};
+
+TEST_P(GeneratedRamStallTest, PreservesTransactionsDuringOutputStalls) {
+  const bool single_port = GetParam();
+  const std::string_view channels = single_port ? R"(
+chan req((bits[4], bits[32], (), (), bits[1], bits[1]), id=4, kind=streaming, ops=send_only, flow_control=ready_valid)
+)"
+                                                : R"(
+chan rd_req((bits[4], ()), id=4, kind=streaming, ops=send_only, flow_control=ready_valid)
+chan wr_req((bits[4], bits[32], ()), id=5, kind=streaming, ops=send_only, flow_control=ready_valid)
+)";
+  const std::string_view requests = single_port ? R"(
+  request: (bits[4], bits[32], (), (), bits[1], bits[1]) = tuple(addr, write_data, empty, empty, write, read)
+  read_token: token = send(command_token, request, channel=req)
+  write_token: token = identity(read_token)
+)"
+                                                : R"(
+  read_request: (bits[4], ()) = tuple(addr, empty)
+  write_request: (bits[4], bits[32], ()) = tuple(addr, write_data, empty)
+  read_token: token = send(command_token, read_request, predicate=read, channel=rd_req)
+  write_token: token = send(command_token, write_request, predicate=write, channel=wr_req)
+)";
+  constexpr std::string_view kProcTemplate = R"(package test
+chan cmd(bits[5], id=0, kind=streaming, ops=receive_only, flow_control=ready_valid)
+chan out(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid)
+chan resp((bits[32]), id=2, kind=streaming, ops=receive_only, flow_control=ready_valid)
+chan wr_comp((), id=3, kind=streaming, ops=receive_only, flow_control=ready_valid)
+$CHANNELS
+
+top proc reader(state: (), init={()}) {
+  t: token = literal(value=token)
+  command: (token, bits[5]) = receive(t, channel=cmd)
+  command_token: token = tuple_index(command, index=0)
+  command_data: bits[5] = tuple_index(command, index=1)
+  addr: bits[4] = bit_slice(command_data, start=0, width=4)
+  write: bits[1] = bit_slice(command_data, start=4, width=1)
+  read: bits[1] = not(write)
+  write_data: bits[32] = literal(value=85)
+  empty: () = tuple()
+$REQUESTS
+  response: (token, (bits[32])) = receive(read_token, predicate=read, channel=resp)
+  response_token: token = tuple_index(response, index=0)
+  response_tuple: (bits[32]) = tuple_index(response, index=1)
+  response_data: bits[32] = tuple_index(response_tuple, index=0)
+  completion: (token, ()) = receive(write_token, predicate=write, channel=wr_comp)
+  completion_token: token = tuple_index(completion, index=0)
+  done: token = after_all(response_token, completion_token)
+  output_token: token = send(done, response_data, predicate=read, channel=out)
+  next_state: () = next_value(state_element=state, value=state)
+}
+)";
+  const std::string ir = absl::StrReplaceAll(
+      kProcTemplate, {{"$CHANNELS", channels}, {"$REQUESTS", requests}});
+  XLS_ASSERT_OK_AND_ASSIGN(auto package, IrTestBase::ParsePackage(ir));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto ram_config,
+      ParseRamConfiguration(single_port
+                                ? "ram:1RW:req:resp:wr_comp"
+                                : "ram:1R1W:rd_req:resp:wr_req:wr_comp"));
+  CodegenOptions options;
+  options.module_name("ram_stall")
+      .clock_name("clk")
+      .reset("rst", false, false, false)
+      .flop_inputs(false)
+      .flop_outputs(false)
+      .streaming_channel_data_suffix("_data")
+      .streaming_channel_valid_suffix("_valid")
+      .streaming_channel_ready_suffix("_ready")
+      .ram_configurations({ram_config});
+  SchedulingOptions scheduling;
+  scheduling.pipeline_stages(2);
+  for (const IOConstraint& constraint :
+       GetRamConfigurationIOConstraints(ram_config)) {
+    scheduling.add_constraint(constraint);
+  }
+  XLS_ASSERT_OK_AND_ASSIGN(auto delay_estimator, GetDelayEstimator("unit"));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto result, xls::codegen::Codegen(package.get(), options, scheduling,
+                                         delay_estimator));
+  if (auto output_dir = GetUndeclaredOutputDirectory();
+      output_dir.has_value()) {
+    XLS_ASSERT_OK(SetFileContents(
+        *output_dir / (single_port ? "ram_1rw.v" : "ram_1r1w.v"),
+        result.verilog_text));
+  }
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block, package->GetTopAsBlock());
+
+  // Commands are held until accepted. A write to an otherwise unread address
+  // avoids depending on the RAM's simultaneous read/write collision policy.
+  const std::vector<uint64_t> commands = {1, 2, 0x17, 3, 4, 5, 6};
+  const std::vector<uint64_t> expected_reads = {1, 2, 3, 4, 5, 6};
+  const std::vector<uint64_t> expected_responses = {0xa1, 0xa2, 0xa3,
+                                                    0xa4, 0xa5, 0xa6};
+  // The final case is an always-ready control: its stall is beyond the run.
+  for (int64_t stall_start : {2, 3, 4, 5, 6, 7, 128}) {
+    SCOPED_TRACE(stall_start);
+    XLS_ASSERT_OK_AND_ASSIGN(auto continuation,
+                             kInterpreterBlockEvaluator.NewContinuation(block));
+    std::vector<uint64_t> memory(16);
+    for (int64_t address = 0; address < memory.size(); ++address) {
+      memory[address] = 0xa0 + address;
+    }
+    int64_t sent = 0;
+    uint64_t response = 0;
+    std::vector<uint64_t> physical_reads;
+    std::vector<uint64_t> physical_writes;
+    std::vector<uint64_t> received;
+    // Run well past the final expected transfer to detect extra responses too.
+    for (int64_t cycle = 0; cycle < 96; ++cycle) {
+      const bool reset = cycle == 0;
+      const bool valid = !reset && sent < commands.size();
+      const bool ready = cycle < stall_start || cycle >= stall_start + 16;
+      XLS_ASSERT_OK(continuation->RunOneCycle({
+          {"rst", Value(UBits(reset, 1))},
+          {"cmd_data", Value(UBits(valid ? commands[sent] : 0, 5))},
+          {"cmd_valid", Value(UBits(valid, 1))},
+          {"out_ready", Value(UBits(ready, 1))},
+          {"ram_rd_data", Value(UBits(response, 32))},
+      }));
+      auto output = [&](std::string_view name) {
+        return continuation->output_ports().at(name).bits().ToUint64().value();
+      };
+      if (reset) {
+        continue;
+      }
+      if (valid && output("cmd_ready")) {
+        ++sent;
+      }
+      if (ready && output("out_valid")) {
+        received.push_back(output("out_data"));
+      }
+      // The external RAM returns data exactly one cycle after a physical read.
+      // Poison idle cycles so a spurious response-valid cannot pass unnoticed.
+      response = 0xdeadbeef;
+      if (output(single_port ? "ram_re" : "ram_rd_en")) {
+        const uint64_t address =
+            output(single_port ? "ram_addr" : "ram_rd_addr");
+        physical_reads.push_back(address);
+        response = memory.at(address);
+      }
+      if (output(single_port ? "ram_we" : "ram_wr_en")) {
+        const uint64_t address =
+            output(single_port ? "ram_addr" : "ram_wr_addr");
+        physical_writes.push_back(address);
+        memory.at(address) = output("ram_wr_data");
+      }
+    }
+    EXPECT_EQ(sent, commands.size());
+    EXPECT_EQ(physical_reads, expected_reads);
+    EXPECT_THAT(physical_writes, testing::ElementsAre(7));
+    EXPECT_EQ(memory[7], 0x55);
+    EXPECT_EQ(received, expected_responses);
+  }
+}
+
+INSTANTIATE_TEST_SUITE_P(RamKinds, GeneratedRamStallTest,
+                         testing::Values(true, false),
+                         [](const testing::TestParamInfo<bool>& info) {
+                           return info.param ? "SinglePort" : "SeparatePorts";
+                         });
 
 TEST_P(RamRewritePassTest, PortsUpdated) {
   auto& param = std::get<0>(GetParam());
