@@ -75,9 +75,11 @@ class BlockJit {
   };
 
   static absl::StatusOr<std::unique_ptr<BlockJit>> Create(
-      Block* block, bool support_observer_callbacks = false);
+      Block* block, bool support_observer_callbacks = false,
+      int64_t opt_level = LlvmCompiler::kDefaultOptLevel);
   static absl::StatusOr<std::unique_ptr<BlockJit>> Create(
-      const BlockElaboration& elab, bool support_observer_callbacks = false);
+      const BlockElaboration& elab, bool support_observer_callbacks = false,
+      int64_t opt_level = LlvmCompiler::kDefaultOptLevel);
 
   static absl::StatusOr<std::unique_ptr<BlockJit>> CreateFromAot(
       const AotEntrypointProto& entrypoint, std::string_view data_layout,
@@ -302,9 +304,12 @@ class BlockJitContinuation {
 // possible.
 class JitBlockEvaluator : public BlockEvaluator {
  public:
-  explicit constexpr JitBlockEvaluator(bool supports_observer = false)
+  explicit constexpr JitBlockEvaluator(
+      bool supports_observer = false,
+      int64_t opt_level = LlvmCompiler::kDefaultOptLevel)
       : BlockEvaluator(supports_observer ? "ObservableJit" : "Jit"),
-        supports_observer_(supports_observer) {}
+        supports_observer_(supports_observer),
+        opt_level_(opt_level) {}
   absl::StatusOr<JitRuntime*> GetRuntime(BlockContinuation* cont) const;
 
  protected:
@@ -315,6 +320,7 @@ class JitBlockEvaluator : public BlockEvaluator {
 
  private:
   bool supports_observer_;
+  int64_t opt_level_;
 };
 
 inline constexpr JitBlockEvaluator kJitBlockEvaluator(false);

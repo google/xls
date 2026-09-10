@@ -116,6 +116,9 @@ ABSL_FLAG(std::string, backend, "serial_jit",
           " * ir_interpreter: Interpreter at the IR level.\n"
           " * block_interpreter: Interpret a block generated from a proc.\n"
           " * block_jit: JIT-backed block execution generated from a proc.");
+ABSL_FLAG(int64_t, llvm_opt_level, xls::LlvmCompiler::kDefaultOptLevel,
+          "The optimization level of the LLVM JIT. Valid values are from 0 "
+          "(no optimizations) to 3 (maximum optimizations).");
 ABSL_FLAG(std::string, block_signature_proto, "",
           "Path to textproto file containing signature from codegen");
 ABSL_FLAG(int64_t, max_cycles_no_output, 100,
@@ -303,20 +306,24 @@ struct EvaluateProcsOptions {
   std::vector<int64_t> ticks = {-1};
   std::optional<std::string> top = std::nullopt;
   ScopedObserver observer;
+  int64_t llvm_opt_level = LlvmCompiler::kDefaultOptLevel;
 };
 
 static absl::StatusOr<std::unique_ptr<SerialProcRuntime>> GetRuntime(
-    Package* package, bool use_jit, EvaluatorOptions evaluator_options) {
+    Package* package, bool use_jit, EvaluatorOptions evaluator_options,
+    int64_t llvm_opt_level) {
+  JitEvaluatorOptions jit_options;
+  jit_options.set_opt_level(llvm_opt_level);
   if (package->ChannelsAreProcScoped()) {
     XLS_RET_CHECK(package->HasTop());
     XLS_ASSIGN_OR_RETURN(Proc * top, package->GetTopAsProc());
     if (use_jit) {
-      return CreateJitSerialProcRuntime(top, evaluator_options);
+      return CreateJitSerialProcRuntime(top, evaluator_options, jit_options);
     }
     return CreateInterpreterSerialProcRuntime(top, evaluator_options);
   }
   if (use_jit) {
-    return CreateJitSerialProcRuntime(package, evaluator_options);
+    return CreateJitSerialProcRuntime(package, evaluator_options, jit_options);
   }
 
   return CreateInterpreterSerialProcRuntime(package, evaluator_options);
@@ -342,7 +349,8 @@ absl::Status EvaluateProcs(
   }
   evaluator_options.set_support_observers(uses_observers);
   XLS_ASSIGN_OR_RETURN(runtime,
-                       GetRuntime(package, options.use_jit, evaluator_options));
+                       GetRuntime(package, options.use_jit, evaluator_options,
+                                  options.llvm_opt_level));
   if (options.use_jit) {
     XLS_ASSIGN_OR_RETURN(auto jit_queue, runtime->GetJitChannelQueueManager());
     jit = &jit_queue->runtime();
@@ -734,6 +742,7 @@ struct EvaluateBlockOptions {
   bool show_trace;
   bool fail_on_assert;
   ScopedObserver observer;
+  int64_t llvm_opt_level = LlvmCompiler::kDefaultOptLevel;
 };
 
 // Helper to hold various commonly needed port names for a particular ram.
@@ -882,18 +891,18 @@ absl::Status EvaluateBlock(
   }
 
   bool needs_observer = !options.observer.empty();
+  JitBlockEvaluator jit_block_evaluator(
+      /*supports_observer=*/needs_observer, options.llvm_opt_level);
   const BlockEvaluator& continuation_factory =
       options.use_jit
-          ? reinterpret_cast<const BlockEvaluator&>(
-                needs_observer ? kObservableJitBlockEvaluator
-                               : kJitBlockEvaluator)
+          ? static_cast<const BlockEvaluator&>(jit_block_evaluator)
           : reinterpret_cast<const BlockEvaluator&>(kInterpreterBlockEvaluator);
   XLS_ASSIGN_OR_RETURN(auto continuation, continuation_factory.NewContinuation(
                                               block, reg_state, kClocked));
   std::optional<JitRuntime*> jit;
   if (options.use_jit) {
     XLS_ASSIGN_OR_RETURN(jit,
-                         kJitBlockEvaluator.GetRuntime(continuation.get()));
+                         jit_block_evaluator.GetRuntime(continuation.get()));
   }
   bool is_coverage_observer = options.observer.has_coverage();
   if (needs_observer) {
@@ -1314,7 +1323,8 @@ absl::Status RealMain(
         .random_seed = random_seed,
         .prob_input_valid_assert = prob_input_valid_assert,
         .show_trace = show_trace,
-        .fail_on_assert = fail_on_assert};
+        .fail_on_assert = fail_on_assert,
+        .llvm_opt_level = absl::GetFlag(FLAGS_llvm_opt_level)};
     if (backend == "block_jit") {
       block_options.use_jit = true;
     } else if (backend == "block_interpreter") {
@@ -1336,6 +1346,7 @@ absl::Status RealMain(
       .ticks = ticks,
       .top = absl::GetFlag(FLAGS_top),
       .observer = std::move(observer),
+      .llvm_opt_level = absl::GetFlag(FLAGS_llvm_opt_level),
   };
 
   if (backend == "serial_jit") {
@@ -1385,6 +1396,10 @@ int main(int argc, char* argv[]) {
       backend != "block_interpreter" && backend != "block_jit") {
     LOG(QFATAL) << "Unrecognized backend choice.";
   }
+  QCHECK_GE(absl::GetFlag(FLAGS_llvm_opt_level), 0)
+      << "--llvm_opt_level must be between 0 and 3";
+  QCHECK_LE(absl::GetFlag(FLAGS_llvm_opt_level), 3)
+      << "--llvm_opt_level must be between 0 and 3";
 
   if ((backend == "block_interpreter" || backend == "block_jit") &&
       absl::GetFlag(FLAGS_block_signature_proto).empty()) {

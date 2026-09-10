@@ -33,13 +33,15 @@ namespace xls {
 // Create a SerialProcRuntime composed of ProcJits. Works with old- or new-style
 // procs.
 absl::StatusOr<std::unique_ptr<SerialProcRuntime>> CreateJitSerialProcRuntime(
-    Package* package, const EvaluatorOptions& options = EvaluatorOptions());
+    Package* package, const EvaluatorOptions& options = EvaluatorOptions(),
+    const JitEvaluatorOptions& jit_options = JitEvaluatorOptions());
 
 // Create a SerialProcRuntime composed of ProcJits. Constructed from the
 // elaboration of the given proc. Requires new-style (proc-scoped channel)
 // procs.
 absl::StatusOr<std::unique_ptr<SerialProcRuntime>> CreateJitSerialProcRuntime(
-    Proc* top, const EvaluatorOptions& options = EvaluatorOptions());
+    Proc* top, const EvaluatorOptions& options = EvaluatorOptions(),
+    const JitEvaluatorOptions& jit_options = JitEvaluatorOptions());
 
 struct ProcAotEntrypoints {
   // What proc these entrypoints are associated with.
