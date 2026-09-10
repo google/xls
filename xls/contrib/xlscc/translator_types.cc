@@ -1294,6 +1294,7 @@ void LogContinuations(const xlscc::GeneratedFunction& func) {
                                  slice.after_op == nullptr
                                      ? "(first)"
                                      : Debug_OpName(*slice.after_op).c_str());
+
     for (const ContinuationInput& continuation_in : slice.continuations_in) {
       LOG(INFO) << absl::StrFormat(
           "  in: %p.%p (%s) on param %s/%p top decls %s has %li users, "
@@ -1362,6 +1363,9 @@ std::string Debug_OpName(OpType op) {
       break;
     case OpType::kSharedCall:
       op_type_name = "shared_call";
+      break;
+    case OpType::kNoOp:
+      op_type_name = "noop";
       break;
   }
   return op_type_name;
@@ -1652,7 +1656,8 @@ absl::StatusOr<absl::InlinedVector<xls::Value, 1>> DecomposeValue(
 }
 
 bool OpTakesParam(const IOOp& op) {
-  return op.op != OpType::kLoopBegin && op.op != OpType::kLoopEndJump;
+  return op.op != OpType::kLoopBegin && op.op != OpType::kLoopEndJump &&
+         op.op != OpType::kNoOp;
 }
 
 absl::StatusOr<std::optional<TrackedBValue>> GetOpInputValue(

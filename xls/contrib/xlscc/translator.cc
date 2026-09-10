@@ -814,10 +814,16 @@ absl::StatusOr<FunctionInProgress> Translator::GenerateIR_Function_Header(
     GeneratedFunction& sf, const clang::FunctionDecl* funcdecl,
     std::string_view name_override, bool force_static,
     bool member_references_become_channels, bool generate_shared_functions) {
-  bool shared_function = DeclHasAnnotation(*funcdecl, "hls_shared_function");
+  const bool shared_function =
+      DeclHasAnnotation(*funcdecl, "hls_shared_function");
 
   if (shared_function && !generate_shared_functions &&
-      !shared_function_impls_.contains(funcdecl)) {
+      !functions_in_progress_.contains(funcdecl)) {
+    if (context().sf->is_shared_function) {
+      return absl::UnimplementedError(ErrorMessage(
+          GetLoc(*funcdecl), "Shared procedure calling shared procedure"));
+    }
+
     auto generate_function_header = std::make_unique<FunctionInProgress>();
     auto generated_function = std::make_unique<GeneratedFunction>();
 
@@ -832,6 +838,8 @@ absl::StatusOr<FunctionInProgress> Translator::GenerateIR_Function_Header(
             force_static, member_references_become_channels,
             /*generate_shared_functions=*/true));
 
+    generated_function->is_shared_function = true;
+
     generate_function_header->generated_function =
         std::move(generated_function);
 
@@ -841,10 +849,8 @@ absl::StatusOr<FunctionInProgress> Translator::GenerateIR_Function_Header(
         *functions_in_progress_.at(signature)->generated_function, funcdecl,
         *functions_in_progress_.at(signature)));
 
-    shared_function_impls_[funcdecl] = SharedFunctionImpl{
-        .generated_function =
-            std::move(functions_in_progress_.at(signature)->generated_function),
-        .channel = nullptr};
+    shared_function_impls_[signature] =
+        std::move(functions_in_progress_.at(signature)->generated_function);
 
     functions_in_progress_.erase(signature);
 
@@ -1277,23 +1283,37 @@ absl::StatusOr<std::list<TrackedBValue>> Translator::UnpackTuple(
 absl::Status Translator::GenerateIR_SharedFunctionStub(
     GeneratedFunction& sf, const clang::FunctionDecl* funcdecl,
     const FunctionInProgress& header) {
+  if (!generate_new_fsm_) {
+    return absl::UnimplementedError(ErrorMessage(
+        GetLoc(*funcdecl), "Shared functions only supported with new FSM."));
+  }
+
   if (clang::isa<clang::CXXMethodDecl>(funcdecl)) {
     return absl::UnimplementedError(
         ErrorMessage(GetLoc(*funcdecl), "Shared methods not yet implemented."));
   }
 
+  if (DeclHasAnnotation(*funcdecl, "hls_propagate_barrier_scopes")) {
+    return absl::UnimplementedError(ErrorMessage(
+        GetLoc(*funcdecl),
+        "Shared functions with hls_propagate_barrier_scopes not yet "
+        "implemented."));
+  }
+
   const xls::SourceInfo loc = GetLoc(*funcdecl);
 
-  XLSCC_CHECK(shared_function_impls_.contains(funcdecl), loc);
-  const SharedFunctionImpl& shared_function_record =
-      shared_function_impls_.at(funcdecl);
+  auto found = shared_function_impls_.find(funcdecl);
 
-  const GeneratedFunction& shared_function =
-      *shared_function_record.generated_function;
+  XLSCC_CHECK_NE(found, shared_function_impls_.end(), loc);
+  const GeneratedFunction& shared_function = *found->second.get();
 
-  if (!shared_function.side_effecting_parameters.empty() ||
-      !shared_function.io_ops.empty() ||
-      !shared_function.static_values.empty()) {
+  auto found_in_progress = functions_in_progress_.find(funcdecl);
+
+  XLSCC_CHECK_NE(found_in_progress, functions_in_progress_.end(), loc);
+
+  FunctionInProgress* impl_header_in_progress = found_in_progress->second.get();
+
+  if (!shared_function.static_values.empty()) {
     return absl::UnimplementedError(
         ErrorMessage(GetLoc(*funcdecl), "Shared functions with side-effects."));
   }
@@ -1311,6 +1331,29 @@ absl::Status Translator::GenerateIR_SharedFunctionStub(
   }
 
   for (const GeneratedParamInfo& param_info : shared_function.param_infos) {
+    if (impl_header_in_progress->generated_function->lvalues_by_param.contains(
+            param_info.param)) {
+      std::shared_ptr<LValue> lval =
+          impl_header_in_progress->generated_function->lvalues_by_param.at(
+              param_info.param);
+
+      IOChannel* impl_channel = lval->channel_leaf();
+      auto impl_range =
+          external_channels_by_internal_channel_.equal_range(impl_channel);
+
+      XLSCC_CHECK(shared_function.lvalues_by_param.contains(param_info.param),
+                  loc);
+      std::shared_ptr<LValue> stub_lval =
+          shared_function.lvalues_by_param.at(param_info.param);
+      XLSCC_CHECK(stub_lval->is_channel(), loc);
+      IOChannel* stub_channel = stub_lval->channel_leaf();
+
+      for (auto it = impl_range.first; it != impl_range.second; ++it) {
+        const ChannelBundle& bundle = it->second;
+        external_channels_by_internal_channel_.insert({stub_channel, bundle});
+      }
+    }
+
     if (param_info.has_func_param) {
       XLSCC_CHECK(param_info.param != nullptr, loc);
       XLS_ASSIGN_OR_RETURN(
@@ -1342,6 +1385,17 @@ absl::Status Translator::GenerateIR_SharedFunctionStub(
     return absl::InvalidArgumentError(
         ErrorMessage(loc, "Shared function with no returns: %s",
                      funcdecl->getNameAsString()));
+  }
+
+  // Create null buffer op (avoid comboloops)
+  // Only do this for procedure case
+  if (!shared_function.is_pure_function()) {
+    IOOp op;
+    op.op = OpType::kNoOp;
+    // Condition is not necessary, don't increase critical path by adding it.
+    op.ret_value = context().fb->Literal(xls::UBits(1, 1), loc);
+
+    XLS_RETURN_IF_ERROR(AddOpToChannel(op, /*channel=*/nullptr, loc).status());
   }
 
   // Create IO op
@@ -4111,7 +4165,6 @@ absl::StatusOr<CValue> Translator::GenerateIR_Call(
         std::make_pair(external_channels_in_parameter_order,
                        func->state_index_by_called_channel_order.size()));
   }
-
   // Translate to external channels
   bool multiple_translations_for_a_channel = false;
   for (const auto& [callee_channel, caller_channel] :
@@ -4891,6 +4944,7 @@ absl::Status Translator::AddIOOpForSliceForCall(
                   caller_op_ptr->op == OpType::kLoopEndJump ||
                   caller_op_ptr->op == OpType::kActivationBarrier ||
                   caller_op_ptr->op == OpType::kSharedCall ||
+                  caller_op_ptr->op == OpType::kNoOp ||
                   caller_op_ptr->channel->generated.has_value() ||
                   IOChannelInCurrentFunction(caller_op_ptr->channel, loc),
               loc);
