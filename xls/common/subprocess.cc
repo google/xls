@@ -15,7 +15,9 @@
 #include "xls/common/subprocess.h"
 
 #include <fcntl.h>
+#if !defined(__APPLE__)
 #include <linux/memfd.h>
+#endif
 #include <signal.h>  // NOLINT
 #include <spawn.h>
 #include <stdlib.h>  // NOLINT for WIFEXITED, WEXITSTATUS; not in <cstdlib>
@@ -129,6 +131,7 @@ absl::StatusOr<posix_spawn_file_actions_t> CreateChildFileActions(
   return actions;
 }
 
+#if !defined(__APPLE__)
 class CleanableFd {
  public:
   explicit CleanableFd(int fd) : fd_(fd) {}
@@ -173,6 +176,22 @@ absl::StatusOr<CleanableFd> GetSubprocessHelperFd() {
   return std::move(fd);
 }
 
+#else
+int AddChdirFileAction(posix_spawn_file_actions_t* file_actions,
+                       const char* cwd) {
+#if defined(__MAC_26_0) && __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_26_0
+  return posix_spawn_file_actions_addchdir(file_actions, cwd);
+#else
+#if defined(__MAC_26_0) && __MAC_OS_X_VERSION_MAX_ALLOWED >= __MAC_26_0
+  if (__builtin_available(macOS 26.0, *)) {
+    return posix_spawn_file_actions_addchdir(file_actions, cwd);
+  }
+#endif
+  return posix_spawn_file_actions_addchdir_np(file_actions, cwd);
+#endif
+}
+#endif
+
 absl::StatusOr<pid_t> ExecInChildProcess(
     const std::vector<const char*>& argv_pointers,
     const std::optional<std::filesystem::path>& cwd, Pipe& stdout_pipe,
@@ -184,6 +203,11 @@ absl::StatusOr<pid_t> ExecInChildProcess(
   // better, but it's not fully clear what's safe between vfork() and exec()
   // either, so we just use posix_spawn for safety and convenience.
 
+#if defined(__APPLE__)
+  // Darwin can change the child directory without a helper executable.
+  std::string subprocess_helper = argv_pointers.front();
+  std::vector<const char*> helper_argv_pointers = argv_pointers;
+#else
   // Since we may need the child to have a different working directory (per
   // `cwd`), and posix_spawn does not (yet) have support for a chdir action, we
   // use a helper binary that chdir's to its first argument, then invokes
@@ -205,8 +229,19 @@ absl::StatusOr<pid_t> ExecInChildProcess(
   helper_argv_pointers.insert(helper_argv_pointers.end(), argv_pointers.begin(),
                               argv_pointers.end());
 
+#endif
+
   XLS_ASSIGN_OR_RETURN(posix_spawn_file_actions_t file_actions,
                        CreateChildFileActions(stdout_pipe, stderr_pipe));
+#if defined(__APPLE__)
+  if (cwd.has_value()) {
+    if (int err = AddChdirFileAction(&file_actions, cwd->c_str()); err != 0) {
+      posix_spawn_file_actions_destroy(&file_actions);
+      return absl::InternalError(absl::StrCat(
+          "Cannot add child working directory action: ", Strerror(err)));
+    }
+  }
+#endif
 
   // posix_spawnp takes a null-terminate array of char* for environment
   // variables. Each element has the form "NAME=VALUE".

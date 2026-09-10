@@ -318,6 +318,7 @@ cc_test(
     deps = [
         ":subprocess",
         ":xls_gunit_main",
+        "//xls/common/file:temp_directory",
         "//xls/common/status:matchers",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:status_matchers",
