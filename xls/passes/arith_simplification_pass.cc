@@ -1441,7 +1441,7 @@ absl::StatusOr<bool> MatchArithPatterns(int64_t opt_level, Node* n,
           query_engine.KnownLeadingZeros(y).value_or(0);
       const int64_t max_shift =
           query_engine.MaxUnsignedValue(k).FitsInInt64Unsigned()
-              ? query_engine.MaxUnsignedValue(k).ToInt64().value()
+              ? query_engine.MaxUnsignedValue(k).UnsignedToInt64().value()
               : n->BitCountOrDie();
       const int64_t limit = leading_zeros - ((n->op() == Op::kSDiv) ? 1 : 0);
       if (max_shift <= limit) {

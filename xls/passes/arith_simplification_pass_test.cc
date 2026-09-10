@@ -1818,6 +1818,20 @@ fn func(x: bits[8], k: bits[2]) -> bits[8] {
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
 }
 
+TEST_F(ArithSimplificationPassTest, UDivByShiftedValueShiftOverflow) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+fn func(x: bits[8], k: bits[3]) -> bits[8] {
+  literal_96: bits[8] = literal(value=96)
+  shll_1: bits[8] = shll(literal_96, k)
+  ret udiv_1: bits[8] = udiv(x, shll_1)
+}
+)",
+                                                       p.get()));
+  ScopedVerifyEquivalence sve(f);
+  EXPECT_THAT(Run(p.get()), IsOkAndHolds(false));
+}
+
 TEST_F(ArithSimplificationPassTest, MulBy1) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
