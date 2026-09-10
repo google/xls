@@ -14,12 +14,15 @@
 
 #include "xls/dslx/frontend/lambda_rewriter.h"
 
+#include <functional>
+#include <iterator>
 #include <optional>
 #include <string>
 #include <utility>
 #include <variant>
 #include <vector>
 
+#include "absl/algorithm/container.h"
 #include "absl/base/casts.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
@@ -116,16 +119,15 @@ class CollectNameRefs : public AstNodeVisitorWithDefault {
     return it->second.name_refs;
   }
 
+  absl::flat_hash_set<const NameDef*> ConstLetsDefinedPrior(
+      const Pos start) const {
+    return NameDefsDefinedPriorInternal(start, is_const);
+  }
+
   absl::flat_hash_set<const NameDef*> NameDefsDefinedPrior(
       const Pos start) const {
-    absl::flat_hash_set<const NameDef*> result;
-    for (const auto& [name_def, info] : name_ref_info_) {
-      if (!info.any_used_in_type_annotation &&
-          name_def->span().start() < start) {
-        result.insert(name_def);
-      }
-    }
-    return result;
+    return NameDefsDefinedPriorInternal(
+        start, [](const NameDef* nd) { return !is_const(nd); });
   }
 
   absl::flat_hash_map<const NameDef*,
@@ -167,11 +169,112 @@ class CollectNameRefs : public AstNodeVisitorWithDefault {
     return absl::OkStatus();
   }
 
+  static bool is_const(const NameDef* name_def) {
+    if (name_def->definer() == nullptr ||
+        name_def->definer()->kind() != AstNodeKind::kLet) {
+      return false;
+    }
+    const auto* let = absl::down_cast<const Let*>(name_def->definer());
+    return let->is_const();
+  }
+
+  absl::flat_hash_set<const NameDef*> NameDefsDefinedPriorInternal(
+      const Pos start,
+      std::function<bool(const NameDef*)> name_def_filter) const {
+    absl::flat_hash_set<const NameDef*> result;
+    for (const auto& [name_def, info] : name_ref_info_) {
+      if (!info.any_used_in_type_annotation &&
+          name_def->span().start() < start) {
+        if (name_def_filter(name_def)) {
+          result.insert(name_def);
+        }
+      }
+    }
+    return result;
+  }
+
   absl::flat_hash_map<const NameDef*, NameRefInfo> name_ref_info_;
   absl::flat_hash_map<const NameDef*,
                       absl::flat_hash_set<const TypeRefTypeAnnotation*>>
       type_refs_;
   bool in_type_annotation_ = false;
+};
+
+// A helper class to manage the bindings for a lambda struct definition, its
+// type ref, and the struct instance.
+class LambdaStructBindings {
+ public:
+  void AddBinding(ParametricBinding* struct_definition_parametric,
+                  ExprOrType struct_type_parametric,
+                  ExprOrType struct_instance_parametric) {
+    if (ToAstNode(struct_instance_parametric) == nullptr) {
+      return AddBinding(struct_definition_parametric, struct_type_parametric);
+    }
+    fully_defined_bindings_.push_back({struct_definition_parametric,
+                                       struct_type_parametric,
+                                       struct_instance_parametric});
+  }
+  void AddBinding(ParametricBinding* struct_definition_parametric,
+                  ExprOrType struct_type_parametric) {
+    bindings_without_instance_.push_back(
+        {struct_definition_parametric, struct_type_parametric, std::nullopt});
+  }
+
+  std::vector<ParametricBinding*> StructDefBindings() const {
+    std::vector<ParametricBinding*> bindings;
+    bindings.reserve(TotalSize());
+    for (const auto& binding : OrderedBindings()) {
+      bindings.push_back(binding.struct_definition_parametric);
+    }
+    return bindings;
+  }
+
+  std::vector<ExprOrType> TypeRefBindings() const {
+    std::vector<ExprOrType> bindings;
+    bindings.reserve(TotalSize());
+    for (const auto& binding : OrderedBindings()) {
+      bindings.push_back(binding.struct_type_parametric);
+    }
+    return bindings;
+  }
+
+  std::vector<ExprOrType> StructInstanceBindings() const {
+    std::vector<ExprOrType> bindings;
+    bindings.reserve(fully_defined_bindings_.size());
+    for (const auto& binding : fully_defined_bindings_) {
+      bindings.push_back(*binding.struct_instance_parametric);
+    }
+    return bindings;
+  }
+
+ private:
+  struct StructParametricBindingSet {
+    // The parametric binding for the struct definition.
+    ParametricBinding* struct_definition_parametric;
+
+    // The corresponding expression in the struct type annotation.
+    ExprOrType struct_type_parametric;
+
+    // The expr or type used in the struct instance.
+    std::optional<ExprOrType> struct_instance_parametric;
+  };
+
+  int TotalSize() const {
+    return fully_defined_bindings_.size() + bindings_without_instance_.size();
+  }
+
+  std::vector<StructParametricBindingSet> OrderedBindings() const {
+    std::vector<StructParametricBindingSet> results;
+    results.reserve(fully_defined_bindings_.size() +
+                    bindings_without_instance_.size());
+    absl::c_copy(fully_defined_bindings_, std::back_inserter(results));
+    absl::c_copy(bindings_without_instance_, std::back_inserter(results));
+
+    return results;
+  }
+
+  std::vector<StructParametricBindingSet> fully_defined_bindings_;
+  std::vector<StructParametricBindingSet> bindings_without_instance_;
 };
 
 class LambdaRewriter : public AstNodeRecursiveVisitor {
@@ -187,12 +290,8 @@ class LambdaRewriter : public AstNodeRecursiveVisitor {
     CollectNameRefs collect_nr;
     XLS_RETURN_IF_ERROR(node->Accept(&collect_nr));
 
-    // Parametric bindings for the struct definition.
-    std::vector<ParametricBinding*> struct_parametric_bindings;
-    // Parametrics in the struct type annotation.
-    std::vector<ExprOrType> struct_type_parametrics;
-    // Parametric values for the struct instantiation.
-    std::vector<ExprOrType> struct_instance_parametrics;
+    // Parametric bindings for the lambda struct, impl, and struct instance.
+    LambdaStructBindings bindings;
     // NameDefs that have been added to the struct parametric bindings.
     absl::flat_hash_set<const NameDef*> parametric_nds;
     absl::flat_hash_map<const AstNode*, AstNode*> node_replacements;
@@ -210,19 +309,30 @@ class LambdaRewriter : public AstNodeRecursiveVisitor {
           continue;
         }
         XLS_RETURN_IF_ERROR(AddBindingForParentParametric(
-            module, parent_binding, name_refs, struct_parametric_bindings,
-            struct_type_parametrics, struct_instance_parametrics,
-            parametric_nds, node_replacements));
+            module, parent_binding, name_refs, &bindings, parametric_nds,
+            node_replacements));
       }
     }
 
     for (const auto& [original_nd, trtas] :
          collect_nr.TypesDefinedPrior(span.start())) {
       if (!parametric_nds.contains(original_nd)) {
-        XLS_RETURN_IF_ERROR(ReplaceTypeRefTypeAnnotations(
-            module, original_nd, trtas, struct_parametric_bindings,
-            struct_type_parametrics, struct_instance_parametrics,
-            parametric_nds, node_replacements));
+        XLS_RETURN_IF_ERROR(
+            ReplaceTypeRefTypeAnnotations(module, original_nd, trtas, &bindings,
+                                          parametric_nds, node_replacements));
+      }
+    }
+
+    for (const NameDef* original_name_def :
+         collect_nr.ConstLetsDefinedPrior(span.start())) {
+      absl::flat_hash_set<const NameRef*> name_refs =
+          collect_nr.NameRefsForDef(original_name_def);
+      if (name_refs.empty()) {
+        continue;
+      }
+      if (!parametric_nds.contains(original_name_def)) {
+        AddConstantCapture(module, original_name_def, &bindings, name_refs,
+                           node_replacements);
       }
     }
 
@@ -235,8 +345,7 @@ class LambdaRewriter : public AstNodeRecursiveVisitor {
     for (const NameDef* original_name_def :
          collect_nr.NameDefsDefinedPrior(span.start())) {
       if (!parametric_nds.contains(original_name_def)) {
-        AddCapture(module, original_name_def, struct_parametric_bindings,
-                   struct_type_parametrics, struct_members,
+        AddCapture(module, original_name_def, &bindings, struct_members,
                    struct_instance_members, seen);
       }
     }
@@ -247,18 +356,18 @@ class LambdaRewriter : public AstNodeRecursiveVisitor {
                          span.ToString(import_data_.file_table())),
         /*definer=*/nullptr);
     StructDef* full_struct_def =
-        module->Make<StructDef>(span, struct_nd, struct_parametric_bindings,
+        module->Make<StructDef>(span, struct_nd, bindings.StructDefBindings(),
                                 struct_members, /*is_public=*/false);
     TypeRefTypeAnnotation* struct_type_annotation =
         module->Make<TypeRefTypeAnnotation>(
             span, module->Make<TypeRef>(span, full_struct_def),
-            struct_type_parametrics);
+            bindings.TypeRefBindings());
     struct_nd->set_definer(full_struct_def);
 
     TypeRefTypeAnnotation* struct_instance_annotation =
         module->Make<TypeRefTypeAnnotation>(
             span, module->Make<TypeRef>(span, full_struct_def),
-            struct_instance_parametrics);
+            bindings.StructInstanceBindings());
     StructInstance* struct_instance = module->Make<StructInstance>(
         span, struct_instance_annotation, struct_instance_members);
 
@@ -363,9 +472,7 @@ class LambdaRewriter : public AstNodeRecursiveVisitor {
   absl::Status AddBindingForParentParametric(
       Module* module, const ParametricBinding* parent_binding,
       absl::flat_hash_set<const NameRef*> name_refs,
-      std::vector<ParametricBinding*>& struct_parametric_bindings,
-      std::vector<ExprOrType>& struct_type_parametrics,
-      std::vector<ExprOrType>& struct_instance_parametrics,
+      LambdaStructBindings* bindings,
       absl::flat_hash_set<const NameDef*>& parametric_nds,
       absl::flat_hash_map<const AstNode*, AstNode*>& node_replacements) {
     NameDef* lambda_struct_nd = module->Make<NameDef>(
@@ -384,22 +491,20 @@ class LambdaRewriter : public AstNodeRecursiveVisitor {
     ParametricBinding* lambda_struct_binding = module->Make<ParametricBinding>(
         lambda_struct_nd, absl::down_cast<TypeAnnotation*>(cloned_ta),
         cloned_default_expr_or_type);
-    struct_parametric_bindings.push_back(lambda_struct_binding);
     NameRef* struct_type_parametric_nr =
         module->Make<NameRef>(parent_binding->span(),
                               lambda_struct_nd->identifier(), lambda_struct_nd);
     NameRef* struct_instance_parametric_nr = module->Make<NameRef>(
         parent_binding->span(), parent_binding->identifier(),
         parent_binding->name_def());
-    struct_type_parametrics.push_back(struct_type_parametric_nr);
+    ExprOrType instance_parametric = struct_instance_parametric_nr;
     if (parent_binding->type_annotation()
             ->IsAnnotation<GenericTypeAnnotation>()) {
-      struct_instance_parametrics.push_back(
-          module->Make<TypeVariableTypeAnnotation>(
-              struct_instance_parametric_nr));
-    } else {
-      struct_instance_parametrics.push_back(struct_instance_parametric_nr);
+      instance_parametric = module->Make<TypeVariableTypeAnnotation>(
+          struct_instance_parametric_nr);
     }
+    bindings->AddBinding(lambda_struct_binding, struct_type_parametric_nr,
+                         instance_parametric);
     parametric_nds.insert(parent_binding->name_def());
     for (const NameRef* original_name_ref : name_refs) {
       node_replacements.emplace(
@@ -414,9 +519,7 @@ class LambdaRewriter : public AstNodeRecursiveVisitor {
   absl::Status ReplaceTypeRefTypeAnnotations(
       Module* module, const NameDef* original_nd,
       absl::flat_hash_set<const TypeRefTypeAnnotation*> trtas,
-      std::vector<ParametricBinding*>& struct_parametric_bindings,
-      std::vector<ExprOrType>& struct_type_parametrics,
-      std::vector<ExprOrType>& struct_instance_parametrics,
+      LambdaStructBindings* bindings,
       absl::flat_hash_set<const NameDef*>& parametric_nds,
       absl::flat_hash_map<const AstNode*, AstNode*>& node_replacements) {
     NameDef* lambda_struct_nd = module->Make<NameDef>(
@@ -426,17 +529,18 @@ class LambdaRewriter : public AstNodeRecursiveVisitor {
     ParametricBinding* lambda_struct_binding = module->Make<ParametricBinding>(
         lambda_struct_nd, module->Make<GenericTypeAnnotation>(Span::None()),
         /*default_expr_or_type=*/std::nullopt);
-    struct_parametric_bindings.push_back(lambda_struct_binding);
     NameRef* struct_type_parametric_nr = module->Make<NameRef>(
         original_nd->span(), lambda_struct_nd->identifier(), lambda_struct_nd);
-    struct_type_parametrics.push_back(struct_type_parametric_nr);
 
     XLS_ASSIGN_OR_RETURN(TypeDefinition type_def,
                          ToTypeDefinition(original_nd->definer()));
     TypeRef* instance_type_ref =
         module->Make<TypeRef>(original_nd->span(), type_def);
-    struct_instance_parametrics.push_back(module->Make<TypeRefTypeAnnotation>(
-        original_nd->span(), instance_type_ref, std::vector<ExprOrType>{}));
+    bindings->AddBinding(
+        lambda_struct_binding, struct_type_parametric_nr,
+        module->Make<TypeRefTypeAnnotation>(
+            original_nd->span(), instance_type_ref, std::vector<ExprOrType>{}));
+
     parametric_nds.insert(original_nd);
 
     TypeRef* lambda_type_ref = nullptr;
@@ -457,10 +561,59 @@ class LambdaRewriter : public AstNodeRecursiveVisitor {
     return absl::OkStatus();
   }
 
+  void AddConstantCapture(
+      Module* module, const NameDef* original_nd,
+      LambdaStructBindings* bindings,
+      absl::flat_hash_set<const NameRef*> name_refs,
+      absl::flat_hash_map<const AstNode*, AstNode*>& node_replacements) {
+    // Generic type parametric for the constant type definition.
+    GenericTypeAnnotation* gta =
+        module->Make<GenericTypeAnnotation>(original_nd->span());
+    NameDef* generic_name_def = module->Make<NameDef>(
+        original_nd->span(),
+        absl::Substitute("parametric_type_for_$0", original_nd->identifier()),
+        /*definer=*/gta);
+
+    const Let* original_let =
+        absl::down_cast<const Let*>(original_nd->definer());
+    TypeAnnotation* instance_annotation = original_let->type_annotation();
+
+    // Binding for type of constant.
+    bindings->AddBinding(
+        module->Make<ParametricBinding>(generic_name_def, gta,
+                                        /*default_expr_or_type=*/std::nullopt),
+        module->Make<NameRef>(original_nd->span(),
+                              generic_name_def->identifier(), generic_name_def),
+        instance_annotation);
+
+    // Binding for value of constant.
+    NameDef* value_name_def = module->Make<NameDef>(
+        original_nd->span(),
+        absl::Substitute("$0_lm", original_nd->identifier()),
+        /*definer=*/nullptr);
+    TypeVariableTypeAnnotation* tvta = module->Make<TypeVariableTypeAnnotation>(
+        module->Make<NameRef>(original_nd->span(),
+                              generic_name_def->identifier(), generic_name_def),
+        /*internal=*/true);
+    bindings->AddBinding(
+        module->Make<ParametricBinding>(value_name_def, tvta,
+                                        /*default_expr_or_type=*/std::nullopt),
+        module->Make<NameRef>(original_nd->span(), value_name_def->identifier(),
+                              value_name_def),
+        module->Make<NameRef>(original_nd->span(), original_nd->identifier(),
+                              original_nd));
+
+    for (const NameRef* name_ref : name_refs) {
+      node_replacements.emplace(
+          name_ref,
+          module->Make<NameRef>(name_ref->span(), value_name_def->identifier(),
+                                value_name_def));
+    }
+  }
+
   void AddCapture(
       Module* module, const NameDef* original_name_def,
-      std::vector<ParametricBinding*>& struct_parametric_bindings,
-      std::vector<ExprOrType>& struct_type_parametrics,
+      LambdaStructBindings* bindings,
       std::vector<StructMemberNode*>& struct_members,
       std::vector<std::pair<std::string, Expr*>>& struct_instance_members,
       absl::flat_hash_set<const NameDef*>& seen) {
@@ -476,9 +629,10 @@ class LambdaRewriter : public AstNodeRecursiveVisitor {
     NameRef* generic_name_ref =
         module->Make<NameRef>(original_name_def->span(),
                               generic_name_def->identifier(), generic_name_def);
-    struct_type_parametrics.push_back(generic_name_ref);
-    struct_parametric_bindings.push_back(module->Make<ParametricBinding>(
-        generic_name_def, gta, /*default_expr_or_type=*/std::nullopt));
+    bindings->AddBinding(
+        module->Make<ParametricBinding>(generic_name_def, gta,
+                                        /*default_expr_or_type=*/std::nullopt),
+        generic_name_ref);
 
     NameDef* struct_member_nd = module->Make<NameDef>(
         original_name_def->span(), original_name_def->identifier(),

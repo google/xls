@@ -493,4 +493,25 @@ bool IsChannelOrChannelArrayAnnotation(const TypeAnnotation* annotation) {
   return false;
 }
 
+bool IsTvtaToGeneric(const TypeAnnotation* type_annotation) {
+  return type_annotation->IsAnnotation<TypeVariableTypeAnnotation>() &&
+         type_annotation->AsAnnotation<TypeVariableTypeAnnotation>()
+             ->IsGeneric();
+}
+
+std::vector<int> BindingIdxInInferenceOrder(const StructDefBase* def) {
+  std::vector<int> results;
+  for (int i = 0; i < def->parametric_bindings().size(); i++) {
+    if (!IsTvtaToGeneric(def->parametric_bindings()[i]->type_annotation())) {
+      results.push_back(i);
+    }
+  }
+  for (int i = 0; i < def->parametric_bindings().size(); i++) {
+    if (IsTvtaToGeneric(def->parametric_bindings()[i]->type_annotation())) {
+      results.push_back(i);
+    }
+  }
+  return results;
+}
+
 }  // namespace xls::dslx
