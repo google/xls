@@ -2513,6 +2513,13 @@ absl::Status FunctionConverter::HandleAssertEqBuiltin(const Invocation* node,
       node, cmp, module_->Make<String>(node->span(), node->ToInlineString()));
 }
 
+absl::Status FunctionConverter::HandleAssertNeBuiltin(const Invocation* node,
+                                                      BValue lhs, BValue rhs) {
+  BValue cmp = function_builder_->Ne(lhs, rhs);
+  return HandleAssertBuiltin(
+      node, cmp, module_->Make<String>(node->span(), node->ToInlineString()));
+}
+
 absl::Status FunctionConverter::HandleAssertBuiltin(const Invocation* node,
                                                     BValue assert_predicate,
                                                     Expr* label_expr) {
@@ -2873,6 +2880,12 @@ absl::Status FunctionConverter::HandleInvocation(const Invocation* node) {
     XLS_RET_CHECK_EQ(args.size(), 2)
         << called_name << " builtin requires two arguments";
     return HandleAssertLtBuiltin(node, /*lhs=*/args[0], /*rhs=*/args[1]);
+  }
+  if (called_name == "assert_ne") {
+    XLS_ASSIGN_OR_RETURN(std::vector<BValue> args, accept_args());
+    XLS_RET_CHECK_EQ(args.size(), 2)
+        << called_name << " builtin requires two arguments";
+    return HandleAssertNeBuiltin(node, /*lhs=*/args[0], /*rhs=*/args[1]);
   }
   if (called_name == "cover!") {
     XLS_ASSIGN_OR_RETURN(std::vector<BValue> args, accept_args());

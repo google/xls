@@ -505,7 +505,7 @@ fn test_update() {
 }
 ```
 
-### `assert_eq`, `assert_lt`
+### `assert_eq`, `assert_ne`, `assert_lt`
 
 In a unit test pseudo function all valid DSLX code is allowed. To evaluate test
 results DSLX provides the `assert_eq` primitive (we'll add more of those in the
