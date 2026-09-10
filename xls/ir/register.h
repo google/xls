@@ -71,7 +71,7 @@ class Register {
           "Invalid reset value `%s` is not the same type as the register: %s",
           reset_value->ToString(), type()->ToString()));
     }
-    reset_value = reset_value_;
+    reset_value_ = std::move(reset_value);
     return absl::OkStatus();
   }
 
