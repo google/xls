@@ -229,6 +229,16 @@ std::string GetParametricBindingOwnerDescription(
 // type.
 bool IsChannelOrChannelArrayAnnotation(const TypeAnnotation* annotation);
 
+// Returns true if the type annotation is a TVTA whose type_variable is a
+// generic TA.
+bool IsTvtaToGeneric(const TypeAnnotation* type_annotation);
+
+// Return the indices of the parametric bindings in the order they must be
+// inferred. Specifically, any binding that may be typed by another binding
+// should be inferred last, so that the other binding has already been
+// inferred.
+std::vector<int> BindingIdxInInferenceOrder(const StructDefBase* def);
+
 }  // namespace xls::dslx
 
 #endif  // XLS_DSLX_TYPE_SYSTEM_V2_TYPE_ANNOTATION_UTILS_H_
