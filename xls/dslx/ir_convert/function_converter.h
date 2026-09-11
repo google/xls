@@ -520,6 +520,12 @@ class FunctionConverter {
   absl::Status HandleBuiltinLabeledRead(const Invocation* node);
   absl::Status HandleBuiltinLabeledWrite(const Invocation* node);
   absl::Status HandleBuiltinOneHot(const Invocation* node);
+
+  // Returns the scalar select cases represented by an inline array literal,
+  // including ellipsis expansion, without materializing an IR array value.
+  absl::StatusOr<std::vector<BValue>> GetSelectCasesForArrayLiteral(
+      const Array* array);
+
   absl::Status HandleBuiltinOneHotSel(const Invocation* node);
   absl::Status HandleBuiltinOrReduce(const Invocation* node);
   absl::Status HandleBuiltinPrioritySel(const Invocation* node);
