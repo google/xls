@@ -424,6 +424,16 @@ compound_passes: [
       # TODO(allight): Unclear if fixedpoint simp is what we want to use here.
       # This is mostly to clean up extraneous bit-slice/concats etc.
       "fixedpoint_simp",
+      "dce",
+      # Convert binary selects whose arms differ by a fully-known xor term into
+      # and-masked xors. Runs here at the very end of optimization, after all
+      # fixed-point simplification has settled: an earlier fixed-point pass
+      # (concat_simp) splits wide xor limbs into per-slice concats, which this
+      # rewrite then consumes, and the rewrite must not run in a fixed point
+      # with concat_simp (it would repeatedly reshape the same IR). It also
+      # deliberately stays away from value-based passes (e.g. conditional
+      # specialization, which reasons about selects but not masked xors).
+      "select_to_bitwise_ops",
       "dce"
     ]
     options: {
