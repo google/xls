@@ -54,3 +54,9 @@ xls_dslx_verilog(
     library = ":reorder_queue_dslx",
     verilog_file = "reorder_queue.sv",
 )
+
+filegroup(
+    name = "x_files",
+    srcs = glob(["*.x"]),
+    visibility = ["//xls:xls_internal"],
+)
