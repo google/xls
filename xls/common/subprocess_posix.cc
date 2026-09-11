@@ -15,7 +15,6 @@
 #include <paths.h>
 #include <spawn.h>
 #include <sys/types.h>
-#include <unistd.h>
 
 #include <cerrno>
 #include <filesystem>
@@ -32,55 +31,11 @@
 #include "absl/strings/strip.h"
 #include "absl/types/span.h"
 #include "xls/common/strerror.h"
+#include "xls/common/subprocess_chdir.h"
 #include "xls/common/subprocess_for_os.h"
 
 namespace xls::internal {
 namespace {
-
-// Use the standard POSIX.1-2024 chdir action where available. Some libcs expose
-// the action as an extension without advertising full POSIX.1-2024 support.
-// Both APIs return zero on success or an error number directly.
-int AddChdirFileAction(posix_spawn_file_actions_t* file_actions,
-                       const char* cwd) {
-#if defined(__APPLE__)
-  // Darwin still advertises POSIX.1-2001. macOS 26 introduced the standard
-  // spelling and deprecated _np, which has been available since macOS 10.15.
-  // SDK availability and the deployment target are separate: a new SDK can
-  // build a binary for an older runtime.
-#if defined(__MAC_26_0) && __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_26_0
-  // The minimum deployment target guarantees that the new API exists.
-  return posix_spawn_file_actions_addchdir(file_actions, cwd);
-#else
-// An older SDK lacks the new declaration, even inside a runtime check.
-#if defined(__MAC_26_0) && __MAC_OS_X_VERSION_MAX_ALLOWED >= __MAC_26_0
-  // __builtin_available is Clang's C/C++ runtime availability check. For older
-  // deployment targets, the SDK annotation makes the new function a weak
-  // import; this check prevents calling it on an OS that lacks it. The required
-  // '*' covers unlisted platforms; this adapter branch is Darwin-only.
-  // https://clang.llvm.org/docs/LanguageExtensions.html#objective-c-available
-  if (__builtin_available(macOS 26.0, *)) {
-    return posix_spawn_file_actions_addchdir(file_actions, cwd);
-  }
-#endif
-  // Use the macOS 10.15 API with older SDKs or on pre-26 runtimes.
-  return posix_spawn_file_actions_addchdir_np(file_actions, cwd);
-#endif
-#elif _POSIX_VERSION >= 202405L
-  // POSIX.1-2024 specifies 202405L for _POSIX_VERSION in <unistd.h>.
-  // https://pubs.opengroup.org/onlinepubs/9799919799/basedefs/unistd.h.html
-  return posix_spawn_file_actions_addchdir(file_actions, cwd);
-#elif defined(__GLIBC__)
-#if __GLIBC_PREREQ(2, 29) && defined(_GNU_SOURCE)
-  // glibc has provided the GNU extension since 2.29, even when _POSIX_VERSION
-  // still reports POSIX.1-2008. C++ toolchains normally enable _GNU_SOURCE.
-  return posix_spawn_file_actions_addchdir_np(file_actions, cwd);
-#else
-#error "Use the wrapper: direct spawning needs glibc >= 2.29 and _GNU_SOURCE."
-#endif
-#else
-#error "Direct spawning needs POSIX.1-2024 or a supported chdir extension."
-#endif
-}
 
 // Returns zero with *pid set on success, or a POSIX error number on failure.
 int SpawnExecutable(pid_t* pid, const char* executable,
