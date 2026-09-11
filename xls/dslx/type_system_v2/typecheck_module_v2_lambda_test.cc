@@ -285,8 +285,8 @@ TEST(TypecheckV2Test, LambdaWithContextParamsTypeMismatch) {
   EXPECT_THAT(
       R"(
 fn main() {
-  const X = false;
-  let ARR = map(0..5, |i| -> u32 { X * i });
+  let x = false;
+  let ARR = map(0..5, |i| -> u32 { x * i });
 }
 )",
       TypecheckFails(HasSizeMismatch("uN[1]", "uN[32]")));
@@ -409,6 +409,89 @@ const_assert!(RES2 == [u32:0, 3, 2]);
                                       HasNodeWithType("RES2", "uN[32][3]"))));
 }
 
+TEST(TypecheckV2Test, NestedLambdaIteratesOverLocalConst) {
+  EXPECT_THAT(
+      R"(
+fn nested() -> u1[2][3] {
+   const X = u32:2;
+   const Y = u32:3;
+   map(0..Y, | y_idx: u32 | {
+       map(0..X, | x_idx: u32 | {
+           if (x_idx + y_idx) % 2 == 0 {
+               u1:1
+           } else {
+               u1:0
+           }
+       })
+   })
+}
+
+const RES = nested();
+const EX = [
+  [u1:1, u1:0],
+  [u1:0, u1:1],
+  [u1:1, u1:0],
+];
+const_assert!(RES == EX);
+
+)",
+      TypecheckSucceeds(
+          AllOf(HasNodeWithType("RES", "uN[1][2][3]"),
+                HasNodeWithType(
+                    "lambda_capture_struct_at_fake.x:7:14-15:5<u32:2, u32>",
+                    "typeof(lambda_capture_struct_at_fake.x:7:14-15:5 {}"))));
+}
+
+// TODO(erinzmoore): Support this case for local constants.
+TEST(TypecheckV2Test,
+     DISABLED_NestedLambdaIteratesOverLocalConstWithExplicitReturn) {
+  EXPECT_THAT(
+      R"(
+fn nested() -> u1[2][3] {
+   const X = u32:2;
+   const Y = u32:3;
+   map(0..Y, | y_idx: u32 | -> u1[X] {
+       map(0..X, | x_idx: u32 | {
+           if (x_idx + y_idx) % 2 == 0 {
+               u1:1
+           } else {
+               u1:0
+           }
+       })
+   })
+}
+
+const RES = nested();
+const EX = [
+  [u1:1, u1:0],
+  [u1:0, u1:1],
+  [u1:1, u1:0],
+];
+const_assert!(RES == EX);
+
+)",
+      TypecheckSucceeds(
+          AllOf(HasNodeWithType("RES", "uN[1][2][3]"),
+                HasNodeWithType("lambda_capture_struct_at_fake.x:7:14-15:5::X",
+                                "uN[32]"))));
+}
+
+TEST(TypecheckV2Test, LambdaUsesConstantDerivedFromParametric) {
+  EXPECT_THAT(
+      R"(
+fn foo<V: u32>(arr: u32[5]) -> u32[5] {
+  const C: u32 = V + 1;
+  map(arr, |e| e + C)
+}
+
+const RES1 = foo<16>(u32:0..5);
+const RES2 = foo<32>(RES1);
+const_assert!(RES1 == [u32:17, 18, 19, 20, 21]);
+const_assert!(RES2 == [u32:50, 51, 52, 53, 54]);
+)",
+      TypecheckSucceeds(HasNodeWithType("RES1", "uN[32][5]")));
+}
+
 TEST(TypecheckV2Test, NestedLambdaIteratesOverGlobalConst) {
   EXPECT_THAT(
       R"(
@@ -482,13 +565,67 @@ const_assert!(RES == EX);
       TypecheckSucceeds(HasNodeWithType("RES", "uN[4][2][3]")));
 }
 
+TEST(TypecheckV2Test, LambdaUsesUnrollForOutputAndConstant) {
+  EXPECT_THAT(
+      R"(
+const A = u32:1;
+fn foo() -> u32[5] {
+  let B = u32:2;
+  let X = unroll_for! (i, a) in u32:0..5 {
+    let C = B + i;
+    let D = A * a;
+    C + D
+  }(u32:0);
+
+  const E = A + 1;
+
+  map(u32:0..5, |i| { i + X + E })
+}
+
+const FOO = foo();
+const_assert!(FOO == [u32:22, 23, 24, 25, 26]);
+
+)",
+      TypecheckSucceeds(AllOf(
+          HasNodeWithType("X", "uN[32]"), HasNodeWithType("FOO", "uN[32][5]"),
+          HasNodeWithType(
+              "lambda_capture_struct_at_fake.x:15:17-15:34<u32:2, u32, u32>",
+              "typeof(lambda_capture_struct_at_fake.x:15:17-15:34 { X: uN[32] "
+              "})"))));
+}
+
+TEST(TypecheckV2Test, LambdaUsesUnrollForOutputAndConstantFromParent) {
+  EXPECT_THAT(
+      R"(
+const A = u32:1;
+fn foo<N: u32>() -> u32[5] {
+  let B = u32:2;
+  let X = unroll_for! (i, a) in u32:0..5 {
+    let C = B + i;
+    let D = A * a;
+    C + D
+  }(u32:0);
+
+  const E = N + 1;
+
+  map(u32:0..5, |i| { i + X + E })
+}
+
+const FOO = foo<1>();
+const_assert!(FOO == [u32:22, 23, 24, 25, 26]);
+
+)",
+      TypecheckSucceeds(AllOf(HasNodeWithType("A", "uN[32]"),
+                              HasNodeWithType("FOO", "uN[32][5]"))));
+}
+
 TEST(TypecheckV2Test, LambdaUsesUnrollForOutput) {
   EXPECT_THAT(
       R"(
 const A = u32:1;
 fn foo() -> u32[5] {
   let B = u32:2;
-  const X = unroll_for! (i, a) in u32:0..5 {
+  let X = unroll_for! (i, a) in u32:0..5 {
     let C = B + i;
     let D = A * a;
     C + D
