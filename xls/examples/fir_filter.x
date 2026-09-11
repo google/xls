@@ -17,7 +17,6 @@
 // processing, is essentially a convolution of a
 // filter of a series of samples.
 
-#![feature(type_inference_v2)]
 
 import float32;
 

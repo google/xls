@@ -1,4 +1,3 @@
-#![feature(type_inference_v2)]
 #![feature(channel_attributes)]
 
 // Copyright 2025 The XLS Authors

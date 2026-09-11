@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#![feature(type_inference_v2)]
 #![feature(explicit_state_access)]
 #![feature(generics)]
 

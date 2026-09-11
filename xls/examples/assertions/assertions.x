@@ -12,9 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#![feature(type_inference_v2)]
-
 // Example of assertions being used in functions.
+//
+// NOTE: Generated Verilog assertions embed line numbers from this file. If
+// lines in this file are added or deleted, update the golden files for the codegen
+// diff tests using the `*_update_golden` build targets or via `dev_tools/rebuild_golden_files.sh`.
 
 fn func_0<N: u32>(x: bits[N]) -> bits[N] {
     const_assert!(N == u32:32);

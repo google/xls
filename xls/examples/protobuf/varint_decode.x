@@ -1,4 +1,3 @@
-#![feature(type_inference_v2)]
 
 // Copyright 2023 The XLS Authors
 //

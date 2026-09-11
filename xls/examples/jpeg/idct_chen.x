@@ -25,7 +25,6 @@
 // reference for comparison to other JPEG decoding solutions (e.g. ensuring
 // golden reference outputs are identical).
 
-#![feature(type_inference_v2)]
 
 const COEFF_PER_MCU = u32:64;
 const COEFF_PER_MCU_U8 = u8:64;

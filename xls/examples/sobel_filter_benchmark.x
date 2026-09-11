@@ -1,4 +1,3 @@
-#![feature(type_inference_v2)]
 
 // Copyright 2023 The XLS Authors
 //
@@ -14,7 +13,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#![feature(type_inference_v2)]
 
 // Floating point sobel filter implementation (fixed-point is TODO).
 // A sobel filter, used in image and video processing, applies stencils

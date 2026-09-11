@@ -14,7 +14,6 @@
 
 // DSLX implementation of a 4x4 systolic array.
 
-#![feature(type_inference_v2)]
 
 import float32;
 

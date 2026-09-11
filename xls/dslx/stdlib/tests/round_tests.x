@@ -12,8 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#![feature(type_inference_v2)]
-
 import std;
 import round;
 
@@ -273,33 +271,26 @@ fn test_round_more_fractional_bits_sign_magnitude() {
 #[test]
 fn test_round_unsigned_minimal_cases() {
     // num_bits_rounded = 0 is a no-op (early return path).
-    assert_eq(
-        (u1:0, u5:0b10101),
-        round::round_u(round::RoundingMode::RTP, u3:0, u5:0b10101));
+    assert_eq((u1:0, u5:0b10101), round::round_u(round::RoundingMode::RTP, u3:0, u5:0b10101));
 
     let num_bits_rounded = u3:2;
 
     // Real value is 2.5 (10 / 2^2). Tie between 2 and 3.
     let unrounded = u5:0b01010;
     assert_eq(
-        (u1:0, u5:0b01000),
-        round::round_u(round::RoundingMode::RNE, num_bits_rounded, unrounded));
+        (u1:0, u5:0b01000), round::round_u(round::RoundingMode::RNE, num_bits_rounded, unrounded));
     assert_eq(
-        (u1:0, u5:0b01100),
-        round::round_u(round::RoundingMode::RNA, num_bits_rounded, unrounded));
+        (u1:0, u5:0b01100), round::round_u(round::RoundingMode::RNA, num_bits_rounded, unrounded));
 
     // Real value is 2.75 (11 / 2^2). Non-tie; nearest is 3.
     let unrounded = u5:0b01011;
     assert_eq(
-        (u1:0, u5:0b01100),
-        round::round_u(round::RoundingMode::RNE, num_bits_rounded, unrounded));
+        (u1:0, u5:0b01100), round::round_u(round::RoundingMode::RNE, num_bits_rounded, unrounded));
 
     // Real value is 7.75 (31 / 2^2). RTP would round to 8.0, which overflows u5 with 2
     // fractional bits.
     let unrounded = u5:0b11111;
-    assert_eq(
-        (u1:1, u5:0),
-        round::round_u(round::RoundingMode::RTP, num_bits_rounded, unrounded));
+    assert_eq((u1:1, u5:0), round::round_u(round::RoundingMode::RTP, num_bits_rounded, unrounded));
 }
 
 #[test]
@@ -328,19 +319,13 @@ fn test_round_signed_twos_complement_negative_cases() {
     let unrounded = s5:-9;
 
     // Nearest(-2.25) = -2
-    assert_eq(
-        (u1:0, s5:-8),
-        round::round_s(round::RoundingMode::RNE, num_bits_rounded, unrounded));
+    assert_eq((u1:0, s5:-8), round::round_s(round::RoundingMode::RNE, num_bits_rounded, unrounded));
 
     // RTZ(-2.25) = -2
-    assert_eq(
-        (u1:0, s5:-8),
-        round::round_s(round::RoundingMode::RTZ, num_bits_rounded, unrounded));
+    assert_eq((u1:0, s5:-8), round::round_s(round::RoundingMode::RTZ, num_bits_rounded, unrounded));
 
     // Floor(-2.25) = -3
-    assert_eq(
-        (u1:0, s5:-12),
-        round::round_s(round::RoundingMode::RTN, num_bits_rounded, unrounded));
+    assert_eq((u1:0, s5:-12), round::round_s(round::RoundingMode::RTN, num_bits_rounded, unrounded));
 }
 
 #[test]
@@ -348,9 +333,7 @@ fn test_round_signed_twos_complement_positive_overflow_sign_change() {
     // 0.9375 = 15 / 2^4; rounding to 1.0 cannot be represented in s5 with 4 fractional bits.
     let num_bits_rounded = u3:4;
     let unrounded = s5:15;
-    assert_eq(
-        (u1:1, s5:0),
-        round::round_s(round::RoundingMode::RNE, num_bits_rounded, unrounded));
+    assert_eq((u1:1, s5:0), round::round_s(round::RoundingMode::RNE, num_bits_rounded, unrounded));
 }
 
 #[test]
@@ -360,10 +343,6 @@ fn test_round_signed_twos_complement_rounding_all_bits_negative_overflow() {
     let num_bits_rounded = u3:5;
     let unrounded = s5:-16;  // -0.5 = -16 / 2^5
 
-    assert_eq(
-        (u1:1, s5:0),
-        round::round_s(round::RoundingMode::RTN, num_bits_rounded, unrounded));
-    assert_eq(
-        (u1:1, s5:0),
-        round::round_s(round::RoundingMode::RNA, num_bits_rounded, unrounded));
+    assert_eq((u1:1, s5:0), round::round_s(round::RoundingMode::RTN, num_bits_rounded, unrounded));
+    assert_eq((u1:1, s5:0), round::round_s(round::RoundingMode::RNA, num_bits_rounded, unrounded));
 }
