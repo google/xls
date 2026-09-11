@@ -1013,7 +1013,7 @@ absl::StatusOr<TestResultData> AbstractTestRunner::ParseAndTest(
       post_fn_eval_hook = [&ir_package, &import_data, &options](
                               const Function* f,
                               absl::Span<const InterpValue> args,
-                              const ParametricEnv* parametric_env,
+                              const ParametricEnv& parametric_env,
                               const InterpValue& got) -> absl::Status {
         XLS_RET_CHECK(f != nullptr);
 

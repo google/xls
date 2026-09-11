@@ -58,7 +58,7 @@ absl::Status RunComparator::RunComparison(Package* ir_package,
                                           bool requires_implicit_token,
                                           const dslx::Function* f,
                                           absl::Span<InterpValue const> args,
-                                          const ParametricEnv* parametric_env,
+                                          const ParametricEnv& parametric_env,
                                           const InterpValue& got) {
   XLS_RET_CHECK(ir_package != nullptr);
 

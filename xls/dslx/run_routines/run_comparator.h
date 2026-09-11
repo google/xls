@@ -56,7 +56,7 @@ class RunComparator : public AbstractRunComparator {
   absl::Status RunComparison(Package* ir_package, bool requires_implicit_token,
                              const Function* f,
                              absl::Span<InterpValue const> args,
-                             const ParametricEnv* parametric_env,
+                             const ParametricEnv& parametric_env,
                              const InterpValue& got) override;
 
   absl::StatusOr<InterpreterResult<xls::Value>> RunIrFunction(

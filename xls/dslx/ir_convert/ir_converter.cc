@@ -254,7 +254,7 @@ absl::Status ConvertOneFunctionInternal(PackageData& package_data,
   }
 
   return converter.HandleFunction(f, record.type_info(),
-                                  &record.parametric_env());
+                                  record.parametric_env());
 }
 
 // Creates the recv- and send-only channels needed for the top-level proc - it

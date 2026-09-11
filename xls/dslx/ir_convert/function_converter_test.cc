@@ -29,6 +29,7 @@
 #include "xls/dslx/ir_convert/convert_options.h"
 #include "xls/dslx/ir_convert/test_utils.h"
 #include "xls/dslx/parse_and_typecheck.h"
+#include "xls/dslx/type_system/parametric_env.h"
 #include "xls/ir/package.h"
 #include "xls/ir/xls_ir_interface.pb.h"
 
@@ -62,8 +63,7 @@ TEST(FunctionConverterTest, ConvertsSimpleFunctionWithoutError) {
                               convert_options, /*proc_data=*/nullptr,
                               /*channel_scope=*/nullptr,
                               /*is_top=*/true);
-  XLS_ASSERT_OK(
-      converter.HandleFunction(f, tm.type_info, /*parametric_env=*/nullptr));
+  XLS_ASSERT_OK(converter.HandleFunction(f, tm.type_info, ParametricEnv{}));
 
   EXPECT_EQ(package_data.ir_to_dslx.size(), 1);
   EXPECT_EQ(package_data.ir_to_dslx.size(), 1);
@@ -97,8 +97,7 @@ TEST(FunctionConverterTest, ConvertsSimpleFunctionWithAsserts) {
                               convert_options, /*proc_data=*/nullptr,
                               /*channel_scope=*/nullptr,
                               /*is_top=*/true);
-  XLS_ASSERT_OK(
-      converter.HandleFunction(f, tm.type_info, /*parametric_env=*/nullptr));
+  XLS_ASSERT_OK(converter.HandleFunction(f, tm.type_info, ParametricEnv{}));
 
   EXPECT_EQ(package_data.ir_to_dslx.size(), 1);
   ExpectIr(package.DumpIr());
@@ -144,8 +143,7 @@ TEST(FunctionConverterTest, TracksMultipleTypeAliasSvType) {
                               convert_options, /*proc_data=*/nullptr,
                               /*channel_scope=*/nullptr,
                               /*is_top=*/true);
-  XLS_ASSERT_OK(
-      converter.HandleFunction(f, tm.type_info, /*parametric_env=*/nullptr));
+  XLS_ASSERT_OK(converter.HandleFunction(f, tm.type_info, ParametricEnv{}));
 
   EXPECT_EQ(package_data.ir_to_dslx.size(), 1);
   ExpectIr(package.DumpIr());
@@ -184,8 +182,7 @@ TEST(FunctionConverterTest, TracksTypeAliasSvType) {
                               convert_options, /*proc_data=*/nullptr,
                               /*channel_scope=*/nullptr,
                               /*is_top=*/true);
-  XLS_ASSERT_OK(
-      converter.HandleFunction(f, tm.type_info, /*parametric_env=*/nullptr));
+  XLS_ASSERT_OK(converter.HandleFunction(f, tm.type_info, ParametricEnv{}));
 
   EXPECT_EQ(package_data.ir_to_dslx.size(), 1);
   ExpectIr(package.DumpIr());
@@ -226,8 +223,7 @@ fn f(b: Baz) -> FooBar { b + u32:42 })",
                               convert_options, /*proc_data=*/nullptr,
                               /*channel_scope=*/nullptr,
                               /*is_top=*/true);
-  XLS_ASSERT_OK(
-      converter.HandleFunction(f, tm.type_info, /*parametric_env=*/nullptr));
+  XLS_ASSERT_OK(converter.HandleFunction(f, tm.type_info, ParametricEnv{}));
 
   EXPECT_EQ(package_data.ir_to_dslx.size(), 1);
   ExpectIr(package.DumpIr());
@@ -266,8 +262,7 @@ fn f() -> u32 { u32:42 }
                               convert_options, /*proc_data=*/nullptr,
                               /*channel_scope=*/nullptr,
                               /*is_top=*/true);
-  XLS_ASSERT_OK(
-      converter.HandleFunction(f, tm.type_info, /*parametric_env=*/nullptr));
+  XLS_ASSERT_OK(converter.HandleFunction(f, tm.type_info, ParametricEnv{}));
 
   // We expect a single function, that contains the FFI info for "extern_foobar"
   ASSERT_FALSE(package_data.conversion_info->package->functions().empty());
@@ -314,8 +309,7 @@ fn f() {
                               convert_options, /*proc_data=*/nullptr,
                               /*channel_scope=*/nullptr,
                               /*is_top=*/true);
-  XLS_ASSERT_OK(
-      converter.HandleFunction(f, tm.type_info, /*parametric_env=*/nullptr));
+  XLS_ASSERT_OK(converter.HandleFunction(f, tm.type_info, ParametricEnv{}));
   EXPECT_THAT(package.interface.functions(),
               testing::UnorderedElementsAre(
                   EqualsProto(R"pb(
@@ -383,8 +377,7 @@ fn f() {
                               convert_options, /*proc_data=*/nullptr,
                               /*channel_scope=*/nullptr,
                               /*is_top=*/true);
-  XLS_ASSERT_OK(
-      converter.HandleFunction(f, tm.type_info, /*parametric_env=*/nullptr));
+  XLS_ASSERT_OK(converter.HandleFunction(f, tm.type_info, ParametricEnv{}));
   EXPECT_THAT(package.interface.functions(),
               testing::UnorderedElementsAre(
                   EqualsProto(R"pb(
@@ -441,8 +434,7 @@ TEST(FunctionConverterTest, ConvertsFunctionWithZipBuiltin) {
                               convert_options, /*proc_data=*/nullptr,
                               /*channel_scope=*/nullptr,
                               /*is_top=*/true);
-  XLS_ASSERT_OK(
-      converter.HandleFunction(f, tm.type_info, /*parametric_env=*/nullptr));
+  XLS_ASSERT_OK(converter.HandleFunction(f, tm.type_info, ParametricEnv{}));
 
   EXPECT_EQ(package_data.ir_to_dslx.size(), 1);
   ExpectIr(package.DumpIr());
@@ -496,8 +488,7 @@ TEST(FunctionConverterTest, ConvertsFunctionWithUpdate2DBuiltin) {
                               convert_options, /*proc_data=*/nullptr,
                               /*channel_scope=*/nullptr,
                               /*is_top=*/true);
-  XLS_ASSERT_OK(
-      converter.HandleFunction(f, tm.type_info, /*parametric_env=*/nullptr));
+  XLS_ASSERT_OK(converter.HandleFunction(f, tm.type_info, ParametricEnv{}));
 
   EXPECT_EQ(package_data.ir_to_dslx.size(), 1);
   ExpectIr(package.DumpIr());
@@ -546,8 +537,7 @@ TEST(FunctionConverterTest, ConvertsFunctionWithUpdate2DBuiltinEmptyTuple) {
                               convert_options, /*proc_data=*/nullptr,
                               /*channel_scope=*/nullptr,
                               /*is_top=*/true);
-  XLS_ASSERT_OK(
-      converter.HandleFunction(f, tm.type_info, /*parametric_env=*/nullptr));
+  XLS_ASSERT_OK(converter.HandleFunction(f, tm.type_info, ParametricEnv{}));
 
   EXPECT_EQ(package_data.ir_to_dslx.size(), 1);
   EXPECT_EQ(package_data.ir_to_dslx.size(), 1);

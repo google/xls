@@ -393,10 +393,9 @@ absl::Status BytecodeInterpreter::Run(bool* progress_made) {
       if (fn_return.has_value()) {
         bool fn_returns_value = *fn_return.value() != *Type::MakeUnit();
         if (options_.post_fn_eval_hook() != nullptr && fn_returns_value) {
-          ParametricEnv holder;
-          const ParametricEnv* bindings = &holder;
+          ParametricEnv bindings;
           if (frame->bindings().has_value()) {
-            bindings = &frame->bindings().value();
+            bindings = *frame->bindings();
           }
           XLS_RETURN_IF_ERROR(options_.post_fn_eval_hook()(
               source_fn, frame->initial_args(), bindings, stack_.PeekOrDie()));

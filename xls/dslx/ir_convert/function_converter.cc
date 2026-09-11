@@ -144,7 +144,7 @@ absl::StatusOr<xls::Function*> EmitImplicitTokenEntryWrapper(
       std::string mangled_name,
       MangleDslxName(dslx_function->owner()->name(),
                      dslx_function->identifier(), CallingConvention::kTypical,
-                     /*free_keys=*/{}, /*parametric_env=*/nullptr));
+                     /*free_keys=*/{}, /*parametric_env=*/{}));
   PackageInterfaceProto::Function* wrapper_proto =
       interface_proto->add_functions();
   wrapper_proto->mutable_base()->set_name(mangled_name);
@@ -2059,7 +2059,7 @@ absl::StatusOr<BValue> FunctionConverter::DefMapWithBuiltin(
   XLS_ASSIGN_OR_RETURN(const std::string mangled_name,
                        MangleDslxName(module_->name(), node->identifier(),
                                       CallingConvention::kTypical,
-                                      /*free_keys=*/{}, &parametric_env));
+                                      /*free_keys=*/{}, parametric_env));
   XLS_ASSIGN_OR_RETURN(BValue arg_value, Use(arg));
   VLOG(5) << "Mapping with builtin; arg: " << arg_value.GetType()->ToString();
   auto* array_type = arg_value.GetType()->AsArrayOrDie();
@@ -2204,12 +2204,11 @@ absl::StatusOr<BValue> FunctionConverter::HandleMap(const Invocation* node) {
 
   XLS_ASSIGN_OR_RETURN(
       std::string mangled_name,
-      MangleDslxName(
-          mapped_fn->owner()->name(), mapped_fn->identifier(), convention,
-          free_set,
-          (node_parametric_env.has_value() ? node_parametric_env.value()
-                                           : nullptr),
-          scope));
+      MangleDslxName(mapped_fn->owner()->name(), mapped_fn->identifier(),
+                     convention, free_set,
+                     (node_parametric_env.has_value() ? **node_parametric_env
+                                                      : ParametricEnv{}),
+                     scope));
   VLOG(5) << "Getting function with mangled name: " << mangled_name
           << " from package: " << package()->name();
   XLS_ASSIGN_OR_RETURN(xls::Function * f, package()->GetFunction(mangled_name));
@@ -3494,16 +3493,14 @@ absl::Status FunctionConverter::AddImplicitTokenParams() {
 }
 
 absl::Status FunctionConverter::HandleFunction(
-    Function* node, TypeInfo* type_info, const ParametricEnv* parametric_env) {
+    Function* node, TypeInfo* type_info, const ParametricEnv& parametric_env) {
   XLS_RET_CHECK_NE(type_info, nullptr);
   XLS_RET_CHECK_NE(node, nullptr);
   Function& f = *node;
 
   VLOG(5) << "HandleFunction: " << f.ToString();
 
-  if (parametric_env != nullptr) {
-    SetParametricEnv(parametric_env);
-  }
+  SetParametricEnv(parametric_env);
 
   ScopedTypeInfoSwap stis(this, type_info);
 
@@ -3791,7 +3788,7 @@ absl::Status FunctionConverter::InitProcDefBuilder(const ProcDef* proc_def,
   XLS_ASSIGN_OR_RETURN(
       std::string mangled_name,
       MangleDslxName(proc_def->owner()->name(), proc_def->identifier(),
-                     CallingConvention::kProcNext, parametric_keys, &env));
+                     CallingConvention::kProcNext, parametric_keys, env));
   auto unique_builder =
       std::make_unique<ProcBuilder>(NewStyleProc{}, mangled_name, package());
   ProcBuilder* builder = unique_builder.get();
@@ -3812,7 +3809,7 @@ absl::Status FunctionConverter::InitProcDefBuilder(const ProcDef* proc_def,
   };
   tokens_.push_back(implicit_token);
 
-  SetParametricEnv(&env);
+  SetParametricEnv(env);
 
   VLOG(3) << "Proc has " << constant_deps_.size() << " constant deps";
   for (ConstantDef* dep : constant_deps_) {
@@ -4314,10 +4311,8 @@ absl::Status FunctionConverter::HandleProcNextFunction(
   VLOG(5) << "HandleProcNextFunction: " << f->ToString() << " proc id "
           << proc_id.ToString() << "; TI " << std::hex << type_info;
 
-  const ParametricEnv* parametric_env = &record.parametric_env();
-  if (parametric_env != nullptr) {
-    SetParametricEnv(parametric_env);
-  }
+  const ParametricEnv& parametric_env = record.parametric_env();
+  SetParametricEnv(parametric_env);
 
   // Overwrites this.current_type_info_. When this object goes out of scope,
   // restores the previous current_type_info_
@@ -4344,10 +4339,10 @@ absl::Status FunctionConverter::HandleProcNextFunction(
       proc_id.proc_instance_stack.size() == 1) {
     // Don't include the parametrics for the target proc in the mangled name of
     // a proc alias.
-    XLS_ASSIGN_OR_RETURN(
-        mangled_name, MangleDslxName(module_->name(), proc_id.ToString(),
-                                     CallingConvention::kProcNext,
-                                     absl::btree_set<std::string>{}, nullptr));
+    XLS_ASSIGN_OR_RETURN(mangled_name,
+                         MangleDslxName(module_->name(), proc_id.ToString(),
+                                        CallingConvention::kProcNext,
+                                        absl::btree_set<std::string>{}));
   } else {
     XLS_ASSIGN_OR_RETURN(
         mangled_name,
@@ -4748,7 +4743,7 @@ absl::StatusOr<std::string> FunctionConverter::GetCalleeIdentifier(
   Module* m = f->owner();
   if (!f->IsParametric() && !f->IsFunctionOnParametricStruct()) {
     return MangleDslxName(m->name(), f->identifier(), convention, free_keys,
-                          /*parametric_env=*/nullptr, scope);
+                          ParametricEnv{}, scope);
   }
 
   std::optional<const ParametricEnv*> resolved_parametric_env =
@@ -4760,7 +4755,7 @@ absl::StatusOr<std::string> FunctionConverter::GetCalleeIdentifier(
                                 (*resolved_parametric_env)->ToString());
   XLS_RET_CHECK(!(*resolved_parametric_env)->empty());
   return MangleDslxName(m->name(), f->identifier(), convention, free_keys,
-                        resolved_parametric_env.value(), scope);
+                        **resolved_parametric_env, scope);
 }
 
 std::optional<const Expr*> FunctionConverter::GetUnrolledForLoop(

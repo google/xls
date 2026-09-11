@@ -70,7 +70,7 @@ class AbstractRunComparator {
                                      bool requires_implicit_token,
                                      const Function* f,
                                      absl::Span<InterpValue const> args,
-                                     const ParametricEnv* parametric_env,
+                                     const ParametricEnv& parametric_env,
                                      const InterpValue& got) = 0;
 
   // Helper for abstracting over the running of IR functions. i.e. we implement

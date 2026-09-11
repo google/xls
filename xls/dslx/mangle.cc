@@ -83,15 +83,13 @@ std::string MangleInterpValue(const InterpValue& value) {
 absl::StatusOr<std::string> MangleDslxName(
     std::string_view module_name, std::string_view function_name,
     CallingConvention convention, const absl::btree_set<std::string>& free_keys,
-    const ParametricEnv* parametric_env, std::string_view scope) {
+    const ParametricEnv& parametric_env, std::string_view scope) {
   absl::btree_set<std::string> parametric_env_keys;
   std::vector<std::string> parametric_env_values;
-  if (parametric_env != nullptr) {
-    for (const ParametricEnvItem& item : parametric_env->bindings()) {
-      parametric_env_keys.insert(item.identifier);
-      const InterpValue& value = item.value;
-      parametric_env_values.push_back(MangleInterpValue(value));
-    }
+  for (const ParametricEnvItem& item : parametric_env.bindings()) {
+    parametric_env_keys.insert(item.identifier);
+    const InterpValue& value = item.value;
+    parametric_env_values.push_back(MangleInterpValue(value));
   }
   absl::btree_set<std::string> difference;
   absl::c_set_difference(free_keys, parametric_env_keys,

@@ -277,7 +277,8 @@ bool xls_mangle_dslx_name_full(
   }
 
   absl::StatusOr<std::string> result = xls::dslx::MangleDslxName(
-      module_name, function_name, cc_cpp, free_key_set, env, scope_sv);
+      module_name, function_name, cc_cpp, free_key_set,
+      env == nullptr ? xls::dslx::ParametricEnv{} : *env, scope_sv);
   return xls::ReturnStringHelper(result, error_out, mangled_out);
 }
 

@@ -53,10 +53,6 @@
 
 namespace xls::dslx {
 
-using PostFnEvalHook = std::function<absl::Status(
-    const Function* f, absl::Span<const InterpValue> args, const ParametricEnv*,
-    const InterpValue& got)>;
-
 // A data structure which records trace and assert message in the DSLX
 // interpreter.
 class DslxInterpreterEvents {

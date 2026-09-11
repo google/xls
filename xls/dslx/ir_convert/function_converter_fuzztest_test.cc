@@ -31,6 +31,7 @@
 #include "xls/dslx/ir_convert/convert_options.h"
 #include "xls/dslx/ir_convert/function_converter.h"
 #include "xls/dslx/parse_and_typecheck.h"
+#include "xls/dslx/type_system/parametric_env.h"
 #include "xls/ir/package.h"
 #include "xls/ir/xls_ir_interface.pb.h"
 
@@ -65,8 +66,7 @@ fn f(x: u32, y: u32) -> u32 { x + y }
                               convert_options, /*proc_data=*/nullptr,
                               /*channel_scope=*/nullptr,
                               /*is_top=*/true);
-  XLS_ASSERT_OK(
-      converter.HandleFunction(f, tm.type_info, /*parametric_env=*/nullptr));
+  XLS_ASSERT_OK(converter.HandleFunction(f, tm.type_info, ParametricEnv{}));
 
   ASSERT_FALSE(package_data.conversion_info->package->functions().empty());
   auto* ir_fn =
@@ -115,8 +115,7 @@ fn f(x: u32) -> u32 { x }
                               convert_options, /*proc_data=*/nullptr,
                               /*channel_scope=*/nullptr,
                               /*is_top=*/true);
-  XLS_ASSERT_OK(
-      converter.HandleFunction(f, tm.type_info, /*parametric_env=*/nullptr));
+  XLS_ASSERT_OK(converter.HandleFunction(f, tm.type_info, ParametricEnv{}));
 
   ASSERT_FALSE(package_data.conversion_info->package->functions().empty());
   auto* ir_fn =
@@ -165,8 +164,7 @@ fn f(x: u32) -> u32 { x }
                               convert_options, /*proc_data=*/nullptr,
                               /*channel_scope=*/nullptr,
                               /*is_top=*/true);
-  XLS_ASSERT_OK(
-      converter.HandleFunction(f, tm.type_info, /*parametric_env=*/nullptr));
+  XLS_ASSERT_OK(converter.HandleFunction(f, tm.type_info, ParametricEnv{}));
 
   ASSERT_FALSE(package_data.conversion_info->package->functions().empty());
   auto* ir_fn =
@@ -218,8 +216,7 @@ fn f(x: u32) -> u32 { x }
                               convert_options, /*proc_data=*/nullptr,
                               /*channel_scope=*/nullptr,
                               /*is_top=*/true);
-  XLS_ASSERT_OK(
-      converter.HandleFunction(f, tm.type_info, /*parametric_env=*/nullptr));
+  XLS_ASSERT_OK(converter.HandleFunction(f, tm.type_info, ParametricEnv{}));
 
   ASSERT_FALSE(package_data.conversion_info->package->functions().empty());
   auto* ir_fn =
@@ -270,8 +267,7 @@ fn f(x: (u32, u16)) -> u16 { x.0 as u16 + x.1 }
                               convert_options, /*proc_data=*/nullptr,
                               /*channel_scope=*/nullptr,
                               /*is_top=*/true);
-  XLS_ASSERT_OK(
-      converter.HandleFunction(f, tm.type_info, /*parametric_env=*/nullptr));
+  XLS_ASSERT_OK(converter.HandleFunction(f, tm.type_info, ParametricEnv{}));
 
   ASSERT_FALSE(package_data.conversion_info->package->functions().empty());
   auto* ir_fn =
@@ -333,8 +329,7 @@ fn f(x: u32, y: u16) -> u16 { x as u16 + y }
                               convert_options, /*proc_data=*/nullptr,
                               /*channel_scope=*/nullptr,
                               /*is_top=*/true);
-  XLS_ASSERT_OK(
-      converter.HandleFunction(f, tm.type_info, /*parametric_env=*/nullptr));
+  XLS_ASSERT_OK(converter.HandleFunction(f, tm.type_info, ParametricEnv{}));
 
   ASSERT_FALSE(package_data.conversion_info->package->functions().empty());
   auto* ir_fn =
@@ -390,8 +385,7 @@ fn f(x: u32) -> u32 { x }
                               convert_options, /*proc_data=*/nullptr,
                               /*channel_scope=*/nullptr,
                               /*is_top=*/true);
-  XLS_ASSERT_OK(
-      converter.HandleFunction(f, tm.type_info, /*parametric_env=*/nullptr));
+  XLS_ASSERT_OK(converter.HandleFunction(f, tm.type_info, ParametricEnv{}));
 
   ASSERT_FALSE(package_data.conversion_info->package->functions().empty());
   auto* ir_fn =
@@ -437,12 +431,11 @@ fn f(x: u32) -> u32 { x }
                               convert_options, /*proc_data=*/nullptr,
                               /*channel_scope=*/nullptr,
                               /*is_top=*/true);
-  EXPECT_THAT(
-      converter.HandleFunction(f, tm.type_info, /*parametric_env=*/nullptr),
-      absl_testing::StatusIs(
-          absl::StatusCode::kInvalidArgument,
-          testing::HasSubstr(
-              "Empty ranges are unsupported as fuzztest domains")));
+  EXPECT_THAT(converter.HandleFunction(f, tm.type_info, ParametricEnv{}),
+              absl_testing::StatusIs(
+                  absl::StatusCode::kInvalidArgument,
+                  testing::HasSubstr(
+                      "Empty ranges are unsupported as fuzztest domains")));
 }
 
 TEST(FunctionConverterFuzzTestTest, ConstantArrayDomain) {
@@ -469,8 +462,7 @@ fn f(x: u32) -> u32 { x }
                               /*channel_scope=*/nullptr,
                               /*is_top=*/true);
 
-  XLS_ASSERT_OK(
-      converter.HandleFunction(f, tm.type_info, /*parametric_env=*/nullptr));
+  XLS_ASSERT_OK(converter.HandleFunction(f, tm.type_info, ParametricEnv{}));
 
   ASSERT_FALSE(package_data.conversion_info->package->functions().empty());
   auto* ir_fn =
@@ -509,8 +501,7 @@ fn f(x: u32[2]) -> bool { x[0] != u32:0 }
                               /*channel_scope=*/nullptr,
                               /*is_top=*/true);
 
-  XLS_ASSERT_OK(
-      converter.HandleFunction(f, tm.type_info, /*parametric_env=*/nullptr));
+  XLS_ASSERT_OK(converter.HandleFunction(f, tm.type_info, ParametricEnv{}));
 
   ASSERT_FALSE(package_data.conversion_info->package->functions().empty());
   auto* ir_fn =
@@ -557,8 +548,7 @@ fn f(x: u32[2]) -> bool {
                               /*channel_scope=*/nullptr,
                               /*is_top=*/true);
 
-  XLS_ASSERT_OK(
-      converter.HandleFunction(f, tm.type_info, /*parametric_env=*/nullptr));
+  XLS_ASSERT_OK(converter.HandleFunction(f, tm.type_info, ParametricEnv{}));
 
   ASSERT_FALSE(package_data.conversion_info->package->functions().empty());
   auto* ir_fn =
@@ -603,8 +593,7 @@ fn f(x: (u32, u32)) -> u32 { x.0 }
                               /*channel_scope=*/nullptr,
                               /*is_top=*/true);
 
-  XLS_ASSERT_OK(
-      converter.HandleFunction(f, tm.type_info, /*parametric_env=*/nullptr));
+  XLS_ASSERT_OK(converter.HandleFunction(f, tm.type_info, ParametricEnv{}));
 
   ASSERT_FALSE(package_data.conversion_info->package->functions().empty());
   auto* ir_fn =
@@ -644,8 +633,7 @@ fn f(x: u32) -> u32 { x }
                               /*channel_scope=*/nullptr,
                               /*is_top=*/true);
 
-  XLS_ASSERT_OK(
-      converter.HandleFunction(f, tm.type_info, /*parametric_env=*/nullptr));
+  XLS_ASSERT_OK(converter.HandleFunction(f, tm.type_info, ParametricEnv{}));
 
   ASSERT_FALSE(package_data.conversion_info->package->functions().empty());
   auto* ir_fn =
@@ -682,8 +670,7 @@ fn f(x: u8, y: u64) -> u64 { (x as u64) + y }
                               convert_options, /*proc_data=*/nullptr,
                               /*channel_scope=*/nullptr,
                               /*is_top=*/true);
-  XLS_ASSERT_OK(
-      converter.HandleFunction(f, tm.type_info, /*parametric_env=*/nullptr));
+  XLS_ASSERT_OK(converter.HandleFunction(f, tm.type_info, ParametricEnv{}));
 
   ASSERT_FALSE(package_data.conversion_info->package->functions().empty());
   auto* ir_fn =
@@ -738,8 +725,7 @@ fn f(y: u32) -> u32 { y }
                               convert_options, /*proc_data=*/nullptr,
                               /*channel_scope=*/nullptr,
                               /*is_top=*/true);
-  XLS_ASSERT_OK(
-      converter.HandleFunction(f, tm.type_info, /*parametric_env=*/nullptr));
+  XLS_ASSERT_OK(converter.HandleFunction(f, tm.type_info, ParametricEnv{}));
 
   ASSERT_FALSE(package_data.conversion_info->package->functions().empty());
   auto* ir_fn =
@@ -785,8 +771,7 @@ fn f(x: u32, y: u32) -> u32 { x + y }
                               convert_options, /*proc_data=*/nullptr,
                               /*channel_scope=*/nullptr,
                               /*is_top=*/true);
-  XLS_ASSERT_OK(
-      converter.HandleFunction(f, tm.type_info, /*parametric_env=*/nullptr));
+  XLS_ASSERT_OK(converter.HandleFunction(f, tm.type_info, ParametricEnv{}));
 
   ASSERT_FALSE(package_data.conversion_info->package->functions().empty());
   auto* ir_fn =
@@ -839,8 +824,7 @@ fn f(x: (u32, u32)) -> u32 { x.0 }
                               /*channel_scope=*/nullptr,
                               /*is_top=*/true);
 
-  XLS_ASSERT_OK(
-      converter.HandleFunction(f, tm.type_info, /*parametric_env=*/nullptr));
+  XLS_ASSERT_OK(converter.HandleFunction(f, tm.type_info, ParametricEnv{}));
 
   ASSERT_FALSE(package_data.conversion_info->package->functions().empty());
   auto* ir_fn =
@@ -896,8 +880,7 @@ fn f(x: u32) -> u32 { x }
                               /*channel_scope=*/nullptr,
                               /*is_top=*/true);
 
-  XLS_ASSERT_OK(
-      converter.HandleFunction(f, tm.type_info, /*parametric_env=*/nullptr));
+  XLS_ASSERT_OK(converter.HandleFunction(f, tm.type_info, ParametricEnv{}));
 
   ASSERT_FALSE(package_data.conversion_info->package->functions().empty());
   auto* ir_fn =
@@ -948,8 +931,7 @@ fn f(x: MyEnum) -> MyEnum { x }
                               /*channel_scope=*/nullptr,
                               /*is_top=*/true);
 
-  XLS_ASSERT_OK(
-      converter.HandleFunction(f, tm.type_info, /*parametric_env=*/nullptr));
+  XLS_ASSERT_OK(converter.HandleFunction(f, tm.type_info, ParametricEnv{}));
 
   ASSERT_FALSE(package_data.conversion_info->package->functions().empty());
   auto* ir_fn =
@@ -996,8 +978,7 @@ fn f(x: u32, y: ((), u32)) -> u32 { x }
                               /*channel_scope=*/nullptr,
                               /*is_top=*/true);
 
-  XLS_ASSERT_OK(
-      converter.HandleFunction(f, tm.type_info, /*parametric_env=*/nullptr));
+  XLS_ASSERT_OK(converter.HandleFunction(f, tm.type_info, ParametricEnv{}));
 
   ASSERT_FALSE(package_data.conversion_info->package->functions().empty());
   auto* ir_fn =
@@ -1066,12 +1047,11 @@ fn f(x: u32) -> u32 { x }
                               convert_options, /*proc_data=*/nullptr,
                               /*channel_scope=*/nullptr,
                               /*is_top=*/true);
-  EXPECT_THAT(
-      converter.HandleFunction(f, tm.type_info, /*parametric_env=*/nullptr),
-      absl_testing::StatusIs(
-          absl::StatusCode::kInvalidArgument,
-          testing::HasSubstr(
-              "Empty arrays are unsupported as fuzztest domains")));
+  EXPECT_THAT(converter.HandleFunction(f, tm.type_info, ParametricEnv{}),
+              absl_testing::StatusIs(
+                  absl::StatusCode::kInvalidArgument,
+                  testing::HasSubstr(
+                      "Empty arrays are unsupported as fuzztest domains")));
 }
 
 TEST(FunctionConverterFuzzTestTest, ArbitraryEnumBecomesElementOf) {
@@ -1102,8 +1082,7 @@ fn f(x: MyEnum) -> bool { x == x }
                               convert_options, /*proc_data=*/nullptr,
                               /*channel_scope=*/nullptr,
                               /*is_top=*/true);
-  XLS_ASSERT_OK(
-      converter.HandleFunction(f, tm.type_info, /*parametric_env=*/nullptr));
+  XLS_ASSERT_OK(converter.HandleFunction(f, tm.type_info, ParametricEnv{}));
 
   auto* ir_fn =
       package_data.conversion_info->package->functions().front().get();
@@ -1152,8 +1131,7 @@ fn f(x: (MyEnum, MyEnum)) -> bool { x == x }
                               convert_options, /*proc_data=*/nullptr,
                               /*channel_scope=*/nullptr,
                               /*is_top=*/true);
-  XLS_ASSERT_OK(
-      converter.HandleFunction(f, tm.type_info, /*parametric_env=*/nullptr));
+  XLS_ASSERT_OK(converter.HandleFunction(f, tm.type_info, ParametricEnv{}));
 
   auto* ir_fn =
       package_data.conversion_info->package->functions().front().get();
@@ -1213,8 +1191,7 @@ fn f(x: (u32, (MyEnum, u8))) -> bool { x.0 == x.0 }
                               convert_options, /*proc_data=*/nullptr,
                               /*channel_scope=*/nullptr,
                               /*is_top=*/true);
-  XLS_ASSERT_OK(
-      converter.HandleFunction(f, tm.type_info, /*parametric_env=*/nullptr));
+  XLS_ASSERT_OK(converter.HandleFunction(f, tm.type_info, ParametricEnv{}));
 
   auto* ir_fn =
       package_data.conversion_info->package->functions().front().get();
@@ -1274,8 +1251,7 @@ fn f(x: (u32, MyEnum)) -> bool { x.0 == x.0 }
                               convert_options, /*proc_data=*/nullptr,
                               /*channel_scope=*/nullptr,
                               /*is_top=*/true);
-  XLS_ASSERT_OK(
-      converter.HandleFunction(f, tm.type_info, /*parametric_env=*/nullptr));
+  XLS_ASSERT_OK(converter.HandleFunction(f, tm.type_info, ParametricEnv{}));
 
   auto* ir_fn =
       package_data.conversion_info->package->functions().front().get();
@@ -1334,8 +1310,7 @@ fn f(s: MyStruct) -> u32 { s.x }
                               convert_options, /*proc_data=*/nullptr,
                               /*channel_scope=*/nullptr,
                               /*is_top=*/true);
-  XLS_ASSERT_OK(
-      converter.HandleFunction(f, tm.type_info, /*parametric_env=*/nullptr));
+  XLS_ASSERT_OK(converter.HandleFunction(f, tm.type_info, ParametricEnv{}));
 
   auto* ir_fn =
       package_data.conversion_info->package->functions().front().get();
@@ -1398,8 +1373,7 @@ fn f(s: MyStruct) -> u32 { s.x }
                               convert_options, /*proc_data=*/nullptr,
                               /*channel_scope=*/nullptr,
                               /*is_top=*/true);
-  XLS_ASSERT_OK(
-      converter.HandleFunction(f, tm.type_info, /*parametric_env=*/nullptr));
+  XLS_ASSERT_OK(converter.HandleFunction(f, tm.type_info, ParametricEnv{}));
 
   auto* ir_fn =
       package_data.conversion_info->package->functions().front().get();
@@ -1456,8 +1430,7 @@ fn f(o: Outer) -> u32 { o.x }
                               convert_options, /*proc_data=*/nullptr,
                               /*channel_scope=*/nullptr,
                               /*is_top=*/true);
-  XLS_ASSERT_OK(
-      converter.HandleFunction(f, tm.type_info, /*parametric_env=*/nullptr));
+  XLS_ASSERT_OK(converter.HandleFunction(f, tm.type_info, ParametricEnv{}));
 
   auto* ir_fn =
       package_data.conversion_info->package->functions().front().get();
@@ -1525,8 +1498,7 @@ fn f(s: MyStruct) {}
                               convert_options, /*proc_data=*/nullptr,
                               /*channel_scope=*/nullptr,
                               /*is_top=*/true);
-  XLS_ASSERT_OK(
-      converter.HandleFunction(f, tm.type_info, /*parametric_env=*/nullptr));
+  XLS_ASSERT_OK(converter.HandleFunction(f, tm.type_info, ParametricEnv{}));
 
   auto* ir_fn =
       package_data.conversion_info->package->functions().front().get();
@@ -1575,8 +1547,7 @@ fn f(x: u32) -> u32 { x }
                               convert_options, /*proc_data=*/nullptr,
                               /*channel_scope=*/nullptr,
                               /*is_top=*/true);
-  XLS_ASSERT_OK(
-      converter.HandleFunction(f, tm.type_info, /*parametric_env=*/nullptr));
+  XLS_ASSERT_OK(converter.HandleFunction(f, tm.type_info, ParametricEnv{}));
 
   auto* ir_fn =
       package_data.conversion_info->package->functions().front().get();
@@ -1634,8 +1605,7 @@ fn f(x: u32) -> u32 { x }
                               convert_options, /*proc_data=*/nullptr,
                               /*channel_scope=*/nullptr,
                               /*is_top=*/true);
-  XLS_ASSERT_OK(
-      converter.HandleFunction(f, tm.type_info, /*parametric_env=*/nullptr));
+  XLS_ASSERT_OK(converter.HandleFunction(f, tm.type_info, ParametricEnv{}));
 
   auto* ir_fn =
       package_data.conversion_info->package->functions().front().get();

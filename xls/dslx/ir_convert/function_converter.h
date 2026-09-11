@@ -153,7 +153,7 @@ class FunctionConverter {
   // Main entry point to request conversion of the DSLX function "f" to an IR
   // function.
   absl::Status HandleFunction(Function* node, TypeInfo* type_info,
-                              const ParametricEnv* parametric_env);
+                              const ParametricEnv& parametric_env);
 
   absl::Status HandleProcNextFunction(const ConversionRecord& record,
                                       ImportData* import_data,
@@ -333,8 +333,8 @@ class FunctionConverter {
 
   // -- Accessors
 
-  void SetParametricEnv(const ParametricEnv* value) {
-    parametric_env_map_ = value->ToMap();
+  void SetParametricEnv(const ParametricEnv& value) {
+    parametric_env_map_ = value.ToMap();
   }
   void set_parametric_env_map(
       absl::flat_hash_map<std::string, InterpValue> map) {
