@@ -120,7 +120,9 @@ def Xls_LinkageKind : I32EnumAttr<"LinkageKind", "XLS linkage kind",
   let genSpecializedAttr = 0;
   let cppNamespace = "::mlir::xls";
 }
-def Xls_LinkageKindAttr : EnumAttr<Xls_Dialect, Xls_LinkageKind, "linkage_kind">;
+def Xls_LinkageKindAttr : EnumAttr<Xls_Dialect, Xls_LinkageKind, "linkage_kind"> {
+  let assemblyFormat = "$value";
+}
 
 def Xls_TranslationLinkage : Xls_Attr<"TranslationLinkage"> {
   let summary = "Translation linkage attribute";
@@ -188,6 +190,7 @@ def Xls_FlopKindAttr : EnumAttr<Xls_Dialect, Xls_FlopKind, "flop_kind"> {
 
     See https://google.github.io/xls/codegen_options/#io-behavior for more information.
   }];
+  let assemblyFormat = "$value";
 }
 
 def Xls_FifoConfig : Xls_Attr<"FifoConfig"> {
