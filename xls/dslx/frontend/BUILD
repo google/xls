@@ -203,6 +203,7 @@ cc_library(
         "//xls/ir:foreign_function_data_cc_proto",
         "//xls/ir:format_strings",
         "//xls/ir:name_uniquer",
+        "@abseil-cpp//absl/algorithm:container",
         "@abseil-cpp//absl/base",
         "@abseil-cpp//absl/base:core_headers",
         "@abseil-cpp//absl/base:nullability",

@@ -27,6 +27,7 @@
 #include <variant>
 #include <vector>
 
+#include "absl/algorithm/container.h"
 #include "absl/base/casts.h"
 #include "absl/base/nullability.h"
 #include "absl/cleanup/cleanup.h"
@@ -1408,7 +1409,7 @@ absl::StatusOr<Conditional*> Parser::ParseConditionalNode(
     Bindings& bindings, ExprRestrictions restrictions, bool is_const) {
   if (!IsExprRestrictionEnabled(restrictions, ExprRestriction::kNoConst)) {
     XLS_ASSIGN_OR_RETURN(is_const, TryDropKeyword(Keyword::kConst));
-  };
+  }
 
   XLS_ASSIGN_OR_RETURN(Token if_kw, PopKeywordOrError(Keyword::kIf));
   XLS_ASSIGN_OR_RETURN(
