@@ -174,6 +174,11 @@ class VastNode {
 
   virtual std::string PreEmit(LineInfo* line_info);
 
+  // Same as PreEmit, but skips the CanAcceptAttributes() check. Used when a
+  // parent statement hoists this node's annotation into a position where an
+  // attribute is legal (e.g. ContinuousAssignment hoisting its rhs's location).
+  std::string PreEmitHoisted(LineInfo* line_info);
+
   // The file which owns this node.
   VerilogFile* file() const { return file_; }
 
@@ -184,6 +189,8 @@ class VastNode {
   virtual bool CanAcceptAttributes() const { return true; }
 
  private:
+  std::string PreEmitImpl(LineInfo* line_info, bool check_can_accept);
+
   VerilogFile* file_;
   SourceInfo loc_;
 };

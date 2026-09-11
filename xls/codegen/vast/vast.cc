@@ -58,6 +58,14 @@ std::string GetFilename(Fileno fileno, VerilogFile* file) {
 }
 
 std::string VastNode::PreEmit(LineInfo* line_info) {
+  return PreEmitImpl(line_info, /*check_can_accept=*/true);
+}
+
+std::string VastNode::PreEmitHoisted(LineInfo* line_info) {
+  return PreEmitImpl(line_info, /*check_can_accept=*/false);
+}
+
+std::string VastNode::PreEmitImpl(LineInfo* line_info, bool check_can_accept) {
   if (loc().locations.empty()) {
     return {};
   }
@@ -77,7 +85,7 @@ std::string VastNode::PreEmit(LineInfo* line_info) {
       return absl::StrFormat("// %s", res);
     }
     case AnnotationType::kSrcAttribute: {
-      if (!CanAcceptAttributes()) {
+      if (check_can_accept && !CanAcceptAttributes()) {
         return {};
       }
       auto append_location = [&](std::string* out,
@@ -1404,7 +1412,7 @@ std::string VerilogPackageSection::Emit(LineInfo* line_info) const {
 }
 
 std::string ContinuousAssignment::PreEmit(LineInfo* line_info) {
-  return rhs_->VastNode::PreEmit(line_info);
+  return rhs_->VastNode::PreEmitHoisted(line_info);
 }
 
 std::string ContinuousAssignment::Emit(LineInfo* line_info) const {

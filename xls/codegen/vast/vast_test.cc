@@ -1297,6 +1297,13 @@ TEST_P(VastTest, SrcAttributeAnnotations) {
   af->AddRegister(b, b_next,
                   SourceInfo(SourceLocation(Fileno(0), Lineno(7), Colno(8))));
 
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * c,
+      m->AddWire("c", f.BitVectorType(8, SourceInfo()), SourceInfo()));
+  m->Add<ContinuousAssignment>(
+      SourceInfo(), c,
+      f.Add(a, b, SourceInfo(SourceLocation(Fileno(0), Lineno(8), Colno(1)))));
+
   EXPECT_EQ(m->Emit(nullptr),
             R"(module top(
   input wire my_clk,
@@ -1323,6 +1330,9 @@ TEST_P(VastTest, SrcAttributeAnnotations) {
       b <= b_next;
     end
   end
+  wire [7:0] c;
+  (* src = "test.x:8.1-8.1" *)
+  assign c = a + b;
 endmodule)");
 }
 
