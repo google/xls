@@ -1,0 +1,44 @@
+package test_module_package
+
+file_number 0 "test_module.x"
+
+fn __itok__test_module__f(__token: token id=1, __activated: bits[1] id=2) -> (token, ()) {
+  literal.3: bits[32] = literal(value=4294967255, id=3, pos=[(0,1,18)])
+  literal.4: bits[32] = literal(value=31, id=4, pos=[(0,1,27)])
+  literal.10: bits[32] = literal(value=4294967255, id=10, pos=[(0,2,18)])
+  literal.11: bits[32] = literal(value=31, id=11, pos=[(0,2,27)])
+  literal.17: bits[32] = literal(value=31, id=17, pos=[(0,3,18)])
+  literal.18: bits[32] = literal(value=4294967255, id=18, pos=[(0,3,26)])
+  literal.24: bits[32] = literal(value=31, id=24, pos=[(0,4,18)])
+  literal.25: bits[32] = literal(value=4294967255, id=25, pos=[(0,4,26)])
+  not.6: bits[1] = not(__activated, id=6)
+  slt.5: bits[1] = slt(literal.3, literal.4, id=5)
+  not.13: bits[1] = not(__activated, id=13)
+  sle.12: bits[1] = sle(literal.10, literal.11, id=12)
+  not.20: bits[1] = not(__activated, id=20)
+  sgt.19: bits[1] = sgt(literal.17, literal.18, id=19)
+  not.27: bits[1] = not(__activated, id=27)
+  sge.26: bits[1] = sge(literal.24, literal.25, id=26)
+  or.7: bits[1] = or(not.6, slt.5, id=7)
+  or.14: bits[1] = or(not.13, sle.12, id=14)
+  or.21: bits[1] = or(not.20, sgt.19, id=21)
+  or.28: bits[1] = or(not.27, sge.26, id=28)
+  assert.8: token = assert(__token, or.7, message="Assertion failure via assert_lt @ test_module.x:2:18-2:35", label="assert_lt(s32:-41, s32:31)", id=8)
+  assert.15: token = assert(__token, or.14, message="Assertion failure via assert_le @ test_module.x:3:18-3:35", label="assert_le(s32:-41, s32:31)", id=15)
+  assert.22: token = assert(__token, or.21, message="Assertion failure via assert_gt @ test_module.x:4:18-4:35", label="assert_gt(s32:31, s32:-41)", id=22)
+  assert.29: token = assert(__token, or.28, message="Assertion failure via assert_ge @ test_module.x:5:18-5:35", label="assert_ge(s32:31, s32:-41)", id=29)
+  after_all.32: token = after_all(assert.8, assert.15, assert.22, assert.29, id=32)
+  tuple.31: () = tuple(id=31, pos=[(0,0,13)])
+  tuple.9: () = tuple(id=9)
+  tuple.16: () = tuple(id=16)
+  tuple.23: () = tuple(id=23)
+  tuple.30: () = tuple(id=30)
+  ret tuple.33: (token, ()) = tuple(after_all.32, tuple.31, id=33)
+}
+
+top fn __test_module__f() -> () {
+  after_all.34: token = after_all(id=34)
+  literal.35: bits[1] = literal(value=1, id=35)
+  invoke.36: (token, ()) = invoke(after_all.34, literal.35, to_apply=__itok__test_module__f, id=36)
+  ret tuple_index.37: () = tuple_index(invoke.36, index=1, id=37)
+}

@@ -82,7 +82,11 @@ TEST(FunctionConverterTest, ConvertsSimpleFunctionWithAsserts) {
       ParseAndTypecheck(R"(fn f() -> () {
         assert!(u32:42 == u32:31 + u32:1, "foo");
         assert_eq(u32:42, u32:31 + u32:1);
+        assert_ne(u32:42, u32:31);
         assert_lt(u32:41, u32:31 + u32:1);
+        assert_le(u32:41, u32:31 + u32:1);
+        assert_gt(u32:41, u32:31);
+        assert_ge(u32:41, u32:31);
       })",
                         "test_module.x", "test_module", &import_data));
 
@@ -121,6 +125,35 @@ TEST(FunctionConverterTest, ConvertsSimpleFunctionWithAsserts) {
                 }
                 functions { base { name: "__test_module__f" } }
               )pb"));
+}
+
+TEST(FunctionConverterTest, ConvertsSimpleFunctionWithSignedAsserts) {
+  ImportData import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(R"(fn f() -> () {
+        assert_lt(s32:-41, s32:31);
+        assert_le(s32:-41, s32:31);
+        assert_gt(s32:31, s32:-41);
+        assert_ge(s32:31, s32:-41);
+      })",
+                        "test_module.x", "test_module", &import_data));
+
+  Function* f = tm.module->GetFunction("f").value();
+  ASSERT_NE(f, nullptr);
+
+  const ConvertOptions convert_options;
+  PackageConversionData package = MakeConversionData("test_module_package");
+  PackageData package_data{.conversion_info = &package};
+  FunctionConverter converter(package_data, tm.module, &import_data,
+                              convert_options, /*proc_data=*/nullptr,
+                              /*channel_scope=*/nullptr,
+                              /*is_top=*/true);
+  XLS_ASSERT_OK(
+      converter.HandleFunction(f, tm.type_info, /*parametric_env=*/nullptr));
+
+  EXPECT_EQ(package_data.ir_to_dslx.size(), 1);
+  ExpectIr(package.DumpIr());
 }
 
 TEST(FunctionConverterTest, TracksMultipleTypeAliasSvType) {

@@ -245,6 +245,69 @@ const X = foo(10);
       TypecheckSucceeds(HasNodeWithType("25", "uN[10]")));
 }
 
+TEST(TypecheckV2BuiltinTest, AssertNe) {
+  EXPECT_THAT(
+      R"(
+fn foo(x: u10) -> u10 {
+  assert_ne(x, 25);
+  x
+}
+
+const X = foo(10);
+)",
+      TypecheckSucceeds(HasNodeWithType("25", "uN[10]")));
+}
+
+TEST(TypecheckV2BuiltinTest, AssertNeEnum) {
+  EXPECT_THAT(
+      R"(
+enum E { A = 0, B = 1 }
+fn f() {
+  assert_ne(E::A, E::B);
+}
+)",
+      TypecheckSucceeds(HasNodeWithType("assert_ne", "(E, E) -> ()")));
+}
+
+TEST(TypecheckV2BuiltinTest, AssertLe) {
+  EXPECT_THAT(
+      R"(
+fn foo(x: u10) -> u10 {
+  assert_le(x, 25);
+  x
+}
+
+const X = foo(10);
+)",
+      TypecheckSucceeds(HasNodeWithType("25", "uN[10]")));
+}
+
+TEST(TypecheckV2BuiltinTest, AssertGt) {
+  EXPECT_THAT(
+      R"(
+fn foo(x: u10) -> u10 {
+  assert_gt(x, 25);
+  x
+}
+
+const X = foo(10);
+)",
+      TypecheckSucceeds(HasNodeWithType("25", "uN[10]")));
+}
+
+TEST(TypecheckV2BuiltinTest, AssertGe) {
+  EXPECT_THAT(
+      R"(
+fn foo(x: u10) -> u10 {
+  assert_ge(x, 25);
+  x
+}
+
+const X = foo(10);
+)",
+      TypecheckSucceeds(HasNodeWithType("25", "uN[10]")));
+}
+
 TEST(TypecheckV2BuiltinTest, AssertWithArray) {
   EXPECT_THAT(
       R"(
