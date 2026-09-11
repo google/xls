@@ -224,6 +224,9 @@ ABSL_FLAG(
     "for boundary ports. If disabled (with `--nopreserve_ports`), anything "
     "that consumes the generated Verilog should use the block "
     "signature/metadata to find the ports corresponding to each channel.");
+ABSL_FLAG(bool, embed_child_block_signatures, false,
+          "If true, recursively embed each instantiated child block's "
+          "signature into the parent block's signature.");
 
 struct SeedSeq {
   std::vector<int32_t> elements;
@@ -447,6 +450,7 @@ static absl::StatusOr<bool> SetOptionsFromFlags(CodegenFlagsProto& proto) {
   // Optimizations
   POPULATE_FLAG(gate_recvs);
   POPULATE_FLAG(array_index_bounds_checking);
+  POPULATE_FLAG(embed_child_block_signatures);
   POPULATE_FLAG(fifo_module);
   POPULATE_FLAG(nodata_fifo_module);
 
