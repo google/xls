@@ -15,6 +15,7 @@
 # Common utilities shared among XLA subfolders.
 
 load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
+load("@bazel_skylib//rules:common_settings.bzl", "string_flag")
 load("@protobuf//bazel:cc_proto_library.bzl", "cc_proto_library")
 load("@protobuf//bazel:proto_library.bzl", "proto_library")
 load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
@@ -288,17 +289,117 @@ xls_cc_embed_data(
     data = ":subprocess_helper",
 )
 
+# Select a chdir API supported by the toolchain and deployment target. "auto"
+# uses Darwin's availability adapter on macOS and the wrapper on Linux, keeping
+# compatibility with older libc versions. Explicit choices require the standard
+# POSIX.1-2024 action ("posix") or glibc >= 2.29 ("glibc"). For example:
+#   --//xls/common:subprocess_chdir=glibc
+string_flag(
+    name = "subprocess_chdir",
+    build_setting_default = "auto",
+    values = [
+        "auto",
+        "posix",
+        "glibc",
+    ],
+)
+
+config_setting(
+    name = "subprocess_chdir_darwin",
+    constraint_values = ["@platforms//os:osx"],
+    flag_values = {":subprocess_chdir": "auto"},
+)
+
+config_setting(
+    name = "subprocess_chdir_posix",
+    flag_values = {":subprocess_chdir": "posix"},
+)
+
+config_setting(
+    name = "subprocess_chdir_glibc",
+    constraint_values = ["@platforms//os:linux"],
+    flag_values = {":subprocess_chdir": "glibc"},
+)
+
+config_setting(
+    name = "subprocess_wrapper_enabled",
+    constraint_values = ["@platforms//os:linux"],
+    flag_values = {":subprocess_chdir": "auto"},
+)
+
+cc_library(
+    name = "subprocess_for_os",
+    srcs = select({
+        ":subprocess_chdir_darwin": [
+            "subprocess_chdir_darwin.cc",
+            "subprocess_posix.cc",
+        ],
+        ":subprocess_chdir_posix": [
+            "subprocess_chdir_posix.cc",
+            "subprocess_posix.cc",
+        ],
+        ":subprocess_chdir_glibc": [
+            "subprocess_chdir_glibc.cc",
+            "subprocess_posix.cc",
+        ],
+        ":subprocess_wrapper_enabled": ["subprocess_with_wrapper.cc"],
+    }),
+    hdrs = [
+        "subprocess_chdir.h",
+        "subprocess_for_os.h",
+    ],
+    local_defines = select({
+        ":subprocess_chdir_glibc": ["_GNU_SOURCE"],
+        "//conditions:default": [],
+    }),
+    deps = [
+        ":strerror",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/types:span",
+    ] + select({
+        ":subprocess_chdir_darwin": [],
+        ":subprocess_chdir_posix": [],
+        ":subprocess_chdir_glibc": [],
+        ":subprocess_wrapper_enabled": [
+            ":subprocess_helper_embedded",
+            "//xls/common/file:file_descriptor",
+            "//xls/common/status:status_macros",
+        ],
+    }),
+)
+
+cc_test(
+    name = "subprocess_for_os_test",
+    srcs = ["subprocess_for_os_test.cc"],
+    deps = [
+        ":subprocess_for_os",
+        ":xls_gunit_main",
+        "//xls/common/file:filesystem",
+        "//xls/common/file:temp_directory",
+        "//xls/common/status:matchers",
+        "@abseil-cpp//absl/cleanup",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/types:span",
+        "@googletest//:gtest",
+    ],
+)
+
 cc_library(
     name = "subprocess",
     srcs = ["subprocess.cc"],
     hdrs = ["subprocess.h"],
     deps = [
         ":strerror",
-        ":subprocess_helper_embedded",
+        ":subprocess_for_os",
         ":thread",
         "//xls/common/file:file_descriptor",
         "//xls/common/logging:log_lines",
         "//xls/common/status:status_macros",
+        "@abseil-cpp//absl/cleanup",
         "@abseil-cpp//absl/container:fixed_array",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/log:check",
@@ -318,6 +419,7 @@ cc_test(
     deps = [
         ":subprocess",
         ":xls_gunit_main",
+        "//xls/common/file:temp_directory",
         "//xls/common/status:matchers",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:status_matchers",
