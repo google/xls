@@ -2999,6 +2999,90 @@ impl Main {
   ExpectIr(conv.DumpIr());
 }
 
+TEST_F(IrConverterTest, ParametricProcDefReferencingParametricInNext) {
+  constexpr std::string_view kModule = R"(
+#![feature(explicit_state_access)]
+
+proc ParametricProc<N: u32> {
+  c_out: chan<u32> out,
+}
+
+impl ParametricProc<N> {
+  fn new(c_out: chan<u32> out) -> Self {
+    ParametricProc { c_out }
+  }
+
+  fn next(self) {
+    send(join(), self.c_out, N);
+  }
+}
+
+proc Main {
+  c_out: chan<u32> out,
+}
+
+impl Main {
+  fn new(c_out: chan<u32> out) -> Self {
+    let (s, r) = chan<u32>("c");
+    ParametricProc<42>::new(s).spawn();
+    Main { c_out }
+  }
+
+  fn next(self) {}
+}
+)";
+
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(kModule, "test_module.x", "test_module", &import_data));
+  XLS_ASSERT_OK(ConvertModuleToPackage(tm.module, &import_data,
+                                       kProcScopedChannelOptions));
+}
+
+TEST_F(IrConverterTest, ParametricProcDefReferencingTypeParametricInNext) {
+  constexpr std::string_view kModule = R"(
+#![feature(explicit_state_access)]
+#![feature(generics)]
+
+proc ParametricProc<T: type> {
+  c_out: chan<T> out,
+}
+
+impl ParametricProc<T> {
+  fn new(c_out: chan<T> out) -> Self {
+    ParametricProc { c_out }
+  }
+
+  fn next(self) {
+    let x: T = zero!<T>();
+    send(join(), self.c_out, x);
+  }
+}
+
+proc Main {
+  c_out: chan<u32> out,
+}
+
+impl Main {
+  fn new(c_out: chan<u32> out) -> Self {
+    let (s, r) = chan<u32>("c");
+    ParametricProc<u32>::new(s).spawn();
+    Main { c_out }
+  }
+
+  fn next(self) {}
+}
+)";
+
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(kModule, "test_module.x", "test_module", &import_data));
+  XLS_ASSERT_OK(ConvertModuleToPackage(tm.module, &import_data,
+                                       kProcScopedChannelOptions));
+}
+
 TEST_F(IrConverterTest, TopProcDefWithIndrectConstructorResult) {
   constexpr std::string_view program = R"(
 #![feature(explicit_state_access)]

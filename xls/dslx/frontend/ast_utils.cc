@@ -772,4 +772,24 @@ absl::StatusOr<absl::flat_hash_set<const NameDef*>> CollectNameDefsUnder(
   return def_finder.name_defs();
 }
 
+std::optional<const ParametricBinding*> GetProcParametricBinding(
+    const NameRef* ref) {
+  if (!std::holds_alternative<const NameDef*>(ref->name_def())) {
+    return std::nullopt;
+  }
+  const NameDef* def = std::get<const NameDef*>(ref->name_def());
+  if (def->parent() == nullptr ||
+      def->parent()->kind() != AstNodeKind::kParametricBinding) {
+    return std::nullopt;
+  }
+  const ParametricBinding* binding =
+      absl::down_cast<ParametricBinding*>(def->parent());
+  if (binding->parent() == nullptr ||
+      (binding->parent()->kind() != AstNodeKind::kProc &&
+       binding->parent()->kind() != AstNodeKind::kProcDef)) {
+    return std::nullopt;
+  }
+  return binding;
+}
+
 }  // namespace xls::dslx

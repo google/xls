@@ -301,6 +301,11 @@ std::optional<std::string_view> GetIdentifier(TypeDefinition td);
 // Returns the `next` function of the given proc, if it has one.
 std::optional<Function*> GetProcNextFunction(const ProcDef* proc);
 
+// Returns the proc-level parametric binding referenced by `ref`, or `nullopt`
+// if `ref` does not refer to a proc-level parametric binding.
+std::optional<const ParametricBinding*> GetProcParametricBinding(
+    const NameRef* ref);
+
 }  // namespace xls::dslx
 
 #endif  // XLS_DSLX_FRONTEND_AST_UTILS_H_

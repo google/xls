@@ -916,29 +916,46 @@ absl::Status FunctionConverter::HandleNameRef(const NameRef* node) {
     XLS_RET_CHECK(proc_id_.has_value()) << from->ToString();
     XLS_RET_CHECK(proc_data_->id_to_members.contains(proc_id_.value()))
         << proc_id_->ToString();
-    for (const auto& [k, v] : proc_data_->id_to_members.at(proc_id_.value())) {
-      if (k == node->identifier()) {
-        if (std::holds_alternative<Value>(v)) {
-          VLOG(4) << "Reference to Proc member: " << k
-                  << " : Value : " << std::get<Value>(v).ToString();
-          CValue cvalue;
-          cvalue.ir_value = std::get<Value>(v);
-          cvalue.value = function_builder_->Literal(cvalue.ir_value);
-          SetNodeToIr(from, cvalue);
-        } else if (std::holds_alternative<ChannelArray*>(v)) {
-          VLOG(4) << "Reference to Proc member: " << k << " : Chan array : "
-                  << std::get<ChannelArray*>(v)->ToString();
-          SetNodeToIr(from, std::get<ChannelArray*>(v));
-        } else if (std::holds_alternative<Channel*>(v)) {
-          VLOG(4) << "Reference to Proc member: " << k
-                  << " : Chan  : " << std::get<Channel*>(v)->ToString();
-          SetNodeToIr(from, std::get<Channel*>(v));
-        } else {
-          // Channel interface
-          VLOG(4) << "Reference to Proc member: " << k << " : ChanInterface : "
-                  << std::get<ChannelInterface*>(v)->ToString();
-          SetNodeToIr(from, std::get<ChannelInterface*>(v));
-        }
+    const MemberNameToValue& members = proc_data_->id_to_members.at(*proc_id_);
+    const std::string_view k = node->identifier();
+    const auto it = members.find(k);
+    if (it != members.end()) {
+      const ProcConfigValue& v = it->second;
+      if (std::holds_alternative<Value>(v)) {
+        VLOG(4) << "Reference to Proc member: " << k
+                << " : Value : " << std::get<Value>(v).ToString();
+        CValue cvalue;
+        cvalue.ir_value = std::get<Value>(v);
+        cvalue.value = function_builder_->Literal(cvalue.ir_value);
+        SetNodeToIr(from, cvalue);
+      } else if (std::holds_alternative<ChannelArray*>(v)) {
+        VLOG(4) << "Reference to Proc member: " << k
+                << " : Chan array : " << std::get<ChannelArray*>(v)->ToString();
+        SetNodeToIr(from, std::get<ChannelArray*>(v));
+      } else if (std::holds_alternative<Channel*>(v)) {
+        VLOG(4) << "Reference to Proc member: " << k
+                << " : Chan  : " << std::get<Channel*>(v)->ToString();
+        SetNodeToIr(from, std::get<Channel*>(v));
+      } else {
+        // Channel interface
+        VLOG(4) << "Reference to Proc member: " << k << " : ChanInterface : "
+                << std::get<ChannelInterface*>(v)->ToString();
+        SetNodeToIr(from, std::get<ChannelInterface*>(v));
+      }
+    } else if (std::optional<const ParametricBinding*> binding =
+                   GetProcParametricBinding(node);
+               binding.has_value()) {
+      std::optional<InterpValue> parametric_value =
+          GetParametricBinding((*binding)->identifier());
+      XLS_RET_CHECK(parametric_value.has_value());
+      if (!parametric_value->IsTypeReference()) {
+        XLS_ASSIGN_OR_RETURN(Value param_value,
+                             parametric_value->ConvertToIr());
+        CValue cvalue;
+        cvalue.ir_value = param_value;
+        cvalue.value = function_builder_->Literal(
+            cvalue.ir_value, ToSourceInfo(node->GetSpan()), node->identifier());
+        SetNodeToIr(from, cvalue);
       }
     }
   }
@@ -3818,8 +3835,7 @@ absl::Status FunctionConverter::InitProcDefBuilder(const ProcDef* proc_def,
   };
   tokens_.push_back(implicit_token);
 
-  // TODO: https://github.com/google/xls/issues/4125 - Deal with the parametric
-  // bindings here, using `HandleProcNextFunction` as a rough guide.
+  SetParametricEnv(&env);
 
   VLOG(3) << "Proc has " << constant_deps_.size() << " constant deps";
   for (ConstantDef* dep : constant_deps_) {
