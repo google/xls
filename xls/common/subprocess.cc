@@ -15,13 +15,9 @@
 #include "xls/common/subprocess.h"
 
 #include <fcntl.h>
-#if !defined(__APPLE__)
-#include <linux/memfd.h>
-#endif
 #include <signal.h>  // NOLINT
 #include <spawn.h>
 #include <stdlib.h>  // NOLINT for WIFEXITED, WEXITSTATUS; not in <cstdlib>
-#include <sys/mman.h>
 #include <sys/poll.h>
 #include <sys/types.h>
 #include <sys/wait.h>
@@ -40,6 +36,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/cleanup/cleanup.h"
 #include "absl/container/fixed_array.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
@@ -55,12 +52,10 @@
 #include "xls/common/logging/log_lines.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/common/strerror.h"
-#include "xls/common/subprocess_helper_embedded_embedded.h"
+#include "xls/common/subprocess_for_os.h"
 #include "xls/common/thread.h"
 
-#if defined(__APPLE__)
 extern char** environ;
-#endif
 
 namespace xls {
 namespace {
@@ -109,14 +104,8 @@ absl::Status ReplaceFdWithPipe(posix_spawn_file_actions_t& actions, int fd,
   return absl::OkStatus();
 }
 
-absl::StatusOr<posix_spawn_file_actions_t> CreateChildFileActions(
-    Pipe& stdout_pipe, Pipe& stderr_pipe) {
-  posix_spawn_file_actions_t actions;
-
-  if (int err = posix_spawn_file_actions_init(&actions); err != 0) {
-    return absl::InternalError(
-        absl::StrCat("Cannot initialize file actions: ", Strerror(err)));
-  }
+absl::Status CreateChildFileActions(posix_spawn_file_actions_t& actions,
+                                    Pipe& stdout_pipe, Pipe& stderr_pipe) {
   if (int err = posix_spawn_file_actions_addclose(&actions, STDIN_FILENO);
       err != 0) {
     return absl::InternalError(
@@ -128,122 +117,29 @@ absl::StatusOr<posix_spawn_file_actions_t> CreateChildFileActions(
   XLS_RETURN_IF_ERROR(
       ReplaceFdWithPipe(actions, STDERR_FILENO, stderr_pipe, "stderr"));
 
-  return actions;
+  return absl::OkStatus();
 }
-
-#if !defined(__APPLE__)
-class CleanableFd {
- public:
-  explicit CleanableFd(int fd) : fd_(fd) {}
-  CleanableFd(const CleanableFd&) = delete;
-  CleanableFd& operator=(const CleanableFd&) = delete;
-  CleanableFd(CleanableFd&& o) : fd_(o.fd_) { o.fd_ = -1; }
-  CleanableFd& operator=(CleanableFd&& o) {
-    if (this != &o) {
-      fd_ = o.fd_;
-      o.fd_ = -1;
-    }
-    return *this;
-  }
-  ~CleanableFd() {
-    if (fd_ != -1) {
-      close(fd_);
-    }
-  }
-  operator int() const { return fd_; }
-
- private:
-  int fd_ = -1;
-};
-
-absl::StatusOr<CleanableFd> GetSubprocessHelperFd() {
-  int raw_fd = memfd_create("subprocess_helper", MFD_CLOEXEC);
-  CleanableFd fd(raw_fd);
-  if (fd == -1) {
-    return absl::InternalError(absl::StrCat(
-        "Failed to create memfd for subprocess helper: ", Strerror(errno)));
-  }
-  if (write(fd, get_subprocess_helper_embedded().data(),
-            get_subprocess_helper_embedded().size()) !=
-      get_subprocess_helper_embedded().size()) {
-    return absl::InternalError(absl::StrCat(
-        "Failed to write subprocess helper to memfd: ", Strerror(errno)));
-  }
-  if (lseek(fd, 0, SEEK_SET) != 0) {
-    return absl::InternalError(absl::StrCat(
-        "Failed to seek subprocess helper in memfd: ", Strerror(errno)));
-  }
-  return std::move(fd);
-}
-
-#else
-int AddChdirFileAction(posix_spawn_file_actions_t* file_actions,
-                       const char* cwd) {
-#if defined(__MAC_26_0) && __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_26_0
-  return posix_spawn_file_actions_addchdir(file_actions, cwd);
-#else
-#if defined(__MAC_26_0) && __MAC_OS_X_VERSION_MAX_ALLOWED >= __MAC_26_0
-  if (__builtin_available(macOS 26.0, *)) {
-    return posix_spawn_file_actions_addchdir(file_actions, cwd);
-  }
-#endif
-  return posix_spawn_file_actions_addchdir_np(file_actions, cwd);
-#endif
-}
-#endif
 
 absl::StatusOr<pid_t> ExecInChildProcess(
     const std::vector<const char*>& argv_pointers,
     const std::optional<std::filesystem::path>& cwd, Pipe& stdout_pipe,
     Pipe& stderr_pipe,
     absl::Span<const EnvironmentVariable> environment_variables) {
-  // We previously used fork() & exec() here, but that's prone to many subtle
-  // problems (e.g., allocating between fork() and exec() can cause arbitrary
-  // problems)... and it's also slow. vfork() might have made the performance
-  // better, but it's not fully clear what's safe between vfork() and exec()
-  // either, so we just use posix_spawn for safety and convenience.
-
-#if defined(__APPLE__)
-  // Darwin can change the child directory without a helper executable.
-  std::string subprocess_helper = argv_pointers.front();
-  std::vector<const char*> helper_argv_pointers = argv_pointers;
-#else
-  // Since we may need the child to have a different working directory (per
-  // `cwd`), and posix_spawn does not (yet) have support for a chdir action, we
-  // use a helper binary that chdir's to its first argument, then invokes
-  // "execvp" with the remaining arguments to replace itself with the command we
-  // actually wanted to run.
-
-  // To avoid having dependencies on the bazel build artifacts continuing to
-  // exist we run subprocess_helper out of a memfd.
-  static const absl::StatusOr<CleanableFd> subprocess_helper_fd =
-      GetSubprocessHelperFd();
-  XLS_RETURN_IF_ERROR(subprocess_helper_fd.status());
-  int fd = *subprocess_helper_fd;
-
-  std::string subprocess_helper = absl::StrCat("/proc/self/fd/", fd);
-  std::vector<const char*> helper_argv_pointers;
-  helper_argv_pointers.reserve(argv_pointers.size() + 2);
-  helper_argv_pointers.push_back(subprocess_helper.c_str());
-  helper_argv_pointers.push_back(cwd.has_value() ? cwd->c_str() : "");
-  helper_argv_pointers.insert(helper_argv_pointers.end(), argv_pointers.begin(),
-                              argv_pointers.end());
-
-#endif
-
-  XLS_ASSIGN_OR_RETURN(posix_spawn_file_actions_t file_actions,
-                       CreateChildFileActions(stdout_pipe, stderr_pipe));
-#if defined(__APPLE__)
-  if (cwd.has_value()) {
-    if (int err = AddChdirFileAction(&file_actions, cwd->c_str()); err != 0) {
-      posix_spawn_file_actions_destroy(&file_actions);
-      return absl::InternalError(absl::StrCat(
-          "Cannot add child working directory action: ", Strerror(err)));
-    }
+  posix_spawn_file_actions_t file_actions;
+  if (int err = posix_spawn_file_actions_init(&file_actions); err != 0) {
+    return absl::InternalError(
+        absl::StrCat("Cannot initialize file actions: ", Strerror(err)));
   }
-#endif
+  absl::Cleanup destroy_file_actions = [&] {
+    if (int err = posix_spawn_file_actions_destroy(&file_actions); err != 0) {
+      // Once spawned, the caller must receive the PID so it can reap the child.
+      LOG(ERROR) << "Cannot destroy file actions: " << Strerror(err);
+    }
+  };
+  XLS_RETURN_IF_ERROR(
+      CreateChildFileActions(file_actions, stdout_pipe, stderr_pipe));
 
-  // posix_spawnp takes a null-terminate array of char* for environment
+  // posix_spawn takes a null-terminated array of char* for environment
   // variables. Each element has the form "NAME=VALUE".
   std::vector<std::string> env_vars;
   std::vector<char*> env_var_ptrs;
@@ -266,19 +162,10 @@ absl::StatusOr<pid_t> ExecInChildProcess(
     env_var_ptrs.push_back(nullptr);
     child_env = env_var_ptrs.data();
   }
-  pid_t pid;
-  if (int err = posix_spawnp(
-          &pid, subprocess_helper.c_str(), &file_actions, nullptr,
-          const_cast<char* const*>(helper_argv_pointers.data()), child_env);
-      err != 0) {
-    return absl::InternalError(
-        absl::StrCat("Cannot spawn child process: ", Strerror(err)));
-  }
+  XLS_ASSIGN_OR_RETURN(
+      pid_t pid,
+      internal::SpawnSubprocess(argv_pointers, cwd, &file_actions, child_env));
 
-  if (int err = posix_spawn_file_actions_destroy(&file_actions); err != 0) {
-    return absl::InternalError(
-        absl::StrCat("Cannot destroy file actions: ", Strerror(err)));
-  }
   stdout_pipe.entrance.Close();
   stderr_pipe.entrance.Close();
   return pid;

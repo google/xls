@@ -288,17 +288,66 @@ xls_cc_embed_data(
     data = ":subprocess_helper",
 )
 
+# Select the launcher using the target OS (including Bazel's native macOS
+# platform), so macOS does not build or embed the Linux helper executable.
+config_setting(
+    name = "macos",
+    constraint_values = ["@platforms//os:osx"],
+)
+
+cc_library(
+    name = "subprocess_for_os",
+    srcs = select({
+        ":macos": ["subprocess_for_os_macos.cc"],
+        "@platforms//os:linux": ["subprocess_for_os_linux.cc"],
+    }),
+    hdrs = ["subprocess_for_os.h"],
+    deps = [
+        ":strerror",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/types:span",
+    ] + select({
+        ":macos": [],
+        "@platforms//os:linux": [
+            ":subprocess_helper_embedded",
+            "//xls/common/file:file_descriptor",
+            "//xls/common/status:status_macros",
+        ],
+    }),
+)
+
+cc_test(
+    name = "subprocess_for_os_test",
+    srcs = ["subprocess_for_os_test.cc"],
+    deps = [
+        ":subprocess_for_os",
+        ":xls_gunit_main",
+        "//xls/common/file:filesystem",
+        "//xls/common/file:temp_directory",
+        "//xls/common/status:matchers",
+        "@abseil-cpp//absl/cleanup",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/types:span",
+        "@googletest//:gtest",
+    ],
+)
+
 cc_library(
     name = "subprocess",
     srcs = ["subprocess.cc"],
     hdrs = ["subprocess.h"],
     deps = [
         ":strerror",
-        ":subprocess_helper_embedded",
+        ":subprocess_for_os",
         ":thread",
         "//xls/common/file:file_descriptor",
         "//xls/common/logging:log_lines",
         "//xls/common/status:status_macros",
+        "@abseil-cpp//absl/cleanup",
         "@abseil-cpp//absl/container:fixed_array",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/log:check",
