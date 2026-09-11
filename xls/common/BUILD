@@ -15,6 +15,7 @@
 # Common utilities shared among XLA subfolders.
 
 load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
+load("@bazel_skylib//rules:common_settings.bzl", "bool_flag")
 load("@protobuf//bazel:cc_proto_library.bzl", "cc_proto_library")
 load("@protobuf//bazel:proto_library.bzl", "proto_library")
 load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
@@ -288,18 +289,40 @@ xls_cc_embed_data(
     data = ":subprocess_helper",
 )
 
-# Select the launcher using the target OS (including Bazel's native macOS
-# platform), so macOS does not build or embed the Linux helper executable.
+# macOS always uses its native chdir action, including on older runtimes through
+# the Darwin availability adapter in subprocess_posix.cc.
 config_setting(
     name = "macos",
     constraint_values = ["@platforms//os:osx"],
 )
 
+# Enable direct spawning for toolchains with a POSIX.1-2024 chdir action, or
+# glibc >= 2.29 with _GNU_SOURCE enabled. Keep the wrapper as the Linux default
+# until the minimum supported libc provides the action. This setting also keeps
+# the embedded helper out of the dependency graph when direct spawning is used:
+#   --//xls/common:use_posix_spawn_chdir
+bool_flag(
+    name = "use_posix_spawn_chdir",
+    build_setting_default = False,
+)
+
+config_setting(
+    name = "posix_spawn_chdir_enabled",
+    flag_values = {":use_posix_spawn_chdir": "true"},
+)
+
+config_setting(
+    name = "subprocess_wrapper_enabled",
+    constraint_values = ["@platforms//os:linux"],
+    flag_values = {":use_posix_spawn_chdir": "false"},
+)
+
 cc_library(
     name = "subprocess_for_os",
     srcs = select({
-        ":macos": ["subprocess_for_os_macos.cc"],
-        "@platforms//os:linux": ["subprocess_for_os_linux.cc"],
+        ":macos": ["subprocess_posix.cc"],
+        ":posix_spawn_chdir_enabled": ["subprocess_posix.cc"],
+        ":subprocess_wrapper_enabled": ["subprocess_with_wrapper.cc"],
     }),
     hdrs = ["subprocess_for_os.h"],
     deps = [
@@ -310,7 +333,8 @@ cc_library(
         "@abseil-cpp//absl/types:span",
     ] + select({
         ":macos": [],
-        "@platforms//os:linux": [
+        ":posix_spawn_chdir_enabled": [],
+        ":subprocess_wrapper_enabled": [
             ":subprocess_helper_embedded",
             "//xls/common/file:file_descriptor",
             "//xls/common/status:status_macros",

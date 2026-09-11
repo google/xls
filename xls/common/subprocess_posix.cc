@@ -15,6 +15,7 @@
 #include <paths.h>
 #include <spawn.h>
 #include <sys/types.h>
+#include <unistd.h>
 
 #include <cerrno>
 #include <filesystem>
@@ -36,12 +37,16 @@
 namespace xls::internal {
 namespace {
 
-// macOS 26 introduced the standard addchdir spelling and deprecated _np, which
-// has been available since macOS 10.15. SDK availability and the deployment
-// target are separate: a new SDK can build a binary for an older runtime.
+// Use the standard POSIX.1-2024 chdir action where available. Some libcs expose
+// the action as an extension without advertising full POSIX.1-2024 support.
 // Both APIs return zero on success or an error number directly.
 int AddChdirFileAction(posix_spawn_file_actions_t* file_actions,
                        const char* cwd) {
+#if defined(__APPLE__)
+  // Darwin still advertises POSIX.1-2001. macOS 26 introduced the standard
+  // spelling and deprecated _np, which has been available since macOS 10.15.
+  // SDK availability and the deployment target are separate: a new SDK can
+  // build a binary for an older runtime.
 #if defined(__MAC_26_0) && __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_26_0
   // The minimum deployment target guarantees that the new API exists.
   return posix_spawn_file_actions_addchdir(file_actions, cwd);
@@ -51,7 +56,7 @@ int AddChdirFileAction(posix_spawn_file_actions_t* file_actions,
   // __builtin_available is Clang's C/C++ runtime availability check. For older
   // deployment targets, the SDK annotation makes the new function a weak
   // import; this check prevents calling it on an OS that lacks it. The required
-  // '*' covers unlisted platforms; Bazel selects this file only for macOS.
+  // '*' covers unlisted platforms; this adapter branch is Darwin-only.
   // https://clang.llvm.org/docs/LanguageExtensions.html#objective-c-available
   if (__builtin_available(macOS 26.0, *)) {
     return posix_spawn_file_actions_addchdir(file_actions, cwd);
@@ -59,6 +64,21 @@ int AddChdirFileAction(posix_spawn_file_actions_t* file_actions,
 #endif
   // Use the macOS 10.15 API with older SDKs or on pre-26 runtimes.
   return posix_spawn_file_actions_addchdir_np(file_actions, cwd);
+#endif
+#elif _POSIX_VERSION >= 202405L
+  // POSIX.1-2024 specifies 202405L for _POSIX_VERSION in <unistd.h>.
+  // https://pubs.opengroup.org/onlinepubs/9799919799/basedefs/unistd.h.html
+  return posix_spawn_file_actions_addchdir(file_actions, cwd);
+#elif defined(__GLIBC__)
+#if __GLIBC_PREREQ(2, 29) && defined(_GNU_SOURCE)
+  // glibc has provided the GNU extension since 2.29, even when _POSIX_VERSION
+  // still reports POSIX.1-2008. C++ toolchains normally enable _GNU_SOURCE.
+  return posix_spawn_file_actions_addchdir_np(file_actions, cwd);
+#else
+#error "Use the wrapper: direct spawning needs glibc >= 2.29 and _GNU_SOURCE."
+#endif
+#else
+#error "Direct spawning needs POSIX.1-2024 or a supported chdir extension."
 #endif
 }
 
@@ -81,7 +101,7 @@ int SpawnExecutable(pid_t* pid, const char* executable,
     return err;
   }
 
-  // Match execvp in the Linux helper: executable text without a shebang is
+  // Match execvp in the wrapper: executable text without a shebang is
   // interpreted by the shell. posix_spawn does not provide this fallback.
   std::vector<const char*> shell_argv = {"/bin/sh", executable};
   shell_argv.insert(shell_argv.end(), argv.begin() + 1, argv.end());
@@ -148,7 +168,7 @@ absl::StatusOr<pid_t> SpawnSubprocess(
     absl::Span<const char* const> argv,
     const std::optional<std::filesystem::path>& cwd,
     posix_spawn_file_actions_t* file_actions, char* const* envp) {
-  // Darwin can change the child directory without a helper executable.
+  // Change the child directory without a helper executable.
   if (cwd.has_value()) {
     // This records the action; the directory change happens when spawning.
     // A nonzero result here means the action could not be added.

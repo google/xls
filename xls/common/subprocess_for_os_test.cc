@@ -169,8 +169,8 @@ TEST(SubprocessForOsTest, SlashInCommandBypassesPathSearch) {
 
 TEST(SubprocessForOsTest, ExecutableTextWithoutShebangUsesShell) {
   XLS_ASSERT_OK_AND_ASSIGN(TempDirectory directory, TempDirectory::Create());
-  // execvp in the Linux helper falls back to /bin/sh for executable text
-  // without a shebang. The macOS launcher must provide that fallback and
+  // execvp in the wrapper falls back to /bin/sh for executable text
+  // without a shebang. The POSIX launcher must provide that fallback and
   // preserve args.
   XLS_ASSERT_OK(WriteScript(directory.path() / "command",
                             "test \"$1\" = expected || exit 47\nexit 53\n"));
