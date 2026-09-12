@@ -476,7 +476,8 @@ absl::StatusOr<RegisterRead*> AddRegisterAfterNode(
 absl::StatusOr<Node*> AddZeroLatencyBufferToRDVNodes(
     Node* from_data, Node* from_valid, Node* from_rdy,
     std::string_view name_prefix, Block* block,
-    std::vector<std::optional<Node*>>& valid_nodes) {
+    std::vector<std::optional<Node*>>& valid_nodes,
+    ZeroLatencyBufferReadyMode ready_mode) {
   CHECK_EQ(from_rdy->operand_count(), 1);
 
   // Add a node for load_enables (will be removed later).
@@ -559,6 +560,25 @@ absl::StatusOr<Node*> AddZeroLatencyBufferToRDVNodes(
           /*loc=*/SourceInfo(),
           std::vector<Node*>{skid_data_load_en, skid_valid_set_zero}, Op::kOr,
           absl::StrCat(name_prefix, "_skid_valid_load_en")));
+
+  // Reserve next-cycle capacity using the original buffer's next occupancy.
+  // Current-cycle callers retain the existing buffer behavior.
+  if (ready_mode == ZeroLatencyBufferReadyMode::kNextCycle) {
+    XLS_ASSIGN_OR_RETURN(
+        Node * skid_valid_next,
+        block->MakeNodeWithName<Select>(
+            /*loc=*/SourceInfo(),
+            /*selector=*/skid_valid_load_en,
+            /*cases=*/
+            std::vector<Node*>{data_valid_skid_reg_read, from_skid_rdy},
+            /*default_value=*/std::nullopt,
+            /*name=*/absl::StrCat(name_prefix, "_skid_valid_next")));
+    XLS_ASSIGN_OR_RETURN(Node * next_ready,
+                         block->MakeNodeWithName<UnOp>(
+                             /*loc=*/SourceInfo(), skid_valid_next, Op::kNot,
+                             absl::StrCat(name_prefix, "_skid_next_is_empty")));
+    XLS_RETURN_IF_ERROR(from_rdy->ReplaceOperandNumber(0, next_ready));
+  }
 
   XLS_ASSIGN_OR_RETURN(
       RegisterWrite * data_skid_reg_write,
