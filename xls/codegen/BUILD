@@ -17,7 +17,12 @@ load("@protobuf//bazel:proto_library.bzl", "proto_library")
 load("@protobuf//bazel:py_proto_library.bzl", "py_proto_library")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_cc//cc:cc_test.bzl", "cc_test")
-load("//xls/build_rules:xls_build_defs.bzl", "xls_diff_test", "xls_ir_verilog")
+load("//xls/build_rules:xls_build_defs.bzl",
+     "xls_diff_test",
+     "xls_dslx_ir",
+     "xls_dslx_test",
+     "xls_ir_opt_ir",
+     "xls_ir_verilog")
 
 package(
     default_applicable_licenses = ["//:license"],
@@ -2163,6 +2168,42 @@ xls_diff_test(
     # accurately pick out only the node-ids. It also changes some constants and
     # line numbers.
     sed_transform = "s/_[0-9]+/_XXX/g",
+)
+
+# A zero-filled array shift written as a for loop. The loop is recognized by
+# the loop_idiom pass (before loop unrolling) and emitted as a native
+# SystemVerilog shift instead of one dynamic array lookup per output element.
+xls_dslx_ir(
+    name = "affine_shift_ir",
+    srcs = ["affine_shift.x"],
+    dslx_top = "main",
+)
+
+xls_dslx_test(
+    name = "affine_shift_dslx_test",
+    srcs = ["affine_shift.x"],
+    dslx_test_args = {"compare": "jit"},
+)
+
+xls_ir_opt_ir(
+    name = "affine_shift_opt_ir",
+    src = ":affine_shift_ir",
+)
+
+xls_ir_verilog(
+    name = "affine_shift_comb_sv",
+    src = ":affine_shift_opt_ir",
+    codegen_args = {
+        "generator": "combinational",
+        "use_system_verilog": "true",
+    },
+    verilog_file = "affine_shift_comb.sv",
+)
+
+xls_diff_test(
+    name = "affine_shift_comb_diff_test",
+    file = ":affine_shift_comb.sv",
+    golden = "testdata/affine_shift_comb.svtxt",
 )
 
 cc_test(
