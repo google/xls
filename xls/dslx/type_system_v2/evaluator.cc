@@ -126,10 +126,7 @@ class EvaluatorImpl : public Evaluator {
     // Only attempt to concretize if the type annotation is not a generic TVTA.
     // Otherwise, we will still attempt to evaluate the expression and use its
     // result to determine the type.
-    bool concretize =
-        !(type_annotation->IsAnnotation<TypeVariableTypeAnnotation>() &&
-          type_annotation->AsAnnotation<TypeVariableTypeAnnotation>()
-              ->IsGeneric());
+    bool concretize = !IsTvtaToGeneric(type_annotation);
     // This is the type of the parametric binding we are talking about, which is
     // typically a built-in type, but the way we are concretizing it here would
     // support it being a complex type that even refers to other parametrics.

@@ -109,8 +109,7 @@ absl::StatusOr<InferenceVariableKind> TypeAnnotationToInferenceVariableKind(
     }
   }
   if (annotation->IsAnnotation<GenericTypeAnnotation>() ||
-      (annotation->IsAnnotation<TypeVariableTypeAnnotation>() &&
-       annotation->AsAnnotation<TypeVariableTypeAnnotation>()->IsGeneric())) {
+      IsTvtaToGeneric(annotation)) {
     return InferenceVariableKind::kType;
   }
   if (GetSignednessAndBitCount(annotation).ok() ||

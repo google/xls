@@ -229,6 +229,17 @@ std::string GetParametricBindingOwnerDescription(
 // type.
 bool IsChannelOrChannelArrayAnnotation(const TypeAnnotation* annotation);
 
+// Returns true if the type annotation is a TVTA whose type_variable is a
+// generic TA.
+bool IsTvtaToGeneric(const TypeAnnotation* type_annotation);
+
+// Return the indices of the parametric bindings with all bindings that are
+// TypeVariableTypeAnnotations to a generic TA last. This ensures that when we
+// try to infer parametrics, we will infer the relevant types before we try to
+// resolve the bindings that depend on them.
+std::vector<int> GetBindingIndicesWithGenericTvtasLast(
+    const StructDefBase* def);
+
 }  // namespace xls::dslx
 
 #endif  // XLS_DSLX_TYPE_SYSTEM_V2_TYPE_ANNOTATION_UTILS_H_

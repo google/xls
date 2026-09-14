@@ -14,6 +14,7 @@
 
 #include "xls/dslx/frontend/lambda_rewriter.h"
 
+#include <functional>
 #include <iterator>
 #include <optional>
 #include <string>
@@ -118,16 +119,15 @@ class CollectNameRefs : public AstNodeVisitorWithDefault {
     return it->second.name_refs;
   }
 
+  absl::flat_hash_set<const NameDef*> ConstLetsDefinedPrior(
+      const Pos start) const {
+    return NameDefsDefinedPriorInternal(start, is_const);
+  }
+
   absl::flat_hash_set<const NameDef*> NameDefsDefinedPrior(
       const Pos start) const {
-    absl::flat_hash_set<const NameDef*> result;
-    for (const auto& [name_def, info] : name_ref_info_) {
-      if (!info.any_used_in_type_annotation &&
-          name_def->span().start() < start) {
-        result.insert(name_def);
-      }
-    }
-    return result;
+    return NameDefsDefinedPriorInternal(
+        start, [](const NameDef* nd) { return !is_const(nd); });
   }
 
   absl::flat_hash_map<const NameDef*,
@@ -169,6 +169,30 @@ class CollectNameRefs : public AstNodeVisitorWithDefault {
     return absl::OkStatus();
   }
 
+  static bool is_const(const NameDef* name_def) {
+    if (name_def->definer() == nullptr ||
+        name_def->definer()->kind() != AstNodeKind::kLet) {
+      return false;
+    }
+    const auto* let = absl::down_cast<const Let*>(name_def->definer());
+    return let->is_const();
+  }
+
+  absl::flat_hash_set<const NameDef*> NameDefsDefinedPriorInternal(
+      const Pos start,
+      std::function<bool(const NameDef*)> name_def_filter) const {
+    absl::flat_hash_set<const NameDef*> result;
+    for (const auto& [name_def, info] : name_ref_info_) {
+      if (!info.any_used_in_type_annotation &&
+          name_def->span().start() < start) {
+        if (name_def_filter(name_def)) {
+          result.insert(name_def);
+        }
+      }
+    }
+    return result;
+  }
+
   absl::flat_hash_map<const NameDef*, NameRefInfo> name_ref_info_;
   absl::flat_hash_map<const NameDef*,
                       absl::flat_hash_set<const TypeRefTypeAnnotation*>>
@@ -183,6 +207,9 @@ class LambdaStructBindings {
   void AddBinding(ParametricBinding* struct_definition_parametric,
                   ExprOrType struct_type_parametric,
                   ExprOrType struct_instance_parametric) {
+    if (ToAstNode(struct_instance_parametric) == nullptr) {
+      return AddBinding(struct_definition_parametric, struct_type_parametric);
+    }
     fully_defined_bindings_.push_back({struct_definition_parametric,
                                        struct_type_parametric,
                                        struct_instance_parametric});
@@ -293,6 +320,19 @@ class LambdaRewriter : public AstNodeRecursiveVisitor {
         XLS_RETURN_IF_ERROR(
             ReplaceTypeRefTypeAnnotations(module, original_nd, trtas, &bindings,
                                           parametric_nds, node_replacements));
+      }
+    }
+
+    for (const NameDef* original_name_def :
+         collect_nr.ConstLetsDefinedPrior(span.start())) {
+      absl::flat_hash_set<const NameRef*> name_refs =
+          collect_nr.NameRefsForDef(original_name_def);
+      if (name_refs.empty()) {
+        continue;
+      }
+      if (!parametric_nds.contains(original_name_def)) {
+        AddConstantCapture(module, original_name_def, &bindings, name_refs,
+                           node_replacements);
       }
     }
 
@@ -519,6 +559,56 @@ class LambdaRewriter : public AstNodeRecursiveVisitor {
               /*internal=*/true));
     }
     return absl::OkStatus();
+  }
+
+  void AddConstantCapture(
+      Module* module, const NameDef* original_nd,
+      LambdaStructBindings* bindings,
+      absl::flat_hash_set<const NameRef*> name_refs,
+      absl::flat_hash_map<const AstNode*, AstNode*>& node_replacements) {
+    // Generic type parametric for the constant type definition.
+    GenericTypeAnnotation* gta =
+        module->Make<GenericTypeAnnotation>(original_nd->span());
+    NameDef* generic_name_def = module->Make<NameDef>(
+        original_nd->span(),
+        absl::Substitute("parametric_type_for_$0", original_nd->identifier()),
+        /*definer=*/gta);
+
+    const Let* original_let =
+        absl::down_cast<const Let*>(original_nd->definer());
+    TypeAnnotation* instance_annotation = original_let->type_annotation();
+
+    // Binding for type of constant.
+    bindings->AddBinding(
+        module->Make<ParametricBinding>(generic_name_def, gta,
+                                        /*default_expr_or_type=*/std::nullopt),
+        module->Make<NameRef>(original_nd->span(),
+                              generic_name_def->identifier(), generic_name_def),
+        instance_annotation);
+
+    // Binding for value of constant.
+    NameDef* value_name_def = module->Make<NameDef>(
+        original_nd->span(),
+        absl::Substitute("$0_lm", original_nd->identifier()),
+        /*definer=*/nullptr);
+    TypeVariableTypeAnnotation* tvta = module->Make<TypeVariableTypeAnnotation>(
+        module->Make<NameRef>(original_nd->span(),
+                              generic_name_def->identifier(), generic_name_def),
+        /*internal=*/true);
+    bindings->AddBinding(
+        module->Make<ParametricBinding>(value_name_def, tvta,
+                                        /*default_expr_or_type=*/std::nullopt),
+        module->Make<NameRef>(original_nd->span(), value_name_def->identifier(),
+                              value_name_def),
+        module->Make<NameRef>(original_nd->span(), original_nd->identifier(),
+                              original_nd));
+
+    for (const NameRef* name_ref : name_refs) {
+      node_replacements.emplace(
+          name_ref,
+          module->Make<NameRef>(name_ref->span(), value_name_def->identifier(),
+                                value_name_def));
+    }
   }
 
   void AddCapture(
