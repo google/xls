@@ -261,6 +261,11 @@ further support the decision.
     [golden files](https://github.com/google/xls/tree/main/xls/common/golden_files.h)
     library.
 
+-   Tests which construct an IR package should always use the `*Builder` classes
+    (e.g., `FunctionBuilder`, `ProcBuilder`, `BlockBuilder`, etc.) to construct
+    the IR unless either (1) the test is already using some other method or (2)
+    the `Builder` classes cannot be used for some reason.
+
 ## FAQ
 
 ### How heavyweight is `StatusOr`?

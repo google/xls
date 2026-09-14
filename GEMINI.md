@@ -27,8 +27,9 @@ This file provides a context for the XLS project.
     scripts).
 *   **XLS Style Guide:** In cases where the Google style guides are ambiguous or
     do not cover a specific situation, consult the XLS Style Guide
-    (https://google.github.io/xls/style_guide) for additional guidance. However,
-    the Google style guides always take precedence.
+    (https://google.github.io/xls/style_guide, `docs_src/xls_style.md`) for
+    additional guidance. However, the Google style guides always take
+    precedence.
 
 **Development Workflow:**
 
