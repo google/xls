@@ -163,7 +163,16 @@ absl::StatusOr<bool> SimplifyBitwiseLogic(Node* n,
         if (ternary.has_value() &&
             ternary_ops::IsFullyKnown(absl::MakeConstSpan(ternary->Get({}))
                                           .subspan(pos, end - pos))) {
-          continue;
+          if (is_xor) {
+            Bits known = ternary_ops::ToKnownBitsValues(
+                absl::MakeConstSpan(ternary->Get({})).subspan(pos, end - pos),
+                /*default_set=*/false);
+            if (known.IsZero()) {
+              continue;
+            }
+          } else {
+            continue;
+          }
         }
         if (pos == 0 && end == op->BitCountOrDie()) {
           sub_slices.push_back(op);
