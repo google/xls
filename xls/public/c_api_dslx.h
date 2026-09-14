@@ -40,6 +40,7 @@ enum {
   xls_dslx_type_definition_kind_proc_def,
   xls_dslx_type_definition_kind_use_tree_entry,
   xls_dslx_type_definition_kind_sum_def,
+  xls_dslx_type_definition_kind_builtin_name_def,
 };
 
 typedef int32_t xls_dslx_module_member_kind;

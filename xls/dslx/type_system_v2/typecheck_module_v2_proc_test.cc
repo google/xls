@@ -1042,5 +1042,23 @@ impl Counter {
   XLS_EXPECT_OK(TypecheckV2(kProgram));
 }
 
+TEST(TypecheckV2ProcTest, SourceSinkChannelSyntaxSucceeds) {
+  EXPECT_THAT(
+      R"(
+#![feature(io_objects)]
+proc Loopback<N: u32> {
+    c_in: Source<uN[N]>,
+    c_out: Sink<uN[N]>,
+}
+impl Loopback<N> {
+    fn new(c_in: Source<uN[N]>, c_out: chan<uN[N]> out) -> Self {
+        Loopback { c_in: c_in, c_out: c_out }
+    }
+    fn next(self) {}
+}
+)",
+      TypecheckSucceeds(::testing::_));
+}
+
 }  // namespace
 }  // namespace xls::dslx

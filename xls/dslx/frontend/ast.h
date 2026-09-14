@@ -1835,8 +1835,9 @@ class Array final : public Expr {
 
 // Several different AST nodes define types that can be referred to by a
 // TypeRef.
-using TypeDefinition = std::variant<TypeAlias*, StructDef*, ProcDef*, EnumDef*,
-                                    SumDef*, ColonRef*, UseTreeEntry*>;
+using TypeDefinition =
+    std::variant<TypeAlias*, StructDef*, ProcDef*, EnumDef*, SumDef*, ColonRef*,
+                 UseTreeEntry*, BuiltinNameDef*>;
 
 // Returns the name definition that (most locally) defined this type definition
 // AST node.

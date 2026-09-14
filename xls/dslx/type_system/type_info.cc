@@ -432,6 +432,11 @@ absl::StatusOr<TypeInfo::TypeSource> TypeInfo::ResolveTypeDefinition(
           [this](UseTreeEntry* sd) -> absl::StatusOr<TypeInfo::TypeSource> {
             return ResolveTypeDefinition(sd);
           },
+          [](BuiltinNameDef* bnd) -> absl::StatusOr<TypeInfo::TypeSource> {
+            return absl::UnimplementedError(
+                "BuiltinNameDef type resolution is not supported in TypeInfo "
+                "v1.");
+          },
       },
       source);
 }

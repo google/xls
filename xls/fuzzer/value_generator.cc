@@ -325,6 +325,11 @@ absl::StatusOr<Expr*> GenerateDslxConstant(absl::BitGenRef bit_gen,
                 "Generating constants of UseTreeEntry types isn't yet "
                 "supported.");
           },
+          [&](dslx::BuiltinNameDef* builtin_name_def) -> absl::StatusOr<Expr*> {
+            return absl::UnimplementedError(
+                "Generating constants of BuiltinNameDef types isn't yet "
+                "supported.");
+          },
       },
       typeref->type_definition());
 }

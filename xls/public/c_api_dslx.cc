@@ -1198,30 +1198,34 @@ xls_dslx_type_definition_kind xls_dslx_module_get_type_definition_kind(
   auto* cpp_module = reinterpret_cast<xls::dslx::Module*>(module);
   xls::dslx::TypeDefinition cpp_type_definition =
       cpp_module->GetTypeDefinitions().at(i);
-  return absl::visit(xls::Visitor{
-                         [](const xls::dslx::StructDef*) {
-                           return xls_dslx_type_definition_kind_struct_def;
-                         },
-                         [](const xls::dslx::ProcDef*) {
-                           return xls_dslx_type_definition_kind_proc_def;
-                         },
-                         [](const xls::dslx::EnumDef*) {
-                           return xls_dslx_type_definition_kind_enum_def;
-                         },
-                         [](const xls::dslx::SumDef*) {
-                           return xls_dslx_type_definition_kind_sum_def;
-                         },
-                         [](const xls::dslx::TypeAlias*) {
-                           return xls_dslx_type_definition_kind_type_alias;
-                         },
-                         [](const xls::dslx::ColonRef*) {
-                           return xls_dslx_type_definition_kind_colon_ref;
-                         },
-                         [](const xls::dslx::UseTreeEntry*) {
-                           return xls_dslx_type_definition_kind_use_tree_entry;
-                         },
-                     },
-                     cpp_type_definition);
+  return absl::visit(
+      xls::Visitor{
+          [](const xls::dslx::StructDef*) {
+            return xls_dslx_type_definition_kind_struct_def;
+          },
+          [](const xls::dslx::ProcDef*) {
+            return xls_dslx_type_definition_kind_proc_def;
+          },
+          [](const xls::dslx::EnumDef*) {
+            return xls_dslx_type_definition_kind_enum_def;
+          },
+          [](const xls::dslx::SumDef*) {
+            return xls_dslx_type_definition_kind_sum_def;
+          },
+          [](const xls::dslx::TypeAlias*) {
+            return xls_dslx_type_definition_kind_type_alias;
+          },
+          [](const xls::dslx::ColonRef*) {
+            return xls_dslx_type_definition_kind_colon_ref;
+          },
+          [](const xls::dslx::UseTreeEntry*) {
+            return xls_dslx_type_definition_kind_use_tree_entry;
+          },
+          [](const xls::dslx::BuiltinNameDef*) {
+            return (xls_dslx_type_definition_kind_builtin_name_def);
+          },
+      },
+      cpp_type_definition);
 }
 
 char* xls_dslx_module_get_name(struct xls_dslx_module* module) {

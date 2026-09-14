@@ -411,6 +411,7 @@ AnyNameDef TypeDefinitionGetNameDef(const TypeDefinition& td) {
           [](UseTreeEntry* n) -> AnyNameDef {
             return n->GetLeafNameDef().value();
           },
+          [](BuiltinNameDef* n) -> AnyNameDef { return n; },
       },
       td);
 }
@@ -437,6 +438,12 @@ absl::StatusOr<TypeDefinition> ToTypeDefinition(AstNode* node) {
   }
   if (node->kind() == AstNodeKind::kColonRef) {
     return absl::down_cast<ColonRef*>(node);
+  }
+  if (node->kind() == AstNodeKind::kUseTreeEntry) {
+    return absl::down_cast<UseTreeEntry*>(node);
+  }
+  if (node->kind() == AstNodeKind::kBuiltinNameDef) {
+    return absl::down_cast<BuiltinNameDef*>(node);
   }
   return absl::InvalidArgumentError(
       absl::StrCat("AST node is not a type definition: ", node->kind()));

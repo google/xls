@@ -147,6 +147,17 @@ class TypeRefUnwrapper : public AstNodeVisitorWithDefault {
     return absl::OkStatus();
   }
 
+  absl::Status HandleBuiltinNameDef(const BuiltinNameDef* bnd) override {
+    XLS_ASSIGN_OR_RETURN(Module * builtin_stubs,
+                         import_data_.GetBuiltinStubsModule());
+    std::optional<ModuleMember*> member =
+        builtin_stubs->FindMemberWithName(bnd->identifier());
+    if (member.has_value()) {
+      return ToAstNode(*member.value())->Accept(this);
+    }
+    return absl::OkStatus();
+  }
+
   absl::Status HandleNameRef(const NameRef* name_ref) override {
     return ToAstNode(name_ref->name_def())->Accept(this);
   }
