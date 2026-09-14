@@ -19,6 +19,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
@@ -90,93 +91,103 @@ void FlattenConcats(Node* node, std::vector<Node*>& pieces) {
 // unbounded work.
 std::optional<Bits> TryFoldXorDelta(
     Node* a, Node* b, const QueryEngine& query_engine,
-    absl::flat_hash_set<std::pair<Node*, Node*>>& visited, int64_t depth) {
+    absl::flat_hash_map<std::pair<Node*, Node*>, std::optional<Bits>>& memo,
+    int64_t depth) {
   if (!a->GetType()->IsBits() || !b->GetType()->IsBits() ||
       a->BitCountOrDie() != b->BitCountOrDie()) {
     return std::nullopt;
   }
-  if (depth > kMaxXorFoldDepth || !visited.insert({a, b}).second) {
+  if (depth > kMaxXorFoldDepth) {
     return std::nullopt;
   }
+  if (auto it = memo.find({a, b}); it != memo.end()) {
+    return it->second;
+  }
 
-  // Identical arms fold to zero.
-  if (a == b) {
-    return Bits(a->BitCountOrDie());
-  }
-  // Fully-known arms fold to their xor.
-  if (query_engine.IsFullyKnown(a) && query_engine.IsFullyKnown(b)) {
-    return bits_ops::Xor(*query_engine.KnownValueAsBits(a),
-                         *query_engine.KnownValueAsBits(b));
-  }
-  // `(u ^ c) ^ v == (u ^ v) ^ c`: pull a fully-known operand out of an xor arm
-  // and keep folding the remaining operand.
-  if (a->op() == Op::kXor && a->operands().size() == 2) {
-    for (Node* operand : a->operands()) {
-      std::optional<Bits> known = query_engine.KnownValueAsBits(operand);
-      if (known.has_value()) {
-        Node* rest = a->operand(0) == operand ? a->operand(1) : a->operand(0);
-        std::optional<Bits> rest_delta =
-            TryFoldXorDelta(rest, b, query_engine, visited, depth + 1);
-        if (!rest_delta.has_value()) {
-          return std::nullopt;
+  auto result = [&]() -> std::optional<Bits> {
+    // Identical arms fold to zero.
+    if (a == b) {
+      return Bits(a->BitCountOrDie());
+    }
+    // Fully-known arms fold to their xor.
+    if (query_engine.IsFullyKnown(a) && query_engine.IsFullyKnown(b)) {
+      return bits_ops::Xor(*query_engine.KnownValueAsBits(a),
+                           *query_engine.KnownValueAsBits(b));
+    }
+    // `(u ^ c) ^ v == (u ^ v) ^ c`: pull a fully-known operand out of an xor
+    // arm and keep folding the remaining operand.
+    if (a->op() == Op::kXor && a->operands().size() == 2) {
+      for (Node* operand : a->operands()) {
+        std::optional<Bits> known = query_engine.KnownValueAsBits(operand);
+        if (known.has_value()) {
+          Node* rest = a->operand(0) == operand ? a->operand(1) : a->operand(0);
+          std::optional<Bits> rest_delta =
+              TryFoldXorDelta(rest, b, query_engine, memo, depth + 1);
+          if (!rest_delta.has_value()) {
+            return std::nullopt;
+          }
+          return bits_ops::Xor(*rest_delta, *known);
         }
-        return bits_ops::Xor(*rest_delta, *known);
       }
     }
-  }
-  // Xor is symmetric, so treat `b` the same way.
-  if (b->op() == Op::kXor && b->operands().size() == 2) {
-    for (Node* operand : b->operands()) {
-      std::optional<Bits> known = query_engine.KnownValueAsBits(operand);
-      if (known.has_value()) {
-        Node* rest = b->operand(0) == operand ? b->operand(1) : b->operand(0);
-        std::optional<Bits> rest_delta =
-            TryFoldXorDelta(a, rest, query_engine, visited, depth + 1);
-        if (!rest_delta.has_value()) {
-          return std::nullopt;
+    // Xor is symmetric, so treat `b` the same way.
+    if (b->op() == Op::kXor && b->operands().size() == 2) {
+      for (Node* operand : b->operands()) {
+        std::optional<Bits> known = query_engine.KnownValueAsBits(operand);
+        if (known.has_value()) {
+          Node* rest = b->operand(0) == operand ? b->operand(1) : b->operand(0);
+          std::optional<Bits> rest_delta =
+              TryFoldXorDelta(a, rest, query_engine, memo, depth + 1);
+          if (!rest_delta.has_value()) {
+            return std::nullopt;
+          }
+          return bits_ops::Xor(*rest_delta, *known);
         }
-        return bits_ops::Xor(*rest_delta, *known);
       }
     }
-  }
-  // `not` inverts the delta: `(~u) ^ v == ~(u ^ v)` and `(~u) ^ (~v) == u ^ v`.
-  if (a->op() == Op::kNot && b->op() == Op::kNot) {
-    return TryFoldXorDelta(a->operand(0), b->operand(0), query_engine, visited,
-                           depth + 1);
-  }
-  if (a->op() == Op::kNot && a->operand(0) == b) {
-    return Bits::AllOnes(a->BitCountOrDie());
-  }
-  if (b->op() == Op::kNot && b->operand(0) == a) {
-    return Bits::AllOnes(b->BitCountOrDie());
-  }
-  // Decompose a concatenation on either side piece by piece so that a
-  // per-piece xor-with-constant difference is recognized even when the pieces
-  // themselves are not fully known. The pieces of both arms must line up
-  // one-to-one; otherwise the difference is conservatively deemed too complex.
-  if (a->Is<Concat>() || b->Is<Concat>()) {
-    std::vector<Node*> pieces_a;
-    std::vector<Node*> pieces_b;
-    FlattenConcats(a, pieces_a);
-    FlattenConcats(b, pieces_b);
-    if (pieces_a.size() != pieces_b.size()) {
-      return std::nullopt;
+    // `not` inverts the delta:
+    // `(~u) ^ v == ~(u ^ v)` and `(~u) ^ (~v) == u ^ v`.
+    if (a->op() == Op::kNot && b->op() == Op::kNot) {
+      return TryFoldXorDelta(a->operand(0), b->operand(0), query_engine, memo,
+                             depth + 1);
     }
-    std::vector<Bits> deltas;
-    deltas.reserve(pieces_a.size());
-    for (int64_t i = 0; i < static_cast<int64_t>(pieces_a.size()); ++i) {
-      std::optional<Bits> piece_delta = TryFoldXorDelta(
-          pieces_a[i], pieces_b[i], query_engine, visited, depth + 1);
-      if (!piece_delta.has_value()) {
+    if (a->op() == Op::kNot && a->operand(0) == b) {
+      return Bits::AllOnes(a->BitCountOrDie());
+    }
+    if (b->op() == Op::kNot && b->operand(0) == a) {
+      return Bits::AllOnes(b->BitCountOrDie());
+    }
+    // Decompose a concatenation on either side piece by piece so that a
+    // per-piece xor-with-constant difference is recognized even when the pieces
+    // themselves are not fully known. The pieces of both arms must line up
+    // one-to-one; otherwise the difference is conservatively deemed too
+    // complex.
+    if (a->Is<Concat>() || b->Is<Concat>()) {
+      std::vector<Node*> pieces_a;
+      std::vector<Node*> pieces_b;
+      FlattenConcats(a, pieces_a);
+      FlattenConcats(b, pieces_b);
+      if (pieces_a.size() != pieces_b.size()) {
         return std::nullopt;
       }
-      deltas.push_back(*piece_delta);
+      std::vector<Bits> deltas;
+      deltas.reserve(pieces_a.size());
+      for (int64_t i = 0; i < static_cast<int64_t>(pieces_a.size()); ++i) {
+        std::optional<Bits> piece_delta = TryFoldXorDelta(
+            pieces_a[i], pieces_b[i], query_engine, memo, depth + 1);
+        if (!piece_delta.has_value()) {
+          return std::nullopt;
+        }
+        deltas.push_back(*piece_delta);
+      }
+      return bits_ops::Concat(deltas);
     }
-    return bits_ops::Concat(deltas);
-  }
-  // The two arms share no foldable structure and at least one is not fully
-  // known, so the delta cannot be proven constant.
-  return std::nullopt;
+    // The two arms share no foldable structure and at least one is not fully
+    // known, so the delta cannot be proven constant.
+    return std::nullopt;
+  }();
+  memo[{a, b}] = result;
+  return result;
 }
 
 // Returns the (on_false, on_true) arm pair of a single-bit binary mux: either
@@ -275,8 +286,8 @@ absl::StatusOr<bool> MaybeConvertSelectToBitwiseOps(
     // earlier pass (e.g. concat_simp) split it into per-slice pieces. The
     // masked-xor rewrite still applies as long as the two arms provably differ
     // by a fully-known constant; the delta is then `on_false ^ on_true`.
-    absl::flat_hash_set<std::pair<Node*, Node*>> visited;
-    delta = TryFoldXorDelta(on_false, on_true, query_engine, visited,
+    absl::flat_hash_map<std::pair<Node*, Node*>, std::optional<Bits>> memo;
+    delta = TryFoldXorDelta(on_false, on_true, query_engine, memo,
                             /*depth=*/0);
     if (!delta.has_value()) {
       return false;

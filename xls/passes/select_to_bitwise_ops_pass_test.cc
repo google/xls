@@ -229,5 +229,21 @@ TEST_F(SelectToBitwiseOpsPassTest, SelectNotConvertedBelowSplitsOptLevel) {
               IsOkAndHolds(false));
 }
 
+TEST_F(SelectToBitwiseOpsPassTest, SelectWithDuplicateArmParts) {
+  auto p = CreatePackage();
+  FunctionBuilder fb("f", p.get());
+  BValue selector = fb.Param("p", p->GetBitsType(1));
+  BValue x = fb.Param("x", p->GetBitsType(8));
+  BValue y = fb.Param("y", p->GetBitsType(8));
+  BValue common = fb.Xor(x, y);
+  fb.Select(selector, {fb.Concat({common, common, common}),
+                       fb.Concat({common, common, fb.Not(common)})});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  solvers::ScopedVerifyEquivalence sve(f);
+  EXPECT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::Xor(m::Concat(m::Xor(), m::Xor(), m::Xor()), m::And()));
+}
+
 }  // namespace
 }  // namespace xls
