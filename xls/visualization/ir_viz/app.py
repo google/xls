@@ -36,6 +36,14 @@ from xls.common import runfiles
 
 FLAGS = flags.FLAGS
 flags.DEFINE_bool('use_ipv6', False, 'Whether to use IPv6.')
+flags.DEFINE_string(
+    'bind',
+    '127.0.0.1',
+    'IP address of the interface to bind the HTTP server to. Defaults to '
+    'localhost. Use 0.0.0.0 to listen on all interfaces, e.g. when the '
+    'server is accessed from another machine or via a container port '
+    'forward.',
+)
 flags.DEFINE_integer('port', None, 'Port to serve on.')
 flags.DEFINE_string('delay_model', None, 'Delay model to use.')
 # TODO(meheff): Remove this flag and figure out a better way getting the actual
@@ -72,7 +80,10 @@ flags.mark_flag_as_required('delay_model')
 IR_EXAMPLES_FILE_LIST = 'xls/visualization/ir_viz/ir_examples_file_list.txt'
 
 webapp = flask.Flask('XLS UI')
-webapp.debug = True
+# Keep Flask's development/debug mode off so the Werkzeug interactive
+# debugger (which allows arbitrary code execution in the server process) is
+# never exposed to clients that reach this server.
+webapp.debug = False
 # Allow large payloads (e.g. large IR files) without Werkzeug 413 limits.
 webapp.config['MAX_CONTENT_LENGTH'] = None
 
@@ -416,7 +427,16 @@ def main(argv):
   else:
     examples = load_precanned_examples()
 
-  webapp.run(host='::' if FLAGS.use_ipv6 else '0.0.0.0', port=FLAGS.port)
+  host = '::' if FLAGS.use_ipv6 else FLAGS.bind
+  # Disable Flask's reloader and the Werkzeug interactive debugger even if the
+  # debug flag is ever re-enabled, so errors never expose an execution
+  # surface to clients on the network.
+  webapp.run(
+      host=host,
+      port=FLAGS.port,
+      debug=False,
+      use_reloader=False,
+  )
 
 
 if __name__ == '__main__':
