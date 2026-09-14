@@ -476,6 +476,7 @@ enum class OpType {
   kLoopEndJump,
   kActivationBarrier,
   kSharedCall,
+  kNoOp,
 };
 enum class InterfaceType { kNull = 0, kDirect, kFIFO, kMemory, kTrace };
 enum class TraceType { kNull = 0, kAssert, kTrace };
@@ -1205,11 +1206,6 @@ struct GeneratedParamInfo {
   bool return_val = false;
 };
 
-struct SharedFunctionImpl {
-  std::unique_ptr<GeneratedFunction> generated_function;
-  IOChannel* channel = nullptr;
-};
-
 // Encapsulates values produced when generating IR for a function
 struct GeneratedFunction {
   const clang::FunctionDecl* clang_decl = nullptr;
@@ -1242,6 +1238,7 @@ struct GeneratedFunction {
   std::list<IOChannel> io_channels;
 
   // Sub procs that must be generated to use the function
+  // (Used for old FSM pipelined loops)
   std::list<PipelinedLoopSubProc> sub_procs;
 
   // Sub procs may be in subroutines (owned by Translator)
@@ -1304,6 +1301,9 @@ struct GeneratedFunction {
   // attribute.
   absl::InlinedVector<IOOp*, 1> propagate_barrier_start_ops;
 
+  // Shared function / procedure
+  bool is_shared_function = false;
+
   template <typename ValueType>
   std::vector<const clang::NamedDecl*> DeterministicKeyNames(
       const absl::flat_hash_map<const clang::NamedDecl*, ValueType>& map)
@@ -1320,6 +1320,10 @@ struct GeneratedFunction {
   void SortNamesDeterministically(std::vector<DeclLeaf>& decls) const;
   std::vector<const clang::NamedDecl*> GetDeterministicallyOrderedStaticValues()
       const;
+  bool is_pure_function() const {
+    CHECK_GT(slices.size(), 0);
+    return slices.size() == 1;
+  }
 };
 
 enum DebugIrTraceFlags {
@@ -1348,6 +1352,7 @@ struct NextStateValue {
 struct GenerateFSMInvocationReturn {
   TrackedBValue return_value;
   TrackedBValue returns_this_activation;
+  TrackedBValue continue_sub_fsm;
   absl::btree_multimap<const xls::StateElement*, NextStateValue>
       extra_next_state_values;
 };
