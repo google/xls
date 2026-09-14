@@ -12,14 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-load(
-    "@rules_cc//cc:cc_library.bzl",
-    "cc_library",
-)
-load(
-    "@rules_cc//cc:cc_test.bzl",
-    "cc_test",
-)
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load("@rules_cc//cc:cc_test.bzl", "cc_test")
 
 package(
     default_applicable_licenses = ["//:license"],
@@ -32,38 +26,136 @@ package(
 )
 
 cc_library(
-    name = "symbolic_path",
-    hdrs = ["symbolic_path.h"],
+    name = "concolic_input_spec",
+    srcs = ["concolic_input_spec.cc"],
+    hdrs = ["concolic_input_spec.h"],
     deps = [
-        "//xls/ir",
-        "@z3//:api",
+        "//xls/ir:value",
+        "@abseil-cpp//absl/container:flat_hash_map",
+    ],
+)
+
+cc_test(
+    name = "concolic_input_spec_test",
+    srcs = ["concolic_input_spec_test.cc"],
+    deps = [
+        ":concolic_input_spec",
+        "//xls/common:xls_gunit_main",
+        "//xls/ir:bits",
+        "//xls/ir:value",
+        "@googletest//:gtest",
     ],
 )
 
 cc_library(
-    name = "cfg_symex_engine",
-    srcs = ["cfg_symex_engine.cc"],
-    hdrs = ["cfg_symex_engine.h"],
+    name = "symbolic_path",
+    hdrs = ["symbolic_path.h"],
     deps = [
-        ":symbolic_path",
         "//xls/ir",
-        "@abseil-cpp//absl/status",
-        "@abseil-cpp//absl/status:statusor",
+        "//xls/ir:value",
         "@z3//:api",
     ],
 )
 
 cc_test(
-    name = "cfg_symex_engine_test",
-    srcs = ["cfg_symex_engine_test.cc"],
+    name = "symbolic_path_test",
+    srcs = ["symbolic_path_test.cc"],
     deps = [
-        ":cfg_symex_engine",
+        ":concolic_input_spec",
+        ":symbolic_path",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/ir",
+        "//xls/ir:bits",
+        "//xls/ir:ir_test_base",
+        "//xls/ir:value",
+        "@googletest//:gtest",
+        "@z3//:api",
+    ],
+)
+
+cc_library(
+    name = "z3_encoding_visitor",
+    srcs = ["z3_encoding_visitor.cc"],
+    hdrs = ["z3_encoding_visitor.h"],
+    deps = [
+        "//xls/common/status:ret_check",
+        "//xls/common/status:status_macros",
+        "//xls/ir",
+        "//xls/ir:bits",
+        "//xls/ir:node_util",
+        "//xls/ir:op",
+        "//xls/ir:type",
+        "//xls/ir:value",
+        "//xls/solvers:z3_ir_translator",
+        "//xls/solvers:z3_op_translator",
+        "//xls/solvers:z3_utils",
+        "@abseil-cpp//absl/container:flat_hash_map",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/types:span",
+        "@z3//:api",
+    ],
+)
+
+cc_test(
+    name = "z3_encoding_visitor_test",
+    srcs = ["z3_encoding_visitor_test.cc"],
+    deps = [
+        ":z3_encoding_visitor",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/ir",
+        "//xls/ir:bits",
+        "//xls/ir:ir_test_base",
+        "//xls/ir:type",
+        "//xls/ir:value",
+        "@googletest//:gtest",
+        "@z3//:api",
+    ],
+)
+
+cc_library(
+    name = "symex_engine",
+    srcs = ["symex_engine.cc"],
+    hdrs = ["symex_engine.h"],
+    deps = [
+        ":concolic_input_spec",
+        ":symbolic_path",
+        ":z3_encoding_visitor",
+        "//xls/common/status:ret_check",
+        "//xls/common/status:status_macros",
+        "//xls/ir",
+        "//xls/ir:node_util",
+        "//xls/ir:op",
+        "//xls/ir:value",
+        "//xls/solvers:z3_utils",
+        "@abseil-cpp//absl/cleanup",
+        "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/types:span",
+        "@z3//:api",
+    ],
+)
+
+cc_test(
+    name = "symex_engine_test",
+    srcs = ["symex_engine_test.cc"],
+    deps = [
+        ":concolic_input_spec",
+        ":symbolic_path",
+        ":symex_engine",
+        ":test_util",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/ir",
         "//xls/ir:bits",
         "//xls/ir:function_builder",
         "//xls/ir:ir_test_base",
+        "//xls/ir:value",
         "@abseil-cpp//absl/status",
         "@googletest//:gtest",
         "@z3//:api",
@@ -75,17 +167,51 @@ cc_test(
     srcs = ["symex_e2e_test.cc"],
     data = [
         "//xls/solvers/symex/testdata:execute_alu.ir",
+        "//xls/solvers/symex/testdata:priority_encoder.ir",
+        "//xls/solvers/symex/testdata:three_way_compare.ir",
     ],
     deps = [
-        ":cfg_symex_engine",
+        ":concolic_input_spec",
+        ":symbolic_path",
+        ":symex_engine",
+        ":test_util",
         "//xls/common:xls_gunit_main",
         "//xls/common/file:filesystem",
         "//xls/common/file:get_runfile_path",
         "//xls/common/status:matchers",
+        "//xls/common/status:status_macros",
+        "//xls/interpreter:evaluator_options",
+        "//xls/interpreter:ir_interpreter",
         "//xls/ir",
-        "//xls/ir:ir_parser",
+        "//xls/ir:bits",
+        "//xls/ir:events",
         "//xls/ir:ir_test_base",
+        "//xls/ir:value",
+        "@abseil-cpp//absl/status:statusor",
+        "@googletest//:gtest",
+        "@z3//:api",
+    ],
+)
+
+cc_library(
+    name = "test_util",
+    testonly = True,
+    srcs = ["test_util.cc"],
+    hdrs = ["test_util.h"],
+    deps = [
+        ":symbolic_path",
+        "//xls/common/status:status_macros",
+        "//xls/interpreter:ir_interpreter",
+        "//xls/ir",
+        "//xls/ir:events",
+        "//xls/ir:ir_test_base",
+        "//xls/ir:value",
+        "//xls/solvers:z3_ir_translator",
         "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/strings:str_format",
+        "@abseil-cpp//absl/types:span",
         "@googletest//:gtest",
         "@z3//:api",
     ],
