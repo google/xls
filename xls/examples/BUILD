@@ -220,6 +220,12 @@ xls_dslx_test(
     dslx_test_args = {"compare": "jit"},
 )
 
+xls_dslx_test(
+    name = "duck_typing_test",
+    srcs = ["duck_typing.x"],
+    dslx_test_args = {"compare": "jit"},
+)
+
 xls_dslx_library(
     name = "fir_filter_dslx",
     srcs = ["fir_filter.x"],
