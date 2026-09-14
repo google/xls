@@ -3478,10 +3478,13 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
                 parametric_free_function_type->param_types()[i]));
       }
     }
+    XLS_RETURN_IF_ERROR(
+        ConvertSubtree(function->body(), std::nullopt, target_struct_context));
     XLS_ASSIGN_OR_RETURN(std::optional<const TypeAnnotation*> return_ta,
                          resolver_->ResolveAndUnifyTypeAnnotationsForNode(
                              target_struct_context, function->body()));
-    XLS_RET_CHECK(return_ta.has_value());
+    XLS_RET_CHECK(return_ta.has_value() &&
+                  !(*return_ta)->IsAnnotation<AnyTypeAnnotation>());
     absl::flat_hash_set<const ParametricBinding*> return_parametrics =
         function->LambdaReturnTypeParametrics();
     XLS_RET_CHECK(return_parametrics.size() == 1);
