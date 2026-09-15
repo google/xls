@@ -244,6 +244,32 @@ fn main() -> u64[4] {
   ExpectIr(converted);
 }
 
+TEST_F(IrConverterTest, LambdaUsesUnrollForOutputAndConstant) {
+  constexpr std::string_view program =
+      R"(
+const A = u32:1;
+fn foo<N: u32>() -> u32[5] {
+  let B = u32:2;
+  let X = const for (i, a) in u32:0..5 {
+    let C = B + i;
+    let D = A * a;
+    C + D
+  }(u32:0);
+
+  const E = N + 1;
+
+  map(u32:0..5, |i| { i + X + E })
+}
+
+const FOO = foo<1>();
+const_assert!(FOO == [u32:22, 23, 24, 25, 26]);
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
+                           ConvertModuleForTest(program));
+  ExpectIr(converted);
+}
+
 TEST_F(IrConverterTest, NestedLambdasWithVariables) {
   constexpr std::string_view program =
       R"(
@@ -304,6 +330,36 @@ fn nested() -> Results {
 fn main() -> Results {
   nested()
 }
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
+                           ConvertModuleForTest(program));
+  ExpectIr(converted);
+}
+
+TEST_F(IrConverterTest, NestedLambdaIteratesOverLocalConst) {
+  constexpr std::string_view program =
+      R"(
+fn nested() -> u1[2][3] {
+   const X = u32:2;
+   const Y = u32:3;
+   map(0..Y, | y_idx: u32 | {
+       map(0..X, | x_idx: u32 | {
+           if (x_idx + y_idx) % 2 == 0 {
+               u1:1
+           } else {
+               u1:0
+           }
+       })
+   })
+}
+
+const RES = nested();
+const EX = [
+  [u1:1, u1:0],
+  [u1:0, u1:1],
+  [u1:1, u1:0],
+];
+const_assert!(RES == EX);
 )";
 
   XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
