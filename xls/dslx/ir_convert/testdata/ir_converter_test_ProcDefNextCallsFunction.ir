@@ -1,0 +1,24 @@
+package test_module
+
+file_number 0 "test_module.x"
+
+fn __test_module__helper__32(x: bits[32] id=1) -> bits[32] {
+  literal.3: bits[32] = literal(value=1, id=3)
+  N: bits[32] = literal(value=32, id=2)
+  ret add.4: bits[32] = add(x, literal.3, id=4)
+}
+
+top proc __test_module__Counter_next<_c_in: bits[32] in, _c_out: bits[32] out>() {
+  chan_interface _c_in(direction=receive, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
+  chan_interface _c_out(direction=send, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
+  after_all.7: token = after_all(id=7)
+  literal.6: bits[1] = literal(value=1, id=6)
+  receive.8: (token, bits[32]) = receive(after_all.7, predicate=literal.6, channel=_c_in, id=8)
+  val: bits[32] = tuple_index(receive.8, index=1, id=11)
+  t: token = tuple_index(receive.8, index=0, id=10)
+  invoke.12: bits[32] = invoke(val, to_apply=__test_module__helper__32, id=12)
+  __token: token = literal(value=token, id=5)
+  tuple_index.9: token = tuple_index(receive.8, index=0, id=9)
+  send.13: token = send(t, invoke.12, predicate=literal.6, channel=_c_out, id=13)
+  tuple.14: () = tuple(id=14)
+}

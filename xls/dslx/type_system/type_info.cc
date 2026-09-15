@@ -241,7 +241,7 @@ absl::Status TypeInfo::NoteProcConstructorInvocation(
   const auto it =
       root->decorated_canonical_proc_initializer_.find(canonical_initializer);
   XLS_RET_CHECK(it != root->decorated_canonical_proc_initializer_.end());
-  external_to_canonical_proc_initializer_.emplace(
+  root->external_to_canonical_proc_initializer_.emplace(
       std::move(external_proc_initializer), std::move(canonical_initializer));
 
   return absl::OkStatus();
@@ -270,10 +270,10 @@ absl::Status TypeInfo::NoteProcNextInvocation(
 
 absl::StatusOr<ProcInitializerWithTypeInfo>
 TypeInfo::GetCanonicalProcInitializer(const InterpValue& external_initializer) {
-  const auto it =
-      external_to_canonical_proc_initializer_.find(external_initializer);
-  XLS_RET_CHECK(it != external_to_canonical_proc_initializer_.end());
   TypeInfo* root = GetRoot();
+  const auto it =
+      root->external_to_canonical_proc_initializer_.find(external_initializer);
+  XLS_RET_CHECK(it != root->external_to_canonical_proc_initializer_.end());
   const auto decorated_it =
       root->decorated_canonical_proc_initializer_.find(it->second);
   XLS_RET_CHECK(decorated_it !=

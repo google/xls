@@ -421,6 +421,12 @@ class ConversionRecordVisitor : public AstNodeRecursiveVisitor {
           << canonical_initializer.constructor_type_info->name()
           << " and next() TI " << canonical_initializer.next_type_info->name();
 
+      ConversionRecordVisitor next_visitor(
+          p->owner(), canonical_initializer.next_type_info, include_tests_,
+          proc_id_factory_, top_, resolved_proc_alias_, records_,
+          processed_invocations_);
+      XLS_RETURN_IF_ERROR(next_visitor.DefaultHandler(*next_fn));
+
       XLS_ASSIGN_OR_RETURN(
           ConversionRecord cr,
           MakeConversionRecord(p, proc_id_factory_->CreateProcId(p),

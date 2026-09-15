@@ -8132,5 +8132,78 @@ impl Parent {
   EXPECT_NE(child_proc, nullptr);
 }
 
+TEST_F(IrConverterTest, ProcDefNextCallsFunction) {
+  constexpr std::string_view kModule = R"(
+fn helper<N: u32>(x: uN[N]) -> uN[N] {
+  x + uN[N]:1
+}
+
+proc Counter {
+  c_in: chan<u32> in,
+  c_out: chan<u32> out,
+}
+
+impl Counter {
+  fn new(c_in: chan<u32> in, c_out: chan<u32> out) -> Self {
+    Counter { c_in, c_out }
+  }
+
+  fn next(self) {
+    let (t, val) = recv(join(), self.c_in);
+    send(t, self.c_out, helper(val));
+  }
+}
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
+                           ConvertOneFunctionForTest(kModule, "Counter"));
+  ExpectIr(converted);
+}
+
+TEST_F(IrConverterTest, ParametricProcDefSpawnsChild) {
+  constexpr std::string_view kModule = R"(
+proc Child {
+  c_in: chan<u32> in,
+  c_out: chan<u32> out,
+}
+
+impl Child {
+  fn new(c_in: chan<u32> in, c_out: chan<u32> out) -> Self {
+    Child { c_in, c_out }
+  }
+
+  fn next(self) {
+    let (t, val) = recv(join(), self.c_in);
+    send(t, self.c_out, val);
+  }
+}
+
+proc Middle<N: u32> {}
+
+impl Middle<N> {
+  fn new(c_in: chan<u32> in, c_out: chan<u32> out) -> Self {
+    Child::new(c_in, c_out).spawn();
+    Middle {}
+  }
+}
+
+proc Top {
+  c_in: chan<u32> in,
+  c_out: chan<u32> out,
+}
+
+impl Top {
+  fn new(c_in: chan<u32> in, c_out: chan<u32> out) -> Self {
+    Middle<u32:32>::new(c_in, c_out).spawn();
+    Top { c_in, c_out }
+  }
+}
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
+                           ConvertOneFunctionForTest(kModule, "Top"));
+  ExpectIr(converted);
+}
+
 }  // namespace
 }  // namespace xls::dslx
