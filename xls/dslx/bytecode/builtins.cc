@@ -373,25 +373,64 @@ GetAssertFormattedStrings(const InterpreterStack::FormattedInterpValue& lhs,
   return formatted_pair(fmt);
 }
 
+struct AssertOperands {
+  InterpreterStack::FormattedInterpValue lhs;
+  InterpreterStack::FormattedInterpValue rhs;
+};
+
+// Pops assertion operands and pushes the unit result.
+static absl::StatusOr<AssertOperands> PopAssertOperands(
+    InterpreterStack& stack) {
+  XLS_RET_CHECK_GE(stack.size(), 2);
+  XLS_ASSIGN_OR_RETURN(InterpreterStack::FormattedInterpValue formatted_rhs,
+                       stack.PopFormattedValue());
+  XLS_ASSIGN_OR_RETURN(InterpreterStack::FormattedInterpValue formatted_lhs,
+                       stack.PopFormattedValue());
+  stack.Push(InterpValue::MakeUnit());
+  return AssertOperands{.lhs = std::move(formatted_lhs),
+                        .rhs = std::move(formatted_rhs)};
+}
+
+// Runs a relational assertion using the given comparison and failure text.
+static absl::Status RunBuiltinRelationalAssert(
+    const Bytecode& bytecode, InterpreterStack& stack, const Frame& frame,
+    const BytecodeInterpreterOptions& options,
+    const std::optional<ProcId>& caller_proc_id,
+    absl::StatusOr<InterpValue> (InterpValue::*compare)(const InterpValue&)
+        const,
+    std::string_view relation_description) {
+  XLS_ASSIGN_OR_RETURN((auto [lhs, rhs]), PopAssertOperands(stack));
+  XLS_ASSIGN_OR_RETURN(InterpValue cmp_value,
+                       (lhs.value.*compare)(rhs.value));
+  if (cmp_value.IsTrue()) {
+    return absl::OkStatus();
+  }
+
+  XLS_ASSIGN_OR_RETURN((const auto& [lhs_string, rhs_string]),
+                       GetAssertFormattedStrings(lhs, rhs, bytecode, frame,
+                                                 options));
+  std::string message =
+      absl::StrFormat("\n  lhs: %s\n was not %s rhs: %s", lhs_string,
+                      relation_description, rhs_string);
+  if (caller_proc_id.has_value()) {
+    message += absl::StrFormat(" (called from %s)",
+                               caller_proc_id.value().ToString());
+  }
+  return FailureErrorStatus(bytecode.source_span(), message,
+                            stack.file_table());
+}
+
 absl::Status RunBuiltinAssertEq(const Bytecode& bytecode,
                                 InterpreterStack& stack, const Frame& frame,
                                 const BytecodeInterpreterOptions& options,
                                 const std::optional<ProcId>& caller_proc_id) {
   VLOG(3) << "Executing builtin AssertEq.";
-  XLS_RET_CHECK_GE(stack.size(), 2);
-
-  XLS_ASSIGN_OR_RETURN(InterpreterStack::FormattedInterpValue formatted_rhs,
-                       stack.PopFormattedValue());
-  XLS_ASSIGN_OR_RETURN(InterpreterStack::FormattedInterpValue formatted_lhs,
-                       stack.PopFormattedValue());
-  const InterpValue& lhs = formatted_lhs.value;
-  const InterpValue& rhs = formatted_rhs.value;
-  stack.Push(InterpValue::MakeUnit());
-  bool eq = lhs.Eq(rhs);
+  XLS_ASSIGN_OR_RETURN((auto [lhs, rhs]), PopAssertOperands(stack));
+  bool eq = lhs.value.Eq(rhs.value);
   if (!eq) {
     XLS_ASSIGN_OR_RETURN((const auto& [lhs_string, rhs_string]),
-                         GetAssertFormattedStrings(formatted_lhs, formatted_rhs,
-                                                   bytecode, frame, options));
+                         GetAssertFormattedStrings(lhs, rhs, bytecode, frame,
+                                                   options));
     std::string message =
         absl::StrContains(lhs_string, '\n')
             ? absl::StrCat(
@@ -399,17 +438,42 @@ absl::Status RunBuiltinAssertEq(const Bytecode& bytecode,
                   HighlightLineByLineDifferences(lhs_string, rhs_string))
             : absl::StrFormat("\n  lhs: %s\n  rhs: %s\n  were not equal",
                               lhs_string, rhs_string);
-    if (lhs.IsArray() && rhs.IsArray()) {
+    if (lhs.value.IsArray() && rhs.value.IsArray()) {
       XLS_ASSIGN_OR_RETURN(
           std::optional<int64_t> i,
-          FindFirstDifferingIndex(lhs.GetValuesOrDie(), rhs.GetValuesOrDie()));
+          FindFirstDifferingIndex(lhs.value.GetValuesOrDie(),
+                                  rhs.value.GetValuesOrDie()));
       XLS_RET_CHECK(i.has_value());
-      const auto& lhs_values = lhs.GetValuesOrDie();
-      const auto& rhs_values = rhs.GetValuesOrDie();
+      const auto& lhs_values = lhs.value.GetValuesOrDie();
+      const auto& rhs_values = rhs.value.GetValuesOrDie();
       message += absl::StrFormat("; first differing index: %d :: %s vs %s", *i,
                                  lhs_values[*i].ToHumanString(),
                                  rhs_values[*i].ToHumanString());
     }
+    if (caller_proc_id.has_value()) {
+      message += absl::StrFormat(" (called from %s)",
+                                 caller_proc_id.value().ToString());
+    }
+    return FailureErrorStatus(bytecode.source_span(), message,
+                              stack.file_table());
+  }
+
+  return absl::OkStatus();
+}
+
+absl::Status RunBuiltinAssertNe(const Bytecode& bytecode,
+                                InterpreterStack& stack, const Frame& frame,
+                                const BytecodeInterpreterOptions& options,
+                                const std::optional<ProcId>& caller_proc_id) {
+  VLOG(3) << "Executing builtin AssertNe.";
+  XLS_ASSIGN_OR_RETURN((auto [lhs, rhs]), PopAssertOperands(stack));
+  if (!lhs.value.Ne(rhs.value)) {
+    XLS_ASSIGN_OR_RETURN((const auto& [lhs_string, rhs_string]),
+                         GetAssertFormattedStrings(lhs, rhs, bytecode, frame,
+                                                   options));
+    std::string message =
+        absl::StrFormat("\n  lhs: %s\n  rhs: %s\n  were equal", lhs_string,
+                        rhs_string);
     if (caller_proc_id.has_value()) {
       message += absl::StrFormat(" (called from %s)",
                                  caller_proc_id.value().ToString());
@@ -426,32 +490,39 @@ absl::Status RunBuiltinAssertLt(const Bytecode& bytecode,
                                 const BytecodeInterpreterOptions& options,
                                 const std::optional<ProcId>& caller_proc_id) {
   VLOG(3) << "Executing builtin AssertLt.";
-  XLS_RET_CHECK_GE(stack.size(), 2);
+  return RunBuiltinRelationalAssert(bytecode, stack, frame, options,
+                                    caller_proc_id, &InterpValue::Lt,
+                                    "less than");
+}
 
-  XLS_ASSIGN_OR_RETURN(InterpreterStack::FormattedInterpValue formatted_rhs,
-                       stack.PopFormattedValue());
-  XLS_ASSIGN_OR_RETURN(InterpreterStack::FormattedInterpValue formatted_lhs,
-                       stack.PopFormattedValue());
-  const InterpValue& lhs = formatted_lhs.value;
-  const InterpValue& rhs = formatted_rhs.value;
-  stack.Push(InterpValue::MakeUnit());
-  XLS_ASSIGN_OR_RETURN(InterpValue lt_value, lhs.Lt(rhs));
-  bool lt = lt_value.IsTrue();
-  if (!lt) {
-    XLS_ASSIGN_OR_RETURN((const auto& [lhs_string, rhs_string]),
-                         GetAssertFormattedStrings(formatted_lhs, formatted_rhs,
-                                                   bytecode, frame, options));
-    std::string message = absl::StrFormat(
-        "\n  lhs: %s\n was not less than rhs: %s", lhs_string, rhs_string);
-    if (caller_proc_id.has_value()) {
-      message += absl::StrFormat(" (called from %s)",
-                                 caller_proc_id.value().ToString());
-    }
-    return FailureErrorStatus(bytecode.source_span(), message,
-                              stack.file_table());
-  }
+absl::Status RunBuiltinAssertLe(const Bytecode& bytecode,
+                                InterpreterStack& stack, const Frame& frame,
+                                const BytecodeInterpreterOptions& options,
+                                const std::optional<ProcId>& caller_proc_id) {
+  VLOG(3) << "Executing builtin AssertLe.";
+  return RunBuiltinRelationalAssert(bytecode, stack, frame, options,
+                                    caller_proc_id, &InterpValue::Le,
+                                    "less than or equal to");
+}
 
-  return absl::OkStatus();
+absl::Status RunBuiltinAssertGt(const Bytecode& bytecode,
+                                InterpreterStack& stack, const Frame& frame,
+                                const BytecodeInterpreterOptions& options,
+                                const std::optional<ProcId>& caller_proc_id) {
+  VLOG(3) << "Executing builtin AssertGt.";
+  return RunBuiltinRelationalAssert(bytecode, stack, frame, options,
+                                    caller_proc_id, &InterpValue::Gt,
+                                    "greater than");
+}
+
+absl::Status RunBuiltinAssertGe(const Bytecode& bytecode,
+                                InterpreterStack& stack, const Frame& frame,
+                                const BytecodeInterpreterOptions& options,
+                                const std::optional<ProcId>& caller_proc_id) {
+  VLOG(3) << "Executing builtin AssertGe.";
+  return RunBuiltinRelationalAssert(bytecode, stack, frame, options,
+                                    caller_proc_id, &InterpValue::Ge,
+                                    "greater than or equal to");
 }
 
 absl::Status RunBuiltinCeilLog2(const Bytecode& bytecode,

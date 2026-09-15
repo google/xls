@@ -24,7 +24,15 @@ fn array_slice<T: type, M: u32, N: u32, P: u32>(xs: T[M], start: uN[N], want: T[
 
 fn assert_eq<T: type>(x: T, y: T) -> ();
 
+fn assert_ne<T: type>(x: T, y: T) -> ();
+
 fn assert_lt<S: bool, N: u32>(x: xN[S][N], y: xN[S][N]) -> ();
+
+fn assert_le<S: bool, N: u32>(x: xN[S][N], y: xN[S][N]) -> ();
+
+fn assert_gt<S: bool, N: u32>(x: xN[S][N], y: xN[S][N]) -> ();
+
+fn assert_ge<S: bool, N: u32>(x: xN[S][N], y: xN[S][N]) -> ();
 
 fn assert!<N: u32>(predicate: bool, label: u8[N]) -> ();
 
