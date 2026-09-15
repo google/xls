@@ -872,7 +872,7 @@ proc tester_proc {
 }
 
 TEST_F(ProcHierarchyInterpreterTest, AssertsInProcsShowHierarchyInErrors) {
-  constexpr std::string_view kProgram[4] = {R"(
+  constexpr std::string_view kProgram[5] = {R"(
 #[test_proc]
 proc TestAssert {
     terminator: chan<bool> out;
@@ -919,9 +919,21 @@ proc TestAssertEq {
         assert_eq(u32:100, u32:99);
         send(join(), terminator, true);
     }
+})",
+                                            R"(
+#[test_proc]
+proc TestAssertNe {
+    terminator: chan<bool> out;
+
+    init {}
+    config(terminator: chan<bool> out) { (terminator,) }
+    next(state: ()) {
+        assert_ne(u32:100, u32:100);
+        send(join(), terminator, true);
+    }
 })"};
 
-  for (int i = 0; i < 4; ++i) {
+  for (int i = 0; i < 5; ++i) {
     XLS_ASSERT_OK_AND_ASSIGN(
         auto temp_file, TempFile::CreateWithContent(kProgram[i], "_test.x"));
     constexpr std::string_view kModuleName = "test";
@@ -958,6 +970,11 @@ fn test_assert_eq() {
 #[test]
 fn test_assert_lt() {
     assert_lt(u32:1, u32:0);
+}
+
+#[test]
+fn test_assert_ne() {
+    assert_ne(u32:100, u32:100);
 })";
 
   XLS_ASSERT_OK_AND_ASSIGN(auto temp_file,

@@ -33,6 +33,7 @@ const absl::flat_hash_map<std::string, BuiltinsData>& GetParametricBuiltins() {
           // -- Functions that require implicit tokens
           {"assert_eq", {.requires_implicit_token = true}},
           {"assert_lt", {.requires_implicit_token = true}},
+          {"assert_ne", {.requires_implicit_token = true}},
           {"cover!", {.requires_implicit_token = true}},
           {"fail!", {.requires_implicit_token = true}},
           {"assert!", {.requires_implicit_token = true}},

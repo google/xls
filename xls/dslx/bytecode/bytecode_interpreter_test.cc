@@ -565,6 +565,36 @@ fn main() -> u32{
                                        HasSubstr("not less than")));
 }
 
+TEST_F(BytecodeInterpreterTest, AssertNeFail) {
+  constexpr std::string_view kProgram = R"(
+fn main() -> u32{
+  let a = u32:3;
+  assert_ne(a, u32:3);
+  a
+}
+)";
+
+  absl::StatusOr<InterpValue> value = Interpret(kProgram, "main");
+  EXPECT_THAT(
+      value.status(),
+      StatusIs(absl::StatusCode::kInternal,
+               testing::AllOf(HasSubstr("lhs: u32:3"), HasSubstr("rhs: u32:3"),
+                              HasSubstr("were equal"))));
+}
+
+TEST_F(BytecodeInterpreterTest, AssertNePass) {
+  constexpr std::string_view kProgram = R"(
+fn main() -> u32{
+  let a = u32:3;
+  assert_ne(a, u32:2);
+  a
+}
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value, Interpret(kProgram, "main"));
+  EXPECT_EQ(value, InterpValue::MakeU32(3));
+}
+
 TEST_F(BytecodeInterpreterTest, DestructuringNonConstantTupleWithRestOfTuple) {
   constexpr std::string_view kProgram = R"(
 fn tuple_not_constant() -> u32 {
