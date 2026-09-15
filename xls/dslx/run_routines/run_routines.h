@@ -204,6 +204,11 @@ class TestResultData {
 
 class AbstractParsedTestRunner;
 
+struct ParseAndTestResult {
+  TestResultData test_result;
+  TypecheckedModule typechecked_module;
+};
+
 class AbstractTestRunner {
  public:
   virtual ~AbstractTestRunner() = default;
@@ -223,6 +228,12 @@ class AbstractTestRunner {
   absl::StatusOr<TestResultData> ParseAndTest(
       std::string_view program, std::string_view module_name,
       std::string_view filename, const ParseAndTestOptions& options) const;
+
+  // Same as above but also returns result of module parsing and typechecking.
+  absl::StatusOr<ParseAndTestResult> ParseAndTest(
+      std::string_view program, std::string_view module_name,
+      std::string_view filename, const ParseAndTestOptions& options,
+      ImportData& import_data) const;
 
  protected:
   virtual absl::StatusOr<std::unique_ptr<AbstractParsedTestRunner>>
