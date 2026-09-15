@@ -218,11 +218,20 @@ class IrTranslator : public DfsVisitorWithDefault {
 
   FunctionBase* xls_function() { return xls_function_; }
 
- private:
-  IrTranslator(Z3_config config, FunctionBase* source);
-
+ protected:
   IrTranslator(Z3_context ctx, FunctionBase* source,
                std::optional<absl::Span<const Z3_ast>> imported_params);
+
+  // Records the mapping of the specified XLS IR node to Z3 value.
+  void NoteTranslation(Node* node, Z3_ast translated);
+
+  // Mapping of XLS IR nodes to translated Z3 AST nodes.
+  const absl::flat_hash_map<const Node*, Z3_ast>& translations() const {
+    return translations_;
+  }
+
+ private:
+  IrTranslator(Z3_config config, FunctionBase* source);
 
   // Gets the bit count associated with the bit-vector-sort Z3 node "arg".
   // (Arg must be known to be of bit-vector sort.)
@@ -294,9 +303,6 @@ class IrTranslator : public DfsVisitorWithDefault {
   // Converts a XLS param decl into a Z3 param type.
   absl::StatusOr<Z3_ast> CreateZ3Param(Type* type, std::string_view param_name);
 
-  // Records the mapping of the specified XLS IR node to Z3 value.
-  void NoteTranslation(Node* node, Z3_ast translated);
-
   // Creates a Z3 tuple from the given XLS type or Z3 sort and Z3 elements.
   Z3_ast CreateTuple(Type* tuple_type, absl::Span<const Z3_ast> elements);
   Z3_ast CreateTuple(Z3_sort tuple_sort, absl::Span<const Z3_ast> elements);
@@ -358,12 +364,12 @@ class IrTranslator : public DfsVisitorWithDefault {
   // True if this is translating a function called from another, in which case
   // we shouldn't delete our context, etc.!
   bool borrowed_context_;
-  absl::flat_hash_map<const Node*, Z3_ast> translations_;
   // Params specified in the context-borrowing CreateAndTranslate() builder.
   // Parameters already translated in a separate function traversal that should
   // be used as this translation's parameter set.
   std::optional<absl::Span<const Z3_ast>> imported_params_;
   FunctionBase* xls_function_;
+  absl::flat_hash_map<const Node*, Z3_ast> translations_;
   int current_symbol_;
   std::optional<absl::Duration> timeout_;
   std::optional<int64_t> rlimit_;
