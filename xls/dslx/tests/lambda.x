@@ -22,6 +22,20 @@ fn test_add_two() {
     assert_eq(arr, u32:2..6);
 }
 
+const A = u32:2;
+
+fn local_const<N: u32>() -> u32[5] {
+    let B = u32:2;
+    let x = const for (i, a) in u32:0..5 {
+        let C = B + i;
+        let D = A * a;
+        C + D
+    }(u32:0);
+
+    const E = N + 1;
+    map(u32:0..5, |i| { i + x + E })
+}
+
 fn main() -> () {
     let arr = add_two(u32:0..4);
     const_assert!(arr[0] == 2);
@@ -37,4 +51,7 @@ fn main() -> () {
     let u = u32:3;
     let implicit_return = map(u32:0..3, |i| { i + u });
     const_assert!(implicit_return == [u32:3, 4, 5]);
+
+    let from_const = local_const<5>();
+    const_assert!(from_const == [u32:94, 95, 96, 97, 98]);
 }
