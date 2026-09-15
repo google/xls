@@ -130,6 +130,10 @@ message CodegenFlagsProto {
   // to use the block signature to find ports.
   bool preserve_ports = 46;
 
+  // If true, recursively embed each instantiated child block's signature
+  // into the parent block's signature. Default is false.
+  bool embed_child_block_signatures = 47;
+
   // Space for pass-specific configuration extensions.
   extensions 20000 to max;
 }

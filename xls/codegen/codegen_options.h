@@ -320,6 +320,13 @@ class CodegenOptions {
   CodegenOptions& gate_recvs(bool value);
   bool gate_recvs() const { return gate_recvs_; }
 
+  // If true, recursively embed each instantiated child block's signature
+  // into BlockInstantiationProto.block_signature.
+  CodegenOptions& embed_child_block_signatures(bool value);
+  bool embed_child_block_signatures() const {
+    return embed_child_block_signatures_;
+  }
+
   // List of channels to rewrite for RAMs.
   CodegenOptions& ram_configurations(
       absl::Span<const RamConfiguration> ram_configurations);
@@ -500,6 +507,7 @@ class CodegenOptions {
   std::string streaming_channel_valid_suffix_ = "_vld";
   bool array_index_bounds_checking_ = true;
   bool gate_recvs_ = true;
+  bool embed_child_block_signatures_ = false;
   bool add_invariant_assertions_ = true;
   std::vector<RamConfiguration> ram_configurations_;
   int64_t max_trace_verbosity_ = 0;
