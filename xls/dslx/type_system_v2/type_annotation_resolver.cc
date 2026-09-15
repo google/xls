@@ -1160,8 +1160,20 @@ class StatefulResolver : public TypeAnnotationResolver {
             type_ref_annotation->type_ref()->type_definition();
         bool replaced_dynamic_alias = false;
 
+        const TypeAlias* alias = nullptr;
         if (std::holds_alternative<TypeAlias*>(type_def)) {
-          const TypeAlias* alias = std::get<TypeAlias*>(type_def);
+          alias = std::get<TypeAlias*>(type_def);
+        } else if (std::holds_alternative<UseTreeEntry*>(type_def)) {
+          std::optional<const AstNode*> resolved =
+              import_data_.ResolveUseImportedTarget(
+                  std::get<UseTreeEntry*>(type_def));
+          if (resolved.has_value() &&
+              (*resolved)->kind() == AstNodeKind::kTypeAlias) {
+            alias = absl::down_cast<const TypeAlias*>(*resolved);
+          }
+        }
+
+        if (alias != nullptr) {
           std::optional<const NameRef*> variable =
               table_.GetTypeVariable(alias);
           if (variable.has_value()) {
@@ -1186,7 +1198,8 @@ class StatefulResolver : public TypeAnnotationResolver {
 
         if (!replaced_dynamic_alias) {
           latest = table_.GetTypeAnnotation(
-              ToAstNode(TypeDefinitionGetNameDef(type_def)));
+              alias != nullptr ? &alias->name_def()
+                               : ToAstNode(TypeDefinitionGetNameDef(type_def)));
         }
       }
 
