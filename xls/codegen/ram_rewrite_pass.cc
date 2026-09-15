@@ -450,7 +450,7 @@ absl::StatusOr<bool> Ram1RWRewrite(Package* package,
                            req_re_valid_buf_name));
 
   XLS_ASSIGN_OR_RETURN(
-      Node * ram_resp_valid,
+      RegisterRead * ram_resp_valid,
       AddRegisterAfterNode(
           /*name_prefix=*/absl::StrCat(req_valid->GetName(), "_delay"),
           /*load_enable=*/std::nullopt, req_re_valid_buf));
@@ -499,8 +499,30 @@ absl::StatusOr<bool> Ram1RWRewrite(Package* package,
   XLS_RETURN_IF_ERROR(AddZeroLatencyBufferToRDVNodes(
                           resp_rd_data_port, ram_resp_valid,
                           resp_ready_port_buf, zero_latency_buffer_name, block,
-                          valid_nodes)
+                          valid_nodes, ZeroLatencyBufferReadyMode::kNextCycle)
                           .status());
+
+  // Once response backpressure can deassert request ready, a held-valid
+  // request must not issue repeatedly to the physical RAM.  Gate both enables
+  // with the final request-ready signal, and delay only accepted reads when
+  // producing the corresponding response valid.
+  XLS_ASSIGN_OR_RETURN(
+      Node * req_re_fire,
+      block->MakeNodeWithName<NaryOp>(
+          /*loc=*/SourceInfo(),
+          std::vector<Node*>{req_re_valid_buf, resp_ready_port_buf}, Op::kAnd,
+          absl::StrCat(req_re_valid->GetName(), "_fire")));
+  XLS_ASSIGN_OR_RETURN(
+      Node * req_we_fire,
+      block->MakeNodeWithName<NaryOp>(
+          /*loc=*/SourceInfo(),
+          std::vector<Node*>{req_we_valid, resp_ready_port_buf}, Op::kAnd,
+          absl::StrCat(req_we_valid->GetName(), "_fire")));
+  XLS_ASSIGN_OR_RETURN(
+      RegisterWrite * ram_resp_valid_write,
+      block->GetUniqueRegisterWrite(ram_resp_valid->GetRegister()));
+  XLS_RETURN_IF_ERROR(
+      ram_resp_valid_write->ReplaceOperandNumber(0, req_re_fire));
 
   // Add output ports for expanded req.data.
   XLS_ASSIGN_OR_RETURN(auto* req_addr_port,
@@ -512,9 +534,9 @@ absl::StatusOr<bool> Ram1RWRewrite(Package* package,
   XLS_ASSIGN_OR_RETURN(auto* req_rd_mask_port,
                        block->AddOutputPort(req_rd_mask_name, req_rd_mask));
   XLS_ASSIGN_OR_RETURN(auto* req_we_port,
-                       block->AddOutputPort(req_we_name, req_we_valid));
+                       block->AddOutputPort(req_we_name, req_we_fire));
   XLS_ASSIGN_OR_RETURN(auto* req_re_port,
-                       block->AddOutputPort(req_re_name, req_re_valid));
+                       block->AddOutputPort(req_re_name, req_re_fire));
 
   // Remove ports that have been replaced.
   XLS_RETURN_IF_ERROR(block->RemoveNode(rw_block_ports.req_ports.req_data));
@@ -639,7 +661,7 @@ absl::StatusOr<bool> Ram1R1WRewrite(Package* package,
           /*loc=*/SourceInfo(), rd_en, Op::kIdentity, req_re_valid_buf_name));
 
   XLS_ASSIGN_OR_RETURN(
-      Node * rd_resp_valid,
+      RegisterRead * rd_resp_valid,
       AddRegisterAfterNode(
           /*name_prefix=*/absl::StrCat(rd_en->GetName(), "_delay"),
           /*load_enable=*/std::nullopt, req_re_valid_buf));
@@ -679,8 +701,23 @@ absl::StatusOr<bool> Ram1R1WRewrite(Package* package,
       absl::StrCat(ram_name, "_ram_zero_latency0");
   XLS_RETURN_IF_ERROR(AddZeroLatencyBufferToRDVNodes(
                           rd_data_port, rd_resp_valid, resp_ready_port_buf,
-                          zero_latency_buffer_name, block, valid_nodes)
+                          zero_latency_buffer_name, block, valid_nodes,
+                          ZeroLatencyBufferReadyMode::kNextCycle)
                           .status());
+
+  // The read request can now be backpressured.  Issue a physical read, and
+  // schedule its response valid, only when the ready/valid handshake fires.
+  XLS_ASSIGN_OR_RETURN(
+      Node * rd_fire,
+      block->MakeNodeWithName<NaryOp>(
+          /*loc=*/SourceInfo(),
+          std::vector<Node*>{req_re_valid_buf, resp_ready_port_buf}, Op::kAnd,
+          absl::StrCat(rd_en->GetName(), "_fire")));
+  XLS_ASSIGN_OR_RETURN(
+      RegisterWrite * rd_resp_valid_write,
+      block->GetUniqueRegisterWrite(rd_resp_valid->GetRegister()));
+  XLS_RETURN_IF_ERROR(rd_resp_valid_write->ReplaceOperandNumber(0, rd_fire));
+
   // Replace write ready with literal 1 (RAM is always ready for write).
   // TODO(rigge): should this signal check for hazards?
   XLS_ASSIGN_OR_RETURN(
@@ -695,7 +732,7 @@ absl::StatusOr<bool> Ram1R1WRewrite(Package* package,
   XLS_ASSIGN_OR_RETURN(auto* rd_mask_port,
                        block->AddOutputPort(rd_mask_name, rd_mask));
   XLS_ASSIGN_OR_RETURN(auto* rd_en_port,
-                       block->AddOutputPort(rd_en_name, rd_en));
+                       block->AddOutputPort(rd_en_name, rd_fire));
   XLS_ASSIGN_OR_RETURN(auto* wr_addr_port,
                        block->AddOutputPort(wr_addr_name, wr_addr));
   XLS_ASSIGN_OR_RETURN(auto* wr_data_port,

@@ -92,6 +92,14 @@ absl::StatusOr<CodegenContext> FunctionBaseToCombinationalBlock(
 absl::StatusOr<RegisterRead*> AddRegisterAfterNode(
     std::string_view name_prefix, std::optional<Node*> load_enable, Node* node);
 
+enum class ZeroLatencyBufferReadyMode {
+  // `from_rdy` describes whether `from_valid` can be accepted now.
+  kCurrentCycle,
+  // `from_rdy` reserves capacity for an input that will arrive next cycle.
+  // This is used by fixed-latency RAM request/response pairs.
+  kNextCycle,
+};
+
 // Add a zero-latency buffer after a set of data/valid/ready signal.
 //
 // Logic will be inserted immediately after from_data and from node.
@@ -103,7 +111,8 @@ absl::StatusOr<RegisterRead*> AddRegisterAfterNode(
 absl::StatusOr<Node*> AddZeroLatencyBufferToRDVNodes(
     Node* from_data, Node* from_valid, Node* from_rdy,
     std::string_view name_prefix, Block* block,
-    std::vector<std::optional<Node*>>& valid_nodes);
+    std::vector<std::optional<Node*>>& valid_nodes,
+    ZeroLatencyBufferReadyMode ready_mode);
 
 // Clones every node in the given proc into the given block. Some nodes are
 // handled specially.  See CloneNodesIntoBlockHandler for details.

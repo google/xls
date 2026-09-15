@@ -1185,7 +1185,8 @@ static absl::Status AddRegisterAfterStreamingInput(
     case FlopKind::kZeroLatency:
       return AddZeroLatencyBufferToRDVNodes(
                  *input.GetDataPort(), *input.GetValidPort(),
-                 *input.GetReadyPort(), port_name, block, valid_nodes)
+                 *input.GetReadyPort(), port_name, block, valid_nodes,
+                 ZeroLatencyBufferReadyMode::kCurrentCycle)
           .status();
     case FlopKind::kSkid:
       return AddSkidBufferToRDVNodes(
@@ -1251,7 +1252,8 @@ static absl::Status AddRegisterBeforeStreamingOutput(
     case FlopKind::kZeroLatency:
       return AddZeroLatencyBufferToRDVNodes(
                  output_port_data_buf, output_port_valid_buf,
-                 output_port_ready_buf, port_name, block, valid_nodes)
+                 output_port_ready_buf, port_name, block, valid_nodes,
+                 ZeroLatencyBufferReadyMode::kCurrentCycle)
           .status();
     case FlopKind::kSkid:
       return AddSkidBufferToRDVNodes(
