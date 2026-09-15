@@ -198,6 +198,18 @@ class SimulateModuleMainTest(test_base.TestCase):
     # Empty result since there are no output channels.
     self.assertMultiLineEqual('\n', result.decode('utf-8'))
 
+  def test_bad_simulator_flag(self):
+    with self.assertRaises(subprocess.CalledProcessError) as e:
+      subprocess.check_output(
+          [
+              SIMULATE_MODULE_MAIN_PATH,
+              '--verilog_simulator=bad',
+          ],
+          stderr=subprocess.PIPE,
+          encoding='utf-8',
+      )
+    self.assertIn("Unknown verilog_simulator 'bad'", e.exception.stderr)
+
 
 if __name__ == '__main__':
   test_base.main()

@@ -236,7 +236,8 @@ int main(int argc, char** argv) {
 
   using xls::verilog::GetVerilogSimulator;
   auto simulator = GetVerilogSimulator(absl::GetFlag(FLAGS_verilog_simulator));
-  QCHECK_OK(simulator) << "Unknown simulator --verilog_simulator";
+  QCHECK_OK(simulator) << "Unknown verilog_simulator '"
+                       << absl::GetFlag(FLAGS_verilog_simulator) << "'";
 
   std::unique_ptr<xls::verilog::VerilogSimulator> verilog_simulator =
       std::move(simulator.value());
