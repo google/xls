@@ -527,6 +527,9 @@ class Def : public Statement {
   // Emit the definition without the trailing semicolon.
   std::string EmitNoSemi(LineInfo* line_info) const;
 
+  bool automatic() const { return automatic_; }
+  void automatic(bool value) { automatic_ = value; }
+
   const std::string& GetName() const { return name_; }
   DataKind data_kind() const { return data_kind_; }
   DataType* data_type() const { return data_type_; }
@@ -539,6 +542,7 @@ class Def : public Statement {
   DataKind data_kind_;
   DataType* data_type_;
   std::optional<Expression*> init_;
+  bool automatic_ = false;
 };
 
 // A wire definition. Example:
