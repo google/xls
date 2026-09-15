@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include "xls/dslx/type_system_v2/inference_table_utils.h"
+
 #include <cstdint>
 #include <optional>
 #include <string>
@@ -68,18 +70,12 @@ absl::StatusOr<Number*> MakeTypeCheckedNumber(
   // Note: not all modules have a filesystem path (e.g. in-memory modules); we
   // only enforce this when `fs_path()` is known.
   XLS_RET_CHECK(module.file_table() != nullptr);
-  if (span.HasFile() && module.fs_path().has_value()) {
-    std::string_view span_filename = span.GetFilename(*module.file_table());
-    const bool is_specialization_span =
-        absl::StartsWith(span_filename, "<specialization:");
-    XLS_RET_CHECK(is_specialization_span ||
-                  span_filename == module.fs_path()->generic_string())
-        << "MakeTypeCheckedNumber span filename must match module fs_path or "
-           "use a recognized specialization pseudo-file; "
-        << "module name: `" << module.name() << "`; "
-        << "span: `" << span.ToString(*module.file_table()) << "`; "
-        << "module fs_path: `" << module.fs_path()->generic_string() << "`";
-  }
+  XLS_RET_CHECK(ValidateSpanModule(span, module))
+      << "MakeTypeCheckedNumber span filename must match module fs_path or "
+         "use a recognized specialization pseudo-file; "
+      << "module name: `" << module.name() << "`; "
+      << "span: `" << span.ToString(*module.file_table()) << "`; "
+      << "module fs_path: `" << module.fs_path()->generic_string() << "`";
 
   VLOG(5) << "Creating type-checked number: " << value.ToString()
           << " of type: " << type_annotation->ToString();
@@ -147,6 +143,20 @@ absl::StatusOr<Expr*> MakeTypeCheckedNumberOrEnumValue(
   }
   XLS_RETURN_IF_ERROR(table.SetTypeAnnotation(colon_ref, type_annotation));
   return colon_ref;
+}
+
+bool ValidateSpanModule(const Span& span, const Module& module) {
+  if (!span.HasFile()) {
+    return true;
+  }
+  if (!module.fs_path().has_value()) {
+    return false;
+  }
+  std::string_view span_filename = span.GetFilename(*module.file_table());
+  if (absl::StartsWith(span_filename, "<specialization:")) {
+    return true;
+  }
+  return span_filename == module.fs_path()->generic_string();
 }
 
 bool IsColonRefWithTypeTarget(const InferenceTable& table, const Expr* expr) {

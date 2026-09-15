@@ -1042,5 +1042,37 @@ impl Counter {
   XLS_EXPECT_OK(TypecheckV2(kProgram));
 }
 
+TEST(TypecheckV2ProcTest, ParametricProcDefWithSyntheticNext) {
+  constexpr std::string_view kProgram = R"(
+#![feature(explicit_state_access)]
+
+proc Inner<N: u32> {
+  c_in: chan<uN[N]> in,
+  c_out: chan<uN[N]> out,
+}
+
+impl Inner<N> {
+  fn new(c_in: chan<uN[N]> in, c_out: chan<uN[N]> out) -> Self {
+    Inner { c_in, c_out }
+  }
+}
+
+proc Main {
+  c_in: chan<u32> in,
+  c_out: chan<u32> out,
+}
+
+impl Main {
+  fn new(c_in: chan<u32> in, c_out: chan<u32> out) -> Self {
+    Inner<32>::new(c_in, c_out).spawn();
+    Main { c_in, c_out }
+  }
+
+  fn next(self) {}
+}
+)";
+  XLS_EXPECT_OK(TypecheckV2(kProgram));
+}
+
 }  // namespace
 }  // namespace xls::dslx

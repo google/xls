@@ -47,6 +47,10 @@ absl::StatusOr<Expr*> MakeTypeCheckedNumberOrEnumValue(
     const InterpValue& value, const TypeAnnotation* type_annotation,
     const Type& type);
 
+// Returns true if `span` is either in `module` or no module; false if `span` is
+// in a different module.
+bool ValidateSpanModule(const Span& span, const Module& module);
+
 // Returns whether the given `expr` is a `ColonRef` to a type as opposed to a
 // value. The determination is based on table data for `expr`; this function
 // will not actually resolve and analyze the `ColonRef` itself.

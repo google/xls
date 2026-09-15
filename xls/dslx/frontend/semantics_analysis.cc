@@ -691,7 +691,8 @@ class ProcDefTrivialNextGenerator : public AstNodeRecursiveVisitor {
         AttributeData(AttributeKind::kTrivialNext,
                       std::vector<AttributeData::Argument>{}));
     next_fn->AddAttribute(trivial_next_attr);
-
+    next_fn->SetParentNonLexical(impl);
+    next_fn->set_compiler_derived(true);
     impl->AddMember(next_fn);
     return absl::OkStatus();
   }

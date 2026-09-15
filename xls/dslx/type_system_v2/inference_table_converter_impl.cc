@@ -1531,6 +1531,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
                                module_, table_, span, *value,
                                value_type_annotation, *binding_type));
       canonical_parametrics[i] = value_expr;
+      value_exprs[binding->name_def()] = value_expr;
     }
     const_cast<ParametricContext*>(struct_context)
         ->SetSelfType(CreateStructOrProcAnnotation(
@@ -2251,10 +2252,12 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
         invocation_context->type_info()->SetItem(binding->name_def(),
                                                  *binding_type);
         auto local_span = [&]() {
-          if (invocation->owner() == &module_) {
+          if (invocation->owner() == &module_ &&
+              ValidateSpanModule(invocation->span(), module_)) {
             return invocation->span();
           }
-          if (binding->owner() == &module_) {
+          if (binding->owner() == &module_ &&
+              ValidateSpanModule(invocation->span(), module_)) {
             return binding->span();
           }
           return module_.span();

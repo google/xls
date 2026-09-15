@@ -2572,5 +2572,36 @@ fn main() {
       TypecheckFails(HasSubstr("must have the same parametric count")));
 }
 
+TEST(TypecheckV2StructTest, DefaultParametricInvocationInImportedStruct) {
+  constexpr std::string_view kImported = R"(
+pub fn inc<N: u32>(x: bits[N]) -> bits[N] { x + 1 }
+
+pub struct S<A: u32, B: u32 = {inc(A)}> {
+    a: uN[A],
+    b: uN[B],
+}
+
+impl S<A, B> {
+    pub fn new(a: uN[A], b: uN[B]) -> Self {
+        S { a, b }
+    }
+}
+)";
+  constexpr std::string_view kProgram = R"(
+import imported;
+
+fn main() -> imported::S<32> {
+    imported::S<32>::new(5, 0)
+}
+)";
+
+  ImportData import_data = CreateImportDataForTest();
+  XLS_EXPECT_OK(TypecheckV2(kImported, "imported", &import_data));
+  EXPECT_THAT(
+      TypecheckV2(kProgram, "main", &import_data),
+      IsOkAndHolds(HasTypeInfo(HasNodeWithType("imported::S<32>::new(5, 0)",
+                                               "S { a: uN[32], b: uN[33] }"))));
+}
+
 }  // namespace
 }  // namespace xls::dslx
