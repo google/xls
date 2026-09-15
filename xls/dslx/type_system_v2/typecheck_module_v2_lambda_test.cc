@@ -442,9 +442,7 @@ const_assert!(RES == EX);
                     "typeof(lambda_capture_struct_at_fake.x:7:14-15:5 {}"))));
 }
 
-// TODO(erinzmoore): Support this case for local constants.
-TEST(TypecheckV2Test,
-     DISABLED_NestedLambdaIteratesOverLocalConstWithExplicitReturn) {
+TEST(TypecheckV2Test, NestedLambdaIteratesOverLocalConstWithExplicitReturn) {
   EXPECT_THAT(
       R"(
 fn nested() -> u1[2][3] {
@@ -472,8 +470,9 @@ const_assert!(RES == EX);
 )",
       TypecheckSucceeds(
           AllOf(HasNodeWithType("RES", "uN[1][2][3]"),
-                HasNodeWithType("lambda_capture_struct_at_fake.x:7:14-15:5::X",
-                                "uN[32]"))));
+                HasNodeWithType(
+                    "lambda_capture_struct_at_fake.x:7:14-15:5<u32:2, u32>",
+                    "typeof(lambda_capture_struct_at_fake.x:7:14-15:5 {}"))));
 }
 
 TEST(TypecheckV2Test, LambdaUsesConstantDerivedFromParametric) {

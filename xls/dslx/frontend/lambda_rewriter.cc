@@ -121,13 +121,18 @@ class CollectNameRefs : public AstNodeVisitorWithDefault {
 
   absl::flat_hash_set<const NameDef*> ConstLetsDefinedPrior(
       const Pos start) const {
-    return NameDefsDefinedPriorInternal(start, is_const);
+    return NameDefsDefinedPriorInternal(start,
+                                        [](const NameDef* nd, bool used_in_ta) {
+                                          return is_const(nd) || used_in_ta;
+                                        });
   }
 
   absl::flat_hash_set<const NameDef*> NameDefsDefinedPrior(
       const Pos start) const {
-    return NameDefsDefinedPriorInternal(
-        start, [](const NameDef* nd) { return !is_const(nd); });
+    return NameDefsDefinedPriorInternal(start,
+                                        [](const NameDef* nd, bool used_in_ta) {
+                                          return !is_const(nd) && !used_in_ta;
+                                        });
   }
 
   absl::flat_hash_map<const NameDef*,
@@ -180,12 +185,11 @@ class CollectNameRefs : public AstNodeVisitorWithDefault {
 
   absl::flat_hash_set<const NameDef*> NameDefsDefinedPriorInternal(
       const Pos start,
-      std::function<bool(const NameDef*)> name_def_filter) const {
+      std::function<bool(const NameDef*, bool)> name_def_filter) const {
     absl::flat_hash_set<const NameDef*> result;
     for (const auto& [name_def, info] : name_ref_info_) {
-      if (!info.any_used_in_type_annotation &&
-          name_def->span().start() < start) {
-        if (name_def_filter(name_def)) {
+      if (name_def->span().start() < start) {
+        if (name_def_filter(name_def, info.any_used_in_type_annotation)) {
           result.insert(name_def);
         }
       }
@@ -574,9 +578,12 @@ class LambdaRewriter : public AstNodeRecursiveVisitor {
         absl::Substitute("parametric_type_for_$0", original_nd->identifier()),
         /*definer=*/gta);
 
-    const Let* original_let =
-        absl::down_cast<const Let*>(original_nd->definer());
-    TypeAnnotation* instance_annotation = original_let->type_annotation();
+    TypeAnnotation* instance_annotation = nullptr;
+    if (original_nd->definer()->kind() == AstNodeKind::kLet) {
+      const Let* original_let =
+          absl::down_cast<const Let*>(original_nd->definer());
+      instance_annotation = original_let->type_annotation();
+    }
 
     // Binding for type of constant.
     bindings->AddBinding(

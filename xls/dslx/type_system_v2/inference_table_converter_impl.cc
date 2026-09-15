@@ -3126,6 +3126,8 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
         (absl::flat_hash_map<const AstNode*, AstNode*> clones),
         CloneAstAndGetAllPairs(type, type->owner(), std::move(replacer)));
     AstNode* clone = clones.at(type);
+    table_.SetAnnotationFlag(absl::down_cast<TypeAnnotation*>(clone),
+                             table_.GetAnnotationFlag(type));
     std::unique_ptr<PopulateTableVisitor> visitor =
         CreatePopulateTableVisitor(type->owner(), &table_, &import_data_,
                                    /*typecheck_imported_module=*/nullptr);
