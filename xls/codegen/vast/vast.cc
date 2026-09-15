@@ -1323,7 +1323,9 @@ std::string Def::EmitNoSemi(LineInfo* line_info) const {
   std::string kind_str = DataKindToString(data_kind());
   std::string data_type_str =
       data_type()->EmitWithIdentifier(line_info, GetName());
-  std::string result = CombineKindAndDataType(kind_str, data_type_str);
+  std::string result =
+      absl::StrFormat("%s%s", automatic_ ? "automatic " : "",
+                      CombineKindAndDataType(kind_str, data_type_str));
 
   LineInfoEnd(line_info, this);
   return result;
