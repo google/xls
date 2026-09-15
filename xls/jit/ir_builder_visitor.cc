@@ -461,9 +461,17 @@ llvm::Value* EmitMod(llvm::Value* lhs, llvm::Value* rhs, bool is_signed,
   // modulo by zero returns zero rather than undefined behavior.
   llvm::Value* zero = llvm::ConstantInt::get(rhs->getType(), 0);
   llvm::Value* rhs_eq_zero = builder->CreateICmpEQ(rhs, zero);
-  // Replace a zero rhs with one to avoid SIGFPE even though the result is not
-  // used.
-  rhs = builder->CreateSelect(rhs_eq_zero,
+  // LLVM's signed remainder also has undefined behavior for MIN_INT % -1.
+  // Every signed remainder by -1 is zero, so use +1 instead. Substituting the
+  // divisor avoids executing an unsafe instruction even when its result would
+  // otherwise be discarded by a select.
+  llvm::Value* replace_rhs = rhs_eq_zero;
+  if (is_signed) {
+    llvm::Value* rhs_eq_neg_one =
+        builder->CreateICmpEQ(rhs, builder->CreateNot(zero));
+    replace_rhs = builder->CreateOr(replace_rhs, rhs_eq_neg_one);
+  }
+  rhs = builder->CreateSelect(replace_rhs,
                               llvm::ConstantInt::get(rhs->getType(), 1), rhs);
   return builder->CreateSelect(rhs_eq_zero, zero,
                                is_signed ? builder->CreateSRem(lhs, rhs)

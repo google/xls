@@ -1301,6 +1301,25 @@ TEST_P(IrEvaluatorTestBase, InterpretSMod) {
               IsOkAndHolds(Value(SBits(0, 8))));
 }
 
+TEST_P(IrEvaluatorTestBase, InterpretSModByMinusOne) {
+  for (int64_t width : {1, 2, 7, 8, 9, 16, 32, 64, 65, 128}) {
+    SCOPED_TRACE(width);
+    Package package("signed_remainder");
+    FunctionBuilder fb("remainder", &package);
+    BValue lhs = fb.Param("lhs", package.GetBitsType(width));
+    BValue rhs = fb.Param("rhs", package.GetBitsType(width));
+    fb.SMod(lhs, rhs);
+    XLS_ASSERT_OK_AND_ASSIGN(Function * function, fb.Build());
+    for (const Bits& dividend : {Bits::MinSigned(width), Bits::MaxSigned(width),
+                                 Bits::AllOnes(width), Bits(width)}) {
+      SCOPED_TRACE(dividend.ToString());
+      EXPECT_THAT(
+          RunWithBitsNoEvents(function, {dividend, Bits::AllOnes(width)}),
+          IsOkAndHolds(Bits(width)));
+    }
+  }
+}
+
 TEST_P(IrEvaluatorTestBase, InterpretShll) {
   Package package("my_package");
   XLS_ASSERT_OK_AND_ASSIGN(Function * function,
