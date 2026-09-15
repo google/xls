@@ -1312,7 +1312,7 @@ TEST_P(IrEvaluatorTestBase, InterpretSModByMinusOne) {
     XLS_ASSERT_OK_AND_ASSIGN(Function * function, fb.Build());
     for (const Bits& dividend : {Bits::MinSigned(width), Bits::MaxSigned(width),
                                  Bits::AllOnes(width), Bits(width)}) {
-      SCOPED_TRACE(dividend.ToString());
+      SCOPED_TRACE(dividend.ToDebugString());
       EXPECT_THAT(
           RunWithBitsNoEvents(function, {dividend, Bits::AllOnes(width)}),
           IsOkAndHolds(Bits(width)));
