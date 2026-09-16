@@ -78,38 +78,29 @@ class ToBitsDeriver : public TraitDeriver {
     Param* self_param = function.params()[0];
     std::vector<StructMemberNode*> members = def.members();
 
-    Expr* result = nullptr;
-    if (members.empty()) {
-      result = module.Make<Number>(
-          Span::None(), "0", NumberKind::kOther,
-          CreateUnOrSnAnnotation(module, Span::None(), false,
-                                 static_cast<int64_t>(0)));
-    } else {
-      std::vector<Expr*> member_exprs;
-      member_exprs.reserve(members.size());
-      for (StructMemberNode* member : members) {
-        const std::string member_name = member->name();
-        Expr* self = module.Make<NameRef>(
-            Span::None(), self_param->identifier(), self_param->name_def());
-        member_exprs.push_back(
-            module.Make<Attr>(Span::None(), self, member_name));
-      }
-      XLS_ASSIGN_OR_RETURN(
-          result,
-          Concat(
-              module, absl::MakeSpan(member_exprs), concrete_type.members(),
-              /*invalid_element_handler=*/
-              [&](const Expr* expr, const Type& type) -> absl::Status {
-                return TypeInferenceErrorStatus(
-                    def.span(), /*type=*/nullptr,
-                    absl::Substitute(
-                        "Derivation of `$0` for `$1` encountered element "
-                        "that cannot be converted to bits: `$2` of type `$3`.",
-                        trait.identifier(), def.identifier(), expr->ToString(),
-                        type.ToString()),
-                    *module.file_table());
-              }));
+    std::vector<Expr*> member_exprs;
+    member_exprs.reserve(members.size());
+    for (StructMemberNode* member : members) {
+      const std::string member_name = member->name();
+      Expr* self = module.Make<NameRef>(Span::None(), self_param->identifier(),
+                                        self_param->name_def());
+      member_exprs.push_back(
+          module.Make<Attr>(Span::None(), self, member_name));
     }
+    XLS_ASSIGN_OR_RETURN(
+        Expr * result,
+        Concat(module, absl::MakeSpan(member_exprs), concrete_type.members(),
+               /*invalid_element_handler=*/
+               [&](const Expr* expr, const Type& type) -> absl::Status {
+                 return TypeInferenceErrorStatus(
+                     def.span(), /*type=*/nullptr,
+                     absl::Substitute(
+                         "Derivation of `$0` for `$1` encountered element "
+                         "that cannot be converted to bits: `$2` of type `$3`.",
+                         trait.identifier(), def.identifier(), expr->ToString(),
+                         type.ToString()),
+                     *module.file_table());
+               }));
 
     Statement* statement = module.Make<Statement>(result);
     return module.Make<StatementBlock>(Span::None(),
@@ -128,6 +119,12 @@ class ToBitsDeriver : public TraitDeriver {
                                const std::vector<std::unique_ptr<Type>>& types,
                                InvalidElementHandler invalid_element_handler) {
     XLS_RET_CHECK(types.size() == 1 || types.size() == exprs.size());
+    if (exprs.empty()) {
+      return module.Make<Number>(
+          Span::None(), "0", NumberKind::kOther,
+          CreateUnOrSnAnnotation(module, Span::None(), /*is_signed=*/false,
+                                 static_cast<int64_t>(0)));
+    }
     std::optional<Expr*> result;
     for (int i = 0; i < exprs.size(); i++) {
       const std::unique_ptr<Type>& type =
