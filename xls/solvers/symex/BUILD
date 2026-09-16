@@ -26,6 +26,28 @@ package(
 )
 
 cc_library(
+    name = "concolic_input_spec",
+    srcs = ["concolic_input_spec.cc"],
+    hdrs = ["concolic_input_spec.h"],
+    deps = [
+        "//xls/ir:value",
+        "@abseil-cpp//absl/container:flat_hash_map",
+    ],
+)
+
+cc_test(
+    name = "concolic_input_spec_test",
+    srcs = ["concolic_input_spec_test.cc"],
+    deps = [
+        ":concolic_input_spec",
+        "//xls/common:xls_gunit_main",
+        "//xls/ir:bits",
+        "//xls/ir:value",
+        "@googletest//:gtest",
+    ],
+)
+
+cc_library(
     name = "symbolic_path",
     hdrs = ["symbolic_path.h"],
     deps = [
@@ -39,6 +61,7 @@ cc_test(
     name = "symbolic_path_test",
     srcs = ["symbolic_path_test.cc"],
     deps = [
+        ":concolic_input_spec",
         ":symbolic_path",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
@@ -98,19 +121,23 @@ cc_library(
     srcs = ["symex_engine.cc"],
     hdrs = ["symex_engine.h"],
     deps = [
+        ":concolic_input_spec",
         ":symbolic_path",
         ":z3_encoding_visitor",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "//xls/ir",
+        "//xls/ir:bits",
         "//xls/ir:node_util",
         "//xls/ir:op",
         "//xls/ir:value",
+        "//xls/ir:value_flattening",
         "//xls/solvers:z3_utils",
         "@abseil-cpp//absl/cleanup",
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/types:span",
         "@z3//:api",
     ],
@@ -120,6 +147,7 @@ cc_test(
     name = "symex_engine_test",
     srcs = ["symex_engine_test.cc"],
     deps = [
+        ":concolic_input_spec",
         ":symbolic_path",
         ":symex_engine",
         "//xls/common:xls_gunit_main",
@@ -128,6 +156,8 @@ cc_test(
         "//xls/ir:bits",
         "//xls/ir:function_builder",
         "//xls/ir:ir_test_base",
+        "//xls/ir:value",
+        "@abseil-cpp//absl/status",
         "@googletest//:gtest",
         "@z3//:api",
     ],
@@ -140,6 +170,7 @@ cc_test(
         "//xls/solvers/symex/testdata:execute_alu.ir",
     ],
     deps = [
+        ":concolic_input_spec",
         ":symbolic_path",
         ":symex_engine",
         "//xls/common:xls_gunit_main",
@@ -150,6 +181,7 @@ cc_test(
         "//xls/interpreter:evaluator_options",
         "//xls/interpreter:ir_interpreter",
         "//xls/ir",
+        "//xls/ir:bits",
         "//xls/ir:events",
         "//xls/ir:ir_test_base",
         "//xls/ir:value",

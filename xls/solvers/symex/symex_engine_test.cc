@@ -15,17 +15,20 @@
 #include "xls/solvers/symex/symex_engine.h"
 
 #include <cstddef>
+#include <memory>
 #include <string>
 #include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/status/status.h"
 #include "xls/common/status/matchers.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/function.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/package.h"
+#include "xls/ir/value.h"
 #include "xls/solvers/symex/symbolic_path.h"
 #include "z3/src/api/z3_api.h"
 
@@ -221,6 +224,125 @@ TEST_F(SymExEngineTest, PrunesInfeasibleBranchDecisions) {
   ASSERT_THAT(paths, SizeIs(1));
   EXPECT_THAT(paths[0].branch_decisions,
               ElementsAre(BranchDecisionIs(0, false)));
+}
+
+TEST_F(SymExEngineTest, ConcolicExecutionPrunesIncompatibleBranches) {
+  std::unique_ptr<VerifiedPackage> p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue sel = fb.Param("sel", p->GetBitsType(2));
+  BValue a = fb.Param("a", p->GetBitsType(32));
+  fb.Param("b", p->GetBitsType(32));
+  BValue c0 = fb.Literal(UBits(10, 32));
+  BValue c1 = fb.Literal(UBits(20, 32));
+  BValue c2 = fb.Literal(UBits(30, 32));
+  fb.Select(sel, {c0, c1, c2}, a);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * fn, fb.Build());
+
+  SymExOptions options;
+  options.concrete_inputs.BindParam("sel", Value(UBits(1, 2)));
+
+  XLS_ASSERT_OK_AND_ASSIGN(SymExEngine engine,
+                           SymExEngine::Create(ctx_, options));
+  XLS_ASSERT_OK_AND_ASSIGN(std::vector<SymbolicPath> paths,
+                           engine.ExplorePaths(fn));
+
+  // Only the path corresponding to sel == 1 should be feasible.
+  EXPECT_EQ(paths.size(), 1);
+  EXPECT_EQ(paths[0].branch_decisions.size(), 1);
+  EXPECT_EQ(paths[0].branch_decisions[0].arm_index, 1);
+}
+
+TEST_F(SymExEngineTest, ConcolicExecutionRejectsMismatchedBitwidth) {
+  std::unique_ptr<VerifiedPackage> p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue sel = fb.Param("sel", p->GetBitsType(2));
+  BValue a = fb.Param("a", p->GetBitsType(32));
+  BValue c0 = fb.Literal(UBits(10, 32));
+  fb.Select(sel, std::vector<BValue>{c0}, a);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * fn, fb.Build());
+
+  SymExOptions options;
+  // sel is bits[2], but binding bits[4] should return InvalidArgument.
+  options.concrete_inputs.BindParam("sel", Value(UBits(1, 4)));
+
+  XLS_ASSERT_OK_AND_ASSIGN(SymExEngine engine,
+                           SymExEngine::Create(ctx_, options));
+  EXPECT_THAT(engine.ExplorePaths(fn).status(),
+              absl_testing::StatusIs(absl::StatusCode::kInvalidArgument,
+                                     testing::HasSubstr("bitwidth mismatch")));
+}
+
+TEST_F(SymExEngineTest,
+       ConcolicExecutionPrunesViaIntermediateSelectorComputation) {
+  std::unique_ptr<VerifiedPackage> p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetBitsType(32));
+  BValue y = fb.Param("y", p->GetBitsType(32));
+  BValue two = fb.Literal(UBits(2, 32));
+  BValue zero = fb.Literal(UBits(0, 32));
+  BValue five = fb.Literal(UBits(5, 32));
+  BValue eight = fb.Literal(UBits(8, 32));
+  BValue mod_x = fb.UMod(x, two);
+  BValue cond_x = fb.Eq(mod_x, zero);
+  BValue real_x = fb.Select(cond_x, {five, x});
+  BValue cond_y = fb.Eq(y, real_x);
+  BValue real_y = fb.Select(cond_y, {y, eight});
+  fb.Add(real_x, real_y);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * fn, fb.Build());
+
+  // Without concolic constraint, there are 4 paths (2 branches at each of 2
+  // muxes).
+  {
+    XLS_ASSERT_OK_AND_ASSIGN(SymExEngine engine,
+                             SymExEngine::Create(ctx_, SymExOptions()));
+    XLS_ASSERT_OK_AND_ASSIGN(std::vector<SymbolicPath> all_paths,
+                             engine.ExplorePaths(fn));
+    EXPECT_THAT(all_paths, SizeIs(4));
+  }
+
+  // Restricting x = 3 forces mod_x = 1, pruning the cond_x == 1 branch.
+  // Exactly 2 feasible paths remain for y.
+  SymExOptions options;
+  options.concrete_inputs.BindParam("x", Value(UBits(3, 32)));
+
+  XLS_ASSERT_OK_AND_ASSIGN(SymExEngine engine,
+                           SymExEngine::Create(ctx_, options));
+  XLS_ASSERT_OK_AND_ASSIGN(std::vector<SymbolicPath> paths,
+                           engine.ExplorePaths(fn));
+
+  EXPECT_THAT(paths, SizeIs(2));
+  for (const SymbolicPath& path : paths) {
+    ASSERT_THAT(path.branch_decisions, SizeIs(2));
+    // The first decision (mux for real_x) must be arm 0 (five).
+    EXPECT_EQ(path.branch_decisions[0].arm_index, 0);
+  }
+}
+
+TEST_F(SymExEngineTest, ConcolicExecutionWithTupleInputPrunesBranches) {
+  std::unique_ptr<VerifiedPackage> p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* tuple_type = p->GetTupleType({p->GetBitsType(2), p->GetBitsType(32)});
+  BValue t = fb.Param("t", tuple_type);
+  BValue sel = fb.TupleIndex(t, 0);
+  BValue val = fb.TupleIndex(t, 1);
+  BValue c0 = fb.Literal(UBits(10, 32));
+  BValue c1 = fb.Literal(UBits(20, 32));
+  BValue c2 = fb.Literal(UBits(30, 32));
+  fb.Select(sel, {c0, c1, c2}, val);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * fn, fb.Build());
+
+  SymExOptions options;
+  options.concrete_inputs.BindParam(
+      "t", Value::Tuple({Value(UBits(1, 2)), Value(UBits(42, 32))}));
+
+  XLS_ASSERT_OK_AND_ASSIGN(SymExEngine engine,
+                           SymExEngine::Create(ctx_, options));
+  XLS_ASSERT_OK_AND_ASSIGN(std::vector<SymbolicPath> paths,
+                           engine.ExplorePaths(fn));
+
+  EXPECT_EQ(paths.size(), 1);
+  EXPECT_EQ(paths[0].branch_decisions.size(), 1);
+  EXPECT_EQ(paths[0].branch_decisions[0].arm_index, 1);
 }
 
 }  // namespace

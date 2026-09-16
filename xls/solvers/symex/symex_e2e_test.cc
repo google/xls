@@ -26,6 +26,7 @@
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/interpreter/function_interpreter.h"
+#include "xls/ir/bits.h"
 #include "xls/ir/events.h"
 #include "xls/ir/function.h"
 #include "xls/ir/ir_test_base.h"
@@ -116,6 +117,25 @@ TEST_F(SymexE2eTest, ExecuteAluExploresPaths) {
         Value result, DropInterpreterEvents(InterpretFunction(fn, args)));
     EXPECT_TRUE(result.IsTuple());
   }
+}
+
+TEST_F(SymexE2eTest, ConcolicAluOpPrunesToSingleOperationPaths) {
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package, LoadAluPackage());
+  XLS_ASSERT_OK_AND_ASSIGN(Function * fn,
+                           package->GetFunction("__execute_alu__execute_alu"));
+
+  // Opcode 0 is ADD (u2)
+  SymExOptions options;
+  options.concrete_inputs.BindParam("op", Value(UBits(0, 2)));
+
+  XLS_ASSERT_OK_AND_ASSIGN(SymExEngine engine,
+                           SymExEngine::Create(ctx_, options));
+  XLS_ASSERT_OK_AND_ASSIGN(std::vector<SymbolicPath> paths,
+                           engine.ExplorePaths(fn));
+
+  // Fixing op=0 explores only ADD paths: ADD with overflow, ADD without
+  // overflow (2 paths instead of 6).
+  EXPECT_EQ(paths.size(), 2);
 }
 
 }  // namespace

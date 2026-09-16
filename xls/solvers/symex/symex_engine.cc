@@ -14,6 +14,7 @@
 
 #include "xls/solvers/symex/symex_engine.h"
 
+#include <algorithm>
 #include <cstdint>
 #include <utility>
 #include <vector>
@@ -22,9 +23,11 @@
 #include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_cat.h"
 #include "absl/types/span.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/ir/bits.h"
 #include "xls/ir/function.h"
 #include "xls/ir/node.h"
 #include "xls/ir/node_util.h"
@@ -32,6 +35,8 @@
 #include "xls/ir/op.h"
 #include "xls/ir/topo_sort.h"
 #include "xls/ir/value.h"
+#include "xls/ir/value_flattening.h"
+#include "xls/solvers/symex/concolic_input_spec.h"
 #include "xls/solvers/symex/symbolic_path.h"
 #include "xls/solvers/symex/z3_encoding_visitor.h"
 #include "xls/solvers/z3_utils.h"
@@ -209,6 +214,40 @@ absl::StatusOr<std::vector<SymbolicPath>> SymExEngine::ExplorePaths(
   Z3_solver solver = solvers::z3::CreateSolver(ctx_, /*num_threads=*/1);
   Z3_solver_inc_ref(ctx_, solver);
   absl::Cleanup solver_cleanup = [&] { Z3_solver_dec_ref(ctx_, solver); };
+
+  // If concrete input parameter values are specified (concolic execution),
+  // assert them in the base solver frame to prune incompatible branches.
+  for (const auto& [param_name, value] :
+       options_.concrete_inputs.param_values()) {
+    absl::StatusOr<Param*> param_or = fn->GetParamByName(param_name);
+    if (!param_or.ok()) {
+      return absl::InvalidArgumentError(
+          absl::StrCat("Concolic parameter '", param_name,
+                       "' not found in function: ", fn->name()));
+    }
+    Param* param = *param_or;
+    Z3_ast param_ast = encoder.GetNodeAst(param);
+    if (param_ast == nullptr) {
+      return absl::InternalError(
+          absl::StrCat("Param AST not found: ", param_name));
+    }
+    Bits flat_bits = FlattenValueToBits(value);
+    int64_t param_bit_count = param->GetType()->GetFlatBitCount();
+    if (flat_bits.bit_count() != param_bit_count) {
+      return absl::InvalidArgumentError(absl::StrCat(
+          "Concolic parameter '", param_name, "' bitwidth mismatch: expected ",
+          param_bit_count, " bits, got ", flat_bits.bit_count(), " bits"));
+    }
+    std::vector<Z3_ast> flat_param =
+        encoder.FlattenValue(param->GetType(), param_ast,
+                             /*little_endian=*/true);
+    std::reverse(flat_param.begin(), flat_param.end());
+    for (int64_t i = 0; i < param_bit_count; ++i) {
+      Z3_ast bit_val =
+          solvers::z3::BitsToZ3(ctx_, UBits(flat_bits.Get(i) ? 1 : 0, 1));
+      Z3_solver_assert(ctx_, solver, Z3_mk_eq(ctx_, flat_param[i], bit_val));
+    }
+  }
 
   std::vector<SymbolicPath> completed_paths;
   std::vector<BranchDecision> current_decisions;

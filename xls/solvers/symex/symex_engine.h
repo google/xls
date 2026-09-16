@@ -23,6 +23,7 @@
 #include "absl/types/span.h"
 #include "xls/ir/function.h"
 #include "xls/ir/node_util.h"
+#include "xls/solvers/symex/concolic_input_spec.h"
 #include "xls/solvers/symex/symbolic_path.h"
 #include "xls/solvers/symex/z3_encoding_visitor.h"
 #include "z3/src/api/z3.h"  // IWYU pragma: keep
@@ -32,6 +33,11 @@ namespace xls::solvers::symex {
 
 // Configuration options for symbolic execution path exploration.
 struct SymExOptions {
+  // Concrete input parameter bindings (concolic execution).
+  // Parameters bound in this specification are treated as known concrete
+  // constants during path exploration, enabling upfront branch pruning.
+  ConcolicInputSpec concrete_inputs;
+
   // Maximum number of feasible paths to explore before terminating.
   // When <= 0, path exploration is unbounded.
   int64_t max_paths = 1000;
