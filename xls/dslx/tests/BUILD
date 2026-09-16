@@ -449,7 +449,6 @@ dslx_lang_test(name = "impl")
 dslx_lang_test(
     name = "lambda",
     dslx_deps = [":mod_u16_type_alias_dslx"],
-    warnings_as_errors = False,
 )
 
 dslx_lang_test(

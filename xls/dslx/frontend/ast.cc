@@ -2289,9 +2289,16 @@ std::vector<AstNode*> StructInstance::GetChildren(bool want_types) const {
   std::vector<AstNode*> results;
   absl::Span<const std::pair<std::string, Expr*>> members =
       GetUnorderedMembers();
-  results.reserve(members.size());
+  uint64_t size = members.size();
+  if (want_types) {
+    size++;
+  }
+  results.reserve(size);
   for (auto& [_, member] : members) {
     results.push_back(member);
+  }
+  if (want_types) {
+    results.push_back(struct_ref());
   }
   return results;
 }

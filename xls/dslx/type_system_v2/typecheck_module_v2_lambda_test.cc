@@ -1069,5 +1069,16 @@ const_assert!(TWO[4] == S<8>{x: 4});
                               HasNodeWithType("TWO", "S { x: uN[8] }[5]"))));
 }
 
+TEST(TypecheckV2Test, ConstantCaptureInLambdaMarkedUsed) {
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(R"(
+fn test_lambda() -> u32[5] {
+  const C = u32:5;
+  map(0..5, | x | x + C)
+}
+
+)"));
+  ASSERT_TRUE(result.tm.warnings.warnings().empty());
+}
+
 }  // namespace
 }  // namespace xls::dslx

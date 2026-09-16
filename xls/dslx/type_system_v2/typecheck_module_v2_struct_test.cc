@@ -2603,5 +2603,23 @@ fn main() -> imported::S<32> {
                                                "S { a: uN[32], b: uN[33] }"))));
 }
 
+TEST(TypecheckV2StructTest, ParametricsOnStructsMarkedUsed) {
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(R"(
+struct S<N: u32> {}
+
+impl S<N> {
+  fn call(self, x: u32) -> u32 {
+    x + N
+  }
+}
+
+fn test_lambda() -> u32[5] {
+  const C = u32:5;
+  map(0..5, S<C>{}.call)
+}
+)"));
+  ASSERT_TRUE(result.tm.warnings.warnings().empty());
+}
+
 }  // namespace
 }  // namespace xls::dslx
