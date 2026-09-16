@@ -14,6 +14,7 @@
 
 #include "xls/common/subprocess.h"
 
+#include <filesystem>
 #include <optional>
 #include <string>
 #include <utility>
@@ -25,6 +26,7 @@
 #include "absl/status/statusor.h"
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
+#include "xls/common/file/temp_directory.h"
 #include "xls/common/status/matchers.h"
 
 namespace xls {
@@ -41,6 +43,32 @@ TEST(SubprocessTest, EmptyArgvFails) {
   auto result = InvokeSubprocess({}, std::nullopt);
 
   EXPECT_THAT(result, StatusIs(absl::StatusCode::kInvalidArgument));
+}
+
+TEST(SubprocessTest, WorkingDirectoryDoesNotChangeParent) {
+  XLS_ASSERT_OK_AND_ASSIGN(TempDirectory directory, TempDirectory::Create());
+  const std::filesystem::path parent_directory =
+      std::filesystem::current_path();
+
+  XLS_ASSERT_OK_AND_ASSIGN(SubprocessResult result,
+                           SubprocessErrorAsStatus(InvokeSubprocess(
+                               {"pwd", "-P"}, directory.path())));
+
+  EXPECT_EQ(result.stdout_content,
+            std::filesystem::canonical(directory.path()).string() + "\n");
+  EXPECT_EQ(std::filesystem::current_path(), parent_directory);
+}
+
+TEST(SubprocessTest, RelativeExecutableUsesChildWorkingDirectory) {
+  XLS_ASSERT_OK_AND_ASSIGN(TempDirectory directory, TempDirectory::Create());
+  std::filesystem::create_symlink("/bin/pwd", directory.path() / "command");
+
+  XLS_ASSERT_OK_AND_ASSIGN(SubprocessResult result,
+                           SubprocessErrorAsStatus(InvokeSubprocess(
+                               {"./command", "-P"}, directory.path())));
+
+  EXPECT_EQ(result.stdout_content,
+            std::filesystem::canonical(directory.path()).string() + "\n");
 }
 
 TEST(SubprocessTest, NonZeroExitWorks) {
