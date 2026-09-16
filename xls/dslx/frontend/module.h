@@ -379,7 +379,8 @@ class Module : public AstNode {
 
   FileTable* file_table() const { return file_table_; }
 
-  absl::Status SetConfiguredValues(std::vector<std::string> configured_values) {
+  absl::Status SetConfiguredValues(
+      absl::Span<std::string const> configured_values) {
     absl::flat_hash_map<std::string, std::string> configured_values_map;
     for (const auto& item : configured_values) {
       std::vector<std::string> key_value =

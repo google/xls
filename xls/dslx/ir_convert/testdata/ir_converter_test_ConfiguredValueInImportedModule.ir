@@ -1,0 +1,18 @@
+package test_module
+
+file_number 0 "imported.x"
+file_number 1 "test_module.x"
+
+fn __imported__deep_thoughts() -> bits[32] {
+  literal.1: bits[8][10] = literal(value=[116, 104, 101, 95, 97, 110, 115, 119, 101, 114], id=1)
+  literal.2: bits[32] = literal(value=3735928559, id=2)
+  ret literal.3: bits[32] = literal(value=42, id=3)
+}
+
+fn __test_module__the_answer() -> (bits[32], bits[32]) {
+  invoke.4: bits[32] = invoke(to_apply=__imported__deep_thoughts, id=4)
+  literal.7: bits[32] = literal(value=42, id=7)
+  literal.5: bits[8][10] = literal(value=[116, 104, 101, 95, 97, 110, 115, 119, 101, 114], id=5)
+  literal.6: bits[32] = literal(value=739245797, id=6)
+  ret tuple.8: (bits[32], bits[32]) = tuple(invoke.4, literal.7, id=8)
+}

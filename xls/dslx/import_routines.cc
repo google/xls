@@ -212,6 +212,9 @@ static absl::StatusOr<std::unique_ptr<ModuleInfo>> DslxPathToModuleInfo(
   Scanner scanner(file_table, fileno, contents);
   Parser parser(/*module_name=*/fully_qualified_name, &scanner);
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<Module> module, parser.ParseModule());
+  // Propagate configured values to the module (if we have any).
+  XLS_RETURN_IF_ERROR(
+      module->SetConfiguredValues(import_data->configured_values()));
   return ftypecheck(std::move(module), dslx_path.source_path);
 }
 
