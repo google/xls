@@ -469,6 +469,20 @@ const_assert!(Foo{}.to_bits() == bits[0]:0);
 )"));
 }
 
+TEST(TypecheckV2TraitTest, ToBitsWithEmptyArrayAndTuple) {
+  XLS_ASSERT_OK(TypecheckV2(R"(
+#[derive(ToBits)]
+struct Foo {
+  a: u8,
+  b: u8[0],
+  c: (),
+  d: (u2, u4[0]),
+}
+
+const_assert!(Foo { a: 5, b: [], c: (), d: (1, []) }.to_bits() == u10:0b00000101_01);
+)"));
+}
+
 TEST(TypecheckV2TraitTest, MapToBits) {
   XLS_ASSERT_OK(TypecheckV2(R"(
 #[derive(ToBits)]
