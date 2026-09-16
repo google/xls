@@ -15,12 +15,17 @@
 #include "xls/common/subprocess.h"
 
 #include <fcntl.h>
+#if !defined(__APPLE__)
 #include <linux/memfd.h>
+#endif
 #include <signal.h>  // NOLINT
 #include <spawn.h>
 #include <stdlib.h>  // NOLINT for WIFEXITED, WEXITSTATUS; not in <cstdlib>
 #include <sys/mman.h>
 #include <sys/poll.h>
+#if defined(__APPLE__)
+#include <sys/stat.h>  // for fchmod()
+#endif
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <unistd.h>
@@ -28,6 +33,9 @@
 #include <atomic>
 #include <cerrno>
 #include <cstdio>
+#if defined(__APPLE__)
+#include <cstdlib>  // for std::atexit()
+#endif
 #include <cstring>
 #include <ctime>
 #include <filesystem>
@@ -153,6 +161,56 @@ class CleanableFd {
   int fd_ = -1;
 };
 
+#if defined(__APPLE__)
+// Path of the temporary helper file, retained so it can be removed at exit.
+std::string* g_subprocess_helper_temp_path = nullptr;
+
+void RemoveSubprocessHelperTempFile() {
+  if (g_subprocess_helper_temp_path != nullptr) {
+    unlink(g_subprocess_helper_temp_path->c_str());
+  }
+}
+
+// macOS has neither memfd_create() nor a /proc filesystem, so the embedded
+// helper is materialized into a temporary file that posix_spawnp can exec by
+// path. Unlike a Linux memfd the file has a name and is not reclaimed
+// automatically, and it cannot be unlinked up front because exec resolves it
+// by path, so it is removed at exit instead. A process killed by a signal
+// still leaves it behind; exec'ing an unlinked file via /dev/fd is rejected
+// on macOS, and there is no fexecve(), so a named file is unavoidable.
+absl::StatusOr<std::string> GetSubprocessHelperPath() {
+  std::string path_template =
+      (std::filesystem::temp_directory_path() / "xls_subprocess_helper_XXXXXX")
+          .string();
+  CleanableFd fd(mkstemp(path_template.data()));
+  if (fd == -1) {
+    return absl::InternalError(
+        absl::StrCat("Failed to create temporary file for subprocess helper: ",
+                     Strerror(errno)));
+  }
+  auto helper = get_subprocess_helper_embedded();
+  if (write(fd, helper.data(), helper.size()) !=
+      static_cast<ssize_t>(helper.size())) {
+    unlink(path_template.c_str());
+    return absl::InternalError(absl::StrCat(
+        "Failed to write subprocess helper: ", Strerror(errno)));
+  }
+  if (fchmod(fd, 0700) != 0) {
+    unlink(path_template.c_str());
+    return absl::InternalError(absl::StrCat(
+        "Failed to make subprocess helper executable: ", Strerror(errno)));
+  }
+  // Registered once; this function is only reached through a function-local
+  // static in ExecInChildProcess().
+  if (g_subprocess_helper_temp_path == nullptr) {
+    g_subprocess_helper_temp_path = new std::string(path_template);
+    std::atexit(&RemoveSubprocessHelperTempFile);
+  } else {
+    *g_subprocess_helper_temp_path = path_template;
+  }
+  return path_template;
+}
+#else
 absl::StatusOr<CleanableFd> GetSubprocessHelperFd() {
   int raw_fd = memfd_create("subprocess_helper", MFD_CLOEXEC);
   CleanableFd fd(raw_fd);
@@ -173,6 +231,16 @@ absl::StatusOr<CleanableFd> GetSubprocessHelperFd() {
   return std::move(fd);
 }
 
+absl::StatusOr<std::string> GetSubprocessHelperPath() {
+  // The fd is intentionally never closed: the returned path refers to it via
+  // /proc/self/fd for the lifetime of the process.
+  static const absl::StatusOr<CleanableFd>* const fd =
+      new absl::StatusOr<CleanableFd>(GetSubprocessHelperFd());
+  XLS_RETURN_IF_ERROR(fd->status());
+  return absl::StrCat("/proc/self/fd/", static_cast<int>(**fd));
+}
+#endif
+
 absl::StatusOr<pid_t> ExecInChildProcess(
     const std::vector<const char*>& argv_pointers,
     const std::optional<std::filesystem::path>& cwd, Pipe& stdout_pipe,
@@ -191,13 +259,12 @@ absl::StatusOr<pid_t> ExecInChildProcess(
   // actually wanted to run.
 
   // To avoid having dependencies on the bazel build artifacts continuing to
-  // exist we run subprocess_helper out of a memfd.
-  static const absl::StatusOr<CleanableFd> subprocess_helper_fd =
-      GetSubprocessHelperFd();
-  XLS_RETURN_IF_ERROR(subprocess_helper_fd.status());
-  int fd = *subprocess_helper_fd;
-
-  std::string subprocess_helper = absl::StrCat("/proc/self/fd/", fd);
+  // exist we run subprocess_helper out of a copy embedded in this binary: a
+  // memfd on Linux, a temporary file on macOS. See GetSubprocessHelperPath().
+  static const absl::StatusOr<std::string> subprocess_helper_path =
+      GetSubprocessHelperPath();
+  XLS_RETURN_IF_ERROR(subprocess_helper_path.status());
+  const std::string& subprocess_helper = *subprocess_helper_path;
   std::vector<const char*> helper_argv_pointers;
   helper_argv_pointers.reserve(argv_pointers.size() + 2);
   helper_argv_pointers.push_back(subprocess_helper.c_str());
