@@ -727,9 +727,6 @@ absl::StatusOr<LeafTypeTree<T>> SliceArray(ArrayType* result_array_type,
   typename LeafTypeTree<T>::DataContainerT result;
   int64_t elem_leaves = source_array_type->element_type()->leaf_count();
   result.reserve(elem_leaves * result_array_type->size());
-  auto add_all = [&](LeafTypeTreeView<T> v) {
-    absl::c_copy(v.elements(), std::back_inserter(result));
-  };
   int64_t source_size = source_array_type->size();
   for (int64_t i = 0; i < result_array_type->size(); ++i) {
     int64_t source_idx =
