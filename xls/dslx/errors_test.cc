@@ -42,10 +42,12 @@ TEST(ErrorsTest, TypeInferenceErrorMessage) {
   std::unique_ptr<Type> type = BitsType::MakeU32();
   absl::Status status = TypeInferenceErrorStatus(
       span, type.get(), "this is the message!", file_table);
-  EXPECT_EQ(
-      status.ToString(),
-      "INVALID_ARGUMENT: TypeInferenceError: <no-file>:1:1-2:2 uN[32] this "
-      "is the message!");
+  std::optional<StatusPayloadProto> payload = GetStatusPayload(status);
+  ASSERT_TRUE(payload.has_value());
+  EXPECT_THAT(payload->spans(),
+              UnorderedElementsAre(EqualsProto(ToProto(span, file_table))));
+  EXPECT_EQ(status.message(),
+            "TypeInferenceError: uN[32] this is the message!");
 }
 
 TEST(ErrorsTest, SignednessMismatchErrorAnnotationPayload) {
