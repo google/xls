@@ -3062,7 +3062,12 @@ fn or_last_bit<WIDTH: u32>(value: bits[WIDTH], lsb: u1) -> bits[WIDTH] {
 // The bit widths of different float components are given
 // in comments throughout this implementation, listed
 // relative to the widths of a standard float32.
-pub fn add<EXP_SZ: u32, FRACTION_SZ: u32, USE_LZA: bool = {false}>
+// COMPUTE_STICKY: compute sticky bit (default: true).
+// COMPUTE_ZERO_SIGN: compute zero sign (default: true).
+// FLUSH_INPUT_DENORMALS: flush input denormals to 0 (default: true).
+pub fn add
+    <EXP_SZ: u32, FRACTION_SZ: u32, USE_LZA: bool = {false}, COMPUTE_STICKY: bool = {true},
+     COMPUTE_ZERO_SIGN: bool = {true}, FLUSH_INPUT_DENORMALS: bool = {true}>
     (a: APFloat<EXP_SZ, FRACTION_SZ>, b: APFloat<EXP_SZ, FRACTION_SZ>)
     -> APFloat<EXP_SZ, FRACTION_SZ> {
     // WIDE_EXP: Widened exponent to capture a possible carry bit.
@@ -3094,8 +3099,10 @@ pub fn add<EXP_SZ: u32, FRACTION_SZ: u32, USE_LZA: bool = {false}>
     let fraction_y = (u1:1 ++ y.fraction) as uN[FRACTION];
 
     // Flush denormals to 0.
-    let fraction_x = if x.bexp == uN[EXP_SZ]:0 { uN[FRACTION]:0 } else { fraction_x };
-    let fraction_y = if y.bexp == uN[EXP_SZ]:0 { uN[FRACTION]:0 } else { fraction_y };
+    let fraction_x =
+        if FLUSH_INPUT_DENORMALS && x.bexp == uN[EXP_SZ]:0 { uN[FRACTION]:0 } else { fraction_x };
+    let fraction_y =
+        if FLUSH_INPUT_DENORMALS && y.bexp == uN[EXP_SZ]:0 { uN[FRACTION]:0 } else { fraction_y };
 
     // Provide space for guard, round and sticky
     let wide_x = fraction_x as uN[WIDE_FRACTION] << GUARD_ROUND_STICKY_BITS;
@@ -3108,20 +3115,25 @@ pub fn add<EXP_SZ: u32, FRACTION_SZ: u32, USE_LZA: bool = {false}>
     let addend_x = if x.sign != y.sign { -addend_x } else { addend_x };
 
     // The smaller (y) needs to be shifted.
-    // Calculate the sticky bit - set to 1 if any set bits have to be shifted
-    // shifted out of the fraction.
-    let sticky = std::or_reduce_lsb(wide_y, shift);
-    let addend_y = or_last_bit(wide_y >> shift, sticky) as sN[WIDE_FRACTION];
+    let addend_y = if COMPUTE_STICKY {
+        // Calculate the sticky bit - set to 1 if any set bits have to be shifted
+        // out of the fraction.
+        let sticky = std::or_reduce_lsb(wide_y, shift);
+        or_last_bit(wide_y >> shift, sticky) as sN[WIDE_FRACTION]
+    } else {
+        (wide_y >> shift) as sN[WIDE_FRACTION]
+    };
 
     // Step 2: Do some addition!
     // Add one bit to capture potential carry: s28 -> s29.
     let fraction = (addend_x as sN[CARRY_FRACTION]) + (addend_y as sN[CARRY_FRACTION]);
     let fraction_is_zero = fraction == sN[CARRY_FRACTION]:0;
-    let result_sign = match (fraction_is_zero, fraction < sN[CARRY_FRACTION]:0) {
-        (true, _) => x.sign && y.sign,  // So that -0.0 + -0.0 results in -0.0
-        (false, true) => !y.sign,
-        _ => y.sign,
-    };
+    let result_sign =
+        match (COMPUTE_ZERO_SIGN && fraction_is_zero, fraction < sN[CARRY_FRACTION]:0) {
+            (true, _) => x.sign && y.sign,  // So that -0.0 + -0.0 results in -0.0
+            (false, true) => !y.sign,
+            _ => y.sign,
+        };
 
     // Get the absolute value of the result then chop off the sign bit: s29 -> u28.
     let abs_fraction =
@@ -3198,10 +3210,9 @@ pub fn add<EXP_SZ: u32, FRACTION_SZ: u32, USE_LZA: bool = {false}>
     // each bit of carry or cancellation moves it by one place.
     let wide_exponent = (x.bexp as sN[CARRY_EXP]) + (rounding_carry as sN[CARRY_EXP]) +
                         sN[CARRY_EXP]:1 - (leading_zeroes as sN[CARRY_EXP]);
-    let wide_exponent = if fraction_is_zero { sN[CARRY_EXP]:0 } else { wide_exponent };
 
     // Chop off the sign bit.
-    let wide_exponent = if wide_exponent < sN[CARRY_EXP]:0 {
+    let wide_exponent = if fraction_is_zero || (wide_exponent < sN[CARRY_EXP]:0) {
         uN[WIDE_EXP]:0
     } else {
         wide_exponent as uN[WIDE_EXP]
@@ -3210,8 +3221,19 @@ pub fn add<EXP_SZ: u32, FRACTION_SZ: u32, USE_LZA: bool = {false}>
     // Extra bonus step 5: special case handling!
 
     // If the exponent underflowed, don't bother with denormals. Just flush to 0.
-    let result_fraction =
-        if wide_exponent < uN[WIDE_EXP]:1 { uN[FRACTION_SZ]:0 } else { result_fraction };
+    let (result_fraction, result_sign) = if wide_exponent < uN[WIDE_EXP]:1 {
+        (
+            uN[FRACTION_SZ]:0,
+            if COMPUTE_ZERO_SIGN {
+                result_sign
+            } else {
+                // +0.0 on underflow/cancellation.
+                u1:0
+            }
+        )
+    } else {
+        (result_fraction, result_sign)
+    };
 
     // Handle exponent overflow infinities.
     const MAX_EXPONENT = std::mask_bits<EXP_SZ>();
@@ -3256,11 +3278,50 @@ pub fn add<EXP_SZ: u32, FRACTION_SZ: u32, USE_LZA: bool = {false}>
 //  - No exception flags are raised/reported.
 // In all other cases, results should be identical to other
 // conforming implementations (modulo exact fraction values in the NaN case).
-pub fn sub<EXP_SZ: u32, FRACTION_SZ: u32, USE_LZA: bool = {false}>
+pub fn sub
+    <EXP_SZ: u32, FRACTION_SZ: u32, USE_LZA: bool = {false}, COMPUTE_STICKY: bool = {true},
+     COMPUTE_ZERO_SIGN: bool = {true}, FLUSH_INPUT_DENORMALS: bool = {true}>
     (x: APFloat<EXP_SZ, FRACTION_SZ>, y: APFloat<EXP_SZ, FRACTION_SZ>)
     -> APFloat<EXP_SZ, FRACTION_SZ> {
     let y = APFloat<EXP_SZ, FRACTION_SZ> { sign: !y.sign, bexp: y.bexp, fraction: y.fraction };
-    add<EXP_SZ, FRACTION_SZ, USE_LZA>(x, y)
+    add <EXP_SZ, FRACTION_SZ, USE_LZA, COMPUTE_STICKY, COMPUTE_ZERO_SIGN, FLUSH_INPUT_DENORMALS>(
+        x, y)
+}
+
+#[test]
+fn test_add_compute_sticky() {
+    let x = one<u32:8, u32:23>(u1:0);
+    // y has exponent difference of 24 and bit 20 set (shifted into sticky region)
+    let y = APFloat<u32:8, u32:23> { sign: u1:0, bexp: u8:103, fraction: u23:0x100000 };
+
+    // COMPUTE_STICKY: true: sticky bit is set, rounds up to 1.
+    assert_eq(add<u32:8, u32:23, false, true>(x, y).fraction, u23:1);
+    // COMPUTE_STICKY: false: sticky bit is skipped, rounds down to 0.
+    assert_eq(add<u32:8, u32:23, false, false>(x, y).fraction, u23:0);
+}
+
+#[test]
+fn test_add_compute_zero_sign() {
+    let neg_zero = zero<u32:8, u32:23>(u1:1);
+
+    // COMPUTE_ZERO_SIGN: true, preserves -0.0
+    assert_eq(add<u32:8, u32:23, false, true, true>(neg_zero, neg_zero).sign, u1:1);
+    // COMPUTE_ZERO_SIGN: false, flushes to +0.0
+    assert_eq(add<u32:8, u32:23, false, true, false>(neg_zero, neg_zero).sign, u1:0);
+}
+
+#[test]
+fn test_add_flush_input_denormals() {
+    let zero_val = zero<u32:8, u32:23>(u1:0);
+    let denorm = APFloat<u32:8, u32:23> { sign: u1:0, bexp: u8:0, fraction: u23:0x100 };
+
+    // FLUSH_INPUT_DENORMALS: true, input denormal is flushed to 0.0
+    assert_eq(add<u32:8, u32:23, false, true, true, true>(zero_val, denorm), zero_val);
+
+    // FLUSH_INPUT_DENORMALS: false, input denormal is retained and normalized
+    let result = add<u32:8, u32:23, false, true, true, false>(zero_val, denorm);
+    assert_eq(result.bexp, u8:1);
+    assert_eq(result.fraction, u23:128);
 }
 
 #[quickcheck(exhaustive)]
