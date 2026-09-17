@@ -3837,6 +3837,10 @@ absl::StatusOr<DocRef> Formatter::FormatModule(const Module& n) {
           pieces.push_back(arena_.MakeText("#[feature(traits)]"));
           pieces.push_back(arena_.hard_line());
           break;
+        case ModuleAttribute::kIOObjects:
+          pieces.push_back(arena_.MakeText("#![feature(io_objects)]"));
+          pieces.push_back(arena_.hard_line());
+          break;
       }
     }
     pieces.push_back(arena_.hard_line());
