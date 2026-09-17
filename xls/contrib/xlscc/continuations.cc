@@ -220,7 +220,8 @@ absl::Status GenerateLayoutAndInsertChooseInStates(GeneratedFunction& func,
   NewFSMLayout layout_ref;
 
   XLS_RETURN_IF_ERROR(
-      generator.LayoutNewFSMNoStateElements(layout_ref, func.slices, loc));
+      generator.LayoutNewFSMNoStateElements(layout_ref, func.slices, loc,
+                                            /*fsm_name=*/std::nullopt));
 
   absl::flat_hash_map<std::tuple<const xls::Param*, const ContinuationValue*>,
                       ContinuationInput*>
@@ -855,11 +856,18 @@ std::string Translator::FormatSliceName(std::string_view op_name,
   std::string_view xls_name =
       xls_names_for_functions_generated_.at(context().sf->clang_decl);
 
+  std::string shared_impl_postfix;
+
+  if (context().sf->is_shared_function_impl) {
+    shared_impl_postfix = "_impl";
+  }
+
   if (temp_name) {
     XLSCC_CHECK(create_slice_before, loc);
-    return absl::StrFormat("%s_slice_before__temp", xls_name);
+    return absl::StrFormat("%s%s_slice_before__temp", xls_name,
+                           shared_impl_postfix);
   }
-  return absl::StrFormat("%s_slice_%s_%s_%i", xls_name,
+  return absl::StrFormat("%s%s_slice_%s_%s_%i", xls_name, shared_impl_postfix,
                          create_slice_before ? "before" : "after", op_name,
                          channel_op_index);
 }

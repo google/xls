@@ -85,7 +85,8 @@ struct NewFSMActivationTransition {
 
   bool forward() const {
     CHECK_NE(start_op_type, OpType::kNull);
-    return start_op_type == OpType::kActivationBarrier;
+    return start_op_type == OpType::kActivationBarrier ||
+           start_op_type == OpType::kSharedCall;
   }
 };
 
@@ -135,11 +136,14 @@ class NewFSMGenerator : public GeneratorBase {
       const GeneratedFunction& func,
       const absl::flat_hash_map<DeclLeaf, xls::StateElement*>&
           state_element_for_static,
-      const xls::SourceInfo& body_loc);
+      bool is_sub_fsm, const xls::SourceInfo& body_loc,
+      std::optional<std::string_view> fsm_name);
 
+  // Only prints transition info if fsm_name is specified
   absl::Status LayoutNewFSMNoStateElements(
       NewFSMLayout& layout, const std::list<GeneratedFunctionSlice>& slices,
-      const xls::SourceInfo& body_loc);
+      const xls::SourceInfo& body_loc,
+      std::optional<std::string_view> fsm_name);
 
   absl::Status ValidateStateInputs(const GeneratedFunction& func,
                                    const NewFSMLayout& layout,
@@ -148,7 +152,8 @@ class NewFSMGenerator : public GeneratorBase {
   // Generate the XLS IR implementation of the FSM for a translated function.
   absl::StatusOr<GenerateFSMInvocationReturn> GenerateNewFSMInvocation(
       const GeneratedFunction* xls_func,
-      const std::vector<TrackedBValue>& direct_in_args,
+      const std::vector<TrackedBValue>& direct_in_args, bool is_sub_fsm,
+      TrackedBValue start_fsm,
       const absl::flat_hash_map<DeclLeaf, xls::StateElement*>&
           state_element_for_static,
       const absl::flat_hash_map<const clang::NamedDecl*, xls::Type*>&
@@ -182,7 +187,7 @@ class NewFSMGenerator : public GeneratorBase {
       const xls::SourceInfo& body_loc);
 
   absl::Status LayoutValuesToSaveForNewFSMStates(
-      NewFSMLayout& layout, const xls::SourceInfo& body_loc);
+      NewFSMLayout& layout, bool is_sub_fsm, const xls::SourceInfo& body_loc);
 
   struct PhiElement {
     TrackedBValue condition;
@@ -227,15 +232,19 @@ class NewFSMGenerator : public GeneratorBase {
     const GeneratedFunction* func;
     TrackedBValue input;
     TrackedBValue output;
-    TrackedBValue condition;
+    TrackedBValue start_bit;
+    xls::Node* continue_sub_fsm = nullptr;
   };
 
   absl::Status InterceptSharedCall(
       const IOOp& op, TrackedBValue op_out_value, TrackedBValue io_active,
+      xls::Node* continue_sub_fsm,
       std::vector<SharedFunctionCall>* shared_function_calls,
       GenerateIOReturn* io_return, xls::ProcBuilder& pb);
   absl::Status GenerateSharedCalls(
       const std::vector<SharedFunctionCall>& shared_function_calls,
+      absl::btree_multimap<const xls::StateElement*, NextStateValue>&
+          extra_next_state_values,
       xls::ProcBuilder& pb);
 
   absl::Status SetupNewFSMGenerationContext(
@@ -276,7 +285,7 @@ class NewFSMGenerator : public GeneratorBase {
 
   absl::Status GenerateTransitionFromThisSlice(
       int64_t from_slice_index, int64_t num_slice_index_bits,
-      TrackedBValue slice_active, TrackedBValue last_op_out_value,
+      TrackedBValue slice_active, TrackedBValue io_op_condition,
       TrackedBValue next_activation_slice_index, const NewFSMLayout& layout,
       const GeneratedFunctionSlice& slice,
       const absl::flat_hash_map<int64_t, TrackedBValue>&
