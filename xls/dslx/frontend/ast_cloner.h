@@ -98,6 +98,8 @@ CloneReplacer NameRefReplacer(
 // cloning proceeds as normal. If it returns an `AstNode*`, then that pointer is
 // used as a wholesale replacement subtree, and cloning does not delve into the
 // children of the original node.
+//
+// Accepts nullptr, returning nullptr.
 absl::StatusOr<AstNode*> CloneAst(const AstNode* root,
                                   CloneReplacer replacer = &NoopCloneReplacer);
 
