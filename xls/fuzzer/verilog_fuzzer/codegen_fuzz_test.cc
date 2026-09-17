@@ -13,14 +13,17 @@
 // limitations under the License.
 
 #include <string>
+#include <utility>
 
 #include "gmock/gmock.h"
+#include "gtest/gtest.h"
 #include "xls/common/fuzzing/fuzztest.h"
 #include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
 #include "xls/fuzzer/ir_fuzzer/ir_fuzz_domain.h"
 #include "xls/fuzzer/verilog_fuzzer/verilog_fuzz_domain.h"
+#include "xls/ir/ir_parser.h"
 #include "xls/tools/codegen_flags.pb.h"
 #include "xls/tools/scheduling_options_flags.pb.h"
 
@@ -82,6 +85,30 @@ FUZZ_TEST(CodegenFuzzTest, CodegenSucceedsOrThrowsReasonableError)
     .WithDomains(VerilogGeneratorDomain(IrFuzzDomain(),
                                         NoFdoSchedulingOptionsFlagsDomain(),
                                         CodegenFlagsDomain()));
+
+TEST(CodegenFuzzTest, ValidSignalWithoutResetRegression) {
+  auto package = Parser::ParsePackage(R"(package FuzzTest
+
+top fn FuzzTest(p0: bits[64] id=1) -> bits[64] {
+  ret identity.2: bits[64] = identity(p0, id=2)
+}
+)");
+  ASSERT_TRUE(package.ok()) << package.status();
+
+  SchedulingOptionsFlagsProto scheduling_options = DefaultSchedulingOptions();
+  CodegenFlagsProto codegen_options = DefaultCodegenOptions();
+  codegen_options.set_input_valid_signal("in_valid");
+  codegen_options.set_output_valid_signal("out_valid");
+  codegen_options.clear_reset();
+
+  VerilogGenerator verilog = VerilogGenerator{
+      .package = *std::move(package),
+      .scheduling_options = scheduling_options,
+      .codegen_options = codegen_options,
+  };
+  EXPECT_THAT(verilog.GenerateVerilog(),
+              StatusIs(absl::StatusCode::kInvalidArgument));
+}
 
 }  // namespace
 }  // namespace xls

@@ -53,6 +53,7 @@ cc_test(
         "//xls/common:xls_gunit_main",
         "//xls/common/fuzzing:fuzztest",
         "//xls/fuzzer/ir_fuzzer:ir_fuzz_domain",
+        "//xls/ir:ir_parser",
         "//xls/tools:codegen_flags_cc_proto",
         "//xls/tools:scheduling_options_flags_cc_proto",
         "@abseil-cpp//absl/status",
