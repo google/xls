@@ -35,6 +35,7 @@
 #include "xls/ir/value.h"
 #include "xls/solvers/symex/symbolic_path.h"
 #include "xls/solvers/symex/symex_engine.h"
+#include "xls/solvers/symex/test_util.h"
 #include "z3/src/api/z3_api.h"
 
 namespace xls::solvers::symex {
@@ -136,6 +137,34 @@ TEST_F(SymexE2eTest, ConcolicAluOpPrunesToSingleOperationPaths) {
   // Fixing op=0 explores only ADD paths: ADD with overflow, ADD without
   // overflow (2 paths instead of 6).
   EXPECT_EQ(paths.size(), 2);
+}
+
+TEST_F(SymexE2eTest, ThreeWayCompareFormalProperties) {
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::filesystem::path ir_path,
+      GetXlsRunfilePath("xls/solvers/symex/testdata/three_way_compare.ir"));
+  XLS_ASSERT_OK_AND_ASSIGN(std::string ir_text, GetFileContents(ir_path));
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> p, ParsePackage(ir_text));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Function * fn, p->GetFunction("__three_way_compare__three_way_compare"));
+
+  XLS_EXPECT_OK(ExploreAndVerifyFunction(
+      ctx_, fn, FormalCheckConfig{.expected_paths = 3}));
+}
+
+TEST_F(SymexE2eTest, PriorityEncoderFormalProperties) {
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::filesystem::path ir_path,
+      GetXlsRunfilePath("xls/solvers/symex/testdata/priority_encoder.ir"));
+  XLS_ASSERT_OK_AND_ASSIGN(std::string ir_text, GetFileContents(ir_path));
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> p, ParsePackage(ir_text));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Function * fn, p->GetFunction("__priority_encoder__priority_encoder"));
+
+  // Without branch visibility optimization, exhaustive exploration across 4
+  // topological 2-way selects produces 2^4 = 16 paths.
+  XLS_EXPECT_OK(ExploreAndVerifyFunction(
+      ctx_, fn, FormalCheckConfig{.expected_paths = 16}));
 }
 
 }  // namespace
