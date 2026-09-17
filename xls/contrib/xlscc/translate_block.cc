@@ -591,6 +591,8 @@ absl::StatusOr<xls::Proc*> Translator::GenerateIR_Block(
         generator.GenerateNewFSMInvocation(
             prepared.xls_func,
             /*direct_in_args=*/prepared.args,
+            /*is_sub_fsm=*/false,
+            /*start_fsm=*/pb.Literal(xls::UBits(1, 1), body_loc),
             prepared.state_element_for_variable, prepared.type_for_variable,
             prepared.return_index_for_static, pb, body_loc));
   } else {
@@ -2235,7 +2237,7 @@ std::optional<ChannelBundle> Translator::GetChannelBundleForOp(
     const IOOp& op, const xls::SourceInfo& loc) {
   if (op.op == OpType::kTrace || op.op == OpType::kLoopBegin ||
       op.op == OpType::kLoopEndJump || op.op == OpType::kActivationBarrier ||
-      op.op == OpType::kSharedCall) {
+      op.op == OpType::kSharedCall || op.op == OpType::kNoOp) {
     return std::nullopt;
   }
 
