@@ -26,6 +26,8 @@ fn assert_eq<T: type>(x: T, y: T) -> ();
 
 fn assert_lt<S: bool, N: u32>(x: xN[S][N], y: xN[S][N]) -> ();
 
+fn assert_ne<T: type>(x: T, y: T) -> ();
+
 fn assert!<N: u32>(predicate: bool, label: u8[N]) -> ();
 
 fn bit_count<T: type>() -> u32;
