@@ -100,7 +100,7 @@ MakePipelineStagesForValid(
     // it is only used as a term in load enables for power savings.
     if (!block->GetResetBehavior().has_value() &&
         options.valid_control().value().has_output_name()) {
-      return absl::InternalError(absl::StrFormat(
+      return absl::InvalidArgumentError(absl::StrFormat(
           "Block `%s` has valid signal output but no reset", block->name()));
     }
 
