@@ -505,12 +505,14 @@ fn test_update() {
 }
 ```
 
-### `assert_eq`, `assert_lt`
+### `assert_eq`, `assert_ne`, `assert_lt`, `assert_le`, `assert_gt`, `assert_ge`
 
-In a unit test pseudo function all valid DSLX code is allowed. To evaluate test
-results DSLX provides the `assert_eq` primitive (we'll add more of those in the
-future). Here is an example of a `divceil` implementation with its corresponding
-tests:
+In a unit test pseudo function all valid DSLX code is allowed. To evaluate
+test results DSLX provides the `assert_eq`, `assert_ne`, `assert_lt`,
+`assert_le`, `assert_gt`, and `assert_ge` primitives, which report the values
+on both sides of the comparison in the failure message instead of just a
+boolean. Here is an example of a `divceil` implementation with its
+corresponding tests:
 
 ```dslx
 fn divceil(x: u32, y: u32) -> u32 { (x - u32:1) / y + u32:1 }
@@ -524,8 +526,14 @@ fn test_divceil() {
 }
 ```
 
-`assert_eq` cannot currently be synthesized into equivalent Verilog. Because of
-that it is recommended to use it within `test` constructs (interpretation) only.
+`assert_eq`/`assert_ne` are generic over any type `T`; `assert_lt`, `assert_le`,
+`assert_gt`, and `assert_ge` assert a relative ordering (`<`, `<=`, `>`, `>=`
+respectively) and require both sides to be bits-like values of the same
+signedness and bit count.
+
+These assertion primitives cannot currently be synthesized into equivalent
+Verilog. Because of that it is recommended to use them within `test`
+constructs (interpretation) only.
 
 ### `zero!<T>`
 
