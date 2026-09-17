@@ -66,3 +66,39 @@ xls_dslx_test(
     srcs = ["ws_matmul.x"],
     dslx_test_args = {"compare": "jit"},
 )
+
+xls_dslx_library(
+    name = "os_matmul_dslx",
+    srcs = ["os_matmul.x"],
+)
+
+xls_dslx_fmt_test(
+    name = "os_matmul_dslx_fmt_test",
+    src = "os_matmul.x",
+    opportunistic_postcondition = True,
+)
+
+xls_dslx_test(
+    name = "os_matmul_dslx_test",
+    size = "small",
+    srcs = ["os_matmul.x"],
+    dslx_test_args = {"compare": "jit"},
+)
+
+xls_dslx_library(
+    name = "mac_dslx",
+    srcs = ["mac.x"],
+)
+
+xls_dslx_fmt_test(
+    name = "mac_dslx_fmt_test",
+    src = "mac.x",
+    opportunistic_postcondition = True,
+)
+
+xls_dslx_test(
+    name = "mac_dslx_test",
+    size = "small",
+    srcs = ["mac.x"],
+    dslx_test_args = {"compare": "jit"},
+)
