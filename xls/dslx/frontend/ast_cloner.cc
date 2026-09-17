@@ -1701,6 +1701,9 @@ CloneAstAndGetAllPairs(const AstNode* root,
 }
 
 absl::StatusOr<AstNode*> CloneAst(const AstNode* root, CloneReplacer replacer) {
+  if (root == nullptr) {
+    return nullptr;
+  }
   absl::flat_hash_map<const AstNode*, AstNode*> all_pairs;
   XLS_ASSIGN_OR_RETURN(all_pairs, CloneAstAndGetAllPairs(root, root->owner(),
                                                          std::move(replacer)));

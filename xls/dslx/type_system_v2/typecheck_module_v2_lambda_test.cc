@@ -28,6 +28,7 @@ namespace {
 
 using ::absl_testing::IsOkAndHolds;
 using ::testing::AllOf;
+using ::testing::HasSubstr;
 
 TEST(TypecheckV2Test, LambdaUsesParentFunctionParametricInReturn) {
   EXPECT_THAT(R"(
@@ -1078,6 +1079,21 @@ fn test_lambda() -> u32[5] {
 
 )"));
   ASSERT_TRUE(result.tm.warnings.warnings().empty());
+}
+
+// Tests a crash in LambdaRewriter when processing lambdas that omit explicit
+// return types and when constant captured NameDefs have no definer. Discovered
+// by the fuzzer.
+TEST(TypecheckV2Test, NoReturnTypeNoDefiner) {
+  constexpr std::string_view kProgram = R"(
+fn f<N: u32>() {
+  // This looks weird, but it passes the parser.
+  3(||||(u32[N]:0));
+}
+)";
+  EXPECT_THAT(kProgram,
+              TypecheckFails(HasSubstr(
+                  "Lambdas are currently only supported as arguments")));
 }
 
 }  // namespace

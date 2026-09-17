@@ -421,11 +421,16 @@ class LambdaRewriter : public AstNodeRecursiveVisitor {
         CloneAst(original_fn->body(),
                  ChainCloneReplacers(&PreserveTypeDefinitionsReplacer,
                                      std::move(insert_self))));
-    XLS_ASSIGN_OR_RETURN(
-        AstNode * cloned_return_type,
-        CloneAst(original_fn->return_type(),
-                 ChainCloneReplacers(&PreserveTypeDefinitionsReplacer,
-                                     std::move(swap_nodes))));
+    TypeAnnotation* cloned_return_type = nullptr;
+    if (original_fn->return_type() != nullptr) {
+      XLS_ASSIGN_OR_RETURN(
+          AstNode * cloned_return_type_node,
+          CloneAst(original_fn->return_type(),
+                   ChainCloneReplacers(&PreserveTypeDefinitionsReplacer,
+                                       std::move(swap_nodes))));
+      cloned_return_type =
+          absl::down_cast<TypeAnnotation*>(cloned_return_type_node);
+    }
     SelfTypeAnnotation* self_type = module->Make<SelfTypeAnnotation>(
         span, /*explicit_type=*/false, struct_type_annotation);
     std::vector<Param*> params = {module->Make<Param>(self_nd, self_type)};
@@ -434,8 +439,7 @@ class LambdaRewriter : public AstNodeRecursiveVisitor {
     }
     Function* impl_fn = module->Make<Function>(
         original_fn->span(), original_fn->name_def(),
-        original_fn->parametric_bindings(), params,
-        absl::down_cast<TypeAnnotation*>(cloned_return_type),
+        original_fn->parametric_bindings(), params, cloned_return_type,
         absl::down_cast<StatementBlock*>(cloned_body),
         FunctionTag::kGeneratedFromLambda,
         /*is_public=*/false, /*is_stub=*/false);
@@ -579,7 +583,8 @@ class LambdaRewriter : public AstNodeRecursiveVisitor {
         /*definer=*/gta);
 
     TypeAnnotation* instance_annotation = nullptr;
-    if (original_nd->definer()->kind() == AstNodeKind::kLet) {
+    if (original_nd->definer() != nullptr &&
+        original_nd->definer()->kind() == AstNodeKind::kLet) {
       const Let* original_let =
           absl::down_cast<const Let*>(original_nd->definer());
       instance_annotation = original_let->type_annotation();
