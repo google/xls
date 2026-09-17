@@ -632,6 +632,10 @@ response-receive are scheduled to match the RAM's latency.
     their stitcher & other tools use XLS's emitted block signature/metadata
     information to find the ports corresponding to a channel.
 
+-   `--embed_child_block_signatures` is disabled by default. It recursively
+    embeds each instantiated child block's signature into its parent's,
+    so a tool can discover nested ports/channels from one top-level signature.
+
 # Miscellaneous
 
 -   `--randomize_order_seed`, if provided, controls the seed used to randomize
