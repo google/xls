@@ -48,7 +48,7 @@ using ::operations_research::GenericMaxFlow;
 
 // Returns whether the given node *originates* data that is potentially unknown.
 bool IsDataOriginating(Node* node) {
-  return node->OpIn({Op::kReceive, Op::kRegisterRead, Op::kParam,
+  return node->OpIn({Op::kPeek, Op::kReceive, Op::kRegisterRead, Op::kParam,
                      Op::kStateRead, Op::kInputPort, Op::kInstantiationInput});
 }
 

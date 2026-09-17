@@ -106,8 +106,10 @@ const absl::flat_hash_map<std::string, BuiltinsData>& GetParametricBuiltins() {
           {"zip", {}},
 
           // -- Proc-oriented built-ins.
-          // send/recv (communication) builtins that can only be used within
-          // proc scope.
+          // send/recv/peek (communication) builtins that can only be used
+          // within proc scope.
+          {"peek", {}},
+          {"peek_if", {}},
           {"send", {}},
           {"send_if", {}},
           {"recv", {}},

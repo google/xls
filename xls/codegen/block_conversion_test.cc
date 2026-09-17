@@ -163,6 +163,7 @@ class TestDelayEstimator : public DelayEstimator {
       case Op::kConcat:
       case Op::kTupleIndex:
       case Op::kReceive:
+      case Op::kPeek:
       case Op::kSend:
         return 0;
       default:

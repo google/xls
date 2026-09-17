@@ -69,6 +69,8 @@ enum class AstNodeKind : uint8_t {
   kNumber,
   kParam,
   kParametricBinding,
+  kPeek,
+  kPeekIf,
   kProc,
   kProcAlias,
   kProcDef,

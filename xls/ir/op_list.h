@@ -81,6 +81,7 @@ inline constexpr uint8_t kSideEffecting = 0b00010000;
   F(kOutputPort, OP_OUTPUT_PORT, "output_port", op_types::kSideEffecting)      \
   F(kParam, OP_PARAM, "param", op_types::kSideEffecting)                       \
   F(kPrioritySel, OP_PRIORITY_SEL, "priority_sel", op_types::kStandard)        \
+  F(kPeek, OP_PEEK, "peek", op_types::kSideEffecting)                          \
   F(kReceive, OP_RECEIVE, "receive", op_types::kSideEffecting)                 \
   F(kRecvChannelEnd, OP_RECV_CHANNEL_END, "recv_channel_end",                  \
     op_types::kSideEffecting)                                                  \
