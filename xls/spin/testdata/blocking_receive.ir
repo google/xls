@@ -1,0 +1,17 @@
+package blocking_receive
+
+file_number 0 "xls/spin/testdata/blocking_receive.x"
+
+top proc __blocking_receive__Reader_0_next<_in_r: bits[32] in>(__state: bits[1], init={0}) {
+  chan_interface _in_r(direction=receive, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
+  after_all.5: token = after_all(id=5)
+  literal.3: bits[1] = literal(value=1, id=3)
+  receive.6: (token, bits[32]) = receive(after_all.5, predicate=literal.3, channel=_in_r, id=6)
+  __state: bits[1] = state_read(state_element=__state, id=2)
+  __token: token = literal(value=token, id=1)
+  tuple.4: () = tuple(id=4, pos=[(0,2,31)])
+  tuple_index.7: token = tuple_index(receive.6, index=0, id=7)
+  tuple_index.8: token = tuple_index(receive.6, index=0, id=8, pos=[(0,5,9)])
+  tuple_index.9: bits[32] = tuple_index(receive.6, index=1, id=9, pos=[(0,5,12)])
+  next_value.10: () = next_value(param=__state, value=__state, id=10)
+}
