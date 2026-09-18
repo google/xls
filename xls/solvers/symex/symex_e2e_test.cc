@@ -83,7 +83,44 @@ class SymexE2eTest : public IrTestBase {
   Z3_context ctx_ = nullptr;
 };
 
-TEST_F(SymexE2eTest, ExecuteAluExploresPaths) {
+TEST_F(SymexE2eTest, ExecuteAluExploresAllPathsWithoutPruning) {
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> p, LoadAluPackage());
+  XLS_ASSERT_OK_AND_ASSIGN(Function * fn,
+                           p->GetFunction("__execute_alu__execute_alu"));
+
+  SymExOptions options{.prune_unobservable = false};
+  XLS_ASSERT_OK_AND_ASSIGN(SymExEngine engine,
+                           SymExEngine::Create(ctx_, options));
+  XLS_ASSERT_OK_AND_ASSIGN(std::vector<SymbolicPath> paths,
+                           engine.ExplorePaths(fn));
+
+  // Without pruning, all multiplexer branches are explored: 3 opcodes * 2
+  // overflow outcomes = 6 paths.
+  ASSERT_THAT(paths, SizeIs(6));
+
+  // Verify pairwise mutual exclusivity.
+  for (size_t i = 0; i < paths.size(); ++i) {
+    for (size_t j = i + 1; j < paths.size(); ++j) {
+      EXPECT_TRUE(AreMutuallyExclusive(paths[i].path_condition,
+                                       paths[j].path_condition));
+    }
+  }
+
+  // Verify interpreter execution of generated test inputs.
+  for (const SymbolicPath& path : paths) {
+    std::vector<Value> args;
+    for (Param* param : fn->params()) {
+      std::optional<Value> v = path.GetParamValue(param->name());
+      ASSERT_TRUE(v.has_value());
+      args.push_back(*v);
+    }
+    XLS_ASSERT_OK_AND_ASSIGN(
+        Value result, DropInterpreterEvents(InterpretFunction(fn, args)));
+    EXPECT_TRUE(result.IsTuple());
+  }
+}
+
+TEST_F(SymexE2eTest, ExecuteAluExploresPathsWithPruning) {
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> p, LoadAluPackage());
   XLS_ASSERT_OK_AND_ASSIGN(Function * fn,
                            p->GetFunction("__execute_alu__execute_alu"));
@@ -92,11 +129,10 @@ TEST_F(SymexE2eTest, ExecuteAluExploresPaths) {
   XLS_ASSERT_OK_AND_ASSIGN(std::vector<SymbolicPath> paths,
                            engine.ExplorePaths(fn));
 
-  // Without branch visibility optimization, exhaustive exploration across all
-  // topological selects produces 3 (op) x 2 (overflow) = 6 paths.
-  // (Follow-up CL will prune inactive branches to 4 paths via DAG guard
-  // propagation).
-  ASSERT_THAT(paths, SizeIs(6));
+  // The `overflow` comparison only reaches the result on the ADD opcode, so it
+  // is an observability don't care on the other two: ADD contributes 2 paths
+  // (overflow / no overflow) and AND and INVALID contribute 1 each.
+  ASSERT_THAT(paths, SizeIs(4));
 
   // Verify pairwise mutual exclusivity.
   for (size_t i = 0; i < paths.size(); ++i) {
@@ -161,10 +197,12 @@ TEST_F(SymexE2eTest, PriorityEncoderFormalProperties) {
   XLS_ASSERT_OK_AND_ASSIGN(
       Function * fn, p->GetFunction("__priority_encoder__priority_encoder"));
 
-  // Without branch visibility optimization, exhaustive exploration across 4
-  // topological 2-way selects produces 2^4 = 16 paths.
+  // Each stage of the if/else chain hides the stages below it once it fires,
+  // so exploration yields one path per taken stage plus the two fallback
+  // outcomes of the final stage: 1 + 1 + 1 + 2 = 5 paths, rather than the 2^4
+  // combinations of the four selectors.
   XLS_EXPECT_OK(ExploreAndVerifyFunction(
-      ctx_, fn, FormalCheckConfig{.expected_paths = 16}));
+      ctx_, fn, FormalCheckConfig{.expected_paths = 5}));
 }
 
 }  // namespace

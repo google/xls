@@ -15,6 +15,7 @@
 #include "xls/solvers/symex/symex_engine.h"
 
 #include <cstddef>
+#include <cstdint>
 #include <memory>
 #include <string>
 #include <vector>
@@ -22,6 +23,7 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/status/status.h"
+#include "absl/status/statusor.h"
 #include "xls/common/status/matchers.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/function.h"
@@ -30,6 +32,7 @@
 #include "xls/ir/package.h"
 #include "xls/ir/value.h"
 #include "xls/solvers/symex/symbolic_path.h"
+#include "xls/solvers/symex/test_util.h"
 #include "z3/src/api/z3_api.h"
 
 namespace xls::solvers::symex {
@@ -39,21 +42,16 @@ using ::testing::ElementsAre;
 using ::testing::IsEmpty;
 using ::testing::SizeIs;
 
-MATCHER_P2(BranchDecisionIs, arm_index, is_default,
-           absl::StrCat("has arm_index ", arm_index, " and is_default ",
-                        is_default ? "true" : "false")) {
-  return arg.arm_index == arm_index && arg.is_default() == is_default;
-}
-
-MATCHER_P2(SymbolicPathIs, arm_index, is_default,
-           absl::StrCat("has first decision arm_index ", arm_index,
-                        " and is_default ", is_default ? "true" : "false")) {
-  if (arg.branch_decisions.empty()) {
-    *result_listener << "has empty branch_decisions";
-    return false;
-  }
-  const BranchDecision& decision = arg.branch_decisions[0];
-  return decision.arm_index == arm_index && decision.is_default() == is_default;
+// Returns true if `antecedent` implies `consequent` across the entire input
+// domain, i.e. `antecedent && !consequent` is unsatisfiable.
+bool Implies(Z3_context ctx, Z3_ast antecedent, Z3_ast consequent) {
+  Z3_solver solver = Z3_mk_solver(ctx);
+  Z3_solver_inc_ref(ctx, solver);
+  Z3_ast conjuncts[] = {antecedent, Z3_mk_not(ctx, consequent)};
+  Z3_solver_assert(ctx, solver, Z3_mk_and(ctx, 2, conjuncts));
+  const bool implies = Z3_solver_check(ctx, solver) == Z3_L_FALSE;
+  Z3_solver_dec_ref(ctx, solver);
+  return implies;
 }
 
 class SymExEngineTest : public IrTestBase {
@@ -82,6 +80,20 @@ class SymExEngineTest : public IrTestBase {
     Z3_lbool result = Z3_solver_check(ctx_, solver);
     Z3_solver_dec_ref(ctx_, solver);
     return result == Z3_L_FALSE;
+  }
+
+  // Builds `sel(s1, cases=[sel(s0, cases=[a, b]), literal])`. The inner
+  // multiplexer reaches the result only through arm 0 of the outer one, so
+  // `s0` is an observability don't care whenever `s1` selects arm 1.
+  absl::StatusOr<Function*> BuildNestedMuxFunction(Package* p) {
+    FunctionBuilder fb("nested_mux", p);
+    BValue s0 = fb.Param("s0", p->GetBitsType(1));
+    BValue s1 = fb.Param("s1", p->GetBitsType(1));
+    BValue a = fb.Param("a", p->GetBitsType(8));
+    BValue b = fb.Param("b", p->GetBitsType(8));
+    BValue inner = fb.Select(s0, {a, b});
+    fb.Select(s1, {inner, fb.Literal(UBits(0, 8))});
+    return fb.Build();
   }
 
   Z3_config config_ = nullptr;
@@ -343,6 +355,180 @@ TEST_F(SymExEngineTest, ConcolicExecutionWithTupleInputPrunesBranches) {
   EXPECT_EQ(paths.size(), 1);
   EXPECT_EQ(paths[0].branch_decisions.size(), 1);
   EXPECT_EQ(paths[0].branch_decisions[0].arm_index, 1);
+}
+
+TEST_F(SymExEngineTest, UnobservableMuxIsLeftUnexplored) {
+  Package p(TestName());
+  XLS_ASSERT_OK_AND_ASSIGN(Function * fn, BuildNestedMuxFunction(&p));
+
+  XLS_ASSERT_OK_AND_ASSIGN(SymExEngine engine, SymExEngine::Create(ctx_));
+  XLS_ASSERT_OK_AND_ASSIGN(std::vector<SymbolicPath> paths,
+                           engine.ExplorePaths(fn));
+
+  // s1 == 0 exposes the inner multiplexer and yields one path per inner arm.
+  // s1 == 1 discards it, so both of its arms collapse into a single path.
+  EXPECT_THAT(paths, SizeIs(3));
+}
+
+TEST_F(SymExEngineTest, PruningDisabledExploresEveryArmCombination) {
+  Package p(TestName());
+  XLS_ASSERT_OK_AND_ASSIGN(Function * fn, BuildNestedMuxFunction(&p));
+
+  SymExOptions options;
+  options.prune_unobservable = false;
+
+  XLS_ASSERT_OK_AND_ASSIGN(SymExEngine engine,
+                           SymExEngine::Create(ctx_, options));
+  XLS_ASSERT_OK_AND_ASSIGN(std::vector<SymbolicPath> paths,
+                           engine.ExplorePaths(fn));
+
+  EXPECT_THAT(paths, SizeIs(4));
+  for (const SymbolicPath& path : paths) {
+    EXPECT_THAT(path.branch_decisions, SizeIs(2));
+    EXPECT_THAT(path.unobservable_muxes, IsEmpty());
+  }
+}
+
+TEST_F(SymExEngineTest, UnobservableMuxesAreReportedOnThePath) {
+  Package p(TestName());
+  XLS_ASSERT_OK_AND_ASSIGN(Function * fn, BuildNestedMuxFunction(&p));
+
+  XLS_ASSERT_OK_AND_ASSIGN(SymExEngine engine, SymExEngine::Create(ctx_));
+  XLS_ASSERT_OK_AND_ASSIGN(std::vector<SymbolicPath> paths,
+                           engine.ExplorePaths(fn));
+
+  int64_t collapsed_paths = 0;
+  for (const SymbolicPath& path : paths) {
+    if (path.unobservable_muxes.empty()) {
+      EXPECT_THAT(path.branch_decisions, SizeIs(2));
+      continue;
+    }
+    ++collapsed_paths;
+    // Only the inner multiplexer is skipped, so only the outer one is decided.
+    ASSERT_THAT(path.unobservable_muxes, SizeIs(1));
+    EXPECT_EQ(path.unobservable_muxes[0]->operand(0)->GetName(), "s0");
+    EXPECT_THAT(path.branch_decisions, ElementsAre(BranchDecisionIs(1, false)));
+  }
+  EXPECT_EQ(collapsed_paths, 1);
+}
+
+TEST_F(SymExEngineTest,
+       UnobservableMuxDoesNotLeakIntoSiblingObservableBranches) {
+  // `outer` selects arm 0 (an unrelated literal) or arm 1 (`inner` mux).
+  // Arm 0 is explored first, where `inner` is unobservable.
+  // Arm 1 is explored second, where `inner` is observable.
+  // Paths under arm 1 must have unobservable_muxes empty, ensuring
+  // unobservable mux state doesn't leak into sibling subtrees.
+  Package p(TestName());
+  FunctionBuilder fb(TestName(), &p);
+  BValue s0 = fb.Param("s0", p.GetBitsType(1));
+  BValue s1 = fb.Param("s1", p.GetBitsType(1));
+  BValue inner =
+      fb.Select(s0, {fb.Literal(UBits(0, 8)), fb.Literal(UBits(1, 8))});
+  BValue unrelated = fb.Literal(UBits(2, 8));
+  fb.Select(s1, {unrelated, inner});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * fn, fb.Build());
+
+  XLS_ASSERT_OK_AND_ASSIGN(SymExEngine engine, SymExEngine::Create(ctx_));
+  XLS_ASSERT_OK_AND_ASSIGN(std::vector<SymbolicPath> paths,
+                           engine.ExplorePaths(fn));
+
+  ASSERT_THAT(paths, SizeIs(3));
+  EXPECT_THAT(paths[0].unobservable_muxes, SizeIs(1));
+  EXPECT_THAT(paths[1].unobservable_muxes, IsEmpty());
+  EXPECT_THAT(paths[2].unobservable_muxes, IsEmpty());
+}
+
+TEST_F(SymExEngineTest, PrunedPathsStillPartitionTheInputDomain) {
+  Package p(TestName());
+  XLS_ASSERT_OK_AND_ASSIGN(Function * fn, BuildNestedMuxFunction(&p));
+
+  XLS_ASSERT_OK_AND_ASSIGN(SymExEngine engine, SymExEngine::Create(ctx_));
+  XLS_ASSERT_OK_AND_ASSIGN(std::vector<SymbolicPath> paths,
+                           engine.ExplorePaths(fn));
+
+  // Skipping a multiplexer coarsens the partition without making it overlap or
+  // leave gaps, and the symbolic return values stay free of the multiplexer
+  // variables they were built from.
+  XLS_EXPECT_OK(CheckFormalProperties(ctx_, fn, paths,
+                                      FormalCheckConfig{.expected_paths = 3}));
+}
+
+TEST_F(SymExEngineTest, ConcolicInputsComposeWithObservabilityPruning) {
+  Package p(TestName());
+  XLS_ASSERT_OK_AND_ASSIGN(Function * fn, BuildNestedMuxFunction(&p));
+
+  // Concolic bindings hold at every feasibility check, so pinning s1 = 1 leaves
+  // only the path that discards the inner multiplexer.
+  SymExOptions options;
+  options.concrete_inputs.BindParam("s1", Value(UBits(1, 1)));
+
+  XLS_ASSERT_OK_AND_ASSIGN(SymExEngine engine,
+                           SymExEngine::Create(ctx_, options));
+  XLS_ASSERT_OK_AND_ASSIGN(std::vector<SymbolicPath> paths,
+                           engine.ExplorePaths(fn));
+
+  ASSERT_THAT(paths, SizeIs(1));
+  EXPECT_THAT(paths[0].branch_decisions,
+              ElementsAre(BranchDecisionIs(1, false)));
+  EXPECT_THAT(paths[0].unobservable_muxes, SizeIs(1));
+  EXPECT_EQ(paths[0].GetParamValue("s1"), Value(UBits(1, 1)));
+
+  // The witness must still execute to the value this path stands for.
+  // Exhaustiveness and ITE equivalence do not apply here: the concolic binding
+  // restricts the input domain to a subset of the function's.
+  XLS_EXPECT_OK(CheckFormalProperties(
+      ctx_, fn, paths,
+      FormalCheckConfig{.check_exhaustiveness = false,
+                        .check_smt_ite_equivalence = false,
+                        .expected_paths = 1}));
+  XLS_ASSERT_OK_AND_ASSIGN(Value result, InterpretPath(fn, paths[0]));
+  EXPECT_EQ(result, Value(UBits(0, 8)));
+}
+
+TEST_F(SymExEngineTest, PruningCoarsensTheExhaustivePartition) {
+  Package p(TestName());
+  XLS_ASSERT_OK_AND_ASSIGN(Function * fn, BuildNestedMuxFunction(&p));
+
+  SymExOptions exhaustive_options;
+  exhaustive_options.prune_unobservable = false;
+  XLS_ASSERT_OK_AND_ASSIGN(SymExEngine exhaustive_engine,
+                           SymExEngine::Create(ctx_, exhaustive_options));
+  XLS_ASSERT_OK_AND_ASSIGN(std::vector<SymbolicPath> exhaustive_paths,
+                           exhaustive_engine.ExplorePaths(fn));
+
+  XLS_ASSERT_OK_AND_ASSIGN(SymExEngine pruned_engine,
+                           SymExEngine::Create(ctx_));
+  XLS_ASSERT_OK_AND_ASSIGN(std::vector<SymbolicPath> pruned_paths,
+                           pruned_engine.ExplorePaths(fn));
+
+  // Each mode must partition the input domain on its own terms.
+  XLS_EXPECT_OK(CheckFormalProperties(ctx_, fn, exhaustive_paths));
+  XLS_EXPECT_OK(CheckFormalProperties(ctx_, fn, pruned_paths));
+
+  // This function is chosen so that pruning really does collapse arms; without
+  // that the containment check below would pass vacuously.
+  EXPECT_LT(pruned_paths.size(), exhaustive_paths.size());
+
+  // Every exhaustive path must lie entirely inside exactly one pruned path.
+  // Equal coverage would be too weak a property: two partitions can cover the
+  // same domain without either being a coarsening of the other, and only a
+  // coarsening makes a pruned path a valid stand-in for the arm combinations it
+  // replaces.
+  for (const SymbolicPath& exhaustive : exhaustive_paths) {
+    int64_t containing_paths = 0;
+    for (const SymbolicPath& pruned : pruned_paths) {
+      if (!Implies(ctx_, exhaustive.path_condition, pruned.path_condition)) {
+        continue;
+      }
+      ++containing_paths;
+      // Where they overlap, both modes must compute the same result.
+      EXPECT_TRUE(Implies(
+          ctx_, exhaustive.path_condition,
+          Z3_mk_eq(ctx_, exhaustive.return_value, pruned.return_value)));
+    }
+    EXPECT_EQ(containing_paths, 1);
+  }
 }
 
 }  // namespace

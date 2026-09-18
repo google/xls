@@ -67,13 +67,14 @@ class SymexMainTest(test_base.TestCase):
         ],
         stderr=subprocess.STDOUT,
     ).decode('utf-8')
-    self.assertIn('Explored 6 feasible path(s)', output)
+    # The add/overflow unit only reaches the result on op == 0, so `overflow`
+    # is an observability don't care on the other two opcodes.
+    self.assertIn('Explored 4 feasible path(s)', output)
     self.assertIn('Path #0:', output)
     self.assertIn('Path #1:', output)
     self.assertIn('Path #2:', output)
     self.assertIn('Path #3:', output)
-    self.assertIn('Path #4:', output)
-    self.assertIn('Path #5:', output)
+    self.assertIn("Don't cares: add_out, add_status", output)
 
   def test_default_top_function(self):
     output = subprocess.check_output(
@@ -83,7 +84,7 @@ class SymexMainTest(test_base.TestCase):
         ],
         stderr=subprocess.STDOUT,
     ).decode('utf-8')
-    self.assertIn('Explored 6 feasible path(s)', output)
+    self.assertIn('Explored 4 feasible path(s)', output)
 
   def test_concrete_inputs(self):
     output = subprocess.check_output(
@@ -109,12 +110,12 @@ class SymexMainTest(test_base.TestCase):
         ],
         stderr=subprocess.STDOUT,
     ).decode('utf-8')
-    self.assertIn('Explored 6 feasible path(s)', output)
+    self.assertIn('Explored 4 feasible path(s)', output)
     with gfile.open(out_file.full_path, 'r') as f:
       proto = text_format.Parse(f.read(), testvector_pb2.SampleInputsProto())
 
     self.assertTrue(proto.HasField('function_args'))
-    self.assertLen(proto.function_args.args, 6)
+    self.assertLen(proto.function_args.args, 4)
 
   def test_output_path_empty_suppresses_stdout(self):
     out_file = self.create_tempfile()
@@ -132,7 +133,7 @@ class SymexMainTest(test_base.TestCase):
     with gfile.open(out_file.full_path, 'r') as f:
       proto = text_format.Parse(f.read(), testvector_pb2.SampleInputsProto())
     self.assertTrue(proto.HasField('function_args'))
-    self.assertLen(proto.function_args.args, 6)
+    self.assertLen(proto.function_args.args, 4)
 
   def test_max_paths(self):
     output = subprocess.check_output(
@@ -145,6 +146,21 @@ class SymexMainTest(test_base.TestCase):
         stderr=subprocess.STDOUT,
     ).decode('utf-8')
     self.assertIn('Explored 2 feasible path(s)', output)
+
+  def test_noprune_unobservable_enumerates_every_arm(self):
+    output = subprocess.check_output(
+        [
+            SYMEX_MAIN_PATH,
+            self.ir_file.full_path,
+            '--top=execute_alu',
+            '--noprune_unobservable',
+        ],
+        stderr=subprocess.STDOUT,
+    ).decode('utf-8')
+    # Every arm of every multiplexer is enumerated: 3 opcodes x 2 overflow
+    # outcomes, with nothing reported as a don't care.
+    self.assertIn('Explored 6 feasible path(s)', output)
+    self.assertNotIn("Don't cares:", output)
 
   def test_multiple_concrete_inputs(self):
     output = subprocess.check_output(
@@ -227,7 +243,7 @@ class SymexMainTest(test_base.TestCase):
         input=_TEST_IR.encode('utf-8'),
         stderr=subprocess.STDOUT,
     ).decode('utf-8')
-    self.assertIn('Explored 6 feasible path(s)', output)
+    self.assertIn('Explored 4 feasible path(s)', output)
 
   def test_typed_concrete_inputs(self):
     output = subprocess.check_output(

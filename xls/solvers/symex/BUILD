@@ -117,11 +117,46 @@ cc_test(
 )
 
 cc_library(
+    name = "mux_observability",
+    srcs = ["mux_observability.cc"],
+    hdrs = ["mux_observability.h"],
+    deps = [
+        "//xls/common/status:ret_check",
+        "//xls/common/status:status_macros",
+        "//xls/ir",
+        "//xls/ir:node_util",
+        "//xls/ir:op",
+        "@abseil-cpp//absl/algorithm:container",
+        "@abseil-cpp//absl/container:flat_hash_map",
+        "@abseil-cpp//absl/container:flat_hash_set",
+        "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/types:span",
+    ],
+)
+
+cc_test(
+    name = "mux_observability_test",
+    srcs = ["mux_observability_test.cc"],
+    deps = [
+        ":mux_observability",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/ir",
+        "//xls/ir:bits",
+        "//xls/ir:function_builder",
+        "//xls/ir:ir_test_base",
+        "@googletest//:gtest",
+    ],
+)
+
+cc_library(
     name = "symex_engine",
     srcs = ["symex_engine.cc"],
     hdrs = ["symex_engine.h"],
     deps = [
         ":concolic_input_spec",
+        ":mux_observability",
         ":symbolic_path",
         ":z3_encoding_visitor",
         "//xls/common/status:ret_check",
@@ -129,7 +164,6 @@ cc_library(
         "//xls/ir",
         "//xls/ir:bits",
         "//xls/ir:node_util",
-        "//xls/ir:op",
         "//xls/ir:value",
         "//xls/ir:value_flattening",
         "//xls/solvers:z3_utils",
@@ -147,7 +181,6 @@ cc_test(
     name = "symex_engine_test",
     srcs = ["symex_engine_test.cc"],
     deps = [
-        ":concolic_input_spec",
         ":symbolic_path",
         ":symex_engine",
         ":test_util",
@@ -159,6 +192,7 @@ cc_test(
         "//xls/ir:ir_test_base",
         "//xls/ir:value",
         "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
         "@googletest//:gtest",
         "@z3//:api",
     ],
@@ -173,7 +207,6 @@ cc_test(
         "//xls/solvers/symex/testdata:three_way_compare.ir",
     ],
     deps = [
-        ":concolic_input_spec",
         ":symbolic_path",
         ":symex_engine",
         ":test_util",
@@ -182,7 +215,6 @@ cc_test(
         "//xls/common/file:get_runfile_path",
         "//xls/common/status:matchers",
         "//xls/common/status:status_macros",
-        "//xls/interpreter:evaluator_options",
         "//xls/interpreter:ir_interpreter",
         "//xls/ir",
         "//xls/ir:bits",

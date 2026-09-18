@@ -32,11 +32,10 @@
 #include "xls/ir/node.h"
 #include "xls/ir/node_util.h"
 #include "xls/ir/nodes.h"
-#include "xls/ir/op.h"
-#include "xls/ir/topo_sort.h"
 #include "xls/ir/value.h"
 #include "xls/ir/value_flattening.h"
 #include "xls/solvers/symex/concolic_input_spec.h"
+#include "xls/solvers/symex/mux_observability.h"
 #include "xls/solvers/symex/symbolic_path.h"
 #include "xls/solvers/symex/z3_encoding_visitor.h"
 #include "xls/solvers/z3_utils.h"
@@ -49,6 +48,15 @@ namespace {
 int64_t GetTotalArms(GenericSelect sel) {
   return sel.default_value().has_value() ? sel.cases().size() + 1
                                          : sel.cases().size();
+}
+
+// Returns the node feeding arm `arm_index` of `sel`, where an index at or past
+// the last case denotes the default arm.
+Node* GetArm(GenericSelect sel, int64_t arm_index) {
+  if (arm_index >= static_cast<int64_t>(sel.cases().size())) {
+    return *sel.default_value();
+  }
+  return sel.cases()[arm_index];
 }
 
 }  // namespace
@@ -66,8 +74,8 @@ SymExEngine::SymExEngine(Z3_context ctx, SymExOptions options)
 
 absl::StatusOr<SymbolicPath> SymExEngine::ExtractSymbolicPath(
     Function* fn, Z3_solver solver, const Z3EncodingVisitor& encoder,
-    absl::Span<const BranchDecision> decisions,
-    absl::Span<const Z3_ast> conds) {
+    absl::Span<const BranchDecision> decisions, absl::Span<const Z3_ast> conds,
+    absl::Span<const Node* const> unobservable_muxes) {
   Z3_model model = Z3_solver_get_model(ctx_, solver);
   XLS_RET_CHECK_NE(model, nullptr)
       << "Failed to extract model from satisfiable solver state";
@@ -76,6 +84,18 @@ absl::StatusOr<SymbolicPath> SymExEngine::ExtractSymbolicPath(
 
   SymbolicPath path;
   path.branch_decisions.assign(decisions.begin(), decisions.end());
+  path.unobservable_muxes.assign(unobservable_muxes.begin(),
+                                 unobservable_muxes.end());
+
+  // Substitution must proceed in topological order: the expression of a chosen
+  // arm may itself mention upstream multiplexer variables, which disappear only
+  // once those multiplexers have been substituted. Decisions are recorded in
+  // traversal order, which is already topological when exploring exhaustively
+  // and exactly its reverse when pruning.
+  if (options_.prune_unobservable) {
+    std::reverse(path.branch_decisions.begin(), path.branch_decisions.end());
+  }
+
   // Compute symbolic return value along this path by substituting each
   // multiplexer's unconstrained SSA variable with its chosen arm expression.
   std::vector<Z3_ast> from_asts;
@@ -83,16 +103,13 @@ absl::StatusOr<SymbolicPath> SymExEngine::ExtractSymbolicPath(
   from_asts.reserve(decisions.size());
   to_asts.reserve(decisions.size());
 
-  for (const BranchDecision& decision : decisions) {
+  for (const BranchDecision& decision : path.branch_decisions) {
     if (decision.mux_node == nullptr) {
       continue;
     }
     GenericSelect sel =
         *GenericSelect::TryFrom(const_cast<Node*>(decision.mux_node));
-    Node* chosen_arm = (decision.arm_index >= sel.cases().size())
-                           ? *sel.default_value()
-                           : sel.cases()[decision.arm_index];
-    Z3_ast arm_ast = encoder.GetNodeAst(chosen_arm);
+    Z3_ast arm_ast = encoder.GetNodeAst(GetArm(sel, decision.arm_index));
     if (!from_asts.empty()) {
       arm_ast = Z3_substitute(ctx_, arm_ast, from_asts.size(), from_asts.data(),
                               to_asts.data());
@@ -129,8 +146,10 @@ absl::StatusOr<SymbolicPath> SymExEngine::ExtractSymbolicPath(
 void SymExEngine::ExplorePathsInternal(
     int64_t select_idx, absl::Span<const GenericSelect> selects, Function* fn,
     Z3_solver solver, Z3EncodingVisitor& encoder,
+    MuxObservability& observability,
     std::vector<BranchDecision>& current_decisions,
     std::vector<Z3_ast>& current_conds,
+    std::vector<const Node*>& current_unobservable,
     std::vector<SymbolicPath>& completed_paths) {
   if (ReachedMaxPaths(completed_paths.size())) {
     return;
@@ -140,8 +159,9 @@ void SymExEngine::ExplorePathsInternal(
   // and verified satisfiable along this path.
   if (select_idx == selects.size()) {
     if (Z3_solver_check(ctx_, solver) == Z3_L_TRUE) {
-      absl::StatusOr<SymbolicPath> path_or = ExtractSymbolicPath(
-          fn, solver, encoder, current_decisions, current_conds);
+      absl::StatusOr<SymbolicPath> path_or =
+          ExtractSymbolicPath(fn, solver, encoder, current_decisions,
+                              current_conds, current_unobservable);
       if (path_or.ok()) {
         completed_paths.push_back(std::move(*path_or));
       }
@@ -150,6 +170,20 @@ void SymExEngine::ExplorePathsInternal(
   }
 
   GenericSelect sel = selects[select_idx];
+
+  if (options_.prune_unobservable &&
+      !observability.IsObservable(sel.AsNode())) {
+    // No arm choice here can reach the function's result. Asserting nothing
+    // leaves the selector unconstrained, so this single path stands for every
+    // arm of `sel` and the explored paths remain collectively exhaustive.
+    current_unobservable.push_back(sel.AsNode());
+    ExplorePathsInternal(select_idx + 1, selects, fn, solver, encoder,
+                         observability, current_decisions, current_conds,
+                         current_unobservable, completed_paths);
+    current_unobservable.pop_back();
+    return;
+  }
+
   int64_t total_arms = GetTotalArms(sel);
 
   for (int64_t branch = 0;
@@ -182,10 +216,20 @@ void SymExEngine::ExplorePathsInternal(
           .arm_index = branch,
       });
       current_conds.push_back(branch_cond);
+      // Taking this arm makes the selector and the arm observable, so the
+      // multiplexers they depend on are not pruned later in the traversal.
+      const int64_t observability_token =
+          options_.prune_unobservable
+              ? observability.MarkArmChosen(sel.AsNode(), GetArm(sel, branch))
+              : 0;
 
       ExplorePathsInternal(select_idx + 1, selects, fn, solver, encoder,
-                           current_decisions, current_conds, completed_paths);
+                           observability, current_decisions, current_conds,
+                           current_unobservable, completed_paths);
 
+      if (options_.prune_unobservable) {
+        observability.Rollback(observability_token);
+      }
       current_conds.pop_back();
       current_decisions.pop_back();
     }
@@ -201,13 +245,32 @@ absl::StatusOr<std::vector<SymbolicPath>> SymExEngine::ExplorePaths(
   Z3EncodingVisitor encoder(ctx_, fn);
   XLS_RETURN_IF_ERROR(fn->Accept(&encoder));
 
-  // Collect all multiplexers in topological order.
-  XLS_ASSIGN_OR_RETURN(std::vector<Node*> topo_nodes, TopoSort(fn));
+  // Supplies the multiplexer list in both modes; only pruning consults the
+  // observability it tracks.
+  XLS_ASSIGN_OR_RETURN(MuxObservability observability,
+                       MuxObservability::Create(fn));
+
+  // Multiplexers in the order the traversal decides them, which differs by
+  // mode.
+  //
+  // Pruning must decide consumers before producers, the order `muxes()` is
+  // already in: a multiplexer is a don't care only once every consumer of it
+  // has committed to an arm. This ordering has a cost. A consumer's arm
+  // equality is asserted while the producer variables that arm expression
+  // mentions are still unconstrained, so the solver carries them until those
+  // producers are themselves decided. Pruning pays it because skipping one
+  // multiplexer removes every path through its remaining arms.
+  //
+  // Exhaustive exploration skips nothing, so it has no reason to pay that cost
+  // and traverses producers first instead, binding each multiplexer's variable
+  // to its chosen arm before any consumer's arm equality mentions it.
   std::vector<GenericSelect> selects;
-  for (Node* node : topo_nodes) {
-    if (node->OpIn({Op::kSel, Op::kPrioritySel})) {
-      selects.push_back(*GenericSelect::TryFrom(node));
-    }
+  selects.reserve(observability.muxes().size());
+  for (Node* mux : observability.muxes()) {
+    selects.push_back(*GenericSelect::TryFrom(mux));
+  }
+  if (!options_.prune_unobservable) {
+    std::reverse(selects.begin(), selects.end());
   }
 
   // Explore paths over selector choices using incremental push/pop DFS.
@@ -252,9 +315,11 @@ absl::StatusOr<std::vector<SymbolicPath>> SymExEngine::ExplorePaths(
   std::vector<SymbolicPath> completed_paths;
   std::vector<BranchDecision> current_decisions;
   std::vector<Z3_ast> current_conds;
+  std::vector<const Node*> current_unobservable;
 
-  ExplorePathsInternal(0, selects, fn, solver, encoder, current_decisions,
-                       current_conds, completed_paths);
+  ExplorePathsInternal(0, selects, fn, solver, encoder, observability,
+                       current_decisions, current_conds, current_unobservable,
+                       completed_paths);
   return completed_paths;
 }
 

@@ -22,8 +22,10 @@
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
 #include "xls/ir/function.h"
+#include "xls/ir/node.h"
 #include "xls/ir/node_util.h"
 #include "xls/solvers/symex/concolic_input_spec.h"
+#include "xls/solvers/symex/mux_observability.h"
 #include "xls/solvers/symex/symbolic_path.h"
 #include "xls/solvers/symex/z3_encoding_visitor.h"
 #include "z3/src/api/z3.h"  // IWYU pragma: keep
@@ -41,6 +43,15 @@ struct SymExOptions {
   // Maximum number of feasible paths to explore before terminating.
   // When <= 0, path exploration is unbounded.
   int64_t max_paths = 1000;
+
+  // Whether to skip multiplexers that cannot affect the function's result
+  // given the branch decisions already made on the current path. See
+  // `MuxObservability` and step 3 of the `SymExEngine` algorithm below.
+  //
+  // When false, every arm of every multiplexer is enumerated, multiplexers are
+  // visited in forward topological order, and every path reports an empty
+  // `unobservable_muxes`.
+  bool prune_unobservable = true;
 };
 
 // Symbolic execution engine for XLS IR functions.
@@ -52,12 +63,22 @@ struct SymExOptions {
 //    via `Z3EncodingVisitor`, representing multiplexers as unconstrained SSA
 //    variables.
 //
-// 2. Incremental SMT DFS: Traverses multiplexers in topological order. At each
-//    branch point, pushes a solver frame, asserts branch condition and arm
+// 2. Incremental SMT DFS: Traverses multiplexers in reverse topological order,
+//    i.e. consumers before the producers they consume, when observability
+//    pruning is enabled, and in forward topological order otherwise. At each
+//    branch point, pushes a solver frame, asserts the branch condition and arm
 //    equality constraints, and checks feasibility. If the partial path is
 //    UNSAT, backtracks immediately; otherwise, recurses down the branch.
 //
-// 3. Leaf Test Generation: When all multiplexers are resolved along a feasible
+// 3. Observability Pruning: Because consumers are decided first, the engine
+//    knows by the time it reaches a multiplexer whether any arm choice there
+//    can still reach the function's result. One that cannot is skipped with its
+//    selector left unconstrained, so the resulting path stands in for every
+//    combination of its arms, and a functional unit whose output is discarded
+//    on the current path costs one path instead of a multiplicative factor.
+//    Controlled by `SymExOptions::prune_unobservable`.
+//
+// 4. Leaf Test Generation: When all multiplexers are resolved along a feasible
 //    path, extracts concrete satisfying test inputs from the solver model.
 class SymExEngine {
  public:
@@ -88,15 +109,18 @@ class SymExEngine {
                             absl::Span<const GenericSelect> selects,
                             Function* fn, Z3_solver solver,
                             Z3EncodingVisitor& encoder,
+                            MuxObservability& observability,
                             std::vector<BranchDecision>& current_decisions,
                             std::vector<Z3_ast>& current_conds,
+                            std::vector<const Node*>& current_unobservable,
                             std::vector<SymbolicPath>& completed_paths);
 
   // Extracts a SymbolicPath from the current satisfiable solver state.
   absl::StatusOr<SymbolicPath> ExtractSymbolicPath(
       Function* fn, Z3_solver solver, const Z3EncodingVisitor& encoder,
       absl::Span<const BranchDecision> decisions,
-      absl::Span<const Z3_ast> conds);
+      absl::Span<const Z3_ast> conds,
+      absl::Span<const Node* const> unobservable_muxes);
 
   // Returns true if path exploration has reached the configured limit.
   bool ReachedMaxPaths(size_t path_count) const {

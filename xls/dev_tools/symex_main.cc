@@ -79,6 +79,10 @@ ABSL_FLAG(std::string, output_testvector_textproto, "",
 ABSL_FLAG(int64_t, max_paths, 1000,
           "Maximum number of paths to explore (0 for unlimited). Defaults to "
           "the SymExEngine limit to guard against exponential path explosion.");
+ABSL_FLAG(bool, prune_unobservable, true,
+          "Skip multiplexers whose selector cannot affect the result given the "
+          "branch decisions already made, reporting them as don't cares. "
+          "Disable to enumerate every arm of every multiplexer.");
 
 namespace xls {
 namespace {
@@ -96,6 +100,10 @@ std::string FormatPathsText(
       absl::StrAppendFormat(
           &output, "    %s = %s\n", assignment.param->name(),
           assignment.value.ToString(FormatPreference::kDefault));
+    }
+    if (!path.unobservable_muxes.empty()) {
+      absl::StrAppendFormat(&output, "  Don't cares: %s\n",
+                            absl::StrJoin(path.unobservable_muxes, ", "));
     }
     absl::StatusOr<Value> return_val =
         DropInterpreterEvents(InterpretFunction(fn, path.input_values()));
@@ -215,6 +223,7 @@ absl::Status RealMain(absl::Span<const std::string_view> positional_args) {
   solvers::symex::SymExOptions options;
   options.concrete_inputs = concrete_inputs;
   options.max_paths = max_paths;
+  options.prune_unobservable = absl::GetFlag(FLAGS_prune_unobservable);
 
   Z3_config z3_config = Z3_mk_config();
   Z3_context ctx = Z3_mk_context(z3_config);
