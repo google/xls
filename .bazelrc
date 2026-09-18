@@ -36,6 +36,17 @@ build:macos --macos_minimum_os=10.15
 build --cxxopt "-std=c++20"            --host_cxxopt "-std=c++20"
 build --client_env=BAZEL_CXXOPTS=-std=c++20
 
+# Force all dependent source files to include these headers, since the newer
+# version of clang is stricter about transitive includes.
+build --host_cxxopt=-include --host_cxxopt=cstdlib
+build --host_cxxopt=-include --host_cxxopt=iterator
+build --host_cxxopt=-include --host_cxxopt=algorithm
+build --host_cxxopt=-include --host_cxxopt=string
+build --cxxopt=-include --cxxopt=cstdlib
+build --cxxopt=-include --cxxopt=iterator
+build --cxxopt=-include --cxxopt=algorithm
+build --cxxopt=-include --cxxopt=string
+
 # Depending on the installation, clang or clang-tidy need to be told that
 # a c++ file is, indeed, containing c++ (bazel just invokes clang, not clang++)
 build --cxxopt "-xc++"                 --host_cxxopt "-xc++"

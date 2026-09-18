@@ -4,7 +4,7 @@ module(
 )
 
 # Compiler toolchain
-bazel_dep(name = "llvm", version = "0.8.18", dev_dependency = True)
+bazel_dep(name = "llvm", version = "0.8.20", dev_dependency = True)
 
 register_toolchains("@llvm//toolchain:all")
 
@@ -86,7 +86,7 @@ bazel_dep(name = "mpfr", version = "4.2.2")
 bazel_dep(name = "gmp", version = "6.3.0.bcr.1")
 bazel_dep(name = "re2", version = "2024-07-02.bcr.1")
 bazel_dep(name = "riegeli", version = "0.0.0-20250822-9f2744d")
-bazel_dep(name = "rules_cc", version = "0.2.18")
+bazel_dep(name = "rules_cc", version = "0.2.25")
 bazel_dep(name = "rules_closure", version = "0.15.0")
 bazel_dep(name = "rules_license", version = "1.0.0")
 bazel_dep(name = "rules_proto", version = "7.1.0")
