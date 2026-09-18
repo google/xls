@@ -17,16 +17,20 @@
 
 #include <cstdint>
 #include <memory>
+#include <ostream>
 #include <string>
 #include <string_view>
 #include <utility>
 #include <vector>
 
+#include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_replace.h"
+#include "absl/types/span.h"
+#include "xls/data_structures/leaf_type_tree.h"
 #include "xls/estimators/delay_model/delay_estimator.h"
 #include "xls/ir/function.h"
 #include "xls/ir/function_base.h"
@@ -34,6 +38,8 @@
 #include "xls/ir/op.h"
 #include "xls/ir/package.h"
 #include "xls/ir/proc.h"
+#include "xls/ir/ternary.h"
+#include "xls/ir/type.h"
 #include "xls/ir/value.h"
 #include "xls/ir/verifier.h"
 
@@ -193,6 +199,67 @@ struct ScopedMaybeRecord {
 
 template <typename T>
 ScopedMaybeRecord(std::string_view, T) -> ScopedMaybeRecord<T>;
+
+template <typename T>
+class LeafTypeTreeIsMatcher {
+ public:
+  LeafTypeTreeIsMatcher(testing::Matcher<Type*> type,
+                        testing::Matcher<absl::Span<T const>> elements)
+      : type_(type), elements_(std::move(elements)) {}
+  using is_gtest_matcher = void;
+  bool MatchAndExplain(const SharedLeafTypeTree<T>& ltt,
+                       testing::MatchResultListener* listener) const {
+    return MatchAndExplain(ltt.AsView(), listener);
+  }
+  bool MatchAndExplain(const LeafTypeTree<T>& ltt,
+                       testing::MatchResultListener* listener) const {
+    return MatchAndExplain(ltt.AsView(), listener);
+  }
+  bool MatchAndExplain(const LeafTypeTreeView<T>& ltt,
+                       testing::MatchResultListener* listener) const {
+    *listener << "LeafTypeTree with ";
+    return type_.MatchAndExplain(ltt.type(), listener) &&
+           elements_.MatchAndExplain(ltt.elements(), listener);
+  }
+
+  void DescribeBothTo(std::ostream* os, bool is_negation) const {
+    *os << " is " << (is_negation ? "not " : "") << "a LeafTypeTree with type "
+        << testing::DescribeMatcher<Type*>(type_) << " and elements "
+        << testing::DescribeMatcher<std::vector<T>>(elements_);
+  }
+  void DescribeTo(std::ostream* os) const { DescribeBothTo(os, false); }
+
+  void DescribeNegationTo(std::ostream* os) const { DescribeBothTo(os, true); }
+
+ private:
+  testing::Matcher<Type*> type_;
+  testing::Matcher<absl::Span<T const>> elements_;
+};
+
+template <typename T>
+LeafTypeTreeIsMatcher<T> LttIs(testing::Matcher<Type*> type,
+                               testing::Matcher<absl::Span<T const>> elements) {
+  return LeafTypeTreeIsMatcher<T>(std::move(type), std::move(elements));
+}
+template <typename T>
+LeafTypeTreeIsMatcher<T> LttIs(testing::Matcher<absl::Span<T const>> elements) {
+  return LeafTypeTreeIsMatcher<T>(testing::_, std::move(elements));
+}
+
+namespace internal {
+MATCHER_P(BadTernary, sv, "") {
+  *result_listener << "The ternary string '" << sv << "' is not valid";
+  return false;
+}
+}  // namespace internal
+
+inline testing::Matcher<TernaryVector> TernaryIs(std::string_view sv) {
+  auto tv = StringToTernaryVector(sv);
+  if (tv.ok()) {
+    return testing::ElementsAreArray(*tv);
+  }
+  return internal::BadTernary(sv);
+}
 
 }  // namespace xls
 
