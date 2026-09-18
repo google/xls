@@ -249,6 +249,17 @@ TEST_F(BlockTest, ErrorConditions) {
   EXPECT_TRUE(FindNode("foo", block)->Is<InputPort>());
   EXPECT_NE(orig_foo->GetName(), "foo");
   EXPECT_THAT(orig_foo->GetName(), testing::StartsWith("foo_"));
+
+  // Adding a port with an invalid identifier should fail.
+  EXPECT_THAT(block->AddInputPort("invalid identifier!", u32),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("is not a valid identifier")));
+  EXPECT_THAT(block->AddOutputPort("invalid identifier!", b.node()),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("is not a valid identifier")));
+  EXPECT_THAT(block->AddClockPort("invalid identifier!"),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("is not a valid identifier")));
 }
 
 TEST_F(BlockTest, TrivialBlock) {
