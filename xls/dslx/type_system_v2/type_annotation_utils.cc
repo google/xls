@@ -238,7 +238,7 @@ GetSignednessAndBitCountWithUserFacingError(
 }
 
 absl::StatusOr<TypeAnnotation*> CreateAnnotationSizedToFit(
-    Module& module, const Number& number) {
+    Module& module, const Number& number, const FileTable& file_table) {
   switch (number.number_kind()) {
     case NumberKind::kCharacter:
       return module.Make<BuiltinTypeAnnotation>(
@@ -248,13 +248,23 @@ absl::StatusOr<TypeAnnotation*> CreateAnnotationSizedToFit(
       return module.Make<BuiltinTypeAnnotation>(
           Span::None(), BuiltinType::kBool,
           module.GetOrCreateBuiltinNameDef("bool"));
-    case NumberKind::kOther:
-      XLS_ASSIGN_OR_RETURN((auto [sign, magnitude]),
-                           GetSignAndMagnitude(number.text()));
-      XLS_ASSIGN_OR_RETURN(Bits raw_bits, ParseNumber(number.text()));
-      const bool is_negative = sign == Sign::kNegative;
+    case NumberKind::kOther: {
+      auto sign_and_mag = GetSignAndMagnitude(number.text());
+      if (!sign_and_mag.ok()) {
+        return TypeInferenceErrorStatus(number.span(), /*type=*/nullptr,
+                                        sign_and_mag.status().message(),
+                                        file_table);
+      }
+      auto raw_bits = ParseNumber(number.text());
+      if (!raw_bits.ok()) {
+        return TypeInferenceErrorStatus(number.span(), /*type=*/nullptr,
+                                        raw_bits.status().message(),
+                                        file_table);
+      }
+      const bool is_negative = sign_and_mag->first == Sign::kNegative;
       return CreateUnOrSnAnnotation(module, Span::None(), is_negative,
-                                    raw_bits.bit_count());
+                                    raw_bits->bit_count());
+    }
   }
 }
 
