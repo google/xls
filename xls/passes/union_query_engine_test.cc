@@ -475,5 +475,27 @@ TEST_F(UnionQueryEngineTest, OfGeneric) {
       << uqe.GetTernary(res.node())->ToString();
 }
 
+TEST_F(UnionQueryEngineTest, ContradictoryTernaryReturnsNullopt) {
+  auto p = CreatePackage();
+  auto tern =
+      [&](std::string_view sv) -> absl::StatusOr<LeafTypeTree<TernaryVector>> {
+    XLS_ASSIGN_OR_RETURN(TernaryVector tv, StringToTernaryVector(sv));
+    return LeafTypeTree<TernaryVector>::CreateSingleElementTree(
+        p->GetBitsType(tv.size()), tv);
+  };
+  FunctionBuilder fb(TestName(), p.get());
+  BValue res = fb.Param("res", p->GetBitsType(8));
+  XLS_ASSERT_OK(fb.Build());
+  FakeQueryEngine a;
+  XLS_ASSERT_OK_AND_ASSIGN(auto tt_a, tern("0b1XXXXXXX"));
+  a.AddTernary(res.node(), tt_a);
+  FakeQueryEngine b;
+  XLS_ASSERT_OK_AND_ASSIGN(auto tt_b, tern("0b0XXXXXXX"));
+  b.AddTernary(res.node(), tt_b);
+
+  UnionQueryEngine uqe = UnionQueryEngine::Of(&a, &b);
+  EXPECT_EQ(uqe.GetTernary(res.node()), std::nullopt);
+}
+
 }  // namespace
 }  // namespace xls
