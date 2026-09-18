@@ -24,6 +24,8 @@
 #include <variant>
 #include <vector>
 
+#include "absl/algorithm/container.h"
+#include "absl/base/casts.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
@@ -92,7 +94,6 @@ class ConversionRecordVisitor : public AstNodeRecursiveVisitor {
   ConversionRecordVisitor(
       Module* module, TypeInfo* type_info, bool include_tests,
       ProcIdFactory* proc_id_factory, AstNode* top,
-      std::optional<ResolvedProcAlias> resolved_proc_alias,
       std::vector<ConversionRecord>& records,
       absl::flat_hash_set<const Invocation*>& processed_invocations)
       : module_(module),
@@ -100,7 +101,6 @@ class ConversionRecordVisitor : public AstNodeRecursiveVisitor {
         include_tests_(include_tests),
         proc_id_factory_(proc_id_factory),
         top_(top),
-        resolved_proc_alias_(resolved_proc_alias),
         records_(records),
         processed_invocations_(processed_invocations) {}
 
@@ -114,12 +114,12 @@ class ConversionRecordVisitor : public AstNodeRecursiveVisitor {
     // "next" functions.
     ConversionRecordVisitor config_visitor(
         owner, config_type_info, include_tests_, proc_id_factory_, top_,
-        resolved_proc_alias_, records_, processed_invocations_);
+        records_, processed_invocations_);
     XLS_RETURN_IF_ERROR(config_visitor.DefaultHandler(config_function));
 
-    ConversionRecordVisitor next_visitor(
-        owner, next_type_info, include_tests_, proc_id_factory_, top_,
-        resolved_proc_alias_, records_, processed_invocations_);
+    ConversionRecordVisitor next_visitor(owner, next_type_info, include_tests_,
+                                         proc_id_factory_, top_, records_,
+                                         processed_invocations_);
     return next_visitor.DefaultHandler(next_function);
   }
 
@@ -291,8 +291,7 @@ class ConversionRecordVisitor : public AstNodeRecursiveVisitor {
       // may be different than the one the current visitor has.
       ConversionRecordVisitor visitor(
           call.callee->owner(), call.derived_type_info, include_tests_,
-          proc_id_factory_, top_, resolved_proc_alias_, records_,
-          processed_invocations_);
+          proc_id_factory_, top_, records_, processed_invocations_);
 
       XLS_RETURN_IF_ERROR(visitor.HandleFunctionInternal(
           call.callee, call.callee_bindings, /*handle_for_invocation=*/true));
@@ -343,8 +342,7 @@ class ConversionRecordVisitor : public AstNodeRecursiveVisitor {
     // its spawning and add to our list of records.
     ConversionRecordVisitor visitor(config_fn->owner(), GetTypeInfo(config_fn),
                                     include_tests_, proc_id_factory_, top_,
-                                    resolved_proc_alias_, records_,
-                                    processed_invocations_);
+                                    records_, processed_invocations_);
     XLS_RETURN_IF_ERROR(proc->Accept(&visitor));
     return absl::OkStatus();
   }
@@ -353,8 +351,8 @@ class ConversionRecordVisitor : public AstNodeRecursiveVisitor {
     VLOG(5) << "HandleConstFor " << expr->ToString();
 
     std::vector<Expr*> unrolled = type_info_->GetAllUnrolledLoops(expr);
-    for (const auto& expr : unrolled) {
-      XLS_RETURN_IF_ERROR(expr->Accept(this));
+    for (Expr* body : unrolled) {
+      XLS_RETURN_IF_ERROR(body->Accept(this));
     }
     return absl::OkStatus();
   }
@@ -378,9 +376,67 @@ class ConversionRecordVisitor : public AstNodeRecursiveVisitor {
 
   absl::Status HandleProcDef(const ProcDef* p) override {
     VLOG(5) << "HandleProcDef " << p->ToString();
+    if (!p->impl().has_value()) {
+      // Nothing to convert.
+      return absl::OkStatus();
+    }
 
     std::optional<Function*> next_fn = GetProcNextFunction(p);
-    XLS_RET_CHECK(next_fn.has_value());
+    XLS_RET_CHECK(next_fn.has_value())
+        << "There should be either a user-written next function or a trivial "
+           "one generated within the compiler.";
+
+    if (p->alias_target() != nullptr) {
+      if (top_ != *next_fn) {
+        return absl::OkStatus();
+      }
+      const ProcDef* target_proc_def = p;
+      TypeInfo* curr_ti = GetTypeInfo(p);
+      std::optional<ProcInitializerWithTypeInfo> resolved_init;
+      while (target_proc_def->alias_target() != nullptr) {
+        XLS_ASSIGN_OR_RETURN(std::vector<InterpValue> spawns,
+                             curr_ti->GetProcDefSpawnsFrom(target_proc_def));
+        XLS_RET_CHECK_EQ(spawns.size(), 1);
+        XLS_ASSIGN_OR_RETURN(resolved_init,
+                             curr_ti->GetCanonicalProcInitializer(spawns[0]));
+        target_proc_def =
+            resolved_init->initializer.GetProcInitializerOrDie().proc_def();
+        curr_ti = resolved_init->next_type_info;
+      }
+      std::optional<Function*> target_next_fn =
+          GetProcNextFunction(target_proc_def);
+      XLS_RET_CHECK(target_next_fn.has_value());
+      XLS_ASSIGN_OR_RETURN(
+          std::vector<InterpValue> target_spawns,
+          resolved_init->constructor_type_info->GetProcDefSpawnsFrom(
+              target_proc_def));
+      for (const InterpValue& external_initializer : target_spawns) {
+        const ProcDef* spawnee =
+            external_initializer.GetProcInitializerOrDie().proc_def();
+        XLS_ASSIGN_OR_RETURN(
+            ProcInitializerWithTypeInfo canonical_initializer,
+            resolved_init->constructor_type_info->GetCanonicalProcInitializer(
+                external_initializer));
+        ConversionRecordVisitor visitor(spawnee->owner(),
+                                        canonical_initializer.next_type_info,
+                                        include_tests_, proc_id_factory_, top_,
+                                        records_, processed_invocations_);
+        XLS_RETURN_IF_ERROR(spawnee->Accept(&visitor));
+      }
+      ConversionRecordVisitor next_visitor(
+          target_proc_def->owner(), resolved_init->next_type_info,
+          include_tests_, proc_id_factory_, top_, records_,
+          processed_invocations_);
+      XLS_RETURN_IF_ERROR(next_visitor.DefaultHandler(*target_next_fn));
+
+      ProcId proc_id = proc_id_factory_->CreateProcId(target_proc_def);
+      proc_id.alias_name = p->identifier();
+      XLS_ASSIGN_OR_RETURN(ConversionRecord cr,
+                           MakeConversionRecord(target_proc_def, proc_id,
+                                                /*top=*/true, *resolved_init));
+      records_.push_back(std::move(cr));
+      return absl::OkStatus();
+    }
 
     TypeInfo* proc_owner_ti = GetTypeInfo(p);
     XLS_ASSIGN_OR_RETURN(
@@ -410,8 +466,8 @@ class ConversionRecordVisitor : public AstNodeRecursiveVisitor {
             proc_owner_ti->GetCanonicalProcInitializer(external_initializer));
         ConversionRecordVisitor visitor(
             spawnee->owner(), spawnee_canonical_initializer.next_type_info,
-            include_tests_, proc_id_factory_, top_, resolved_proc_alias_,
-            records_, processed_invocations_);
+            include_tests_, proc_id_factory_, top_, records_,
+            processed_invocations_);
         XLS_RETURN_IF_ERROR(spawnee->Accept(&visitor));
       }
 
@@ -424,8 +480,7 @@ class ConversionRecordVisitor : public AstNodeRecursiveVisitor {
 
       ConversionRecordVisitor next_visitor(
           p->owner(), canonical_initializer.next_type_info, include_tests_,
-          proc_id_factory_, top_, resolved_proc_alias_, records_,
-          processed_invocations_);
+          proc_id_factory_, top_, records_, processed_invocations_);
       XLS_RETURN_IF_ERROR(next_visitor.DefaultHandler(*next_fn));
 
       XLS_ASSIGN_OR_RETURN(
@@ -442,6 +497,59 @@ class ConversionRecordVisitor : public AstNodeRecursiveVisitor {
   absl::Status HandleProc(const Proc* p) override {
     VLOG(5) << "HandleProc " << p->ToString();
     const Function* next_fn = &p->next();
+    TypeInfo* proc_owner_ti = GetTypeInfo(p);
+
+    if (p->alias_target() != nullptr) {
+      if (top_ == next_fn) {
+        const Proc* target_proc = p;
+        TypeInfo* curr_ti = proc_owner_ti;
+        std::optional<SpawnData> resolved_spawn;
+        while (target_proc->alias_target() != nullptr) {
+          const Spawn* spawn_stmt =
+              absl::down_cast<const Spawn*>(std::get<Expr*>(
+                  target_proc->config().body()->statements()[0]->wrapped()));
+          XLS_ASSIGN_OR_RETURN(std::vector<SpawnData> spawns,
+                               curr_ti->GetSpawns(target_proc->alias_target()));
+          auto it = absl::c_find_if(spawns, [&](const SpawnData& sd) {
+            return sd.config_invocation == spawn_stmt->config();
+          });
+          XLS_RET_CHECK(it != spawns.end());
+          resolved_spawn = *it;
+          target_proc = resolved_spawn->proc;
+          curr_ti = resolved_spawn->config_type_info;
+        }
+        XLS_RETURN_IF_ERROR(VisitProcFunctionsWithSeparateTypeInfos(
+            target_proc->owner(), &target_proc->config(),
+            resolved_spawn->config_type_info, &target_proc->next(),
+            resolved_spawn->next_type_info));
+        ProcId proc_id = proc_id_factory_->CreateProcId(
+            /*parent=*/std::nullopt, const_cast<Proc*>(target_proc),
+            /*count_as_new_instance=*/false);
+        proc_id.alias_name = p->identifier();
+        XLS_ASSIGN_OR_RETURN(
+            ConversionRecord config_record,
+            MakeConversionRecord(&target_proc->config(), target_proc->owner(),
+                                 resolved_spawn->config_type_info,
+                                 resolved_spawn->env, proc_id,
+                                 /*is_top=*/false));
+        XLS_ASSIGN_OR_RETURN(
+            ConversionRecord next_record,
+            MakeConversionRecord(
+                &target_proc->next(), target_proc->owner(),
+                resolved_spawn->next_type_info, resolved_spawn->env, proc_id,
+                /*is_top=*/true,
+                std::make_unique<ConversionRecord>(std::move(config_record)),
+                resolved_spawn->init_value));
+        records_.push_back(std::move(next_record));
+        return absl::OkStatus();
+      }
+      XLS_ASSIGN_OR_RETURN(std::vector<SpawnData> alias_spawns,
+                           proc_owner_ti->GetUniqueSpawns(p));
+      if (alias_spawns.empty()) {
+        return absl::OkStatus();
+      }
+    }
+
     // Traversing parametric procs is done later with proper
     // type infos for proc's "config" and "next" functions separately.
     if (!p->IsParametric()) {
@@ -456,33 +564,26 @@ class ConversionRecordVisitor : public AstNodeRecursiveVisitor {
     ProcId proc_id = proc_id_factory_->CreateProcId(
         /*parent=*/std::nullopt, const_cast<Proc*>(p),
         /*count_as_new_instance=*/false);
-    if (top_ == next_fn && resolved_proc_alias_.has_value()) {
-      XLS_RETURN_IF_ERROR(VisitProcFunctionsWithSeparateTypeInfos(
-          top_->owner(), &p->config(), resolved_proc_alias_->config_type_info,
-          &p->next(), resolved_proc_alias_->next_type_info));
 
-      proc_id.alias_name = resolved_proc_alias_->name;
-      XLS_ASSIGN_OR_RETURN(
-          ConversionRecord config_record,
-          MakeConversionRecord(
-              const_cast<Function*>(&p->config()), top_->owner(),
-              resolved_proc_alias_->config_type_info, resolved_proc_alias_->env,
-              proc_id, /*is_top=*/false));
-      // TODO: Set up the initial value
-      XLS_ASSIGN_OR_RETURN(
-          ConversionRecord next_record,
-          MakeConversionRecord(
-              const_cast<Function*>(&p->next()), top_->owner(),
-              resolved_proc_alias_->next_type_info, resolved_proc_alias_->env,
-              proc_id, /*is_top=*/true,
-              std::make_unique<ConversionRecord>(std::move(config_record))));
-      records_.push_back(std::move(next_record));
-      return absl::OkStatus();
-    }
-
-    TypeInfo* proc_owner_ti = GetTypeInfo(p);
-    XLS_ASSIGN_OR_RETURN(std::vector<SpawnData> spawn_data,
+    XLS_ASSIGN_OR_RETURN(std::vector<SpawnData> all_spawn_data,
                          proc_owner_ti->GetUniqueSpawns(p));
+    std::vector<SpawnData> spawn_data;
+    for (const SpawnData& spawn : all_spawn_data) {
+      std::optional<const InvocationData*> inv_data =
+          proc_owner_ti->GetInvocationData(spawn.config_invocation);
+      if (inv_data.has_value() && (*inv_data)->caller() != nullptr &&
+          (*inv_data)->caller()->proc().has_value()) {
+        const Proc* caller_proc = (*inv_data)->caller()->proc().value();
+        if (caller_proc->alias_target() != nullptr) {
+          XLS_ASSIGN_OR_RETURN(std::vector<SpawnData> caller_spawns,
+                               proc_owner_ti->GetUniqueSpawns(caller_proc));
+          if (caller_spawns.empty()) {
+            continue;
+          }
+        }
+      }
+      spawn_data.push_back(spawn);
+    }
     if (p->IsParametric() && spawn_data.empty()) {
       VLOG(5) << "No calls to parametric proc " << p->name_def()->ToString();
       return absl::OkStatus();
@@ -591,9 +692,6 @@ class ConversionRecordVisitor : public AstNodeRecursiveVisitor {
   ProcIdFactory* const proc_id_factory_;
   AstNode* top_;
 
-  // The proc alias that was used to specify the top proc, if any.
-  std::optional<ResolvedProcAlias> resolved_proc_alias_;
-
   std::vector<ConversionRecord>& records_;
   absl::flat_hash_set<const Invocation*>& processed_invocations_;
 };
@@ -619,17 +717,16 @@ absl::StatusOr<std::vector<ConversionRecord>> GetConversionRecords(
   ProcIdFactory proc_id_factory;
   std::vector<ConversionRecord> records;
   absl::flat_hash_set<const Invocation*> processed_invocations;
-  ConversionRecordVisitor visitor(
-      module, type_info, include_tests, &proc_id_factory, /*top=*/nullptr,
-      /*resolved_proc_alias=*/std::nullopt, records, processed_invocations);
+  ConversionRecordVisitor visitor(module, type_info, include_tests,
+                                  &proc_id_factory, /*top=*/nullptr, records,
+                                  processed_invocations);
   XLS_RETURN_IF_ERROR(module->Accept(&visitor));
 
   return RemoveFunctionDuplicates(records);
 }
 
 absl::StatusOr<std::vector<ConversionRecord>> GetConversionRecordsForEntry(
-    std::variant<Proc*, Function*, ProcDef*> entry, TypeInfo* type_info,
-    std::optional<ResolvedProcAlias> resolved_proc_alias) {
+    std::variant<Proc*, Function*, ProcDef*> entry, TypeInfo* type_info) {
   ProcIdFactory proc_id_factory;
   std::vector<ConversionRecord> records;
   absl::flat_hash_set<const Invocation*> processed_invocations;
@@ -639,7 +736,6 @@ absl::StatusOr<std::vector<ConversionRecord>> GetConversionRecordsForEntry(
   TypeInfo* visitor_ti = type_info;
 
   if (std::holds_alternative<Function*>(entry)) {
-    XLS_RET_CHECK(!resolved_proc_alias.has_value());
     top_fn = std::get<Function*>(entry);
   } else if (std::holds_alternative<Proc*>(entry)) {
     Proc* p = std::get<Proc*>(entry);
@@ -649,7 +745,6 @@ absl::StatusOr<std::vector<ConversionRecord>> GetConversionRecordsForEntry(
     top_fn = &p->next();
     visit_target = p;
   } else {
-    XLS_RET_CHECK(!resolved_proc_alias.has_value());
     ProcDef* p = std::get<ProcDef*>(entry);
     std::optional<Function*> next_fn = GetProcNextFunction(p);
     XLS_RET_CHECK(next_fn.has_value())
@@ -662,8 +757,8 @@ absl::StatusOr<std::vector<ConversionRecord>> GetConversionRecordsForEntry(
   // We are only ever called for tests, so we set include_tests to true,
   // and make sure that this proc's next function is top.
   ConversionRecordVisitor visitor(m, visitor_ti, /*include_tests=*/true,
-                                  &proc_id_factory, top_fn, resolved_proc_alias,
-                                  records, processed_invocations);
+                                  &proc_id_factory, top_fn, records,
+                                  processed_invocations);
   XLS_RETURN_IF_ERROR(visit_target->Accept(&visitor));
   return RemoveFunctionDuplicates(records);
 }

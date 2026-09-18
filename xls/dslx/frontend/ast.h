@@ -89,6 +89,7 @@
 // XLS_DSLX_EXPR_NODE_EACH).
 #define XLS_DSLX_AST_NODE_EACH(X)   \
   /* keep-sorted start */        \
+  X(AliasDef)                       \
   X(Attribute)                      \
   X(BuiltinNameDef)                 \
   X(ConstAssert)                    \
@@ -105,7 +106,6 @@
   X(Param)                          \
   X(ParametricBinding)              \
   X(Proc)                           \
-  X(ProcAlias)                      \
   X(ProcDef)                        \
   X(ProcMember)                     \
   X(QuickCheck)                     \
@@ -1690,26 +1690,26 @@ class String : public Expr {
   std::string text_;
 };
 
-// An alias to a non-impl-based proc. This is similar to a type alias, but not a
-// type, since non-impl-based procs are not types.
-class ProcAlias : public AstNode {
+// An alias to a proc or function.
+class AliasDef : public AstNode {
  public:
   static std::string_view GetDebugTypeName() { return "proc alias"; }
 
   using Target = std::variant<NameRef*, ColonRef*>;
 
-  ProcAlias(Module* owner, Span span, NameDef* name_def, Target target,
-            bool is_public, const std::vector<ExprOrType>& parametrics);
+  AliasDef(Module* owner, Span span, NameDef* name_def, Target target,
+           bool is_public, const std::vector<ExprOrType>& parametrics,
+           bool is_function_alias = false, bool is_synthetic = false);
 
-  ~ProcAlias() override;
+  ~AliasDef() override;
 
-  AstNodeKind kind() const override { return AstNodeKind::kProcAlias; }
+  AstNodeKind kind() const override { return AstNodeKind::kAliasDef; }
 
   absl::Status Accept(AstNodeVisitor* v) const override {
-    return v->HandleProcAlias(this);
+    return v->HandleAliasDef(this);
   }
 
-  std::string_view GetNodeTypeName() const override { return "ProcAlias"; }
+  std::string_view GetNodeTypeName() const override { return "AliasDef"; }
 
   const std::string& identifier() const { return name_def_->identifier(); }
 
@@ -1720,6 +1720,8 @@ class ProcAlias : public AstNode {
   NameDef* name_def() const { return name_def_; }
   Target target() const { return target_; }
   bool is_public() const { return is_public_; }
+  bool is_function_alias() const { return is_function_alias_; }
+  bool is_synthetic() const { return is_synthetic_; }
   const Span& span() const { return span_; }
   std::optional<Span> GetSpan() const override { return span_; }
 
@@ -1731,6 +1733,8 @@ class ProcAlias : public AstNode {
   Target target_;
   bool is_public_;
   std::vector<ExprOrType> parametrics_;
+  bool is_function_alias_;
+  bool is_synthetic_;
 };
 
 // Represents a user-defined-type definition; e.g.
@@ -3701,6 +3705,12 @@ class ProcDef : public StructDefBase {
   }
 
   std::string ToString() const override;
+
+  ProcDef* alias_target() const { return alias_target_; }
+  void set_alias_target(ProcDef* alias_target) { alias_target_ = alias_target; }
+
+ private:
+  ProcDef* alias_target_ = nullptr;
 };
 
 // Gets the `StructDefBase` contained in a `TypeDefinition` if it contains one.
