@@ -48,7 +48,7 @@ namespace xls::dslx {
 
 using ModuleMember =
     std::variant<Function*, Proc*, TestFunction*, TestProc*, QuickCheck*,
-                 TypeAlias*, StructDef*, ProcAlias*, ProcDef*, ConstantDef*,
+                 TypeAlias*, StructDef*, AliasDef*, ProcDef*, ConstantDef*,
                  EnumDef*, SumDef*, Import*, Use*, ConstAssert*, Impl*, Trait*,
                  VerbatimNode*, FuzzTestFunction*>;
 
@@ -200,6 +200,11 @@ class Module : public AstNode {
   absl::Status InsertTopBefore(
       const AstNode* target_member, ModuleMember member,
       const MakeCollisionError& make_collision_error = nullptr);
+
+  // Replaces `target_member` in place with `new_member`, updating `top_set_`
+  // and `top_by_name_`.
+  absl::Status ReplaceTopMember(const AstNode* target_member,
+                                ModuleMember new_member);
 
   // Gets the element in this module with the given target_name, or returns a
   // NotFoundError.

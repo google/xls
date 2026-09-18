@@ -434,11 +434,6 @@ class InferenceTable {
       TypeInfo* invocation_type_info,
       std::optional<const StructDefBase*> target_struct = std::nullopt) = 0;
 
-  virtual absl::StatusOr<ParametricContext*> AddProcAliasParametricContext(
-      const ProcAlias& alias, const ParametricEnv& env,
-      const std::vector<Expr*>& parametrics, const Function& config_or_next,
-      TypeInfo* ti) = 0;
-
   // Finds an existing `ParametricContext` in the table that represents an
   // invocation of the same function with the same parametrics as `context` and
   // `env`.

@@ -247,6 +247,7 @@ cc_library(
         "//xls/dslx:create_import_data",
         "//xls/dslx:import_data",
         "//xls/dslx:parse_and_typecheck",
+        "//xls/dslx/frontend:module",
         "//xls/dslx/run_routines",
         "//xls/dslx/type_system:typecheck_test_utils",
         "@abseil-cpp//absl/status:statusor",

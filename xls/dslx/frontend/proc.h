@@ -209,6 +209,12 @@ class Proc : public ProcLike {
     return v->HandleProc(this);
   }
   std::string_view GetNodeTypeName() const override { return "Proc"; }
+
+  Proc* alias_target() const { return alias_target_; }
+  void set_alias_target(Proc* alias_target) { alias_target_ = alias_target; }
+
+ private:
+  Proc* alias_target_ = nullptr;
 };
 
 // Represents a construct to unit test a Proc. Analogous to TestFunction, but

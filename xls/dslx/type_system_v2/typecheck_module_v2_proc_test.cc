@@ -21,6 +21,7 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/container/flat_hash_map.h"
+#include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
 #include "absl/strings/substitute.h"
 #include "xls/common/status/matchers.h"
@@ -1072,6 +1073,75 @@ impl Main {
 }
 )";
   XLS_EXPECT_OK(TypecheckV2(kProgram));
+}
+
+TEST(TypecheckV2ProcTest, TypeAliasToParametricImplProcSpawnAndMember) {
+  constexpr std::string_view kProgram = R"(
+#![feature(explicit_state_access)]
+
+proc Inner<N: u32> {
+  c_in: chan<uN[N]> in,
+  c_out: chan<uN[N]> out,
+}
+
+impl Inner<N> {
+  fn new(c_in: chan<uN[N]> in, c_out: chan<uN[N]> out) -> Self {
+    Inner { c_in, c_out }
+  }
+
+  fn next(self) {}
+}
+
+pub type Inner32 = Inner<u32:32>;
+
+proc SubprocHolder {
+  sub: Inner32,
+}
+
+impl SubprocHolder {
+  fn new(c_in: chan<u32> in, c_out: chan<u32> out) -> Self {
+    SubprocHolder { sub: Inner32::new(c_in, c_out) }
+  }
+}
+
+proc Main {
+  c_in: chan<u32> in,
+  c_out: chan<u32> out,
+}
+
+impl Main {
+  fn new(c_in: chan<u32> in, c_out: chan<u32> out) -> Self {
+    Inner32::new(c_in, c_out).spawn();
+    Main { c_in, c_out }
+  }
+
+  fn next(self) {}
+}
+)";
+  XLS_EXPECT_OK(TypecheckV2(kProgram));
+}
+
+TEST(TypecheckV2ProcTest, ProcAliasToImplProcFails) {
+  constexpr std::string_view kProgram = R"(
+#![feature(explicit_state_access)]
+
+proc Counter<WIDTH: u32> {
+  state: uN[WIDTH],
+}
+
+impl Counter<WIDTH> {
+  fn new() -> Self {
+    Counter { state: uN[WIDTH]:0 }
+  }
+  fn next(self) {}
+}
+
+pub proc Counter16 = Counter<u32:16>;
+)";
+  EXPECT_THAT(
+      TypecheckV2(kProgram),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("impl-based procs must be aliased using `type`")));
 }
 
 }  // namespace

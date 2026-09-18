@@ -14,13 +14,16 @@
 
 #include "xls/dslx/ir_convert/ir_converter_test_utils.h"
 
+#include <memory>
 #include <optional>
 #include <string>
 #include <string_view>
+#include <utility>
 
 #include "absl/status/statusor.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/create_import_data.h"
+#include "xls/dslx/frontend/module.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/ir_convert/convert_options.h"
 #include "xls/dslx/ir_convert/ir_converter.h"
@@ -46,11 +49,17 @@ void ExpectIr(std::string_view got) {
 absl::StatusOr<std::string> IrConverterTest::ConvertOneFunctionForTest(
     std::string_view program, std::string_view fn_name, ImportData& import_data,
     const ConvertOptions& options) {
-  XLS_ASSIGN_OR_RETURN(TypecheckedModule tm,
-                       ::xls::dslx::ParseAndTypecheck(
-                           program, /*path=*/"test_module.x",
-                           /*module_name=*/"test_module", &import_data,
-                           /*comments=*/nullptr));
+  XLS_ASSIGN_OR_RETURN(
+      std::unique_ptr<Module> module,
+      ::xls::dslx::ParseModule(program, /*path=*/"test_module.x",
+                               /*module_name=*/"test_module",
+                               import_data.file_table(), /*comments=*/nullptr));
+  XLS_RETURN_IF_ERROR(PrepareModuleForTopEntry(module.get(), fn_name,
+                                               import_data.file_table()));
+  XLS_ASSIGN_OR_RETURN(
+      TypecheckedModule tm,
+      ::xls::dslx::TypecheckModule(std::move(module), /*path=*/"test_module.x",
+                                   &import_data));
   return ConvertOneFunction(tm.module, /*entry_function_name=*/fn_name,
                             &import_data,
                             /*parametric_env=*/nullptr, options);
