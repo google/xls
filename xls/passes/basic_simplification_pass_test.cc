@@ -740,6 +740,75 @@ TEST_F(BasicSimplificationPassTest, EqOfSwappedTwoWaySelects) {
   EXPECT_THAT(f->return_value(), m::Eq(m::Param("a"), m::Param("b")));
 }
 
+TEST_F(BasicSimplificationPassTest, EqAndSubsetCheckNary) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetBitsType(32));
+  BValue y = fb.Param("y", p->GetBitsType(32));
+  BValue z = fb.Param("z", p->GetBitsType(32));
+  BValue and_xyz = fb.And({x, y, z});
+  fb.Eq(and_xyz, y);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  ScopedVerifyEquivalence sve(f);
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(
+      f->return_value(),
+      m::Eq(m::And(m::Not(m::And(m::Param("x"), m::Param("z"))), m::Param("y")),
+            m::Literal(0)));
+}
+
+TEST_F(BasicSimplificationPassTest, EqAndSubsetCheckNaryCommutedEq) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetBitsType(32));
+  BValue y = fb.Param("y", p->GetBitsType(32));
+  BValue z = fb.Param("z", p->GetBitsType(32));
+  BValue and_xyz = fb.And({x, y, z});
+  fb.Eq(y, and_xyz);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  ScopedVerifyEquivalence sve(f);
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(
+      f->return_value(),
+      m::Eq(m::And(m::Not(m::And(m::Param("x"), m::Param("z"))), m::Param("y")),
+            m::Literal(0)));
+}
+
+TEST_F(BasicSimplificationPassTest, NeAndSubsetCheckNary) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetBitsType(32));
+  BValue y = fb.Param("y", p->GetBitsType(32));
+  BValue z = fb.Param("z", p->GetBitsType(32));
+  BValue and_xyz = fb.And({x, y, z});
+  fb.Ne(and_xyz, y);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  ScopedVerifyEquivalence sve(f);
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(
+      f->return_value(),
+      m::Ne(m::And(m::Not(m::And(m::Param("x"), m::Param("z"))), m::Param("y")),
+            m::Literal(0)));
+}
+
+TEST_F(BasicSimplificationPassTest, EqAndSubsetCheckDoesNotMatchNonOperand) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetBitsType(32));
+  BValue y = fb.Param("y", p->GetBitsType(32));
+  BValue z = fb.Param("z", p->GetBitsType(32));
+  BValue and_xy = fb.And({x, y});
+  fb.Eq(and_xy, z);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(false));
+  EXPECT_THAT(f->return_value(),
+              m::Eq(m::And(m::Param("x"), m::Param("y")), m::Param("z")));
+}
+
 TEST_F(BasicSimplificationPassTest, SubOfSwappedTwoWaySelectsDoesNotSimplify) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
