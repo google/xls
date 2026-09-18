@@ -15,6 +15,7 @@
 #ifndef XLS_PASSES_LAZY_TERNARY_QUERY_ENGINE_H_
 #define XLS_PASSES_LAZY_TERNARY_QUERY_ENGINE_H_
 
+#include <memory>
 #include <optional>
 #include <utility>
 
@@ -58,6 +59,10 @@ class LazyTernaryQueryEngine : public LazyQueryEngine<TernaryVector> {
       Node* node) const override {
     return std::nullopt;
   }
+
+  absl::StatusOr<std::unique_ptr<QueryEngine>> SpecializeOnNodes(
+      absl::Span<Node* const> nodes,
+      const QueryEngine& information_source) const override;
 
  protected:
   TernaryTree ComputeInfo(

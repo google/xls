@@ -30,6 +30,7 @@
 #include "absl/strings/str_cat.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/data_structures/leaf_type_tree.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/bits_ops.h"
 #include "xls/ir/format_preference.h"
@@ -41,6 +42,7 @@
 #include "xls/ir/package.h"
 #include "xls/ir/ternary.h"
 #include "xls/passes/bdd_query_engine.h"
+#include "xls/passes/forwarding_query_engine.h"
 #include "xls/passes/predicate_state.h"
 #include "xls/passes/ternary_query_engine.h"
 
@@ -891,6 +893,71 @@ TEST_P(QueryEngineTest, DefaultSpecializeDoesNothing) {
   EXPECT_EQUIV(KnownNotEquals(TreeBitLocation(x_plus_4.node(), 6),
                               TreeBitLocation(x_plus_4.node(), 7)));
 #undef EXPECT_EQUIV
+}
+
+class TestForwardingQueryEngine : public ForwardingQueryEngine {
+ public:
+  explicit TestForwardingQueryEngine(QueryEngine& engine) : engine_(engine) {}
+
+ protected:
+  QueryEngine& real() override { return engine_; }
+  const QueryEngine& real() const override { return engine_; }
+
+ private:
+  QueryEngine& engine_;
+};
+
+TEST_P(QueryEngineTest, SpecializeOnNodes) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetBitsType(4));
+  BValue y = fb.Param("y", p->GetBitsType(4));
+  BValue result = fb.Add(x, y);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(result));
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<QueryEngine> engine, GetEngine(f));
+
+  XLS_ASSERT_OK_AND_ASSIGN(TernaryVector x_tern,
+                           StringToTernaryVector("0b0011"));
+  XLS_ASSERT_OK_AND_ASSIGN(TernaryVector y_tern,
+                           StringToTernaryVector("0b0101"));
+  std::unique_ptr<QueryEngine> info_source = engine->SpecializeGiven(
+      {{x.node(),
+        ValueKnowledge{.ternary =
+                           LeafTypeTree<TernaryVector>::CreateSingleElementTree(
+                               x.GetType(), x_tern)}},
+       {y.node(),
+        ValueKnowledge{.ternary =
+                           LeafTypeTree<TernaryVector>::CreateSingleElementTree(
+                               y.GetType(), y_tern)}}});
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<QueryEngine> specialized,
+      engine->SpecializeOnNodes({x.node(), y.node()}, *info_source));
+
+  if (GetParam() == QueryEngineType::kBdd) {
+    EXPECT_THAT(specialized->GetTernary(x.node()),
+                testing::Optional(LttIs<TernaryVector>(
+                    testing::ElementsAre(TernaryIs("0b0011")))));
+    EXPECT_THAT(specialized->GetTernary(y.node()),
+                testing::Optional(LttIs<TernaryVector>(
+                    testing::ElementsAre(TernaryIs("0b0101")))));
+    EXPECT_THAT(specialized->GetTernary(result.node()),
+                testing::Optional(LttIs<TernaryVector>(
+                    testing::ElementsAre(TernaryIs("0b1000")))));
+  } else {
+    EXPECT_EQ(specialized->GetTernary(result.node()),
+              engine->GetTernary(result.node()));
+  }
+
+  // Test ForwardingQueryEngine::SpecializeOnNodes delegates to the wrapped
+  // engine.
+  TestForwardingQueryEngine forwarding(*engine);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<QueryEngine> fwd_specialized,
+      forwarding.SpecializeOnNodes({x.node(), y.node()}, *info_source));
+  EXPECT_EQ(fwd_specialized->GetTernary(result.node()),
+            specialized->GetTernary(result.node()));
 }
 
 INSTANTIATE_TEST_SUITE_P(

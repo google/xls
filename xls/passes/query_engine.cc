@@ -477,6 +477,25 @@ std::unique_ptr<QueryEngine> QueryEngine::SpecializeGiven(
   return std::make_unique<BaseForwardingQueryEngine>(*this);
 }
 
+absl::StatusOr<std::unique_ptr<QueryEngine>> QueryEngine::SpecializeOnNodes(
+    absl::Span<Node* const> nodes,
+    const QueryEngine& information_source) const {
+  absl::btree_map<Node*, ValueKnowledge, Node::NodeIdLessThan> givens;
+  for (Node* node : nodes) {
+    if (information_source.IsTracked(node)) {
+      auto tern = information_source.GetTernary(node);
+      std::optional<TernaryTree> tern_tree =
+          tern ? std::make_optional(tern->ToOwned()) : std::nullopt;
+      givens.emplace(node,
+                     ValueKnowledge{
+                         .ternary = tern_tree,
+                         .intervals = information_source.GetIntervals(node),
+                     });
+    }
+  }
+  return SpecializeGiven(givens);
+}
+
 bool QueryEngine::IsPredicatePossible(PredicateState state) const {
   if (state.IsArrayUpdatePredicate() || state.IsBasePredicate()) {
     // TODO(allight): Can we be more specific here?

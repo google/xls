@@ -55,10 +55,17 @@ class ForwardingQueryEngine : public QueryEngine {
       const absl::btree_set<PredicateState>& state) const override {
     return real().SpecializeGivenPredicate(state);
   }
+
   std::unique_ptr<QueryEngine> SpecializeGiven(
       const absl::btree_map<Node*, ValueKnowledge, Node::NodeIdLessThan>&
           givens) const override {
     return real().SpecializeGiven(givens);
+  }
+
+  absl::StatusOr<std::unique_ptr<QueryEngine>> SpecializeOnNodes(
+      absl::Span<Node* const> nodes,
+      const QueryEngine& information_source) const override {
+    return real().SpecializeOnNodes(nodes, information_source);
   }
 
   bool IsPredicatePossible(PredicateState state) const override {
