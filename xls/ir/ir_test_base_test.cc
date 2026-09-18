@@ -17,10 +17,14 @@
 #include <memory>
 #include <string_view>
 
+#include "gmock/gmock.h"
 #include "gtest/gtest-spi.h"
 #include "gtest/gtest.h"
 #include "xls/common/status/matchers.h"
+#include "xls/data_structures/leaf_type_tree.h"
 #include "xls/ir/function_base.h"
+#include "xls/ir/ternary.h"
+#include "xls/ir/type.h"
 
 namespace xls {
 namespace {
@@ -71,6 +75,20 @@ TEST_F(IrTestBaseTest, HasNodes) {
   EXPECT_TRUE(HasNode("q", f));
   EXPECT_TRUE(HasNode("add.1", f));
   EXPECT_TRUE(HasNode("add.2", f));
+}
+
+TEST_F(IrTestBaseTest, Matchers) {
+  auto p = CreatePackage();
+  Type* type = p->GetArrayType(2, p->GetBitsType(2));
+  LeafTypeTree<TernaryVector> ltt(
+      type, {TernaryVector{TernaryValue::kKnownOne, TernaryValue::kKnownZero},
+             TernaryVector{TernaryValue::kUnknown, TernaryValue::kKnownOne}});
+  EXPECT_THAT(ltt, LttIs<TernaryVector>(
+                       ElementsAre(TernaryIs("0b01"), TernaryIs("0b1X"))));
+  EXPECT_THAT(ltt,
+              LttIs<TernaryVector>(ElementsAre(testing::_, TernaryIs("0b1X"))));
+  EXPECT_THAT(ltt, LttIs<TernaryVector>(ElementsAre(
+                       testing::Not(TernaryIs("0b00")), TernaryIs("0b1X"))));
 }
 
 }  // namespace

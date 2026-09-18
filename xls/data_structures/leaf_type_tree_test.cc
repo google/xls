@@ -19,6 +19,7 @@
 #include <limits>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 #include "gmock/gmock.h"
@@ -936,6 +937,29 @@ TEST_F(LeafTypeTreeTest, CreateFromFunctionSimple) {
           })
           .value();
   EXPECT_EQ(result.ToString(), "([bits[32], bits[32]], bits[2])");
+}
+
+TEST_F(LeafTypeTreeTest, LTTStringify) {
+  Type* type = AsType("(bits[32][2], (), (())[3], bits[2])");
+  LeafTypeTree<int64_t> tree(type, {10, 20, 30});
+  EXPECT_EQ(absl::StrFormat("%v", tree),
+            "LeafTypeTree(type=(bits[32][2], (), (())[3], bits[2]), "
+            "elements={10, 20, 30})");
+  EXPECT_EQ(absl::StrFormat("%v", tree.AsView()),
+            "LeafTypeTree(type=(bits[32][2], (), (())[3], bits[2]), "
+            "elements={10, 20, 30})");
+  auto shared = std::move(tree).AsShared();
+  EXPECT_EQ(absl::StrFormat("%v", shared),
+            "LeafTypeTree(type=(bits[32][2], (), (())[3], bits[2]), "
+            "elements={10, 20, 30})");
+
+  struct NonStringifiable {
+    int v;
+    bool operator==(const NonStringifiable&) const = default;
+  };
+  static_assert(!absl::HasAbslStringify<LeafTypeTree<NonStringifiable>>::value);
+  LeafTypeTree<NonStringifiable> non_str_tree(type, {{10}, {20}, {30}});
+  EXPECT_EQ(non_str_tree, non_str_tree.AsView().AsShared());
 }
 
 }  // namespace

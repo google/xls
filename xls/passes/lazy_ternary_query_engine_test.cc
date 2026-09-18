@@ -1867,6 +1867,64 @@ TEST_F(LazyTernaryQueryEngineTest, ArrayIndexingConsistencyCheck) {
             *StringToTernaryVector("0b1"));
 }
 
+TEST_F(LazyTernaryQueryEngineTest, SpecializeOnNodes) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetBitsType(4));
+  BValue y = fb.Param("y", p->GetBitsType(4));
+  BValue result = fb.Add(x, y);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  LazyTernaryQueryEngine base_engine;
+  XLS_ASSERT_OK(base_engine.Populate(f).status());
+
+  LazyTernaryQueryEngine info_source;
+  XLS_ASSERT_OK(info_source.Populate(f).status());
+  XLS_ASSERT_OK_AND_ASSIGN(TernaryVector x_tern,
+                           StringToTernaryVector("0b001X"));
+  XLS_ASSERT_OK_AND_ASSIGN(TernaryVector y_tern,
+                           StringToTernaryVector("0b0100"));
+  XLS_ASSERT_OK(
+      info_source
+          .AddGiven(x.node(),
+                    LeafTypeTree<TernaryVector>::CreateSingleElementTree(
+                        x.GetType(), x_tern))
+          .status());
+  XLS_ASSERT_OK(
+      info_source
+          .AddGiven(y.node(),
+                    LeafTypeTree<TernaryVector>::CreateSingleElementTree(
+                        y.GetType(), y_tern))
+          .status());
+
+  // Specialize on both x and y.
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<QueryEngine> specialized_both,
+      base_engine.SpecializeOnNodes({x.node(), y.node()}, info_source));
+  EXPECT_THAT(specialized_both->GetTernary(result.node()),
+              testing::Optional(LttIs<TernaryVector>(
+                  testing::ElementsAre(TernaryIs("0b011X")))));
+
+  // Specialize on x only: y remains unknown.
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<QueryEngine> specialized_x,
+      base_engine.SpecializeOnNodes({x.node()}, info_source));
+  EXPECT_THAT(specialized_x->GetTernary(x.node()),
+              testing::Optional(LttIs<TernaryVector>(
+                  testing::ElementsAre(TernaryIs("0b001X")))));
+  EXPECT_THAT(specialized_x->GetTernary(y.node()),
+              testing::Optional(LttIs<TernaryVector>(
+                  testing::ElementsAre(TernaryIs("0bXXXX")))));
+  EXPECT_THAT(specialized_x->GetTernary(result.node()),
+              testing::Optional(LttIs<TernaryVector>(
+                  testing::ElementsAre(TernaryIs("0bXXXX")))));
+
+  // Original base engine must remain unspecialized.
+  EXPECT_THAT(base_engine.GetTernary(result.node()),
+              testing::Optional(LttIs<TernaryVector>(
+                  testing::ElementsAre(TernaryIs("0bXXXX")))));
+}
+
 namespace {
 
 class ArrayCreation : public benchmark_support::strategy::NaryNode {

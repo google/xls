@@ -71,6 +71,11 @@ class UnownedUnionQueryEngine : public QueryEngine {
       const absl::btree_map<Node*, ValueKnowledge, Node::NodeIdLessThan>&
           givens) const override;
 
+  // Specialize each of the unioned engines and return them as a union.
+  absl::StatusOr<std::unique_ptr<QueryEngine>> SpecializeOnNodes(
+      absl::Span<Node* const> nodes,
+      const QueryEngine& information_source) const override;
+
   bool IsPredicatePossible(PredicateState state) const override;
 
   bool AtMostOneTrue(absl::Span<TreeBitLocation const> bits) const override;

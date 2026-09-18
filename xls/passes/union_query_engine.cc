@@ -218,6 +218,20 @@ LeafTypeTree<IntervalSet> UnownedUnionQueryEngine::GetIntervals(
   return result;
 }
 
+absl::StatusOr<std::unique_ptr<QueryEngine>>
+UnownedUnionQueryEngine::SpecializeOnNodes(
+    absl::Span<Node* const> nodes,
+    const QueryEngine& information_source) const {
+  std::vector<std::unique_ptr<QueryEngine>> engines;
+  engines.reserve(engines_.size());
+  for (const auto& engine : engines_) {
+    XLS_ASSIGN_OR_RETURN(std::unique_ptr<QueryEngine> specialized,
+                         engine->SpecializeOnNodes(nodes, information_source));
+    engines.emplace_back(std::move(specialized));
+  }
+  return std::make_unique<UnionQueryEngine>(std::move(engines));
+}
+
 bool UnownedUnionQueryEngine::AtMostOneTrue(
     absl::Span<TreeBitLocation const> bits) const {
   for (const auto& engine : engines_) {

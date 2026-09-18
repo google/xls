@@ -145,9 +145,24 @@ class QueryEngine {
 
   // Return a query engine which is specialized with the given information. The
   // reference has an lifetime of the source engine.
+  //
+  // Returned query engine has the same lifetime as 'this'.
+  //
+  // By default just returns a reference to this.
   virtual std::unique_ptr<QueryEngine> SpecializeGiven(
       const absl::btree_map<Node*, ValueKnowledge, Node::NodeIdLessThan>&
           givens) const;
+
+  // Return a query engine which initialized as though the given 'nodes' had
+  // known values extracted from the given 'information_source'. The reference
+  // has a lifetime of the function call only.
+  //
+  // The returned query engine will have a lifetime no longer than the original.
+  //
+  // By default will just return SpecializeGiven with the appropriate givens.
+  virtual absl::StatusOr<std::unique_ptr<QueryEngine>> SpecializeOnNodes(
+      absl::Span<Node* const> nodes,
+      const QueryEngine& information_source) const;
 
   // Returns 'false' if this query engine can conclusively prove that the
   // predicates in states cannot be active.

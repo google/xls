@@ -24,6 +24,7 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/container/btree_map.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
@@ -65,7 +66,36 @@ class FakeQueryEngine : public QueryEngine {
   }
 
   LeafTypeTree<IntervalSet> GetIntervals(Node* node) const override {
-    return intervals_.at(node);
+    if (auto it = intervals_.find(node); it != intervals_.end()) {
+      return it->second;
+    }
+    return QueryEngine::GetIntervals(node);
+  }
+
+  std::unique_ptr<QueryEngine> SpecializeGiven(
+      const absl::btree_map<Node*, ValueKnowledge, Node::NodeIdLessThan>&
+          givens) const override {
+    auto copy = std::make_unique<FakeQueryEngine>(*this);
+    for (const auto& [node, knowledge] : givens) {
+      if (knowledge.ternary.has_value()) {
+        if (auto it = copy->ternaries_.find(node);
+            it != copy->ternaries_.end()) {
+          LeafTypeTree<TernaryVector> merged = it->second;
+          leaf_type_tree::SimpleUpdateFrom<TernaryVector, TernaryVector>(
+              merged.AsMutableView(), knowledge.ternary->AsView(),
+              [](TernaryVector& lhs, const TernaryVector& rhs) {
+                CHECK_OK(ternary_ops::UpdateWithUnion(lhs, rhs));
+              });
+          copy->AddTernary(node, merged);
+        } else {
+          copy->AddTernary(node, *knowledge.ternary);
+        }
+      }
+      if (knowledge.intervals.has_value()) {
+        copy->AddIntervals(node, *knowledge.intervals);
+      }
+    }
+    return copy;
   }
 
   bool AtMostOneTrue(absl::Span<TreeBitLocation const> bits) const override {
@@ -473,6 +503,53 @@ TEST_F(UnionQueryEngineTest, OfGeneric) {
   XLS_ASSERT_OK_AND_ASSIGN(exp, tern("0b1111XXX1"));
   EXPECT_THAT(uqe.GetTernary(res.node()), testing::Optional(exp))
       << uqe.GetTernary(res.node())->ToString();
+}
+
+TEST_F(UnionQueryEngineTest, SpecializeOnNodes) {
+  auto p = CreatePackage();
+  auto tern =
+      [&](std::string_view sv) -> absl::StatusOr<LeafTypeTree<TernaryVector>> {
+    XLS_ASSIGN_OR_RETURN(TernaryVector tv, StringToTernaryVector(sv));
+    return LeafTypeTree<TernaryVector>::CreateSingleElementTree(
+        p->GetBitsType(tv.size()), tv);
+  };
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetBitsType(8));
+  BValue y = fb.Param("y", p->GetBitsType(8));
+  XLS_ASSERT_OK(fb.Build());
+
+  FakeQueryEngine a;
+  XLS_ASSERT_OK_AND_ASSIGN(auto tt, tern("0b1XXXXXXX"));
+  a.AddTernary(x.node(), tt);
+  XLS_ASSERT_OK_AND_ASSIGN(tt, tern("0b0XXXXXXX"));
+  a.AddTernary(y.node(), tt);
+
+  FakeQueryEngine b;
+  XLS_ASSERT_OK_AND_ASSIGN(tt, tern("0bX1XXXXXX"));
+  b.AddTernary(x.node(), tt);
+  XLS_ASSERT_OK_AND_ASSIGN(tt, tern("0bX0XXXXXX"));
+  b.AddTernary(y.node(), tt);
+
+  UnionQueryEngine uqe = UnionQueryEngine::Of(a, b);
+
+  FakeQueryEngine info_source;
+  XLS_ASSERT_OK_AND_ASSIGN(tt, tern("0bXX1XXXXX"));
+  info_source.AddTernary(x.node(), tt);
+  XLS_ASSERT_OK_AND_ASSIGN(tt, tern("0bXX0XXXXX"));
+  info_source.AddTernary(y.node(), tt);
+
+  // Specialize only on x. Both child engines receive the given for x,
+  // while y keeps the unioned knowledge from a and b.
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<QueryEngine> specialized,
+                           uqe.SpecializeOnNodes({x.node()}, info_source));
+  XLS_ASSERT_OK_AND_ASSIGN(auto exp_x, tern("0b111XXXXX"));
+  EXPECT_THAT(specialized->GetTernary(x.node()), testing::Optional(exp_x));
+  XLS_ASSERT_OK_AND_ASSIGN(auto exp_y, tern("0b00XXXXXX"));
+  EXPECT_THAT(specialized->GetTernary(y.node()), testing::Optional(exp_y));
+
+  // Original union query engine is unmodified.
+  XLS_ASSERT_OK_AND_ASSIGN(auto orig_x, tern("0b11XXXXXX"));
+  EXPECT_THAT(uqe.GetTernary(x.node()), testing::Optional(orig_x));
 }
 
 }  // namespace
