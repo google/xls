@@ -406,13 +406,13 @@ class FunctionConverterVisitor : public AstNodeVisitor {
   // These are always custom-visited (i.e. traversed to in a specialized way
   // from their parent nodes).
   // keep-sorted start
+  INVALID(AliasDef)
   INVALID(Attribute)
   INVALID(FunctionRef)
   INVALID(FuzzTestFunction)
   INVALID(MatchArm)
   INVALID(NameDef)
   INVALID(ParametricBinding)
-  INVALID(ProcAlias)
   INVALID(RestOfTuple)
   INVALID(Slice)
   INVALID(StructPattern)
@@ -3787,8 +3787,10 @@ absl::Status FunctionConverter::InitProcDefBuilder(const ProcDef* proc_def,
 
   XLS_ASSIGN_OR_RETURN(
       std::string mangled_name,
-      MangleDslxName(proc_def->owner()->name(), proc_def->identifier(),
-                     CallingConvention::kProcNext, parametric_keys, env));
+      MangleDslxName(proc_def->owner()->name(),
+                     proc_id_->alias_name.value_or(proc_def->identifier()),
+                     CallingConvention::kProcNext, parametric_keys,
+                     is_top_ ? ParametricEnv{} : env));
   auto unique_builder =
       std::make_unique<ProcBuilder>(NewStyleProc{}, mangled_name, package());
   ProcBuilder* builder = unique_builder.get();

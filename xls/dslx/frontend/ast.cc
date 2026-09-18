@@ -275,8 +275,8 @@ std::string_view AstNodeKindToString(AstNodeKind kind) {
       return "function";
     case AstNodeKind::kProc:
       return "proc";
-    case AstNodeKind::kProcAlias:
-      return "proc alias";
+    case AstNodeKind::kAliasDef:
+      return "alias";
     case AstNodeKind::kProcMember:
       return "proc member";
     case AstNodeKind::kNameRef:
@@ -3623,20 +3623,27 @@ std::string TypeAlias::ToString() const {
       is_public_ ? "pub " : "", identifier(), type_annotation_.ToString());
 }
 
-// -- class ProcAlias
+// -- class AliasDef
 
-ProcAlias::ProcAlias(Module* owner, Span span, NameDef* name_def, Target target,
-                     bool is_public, const std::vector<ExprOrType>& parametrics)
+AliasDef::AliasDef(Module* owner, Span span, NameDef* name_def, Target target,
+                   bool is_public, const std::vector<ExprOrType>& parametrics,
+                   bool is_function_alias, bool is_synthetic)
     : AstNode(owner),
       span_(span),
       name_def_(name_def),
       target_(target),
       is_public_(is_public),
-      parametrics_(parametrics) {}
+      parametrics_(parametrics),
+      is_function_alias_(is_function_alias),
+      is_synthetic_(is_synthetic) {
+  if (name_def_ != nullptr) {
+    name_def_->set_definer(this);
+  }
+}
 
-ProcAlias::~ProcAlias() = default;
+AliasDef::~AliasDef() = default;
 
-std::vector<AstNode*> ProcAlias::GetChildren(bool want_types) const {
+std::vector<AstNode*> AliasDef::GetChildren(bool want_types) const {
   std::vector<AstNode*> result{name_def_, ToAstNode(target_)};
   result.reserve(result.size() + parametrics_.size());
   for (ExprOrType next : parametrics_) {
@@ -3645,8 +3652,9 @@ std::vector<AstNode*> ProcAlias::GetChildren(bool want_types) const {
   return result;
 }
 
-std::string ProcAlias::ToString() const {
-  std::string str = absl::Substitute("proc $0 = $1", identifier(),
+std::string AliasDef::ToString() const {
+  std::string_view kw = is_function_alias_ ? "fn" : "proc";
+  std::string str = absl::Substitute("$0 $1 = $2", kw, identifier(),
                                      ToAstNode(target_)->ToString());
   if (is_public_) {
     str = absl::StrCat("pub ", str);

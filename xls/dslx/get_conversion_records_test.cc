@@ -76,9 +76,8 @@ fn main() -> u32 { f() }
       ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
   XLS_ASSERT_OK_AND_ASSIGN(Function * f,
                            tm.module->GetMemberOrError<Function>("f"));
-  XLS_ASSERT_OK_AND_ASSIGN(
-      std::vector<ConversionRecord> order,
-      GetConversionRecordsForEntry(f, tm.type_info, std::nullopt));
+  XLS_ASSERT_OK_AND_ASSIGN(std::vector<ConversionRecord> order,
+                           GetConversionRecordsForEntry(f, tm.type_info));
   ASSERT_EQ(2, order.size());
   EXPECT_EQ(order[0].f()->identifier(), "g");
   EXPECT_EQ(order[1].f()->identifier(), "f");
@@ -134,9 +133,8 @@ fn main() -> u32 { f(u3:0) }
       ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
   XLS_ASSERT_OK_AND_ASSIGN(Function * g,
                            tm.module->GetMemberOrError<Function>("g"));
-  XLS_ASSERT_OK_AND_ASSIGN(
-      std::vector<ConversionRecord> order,
-      GetConversionRecordsForEntry(g, tm.type_info, std::nullopt));
+  XLS_ASSERT_OK_AND_ASSIGN(std::vector<ConversionRecord> order,
+                           GetConversionRecordsForEntry(g, tm.type_info));
   ASSERT_EQ(2, order.size());
   EXPECT_EQ(order[0].f()->identifier(), "f");
   EXPECT_EQ(order[0].parametric_env(),
@@ -360,9 +358,8 @@ proc main {
       ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc,
                            tm.module->GetMemberOrError<Proc>("main"));
-  XLS_ASSERT_OK_AND_ASSIGN(
-      std::vector<ConversionRecord> order,
-      GetConversionRecordsForEntry(proc, tm.type_info, std::nullopt));
+  XLS_ASSERT_OK_AND_ASSIGN(std::vector<ConversionRecord> order,
+                           GetConversionRecordsForEntry(proc, tm.type_info));
   ASSERT_EQ(1, order.size());
   EXPECT_TRUE(order[0].IsTop());
   EXPECT_EQ(order[0].f()->identifier(), "main.next");
@@ -400,9 +397,8 @@ proc main {
       ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * bar,
                            tm.module->GetMemberOrError<Proc>("bar"));
-  XLS_ASSERT_OK_AND_ASSIGN(
-      std::vector<ConversionRecord> order,
-      GetConversionRecordsForEntry(bar, tm.type_info, std::nullopt));
+  XLS_ASSERT_OK_AND_ASSIGN(std::vector<ConversionRecord> order,
+                           GetConversionRecordsForEntry(bar, tm.type_info));
   ASSERT_EQ(2, order.size());
   EXPECT_EQ(order[0].f()->identifier(), "foo.next");
   EXPECT_EQ(order[1].f()->identifier(), "bar.next");
@@ -441,9 +437,8 @@ proc main {
       ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * foo,
                            tm.module->GetMemberOrError<Proc>("foo"));
-  XLS_ASSERT_OK_AND_ASSIGN(
-      std::vector<ConversionRecord> order,
-      GetConversionRecordsForEntry(foo, tm.type_info, std::nullopt));
+  XLS_ASSERT_OK_AND_ASSIGN(std::vector<ConversionRecord> order,
+                           GetConversionRecordsForEntry(foo, tm.type_info));
   ASSERT_EQ(1, order.size());
   EXPECT_EQ(order[0].f()->identifier(), "foo.next");
   EXPECT_TRUE(order[0].IsTop());

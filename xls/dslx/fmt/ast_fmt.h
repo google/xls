@@ -119,6 +119,7 @@ class Formatter {
                            DocRef name_or_struct_ref);
 
   // keep-sorted start
+  virtual DocRef FormatAliasDef(const AliasDef& n);
   virtual DocRef FormatAllOnesMacro(const AllOnesMacro& n);
   virtual DocRef FormatArray(const Array& n);
   virtual DocRef FormatArrayTypeAnnotation(const ArrayTypeAnnotation& n);
@@ -160,7 +161,6 @@ class Formatter {
   virtual DocRef FormatParams(absl::Span<const Param* const> params);
   virtual DocRef FormatPatternTree(const PatternTree& n);
   virtual DocRef FormatProc(const Proc& n, bool is_test = false);
-  virtual DocRef FormatProcAlias(const ProcAlias& n);
   virtual DocRef FormatProcDef(const ProcDef& n);
   virtual DocRef FormatProcMember(const ProcMember& n);
   virtual DocRef FormatQuickCheck(const QuickCheck& n);

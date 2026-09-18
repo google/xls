@@ -126,6 +126,13 @@ class Parser : public TokenParser {
       const Pos& start_pos, bool is_public, Bindings& bindings,
       absl::flat_hash_map<std::string, Function*>* name_to_fn = nullptr);
 
+  absl::StatusOr<ModuleMember> ParseFunctionOrAlias(
+      const Pos& start_pos, bool is_public, Bindings& bindings,
+      absl::flat_hash_map<std::string, Function*>* name_to_fn = nullptr);
+
+  absl::StatusOr<AliasDef*> ParseSyntheticTopAlias(std::string_view alias_name,
+                                                   Bindings& bindings);
+
   absl::StatusOr<Function*> ParseImplFunction(const Pos& start_pos,
                                               bool is_public,
                                               Bindings& bindings,
@@ -175,14 +182,14 @@ class Parser : public TokenParser {
 
   absl::StatusOr<std::optional<std::string>> ParseOptionalLabel();
 
- private:
-  friend class ParserTest;
-  friend class ExpressionDepthGuard;
-
   Parser(Module* module, Scanner* scanner, bool parse_fn_stubs = false)
       : TokenParser(scanner),
         module_(module),
         parse_fn_stubs_(parse_fn_stubs) {}
+
+ private:
+  friend class ParserTest;
+  friend class ExpressionDepthGuard;
 
   // Simple helper class to wrap the operations necessary to evaluate [parser]
   // productions as transactions - with "Commit" or "Rollback" operations.
@@ -636,6 +643,11 @@ class Parser : public TokenParser {
   absl::StatusOr<Function*> ParseFunctionInternal(const Pos& start_pos,
                                                   bool is_public,
                                                   Bindings& outer_bindings);
+
+  absl::StatusOr<Function*> ParseFunctionAfterName(const Pos& start_pos,
+                                                   NameDef* name_def,
+                                                   bool is_public,
+                                                   Bindings& outer_bindings);
 
   absl::StatusOr<std::vector<Param*>> ParseParamsInternal(
       Bindings& bindings, TokenKind open_token, TokenKind close_token,

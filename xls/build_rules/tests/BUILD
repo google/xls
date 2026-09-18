@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
 load("@rules_cc//cc:cc_test.bzl", "cc_test")
 load("@rules_shell//shell:sh_test.bzl", "sh_test")
 load(
@@ -896,6 +897,11 @@ xls_dslx_library(
     srcs = ["die_if_odd_validator.x"],
 )
 
+xls_dslx_library(
+    name = "type_definitions",
+    srcs = ["type_definitions.x"],
+)
+
 xls_dslx_opt_ir(
     name = "die_if_odd",
     srcs = ["die_if_odd.x"],
@@ -950,4 +956,47 @@ cc_test(
         "//xls/common:xls_gunit_main",
         "@googletest//:gtest",
     ],
+)
+
+xls_dslx_verilog(
+    name = "parametric_select_top_rtl",
+    srcs = ["parametric_top.x"],
+    codegen_args = {
+        "generator": "combinational",
+    },
+    dslx_top = select({
+        "//conditions:default": "add_n<u32:16>",
+    }),
+    verilog_file = "parametric_select_top_rtl.sv",
+)
+
+sh_test(
+    name = "parametric_select_top_rtl_test",
+    srcs = ["not_has_clk.sh"],
+    args = ["$(rootpath :parametric_select_top_rtl.sv)"],
+    data = [":parametric_select_top_rtl.sv"],
+)
+
+xls_dslx_verilog(
+    name = "function_alias_top_rtl",
+    srcs = ["parametric_top.x"],
+    codegen_args = {
+        "generator": "combinational",
+    },
+    dslx_top = "add_8",
+    verilog_file = "function_alias_top_rtl.sv",
+)
+
+sh_test(
+    name = "function_alias_top_rtl_test",
+    srcs = ["not_has_clk.sh"],
+    args = ["$(rootpath :function_alias_top_rtl.sv)"],
+    data = [":function_alias_top_rtl.sv"],
+)
+
+bzl_library(
+    name = "test_build_defs_bzl",
+    srcs = ["test_build_defs.bzl"],
+    parse_tests = False,
+    visibility = ["//visibility:private"],
 )
