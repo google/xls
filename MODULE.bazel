@@ -4,7 +4,7 @@ module(
 )
 
 # Compiler toolchain
-bazel_dep(name = "llvm", version = "0.8.18", dev_dependency = True)
+bazel_dep(name = "llvm", version = "0.8.21", dev_dependency = True)
 
 register_toolchains("@llvm//toolchain:all")
 
@@ -41,9 +41,9 @@ use_repo(pip, "xls_pip_deps")
 # Note: some older dependencies still require repo_name aliases; see #4459
 bazel_dep(name = "abseil-cpp", version = "20260526.0")
 bazel_dep(name = "abseil-py", version = "2.1.0")
-bazel_dep(name = "bazel_features", version = "1.41.0")
+bazel_dep(name = "bazel_features", version = "1.50.0")
 bazel_dep(name = "bazel_skylib", version = "1.9.0")
-bazel_dep(name = "boringssl", version = "0.20250114.0")
+bazel_dep(name = "boringssl", version = "0.20251002.0")
 bazel_dep(name = "cppitertools", version = "2.2")
 
 # TODO: https://github.com/grpc/grpc/issues/41995 - Update to recent version once incompatibility
@@ -80,17 +80,17 @@ single_version_override(
     version = "9.15",
 )
 
-bazel_dep(name = "platforms", version = "1.0.0")
+bazel_dep(name = "platforms", version = "1.1.0")
 bazel_dep(name = "protobuf", version = "33.0")
 bazel_dep(name = "mpfr", version = "4.2.2")
 bazel_dep(name = "gmp", version = "6.3.0.bcr.1")
-bazel_dep(name = "re2", version = "2024-07-02.bcr.1")
+bazel_dep(name = "re2", version = "2025-11-05.bcr.1")
 bazel_dep(name = "riegeli", version = "0.0.0-20250822-9f2744d")
-bazel_dep(name = "rules_cc", version = "0.2.18")
+bazel_dep(name = "rules_cc", version = "0.2.25")
 bazel_dep(name = "rules_closure", version = "0.15.0")
 bazel_dep(name = "rules_license", version = "1.0.0")
 bazel_dep(name = "rules_proto", version = "7.1.0")
-bazel_dep(name = "rules_shell", version = "0.6.1")
+bazel_dep(name = "rules_shell", version = "0.8.0")
 bazel_dep(name = "verible", version = "0.0.3933")
 bazel_dep(name = "with_cfg.bzl", version = "0.14.6")
 
@@ -109,7 +109,7 @@ llvm_configure(
 )
 
 # Use Bzlmod (BCR) to supply zlib and zstd for LLVM
-bazel_dep(name = "zlib-ng", version = "2.3.3", repo_name = "llvm_zlib")
+bazel_dep(name = "zlib-ng", version = "2.3.3.bcr.2", repo_name = "llvm_zlib")
 bazel_dep(name = "zstd", version = "1.5.7.bcr.1", repo_name = "llvm_zstd")
 
 # pprof is not in BCR.
@@ -172,10 +172,10 @@ bazel_dep(name = "eigen", version = "4.0.0-20241125.bcr.2")
 bazel_dep(name = "rules_pkg", version = "1.2.0")
 
 # rules_hdl deps with bzlmod support.
-bazel_dep(name = "rules_bison", version = "0.3")
-bazel_dep(name = "rules_flex", version = "0.3")
+bazel_dep(name = "rules_bison", version = "0.4")
+bazel_dep(name = "rules_flex", version = "0.4")
 bazel_dep(name = "rules_m4", version = "0.3")
-bazel_dep(name = "swig", version = "4.3.0")
+bazel_dep(name = "swig", version = "4.3.0.bcr.2")
 bazel_dep(name = "rules_hdl", version = "0.0.0")
 bazel_dep(name = "openroad", repo_name = "org_theopenroadproject")
 
@@ -278,7 +278,7 @@ single_version_override(
 # Dev dependencies
 bazel_dep(name = "fuzztest", version = "20260629.0", dev_dependency = True, repo_name = "com_google_fuzztest")
 bazel_dep(name = "google_benchmark", version = "1.9.5", dev_dependency = True)
-bazel_dep(name = "googletest", version = "1.17.0", dev_dependency = True)
+bazel_dep(name = "googletest", version = "1.17.0.bcr.2", dev_dependency = True)
 
 # compilation DB; build_cleaner
 bazel_dep(name = "bant", version = "0.3.6", dev_dependency = True)

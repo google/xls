@@ -62,6 +62,7 @@ build --copt "-Wno-unknown-pragmas"    --host_copt "-Wno-unknown-pragmas"
 build --copt "-Wno-missing-field-initializers" --host_copt "-Wno-missing-field-initializers"
 build --copt "-Wno-bitwise-instead-of-logical" --host_copt "-Wno-bitwise-instead-of-logical"
 build --copt "-Wno-nullability-completeness"   --host_copt "-Wno-nullability-completeness"
+build --copt "-Wno-deprecated-attributes"      --host_copt "-Wno-deprecated-attributes"
 
 # For 3rd party code: Disable warnings entirely.
 # They are not actionable and just create noise.
