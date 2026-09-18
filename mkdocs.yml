@@ -46,6 +46,7 @@ nav:
       - Overview: 'ir_jit.md'
       - Data Layout: 'data_layout.md'
     - Formal: 'solvers.md'
+    - Symbolic Execution: 'symbolic_execution.md'
     - Elaboration: 'elaboration.md'
     - IR Fuzzer: 'ir_fuzzer.md'
   - DSLX:

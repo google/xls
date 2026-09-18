@@ -571,6 +571,16 @@ arbitrary IR-function-specified predicates.
 This can be used to uncover opportunities for optimization that were missed, or
 to prove equivalence of transformed representations with their original version.
 
+## [`symex_main`](https://github.com/google/xls/tree/main/xls/dev_tools/symex_main.cc)
+
+Symbolically executes an XLS IR function, enumerating every feasible execution
+path and solving for a concrete input that reaches each one. Prints
+human-readable path summaries and can emit the generated inputs as a
+`xls::testvector::SampleInputsProto` for reuse as test vectors. Supports
+concolic execution by pinning selected parameters to concrete values.
+
+See [symbolic execution](symbolic_execution.md) for details.
+
 ## [`cell_library_extract_formula`](https://github.com/google/xls/tree/main/xls/netlist/cell_library_extract_formula.cc)
 
 Parses a cell library ".lib" file and extracts boolean formulas from it that
