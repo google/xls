@@ -56,6 +56,9 @@ ABSL_FLAG(std::string, disable_warnings, "",
           "recommended, but can be used in exceptional circumstances");
 ABSL_FLAG(bool, warnings_as_errors, true,
           "Whether to fail early, as an error, if warnings are detected");
+ABSL_FLAG(int, solver_num_threads, 1,
+          "Maximum number of threads available to each individual solver "
+          "invocation.");
 
 static constexpr std::string_view kUsage = R"(
 Attempts to proves a single quickcheck property in a given module to be
@@ -69,7 +72,7 @@ absl::StatusOr<TestResultData> RealMain(
     std::string_view entry_module_path, std::string_view test_filter,
     const std::filesystem::path& dslx_stdlib_path,
     absl::Span<const std::filesystem::path> dslx_paths, bool warnings_as_errors,
-    std::optional<std::string_view> xml_output_file) {
+    std::optional<std::string_view> xml_output_file, int solver_num_threads) {
   XLS_ASSIGN_OR_RETURN(
       WarningKindSet warnings,
       GetWarningsSetFromFlags(absl::GetFlag(FLAGS_enable_warnings),
@@ -100,6 +103,7 @@ absl::StatusOr<TestResultData> RealMain(
   const ParseAndProveOptions options = {
       .parse_and_typecheck_options = parse_and_typecheck_options,
       .test_filter = test_filter_re_ptr,
+      .solver_num_threads = solver_num_threads,
   };
 
   XLS_ASSIGN_OR_RETURN(
@@ -150,13 +154,14 @@ int main(int argc, char** argv) {
   }
 
   bool warnings_as_errors = absl::GetFlag(FLAGS_warnings_as_errors);
+  int solver_num_threads = absl::GetFlag(FLAGS_solver_num_threads);
 
   std::filesystem::path dslx_stdlib_path =
       absl::GetFlag(FLAGS_dslx_stdlib_path);
 
   absl::StatusOr<xls::dslx::TestResultData> test_result = xls::dslx::RealMain(
       positional_arguments[0], test_filter, dslx_stdlib_path, dslx_paths,
-      warnings_as_errors, xml_output_file);
+      warnings_as_errors, xml_output_file, solver_num_threads);
   if (!test_result.ok()) {
     return xls::ExitStatus(test_result.status());
   }

@@ -214,6 +214,14 @@ void IrTranslator::SetRlimit(std::optional<int64_t> rlimit) {
   rlimit_ = rlimit;
 }
 
+absl::Status IrTranslator::SetNumThreads(int num_threads) {
+  if (num_threads < 1) {
+    return absl::InvalidArgumentError("num_threads must be greater than zero");
+  }
+  num_threads_ = num_threads;
+  return absl::OkStatus();
+}
+
 Z3_ast IrTranslator::FloatZero(Z3_sort sort) {
   return Z3_mk_fpa_zero(ctx_, sort, /*negative=*/false);
 }
@@ -1960,7 +1968,7 @@ absl::StatusOr<ProverResult> IrTranslator::TryProveCombination(
   CHECK(objective.value() != nullptr);
 
   VLOG(1) << "objective:\n" << Z3_ast_to_string(ctx, objective.value());
-  Z3_solver solver = solvers::z3::CreateSolver(ctx, /*num_threads=*/1);
+  Z3_solver solver = solvers::z3::CreateSolver(ctx, num_threads_);
   auto cleanup = absl::Cleanup([&] { Z3_solver_dec_ref(ctx, solver); });
 
   ScopedSolverParams solver_params(ctx, solver, timeout(), rlimit());
