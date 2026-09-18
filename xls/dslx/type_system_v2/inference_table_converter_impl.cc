@@ -1971,17 +1971,23 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
             Concretize(parametric_free_member_type, parametric_context));
         member_types.push_back(std::move(concrete_member_type));
       }
+      absl::flat_hash_map<std::string, TypeDim> dims;
+      const ParametricEnv env = table_.GetParametricEnv(struct_context);
+      for (const ParametricEnvItem& item : env.bindings()) {
+        dims.emplace(item.identifier, TypeDim(item.value));
+      }
       if (struct_def_base->kind() == AstNodeKind::kStructDef) {
         std::unique_ptr<Type> type = std::make_unique<StructType>(
             std::move(member_types),
-            *absl::down_cast<const StructDef*>(struct_def_base));
+            *absl::down_cast<const StructDef*>(struct_def_base),
+            std::move(dims));
         XLS_RETURN_IF_ERROR(
             AddCachedType(struct_def_base, struct_context, *type));
         return type;
       }
       std::unique_ptr<Type> type = std::make_unique<ProcType>(
           std::move(member_types),
-          *absl::down_cast<const ProcDef*>(struct_def_base));
+          *absl::down_cast<const ProcDef*>(struct_def_base), std::move(dims));
       XLS_RETURN_IF_ERROR(
           AddCachedType(struct_def_base, struct_context, *type));
       return type;
@@ -2168,8 +2174,16 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
         mapper =
             module_.Make<Attr>(mapper->span(), array_of_0, colon_ref->attr());
         mapper_args.clear();
-        table_.AddFunctionalArgWithoutCurriedSelf(
-            invocation, absl::down_cast<const Function*>(*target));
+        const auto* fn = absl::down_cast<const Function*>(*target);
+        table_.AddFunctionalArgWithoutCurriedSelf(invocation, fn);
+        // The member type of a derived method is resolved from its impl stub.
+        if (fn->IsCompilerDerived() && fn->impl().has_value()) {
+          std::optional<Function*> stub =
+              (*fn->impl())->GetFunction(fn->identifier());
+          if (stub.has_value()) {
+            table_.AddFunctionalArgWithoutCurriedSelf(invocation, *stub);
+          }
+        }
       }
     } else if (mapper->kind() == AstNodeKind::kAttr) {
       // This is the `map(arr, obj_not_in_arr.instance_method)` case, which is
@@ -3526,9 +3540,9 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
   absl::StatusOr<std::optional<const AstNode*>> ResolveColonRefTarget(
       const ColonRef* colon_ref,
       std::optional<const ParametricContext*> parametric_context) override {
-    std::optional<const AstNode*> existing =
-        table_.GetColonRefTarget(colon_ref);
-    if (existing.has_value()) {
+    if (std::optional<const AstNode*> existing =
+            table_.GetColonRefTarget(colon_ref);
+        existing.has_value()) {
       return existing;
     }
     XLS_ASSIGN_OR_RETURN(std::optional<StructOrProcRef> struct_ref,
@@ -3546,35 +3560,29 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
       XLS_ASSIGN_OR_RETURN(target_struct_context,
                            GetOrCreateParametricStructContext(
                                parametric_context, *struct_ref, colon_ref));
+      if (std::optional<const AstNode*> existing =
+              table_.GetContextualColonRefTarget(
+                  colon_ref, *target_struct_context);
+          existing.has_value()) {
+        return existing;
+      }
+    }
+    std::optional<ImplMember> impl_member;
+    if (struct_ref->def->impl().has_value()) {
+      impl_member = (*struct_ref->def->impl())->GetMember(colon_ref->attr());
     }
     std::optional<const AstNode*> resolved;
-    if (struct_ref->def->impl().has_value()) {
-      std::optional<ImplMember> impl_member =
-          (*struct_ref->def->impl())->GetMember(colon_ref->attr());
-      if (impl_member.has_value()) {
-        resolved = ToAstNode(*impl_member);
-      }
+    // Derive first to detect conflicts with explicit functions.
+    if ((!impl_member.has_value() ||
+         std::holds_alternative<Function*>(*impl_member)) &&
+        GetAttribute(struct_ref->def, AttributeKind::kDerive).has_value()) {
+      XLS_ASSIGN_OR_RETURN(
+          resolved,
+          GetDerivedTraitFunction(colon_ref, *struct_ref, parametric_context,
+                                  target_struct_context));
     }
-    if (!resolved.has_value()) {
-      XLS_ASSIGN_OR_RETURN(TypeInfo * ti, GetTypeInfo(parametric_context));
-      std::optional<Type*> struct_type = ti->GetItem(struct_ref->def);
-      if (struct_type.has_value() &&
-          ((*struct_type)->IsStruct() || (*struct_type)->IsProc())) {
-        StructDefBase* struct_or_proc_def =
-            const_cast<StructDefBase*>(struct_ref->def);
-        XLS_ASSIGN_OR_RETURN(InferenceTableConverter * struct_owner_converter,
-                             import_data_.GetInferenceTableConverter(
-                                 struct_or_proc_def->owner()));
-        XLS_ASSIGN_OR_RETURN(
-            std::optional<Function*> trait_fn,
-            struct_owner_converter->GetTraitFunction(
-                *struct_or_proc_def,
-                *absl::down_cast<StructTypeBase*>(*struct_type),
-                target_struct_context, colon_ref->attr()));
-        if (trait_fn.has_value()) {
-          resolved = *trait_fn;
-        }
-      }
+    if (!resolved.has_value() && impl_member.has_value()) {
+      resolved = ToAstNode(*impl_member);
     }
     if (!resolved.has_value()) {
       if (!struct_ref->def->impl().has_value()) {
@@ -3591,8 +3599,35 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
               colon_ref->attr(), struct_ref->def->identifier()),
           file_table_);
     }
-    table_.SetColonRefTarget(colon_ref, *resolved);
+    if (struct_ref->def->IsParametric() &&
+        (*resolved)->kind() == AstNodeKind::kFunction &&
+        absl::down_cast<const Function*>(*resolved)->IsCompilerDerived()) {
+      table_.SetContextualColonRefTarget(colon_ref, *target_struct_context,
+                                         *resolved);
+    } else {
+      table_.SetColonRefTarget(colon_ref, *resolved);
+    }
     return resolved;
+  }
+
+  // Concretize because `S::default()` may be the first reference to `S`.
+  absl::StatusOr<std::optional<Function*>> GetDerivedTraitFunction(
+      const ColonRef* colon_ref, const StructOrProcRef& struct_ref,
+      std::optional<const ParametricContext*> parametric_context,
+      std::optional<const ParametricContext*> target_struct_context) {
+    XLS_ASSIGN_OR_RETURN(
+        std::unique_ptr<Type> struct_type,
+        target_struct_context.has_value()
+            ? Concretize(*(*target_struct_context)->self_type(),
+                         target_struct_context)
+            : Concretize(CreateStructOrProcAnnotation(module_, struct_ref),
+                         parametric_context));
+    StructDefBase* def = const_cast<StructDefBase*>(struct_ref.def);
+    XLS_ASSIGN_OR_RETURN(InferenceTableConverter * owner_converter,
+                         import_data_.GetInferenceTableConverter(def->owner()));
+    return owner_converter->GetTraitFunction(
+        *def, *absl::down_cast<StructTypeBase*>(struct_type.get()),
+        target_struct_context, colon_ref->attr());
   }
 
   // Resolves the implicit return type of `function` from the body and adds it

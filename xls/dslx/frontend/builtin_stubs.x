@@ -133,6 +133,12 @@ trait Spawn {
   fn spawn(self);
 }
 
+// `#[derive(Default)]` calls `default()` on nested structs, including ones in arrays and tuples,
+// and zeroes bit types; enum fields are rejected.
+trait Default {
+  fn default() -> Self;
+}
+
 // Ordering rules for multiple channel operations on the same channel.
 enum ChannelStrictness : u3 {
   PROVEN_MUTUALLY_EXCLUSIVE = 0,

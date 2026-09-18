@@ -25,6 +25,7 @@
 #include <variant>
 #include <vector>
 
+#include "absl/algorithm/container.h"
 #include "absl/base/casts.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
@@ -73,6 +74,26 @@ class ModuleTraitManagerImpl : public ModuleTraitManager {
         << "` to be in module `" << module_.name() << "` but it is in `"
         << struct_or_proc_def.owner()->name() << "`.";
 
+    // Only trait function names derive, so a helper call can't fail on another
+    // trait; explicit trait functions still derive to diagnose conflicts.
+    std::optional<const Attribute*> attribute =
+        GetAttribute(&struct_or_proc_def, AttributeKind::kDerive);
+    if (!attribute.has_value()) {
+      return std::nullopt;
+    }
+    XLS_ASSIGN_OR_RETURN(std::vector<const Trait*> traits,
+                         ResolveDerivedTraits(**attribute));
+    const bool is_trait_function =
+        absl::c_any_of(traits, [&](const Trait* trait) {
+          return absl::c_any_of(
+              trait->members(), [&](const Function* function) {
+                return function->identifier() == function_name;
+              });
+        });
+    if (!is_trait_function) {
+      return std::nullopt;
+    }
+
     // Derive the traits for the struct/proc in the effective parametric
     // context. This is a no-op if already done.
     XLS_RETURN_IF_ERROR(DeriveTraits(parametric_struct_context,
@@ -96,6 +117,20 @@ class ModuleTraitManagerImpl : public ModuleTraitManager {
   }
 
  private:
+  absl::StatusOr<std::vector<const Trait*>> ResolveDerivedTraits(
+      const Attribute& attribute) {
+    std::vector<const Trait*> traits;
+    for (const AttributeData::Argument& arg : attribute.args()) {
+      // This should already have been checked by the parser.
+      XLS_RET_CHECK(std::holds_alternative<std::string>(arg));
+      XLS_ASSIGN_OR_RETURN(
+          const Trait* trait,
+          ResolveTrait(*attribute.GetSpan(), std::get<std::string>(arg)));
+      traits.push_back(trait);
+    }
+    return traits;
+  }
+
   absl::StatusOr<Trait*> ResolveTrait(const Span& span, std::string_view name) {
     std::optional<Trait*> local_trait = module_.GetMember<Trait>(name);
     if (local_trait.has_value()) {
@@ -280,12 +315,9 @@ class ModuleTraitManagerImpl : public ModuleTraitManager {
 
     // Derive the traits for the struct/proc.
     Span attribute_span = *(*attribute)->GetSpan();
-    for (AttributeData::Argument arg : (*attribute)->args()) {
-      // This should already have been checked by the parser.
-      XLS_RET_CHECK(std::holds_alternative<std::string>(arg));
-      XLS_ASSIGN_OR_RETURN(
-          const Trait* trait,
-          ResolveTrait(attribute_span, std::get<std::string>(arg)));
+    XLS_ASSIGN_OR_RETURN(std::vector<const Trait*> traits,
+                         ResolveDerivedTraits(**attribute));
+    for (const Trait* trait : traits) {
       XLS_RETURN_IF_ERROR(DeriveTrait(parametric_context, attribute_span,
                                       struct_or_proc_def, **impl,
                                       actual_self_type, struct_type, *trait));
