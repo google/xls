@@ -827,6 +827,7 @@ cc_library(
     hdrs = ["semantics_analysis.h"],
     deps = [
         ":ast",
+        ":ast_cloner",
         ":ast_node",
         ":ast_node_visitor_with_default",
         ":ast_utils",
