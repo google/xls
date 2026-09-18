@@ -15,6 +15,7 @@
 
 """Basic functionality test for check_ir_equivalence_main."""
 
+import os
 import subprocess
 from typing import Tuple, Union
 
@@ -180,6 +181,26 @@ class CheckIrEquivalenceMainTest(absltest.TestCase):
     res, _, stderr = self._check_equiv(ADD_IR, ADD_NO_TOP_IR)
     self.assertFalse(res)
     self.assertIn("Package has no top entity: add_no_top", stderr)
+
+  def test_report_file_on_mismatch(self):
+    out_dir = self.create_tempdir().full_path
+    report_path = os.path.join(out_dir, "equivalence.report.txt")
+    res = subprocess.run(
+        [
+            _CHECK_EQUIV,
+            self.create_tempfile(content=ADD_IR).full_path,
+            self.create_tempfile(content=NOT_ADD_IR).full_path,
+            f"--equivalence_report_path={report_path}",
+        ],
+        check=False,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    self.assertNotEqual(res.returncode, 0)
+    self.assertTrue(os.path.exists(report_path))
+    with open(report_path, "r", encoding="utf-8") as f:
+      report = f.read()
+    self.assertIn("Equivalence verification failed.", report)
 
 
 if __name__ == "__main__":
