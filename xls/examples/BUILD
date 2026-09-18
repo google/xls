@@ -1345,6 +1345,25 @@ xls_dslx_test(
 )
 
 xls_dslx_library(
+    name = "default_trait_dslx",
+    srcs = ["default_trait.x"],
+)
+
+xls_dslx_test(
+    name = "default_trait_test",
+    size = "small",
+    dslx_test_args = {"compare": "jit"},
+    library = ":default_trait_dslx",
+)
+
+xls_dslx_opt_ir(
+    name = "default_trait_opt_ir",
+    dslx_top = "origin",
+    ir_conv_args = {"lower_to_proc_scoped_channels": "true"},
+    library = ":default_trait_dslx",
+)
+
+xls_dslx_library(
     name = "xls_pipeline_dslx",
     srcs = ["xls_pipeline.x"],
 )
