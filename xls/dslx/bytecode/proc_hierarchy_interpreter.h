@@ -175,13 +175,11 @@ class ProcHierarchyInterpreter {
   void AddProcInstance(ProcInstance&& proc_instance);
 
  private:
-  absl::Status AddProcDefInstance(std::optional<ProcId> spawner_id,
-                                  const ProcDef* proc,
-                                  const InterpValue& initializer,
-                                  const InterpValue& canonical_initializer,
-                                  TypeInfo* ti, const ParametricEnv& env,
-                                  ImportData* import_data,
-                                  const BytecodeInterpreterOptions& options);
+  absl::Status AddProcDefInstance(
+      std::optional<ProcId> spawner_id, const ProcDef* proc,
+      const InterpValue& initializer, const InterpValue& canonical_initializer,
+      TypeInfo* constructor_ti, TypeInfo* next_ti, const ParametricEnv& env,
+      ImportData* import_data, const BytecodeInterpreterOptions& options);
 
   absl::Status AllocateChannelOrArray(const ProcDef* proc,
                                       const InterpValue& value);

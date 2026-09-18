@@ -217,7 +217,8 @@ void TypeInfo::NoteCanonicalProcInitializer(const StructInstance* definer,
               .constructor_env = std::move(env),
               .initializer = value,
           });
-  root->decorated_canonical_proc_initializer_[value] = &decorated_initializer;
+  root->decorated_canonical_proc_initializer_.try_emplace(
+      value, &decorated_initializer);
 }
 
 absl::Status TypeInfo::NoteProcConstructorInvocation(
@@ -264,7 +265,9 @@ absl::Status TypeInfo::NoteProcNextInvocation(
   const auto it = root->decorated_canonical_proc_initializer_.find(
       canonical_initializer.initializer);
   XLS_RET_CHECK(it != root->decorated_canonical_proc_initializer_.end());
-  it->second->next_type_info = *invocation_ti;
+  if (it->second->next_type_info == it->second->constructor_type_info) {
+    it->second->next_type_info = *invocation_ti;
+  }
   return absl::OkStatus();
 }
 
@@ -859,15 +862,13 @@ TypeInfo::GetCanonicalProcInitializers(const ProcDef* proc) const {
 
 void TypeInfo::AddProcDefSpawn(const ProcDef* caller,
                                InterpValue external_initializer) {
-  TypeInfo* root = GetRoot();
-  root->proc_def_spawns_by_caller_proc_[caller].push_back(external_initializer);
+  proc_def_spawns_by_caller_proc_[caller].push_back(external_initializer);
 }
 
 absl::StatusOr<std::vector<InterpValue>> TypeInfo::GetProcDefSpawnsFrom(
     const ProcDef* caller) const {
-  const TypeInfo* root = GetRoot();
-  const auto it = root->proc_def_spawns_by_caller_proc_.find(caller);
-  return it == root->proc_def_spawns_by_caller_proc_.end()
+  const auto it = proc_def_spawns_by_caller_proc_.find(caller);
+  return it == proc_def_spawns_by_caller_proc_.end()
              ? std::vector<InterpValue>{}
              : it->second;
 }

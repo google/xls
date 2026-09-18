@@ -8205,5 +8205,122 @@ impl Top {
   ExpectIr(converted);
 }
 
+TEST_F(IrConverterTest, ParametricProcDefWithLocalChannel) {
+  constexpr std::string_view kModule = R"(
+proc Stage<N: u32> {
+  c_in: chan<bits[N]> in,
+  c_out: chan<bits[N]> out,
+}
+
+impl Stage<N> {
+  fn new(c_in: chan<bits[N]> in, c_out: chan<bits[N]> out) -> Self {
+    Stage { c_in, c_out }
+  }
+
+  fn next(self) {
+    let (t, val) = recv(join(), self.c_in);
+    send(t, self.c_out, val);
+  }
+}
+
+proc Middle<N: u32> {
+  c_in: chan<bits[N]> in,
+  c_out: chan<bits[N]> out,
+}
+
+impl Middle<N> {
+  fn new(c_in: chan<bits[N]> in, c_out: chan<bits[N]> out) -> Self {
+    let (s, r) = chan<bits[N]>("local_chan");
+    Stage<N>::new(c_in, s).spawn();
+    Stage<N>::new(r, c_out).spawn();
+    Middle { c_in, c_out }
+  }
+}
+
+proc Top {
+  c_in: chan<u32> in,
+  c_out: chan<u32> out,
+}
+
+impl Top {
+  fn new(c_in: chan<u32> in, c_out: chan<u32> out) -> Self {
+    Middle<32>::new(c_in, c_out).spawn();
+    Top { c_in, c_out }
+  }
+}
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
+                           ConvertOneFunctionForTest(kModule, "Top"));
+  ExpectIr(converted);
+}
+
+TEST_F(IrConverterTest,
+       ParametricProcDefWithLocalChannelMultipleInstantiations) {
+  constexpr std::string_view kModule = R"(
+proc Stage<N: u32> {
+  c_in: chan<bits[N]> in,
+  c_out: chan<bits[N]> out,
+}
+
+impl Stage<N> {
+  fn new(c_in: chan<bits[N]> in, c_out: chan<bits[N]> out) -> Self {
+    Stage { c_in, c_out }
+  }
+
+  fn next(self) {
+    let (t, val) = recv(join(), self.c_in);
+    send(t, self.c_out, val);
+  }
+}
+
+proc Middle<N: u32> {
+  c_in: chan<bits[N]> in,
+  c_out: chan<bits[N]> out,
+}
+
+impl Middle<N> {
+  fn new(c_in: chan<bits[N]> in, c_out: chan<bits[N]> out) -> Self {
+    let (s, r) = chan<bits[N]>("local_chan");
+    Stage<N>::new(c_in, s).spawn();
+    Stage<N>::new(r, c_out).spawn();
+    Middle { c_in, c_out }
+  }
+}
+
+proc OtherCaller {
+  c_in: chan<u32> in,
+  c_out: chan<u32> out,
+}
+
+impl OtherCaller {
+  fn new(c_in: chan<u32> in, c_out: chan<u32> out) -> Self {
+    Middle<32>::new(c_in, c_out).spawn();
+    OtherCaller { c_in, c_out }
+  }
+}
+
+proc Top {
+  in32: chan<u32> in,
+  out32: chan<u32> out,
+  in16: chan<u16> in,
+  out16: chan<u16> out,
+}
+
+impl Top {
+  fn new(in32: chan<u32> in, out32: chan<u32> out,
+         in16: chan<u16> in, out16: chan<u16> out) -> Self {
+    Middle<32>::new(in32, out32).spawn();
+    Middle<16>::new(in16, out16).spawn();
+    Top { in32, out32, in16, out16 }
+  }
+}
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
+                           ConvertOneFunctionForTest(kModule, "Top"));
+  ExpectIr(converted);
+}
+
 }  // namespace
 }  // namespace xls::dslx

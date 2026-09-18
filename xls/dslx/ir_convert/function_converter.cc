@@ -4213,6 +4213,8 @@ absl::Status FunctionConverter::AddProcDefInstantiation(
     VLOG(10) << "Forwarding channel `" << external_value.ToString()
              << "` in proc instantiation `" << canonical_initializer.ToString()
              << "`";
+    XLS_RETURN_IF_ERROR(DefineProcDefChannelOrArrayIfLocal(
+        proc_def, external_value, constructor_ti));
     XLS_RETURN_IF_ERROR(
         ExpandProcDefChannelReference(external_value, channel_args));
   }
