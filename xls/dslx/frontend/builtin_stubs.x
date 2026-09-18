@@ -125,3 +125,10 @@ trait ToBits {
 trait Spawn {
   fn spawn(self);
 }
+
+// `#[derive(Default)]` uses nested struct defaults and zero for other fields.
+// Any nested struct, including one inside a composite type such as an array or tuple, must derive
+// `Default` or define this function.
+trait Default {
+  fn default() -> Self;
+}
