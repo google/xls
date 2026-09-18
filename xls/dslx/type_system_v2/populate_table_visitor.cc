@@ -429,8 +429,8 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
       if (node->number_kind() == NumberKind::kCharacter) {
         annotation = CreateU8Annotation(module_, node->span());
       } else {
-        XLS_ASSIGN_OR_RETURN(annotation,
-                             CreateAnnotationSizedToFit(module_, *node));
+        XLS_ASSIGN_OR_RETURN(annotation, CreateAnnotationSizedToFit(
+                                             module_, *node, file_table_));
         // Treat `true` and `false` like they have intrinsic bool annotations.
         // Otherwise, consider an annotation we add to be an auto-annotation
         // that is "negotiable".
