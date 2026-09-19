@@ -90,6 +90,11 @@ class IrTranslator : public DfsVisitorWithDefault {
   // std::nullopt means no rlimit.
   void SetRlimit(std::optional<int64_t> rlimit);
 
+  // Sets the number of threads used internally by Z3 for a solver check. An
+  // IrTranslator and its context must not be used concurrently by external
+  // threads.
+  absl::Status SetNumThreads(int num_threads);
+
   // Returns the Z3 value (or set of values) corresponding to the given Node.
   // Translates if the translation is not yet stored.
   Z3_ast GetTranslation(const Node* source);
@@ -373,6 +378,7 @@ class IrTranslator : public DfsVisitorWithDefault {
   int current_symbol_;
   std::optional<absl::Duration> timeout_;
   std::optional<int64_t> rlimit_;
+  int num_threads_ = 1;
 };
 
 // Attempts to prove the conjunction of "terms". "terms" refers to predicates on

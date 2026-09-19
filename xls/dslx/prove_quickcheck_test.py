@@ -61,13 +61,20 @@ class ProveQuickcheckMainTest(test_base.TestCase):
     fn qc_always_true() -> bool { true }
     """
     self._prove_quickcheck(program)
+    self._prove_quickcheck(program, extra_flags=('--solver_num_threads=1',))
+    self._prove_quickcheck(program, extra_flags=('--solver_num_threads=2',))
 
   def test_trivially_false(self):
     program = """
     #[quickcheck]
     fn qc_always_false() -> bool { false }
     """
-    self._prove_quickcheck(program, want_error=True)
+    for num_threads in (1, 2):
+      self._prove_quickcheck(
+          program,
+          want_error=True,
+          extra_flags=(f'--solver_num_threads={num_threads}',),
+      )
 
   def test_arithmetic_property(self):
     program = """
@@ -81,8 +88,38 @@ class ProveQuickcheckMainTest(test_base.TestCase):
     #[quickcheck]
     fn qc_never_42(x: u8) -> bool { x != u8:42 }
     """
-    _, stderr = self._prove_quickcheck(program, want_error=True)
-    self.assertIn('counterexample: bits[8]:42', stderr)
+    for num_threads in (1, 2):
+      _, stderr = self._prove_quickcheck(
+          program,
+          want_error=True,
+          extra_flags=(f'--solver_num_threads={num_threads}',),
+      )
+      self.assertIn('counterexample: bits[8]:42', stderr)
+
+  def test_rejects_invalid_solver_thread_counts(self):
+    program = """
+    #[quickcheck]
+    fn qc_always_true() -> bool { true }
+    """
+    for num_threads in (0, -1):
+      _, stderr = self._prove_quickcheck(
+          program,
+          want_error=True,
+          extra_flags=(f'--solver_num_threads={num_threads}',),
+      )
+      self.assertIn('solver_num_threads must be greater than zero', stderr)
+
+  def test_rejects_out_of_range_solver_thread_count(self):
+    program = """
+    #[quickcheck]
+    fn qc_always_true() -> bool { true }
+    """
+    _, stderr = self._prove_quickcheck(
+        program,
+        want_error=True,
+        extra_flags=('--solver_num_threads=2147483648',),
+    )
+    self.assertIn('solver_num_threads', stderr)
 
   def test_multiple_all_true(self):
     program = """
@@ -114,7 +151,12 @@ class ProveQuickcheckMainTest(test_base.TestCase):
     #[quickcheck]
     fn qc_never_42(x: u8) -> bool { x != u8:42 }
     """
-    _, stderr = self._prove_quickcheck(program, test_filter='qc_a*')
+    _, stderr = self._prove_quickcheck(
+        program,
+        test_filter='qc_always_true',
+        extra_flags=('--solver_num_threads=2',),
+    )
+    self.assertIn('[ RUN QUICKCHECK        ] qc_always_true', stderr)
     self.assertNotIn('[ RUN QUICKCHECK        ] qc_never_42', stderr)
 
 

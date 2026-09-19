@@ -123,6 +123,7 @@ struct ParseAndTestOptions {
 struct ParseAndProveOptions {
   ParseAndTypecheckOptions parse_and_typecheck_options;
   const RE2* test_filter = nullptr;
+  int solver_num_threads = 1;
   std::function<std::unique_ptr<VirtualizableFilesystem>()> vfs_factory =
       nullptr;
 };

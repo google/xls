@@ -732,6 +732,10 @@ static absl::Status RunQuickChecksIfEnabled(
 absl::StatusOr<ParseAndProveResult> ParseAndProve(
     std::string_view program, std::string_view module_name,
     std::string_view filename, const ParseAndProveOptions& options) {
+  if (options.solver_num_threads < 1) {
+    return absl::InvalidArgumentError(
+        "solver_num_threads must be greater than zero");
+  }
   const absl::Time parse_and_prove_start = absl::Now();
   TestResultData result(parse_and_prove_start, /*test_cases=*/{});
 
@@ -866,9 +870,19 @@ absl::StatusOr<ParseAndProveResult> ParseAndProve(
 
     VLOG(1) << "Found IR function: " << (*ir_function)->name();
 
-    absl::StatusOr<solvers::ProverResult> proven = solvers::z3::TryProve(
-        *ir_function, (*ir_function)->return_value(),
-        solvers::Predicate::NotEqualToZero(), absl::InfiniteDuration());
+    absl::StatusOr<std::unique_ptr<solvers::z3::IrTranslator>> translator =
+        solvers::z3::IrTranslator::CreateAndTranslate(*ir_function);
+    if (handle_if_error(translator.status())) {
+      continue;
+    }
+    if (handle_if_error(
+            (*translator)->SetNumThreads(options.solver_num_threads))) {
+      continue;
+    }
+    absl::StatusOr<solvers::ProverResult> proven =
+        solvers::z3::TryProveWithTranslator(
+            translator->get(), (*ir_function)->return_value(),
+            solvers::Predicate::NotEqualToZero(), absl::InfiniteDuration());
 
     if (handle_if_error(proven.status())) {
       continue;
