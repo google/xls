@@ -139,6 +139,14 @@ class ImportData {
     return modules_.find(target) != modules_.end();
   }
 
+  void SetConfiguredValues(absl::Span<std::string const> configured_values) {
+    configured_values_ = configured_values;
+  }
+
+  absl::Span<const std::string> configured_values() const {
+    return configured_values_;
+  }
+
   // When we're actively importing modules, this stack is populated to ensure we
   // don't have cycles between files.
   //
@@ -347,6 +355,9 @@ class ImportData {
   std::unique_ptr<TraitDeriver> builtin_trait_deriver_;
 
   std::unique_ptr<VirtualizableFilesystem> vfs_;
+
+  // Configured values for the import provider.
+  absl::Span<const std::string> configured_values_;
 };
 
 }  // namespace xls::dslx

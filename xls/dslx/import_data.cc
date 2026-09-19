@@ -105,6 +105,10 @@ absl::StatusOr<ModuleInfo*> ImportData::Put(
   path_to_module_info_[std::string{pmodule_info->path()}] = pmodule_info;
   if (pmodule_info->builtin_stubs()) {
     builtin_stubs_module_ = &pmodule_info->module();
+  } else {
+    // Non-stubs modules need to get their configured values bound.
+    XLS_RETURN_IF_ERROR(
+        pmodule_info->module().SetConfiguredValues(configured_values_));
   }
   return pmodule_info;
 }
