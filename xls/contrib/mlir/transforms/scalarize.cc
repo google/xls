@@ -500,6 +500,15 @@ class LegalizeTensorInsertSingleSlicePattern
   }
 };
 
+LogicalResult legalizeTensorElements(Operation* op, ValueRange elements,
+                                     ConversionPatternRewriter& rewriter) {
+  Type elementType = mlir::getElementTypeOrSelf(op->getResult(0));
+  auto arrayType =
+      ArrayType::get(op->getContext(), elements.size(), elementType);
+  rewriter.replaceOpWithNewOp<ArrayOp>(op, arrayType, elements);
+  return success();
+}
+
 // Legalizes `tensor.from_elements` to `xls.array`.
 class LegalizeTensorFromElementsPattern
     : public OpConversionPattern<mlir::tensor::FromElementsOp> {
@@ -508,11 +517,23 @@ class LegalizeTensorFromElementsPattern
   LogicalResult matchAndRewrite(
       mlir::tensor::FromElementsOp op, OpAdaptor adaptor,
       ConversionPatternRewriter& rewriter) const override {
-    size_t size = op.getElements().size();
-    Type elementType = mlir::getElementTypeOrSelf(op.getResult());
-    auto arrayType = ArrayType::get(op.getContext(), size, elementType);
-    rewriter.replaceOpWithNewOp<ArrayOp>(op, arrayType, adaptor.getElements());
-    return success();
+    return legalizeTensorElements(op, adaptor.getElements(), rewriter);
+  }
+};
+
+// Legalizes `tensor.splat` by delegating to the shared `tensor.from_elements`
+// legalization logic (`legalizeTensorElements`) with `numElements` copies of
+// the scalar input.
+class LegalizeTensorSplatPattern
+    : public OpConversionPattern<mlir::tensor::SplatOp> {
+  using OpConversionPattern::OpConversionPattern;
+
+  LogicalResult matchAndRewrite(
+      mlir::tensor::SplatOp op, OpAdaptor adaptor,
+      ConversionPatternRewriter& rewriter) const override {
+    SmallVector<Value> elements(op.getType().getNumElements(),
+                                adaptor.getInput());
+    return legalizeTensorElements(op, elements, rewriter);
   }
 };
 
@@ -962,6 +983,7 @@ class ScalarizePass : public impl::ScalarizePassBase<ScalarizePass> {
         LegalizeTensorExtractSingleSlicePattern,
         RankReduceTensorExtractSlicePattern,
         LegalizeTensorFromElementsPattern,
+        LegalizeTensorSplatPattern,
         LegalizeTensorInsertSingleSlicePattern,
         LegalizeTensorInsertPattern,
         LegalizeVectorizedCallPattern,

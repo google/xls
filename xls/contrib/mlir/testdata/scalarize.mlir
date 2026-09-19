@@ -403,3 +403,10 @@ func.func @index_cast_zero_elements(%arg0: tensor<0xindex>) -> tensor<0xi32> att
   return %0 : tensor<0xi32>
 }
 
+// CHECK-LABEL: @tensor_splat
+// CHECK-NEXT: %[[RES:.*]] = xls.array %arg0, %arg0, %arg0 : (i32, i32, i32) -> !xls.array<3xi32>
+// CHECK-NEXT: return %[[RES]] : !xls.array<3xi32>
+func.func @tensor_splat(%arg0: i32) -> tensor<3xi32> attributes {xls = true} {
+  %0 = tensor.splat %arg0 : tensor<3xi32>
+  return %0 : tensor<3xi32>
+}
