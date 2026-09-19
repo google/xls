@@ -274,6 +274,7 @@ def _xls_aot_generate_impl(ctx):
         cc_toolchain = cc_toolchain,
         compilation_outputs = obj_file_outputs,
         linking_contexts = other_linking_contexts,
+        disallow_dynamic_library = ctx.attr.enable_llvm_coverage,
     )
 
     return [
