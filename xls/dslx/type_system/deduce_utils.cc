@@ -315,7 +315,12 @@ absl::Status ValidateNumber(const Number& number, const Type& type) {
 }
 
 absl::Status ValidateFormatMacroArgument(const Type& type, const Span& span,
-                                         const FileTable& file_table) {
+                                         const FileTable& file_table,
+                                         FormatPreference format_preference) {
+  if (format_preference == FormatPreference::kString && !IsU8Array(type)) {
+    return TypeInferenceErrorStatus(
+        span, &type, "String formatting requires a u8[N] array.", file_table);
+  }
   if (TypeContainsSemanticSum(type)) {
     return TypeInferenceErrorStatus(
         span, &type, ": Formatting semantic sum values is not supported",

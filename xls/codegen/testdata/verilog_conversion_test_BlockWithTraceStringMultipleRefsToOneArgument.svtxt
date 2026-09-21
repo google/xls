@@ -1,0 +1,37 @@
+module BlockWithTraceStringMultipleRefsToOneArgument(
+  input wire [127:0] arg,
+  input wire cond
+);
+  wire [7:0] arg_unflattened[16];
+  assign arg_unflattened[0] = arg[7:0];
+  assign arg_unflattened[1] = arg[15:8];
+  assign arg_unflattened[2] = arg[23:16];
+  assign arg_unflattened[3] = arg[31:24];
+  assign arg_unflattened[4] = arg[39:32];
+  assign arg_unflattened[5] = arg[47:40];
+  assign arg_unflattened[6] = arg[55:48];
+  assign arg_unflattened[7] = arg[63:56];
+  assign arg_unflattened[8] = arg[71:64];
+  assign arg_unflattened[9] = arg[79:72];
+  assign arg_unflattened[10] = arg[87:80];
+  assign arg_unflattened[11] = arg[95:88];
+  assign arg_unflattened[12] = arg[103:96];
+  assign arg_unflattened[13] = arg[111:104];
+  assign arg_unflattened[14] = arg[119:112];
+  assign arg_unflattened[15] = arg[127:120];
+
+  `ifdef SIMULATION
+  always_ff @ (*) begin
+    if (cond) begin : trace
+      automatic string arg_unflattened_string_display;
+      for (integer i = 0; i < 16; i = i + 1) begin
+        if (arg_unflattened[i] == 0) begin
+          break;
+        end
+        arg_unflattened_string_display = {arg_unflattened_string_display, arg_unflattened[i]};
+      end
+      $display("first: %0s, second: %0s", arg_unflattened_string_display, arg_unflattened_string_display);
+    end
+  end
+  `endif  // SIMULATION
+endmodule

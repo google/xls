@@ -31,6 +31,7 @@ constexpr std::string_view kSignedDecimalName = "signed-decimal";
 constexpr std::string_view kUnsignedDecimalName = "unsigned-decimal";
 constexpr std::string_view kZeroPaddedBinaryName = "zero-padded-binary";
 constexpr std::string_view kZeroPaddedHexName = "zero-padded-hex";
+constexpr std::string_view kStringName = "string";
 
 std::string_view FormatPreferenceToString(FormatPreference preference) {
   switch (preference) {
@@ -52,6 +53,8 @@ std::string_view FormatPreferenceToString(FormatPreference preference) {
       return kZeroPaddedBinaryName;
     case FormatPreference::kZeroPaddedHex:
       return kZeroPaddedHexName;
+    case FormatPreference::kString:
+      return kStringName;
   }
 
   return "<invalid format preference>";
@@ -77,6 +80,8 @@ std::string_view FormatPreferenceToXlsSpecifier(FormatPreference preference) {
       return "{:0b}";
     case FormatPreference::kZeroPaddedHex:
       return "{:0x}";
+    case FormatPreference::kString:
+      return "{:s}";
   }
 
   return "<invalid format preference>";
@@ -120,6 +125,10 @@ std::string_view FormatPreferenceToVerilogSpecifier(
       return "%b";
     case FormatPreference::kZeroPaddedHex:
       return "%h";
+    // Adding "0" makes Verilog/SystemVerilog simulators display strings
+    // with minimum width. This helps ensuring all leading zeros are dropped.
+    case FormatPreference::kString:
+      return "%0s";
   }
 
   return "<invalid format preference>";
@@ -153,6 +162,9 @@ absl::StatusOr<FormatPreference> FormatPreferenceFromString(
   }
   if (s == kZeroPaddedHexName) {
     return FormatPreference::kZeroPaddedHex;
+  }
+  if (s == kStringName) {
+    return FormatPreference::kString;
   }
   return absl::InvalidArgumentError(
       absl::StrFormat("Invalid format preference: \"%s\"", s));

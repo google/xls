@@ -3566,6 +3566,63 @@ pub fn other_function() -> u32 {
                HasSubstr("Cannot format an expression with function type")));
 }
 
+TEST_F(TypecheckV2Test, TraceFmtWithStringFormatting) {
+  XLS_EXPECT_OK(
+      Typecheck(R"(
+pub fn some_function() {
+    const MESSAGE = u8[4]:[0xAB, 0xCD, 0xBE, 0xEF];
+    trace_fmt!("{:s}", MESSAGE);
+    ()
+}
+)"));
+}
+
+TEST_F(TypecheckV2Test, BadTraceFmtWithUseOfIncompatibleStringFormattingType) {
+  EXPECT_THAT(Typecheck(R"(
+pub fn some_function() {
+    const MESSAGE = u16[4]:[0xABCD, 0xBEEF, 0xABCD, 0xBEEF];
+    trace_fmt!("{:s}", MESSAGE);
+    ()
+}
+)"),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("String formatting requires a u8[N] array.")));
+}
+
+TEST_F(TypecheckV2Test, TraceFmtRejectsScalarStringFormattingOperand) {
+  EXPECT_THAT(Typecheck(R"(
+pub fn some_function() {
+    trace_fmt!("{:s}", u8:65);
+    ()
+}
+)"),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("String formatting requires a u8[N] array.")));
+}
+
+TEST_F(TypecheckV2Test, TraceFmtRejectsSignedByteArrayStringFormattingOperand) {
+  EXPECT_THAT(Typecheck(R"(
+pub fn some_function() {
+    const MESSAGE = s8[4]:[65, 66, 67, 68];
+    trace_fmt!("{:s}", MESSAGE);
+    ()
+}
+)"),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("String formatting requires a u8[N] array.")));
+}
+
+TEST_F(TypecheckV2Test, TraceFmtRejectsAggregateStringFormattingOperand) {
+  EXPECT_THAT(Typecheck(R"(
+pub fn some_function() {
+    trace_fmt!("{:s}", (u4:1, u4:2));
+    ()
+}
+)"),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("String formatting requires a u8[N] array.")));
+}
+
 TEST_F(TypecheckV2Test, CatchesBadInvocationCallee) {
   constexpr std::string_view kImported = R"(
 pub fn some_function() -> u32 { u32:0 }

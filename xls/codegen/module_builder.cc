@@ -25,6 +25,7 @@
 #include <string>
 #include <string_view>
 #include <utility>
+#include <variant>
 #include <vector>
 
 #include "absl/log/check.h"
@@ -1237,13 +1238,184 @@ absl::StatusOr<Display*> ModuleBuilder::EmitTrace(
 
   Expression* format_arg = file_->Make<QuotedString>(
       trace->loc(), StepsToVerilogFormatString(trace->format()));
-
   std::vector<Expression*> display_args = {format_arg};
-  for (Expression* arg : trace_args) {
+
+  std::vector<int> format_indices;
+  format_indices.reserve(trace->format().size());
+  for (int arg_index = 0; arg_index < trace->format().size(); ++arg_index) {
+    const FormatStep format_step = trace->format()[arg_index];
+    if (std::holds_alternative<FormatPreference>(format_step)) {
+      format_indices.push_back(arg_index);
+    }
+  }
+
+  absl::flat_hash_map<Expression*, Expression*> converted_display_args;
+  std::vector<TraceStringFormatting> string_formatting;
+  for (int i = 0; i < trace_args.size(); ++i) {
+    Expression* arg = trace_args[i];
+    const FormatStep format_step = trace->format()[format_indices[i]];
+    if (std::get<FormatPreference>(format_step) == FormatPreference::kString) {
+      // Verilog requires all block declarations to precede executable
+      // statements. Emit the formatting logic only after all string arguments
+      // have declared their temporary values.
+      if (auto it = converted_display_args.find(arg);
+          it != converted_display_args.end()) {
+        // Skip adding trace string formatting logic if the same input is used
+        // multiple times.
+        arg = it->second;
+      } else {
+        XLS_ASSIGN_OR_RETURN(TraceStringFormatting formatting,
+                             DeclareTraceStringFormatting(arg, trace_if));
+        converted_display_args.emplace(arg, formatting.display_value);
+        arg = formatting.display_value;
+        string_formatting.push_back(formatting);
+      }
+    }
     display_args.push_back(arg);
   }
 
+  // Variable declarations in unnamed blocks may cause errors
+  // with some simulators.
+  if (!string_formatting.empty()) {
+    trace_if->consequent()->label(
+        SanitizeAndUniquifyName("trace"));
+  }
+
+  // We need to introduce a trick to apply traditional string formatting
+  // using null terminator, because Verilog/SystemVerilog simply ignores it and
+  // unpacked u8 array data must be converted to a string literal format
+  // (see IEEE 1800-2023 11.10 String literal expressions). Solution is
+  // different depending on which output language user chose.
+  for (const TraceStringFormatting& formatting : string_formatting) {
+    if (options_.use_system_verilog()) {
+      AddSystemVerilogTraceStringFormatting(formatting, trace_if);
+    } else {
+      AddVerilogTraceStringFormatting(formatting, trace_if);
+    }
+  }
+
   return trace_if->consequent()->Add<Display>(trace->loc(), display_args);
+}
+
+absl::StatusOr<ModuleBuilder::TraceStringFormatting>
+ModuleBuilder::DeclareTraceStringFormatting(Expression* arg,
+                                            Conditional* trace_if) {
+  LogicRef* ref = dynamic_cast<LogicRef*>(arg);
+  XLS_RET_CHECK(ref) << "Non-logic ref passed to string formatting.";
+  Def* def = ref->def();
+  DataType* def_type = def->data_type();
+  XLS_ASSIGN_OR_RETURN(int64_t bit_count, def_type->FlatBitCountAsInt64());
+  XLS_RET_CHECK(bit_count % 8 == 0)
+      << "Bit count must be a multiple of a char size.";
+
+  LogicRef* string_display_size = nullptr;
+  LogicRef* string_display_value;
+  if (options_.use_system_verilog()) {
+    Def* string_display_def = trace_if->consequent()->Add<Def>(
+        SourceInfo(),
+        SanitizeAndUniquifyName(
+            absl::StrCat(def->GetName(), "_string_display")),
+        DataKind::kString, file_->StringType(SourceInfo()));
+    string_display_def->automatic(true);
+    string_display_value =
+        file_->Make<LogicRef>(SourceInfo(), string_display_def);
+  } else {
+    RegDef* string_display_data_def = trace_if->consequent()->Add<RegDef>(
+        SourceInfo(),
+        SanitizeAndUniquifyName(
+            absl::StrCat(def->GetName(), "_string_display_data")),
+        file_->BitVectorType(bit_count, SourceInfo()));
+    string_display_value =
+        file_->Make<LogicRef>(SourceInfo(), string_display_data_def);
+    IntegerDef* string_display_size_def =
+        trace_if->consequent()->Add<IntegerDef>(
+            SourceInfo(), SanitizeAndUniquifyName(absl::StrCat(
+                              def->GetName(), "_string_display_size")));
+    string_display_size =
+        file_->Make<LogicRef>(SourceInfo(), string_display_size_def);
+  }
+
+  return TraceStringFormatting{.input = ref,
+                               .display_value = string_display_value,
+                               .display_size = string_display_size,
+                               .bit_count = bit_count};
+}
+
+void ModuleBuilder::AddVerilogTraceStringFormatting(
+    const TraceStringFormatting& formatting, Conditional* trace_if) {
+  CHECK_NE(formatting.display_size, nullptr);
+  trace_if->consequent()->Add<BlockingAssignment>(
+      SourceInfo(), formatting.display_value,
+      file_->Literal(0, formatting.bit_count, SourceInfo()));
+  trace_if->consequent()->Add<BlockingAssignment>(
+      SourceInfo(), formatting.display_size,
+      file_->PlainLiteral(formatting.bit_count / 8, SourceInfo()));
+
+  // Searches for a first null terminator in the input char buffer and stores
+  // resulting string size. This is required because Verilog/SystemVerilog
+  // needs leading zeros if the string contents occupy less bits than there is
+  // in the string buffer.
+  ForLoop* null_terminator_search = trace_if->consequent()->Add<ForLoop>(
+      SourceInfo(), /*loop_var_name*/ "i",
+      file_->PlainLiteral(formatting.bit_count / 8 - 1, SourceInfo()),
+      file_->PlainLiteral(0, SourceInfo()),
+      /*label=*/std::nullopt, /*ascending_step=*/false,
+      file_->PlainLiteral(1, SourceInfo()));
+  Conditional* cond = null_terminator_search->Add<Conditional>(
+      SourceInfo(),
+      file_->Equals(file_->Index(formatting.input,
+                                 null_terminator_search->var(), SourceInfo()),
+                    file_->PlainLiteral(0, SourceInfo()), SourceInfo()));
+  cond->consequent()->Add<BlockingAssignment>(
+      SourceInfo(), formatting.display_size,
+      null_terminator_search->var()->AsIndexableExpressionOrDie());
+
+  // Copies all necessary chars to the empty char buffer with left padding equal
+  // to `buffer_size - string_size`. This is required, because
+  // Verilog/SystemVerilog doesn't handle null terminator as C/C++ does it.
+  ForLoop* string_data_copy = trace_if->consequent()->Add<ForLoop>(
+      SourceInfo(), /*loop_var_name*/ "i", file_->PlainLiteral(0, SourceInfo()),
+      formatting.display_size,
+      /*label=*/std::nullopt, /*ascending_step=*/true,
+      file_->PlainLiteral(1, SourceInfo()));
+  string_data_copy->Add<BlockingAssignment>(
+      SourceInfo(),
+      file_->PartSelect(
+          formatting.display_value->AsIndexableExpressionOrDie(),
+          file_->Mul(
+              file_->Sub(
+                  formatting.display_size,
+                  file_->Add(
+                      string_data_copy->var()->AsIndexableExpressionOrDie(),
+                      file_->PlainLiteral(1, SourceInfo()), SourceInfo()),
+                  SourceInfo()),
+              file_->PlainLiteral(8, SourceInfo()), SourceInfo()),
+          file_->PlainLiteral(8, SourceInfo()), SourceInfo()),
+      file_->Index(formatting.input, string_data_copy->var(), SourceInfo()));
+}
+
+void ModuleBuilder::AddSystemVerilogTraceStringFormatting(
+    const TraceStringFormatting& formatting, Conditional* trace_if) {
+  // Copies all chars until the null terminator to the empty string buffer.
+  // This is required, because Verilog/SystemVerilog doesn't handle null
+  // terminator as C/C++ does it.
+  ForLoop* string_assembly_loop = trace_if->consequent()->Add<ForLoop>(
+      SourceInfo(), /*loop_var_name*/ "i", file_->PlainLiteral(0, SourceInfo()),
+      file_->PlainLiteral(formatting.bit_count / 8, SourceInfo()),
+      /*label=*/std::nullopt, /*ascending_step=*/true,
+      file_->PlainLiteral(1, SourceInfo()));
+  Conditional* null_terminator_cond = string_assembly_loop->Add<Conditional>(
+      SourceInfo(),
+      file_->Equals(file_->Index(formatting.input, string_assembly_loop->var(),
+                                 SourceInfo()),
+                    file_->PlainLiteral(0, SourceInfo()), SourceInfo()));
+  null_terminator_cond->consequent()->Add<BreakStatement>(SourceInfo());
+  string_assembly_loop->Add<BlockingAssignment>(
+      SourceInfo(), formatting.display_value,
+      file_->Concat({formatting.display_value,
+                     file_->Index(formatting.input, string_assembly_loop->var(),
+                                  SourceInfo())},
+                    SourceInfo()));
 }
 
 absl::StatusOr<IndexableExpression*> ModuleBuilder::EmitGate(

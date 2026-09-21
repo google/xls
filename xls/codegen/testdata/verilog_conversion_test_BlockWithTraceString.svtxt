@@ -1,0 +1,37 @@
+module BlockWithTraceString(
+  input wire [127:0] message,
+  input wire cond
+);
+  wire [7:0] message_unflattened[16];
+  assign message_unflattened[0] = message[7:0];
+  assign message_unflattened[1] = message[15:8];
+  assign message_unflattened[2] = message[23:16];
+  assign message_unflattened[3] = message[31:24];
+  assign message_unflattened[4] = message[39:32];
+  assign message_unflattened[5] = message[47:40];
+  assign message_unflattened[6] = message[55:48];
+  assign message_unflattened[7] = message[63:56];
+  assign message_unflattened[8] = message[71:64];
+  assign message_unflattened[9] = message[79:72];
+  assign message_unflattened[10] = message[87:80];
+  assign message_unflattened[11] = message[95:88];
+  assign message_unflattened[12] = message[103:96];
+  assign message_unflattened[13] = message[111:104];
+  assign message_unflattened[14] = message[119:112];
+  assign message_unflattened[15] = message[127:120];
+
+  `ifdef SIMULATION
+  always_ff @ (*) begin
+    if (cond) begin : trace
+      automatic string message_unflattened_string_display;
+      for (integer i = 0; i < 16; i = i + 1) begin
+        if (message_unflattened[i] == 0) begin
+          break;
+        end
+        message_unflattened_string_display = {message_unflattened_string_display, message_unflattened[i]};
+      end
+      $display("%0s", message_unflattened_string_display);
+    end
+  end
+  `endif  // SIMULATION
+endmodule
