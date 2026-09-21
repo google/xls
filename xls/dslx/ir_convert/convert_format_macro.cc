@@ -90,6 +90,15 @@ absl::Status FlattenStruct(const ValueFormatDescriptor& sfd, const BValue& v,
 
 absl::Status FlattenArray(const ValueFormatDescriptor& sfd, const BValue& v,
                           ConvertContext& ctx) {
+  const ValueFormatDescriptor& array_element_format =
+      sfd.array_element_format();
+  if (array_element_format.IsLeafValue() &&
+      array_element_format.leaf_format() == FormatPreference::kString) {
+    ctx.fmt_steps.push_back(array_element_format.leaf_format());
+    ctx.ir_args.push_back(v);
+    return absl::OkStatus();
+  }
+
   ctx.fmt_steps.push_back("[");
   for (int64_t i = 0; i < sfd.size(); ++i) {
     BValue index = ctx.fn_builder.Literal(UBits(i, /*bit_count=*/32));

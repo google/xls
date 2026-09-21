@@ -311,6 +311,19 @@ std::string Value::ToHumanString(FormatPreference preference) const {
     case ValueKind::kBits:
       return BitsToString(bits(), preference);
     case ValueKind::kArray:
+      if (preference == FormatPreference::kString) {
+        absl::Span<const Value> elems = elements();
+        std::string as_string;
+        as_string.reserve(elems.size());
+        for (size_t i = 0; i < elems.size(); ++i) {
+          uint64_t code = elems[i].bits().ToUint64().value();
+          if (code == '\0') {
+            break;
+          }
+          as_string += char(code);
+        }
+        return as_string;
+      }
       return absl::StrCat("[",
                           absl::StrJoin(elements(), ", ",
                                         [&](std::string* out, const Value& v) {

@@ -242,6 +242,59 @@ TEST(FunctionJitTest, TraceFmtNoArgsTest) {
               ElementsAre("hi I traced"));
 }
 
+TEST(FunctionJitTest, TraceFmtCharArray) {
+  Package package("trace_string");
+  std::string ir_text = R"(
+fn trace_string() -> bits[8][6] {
+  literal.1: bits[8] = literal(value=65)
+  literal.2: bits[8] = literal(value=66)
+  literal.3: bits[8] = literal(value=67)
+  literal.4: bits[8] = literal(value=68)
+  literal.5: bits[8] = literal(value=0)
+  literal.6: bits[8] = literal(value=67)
+  array.7: bits[8][6] = array(literal.1, literal.2, literal.3, literal.4, literal.5, literal.6)
+  after_all.8: token = after_all()
+  literal.9: bits[1] = literal(value=1)
+  trace.10: token = trace(after_all.8, literal.9, format = "{}", data_operands=[array.7])
+  ret array_update.11: bits[8][6] = array_update(array.7, literal.1, indices=[literal.5])
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(Function * function,
+                           Parser::ParseFunction(ir_text, &package));
+
+  XLS_ASSERT_OK_AND_ASSIGN(auto jit, FunctionJit::Create(function));
+  XLS_ASSERT_OK_AND_ASSIGN(InterpreterResult<Value> result,
+                           jit->Run(/*args=*/std::vector<Value>{}));
+  EXPECT_THAT(result.events.GetTraceMessageStrings(),
+              ElementsAre("[65, 66, 67, 68, 0, 67]"));
+}
+
+TEST(FunctionJitTest, TraceFmtCharArrayAsString) {
+  Package package("trace_string");
+  std::string ir_text = R"(
+fn trace_string() -> bits[8][6] {
+  literal.1: bits[8] = literal(value=65)
+  literal.2: bits[8] = literal(value=66)
+  literal.3: bits[8] = literal(value=67)
+  literal.4: bits[8] = literal(value=68)
+  literal.5: bits[8] = literal(value=0)
+  literal.6: bits[8] = literal(value=67)
+  array.7: bits[8][6] = array(literal.1, literal.2, literal.3, literal.4, literal.5, literal.6)
+  after_all.8: token = after_all()
+  literal.9: bits[1] = literal(value=1)
+  trace.10: token = trace(after_all.8, literal.9, format = "{:s}", data_operands=[array.7])
+  ret array_update.11: bits[8][6] = array_update(array.7, literal.1, indices=[literal.5])
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(Function * function,
+                           Parser::ParseFunction(ir_text, &package));
+
+  XLS_ASSERT_OK_AND_ASSIGN(auto jit, FunctionJit::Create(function));
+  XLS_ASSERT_OK_AND_ASSIGN(InterpreterResult<Value> result,
+                           jit->Run(/*args=*/std::vector<Value>{}));
+  EXPECT_THAT(result.events.GetTraceMessageStrings(), ElementsAre("ABCD"));
+}
+
 TEST(FunctionJitTest, TraceFmtOneArgTest) {
   Package package("my_package");
   std::string ir_text = R"(

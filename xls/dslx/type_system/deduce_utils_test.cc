@@ -81,7 +81,8 @@ TEST(DeduceUtilsTest, RejectsSemanticSumNestedInFormattedTuple) {
       std::make_unique<SumType>(*sum_def, std::move(variants)));
   TupleType nested_sum(std::move(tuple_members));
 
-  EXPECT_THAT(ValidateFormatMacroArgument(nested_sum, kFakeSpan, file_table),
+  EXPECT_THAT(ValidateFormatMacroArgument(nested_sum, kFakeSpan, file_table,
+                                          FormatPreference::kDefault),
               absl_testing::StatusIs(
                   absl::StatusCode::kInvalidArgument,
                   testing::HasSubstr(

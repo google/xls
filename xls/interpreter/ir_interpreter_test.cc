@@ -271,6 +271,71 @@ fn map_trace() -> bits[32][5]{
               UnorderedElementsAre("f is odd", "d is odd", "b is odd"));
 }
 
+TEST_F(IrInterpreterOnlyTest, TraceCharArrayAsString) {
+  const std::string pkg_text = R"(
+package trace_string
+
+fn trace_string() -> bits[8][6] {
+  literal.1: bits[8] = literal(value=65)
+  literal.2: bits[8] = literal(value=66)
+  literal.3: bits[8] = literal(value=67)
+  literal.4: bits[8] = literal(value=68)
+  literal.5: bits[8] = literal(value=0)
+  literal.6: bits[8] = literal(value=67)
+  array.7: bits[8][6] = array(literal.1, literal.2, literal.3, literal.4, literal.5, literal.6)
+  after_all.8: token = after_all()
+  literal.9: bits[1] = literal(value=1)
+  trace.10: token = trace(after_all.8, literal.9, format = "{:s}", data_operands=[array.7])
+  ret array_update.11: bits[8][6] = array_update(array.7, literal.1, indices=[literal.5])
+}
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(auto package, ParsePackage(pkg_text));
+  Function* map_trace = FindFunction("trace_string", package.get());
+  XLS_ASSERT_OK_AND_ASSIGN(InterpreterResult<Value> map_trace_result,
+                           InterpretFunction(map_trace, {}));
+  XLS_ASSERT_OK_AND_ASSIGN(Value trace_string_expected,
+                           Value::UBitsArray({65, 66, 67, 68, 0, 67}, 8));
+  EXPECT_EQ(map_trace_result.value, trace_string_expected);
+  EXPECT_THAT(map_trace_result.events.GetTraceMessageStrings(),
+              UnorderedElementsAre("ABCD"));
+}
+
+TEST_F(IrInterpreterOnlyTest, TraceCharArrayAsStringMultipleArgs) {
+  const std::string pkg_text = R"(
+package trace_string
+
+fn trace_string() -> bits[8][6] {
+  literal.1: bits[8] = literal(value=65)
+  literal.2: bits[8] = literal(value=66)
+  literal.3: bits[8] = literal(value=67)
+  literal.4: bits[8] = literal(value=68)
+  literal.5: bits[8] = literal(value=0)
+  literal.6: bits[8] = literal(value=67)
+  array.7: bits[8][6] = array(literal.1, literal.2, literal.3, literal.4, literal.5, literal.6)
+  literal.8: bits[8] = literal(value=65)
+  literal.9: bits[8] = literal(value=66)
+  literal.10: bits[8] = literal(value=67)
+  literal.11: bits[8] = literal(value=68)
+  array.12: bits[8][4] = array(literal.8, literal.9, literal.10, literal.11)
+  after_all.13: token = after_all()
+  literal.14: bits[1] = literal(value=1)
+  trace.15: token = trace(after_all.13, literal.14, format = "Messages are {:s} and {:s}", data_operands=[array.7, array.12])
+  ret array_update.16: bits[8][6] = array_update(array.7, literal.1, indices=[literal.5])
+}
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(auto package, ParsePackage(pkg_text));
+  Function* map_trace = FindFunction("trace_string", package.get());
+  XLS_ASSERT_OK_AND_ASSIGN(InterpreterResult<Value> map_trace_result,
+                           InterpretFunction(map_trace, {}));
+  XLS_ASSERT_OK_AND_ASSIGN(Value trace_string_expected,
+                           Value::UBitsArray({65, 66, 67, 68, 0, 67}, 8));
+  EXPECT_EQ(map_trace_result.value, trace_string_expected);
+  EXPECT_THAT(map_trace_result.events.GetTraceMessageStrings(),
+              UnorderedElementsAre("Messages are ABCD and ABCD"));
+}
+
 TEST_F(IrInterpreterOnlyTest, HandleSelEmptyCasesWith64BitSelector) {
   Package p("p");
   FunctionBuilder fb("f", &p);
