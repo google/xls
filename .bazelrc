@@ -21,6 +21,8 @@ common:ci --lockfile_mode=error
 # Tell that this is an oss ci run. NB This only disables it on the every-cl run.
 build:ci --copt="-DXLS_IS_CI_RUN=1"
 
+build --cxxopt "-Wno-deprecated-attributes"
+
 # Disable automatic generation of __init__.py files. This allows
 # namespace packages (such as `google`) to work correctly.
 # https://github.com/bazelbuild/bazel/issues/10076

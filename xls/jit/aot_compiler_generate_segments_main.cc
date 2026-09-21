@@ -95,9 +95,10 @@ absl::Status RealMain(std::string_view input_file_path,
   llvm::SplitModule(
       *module, output_file_paths.size(),
       [&](std::unique_ptr<llvm::Module> module) {
-        for (auto& global : module->globals()) {
+        for (auto& global : module->global_values()) {
           if (global.hasName() &&
-              global.getName().contains("__llvmsplit_unnamed")) {
+              (global.getName().contains("__llvmsplit_unnamed") ||
+               global.getName().contains("__llvm_unnamed"))) {
             global.setName(absl::StrCat(global.getName().str(), "__", salt));
           }
         }
