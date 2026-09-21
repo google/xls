@@ -2288,6 +2288,13 @@ std::string WaitStatement::Emit(LineInfo* line_info) const {
   return result;
 }
 
+std::string BreakStatement::Emit(LineInfo* line_info) const {
+  LineInfoStart(line_info, this);
+  std::string result = absl::StrFormat("break;");
+  LineInfoEnd(line_info, this);
+  return result;
+}
+
 std::string Forever::Emit(LineInfo* line_info) const {
   LineInfoStart(line_info, this);
   std::string result = absl::StrCat("forever ", statement_->Emit(line_info));
