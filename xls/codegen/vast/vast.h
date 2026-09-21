@@ -685,6 +685,15 @@ class WaitStatement final : public Statement {
   Expression* event_;
 };
 
+// Represents a `break` statement.
+class BreakStatement final : public Statement {
+ public:
+  BreakStatement(VerilogFile* file, const SourceInfo& loc)
+      : Statement(file, loc) {}
+
+  std::string Emit(LineInfo* line_info) const final;
+};
+
 // Represents a forever construct which runs a statement continuously.
 class Forever final : public Statement {
  public:

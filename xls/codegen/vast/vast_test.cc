@@ -821,6 +821,15 @@ TEST_P(VastTest, ReturnStatement) {
   EXPECT_EQ(statement->expr()->Emit(nullptr), "2 * 10");
 }
 
+TEST_P(VastTest, BreakStatement) {
+  VerilogFile f(GetFileType());
+  if (!f.use_system_verilog()) {
+    GTEST_SKIP();
+  }
+  BreakStatement* statement = f.Make<BreakStatement>(SourceInfo());
+  EXPECT_EQ(statement->Emit(/*line_info=*/nullptr), "break;");
+}
+
 TEST_P(VastTest, Case) {
   VerilogFile f(GetFileType());
   Module* m = f.AddModule("top", SourceInfo());
