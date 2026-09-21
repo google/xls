@@ -327,15 +327,14 @@ class TypeInfo {
     dict_[key] = std::move(value);
   }
 
-  // Used by type inference to set the resolved data for a `ProcAlias`.
-  void SetResolvedProcAlias(const ProcAlias* alias,
-                            ResolvedProcAlias resolved) {
+  // Used by type inference to set the resolved data for a `AliasDef`.
+  void SetResolvedProcAlias(const AliasDef* alias, ResolvedProcAlias resolved) {
     resolved_proc_aliases_[alias] = std::move(resolved);
   }
 
   // Used by phases downstream of type inference to retrieve a proc alias
   // resolution result.
-  const ResolvedProcAlias& GetResolvedProcAlias(const ProcAlias* alias) {
+  const ResolvedProcAlias& GetResolvedProcAlias(const AliasDef* alias) {
     return resolved_proc_aliases_.at(alias);
   }
 
@@ -598,7 +597,7 @@ class TypeInfo {
   // Maps a Proc to the TypeInfo used for its top-level typechecking.
   absl::flat_hash_map<const Proc*, TypeInfo*> top_level_proc_type_info_;
 
-  absl::flat_hash_map<const ProcAlias*, ResolvedProcAlias>
+  absl::flat_hash_map<const AliasDef*, ResolvedProcAlias>
       resolved_proc_aliases_;
   absl::flat_hash_map<const Proc*, std::vector<SpawnData>> spawns_;
 

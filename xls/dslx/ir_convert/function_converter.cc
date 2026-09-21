@@ -406,13 +406,13 @@ class FunctionConverterVisitor : public AstNodeVisitor {
   // These are always custom-visited (i.e. traversed to in a specialized way
   // from their parent nodes).
   // keep-sorted start
+  INVALID(AliasDef)
   INVALID(Attribute)
   INVALID(FunctionRef)
   INVALID(FuzzTestFunction)
   INVALID(MatchArm)
   INVALID(NameDef)
   INVALID(ParametricBinding)
-  INVALID(ProcAlias)
   INVALID(RestOfTuple)
   INVALID(Slice)
   INVALID(StructPattern)

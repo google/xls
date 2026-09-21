@@ -3756,8 +3756,8 @@ absl::StatusOr<ModuleMember> Parser::ParseProcLike(const Pos& start_pos,
     XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kSemi, &leading_token,
                                          "';' at end of proc alias"));
     Span span(start_pos, GetPos());
-    return module_->Make<ProcAlias>(span, name_def, target, is_public,
-                                    parametrics);
+    return module_->Make<AliasDef>(span, name_def, target, is_public,
+                                   parametrics);
   }
 
   // Bindings for "within the proc" scope.

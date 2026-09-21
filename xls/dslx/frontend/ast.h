@@ -89,6 +89,7 @@
 // XLS_DSLX_EXPR_NODE_EACH).
 #define XLS_DSLX_AST_NODE_EACH(X)   \
   /* keep-sorted start */        \
+  X(AliasDef)                       \
   X(Attribute)                      \
   X(BuiltinNameDef)                 \
   X(ConstAssert)                    \
@@ -105,7 +106,6 @@
   X(Param)                          \
   X(ParametricBinding)              \
   X(Proc)                           \
-  X(ProcAlias)                      \
   X(ProcDef)                        \
   X(ProcMember)                     \
   X(QuickCheck)                     \
@@ -1692,24 +1692,24 @@ class String : public Expr {
 
 // An alias to a non-impl-based proc. This is similar to a type alias, but not a
 // type, since non-impl-based procs are not types.
-class ProcAlias : public AstNode {
+class AliasDef : public AstNode {
  public:
   static std::string_view GetDebugTypeName() { return "proc alias"; }
 
   using Target = std::variant<NameRef*, ColonRef*>;
 
-  ProcAlias(Module* owner, Span span, NameDef* name_def, Target target,
-            bool is_public, const std::vector<ExprOrType>& parametrics);
+  AliasDef(Module* owner, Span span, NameDef* name_def, Target target,
+           bool is_public, const std::vector<ExprOrType>& parametrics);
 
-  ~ProcAlias() override;
+  ~AliasDef() override;
 
-  AstNodeKind kind() const override { return AstNodeKind::kProcAlias; }
+  AstNodeKind kind() const override { return AstNodeKind::kAliasDef; }
 
   absl::Status Accept(AstNodeVisitor* v) const override {
-    return v->HandleProcAlias(this);
+    return v->HandleAliasDef(this);
   }
 
-  std::string_view GetNodeTypeName() const override { return "ProcAlias"; }
+  std::string_view GetNodeTypeName() const override { return "AliasDef"; }
 
   const std::string& identifier() const { return name_def_->identifier(); }
 

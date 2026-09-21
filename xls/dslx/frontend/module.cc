@@ -441,7 +441,7 @@ std::string_view GetModuleMemberTypeName(const ModuleMember& module_member) {
                          [](QuickCheck*) { return "quick-check"; },
                          [](TypeAlias*) { return "type-alias"; },
                          [](StructDef*) { return "struct-definition"; },
-                         [](ProcAlias*) { return "proc-alias"; },
+                         [](AliasDef*) { return "proc-alias"; },
                          [](ProcDef*) { return "proc-definition"; },
                          [](Impl*) { return "impl"; },
                          [](ConstantDef*) { return "constant-definition"; },
