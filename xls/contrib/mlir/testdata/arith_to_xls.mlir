@@ -230,7 +230,9 @@ func.func @fptosi16(%arg0: bf16) -> i16 attributes { "xls" = true } {
 
 // CHECK-LABEL: @fp16tosi32
 // CHECK: xls.call_dslx
+// CHECK-SAME: to_int<u32:32>
 // CHECK: xls.call_dslx
+// CHECK-SAME: to_uint<u32:32>
 func.func @fp16tosi32(%arg0: bf16) -> (i32, i32) attributes { "xls" = true } {
   %0 = arith.fptosi %arg0 : bf16 to i32
   %1 = arith.fptoui %arg0 : bf16 to i32

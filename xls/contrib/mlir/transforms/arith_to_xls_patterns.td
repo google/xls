@@ -260,7 +260,7 @@ defm : FloatToIntegralPatUI<Arith_FPToUIOp, Arith_UIToFPOp, Arith_ExtUIOp, "u">;
 multiclass FloatToI32BF16Pat<Op fptoi, string Name, string Type> {
   def : Pat<(fptoi:$op BF16:$a),
     (Xls_CallDslxOp (FloatLib $a),
-      CS<"fn to_int_imp(a : BF16) -> "#Type#"32 { apfloat::"#Name#"<BF16::EXP_SIZE, BF16::FRACTION_SIZE, u32:32>(a) }">,
+      CS<"fn to_int_imp(a : BF16) -> "#Type#"32 { "#Name#"<u32:32>(a) }">,
       (variadic $a), PureCall, VectorCall), [(ScalarOrTensorOf<I32> $op)]>;
 }
 
