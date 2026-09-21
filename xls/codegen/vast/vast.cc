@@ -1309,6 +1309,10 @@ std::string UnpackedArrayType::EmitWithIdentifier(
   return result;
 }
 
+std::string StringType::Emit(LineInfo* line_info) const {
+  return "string";
+}
+
 std::string Def::Emit(LineInfo* line_info) const {
   std::string result = EmitNoSemi(line_info);
   if (init().has_value()) {

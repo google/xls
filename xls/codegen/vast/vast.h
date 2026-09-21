@@ -483,6 +483,23 @@ class UnpackedArrayType final : public ArrayTypeBase {
                                  std::string_view identifier) const final;
 };
 
+class StringType final : public DataType {
+ public:
+  StringType(VerilogFile* file, const SourceInfo& loc)
+      : DataType(file, loc) {}
+
+  bool IsScalar() const final { return false; }
+  absl::StatusOr<int64_t> WidthAsInt64() const final {
+    return absl::InvalidArgumentError("Cannot get width of a string type");
+  }
+  absl::StatusOr<int64_t> FlatBitCountAsInt64() const final {
+    return absl::InvalidArgumentError(
+        "Cannot get compile time bit count of a string type");
+  }
+  std::optional<Expression*> width() const final { return std::nullopt; }
+  std::string Emit(LineInfo* line_info) const final;
+};
+
 // The kind of a net/variable. kReg, kWire, kLogic can be arbitrarily
 // typed. kInteger definitions can only be of IntegerType.
 enum class DataKind : int8_t {
@@ -498,6 +515,7 @@ enum class DataKind : int8_t {
   kUntypedEnum,
   // Used as an integer during elaboration to evaluate a generate loop.
   kGenvar,
+  kString,
 };
 
 std::string DataKindToString(DataKind kind);
@@ -2941,6 +2959,10 @@ class VerilogFile {
   }
   DataType* IntType(const SourceInfo& loc) {
     return Make<verilog::IntType>(loc);
+  }
+
+  DataType* StringType(const SourceInfo& loc) {
+    return Make<verilog::StringType>(loc);
   }
 
   // Returns a bit vector type for widths greater than one, and a scalar type
