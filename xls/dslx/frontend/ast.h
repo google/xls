@@ -603,7 +603,8 @@ class TypeRefTypeAnnotation : public TypeAnnotation {
   TypeRefTypeAnnotation(
       Module* owner, Span span, TypeRef* type_ref,
       std::vector<ExprOrType> parametrics,
-      std::optional<const StructInstanceBase*> instantiator = std::nullopt,
+      std::optional<const StructInstanceBase*> struct_instantiator =
+          std::nullopt,
       std::optional<SumConstructorExpr> sum_instantiator = std::nullopt);
 
   ~TypeRefTypeAnnotation() override;
@@ -623,8 +624,8 @@ class TypeRefTypeAnnotation : public TypeAnnotation {
 
   const std::vector<ExprOrType>& parametrics() const { return parametrics_; }
 
-  std::optional<const StructInstanceBase*> instantiator() const {
-    return instantiator_;
+  std::optional<const StructInstanceBase*> struct_instantiator() const {
+    return struct_instantiator_;
   }
   std::optional<SumConstructorExpr> sum_instantiator() const {
     return sum_instantiator_;
@@ -633,7 +634,7 @@ class TypeRefTypeAnnotation : public TypeAnnotation {
  private:
   TypeRef* type_ref_;
   std::vector<ExprOrType> parametrics_;
-  std::optional<const StructInstanceBase*> instantiator_;
+  std::optional<const StructInstanceBase*> struct_instantiator_;
   std::optional<SumConstructorExpr> sum_instantiator_;
 };
 

@@ -149,8 +149,8 @@ class TypeRefUnwrapper : public AstNodeVisitorWithDefault {
     if (!annotation->parametrics().empty()) {
       parametrics_ = annotation->parametrics();
     }
-    if (!instantiator_.has_value()) {
-      instantiator_ = annotation->instantiator();
+    if (!struct_instantiator_.has_value()) {
+      struct_instantiator_ = annotation->struct_instantiator();
     }
     if (!sum_instantiator_.has_value()) {
       sum_instantiator_ = annotation->sum_instantiator();
@@ -222,7 +222,7 @@ class TypeRefUnwrapper : public AstNodeVisitorWithDefault {
                    ? absl::down_cast<StructDefBase*>(ToAstNode(*type_def_))
                    : nullptr,
         .parametrics = parametrics_,
-        .instantiator = instantiator_,
+        .instantiator = struct_instantiator_,
         .type_ref_type_annotation = type_ref_type_annotation_,
         .is_generic = is_generic_,
     };
@@ -257,7 +257,7 @@ class TypeRefUnwrapper : public AstNodeVisitorWithDefault {
   std::optional<const TypeVariableTypeAnnotation*>
       type_variable_type_annotation_;
 
-  std::optional<const StructInstanceBase*> instantiator_;
+  std::optional<const StructInstanceBase*> struct_instantiator_;
   bool is_generic_ = false;
   std::optional<SumConstructorExpr> sum_instantiator_;
 };

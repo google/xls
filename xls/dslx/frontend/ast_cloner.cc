@@ -1343,7 +1343,7 @@ class AstCloner : public AstNodeVisitor {
     // the instantiators are cloned.
     old_to_new_[n] = module(n)->Make<TypeRefTypeAnnotation>(
         n->span(), absl::down_cast<TypeRef*>(old_to_new_.at(n->type_ref())),
-        CloneParametrics(n->parametrics()), n->instantiator(),
+        CloneParametrics(n->parametrics()), n->struct_instantiator(),
         n->sum_instantiator());
     return absl::OkStatus();
   }
