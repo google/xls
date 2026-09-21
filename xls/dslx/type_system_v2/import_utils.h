@@ -92,6 +92,10 @@ absl::StatusOr<std::optional<SumConstructorRef>> ResolveSumConstructor(
 absl::StatusOr<std::optional<SumConstructorRef>> ResolveSumConstructor(
     const TypeAnnotation* annotation, const ImportData& import_data);
 
+// Reports an unsupported sum constructor using its original generic reference.
+absl::Status UnsupportedGenericSumConstructorError(const ColonRef& ref,
+                                                   const FileTable& file_table);
+
 // A borrowed view of resolved constructor syntax. It derives the reference,
 // spelling, and payloads from the original expression without copying them.
 class SumConstructorView {

@@ -356,6 +356,16 @@ absl::StatusOr<std::optional<SumConstructorRef>> ResolveSumConstructor(
       import_data);
 }
 
+absl::Status UnsupportedGenericSumConstructorError(
+    const ColonRef& ref, const FileTable& file_table) {
+  return TypeInferenceErrorStatus(
+      ref.span(), nullptr,
+      absl::Substitute("Sum constructor `$0` through a generic type is not "
+                       "supported yet.",
+                       ref.ToString()),
+      file_table);
+}
+
 const Expr* SumConstructorView::expression() const {
   return std::visit([](const auto* node) -> const Expr* { return node; },
                     expression_);

@@ -1490,6 +1490,91 @@ fn f() -> (E<u32:8>, E<u32:16>) {
                               HasNodeWithType("b", "E { V(uN[16]) }"))));
 }
 
+TEST(TypecheckV2Test,
+     SemanticSumTupleConstructorThroughGenericTypeUnsupported) {
+  EXPECT_THAT(
+      R"(#![feature(generics)]
+enum E { Tuple(u32) }
+fn make<T: type>(x: u32) -> T {
+  T::Tuple(x)
+}
+fn use_it(x: u32) -> E { make<E>(x) }
+)",
+      TypecheckFails(AllOf(
+          HasSubstr("fake.x:6:3"),
+          HasSubstr("Sum constructor `T::Tuple` through a generic type is not "
+                    "supported yet."))));
+}
+
+TEST(TypecheckV2Test,
+     SemanticSumNamedConstructorThroughGenericTypeUnsupported) {
+  EXPECT_THAT(
+      R"(#![feature(generics)]
+enum E { Named { value: u32 } }
+fn make<T: type>(x: u32) -> T {
+  T::Named { value: x }
+}
+fn use_it(x: u32) -> E { make<E>(x) }
+)",
+      TypecheckFails(AllOf(
+          HasSubstr("fake.x:6:3"),
+          HasSubstr("Sum constructor `T::Named` through a generic type is not "
+                    "supported yet."))));
+}
+
+TEST(TypecheckV2Test,
+     SemanticSumNamedSplatConstructorThroughGenericTypeUnsupported) {
+  EXPECT_THAT(
+      R"(#![feature(generics)]
+enum E { Named { value: u32 } }
+fn make<T: type>(x: u32, base: T) -> T {
+  T::Named { value: x, ..base }
+}
+fn use_it(x: u32, base: E) -> E { make<E>(x, base) }
+)",
+      TypecheckFails(AllOf(
+          HasSubstr("fake.x:6:3"),
+          HasSubstr("Sum constructor `T::Named` through a generic type is not "
+                    "supported yet."))));
+}
+
+TEST(TypecheckV2Test,
+     SemanticSumConstructorsThroughGenericTypeAliasUnsupported) {
+  constexpr std::string_view kProgram = R"(#![feature(generics)]
+enum E { Tuple(u32), Named { value: u32 } }
+fn make<T: type>(x: u32) -> T {
+  type Alias = T;
+  Alias::$0
+}
+fn use_it(x: u32) -> E { make<E>(x) }
+)";
+  for (const auto& [expression, constructor] :
+       {std::pair{"Tuple(x)", "Tuple"}, {"Named { value: x }", "Named"}}) {
+    SCOPED_TRACE(expression);
+    EXPECT_THAT(
+        absl::Substitute(kProgram, expression),
+        TypecheckFails(AllOf(
+            HasSubstr("fake.x:7:3"),
+            HasSubstr(absl::Substitute("Sum constructor `Alias::$0` through a "
+                                       "generic type is not supported yet.",
+                                       constructor)))));
+  }
+}
+
+TEST(TypecheckV2Test,
+     GenericStaticFunctionAndStructConstructionStillSupported) {
+  EXPECT_THAT(
+      R"(#![feature(generics)]
+struct S { value: u32 }
+impl S { fn make(x: u32) -> S { S { value: x } } }
+fn call<T: type>(x: u32) -> T { T::make(x) }
+fn construct<T: type>(x: u32) -> T { T { value: x } }
+fn f(x: u32) -> (S, S) { (call<S>(x), construct<S>(x)) }
+)",
+      TypecheckSucceeds(HasNodeWithType(
+          "f", "(uN[32]) -> (S { value: uN[32] }, S { value: uN[32] })")));
+}
+
 TEST(TypecheckV2Test, SemanticSumConstructorWithImportedTypeArgument) {
   constexpr std::string_view kImported = R"(
 pub enum Kind: u8 { A = 0 }

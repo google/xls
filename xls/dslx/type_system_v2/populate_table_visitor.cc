@@ -2588,6 +2588,19 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
   // `SplatStructInstance` node.
   absl::Status HandleStructInstanceInternal(const StructInstanceBase* node,
                                             std::optional<Expr*> source) {
+    if (node->struct_ref()->IsAnnotation<TypeRefTypeAnnotation>()) {
+      const auto* annotation =
+          node->struct_ref()->AsAnnotation<TypeRefTypeAnnotation>();
+      if (const auto* ref = std::get_if<ColonRef*>(
+              &annotation->type_ref()->type_definition())) {
+        XLS_ASSIGN_OR_RETURN(
+            std::optional<const TypeVariableTypeAnnotation*> generic_type,
+            GetTypeVariableTypeAnnotationForSubject(*ref, import_data_));
+        if (generic_type.has_value()) {
+          return UnsupportedGenericSumConstructorError(**ref, file_table_);
+        }
+      }
+    }
     // As far as we're concerned here, type-checking a struct instance is like
     // type-checking a function invocation (see `HandleInvocation`), but with
     // named arguments instead of parallel ordering. The naming of arguments

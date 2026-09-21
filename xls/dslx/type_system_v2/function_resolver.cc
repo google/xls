@@ -98,6 +98,16 @@ class FunctionResolverImpl : public FunctionResolver {
       if (direct_colon_ref.has_value()) {
         // It's a ColonRef to a generic type, like `T::some_static_method()`. We
         // need to resolve T in order to determine what the actual method is.
+        const ColonRef::Subject subject = (*direct_colon_ref)->subject();
+        if (const auto* type = std::get_if<TypeRefTypeAnnotation*>(&subject)) {
+          XLS_ASSIGN_OR_RETURN(std::optional<SumRef> sum_ref,
+                               GetSumRef(*type, import_data_));
+          if (sum_ref.has_value() &&
+              sum_ref->def->GetVariant(colon_ref->attr()).has_value()) {
+            return UnsupportedGenericSumConstructorError(*colon_ref,
+                                                         file_table_);
+          }
+        }
         colon_ref = *direct_colon_ref;
         auto populate_visitor = CreatePopulateTableVisitor(
             colon_ref->owner(), &table_, &import_data_,
