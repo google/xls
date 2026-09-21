@@ -337,6 +337,19 @@ TEST_P(VastTest, DataTypes) {
   EXPECT_FALSE(bv_max->width().has_value());
   ASSERT_TRUE(bv_max->max().has_value());
   EXPECT_EQ((*bv_max->max())->Emit(nullptr), "10 * 5");
+
+  Def* int_def = f.Make<Def>(SourceInfo(), "my_int", DataKind::kInteger,
+                             f.IntegerType(SourceInfo()));
+  int_def->automatic(true);
+  EXPECT_EQ(int_def->Emit(/*line_info=*/nullptr), "automatic integer my_int;");
+
+  if (f.use_system_verilog()) {
+    DataType* str = f.StringType(SourceInfo());
+    EXPECT_EQ(str->EmitWithIdentifier(/*dims=*/nullptr, "foo"), "string foo");
+
+    Def* str_def = f.Make<Def>(SourceInfo(), "my_str", DataKind::kString, str);
+    EXPECT_EQ(str_def->Emit(/*line_info=*/nullptr), "string my_str;");
+  }
 }
 
 TEST_P(VastTest, ModuleWithManyVariableDefinitions) {
