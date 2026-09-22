@@ -1431,6 +1431,21 @@ bool InterpValue::operator<(const InterpValue& rhs) const {
     return Lt(rhs).value().IsTrue();
   }
 
+  if (IsChannelReference()) {
+    if (!rhs.IsChannelReference()) {
+      return tag_ < rhs.tag_;
+    }
+    const ChannelReference& lhs_ref = GetChannelReferenceOrDie();
+    const ChannelReference& rhs_ref = rhs.GetChannelReferenceOrDie();
+    if (lhs_ref.GetDirection() != rhs_ref.GetDirection()) {
+      return lhs_ref.GetDirection() < rhs_ref.GetDirection();
+    }
+    return lhs_ref.GetChannelId() < rhs_ref.GetChannelId();
+  }
+  if (rhs.IsChannelReference()) {
+    return tag_ < rhs.tag_;
+  }
+
   if (IsChannelArray()) {
     if (!rhs.IsChannelArray()) {
       return tag_ < rhs.tag_;

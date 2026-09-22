@@ -135,7 +135,7 @@ fn expect_fail() -> u32 {
 002 load 0
 003 literal u32:2
 004 literal builtin:assert_eq
-005 call assert_eq(foo, u32:2)
+005 call assert_eq(foo, u32:2) callee_bindings: {T: u32}
 006 pop
 007 load 0)");
 }
@@ -176,17 +176,17 @@ fn has_tuple_pattern() -> (u32, u64, uN[128]) {
 015 load 0
 016 literal u4:0
 017 literal builtin:assert_eq
-018 call assert_eq(a, u4:0)
+018 call assert_eq(a, u4:0) callee_bindings: {T: u4}
 019 pop
 020 load 1
 021 literal u8:1
 022 literal builtin:assert_eq
-023 call assert_eq(b, u8:1)
+023 call assert_eq(b, u8:1) callee_bindings: {T: u8}
 024 pop
 025 load 2
 026 literal u16:2
 027 literal builtin:assert_eq
-028 call assert_eq(c, u16:2)
+028 call assert_eq(c, u16:2) callee_bindings: {T: u16}
 029 pop
 030 load 3
 031 literal u32:3
@@ -194,7 +194,7 @@ fn has_tuple_pattern() -> (u32, u64, uN[128]) {
 033 literal u128:0x5
 034 create_tuple 3
 035 literal builtin:assert_eq
-036 call assert_eq(d, (u32:3, u64:4, uN[128]:5))
+036 call assert_eq(d, (u32:3, u64:4, uN[128]:5)) callee_bindings: {T: (u32, u64, uN[128])}
 037 pop
 038 load 3)");
 }
@@ -1491,7 +1491,7 @@ load 0
 literal u64:0
 tuple_index
 literal builtin:cover!
-call cover!("whee", s.some_bool)
+call cover!("whee", s.some_bool) callee_bindings: {N: u32:4}
 pop
 create_tuple 0
 load 2

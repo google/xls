@@ -386,9 +386,11 @@ absl::Status BytecodeInterpreter::Run(bool* progress_made) {
     }
 
     // Run the post-fn eval hook, if our function has a return value and if we
-    // actually have a hook.
+    // actually have a hook. Proc entry point functions (legacy or impl-based)
+    // are exempt from this hook mechanism.
     const Function* source_fn = frame->bf()->source_fn();
-    if (source_fn != nullptr) {
+    if (source_fn != nullptr && !source_fn->IsInProc() &&
+        !(proc_id_.has_value() && frames_.size() == 1)) {
       std::optional<Type*> fn_return = frame->type_info()->GetItem(source_fn);
       if (fn_return.has_value()) {
         bool fn_returns_value = *fn_return.value() != *Type::MakeUnit();

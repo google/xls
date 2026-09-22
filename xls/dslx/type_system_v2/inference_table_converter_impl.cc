@@ -1230,6 +1230,15 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
       if (!ti->GetRequiresImplicitToken(function).has_value()) {
         ti->NoteRequiresImplicitToken(function, false);
       }
+      if (!annotation.has_value() && parametric_context.has_value() &&
+          (*parametric_context)->is_invocation()) {
+        const auto& details = std::get<ParametricInvocationDetails>(
+            (*parametric_context)->details());
+        if (details.callee == &function &&
+            details.parametric_free_function_type != nullptr) {
+          annotation = details.parametric_free_function_type;
+        }
+      }
     }
     if (node->kind() == AstNodeKind::kFormatMacro) {
       const auto* fmt = absl::down_cast<const FormatMacro*>(node);

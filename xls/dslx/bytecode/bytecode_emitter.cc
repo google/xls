@@ -1254,12 +1254,11 @@ absl::Status BytecodeEmitter::HandleInvocation(const Invocation* node) {
   }
 
   std::optional<ParametricEnv> callee_bindings;
-  if (caller_bindings_.has_value()) {
-    std::optional<const ParametricEnv*> callee_bindings_ptr =
-        type_info_->GetInvocationCalleeBindings(node, caller_bindings_.value());
-    if (callee_bindings_ptr.has_value()) {
-      callee_bindings = *callee_bindings_ptr.value();
-    }
+  std::optional<const ParametricEnv*> callee_bindings_ptr =
+      type_info_->GetInvocationCalleeBindings(
+          node, caller_bindings_.value_or(ParametricEnv()));
+  if (callee_bindings_ptr.has_value()) {
+    callee_bindings = *callee_bindings_ptr.value();
   }
 
   bytecode_.push_back(Bytecode(
