@@ -819,7 +819,6 @@ cc_library(
         "//xls/dslx/type_system:type_info",
         "@abseil-cpp//absl/algorithm:container",
         "@abseil-cpp//absl/base",
-        "@abseil-cpp//absl/container:flat_hash_set",
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:statusor",
@@ -1100,6 +1099,7 @@ cc_test(
     name = "typecheck_module_v2_sum_test",
     srcs = ["typecheck_module_v2_sum_test.cc"],
     deps = [
+        ":import_utils",
         ":matchers",
         ":type_system_test_utils",
         ":typecheck_module_v2",

@@ -43,6 +43,7 @@
 #include "xls/dslx/type_system/type.h"
 #include "xls/dslx/type_system/type_info.h"
 #include "xls/dslx/type_system/typecheck_test_utils.h"
+#include "xls/dslx/type_system_v2/import_utils.h"
 #include "xls/dslx/type_system_v2/matchers.h"
 #include "xls/dslx/type_system_v2/type_system_test_utils.h"
 #include "xls/dslx/type_system_v2/typecheck_module_v2.h"
@@ -1966,6 +1967,74 @@ fn f() -> E {
   }
   EXPECT_EQ(constructors, 2);
   EXPECT_EQ(function_calls, 1);
+}
+
+TEST(TypecheckV2Test,
+     SemanticSumClassificationVisitsNamedConstructorTypeRefBeforeInference) {
+  constexpr std::string_view kProgram = R"(#![feature(type_inference_v2)]
+#![feature(generics)]
+enum Inner { Value(u32) }
+enum Outer<N: u32> { Named { value: uN[N] } }
+fn width(x: u32) -> u32 { x }
+const X = Outer<{if false {
+  let _ = Inner::Value(u32:0);
+  u32:8
+} else { width(u32:8) }}>::Named { value: u8:0 };
+)";
+  ImportData import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(auto module, ParseModule(kProgram, "main.x", "main",
+                                                    import_data.file_table()));
+  XLS_ASSERT_OK_AND_ASSIGN(ConstantDef * constant, module->GetConstantDef("X"));
+  const auto* named = dynamic_cast<const StructInstance*>(constant->value());
+  ASSERT_NE(named, nullptr);
+  const auto* annotation =
+      dynamic_cast<const TypeRefTypeAnnotation*>(named->struct_ref());
+  ASSERT_NE(annotation, nullptr);
+  const TypeDefinition& definition = annotation->type_ref()->type_definition();
+  ASSERT_TRUE(std::holds_alternative<ColonRef*>(definition));
+  const ColonRef* constructor_ref = std::get<ColonRef*>(definition);
+
+  // The qualifier holds both calls, but the named constructor's TypeRef does
+  // not expose it as an ordinary child.
+  const Invocation* nested_constructor = nullptr;
+  const Invocation* function_call = nullptr;
+  for (const AstNode* node :
+       FlattenToSet(ToAstNode(constructor_ref->subject()))) {
+    if (const auto* invocation = dynamic_cast<const Invocation*>(node)) {
+      if (invocation->callee()->ToString() == "Inner::Value") {
+        nested_constructor = invocation;
+      } else if (invocation->callee()->ToString() == "width") {
+        function_call = invocation;
+      }
+    }
+  }
+  ASSERT_NE(nested_constructor, nullptr);
+  ASSERT_NE(function_call, nullptr);
+  EXPECT_EQ(nested_constructor->callee_kind(),
+            Invocation::CalleeKind::kFunction);
+
+  XLS_ASSERT_OK(ClassifySumConstructors(module.get(), import_data));
+  EXPECT_EQ(nested_constructor->callee_kind(),
+            Invocation::CalleeKind::kSumConstructor);
+  EXPECT_EQ(function_call->callee_kind(), Invocation::CalleeKind::kFunction);
+}
+
+TEST(TypecheckV2Test, SemanticSumConstructorsInUnrolledLoopBody) {
+  constexpr std::string_view kSumType =
+      "E { Tuple(uN[32]) | Named { value: uN[32] } }";
+  EXPECT_THAT(
+      R"(
+enum E { Tuple(u32), Named { value: u32 } }
+fn f() -> E {
+  unroll_for! (i, _) in u32:0..u32:2 {
+    let _ = E::Tuple(i);
+    E::Named { value: i }
+  }(E::Tuple(u32:0))
+}
+)",
+      TypecheckSucceeds(AllOf(
+          HasRepeatedNodeWithType("E::Tuple(i)", kSumType, 2),
+          HasRepeatedNodeWithType("E::Named { value: i }", kSumType, 2))));
 }
 
 TEST(TypecheckV2Test, ImportedSemanticSumShapesPreserveParens) {

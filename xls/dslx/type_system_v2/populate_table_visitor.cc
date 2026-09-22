@@ -86,35 +86,25 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
   }
 
   absl::Status PopulateFromExpr(const Expr* expr) override {
-    XLS_RETURN_IF_ERROR(
-        ClassifySumConstructors(const_cast<Expr*>(expr), import_data_));
     return expr->Accept(this);
   }
 
   absl::Status PopulateFromInvocation(const Invocation* invocation) override {
-    XLS_RETURN_IF_ERROR(ClassifySumConstructors(
-        const_cast<Invocation*>(invocation), import_data_));
     return invocation->Accept(this);
   }
 
   absl::Status PopulateFromFunction(const Function* function) override {
-    XLS_RETURN_IF_ERROR(
-        ClassifySumConstructors(const_cast<Function*>(function), import_data_));
     return function->Accept(this);
   }
 
   absl::Status PopulateFromTypeAnnotation(
       const TypeAnnotation* annotation) override {
-    XLS_RETURN_IF_ERROR(ClassifySumConstructors(
-        const_cast<TypeAnnotation*>(annotation), import_data_));
     return annotation->Accept(this);
   }
 
   absl::Status PopulateFromUnrolledLoopBody(
       const StatementBlock* root) override {
     XLS_RET_CHECK(!handle_proc_functions_);
-    XLS_RETURN_IF_ERROR(ClassifySumConstructors(
-        const_cast<StatementBlock*>(root), import_data_));
 
     std::optional<const Function*> containing_function =
         GetContainingFunction(root);
@@ -1133,9 +1123,8 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
 
   absl::Status HandleStructInstance(const StructInstance* node) override {
     VLOG(5) << "HandleStructInstance: " << node->ToString();
-    XLS_ASSIGN_OR_RETURN(
-        std::optional<SumConstructorRef> constructor,
-        ResolveSumConstructor(node->struct_ref(), import_data_));
+    XLS_ASSIGN_OR_RETURN(std::optional<SumConstructorRef> constructor,
+                         ClassifySumConstructor(node, import_data_));
     if (constructor.has_value()) {
       return PopulateSumConstructor(node, *constructor);
     } else {
@@ -1240,6 +1229,7 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
   absl::Status HandleSplatStructInstance(
       const SplatStructInstance* node) override {
     VLOG(5) << "HandleSplatStructInstance: " << node->ToString();
+    XLS_RETURN_IF_ERROR(ClassifySumConstructor(node, import_data_).status());
     XLS_RETURN_IF_ERROR(HandleStructInstanceInternal(node, node->splatted()));
     XLS_RETURN_IF_ERROR(node->splatted()->Accept(this));
     return ValidateValueExpression(node->splatted());
@@ -1816,12 +1806,10 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
   }
 
   absl::Status HandleInvocation(const Invocation* node) override {
-    if (node->callee_kind() == Invocation::CalleeKind::kSumConstructor) {
-      XLS_ASSIGN_OR_RETURN(
-          std::optional<SumConstructorRef> constructor,
-          ResolveSumConstructor(SumConstructorView(node).constructor_ref(),
-                                import_data_));
-      XLS_RET_CHECK(constructor.has_value());
+    XLS_ASSIGN_OR_RETURN(
+        std::optional<SumConstructorRef> constructor,
+        ClassifySumConstructor(const_cast<Invocation*>(node), import_data_));
+    if (constructor.has_value()) {
       return PopulateSumConstructor(node, *constructor);
     } else {
       return HandleFunctionInvocation(node);

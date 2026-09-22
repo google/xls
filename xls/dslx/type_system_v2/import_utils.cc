@@ -21,7 +21,6 @@
 
 #include "absl/algorithm/container.h"
 #include "absl/base/casts.h"
-#include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -422,88 +421,124 @@ SumConstructorView::struct_args() const {
   }
 }
 
-absl::Status ClassifySumConstructors(AstNode* root,
-                                     const ImportData& import_data) {
-  absl::flat_hash_set<const AstNode*> visited;
-  std::vector<AstNode*> pending = {root};
-  while (!pending.empty()) {
-    AstNode* node = pending.back();
-    pending.pop_back();
-    if (!visited.insert(node).second) {
-      continue;
-    }
-    if (auto* invocation = dynamic_cast<Invocation*>(node)) {
-      invocation->set_callee_kind(Invocation::CalleeKind::kFunction);
-      if (const auto* constructor =
-              dynamic_cast<const ColonRef*>(invocation->callee())) {
-        if (!invocation->explicit_parametrics().empty()) {
-          XLS_ASSIGN_OR_RETURN(std::optional<SumRef> sum_ref,
-                               GetSumRefForSubject(constructor, import_data));
-          if (sum_ref.has_value()) {
-            return ParseErrorStatus(
-                invocation->span(),
-                "Explicit parametrics belong on the sum type, not the "
-                "constructor; use `Name<T>::Variant(...)`.",
-                import_data.file_table());
-          }
-        }
-        XLS_ASSIGN_OR_RETURN(std::optional<SumConstructorRef> resolved,
-                             ResolveSumConstructor(constructor, import_data));
-        if (resolved.has_value()) {
-          if (!resolved->variant->is_tuple()) {
-            return TypeInferenceErrorStatus(
-                invocation->span(), nullptr,
-                absl::Substitute("Constructor `$0` is not callable here.",
-                                 constructor->ToString()),
-                import_data.file_table());
-          } else {
-            invocation->set_callee_kind(
-                Invocation::CalleeKind::kSumConstructor);
-          }
-        }
-      }
-    } else if (const auto* instance =
-                   dynamic_cast<const StructInstanceBase*>(node)) {
-      XLS_ASSIGN_OR_RETURN(
-          std::optional<SumConstructorRef> resolved,
-          ResolveSumConstructor(instance->struct_ref(), import_data));
-      if (resolved.has_value()) {
-        const auto* annotation =
-            instance->struct_ref()->AsAnnotation<TypeRefTypeAnnotation>();
-        if (!annotation->parametrics().empty()) {
-          return ParseErrorStatus(
-              instance->span(),
-              "Explicit parametrics belong on the sum type, not the "
-              "constructor; use `Name<T>::Variant { ... }`.",
-              import_data.file_table());
-        } else if (!resolved->variant->is_struct()) {
-          return TypeInferenceErrorStatusForAnnotation(
-              instance->span(), instance->struct_ref(),
-              absl::Substitute(
-                  "Attempted to instantiate non-struct type `$0` as a struct.",
-                  instance->struct_ref()->ToString()),
-              import_data.file_table());
-        } else if (dynamic_cast<const SplatStructInstance*>(instance) !=
-                   nullptr) {
-          return TypeInferenceErrorStatusForAnnotation(
-              instance->span(), instance->struct_ref(),
-              "Struct-style sum constructors do not support splat syntax.",
-              import_data.file_table());
-        }
+absl::StatusOr<std::optional<SumConstructorRef>> ClassifySumConstructor(
+    Invocation* invocation, const ImportData& import_data) {
+  invocation->set_callee_kind(Invocation::CalleeKind::kFunction);
+  if (const auto* constructor =
+          dynamic_cast<const ColonRef*>(invocation->callee())) {
+    if (!invocation->explicit_parametrics().empty()) {
+      XLS_ASSIGN_OR_RETURN(std::optional<SumRef> sum_ref,
+                           GetSumRefForSubject(constructor, import_data));
+      if (sum_ref.has_value()) {
+        return ParseErrorStatus(
+            invocation->span(),
+            "Explicit parametrics belong on the sum type, not the "
+            "constructor; use `Name<T>::Variant(...)`.",
+            import_data.file_table());
       }
     }
-    for (AstNode* child : node->GetChildren(/*want_types=*/true)) {
-      if (child != nullptr) {
-        pending.push_back(child);
+    XLS_ASSIGN_OR_RETURN(std::optional<SumConstructorRef> resolved,
+                         ResolveSumConstructor(constructor, import_data));
+    if (resolved.has_value()) {
+      if (!resolved->variant->is_tuple()) {
+        return TypeInferenceErrorStatus(
+            invocation->span(), nullptr,
+            absl::Substitute("Constructor `$0` is not callable here.",
+                             constructor->ToString()),
+            import_data.file_table());
+      } else {
+        invocation->set_callee_kind(Invocation::CalleeKind::kSumConstructor);
       }
     }
-    // Struct references are not children, but their parametrics can contain
-    // constructor expressions. TypeRef deliberately omits borrowed definitions.
-    if (const auto* instance = dynamic_cast<const StructInstanceBase*>(node)) {
-      pending.push_back(instance->struct_ref());
+    return resolved;
+  } else {
+    return std::nullopt;
+  }
+}
+
+absl::StatusOr<std::optional<SumConstructorRef>> ClassifySumConstructor(
+    const StructInstanceBase* instance, const ImportData& import_data) {
+  XLS_ASSIGN_OR_RETURN(
+      std::optional<SumConstructorRef> resolved,
+      ResolveSumConstructor(instance->struct_ref(), import_data));
+  if (resolved.has_value()) {
+    const auto* annotation =
+        instance->struct_ref()->AsAnnotation<TypeRefTypeAnnotation>();
+    if (!annotation->parametrics().empty()) {
+      return ParseErrorStatus(
+          instance->span(),
+          "Explicit parametrics belong on the sum type, not the "
+          "constructor; use `Name<T>::Variant { ... }`.",
+          import_data.file_table());
+    } else if (!resolved->variant->is_struct()) {
+      return TypeInferenceErrorStatusForAnnotation(
+          instance->span(), instance->struct_ref(),
+          absl::Substitute(
+              "Attempted to instantiate non-struct type `$0` as a struct.",
+              instance->struct_ref()->ToString()),
+          import_data.file_table());
+    } else if (dynamic_cast<const SplatStructInstance*>(instance) != nullptr) {
+      return TypeInferenceErrorStatusForAnnotation(
+          instance->span(), instance->struct_ref(),
+          "Struct-style sum constructors do not support splat syntax.",
+          import_data.file_table());
     }
   }
-  return absl::OkStatus();
+  return resolved;
+}
+
+namespace {
+
+class SumConstructorClassifier : public AstNodeRecursiveVisitor {
+ public:
+  explicit SumConstructorClassifier(const ImportData& import_data)
+      : AstNodeRecursiveVisitor(/*want_types=*/true),
+        import_data_(import_data) {}
+
+  absl::Status HandleInvocation(const Invocation* node) override {
+    XLS_RETURN_IF_ERROR(
+        ClassifySumConstructor(const_cast<Invocation*>(node), import_data_)
+            .status());
+    return DefaultHandler(node);
+  }
+
+  absl::Status HandleStructInstance(const StructInstance* node) override {
+    return HandleStructInstanceBase(node);
+  }
+
+  absl::Status HandleSplatStructInstance(
+      const SplatStructInstance* node) override {
+    return HandleStructInstanceBase(node);
+  }
+
+  absl::Status HandleTypeRef(const TypeRef* node) override {
+    // A type reference can contain qualified syntax. Its other alternatives
+    // refer to declarations owned elsewhere and must not be traversed here.
+    if (const auto* colon_ref =
+            std::get_if<ColonRef*>(&node->type_definition())) {
+      return (*colon_ref)->Accept(this);
+    } else {
+      return absl::OkStatus();
+    }
+  }
+
+ private:
+  absl::Status HandleStructInstanceBase(const StructInstanceBase* node) {
+    XLS_RETURN_IF_ERROR(ClassifySumConstructor(node, import_data_).status());
+    // The type reference is not among this node's ordinary children.
+    XLS_RETURN_IF_ERROR(node->struct_ref()->Accept(this));
+    return DefaultHandler(node);
+  }
+
+  const ImportData& import_data_;
+};
+
+}  // namespace
+
+absl::Status ClassifySumConstructors(AstNode* root,
+                                     const ImportData& import_data) {
+  SumConstructorClassifier visitor(import_data);
+  return root->Accept(&visitor);
 }
 
 absl::StatusOr<std::optional<ModuleInfo*>> GetImportedModuleInfo(

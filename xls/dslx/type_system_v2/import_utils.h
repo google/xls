@@ -113,9 +113,19 @@ class SumConstructorView {
   SumConstructorExpr expression_;
 };
 
-// Classifies invocations in place before semantic analysis or inference-table
-// population. Imports must already be loaded. Also validates constructor
-// spelling and constructor-local explicit parametrics.
+// Classifies and validates only this invocation, without visiting its children.
+// Records whether it is a sum constructor and returns its resolved variant, if
+// any. Imports must already be loaded.
+absl::StatusOr<std::optional<SumConstructorRef>> ClassifySumConstructor(
+    Invocation* invocation, const ImportData& import_data);
+
+// Validates only this brace-style construction, without visiting its children,
+// and returns its resolved sum variant, if any. Imports must already be loaded.
+absl::StatusOr<std::optional<SumConstructorRef>> ClassifySumConstructor(
+    const StructInstanceBase* instance, const ImportData& import_data);
+
+// Classifies and validates constructors throughout the syntax tree before
+// semantic analysis. Imports must already be loaded.
 absl::Status ClassifySumConstructors(AstNode* root,
                                      const ImportData& import_data);
 
