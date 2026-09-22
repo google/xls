@@ -52,6 +52,7 @@
 #include "xls/ir/function_base.h"
 #include "xls/ir/instantiation.h"
 #include "xls/ir/ir_annotator.h"
+#include "xls/ir/name_uniquer.h"
 #include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
@@ -433,6 +434,10 @@ absl::StatusOr<OutputPort*> Block::GetOutputPort(std::string_view name) const {
 absl::StatusOr<InputPort*> Block::AddInputPort(std::string_view name,
                                                Type* type,
                                                const SourceInfo& loc) {
+  if (!NameUniquer::IsValidIdentifier(name)) {
+    return absl::InvalidArgumentError(
+        absl::StrFormat("Port name '%s' is not a valid identifier.", name));
+  }
   if (ports_by_name_.contains(name)) {
     return absl::InvalidArgumentError(absl::StrFormat(
         "Block %s already contains a port named %s", this->name(), name));
@@ -455,6 +460,10 @@ absl::StatusOr<InputPort*> Block::AddInputPort(std::string_view name,
 absl::StatusOr<OutputPort*> Block::AddOutputPort(std::string_view name,
                                                  Node* operand,
                                                  const SourceInfo& loc) {
+  if (!NameUniquer::IsValidIdentifier(name)) {
+    return absl::InvalidArgumentError(
+        absl::StrFormat("Port name '%s' is not a valid identifier.", name));
+  }
   if (ports_by_name_.contains(name)) {
     return absl::InvalidArgumentError(absl::StrFormat(
         "Block %s already contains a port named %s", this->name(), name));
@@ -537,6 +546,10 @@ absl::StatusOr<Register*> Block::GetRegister(std::string_view name) const {
 }
 
 absl::Status Block::AddClockPort(std::string_view name) {
+  if (!NameUniquer::IsValidIdentifier(name)) {
+    return absl::InvalidArgumentError(absl::StrFormat(
+        "Clock port name '%s' is not a valid identifier.", name));
+  }
   if (clock_port_.has_value()) {
     return absl::InternalError("Block already has clock");
   }
