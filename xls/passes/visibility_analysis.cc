@@ -753,6 +753,9 @@ VisibilityAnnotator VisibilityAnalysis::annotator() const {
 }
 
 Annotation VisibilityAnnotator::NodeAnnotation(Node* node) const {
+  if (node->function_base() != vis_->bound_function()) {
+    return {};
+  }
   return Annotation{
       .suffix = absl::StrFormat(
           "visible[%s]",

@@ -158,5 +158,29 @@ TEST_F(TopoSortAnnotatorTest, Disabled) {
   EXPECT_FALSE(annotator.NodeOrder(f).has_value());
 }
 
+TEST_F(TopoSortAnnotatorTest, FunctionAnnotationDefaultAndDumpIr) {
+  XLS_ASSERT_OK_AND_ASSIGN(auto p, ParsePackage(R"(
+    package my_package
+
+    fn my_fn(a: bits[32] id=1, b: bits[32] id=2) -> bits[32] {
+      ret add.3: bits[32] = add(a, b, id=3)
+    }
+  )"));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, p->GetFunction("my_fn"));
+  FakeAnnotator annotator("", "note");
+  Annotation fn_ann = annotator.FunctionAnnotation(f);
+  ASSERT_TRUE(fn_ann.prefix.has_value());
+  EXPECT_EQ(*fn_ann.prefix,
+            "a: bits[32] = param(name=a, id=1) note\n"
+            "b: bits[32] = param(name=b, id=2) note");
+  EXPECT_EQ(p->DumpIr(annotator),
+            "package my_package\n\n"
+            "a: bits[32] = param(name=a, id=1) note\n"
+            "b: bits[32] = param(name=b, id=2) note\n"
+            "fn my_fn(a: bits[32] id=1, b: bits[32] id=2) -> bits[32] {\n"
+            "  ret add.3: bits[32] = add(a, b, id=3) note\n"
+            "}\n");
+}
+
 }  // namespace
 }  // namespace xls

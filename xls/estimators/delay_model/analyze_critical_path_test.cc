@@ -189,7 +189,8 @@ TEST_F(AnalyzeCriticalPathTest, Annotator) {
   std::string ir = f->DumpIr(annotator);
   RecordProperty("ir", ir);
   static constexpr std::string_view kExpectedIr =
-      R"ir(fn Annotator(x: bits[32] id=1 ! [0ps (+0ps)], bar: bits[1] id=6) -> bits[32] {
+      R"ir(x: bits[32] = param(name=x, id=1) ! [0ps (+0ps)]
+fn Annotator(x: bits[32] id=1, bar: bits[1] id=6) -> bits[32] {
   neg.2: bits[32] = neg(x, id=2) ! [1ps (+1ps)]
   reverse.3: bits[32] = reverse(neg.2, id=3) ! [2ps (+1ps)]
   literal.4: bits[32] = literal(value=1, id=4)
