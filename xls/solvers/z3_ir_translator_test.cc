@@ -122,6 +122,65 @@ TEST_F(Z3IrTranslatorTest, ZeroIsZero) {
   EXPECT_THAT(proven, IsProvenTrue());
 }
 
+TEST_F(Z3IrTranslatorTest, ConfiguresSolverThreadsPerTranslator) {
+  std::unique_ptr<Package> package = CreatePackage();
+  Type* u8 = package->GetBitsType(8);
+  FunctionBuilder true_builder("true_function", package.get());
+  auto true_x = true_builder.Param("x", u8);
+  true_builder.Eq(true_x, true_x);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * true_function, true_builder.Build());
+
+  for (int num_threads : {1, 2}) {
+    XLS_ASSERT_OK_AND_ASSIGN(auto translator,
+                             IrTranslator::CreateAndTranslate(true_function));
+    XLS_ASSERT_OK(translator->SetNumThreads(num_threads));
+    EXPECT_THAT(TryProveWithTranslator(
+                    translator.get(), true_function->return_value(),
+                    Predicate::NotEqualToZero(), absl::InfiniteDuration()),
+                IsOkAndHolds(IsProvenTrue()));
+  }
+
+  FunctionBuilder false_builder("false_function", package.get());
+  auto false_x = false_builder.Param("x", u8);
+  false_builder.Ne(false_x, false_builder.Literal(UBits(42, 8)));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * false_function, false_builder.Build());
+  for (int num_threads : {1, 2}) {
+    XLS_ASSERT_OK_AND_ASSIGN(auto translator,
+                             IrTranslator::CreateAndTranslate(false_function));
+    XLS_ASSERT_OK(translator->SetNumThreads(num_threads));
+    XLS_ASSERT_OK_AND_ASSIGN(
+        ProverResult proven_false,
+        TryProveWithTranslator(translator.get(), false_function->return_value(),
+                               Predicate::NotEqualToZero(),
+                               absl::InfiniteDuration()));
+    EXPECT_THAT(proven_false, IsProvenFalse());
+    EXPECT_THAT(std::get<solvers::ProvenFalse>(proven_false).counterexample,
+                IsOkAndHolds(testing::Contains(
+                    testing::Pair(false_x.node(), Value(UBits(42, 8))))));
+  }
+}
+
+TEST_F(Z3IrTranslatorTest, RejectsInvalidSolverThreadCounts) {
+  std::unique_ptr<Package> package = CreatePackage();
+  FunctionBuilder builder("f", package.get());
+  builder.Literal(UBits(1, 1));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * function, builder.Build());
+  XLS_ASSERT_OK_AND_ASSIGN(auto translator,
+                           IrTranslator::CreateAndTranslate(function));
+  EXPECT_THAT(translator->SetNumThreads(0),
+              StatusIs(absl::StatusCode::kInvalidArgument));
+  EXPECT_THAT(translator->SetNumThreads(-1),
+              StatusIs(absl::StatusCode::kInvalidArgument));
+  XLS_ASSERT_OK(translator->SetNumThreads(2));
+
+  XLS_ASSERT_OK_AND_ASSIGN(auto other_translator,
+                           IrTranslator::CreateAndTranslate(function));
+  EXPECT_THAT(TryProveWithTranslator(
+                  other_translator.get(), function->return_value(),
+                  Predicate::NotEqualToZero(), absl::InfiniteDuration()),
+              IsOkAndHolds(IsProvenTrue()));
+}
+
 TEST_F(Z3IrTranslatorTest, ZeroIsZeroAndOneIsOne) {
   std::unique_ptr<Package> package = CreatePackage();
   FunctionBuilder b("f", package.get());

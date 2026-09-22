@@ -877,6 +877,38 @@ fn quickcheck_that_fails(x: u1) -> bool {
               testing::ElementsAre(Value(UBits(0, 1))));
 }
 
+TEST(QuickcheckTest, ProofRejectsInvalidSolverThreadCounts) {
+  constexpr std::string_view kProgram = R"(
+#[quickcheck]
+fn quickcheck_that_passes() -> bool {
+  true
+}
+)";
+  for (int num_threads : {0, -1}) {
+    ParseAndProveOptions options;
+    options.solver_num_threads = num_threads;
+    EXPECT_THAT(
+        ParseAndProve(kProgram, "test", "test.x", options),
+        StatusIs(absl::StatusCode::kInvalidArgument,
+                 HasSubstr("solver_num_threads must be greater than zero")));
+  }
+}
+
+TEST(QuickcheckTest, ProofWithTwoSolverThreads) {
+  constexpr std::string_view kProgram = R"(
+#[quickcheck]
+fn quickcheck_that_passes() -> bool {
+  true
+}
+)";
+  ParseAndProveOptions options;
+  options.solver_num_threads = 2;
+  XLS_ASSERT_OK_AND_ASSIGN(auto result,
+                           ParseAndProve(kProgram, "test", "test.x", options));
+  EXPECT_THAT(result.test_result_data,
+              IsTestResult(TestResult::kAllPassed, 1, 0, 0));
+}
+
 TEST_P(ParseAndTestTest, DeadlockedProc) {
   // Test proc never sends to the subproc, so network is deadlocked.
   constexpr std::string_view kProgram = R"(

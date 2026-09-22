@@ -392,15 +392,26 @@ In a Bazel environment this binary is encapsulated in
 Command line utility for attempting to prove a quickcheck property via SMT
 translation. Invoke this tool as:
 
-`prove_quickcheck_main $ENTRY_FILE $QUICKCHECK_NAME`
+`prove_quickcheck_main [--test_filter=REGEXP] [--solver_num_threads=N] $ENTRY_FILE`
 
 And it will attempt to prove the given quickcheck property over the entire input
 domain. Example:
 
 ```
-$ bazel run -c opt //xls/dslx:prove_quickcheck_main -- $PWD/xls/dslx/stdlib/std.x convert_to_from_bools
-Proven! elapsed: 115.419669ms
+$ bazel run -c opt //xls/dslx:prove_quickcheck_main -- --test_filter=convert_to_from_bools $PWD/xls/dslx/stdlib/std.x
+[ RUN QUICKCHECK        ] convert_to_from_bools
 ```
+
+`--solver_num_threads` defaults to `1`. It is the maximum number of threads
+available to one solver invocation. For example:
+
+```
+$ ./bazel-bin/xls/dslx/prove_quickcheck_main --solver_num_threads=8 --test_filter=prop_odd_mul_injective property.x
+```
+
+It does not run multiple properties or random QuickCheck examples in parallel.
+The value must be greater than zero. A backend that cannot provide multiple
+threads rejects a value greater than `1`.
 
 !!! NOTE
     Currently an error code is returned if it cannot be proven, but it does
