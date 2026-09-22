@@ -91,6 +91,7 @@ std::string Debug_GenerateSliceGraph(const GeneratedFunction& func,
 struct TranslationContext;
 
 struct FunctionInProgress {
+  bool has_this_param = false;
   bool add_this_return;
   bool generate_shared_functions;
   // Destroy the builder last to avoid TrackedBValue errors
@@ -669,8 +670,13 @@ class Translator final : public GeneratorBase,
                       std::unique_ptr<GeneratedFunction>>
       inst_functions_;
 
-  absl::flat_hash_map<const clang::NamedDecl*, SharedFunctionImpl>
+  absl::flat_hash_map<const clang::NamedDecl*,
+                      std::unique_ptr<GeneratedFunction>>
       shared_function_impls_;
+
+  absl::flat_hash_map<const clang::NamedDecl*,
+                      std::unique_ptr<FunctionInProgress>>
+      shared_functions_in_progress_;
 
   // Functions are put into this map between GenerateIR_Function_Header
   //  and GenerateIR_Function_Body

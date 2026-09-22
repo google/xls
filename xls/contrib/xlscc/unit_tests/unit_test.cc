@@ -300,7 +300,8 @@ absl::Status XlsccTestBase::ScanFile(
       /*generate_new_fsm=*/generate_new_fsm_,
       /*merge_states=*/merge_states_,
       /*split_states_on_channel_ops=*/split_states_on_channel_ops_,
-      /*debug_ir_trace_flags=*/xlscc::DebugIrTraceFlags_FSMStates,
+      /*debug_ir_trace_flags=*/
+      xlscc::DebugIrTraceFlags(xlscc::DebugIrTraceFlags_FSMStates),
       /*max_unroll_iters=*/(max_unroll_iters > 0) ? max_unroll_iters : 100,
       /*warn_unroll_iters=*/100, /*z3_rlimit=*/-1,
       /*op_ordering=*/xlscc::IOOpOrdering::kLexical, std::move(parser));
@@ -679,14 +680,22 @@ void XlsccTestBase::ProcTest(
   absl::flat_hash_map<std::string, std::list<xls::Value>>
       mutable_outputs_by_channel = outputs_by_channel;
 
+  auto print_state = [&]() {
+    for (const auto& proc : package_->procs()) {
+      std::vector<std::string> values_strs;
+      std::vector<xls::Value> values = interpreter->ResolveState(proc.get());
+      for (int64_t si = 0; si < proc->StateElements().size(); ++si) {
+        values_strs.push_back(
+            absl::StrFormat("%s: %s", proc->StateElements().at(si)->name(),
+                            values.at(si).ToString()));
+      }
+      LOG(INFO) << absl::StrFormat("[%s]: {%s}", proc->name(),
+                                   absl::StrJoin(values_strs, ", "));
+    }
+  };
+
   LOG(INFO) << "State at start ";
-  for (const auto& proc : package_->procs()) {
-    LOG(INFO) << absl::StrFormat(
-        "[%s]: %s", proc->name(),
-        absl::StrFormat(
-            "{%s}", absl::StrJoin(interpreter->ResolveState(proc.get()), ", ",
-                                  xls::ValueFormatter)));
-  }
+  print_state();
 
   absl::flat_hash_map<std::string, xls::InterpreterEvents> got_events_for_proc;
 
@@ -697,6 +706,8 @@ void XlsccTestBase::ProcTest(
     interpreter->ClearInterpreterEvents();
     ASSERT_EQ(interpreter->Tick(), expected_tick_status);
 
+    LOG(INFO) << "Events during tick " << tick;
+
     for (const auto& proc : package_->procs()) {
       const xls::InterpreterEvents& events =
           interpreter->GetInterpreterEvents(proc.get());
@@ -705,13 +716,7 @@ void XlsccTestBase::ProcTest(
     }
 
     LOG(INFO) << "State after tick " << tick;
-    for (const auto& proc : package_->procs()) {
-      LOG(INFO) << absl::StrFormat(
-          "[%s]: %s", proc->name(),
-          absl::StrFormat(
-              "{%s}", absl::StrJoin(interpreter->ResolveState(proc.get()), ", ",
-                                    xls::ValueFormatter)));
-    }
+    print_state();
 
     // Check as we go
     bool all_channels_empty = true;

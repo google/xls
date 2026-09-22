@@ -814,10 +814,11 @@ absl::StatusOr<FunctionInProgress> Translator::GenerateIR_Function_Header(
     GeneratedFunction& sf, const clang::FunctionDecl* funcdecl,
     std::string_view name_override, bool force_static,
     bool member_references_become_channels, bool generate_shared_functions) {
-  bool shared_function = DeclHasAnnotation(*funcdecl, "hls_shared_function");
+  const bool shared_function =
+      DeclHasAnnotation(*funcdecl, "hls_shared_function");
 
-  if (shared_function && !generate_shared_functions &&
-      !shared_function_impls_.contains(funcdecl)) {
+  if (shared_function && !generate_shared_functions) {
+    XLSCC_CHECK(!functions_in_progress_.contains(funcdecl), GetLoc(*funcdecl));
     auto generate_function_header = std::make_unique<FunctionInProgress>();
     auto generated_function = std::make_unique<GeneratedFunction>();
 
@@ -832,21 +833,16 @@ absl::StatusOr<FunctionInProgress> Translator::GenerateIR_Function_Header(
             force_static, member_references_become_channels,
             /*generate_shared_functions=*/true));
 
+    generated_function->is_shared_function_impl = true;
+
+    // Generate caller stub phase
     generate_function_header->generated_function =
         std::move(generated_function);
 
-    functions_in_progress_[signature] = std::move(generate_function_header);
+    shared_functions_in_progress_[signature] =
+        std::move(generate_function_header);
 
-    XLS_RETURN_IF_ERROR(GenerateIR_Function_Body(
-        *functions_in_progress_.at(signature)->generated_function, funcdecl,
-        *functions_in_progress_.at(signature)));
-
-    shared_function_impls_[funcdecl] = SharedFunctionImpl{
-        .generated_function =
-            std::move(functions_in_progress_.at(signature)->generated_function),
-        .channel = nullptr};
-
-    functions_in_progress_.erase(signature);
+    // (Next is generate body phase in GenerateIR_SharedFunctionStub())
 
     // Avoid redefinition error
     xls_names_for_functions_generated_.erase(funcdecl);
@@ -904,6 +900,7 @@ absl::StatusOr<FunctionInProgress> Translator::GenerateIR_Function_Header(
 
   // If add_this_return is true, then a return value is added for the
   //  "this" object, pointed to be the "this" pointer in methods
+  bool has_this_param = false;
   bool add_this_return = false;
 
   xls::SourceInfo body_loc = GetLoc(*funcdecl);
@@ -911,6 +908,8 @@ absl::StatusOr<FunctionInProgress> Translator::GenerateIR_Function_Header(
   // "this" input for methods
   if (auto method = clang::dyn_cast<const clang::CXXMethodDecl>(funcdecl)) {
     if (!method->isStatic() && !force_static) {
+      has_this_param = true;
+
       // "This" is a PointerType, ignore and treat as reference
       clang::QualType thisQual = method->getThisType();
       XLSCC_CHECK(thisQual->isPointerType(), body_loc);
@@ -1035,6 +1034,7 @@ absl::StatusOr<FunctionInProgress> Translator::GenerateIR_Function_Header(
   auto context_copy = std::make_unique<TranslationContext>(context());
 
   FunctionInProgress header = {
+      .has_this_param = has_this_param,
       .add_this_return = add_this_return,
       .generate_shared_functions = generate_shared_functions,
       .builder = std::move(builder),
@@ -1277,29 +1277,136 @@ absl::StatusOr<std::list<TrackedBValue>> Translator::UnpackTuple(
 absl::Status Translator::GenerateIR_SharedFunctionStub(
     GeneratedFunction& sf, const clang::FunctionDecl* funcdecl,
     const FunctionInProgress& header) {
-  if (clang::isa<clang::CXXMethodDecl>(funcdecl)) {
-    return absl::UnimplementedError(
-        ErrorMessage(GetLoc(*funcdecl), "Shared methods not yet implemented."));
+  if (!generate_new_fsm_) {
+    return absl::UnimplementedError(ErrorMessage(
+        GetLoc(*funcdecl), "Shared functions only supported with new FSM."));
+  }
+
+  if (DeclHasAnnotation(*funcdecl, "hls_propagate_barrier_scopes")) {
+    return absl::UnimplementedError(ErrorMessage(
+        GetLoc(*funcdecl),
+        "Shared functions with hls_propagate_barrier_scopes not yet "
+        "implemented."));
   }
 
   const xls::SourceInfo loc = GetLoc(*funcdecl);
 
-  XLSCC_CHECK(shared_function_impls_.contains(funcdecl), loc);
-  const SharedFunctionImpl& shared_function_record =
-      shared_function_impls_.at(funcdecl);
+  auto found_shared_function = shared_functions_in_progress_.find(funcdecl);
 
+  XLSCC_CHECK_NE(found_shared_function, shared_functions_in_progress_.end(),
+                 loc);
   const GeneratedFunction& shared_function =
-      *shared_function_record.generated_function;
+      *found_shared_function->second->generated_function;
 
-  if (!shared_function.side_effecting_parameters.empty() ||
-      !shared_function.io_ops.empty() ||
-      !shared_function.static_values.empty()) {
+  auto clean_up_shared_function_in_progress_guard = absl::MakeCleanup(
+      [&]() { shared_functions_in_progress_.erase(funcdecl); });
+
+  auto found_in_progress = functions_in_progress_.find(funcdecl);
+
+  XLSCC_CHECK_NE(found_in_progress, functions_in_progress_.end(), loc);
+
+  FunctionInProgress* impl_header_in_progress = found_in_progress->second.get();
+
+  if (!shared_function.static_values.empty()) {
     return absl::UnimplementedError(
         ErrorMessage(GetLoc(*funcdecl), "Shared functions with side-effects."));
   }
 
+  for (const GeneratedParamInfo& param_info : shared_function.param_infos) {
+    if (impl_header_in_progress->generated_function->lvalues_by_param.contains(
+            param_info.param)) {
+      std::shared_ptr<LValue> lval =
+          impl_header_in_progress->generated_function->lvalues_by_param.at(
+              param_info.param);
+
+      IOChannel* impl_channel = lval->channel_leaf();
+      auto impl_range =
+          external_channels_by_internal_channel_.equal_range(impl_channel);
+
+      XLSCC_CHECK(shared_function.lvalues_by_param.contains(param_info.param),
+                  loc);
+      std::shared_ptr<LValue> stub_lval =
+          shared_function.lvalues_by_param.at(param_info.param);
+      XLSCC_CHECK(stub_lval->is_channel(), loc);
+      IOChannel* stub_channel = stub_lval->channel_leaf();
+
+      // Don't insert into external_channels_by_internal_channel_
+      // while iterating.
+      std::vector<ChannelBundle> bundles;
+      for (auto it = impl_range.first; it != impl_range.second; ++it) {
+        bundles.push_back(it->second);
+      }
+      for (const ChannelBundle& bundle : bundles) {
+        external_channels_by_internal_channel_.insert({stub_channel, bundle});
+      }
+    }
+  }
+
+  if (header.has_this_param) {
+    absl::flat_hash_map<IOChannel*, IOChannel*> stub_channels_by_impl_channel;
+    XLS_RETURN_IF_ERROR(TranslateAddCallerChannelsByCalleeChannel(
+        impl_header_in_progress->generated_function->this_lvalue,
+        shared_function.this_lvalue, &stub_channels_by_impl_channel, loc));
+    for (const auto& [impl_channel, stub_channel] :
+         stub_channels_by_impl_channel) {
+      auto stub_range =
+          external_channels_by_internal_channel_.equal_range(stub_channel);
+      std::vector<ChannelBundle> bundles;
+      for (auto it = stub_range.first; it != stub_range.second; ++it) {
+        bundles.push_back(it->second);
+      }
+      for (const ChannelBundle& bundle : bundles) {
+        std::pair<const IOChannel*, ChannelBundle> pair(impl_channel, bundle);
+        if (!ContainsKeyValuePair(external_channels_by_internal_channel_,
+                                  pair)) {
+          external_channels_by_internal_channel_.insert(pair);
+        }
+      }
+    }
+  }
+
+  // Generate impl body
+  {
+    // Generate body phase
+
+    auto signature = absl::implicit_cast<const clang::NamedDecl*>(funcdecl);
+
+    std::unique_ptr<FunctionInProgress> stub_in_progress =
+        std::move(functions_in_progress_.at(signature));
+
+    std::unique_ptr<FunctionInProgress> generate_function_header_ptr =
+        std::move(shared_functions_in_progress_.at(funcdecl));
+
+    shared_functions_in_progress_.erase(funcdecl);
+
+    functions_in_progress_[signature] = std::move(generate_function_header_ptr);
+    FunctionInProgress& generate_function_header =
+        *functions_in_progress_.at(signature);
+
+    auto clean_up_function_in_progress_guard = absl::MakeCleanup([&]() {
+      XLSCC_CHECK(functions_in_progress_.contains(signature), loc);
+      functions_in_progress_.erase(signature);
+      functions_in_progress_[signature] = std::move(stub_in_progress);
+    });
+
+    XLS_RETURN_IF_ERROR(
+        GenerateIR_Function_Body(*generate_function_header.generated_function,
+                                 funcdecl, generate_function_header));
+    shared_function_impls_[signature] =
+        std::move(generate_function_header.generated_function);
+  }
+
   std::vector<TrackedBValue> in_bvals;
   std::vector<std::shared_ptr<CType>> out_ctypes;
+
+  if (header.has_this_param) {
+    XLS_ASSIGN_OR_RETURN(const clang::NamedDecl* this_decl, GetThisDecl(loc));
+    XLS_ASSIGN_OR_RETURN(CValue this_val, GetIdentifier(this_decl, loc));
+    in_bvals.push_back(this_val.rvalue());
+    if (header.add_this_return) {
+      out_ctypes.push_back(this_val.type());
+    }
+  }
 
   const bool returns_rval = !funcdecl->getReturnType()->isVoidType();
 
@@ -1344,6 +1451,17 @@ absl::Status Translator::GenerateIR_SharedFunctionStub(
                      funcdecl->getNameAsString()));
   }
 
+  // Create null buffer op (avoid comboloops)
+  // Only do this for procedure case
+  if (!shared_function.is_pure_function()) {
+    IOOp op;
+    op.op = OpType::kNoOp;
+    // Condition is not necessary, don't increase critical path by adding it.
+    op.ret_value = context().fb->Literal(xls::UBits(1, 1), loc);
+
+    XLS_RETURN_IF_ERROR(AddOpToChannel(op, /*channel=*/nullptr, loc).status());
+  }
+
   // Create IO op
   IOOp op;
   op.op = OpType::kSharedCall;
@@ -1360,29 +1478,37 @@ absl::Status Translator::GenerateIR_SharedFunctionStub(
 
   TrackedBValue out_val = op_ptr->input_value.rvalue();
 
-  if (returns_rval) {
-    TrackedBValue ret_bval;
+  int64_t ret_idx = 0;
+  auto get_next_ret_val = [&]() -> TrackedBValue {
     if (out_ctypes.size() == 1) {
-      ret_bval = out_val;
-    } else if (out_ctypes.size() > 1) {
-      ret_bval = context().fb->TupleIndex(out_val, 0, loc);
+      return out_val;
     }
+    return context().fb->TupleIndex(out_val, ret_idx++, loc);
+  };
+
+  if (header.has_this_param && header.add_this_return) {
+    TrackedBValue this_ret_bval = get_next_ret_val();
+    XLS_ASSIGN_OR_RETURN(const clang::NamedDecl* this_decl, GetThisDecl(loc));
+    XLS_ASSIGN_OR_RETURN(CValue prev_this_val, GetIdentifier(this_decl, loc));
+    XLS_RETURN_IF_ERROR(
+        Assign(this_decl,
+               CValue(this_ret_bval, prev_this_val.type(),
+                      /*disable_type_check=*/false, prev_this_val.lvalue()),
+               loc));
+  }
+
+  if (returns_rval) {
+    TrackedBValue ret_bval = get_next_ret_val();
     context().return_cval = CValue(ret_bval, context().return_type,
                                    /*disable_type_check=*/false);
   }
 
   // Unpack by-reference
-  int64_t ret_idx = returns_rval ? 1 : 0;
   for (const GeneratedParamInfo& param_info : shared_function.param_infos) {
     if (!param_info.return_val) {
       continue;
     }
-    TrackedBValue ret_val;
-    if (out_ctypes.size() == 1) {
-      ret_val = out_val;
-    } else if (out_ctypes.size() > 1) {
-      ret_val = context().fb->TupleIndex(out_val, ret_idx++, loc);
-    }
+    TrackedBValue ret_val = get_next_ret_val();
     XLS_ASSIGN_OR_RETURN(StrippedType stripped,
                          StripTypeQualifiers(param_info.param->getType()));
     XLS_ASSIGN_OR_RETURN(
@@ -4891,6 +5017,7 @@ absl::Status Translator::AddIOOpForSliceForCall(
                   caller_op_ptr->op == OpType::kLoopEndJump ||
                   caller_op_ptr->op == OpType::kActivationBarrier ||
                   caller_op_ptr->op == OpType::kSharedCall ||
+                  caller_op_ptr->op == OpType::kNoOp ||
                   caller_op_ptr->channel->generated.has_value() ||
                   IOChannelInCurrentFunction(caller_op_ptr->channel, loc),
               loc);
