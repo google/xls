@@ -32,6 +32,7 @@
 #include "xls/dslx/create_import_data.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/ast_cloner.h"
+#include "xls/dslx/frontend/bindings.h"
 #include "xls/dslx/frontend/module.h"
 #include "xls/dslx/frontend/parser.h"
 #include "xls/dslx/frontend/pos.h"
@@ -39,6 +40,7 @@
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/interp_value.h"
 #include "xls/dslx/type_system/parametric_env.h"
+#include "xls/dslx/type_system/type.h"
 #include "xls/dslx/type_system/type_info.h"
 #include "xls/dslx/type_system_v2/inference_table_converter.h"
 #include "xls/dslx/type_system_v2/inference_table_converter_impl.h"
@@ -713,6 +715,26 @@ TEST_F(InferenceTableTest, CachingForCanonicalizedParametricContext) {
   EXPECT_EQ(
       table_->GetCachedUnifiedTypeForVariable(canonicalized_context2, n_ref),
       u5);
+}
+
+TEST_F(InferenceTableTest, ConcretizeAnyTypeAnnotationProducesPositionalError) {
+  ParseAndInitModuleAndTable("const X = 1;");
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<InferenceTableConverter> converter,
+      CreateInferenceTableConverter(
+          *table_, *module_, *import_data_, *warning_collector_, file_table_,
+          TypeSystemTracer::Create(/*active=*/false),
+          /*semantics_analysis=*/nullptr, /*error_handler=*/nullptr,
+          /*trait_deriver=*/nullptr));
+  TypeAnnotation* any_type = module_->Make<AnyTypeAnnotation>();
+  absl::StatusOr<std::unique_ptr<Type>> result =
+      converter->Concretize(any_type, /*parametric_context=*/std::nullopt,
+                            /*needs_conversion_before_eval=*/true);
+  EXPECT_THAT(result.status(), StatusIs(absl::StatusCode::kInvalidArgument,
+                                        HasSubstr("TypeInferenceError: ")));
+  EXPECT_THAT(
+      GetPositionalErrorData(result.status(), std::nullopt, file_table_),
+      absl_testing::IsOk());
 }
 
 }  // namespace

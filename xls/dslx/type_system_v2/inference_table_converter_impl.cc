@@ -1704,10 +1704,13 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
                                          parametric_context, node, annotation,
                                          TypeAnnotationFilter::None()));
     if (annotation->IsAnnotation<AnyTypeAnnotation>()) {
-      return absl::InvalidArgumentError(absl::Substitute(
-          "Attempting to concretize `Any` type in module $0, which means there "
-          "was insufficient type info.",
-          annotation->owner()->name()));
+      return TypeInferenceErrorStatusForAnnotation(
+          annotation->span(), annotation,
+          absl::Substitute(
+              "Attempting to concretize `Any` type in module $0, which means "
+              "there was insufficient type info.",
+              annotation->owner()->name()),
+          file_table_);
     }
     if (IsToken(annotation)) {
       return std::make_unique<TokenType>();
