@@ -1096,6 +1096,7 @@ cc_library(
         ":ir",
         ":ir_parser",
         ":op",
+        ":ternary",
         ":type",
         ":value",
         ":verifier",
@@ -1106,8 +1107,10 @@ cc_library(
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/strings:str_format",
+        "@abseil-cpp//absl/types:span",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
+        "//xls/data_structures:leaf_type_tree",
         "//xls/estimators/delay_model:delay_estimator",
         # Just pull in all the delay models for convenience.
         "//xls/estimators/delay_model/models",  # buildcleaner: keep
@@ -1276,8 +1279,11 @@ cc_test(
     deps = [
         ":ir",
         ":ir_test_base",
+        ":ternary",
+        ":type",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
+        "//xls/data_structures:leaf_type_tree",
         "@googletest//:gtest",
     ],
 )

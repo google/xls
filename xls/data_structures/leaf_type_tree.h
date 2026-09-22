@@ -33,6 +33,10 @@
 #include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/has_absl_stringify.h"
+#include "absl/strings/str_cat.h"
+#include "absl/strings/str_format.h"
+#include "absl/strings/str_join.h"
 #include "absl/types/span.h"
 #include "cppitertools/zip.hpp"
 #include "xls/common/math_util.h"
@@ -1067,6 +1071,30 @@ template <typename T>
 bool operator==(const SharedLeafTypeTree<T>& lhs, const LeafTypeTree<T>& rhs) {
   return lhs.AsView() == rhs.AsView();
 }
+
+namespace internal {
+template <typename T>
+concept HasStringify = absl::HasAbslStringify<T>::value ||
+                       requires(const T& t) { absl::AlphaNum(t); };
+}  // namespace internal
+
+template <typename Sink, typename T>
+  requires(internal::HasStringify<T>)
+void AbslStringify(Sink& sink, const LeafTypeTreeView<T>& ltt) {
+  absl::Format(&sink, "LeafTypeTree(type=%s, elements={%s})",
+               ltt.type()->ToString(), absl::StrJoin(ltt.elements(), ", "));
+}
+template <typename Sink, typename T>
+  requires(internal::HasStringify<T>)
+void AbslStringify(Sink& sink, const LeafTypeTree<T>& ltt) {
+  AbslStringify(sink, ltt.AsView());
+}
+template <typename Sink, typename T>
+  requires(internal::HasStringify<T>)
+void AbslStringify(Sink& sink, const SharedLeafTypeTree<T>& ltt) {
+  AbslStringify(sink, ltt.AsView());
+}
+
 }  // namespace xls
 
 #endif  // XLS_DATA_STRUCTURES_LEAF_TYPE_TREE_H_
