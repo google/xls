@@ -61,6 +61,7 @@ using ::testing::AllOf;
 using ::testing::Contains;
 using ::testing::Field;
 using ::testing::HasSubstr;
+using ::testing::Not;
 
 TEST(TypecheckV2Test, SemanticSumConstructorsPreserveConfiguredValues) {
   constexpr std::string_view kProgram = R"(
@@ -2025,18 +2026,33 @@ TEST(TypecheckV2Test,
      SemanticSumFunctionPopulationClassifiesUnmarkedTupleConstructor) {
   constexpr std::string_view kProgram = R"(#![feature(type_inference_v2)]
 enum E { Tuple(u32) }
-fn f() -> E { E::Tuple(u32:7) }
+fn ordinary() -> E { E::Tuple(u32:0) }
+fn f(flag: bool) -> E {
+  if flag { E::Tuple(u32:7) } else { ordinary() }
+}
 )";
   ImportData import_data = CreateImportDataForTest();
   XLS_ASSERT_OK_AND_ASSIGN(auto module, ParseModule(kProgram, "main.x", "main",
                                                     import_data.file_table()));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * ordinary,
+                           module->GetMemberOrError<Function>("ordinary"));
   XLS_ASSERT_OK_AND_ASSIGN(Function * function,
                            module->GetMemberOrError<Function>("f"));
-  auto* invocation = dynamic_cast<Invocation*>(
+  const auto* conditional = dynamic_cast<const Conditional*>(
       ToAstNode(function->body()->statements().back()->wrapped()));
+  ASSERT_NE(conditional, nullptr);
+  auto* invocation = dynamic_cast<Invocation*>(
+      ToAstNode(conditional->consequent()->statements().back()->wrapped()));
   ASSERT_NE(invocation, nullptr);
+  const auto* alternate =
+      dynamic_cast<const StatementBlock*>(ToAstNode(conditional->alternate()));
+  ASSERT_NE(alternate, nullptr);
+  const auto* function_call = dynamic_cast<const Invocation*>(
+      ToAstNode(alternate->statements().back()->wrapped()));
+  ASSERT_NE(function_call, nullptr);
   XLS_ASSERT_OK(ClassifySumConstructors(module.get(), import_data));
   ASSERT_EQ(invocation->callee_kind(), Invocation::CalleeKind::kSumConstructor);
+  ASSERT_EQ(function_call->callee_kind(), Invocation::CalleeKind::kFunction);
 
   // A function body synthesized after the module pass reaches population with
   // the invocation's default kind instead of a marker from that pass.
@@ -2045,9 +2061,20 @@ fn f() -> E { E::Tuple(u32:7) }
   InferenceTable* table = import_data.GetOrCreateInferenceTable();
   std::unique_ptr<PopulateTableVisitor> visitor = CreatePopulateTableVisitor(
       module.get(), table, &import_data, /*typecheck_imported_module=*/nullptr);
+  XLS_ASSERT_OK(visitor->PopulateFromFunction(ordinary));
   XLS_EXPECT_OK(visitor->PopulateFromFunction(function));
 
   EXPECT_EQ(invocation->callee_kind(), Invocation::CalleeKind::kSumConstructor);
+  EXPECT_EQ(function_call->callee_kind(), Invocation::CalleeKind::kFunction);
+  std::optional<const NameRef*> return_type_variable =
+      table->GetTypeVariable(function->body());
+  ASSERT_TRUE(return_type_variable.has_value());
+  EXPECT_EQ(table->GetTypeVariable(invocation), return_type_variable);
+  EXPECT_EQ(table->GetTypeVariable(function_call), return_type_variable);
+  EXPECT_THAT(
+      table->GetInvocationsFeedingTypeVariable(*return_type_variable),
+      IsOkAndHolds(AllOf(Contains(function_call), Not(Contains(invocation)))));
+
   std::optional<const TypeAnnotation*> annotation =
       table->GetTypeAnnotation(invocation);
   ASSERT_TRUE(annotation.has_value());
