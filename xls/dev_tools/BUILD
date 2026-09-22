@@ -1225,3 +1225,64 @@ pytype_strict_contrib_test(
         "@protobuf//:protobuf_python",
     ],
 )
+
+cc_library(
+    name = "annotate_ir",
+    srcs = ["annotate_ir.cc"],
+    hdrs = ["annotate_ir.h"],
+    deps = [
+        "//xls/common/status:status_macros",
+        "//xls/estimators/delay_model:analyze_critical_path",
+        "//xls/estimators/delay_model:delay_estimator",
+        "//xls/estimators/delay_model:delay_estimators",
+        "//xls/ir",
+        "//xls/ir:channel",
+        "//xls/passes:bdd_query_engine",
+        "//xls/passes:node_dependency_analysis",
+        "//xls/passes:post_dominator_analysis",
+        "//xls/passes:visibility_analysis",
+        "@abseil-cpp//absl/base:no_destructor",
+        "@abseil-cpp//absl/container:flat_hash_map",
+        "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/strings:str_format",
+    ],
+)
+
+cc_binary(
+    name = "annotate_ir_main",
+    srcs = ["annotate_ir_main.cc"],
+    deps = [
+        ":annotate_ir",
+        "//xls/common:exit_status",
+        "//xls/common:init_xls",
+        "//xls/common/file:filesystem",
+        "//xls/common/status:status_macros",
+        "//xls/ir",
+        "//xls/ir:ir_parser",
+        "@abseil-cpp//absl/flags:flag",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/strings:str_format",
+    ],
+)
+
+cc_test(
+    name = "annotate_ir_test",
+    srcs = ["annotate_ir_test.cc"],
+    deps = [
+        ":annotate_ir",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/ir",
+        "//xls/ir:function_builder",
+        "//xls/ir:ir_parser",
+        "//xls/ir:ir_test_base",
+        "//xls/ir:source_location",
+        "//xls/ir:verifier",
+        "@abseil-cpp//absl/strings:str_format",
+        "@googletest//:gtest",
+    ],
+)
