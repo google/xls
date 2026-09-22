@@ -1100,7 +1100,9 @@ cc_test(
     srcs = ["typecheck_module_v2_sum_test.cc"],
     deps = [
         ":import_utils",
+        ":inference_table",
         ":matchers",
+        ":populate_table_visitor",
         ":type_system_test_utils",
         ":typecheck_module_v2",
         "//xls/common:xls_gunit_main",

@@ -44,7 +44,9 @@
 #include "xls/dslx/type_system/type_info.h"
 #include "xls/dslx/type_system/typecheck_test_utils.h"
 #include "xls/dslx/type_system_v2/import_utils.h"
+#include "xls/dslx/type_system_v2/inference_table.h"
 #include "xls/dslx/type_system_v2/matchers.h"
+#include "xls/dslx/type_system_v2/populate_table_visitor.h"
 #include "xls/dslx/type_system_v2/type_system_test_utils.h"
 #include "xls/dslx/type_system_v2/typecheck_module_v2.h"
 #include "xls/dslx/virtualizable_file_system.h"
@@ -2017,6 +2019,42 @@ const X = Outer<{if false {
   EXPECT_EQ(nested_constructor->callee_kind(),
             Invocation::CalleeKind::kSumConstructor);
   EXPECT_EQ(function_call->callee_kind(), Invocation::CalleeKind::kFunction);
+}
+
+TEST(TypecheckV2Test,
+     SemanticSumFunctionPopulationClassifiesUnmarkedTupleConstructor) {
+  constexpr std::string_view kProgram = R"(#![feature(type_inference_v2)]
+enum E { Tuple(u32) }
+fn f() -> E { E::Tuple(u32:7) }
+)";
+  ImportData import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(auto module, ParseModule(kProgram, "main.x", "main",
+                                                    import_data.file_table()));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * function,
+                           module->GetMemberOrError<Function>("f"));
+  auto* invocation = dynamic_cast<Invocation*>(
+      ToAstNode(function->body()->statements().back()->wrapped()));
+  ASSERT_NE(invocation, nullptr);
+  XLS_ASSERT_OK(ClassifySumConstructors(module.get(), import_data));
+  ASSERT_EQ(invocation->callee_kind(), Invocation::CalleeKind::kSumConstructor);
+
+  // A function body synthesized after the module pass reaches population with
+  // the invocation's default kind instead of a marker from that pass.
+  invocation->set_callee_kind(Invocation::CalleeKind::kFunction);
+  ASSERT_EQ(invocation->callee_kind(), Invocation::CalleeKind::kFunction);
+  InferenceTable* table = import_data.GetOrCreateInferenceTable();
+  std::unique_ptr<PopulateTableVisitor> visitor = CreatePopulateTableVisitor(
+      module.get(), table, &import_data, /*typecheck_imported_module=*/nullptr);
+  XLS_EXPECT_OK(visitor->PopulateFromFunction(function));
+
+  EXPECT_EQ(invocation->callee_kind(), Invocation::CalleeKind::kSumConstructor);
+  std::optional<const TypeAnnotation*> annotation =
+      table->GetTypeAnnotation(invocation);
+  ASSERT_TRUE(annotation.has_value());
+  const auto* sum_annotation =
+      dynamic_cast<const TypeRefTypeAnnotation*>(*annotation);
+  ASSERT_NE(sum_annotation, nullptr);
+  EXPECT_EQ(sum_annotation->sum_instantiator(), SumConstructorExpr{invocation});
 }
 
 TEST(TypecheckV2Test, SemanticSumConstructorsInUnrolledLoopBody) {
