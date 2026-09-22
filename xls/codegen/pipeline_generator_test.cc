@@ -674,7 +674,7 @@ TEST_P(PipelineGeneratorTest, ValidSignalWithoutReset) {
                            BuildPipelineOptions()
                                .valid_control("in_valid", "out_valid")
                                .use_system_verilog(UseSystemVerilog())),
-      StatusIs(absl::StatusCode::kInternal,
+      StatusIs(absl::StatusCode::kInvalidArgument,
                testing::HasSubstr("has valid signal output but no reset")));
 }
 
