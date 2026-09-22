@@ -1822,5 +1822,14 @@ const too_bit_array = sN[too_big]:-1;
       TypecheckFails(HasSubstr("Bit count 4294967277 exceeds maximum limit of "
                                "1000000.")));
 }
+
+TEST(TypecheckV2Test, NegativeBitCountConstant) {
+  EXPECT_THAT(
+      R"(
+const negative_bits = s32:-11;
+const negative_bit_array = sN[negative_bits]:-1;
+)",
+      TypecheckFails(HasSubstr("signed vs. unsigned mismatch: s32 vs. u32")));
+}
 }  // namespace
 }  // namespace xls::dslx

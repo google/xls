@@ -1886,11 +1886,12 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
         int64_t bit_count,
         evaluator_->EvaluateU32OrExpr(parametric_context,
                                       signedness_and_bit_count.bit_count));
-    if (bit_count > kMaxBitCount) {
+    uint32_t u_bit_count = static_cast<uint32_t>(bit_count);
+    if (bit_count < 0 || bit_count > kMaxBitCount) {
       return TypeInferenceErrorStatusForAnnotation(
           annotation->span(), annotation,
           absl::Substitute("Bit count $0 exceeds maximum limit of $1.",
-                           bit_count, kMaxBitCount),
+                           u_bit_count, kMaxBitCount),
           file_table_);
     }
     if (node) {
