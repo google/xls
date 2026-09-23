@@ -2211,6 +2211,71 @@ TEST_F(PartialInfoQueryEngineTest, LeadingBits) {
   EXPECT_EQ(engine.KnownLeadingSignBits(sign.node()), 21);
 }
 
+class NoTernaryPartialInfoQueryEngine : public PartialInfoQueryEngine {
+ public:
+  std::optional<SharedLeafTypeTree<TernaryVector>> GetTernary(
+      Node* node) const override {
+    return std::nullopt;
+  }
+};
+
+TEST_F(PartialInfoQueryEngineTest, SpecializeOnNodes) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+
+  BValue x = fb.Param("x", p->GetBitsType(8));
+  BValue y = fb.Param("y", p->GetBitsType(8));
+  BValue z = fb.Param("z", p->GetBitsType(8));
+  BValue add_xy = fb.Add(x, y);
+  BValue result = fb.Add(add_xy, z);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(result));
+  PartialInfoQueryEngine base_engine;
+  XLS_ASSERT_OK(base_engine.Populate(f));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<QueryEngine> empty_spec,
+      base_engine.SpecializeOnNodes(absl::Span<Node* const>(), base_engine));
+  EXPECT_EQ(empty_spec->GetIntervals(add_xy.node()).Get({}),
+            IntervalSet::Maximal(8));
+
+  PartialInfoQueryEngine info_source;
+  XLS_ASSERT_OK(info_source.Populate(f));
+  XLS_ASSERT_OK_AND_ASSIGN(TernaryVector even_tern,
+                           StringToTernaryVector("0bXXXX_XXX0"));
+  XLS_ASSERT_OK(info_source.ReplaceGiven(
+      x.node(),
+      PartialInformationTree::CreateSingleElementTree(
+          x.GetType(),
+          PartialInformation(even_tern, CreateIntervalSet(8, {{10, 20}})))));
+  XLS_ASSERT_OK(info_source.ReplaceGiven(
+      y.node(), BitsLTT(y.node(), {Interval(UBits(5, 8), UBits(5, 8))})));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<QueryEngine> specialized,
+      base_engine.SpecializeOnNodes({x.node(), y.node()}, info_source));
+  EXPECT_EQ(
+      specialized->GetIntervals(add_xy.node()).Get({}),
+      CreateIntervalSet(
+          8, {{15, 15}, {17, 17}, {19, 19}, {21, 21}, {23, 23}, {25, 25}}));
+  EXPECT_TRUE(specialized->IsOne(TreeBitLocation(add_xy.node(), 0)));
+
+  EXPECT_EQ(base_engine.GetIntervals(add_xy.node()).Get({}),
+            IntervalSet::Maximal(8));
+
+  NoTernaryPartialInfoQueryEngine intervals_only_source;
+  XLS_ASSERT_OK(intervals_only_source.Populate(f));
+  XLS_ASSERT_OK(intervals_only_source.ReplaceGiven(
+      x.node(), BitsLTT(x.node(), {Interval(UBits(30, 8), UBits(40, 8))})));
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<QueryEngine> intervals_spec,
+                           base_engine.SpecializeOnNodes(
+                               {x.node(), y.node()}, intervals_only_source));
+  EXPECT_EQ(intervals_spec->GetIntervals(x.node()).Get({}),
+            CreateIntervalSet(8, {{30, 40}}));
+  EXPECT_EQ(intervals_spec->GetIntervals(y.node()).Get({}),
+            IntervalSet::Maximal(8));
+}
+
 void CheckConsistency(const FuzzPackageWithArgs& fuzz) {
   CheckQueryEngineConsistency<PartialInfoQueryEngine>(
       fuzz,

@@ -926,4 +926,49 @@ std::optional<int64_t> PartialInfoQueryEngine::KnownLeadingSignBits(
   return info_tree->Get({}).KnownLeadingSignBits();
 }
 
+absl::StatusOr<std::unique_ptr<QueryEngine>>
+PartialInfoQueryEngine::SpecializeOnNodes(
+    absl::Span<Node* const> nodes,
+    const QueryEngine& information_source) const {
+  auto clone = std::make_unique<PartialInfoQueryEngine>(*this);
+  if (nodes.empty()) {
+    // No need to do anything. Just do basic passthrough.
+    return clone;
+  }
+  for (Node* node : nodes) {
+    if (!information_source.IsTracked(node)) {
+      VLOG(2) << "Node " << node->ToString()
+              << " is not tracked by information source";
+      continue;
+    }
+    auto tern = information_source.GetTernary(node);
+    auto intervals = information_source.GetIntervals(node);
+    if (!tern &&
+        absl::c_all_of(intervals.elements(),
+                       [](const IntervalSet& is) { return is.IsMaximal(); })) {
+      VLOG(2) << "Node " << node->ToString()
+              << " is tracked but has no information in information source";
+      continue;
+    }
+    LeafTypeTree<PartialInformation> info;
+    if (tern) {
+      info =
+          leaf_type_tree::Zip<PartialInformation, TernaryVector, IntervalSet>(
+              tern->AsView(), intervals.AsView(),
+              [](TernarySpan tern,
+                 const IntervalSet& interval) -> PartialInformation {
+                return PartialInformation(tern, interval);
+              });
+    } else {
+      info = leaf_type_tree::Map<PartialInformation, IntervalSet>(
+          intervals.AsView(),
+          [](const IntervalSet& interval) -> PartialInformation {
+            return PartialInformation(interval);
+          });
+    }
+    XLS_RETURN_IF_ERROR(clone->AddGiven(node, std::move(info)).status());
+  }
+  return clone;
+}
+
 }  // namespace xls

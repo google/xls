@@ -715,4 +715,18 @@ bool LazyTernaryQueryEngine::KnownNotEquals(const TreeBitLocation& a,
   return IsKnown(a) && IsKnown(b) && IsOne(a) != IsOne(b);
 }
 
+absl::StatusOr<std::unique_ptr<QueryEngine>>
+LazyTernaryQueryEngine::SpecializeOnNodes(
+    absl::Span<Node* const> nodes,
+    const QueryEngine& information_source) const {
+  auto clone = std::make_unique<LazyTernaryQueryEngine>(*this);
+  for (Node* node : nodes) {
+    std::optional<SharedTernaryTree> ltt = information_source.GetTernary(node);
+    if (ltt.has_value()) {
+      XLS_RETURN_IF_ERROR(clone->AddGiven(node, ltt->ToOwned()).status());
+    }
+  }
+  return clone;
+}
+
 }  // namespace xls
