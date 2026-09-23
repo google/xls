@@ -201,10 +201,25 @@ absl::StatusOr<NewFSMLayout> NewFSMGenerator::LayoutNewFSM(
     for (const NewFSMStateElement& elem : ret.state_elements) {
       total_bits += elem.type->GetFlatBitCount();
     }
-    LOG(INFO) << "State elements allocated: " << ret.state_elements.size()
-              << ", total " << total_bits << " bits:";
-    for (int64_t elem_idx = 0; elem_idx < ret.state_elements.size();
-         ++elem_idx) {
+    LOG(INFO) << "State elements allocated for " << fsm_name.value() << ": "
+              << ret.state_elements.size() << ", total " << total_bits
+              << " bits:";
+    std::vector<int64_t> elem_print_order;
+    elem_print_order.reserve(ret.state_elements.size());
+    for (int64_t i = 0; i < ret.state_elements.size(); ++i) {
+      elem_print_order.push_back(i);
+    }
+    std::sort(elem_print_order.begin(), elem_print_order.end(),
+              [&](int64_t ai, int64_t bi) {
+                const NewFSMStateElement& a = ret.state_elements.at(ai);
+                const NewFSMStateElement& b = ret.state_elements.at(bi);
+                if (a.type->GetFlatBitCount() != b.type->GetFlatBitCount()) {
+                  return a.type->GetFlatBitCount() > b.type->GetFlatBitCount();
+                }
+                return a.name < b.name;
+              });
+
+    for (int64_t elem_idx : elem_print_order) {
       const NewFSMStateElement& elem = ret.state_elements.at(elem_idx);
       std::vector<std::string> value_names;
       for (const auto& [value, value_elem_index] :
@@ -989,7 +1004,7 @@ absl::StatusOr<GenerateFSMInvocationReturn>
 NewFSMGenerator::GenerateNewFSMInvocation(
     const GeneratedFunction* xls_func,
     const std::vector<TrackedBValue>& direct_in_args, bool is_sub_fsm,
-    TrackedBValue start_fsm,
+    TrackedBValue fsm_active,
     const absl::flat_hash_map<DeclLeaf, xls::StateElement*>&
         state_element_for_static,
     const absl::flat_hash_map<const clang::NamedDecl*, xls::Type*>&
@@ -1205,11 +1220,6 @@ NewFSMGenerator::GenerateNewFSMInvocation(
 
     return found_continue->second;
   };
-
-  TrackedBValue fsm_active =
-      pb.Or(start_fsm,
-            pb.UGt(next_activation_slice_index, first_slice_index, body_loc),
-            body_loc, /*name=*/"fsm_active");
 
   for (int64_t slice_index = 0; slice_index < func.slices.size();
        ++slice_index) {
@@ -1585,7 +1595,7 @@ NewFSMGenerator::GenerateNewFSMInvocation(
   const TrackedBValue continue_sub_fsm =
       pb.Select(first_slice_next,
                 /*on_true=*/
-                pb.And(start_fsm, pb.Not(finished_iteration), body_loc),
+                pb.And(fsm_active, pb.Not(finished_iteration), body_loc),
                 /*on_false=*/
                 pb.Not(finished_iteration, body_loc,
                        /*name=*/"not_finished_iteration"),
@@ -1787,7 +1797,7 @@ absl::Status NewFSMGenerator::GenerateSharedCalls(
                      shared_func,
                      /*direct_in_args=*/expanded_args,
                      /*is_sub_fsm=*/true,
-                     /*start_fsm=*/any_start, state_element_for_static,
+                     /*fsm_active=*/any_start, state_element_for_static,
                      type_for_static, return_index_for_static, pb, func_loc));
 
     XLSCC_CHECK(state_element_for_static.empty(), func_loc);

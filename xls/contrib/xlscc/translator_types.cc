@@ -1289,12 +1289,14 @@ void LogContinuations(const xlscc::GeneratedFunction& func) {
   int64_t slice_index = 0;
   for (const GeneratedFunctionSlice& slice : func.slices) {
     LOG(INFO) << "";
-    LOG(INFO) << absl::StrFormat("Slice[%li]: %s %p after %s:", slice_index,
-                                 slice.function->name().c_str(), &slice,
-                                 slice.after_op == nullptr
-                                     ? "(first)"
-                                     : Debug_OpName(*slice.after_op).c_str());
-
+    LOG(INFO) << absl::StrFormat(
+        "Slice[%li]: %s %p after op %s at %s, %li inputs, %li outputs:",
+        slice_index, slice.function->name().c_str(), &slice,
+        slice.after_op == nullptr ? "(first)"
+                                  : Debug_OpName(*slice.after_op).c_str(),
+        slice.after_op == nullptr ? "(first)"
+                                  : slice.after_op->full_op_location.ToString(),
+        slice.continuations_in.size(), slice.continuations_out.size());
     for (const ContinuationInput& continuation_in : slice.continuations_in) {
       LOG(INFO) << absl::StrFormat(
           "  in: %p.%p (%s) on param %s/%p top decls %s has %li users, "

@@ -814,6 +814,21 @@ absl::StatusOr<FunctionInProgress> Translator::GenerateIR_Function_Header(
     GeneratedFunction& sf, const clang::FunctionDecl* funcdecl,
     std::string_view name_override, bool force_static,
     bool member_references_become_channels, bool generate_shared_functions) {
+  std::string xls_name;
+
+  if (!name_override.empty()) {
+    xls_name = name_override;
+  } else {
+    clang::GlobalDecl global_decl;
+    if (auto c_decl =
+            clang::dyn_cast<const clang::CXXConstructorDecl>(funcdecl)) {
+      global_decl = clang::GlobalDecl(c_decl, clang::Ctor_Complete);
+    } else {
+      global_decl = clang::GlobalDecl(funcdecl);
+    }
+    xls_name = XLSNameMangle(global_decl);
+  }
+
   const bool shared_function =
       DeclHasAnnotation(*funcdecl, "hls_shared_function");
 
@@ -824,14 +839,13 @@ absl::StatusOr<FunctionInProgress> Translator::GenerateIR_Function_Header(
 
     auto signature = absl::implicit_cast<const clang::NamedDecl*>(funcdecl);
 
-    XLS_ASSIGN_OR_RETURN(
-        *generate_function_header,
-        GenerateIR_Function_Header(
-            *generated_function, funcdecl,
-            /*name_override=*/
-            absl::StrCat(funcdecl->getNameAsString(), /*name_postfix=*/"_impl"),
-            force_static, member_references_become_channels,
-            /*generate_shared_functions=*/true));
+    XLS_ASSIGN_OR_RETURN(*generate_function_header,
+                         GenerateIR_Function_Header(
+                             *generated_function, funcdecl,
+                             /*name_override=*/
+                             absl::StrCat(xls_name, /*name_postfix=*/"_impl"),
+                             force_static, member_references_become_channels,
+                             /*generate_shared_functions=*/true));
 
     generated_function->is_shared_function_impl = true;
 
@@ -846,21 +860,6 @@ absl::StatusOr<FunctionInProgress> Translator::GenerateIR_Function_Header(
 
     // Avoid redefinition error
     xls_names_for_functions_generated_.erase(funcdecl);
-  }
-
-  std::string xls_name;
-
-  if (!name_override.empty()) {
-    xls_name = name_override;
-  } else {
-    clang::GlobalDecl global_decl;
-    if (auto c_decl =
-            clang::dyn_cast<const clang::CXXConstructorDecl>(funcdecl)) {
-      global_decl = clang::GlobalDecl(c_decl, clang::Ctor_Complete);
-    } else {
-      global_decl = clang::GlobalDecl(funcdecl);
-    }
-    xls_name = XLSNameMangle(global_decl);
   }
 
   XLSCC_CHECK(!xls_names_for_functions_generated_.contains(funcdecl),
@@ -1396,6 +1395,17 @@ absl::Status Translator::GenerateIR_SharedFunctionStub(
         std::move(generate_function_header.generated_function);
   }
 
+  // Create null buffer op (avoid comboloops)
+  // Only do this for procedure case
+  if (!shared_function.is_pure_function()) {
+    IOOp op;
+    op.op = OpType::kNoOp;
+    // Condition is not necessary, don't increase critical path by adding it.
+    op.ret_value = context().fb->Literal(xls::UBits(1, 1), loc);
+
+    XLS_RETURN_IF_ERROR(AddOpToChannel(op, /*channel=*/nullptr, loc).status());
+  }
+
   std::vector<TrackedBValue> in_bvals;
   std::vector<std::shared_ptr<CType>> out_ctypes;
 
@@ -1449,17 +1459,6 @@ absl::Status Translator::GenerateIR_SharedFunctionStub(
     return absl::InvalidArgumentError(
         ErrorMessage(loc, "Shared function with no returns: %s",
                      funcdecl->getNameAsString()));
-  }
-
-  // Create null buffer op (avoid comboloops)
-  // Only do this for procedure case
-  if (!shared_function.is_pure_function()) {
-    IOOp op;
-    op.op = OpType::kNoOp;
-    // Condition is not necessary, don't increase critical path by adding it.
-    op.ret_value = context().fb->Literal(xls::UBits(1, 1), loc);
-
-    XLS_RETURN_IF_ERROR(AddOpToChannel(op, /*channel=*/nullptr, loc).status());
   }
 
   // Create IO op

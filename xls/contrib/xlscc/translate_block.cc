@@ -592,7 +592,7 @@ absl::StatusOr<xls::Proc*> Translator::GenerateIR_Block(
             prepared.xls_func,
             /*direct_in_args=*/prepared.args,
             /*is_sub_fsm=*/false,
-            /*start_fsm=*/pb.Literal(xls::UBits(1, 1), body_loc),
+            /*fsm_active=*/pb.Literal(xls::UBits(1, 1), body_loc),
             prepared.state_element_for_variable, prepared.type_for_variable,
             prepared.return_index_for_static, pb, body_loc));
   } else {

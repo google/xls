@@ -153,7 +153,7 @@ class NewFSMGenerator : public GeneratorBase {
   absl::StatusOr<GenerateFSMInvocationReturn> GenerateNewFSMInvocation(
       const GeneratedFunction* xls_func,
       const std::vector<TrackedBValue>& direct_in_args, bool is_sub_fsm,
-      TrackedBValue start_fsm,
+      TrackedBValue fsm_active,
       const absl::flat_hash_map<DeclLeaf, xls::StateElement*>&
           state_element_for_static,
       const absl::flat_hash_map<const clang::NamedDecl*, xls::Type*>&

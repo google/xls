@@ -78,6 +78,7 @@
 #include "xls/ir/state_element.h"
 #include "xls/ir/value.h"
 #include "xls/ir/value_utils.h"
+#include "xls/public/ir_parser.h"
 #include "xls/tools/codegen.h"
 #include "xls/tools/codegen_flags.pb.h"
 #include "xls/tools/opt.h"
@@ -495,6 +496,18 @@ void XlsccTestBase::BuildTestIR(
     if (ch.type() == xlscc::CHANNEL_TYPE_DIRECT_IN) {
       direct_in_channels_by_name.insert(ch.name());
     }
+  }
+
+  // Test serializing and parsing
+  {
+    std::string package_text = package_->DumpIr();
+    absl::StatusOr<std::unique_ptr<xls::Package>> parsed_package =
+        xls::ParsePackage(package_text, "test.ir");
+    if (!parsed_package.ok()) {
+      XLS_ASSERT_OK(parsed_package.status());
+      return;
+    }
+    package_ = std::move(parsed_package.value());
   }
 }
 

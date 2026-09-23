@@ -13086,6 +13086,214 @@ TEST_P(TranslatorProcTest_NewFSMOnly, SharedProcedureCompilationError) {
                                      testing::HasSubstr("marker")));
 }
 
+TEST_P(TranslatorProcTest_NewFSMOnly, SharedProcedureInactive) {
+  const std::string content = R"(
+       [[hls_shared_function]]
+       long fn(long a, long b, __xls_channel<int, __xls_channel_dir_In>& in) {
+         long ret = b;
+         [[hls_pipeline_init_interval(1)]]
+         for (int i=0;i<10;++i) {
+          if (i != 5) {
+            continue;
+          }
+          ret += a * in.read();
+         }
+         return ret;
+       }
+
+       class Block {
+        public:
+         __xls_channel<int, __xls_channel_dir_In>& in;
+         __xls_channel<int, __xls_channel_dir_Out>& out;
+
+         #pragma hls_top
+         void Run() {
+          static int s = 1;
+
+          s += fn(2, 0, in);
+          // Avoid cycle (re-entry)
+          __xlscc_activation_barrier</*conditional=*/false>();
+          s += fn(5, 0, in);
+
+          [[hls_pipeline_init_interval(1)]]
+          for (int i=0;i<3;++i) {
+            __xlscc_activation_barrier</*conditional=*/false>();
+          }
+
+          out.write(s);
+         }
+      };)";
+
+  absl::flat_hash_set<std::string> direct_in_channels_by_name;
+  BuildTestIR(content, /*block_spec=*/std::nullopt,
+              /* top_level_init_interval = */ 1,
+              /*top_class_name=*/"", direct_in_channels_by_name);
+
+  XLS_ASSERT_OK(RunBasicOptimization(package_.get()));
+
+  ASSERT_EQ(package_->procs().size(), 1);
+  const std::unique_ptr<xls::Proc>& proc = package_->procs().at(0);
+
+  const int64_t num_mul_ops = std::count_if(
+      proc->nodes().begin(), proc->nodes().end(),
+      [](const xls::Node* node) { return node->op() == xls::Op::kSMul; });
+
+  EXPECT_EQ(num_mul_ops, 1);
+
+  {
+    absl::flat_hash_map<std::string, std::list<xls::Value>> inputs;
+    inputs["in"] = {
+        xls::Value(xls::SBits(3, 32)), xls::Value(xls::SBits(5, 32)),
+        xls::Value(xls::SBits(10, 32)), xls::Value(xls::SBits(20, 32))};
+
+    absl::flat_hash_map<std::string, std::list<xls::Value>> outputs;
+    outputs["out"] = {
+        xls::Value(xls::SBits(1 + 2 * 3 + 5 * 5, 32)),
+        xls::Value(xls::SBits(1 + 2 * 3 + 5 * 5 + 2 * 10 + 5 * 20, 32))};
+    ProcTest(content, /*block_spec=*/std::nullopt, inputs, outputs,
+             /*min_ticks=*/2);
+  }
+}
+
+TEST_F(TranslatorProcTest_NewFSM_Mutex, SharedProcedureInactive2) {
+  const std::string content = R"(
+       [[hls_shared_function]]
+       long fnA_proc(long a, long b, __xls_channel<int, __xls_channel_dir_In>& in) {
+         long ret = b;
+         [[hls_pipeline_init_interval(1)]]
+         for (int i=0;i<10;++i) {
+          if (i != 5) {
+            continue;
+          }
+          ret += a * in.read();
+         }
+         return ret;
+       }
+
+       long fnA(long a, long b, __xls_channel<int, __xls_channel_dir_In>& in) {
+        long ret = fnA_proc(a, b, in);
+        __xlscc_activation_barrier</*conditional=*/false>();
+        return ret;
+       }
+
+       [[hls_shared_function]]
+       long fnB_proc(long a, long b, __xls_channel<int, __xls_channel_dir_In>& in) {
+         long ret = b;
+         [[hls_pipeline_init_interval(1)]]
+         for (int i=0;i<10;++i) {
+          if (i != 5) {
+            continue;
+          }
+          ret += a * in.read();
+         }
+         return ret;
+       }
+
+       long fnB(long a, long b, __xls_channel<int, __xls_channel_dir_In>& in) {
+        long ret = fnB_proc(a, b, in);
+        __xlscc_activation_barrier</*conditional=*/false>();
+        return ret;
+       }
+
+       class Block {
+        public:
+         __xls_channel<int, __xls_channel_dir_In>& in;
+         __xls_channel<int, __xls_channel_dir_Out>& out;
+
+         #pragma hls_top
+         void Run() {
+          static int i = 0;
+          static int s = 1;
+
+          if (i == 0) {
+            s += fnA(2, 0, in);
+          }
+          else if (i == 1) {
+            s += fnB(5, 0, in);
+          }
+          else if (i == 2) {
+            out.write(s);
+          }
+
+          i = (i+1)%3;
+         }
+      };)";
+
+  absl::flat_hash_set<std::string> direct_in_channels_by_name;
+  BuildTestIR(content, /*block_spec=*/std::nullopt,
+              /* top_level_init_interval = */ 1,
+              /*top_class_name=*/"", direct_in_channels_by_name);
+
+  XLS_ASSERT_OK(RunMutualExclusion());
+
+  // Actually check # of receives
+  int64_t receive_count = 0;
+  for (const std::unique_ptr<xls::Proc>& proc : package_->procs()) {
+    for (const xls::Node* node : proc->nodes()) {
+      if (node->op() == xls::Op::kReceive &&
+          node->As<xls::Receive>()->channel_name() == "in") {
+        ++receive_count;
+      }
+    }
+  }
+  EXPECT_EQ(receive_count, 1);
+
+  {
+    absl::flat_hash_map<std::string, std::list<xls::Value>> inputs;
+    inputs["in"] = {
+        xls::Value(xls::SBits(3, 32)), xls::Value(xls::SBits(5, 32)),
+        xls::Value(xls::SBits(10, 32)), xls::Value(xls::SBits(20, 32))};
+
+    absl::flat_hash_map<std::string, std::list<xls::Value>> outputs;
+    outputs["out"] = {
+        xls::Value(xls::SBits(1 + 2 * 3 + 5 * 5, 32)),
+        xls::Value(xls::SBits(1 + 2 * 3 + 5 * 5 + 2 * 10 + 5 * 20, 32))};
+    ProcTest(content, /*block_spec=*/std::nullopt, inputs, outputs,
+             /*min_ticks=*/2);
+  }
+}
+
+TEST_P(TranslatorProcTest_NewFSMOnly, SharedProcedureTemplated) {
+  const std::string content = R"(
+       template<int N>
+       [[hls_shared_function]]
+       long fn(__xls_channel<int, __xls_channel_dir_In>& in) {
+         return N * in.read();
+       }
+
+       class Block {
+        public:
+         __xls_channel<int, __xls_channel_dir_In>& in;
+         __xls_channel<int, __xls_channel_dir_Out>& out;
+
+         #pragma hls_top
+         void Run() {
+          static int s = 1;
+
+          s += fn<2>(in);
+          // Avoid cycle (re-entry)
+          __xlscc_activation_barrier</*conditional=*/false>();
+          s += fn<5>(in);
+
+          out.write(s);
+         }
+      };)";
+
+  {
+    absl::flat_hash_map<std::string, std::list<xls::Value>> inputs;
+    inputs["in"] = {
+        xls::Value(xls::SBits(3, 32)), xls::Value(xls::SBits(5, 32)),
+        xls::Value(xls::SBits(10, 32)), xls::Value(xls::SBits(20, 32))};
+
+    absl::flat_hash_map<std::string, std::list<xls::Value>> outputs;
+    outputs["out"] = {
+        xls::Value(xls::SBits(1 + 2 * 3 + 5 * 5, 32)),
+        xls::Value(xls::SBits(1 + 2 * 3 + 5 * 5 + 2 * 10 + 5 * 20, 32))};
+    ProcTest(content, /*block_spec=*/std::nullopt, inputs, outputs,
+             /*min_ticks=*/2);
+  }
+}
+
 }  // namespace
 
 }  // namespace xlscc
