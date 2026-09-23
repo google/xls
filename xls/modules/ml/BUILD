@@ -66,3 +66,9 @@ xls_dslx_test(
     srcs = ["ws_matmul.x"],
     dslx_test_args = {"compare": "jit"},
 )
+
+filegroup(
+    name = "x_files",
+    srcs = glob(["*.x"]),
+    visibility = ["//xls:xls_internal"],
+)

@@ -120,3 +120,9 @@ xls_dslx_prove_quickcheck_test(
     name = file.replace(".x", "_fmt_test"),
     src = file,
 ) for file in glob(["*.x"])]
+
+filegroup(
+    name = "x_files",
+    srcs = glob(["*.x"]),
+    visibility = ["//xls:xls_internal"],
+)
