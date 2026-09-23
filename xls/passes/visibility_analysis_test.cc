@@ -49,6 +49,7 @@ namespace {
 
 using ::absl_testing::IsOk;
 using ::absl_testing::IsOkAndHolds;
+using ::testing::IsEmpty;
 using ::testing::UnorderedElementsAre;
 
 class VisibilityAnalysisTest : public IrTestBase {
@@ -1265,6 +1266,70 @@ TEST_F(VisibilityAnalysisTest, EdgesForVisibilityPrunesLargerEdgesFirst) {
   EXPECT_THAT(edges,
               UnorderedElementsAre(OperandVisibilityAnalysis::OperandNode(
                   x_and_medium.node(), x_and_small.node())));
+}
+
+TEST_F(VisibilityAnalysisTest,
+       EdgesForVisibilityDropsMostExpensiveEdgesWhenExceedingMaxEdges) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue op = fb.Param("op", p->GetBitsType(4));
+  BValue x = fb.Param("x", p->GetBitsType(4));
+  BValue y = fb.Param("y", p->GetBitsType(4));
+
+  // X is visible when op is in [2, 8].
+  // Y is visible when op is 1 or 9.
+  // c3 is more expensive than c1 and c2 and unnecessary to prove exclusivity.
+  BValue c1 = fb.UGe(op, fb.Literal(UBits(2, 4)));
+  BValue c2 = fb.ULe(op, fb.Literal(UBits(8, 4)));
+  BValue c3 = fb.And(
+      {fb.UGe(op, fb.Literal(UBits(2, 4))), fb.ULe(op, fb.Literal(UBits(8, 4))),
+       fb.Ne(op, fb.Literal(UBits(4, 4))), fb.Ne(op, fb.Literal(UBits(5, 4)))});
+  BValue x_and_c1 = fb.And(x, fb.SignExtend(c1, 4));
+  BValue x_and_c2 = fb.And(x_and_c1, fb.SignExtend(c2, 4));
+  BValue x_and_c3 = fb.And(x_and_c2, fb.SignExtend(c3, 4));
+
+  BValue y_cond = fb.Or(fb.Eq(op, fb.Literal(UBits(1, 4))),
+                        fb.Eq(op, fb.Literal(UBits(9, 4))));
+  BValue y_and = fb.And(y, fb.SignExtend(y_cond, 4));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto f, fb.BuildWithReturnValue(fb.Tuple({x_and_c3, y_and})));
+
+  NodeForwardDependencyAnalysis nda;
+  XLS_ASSERT_OK(nda.Attach(f));
+  LazyPostDominatorAnalysis post_dom;
+  XLS_ASSERT_OK(post_dom.Attach(f));
+  std::unique_ptr<BddQueryEngine> bdd_engine = BddQueryEngine::MakeDefault();
+  XLS_ASSERT_OK(bdd_engine->Populate(f));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto operand_visibility,
+      OperandVisibilityAnalysis::Create(&nda, bdd_engine.get()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto visibility, VisibilityAnalysis::Create(&operand_visibility,
+                                                  bdd_engine.get(), &post_dom));
+
+  auto edge1 =
+      OperandVisibilityAnalysis::OperandNode(x.node(), x_and_c1.node());
+  auto edge2 =
+      OperandVisibilityAnalysis::OperandNode(x_and_c1.node(), x_and_c2.node());
+
+  // Without edge threshold (-1), the most expensive edge (c3) is pruned, and
+  // both required edges (edge1 and edge2) are returned.
+  EXPECT_THAT(visibility->GetEdgesForMutuallyExclusiveVisibilityExpr(
+                  x.node(), {y.node()}, /*max_edges_to_handle=*/-1),
+              IsOkAndHolds(UnorderedElementsAre(edge1, edge2)));
+
+  // When max_edges_to_handle is 2 (< 3 total edges), the most expensive edge
+  // (x_and_c2 -> x_and_c3) is dropped upfront. Subsequent pruning does nothing.
+  EXPECT_THAT(visibility->GetEdgesForMutuallyExclusiveVisibilityExpr(
+                  x.node(), {y.node()}, /*max_edges_to_handle=*/2),
+              IsOkAndHolds(UnorderedElementsAre(edge1, edge2)));
+
+  // When max_edges_to_handle is 1, two edges must be dropped. Because both
+  // c1 and c2 are required to prove mutual exclusivity with y, dropping the
+  // edges that express these two conditions returns in no valid solution.
+  EXPECT_THAT(visibility->GetEdgesForMutuallyExclusiveVisibilityExpr(
+                  x.node(), {y.node()}, /*max_edges_to_handle=*/1),
+              IsOkAndHolds(IsEmpty()));
 }
 
 TEST_F(VisibilityAnalysisTest, SingleSelectVisibilityNotPostDominating) {

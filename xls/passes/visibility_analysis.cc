@@ -16,6 +16,7 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <iterator>
 #include <memory>
 #include <optional>
 #include <queue>
@@ -927,12 +928,32 @@ VisibilityAnalysis::GetEdgesForMutuallyExclusiveVisibilityExpr(
     }
   }
 
-  // If there are more edges than the given threshold, do not proceed.
+  // Heuristic: prefer pruning more complex edges first to reduce the chance
+  // they are disqualified later.
+  BinaryDecisionDiagram& bdd = bdd_query_engine_->bdd();
+  absl::c_sort(edges, [&](OperandNode a, OperandNode b) {
+    int64_t a_path =
+        bdd.path_count(operand_visibility_->OperandVisibilityThroughNode(a));
+    int64_t b_path =
+        bdd.path_count(operand_visibility_->OperandVisibilityThroughNode(b));
+    if (a_path == b_path) {
+      return a < b;
+    }
+    return a_path > b_path;
+  });
+
+  // If there are more edges than the given threshold, drop all but the cheapest
+  // max_edges_to_handle number of edges.
   if (max_edges_to_handle >= 0 && edges.size() > max_edges_to_handle) {
-    return absl::flat_hash_set<OperandNode>{};
+    std::vector<OperandNode> cheapest_edges;
+    absl::c_copy(absl::MakeSpan(edges).last(max_edges_to_handle),
+                 std::back_inserter(cheapest_edges));
+    for (int i = 0; i < edges.size() - max_edges_to_handle; ++i) {
+      exclusions.insert(edges[i]);
+    }
+    edges = std::move(cheapest_edges);
   }
 
-  BinaryDecisionDiagram& bdd = bdd_query_engine_->bdd();
   std::vector<BddNodeIndex> others_visible;
   others_visible.reserve(others.size());
   for (Node* other : others) {
@@ -954,19 +975,6 @@ VisibilityAnalysis::GetEdgesForMutuallyExclusiveVisibilityExpr(
     absl::flat_hash_set<OperandNode> edges_set(edges.begin(), edges.end());
     return edges_set;
   }
-
-  // Heuristic: prefer pruning more complex edges first to reduce the chance
-  // they are disqualified later.
-  absl::c_sort(edges, [&](OperandNode a, OperandNode b) {
-    int64_t a_path =
-        bdd.path_count(operand_visibility_->OperandVisibilityThroughNode(a));
-    int64_t b_path =
-        bdd.path_count(operand_visibility_->OperandVisibilityThroughNode(b));
-    if (a_path == b_path) {
-      return a < b;
-    }
-    return a_path > b_path;
-  });
 
   absl::flat_hash_set<OperandNode> kept_edges;
 
