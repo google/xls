@@ -411,6 +411,31 @@ absl::Status Module::InsertTopBefore(
   return InsertTopAt(member, insert_it);
 }
 
+absl::Status Module::ReplaceTopMember(const AstNode* target_member,
+                                      ModuleMember new_member) {
+  CHECK_NE(target_member, nullptr);
+  if (!top_set_.contains(target_member)) {
+    return absl::NotFoundError(
+        absl::StrFormat("Target member is not part of module %s", name_));
+  }
+  for (auto it = top_.begin(); it != top_.end(); ++it) {
+    if (ToAstNode(*it) == target_member) {
+      for (const std::string& old_name : GetMemberNames(*it)) {
+        top_by_name_.erase(old_name);
+      }
+      top_set_.erase(target_member);
+      *it = new_member;
+      top_set_.insert(ToAstNode(new_member));
+      for (const std::string& new_name : GetMemberNames(new_member)) {
+        top_by_name_.insert({new_name, new_member});
+      }
+      return absl::OkStatus();
+    }
+  }
+  return absl::NotFoundError(
+      absl::StrFormat("Target member is not part of module %s", name_));
+}
+
 absl::Status Module::InsertTopAfter(
     const AstNode* target_member, ModuleMember member,
     const MakeCollisionError& make_collision_error) {
@@ -441,7 +466,10 @@ std::string_view GetModuleMemberTypeName(const ModuleMember& module_member) {
                          [](QuickCheck*) { return "quick-check"; },
                          [](TypeAlias*) { return "type-alias"; },
                          [](StructDef*) { return "struct-definition"; },
-                         [](ProcAlias*) { return "proc-alias"; },
+                         [](AliasDef* pa) {
+                           return pa->is_function_alias() ? "function-alias"
+                                                          : "proc-alias";
+                         },
                          [](ProcDef*) { return "proc-definition"; },
                          [](Impl*) { return "impl"; },
                          [](ConstantDef*) { return "constant-definition"; },
