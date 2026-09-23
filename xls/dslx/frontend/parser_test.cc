@@ -2026,6 +2026,33 @@ proc Tester {
                                          "'#[cfg(unknown_attribute)]'")));
 }
 
+TEST(ParserErrorTest, ParseTestProcDefWithCfgAttributeWithUnknownParameter) {
+  constexpr std::string_view kProgram = R"(#[cfg(unknown_attribute)]
+proc Tester {
+    req_r: chan<()> in,
+}
+
+impl Tester {
+    fn new(req_r: chan<()> in) -> Self
+        Tester { req_r }
+    }
+
+    fn next(self) {
+        let (tok, _) = recv(join(), self.req_r);
+        trace_fmt!("Tester proc");
+    }
+})";
+  FileTable file_table;
+  Scanner s{file_table, Fileno(0), std::string(kProgram)};
+  Parser parser{"test", &s};
+  absl::StatusOr<std::unique_ptr<Module>> module = parser.ParseModule();
+
+  EXPECT_THAT(
+      module.status(),
+      IsPosError("ParseError", HasSubstr("Unknown argument name in attribute: "
+                                         "'#[cfg(unknown_attribute)]'")));
+}
+
 TEST_F(ParserTest, ParseStructSplat) {
   const char* text = R"(struct Point {
     x: u32,

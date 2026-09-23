@@ -657,6 +657,73 @@ TEST_F(GetConversionRecordsTest, TestProcOutputsErrorWhenDisabled) {
   EXPECT_TRUE(records.empty());
 }
 
+constexpr std::string_view kTestProcDef = R"(
+#![feature(explicit_state_access)]
+
+proc P<N: u32> {
+  c_in: chan<uN[N]> in,
+  c_out: chan<uN[N]> out,
+}
+
+impl P<N> {
+  fn new(c_in: chan<uN[N]> in, c_out: chan<uN[N]> out) -> Self {
+    P { c_in, c_out }
+  }
+
+  fn next(self) {
+    let (tok, val) = recv(join(), self.c_in);
+    send(tok, self.c_out, val);
+  }
+}
+
+#[test]
+proc test_proc_def {
+  c_out: chan<u4> out,
+  c_in: chan<u4> in,
+  terminator: chan<bool> out,
+}
+
+impl test_proc_def {
+  fn new(terminator: chan<bool> out) -> Self {
+    let (c_out, p_in) = chan<u4>("c_out");
+    let (p_out, c_in) = chan<u4>("c_in");
+    P<u32:4>::new(p_in, p_out).spawn();
+    test_proc_def { c_out, c_in, terminator }
+  }
+
+  fn next(self) {
+    send(join(), self.terminator, true);
+  }
+}
+)";
+
+TEST_F(GetConversionRecordsTest, TestProcDef) {
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(kTestProcDef, "test.x", "test", &import_data));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::vector<ConversionRecord> order,
+      GetConversionRecords(tm.module, tm.type_info, /*include_tests=*/true));
+  ASSERT_EQ(2, order.size());
+  EXPECT_EQ(order[0].f()->identifier(), "next");
+  EXPECT_EQ(order[0].parametric_env(),
+            ParametricEnv(absl::flat_hash_map<std::string, InterpValue>{
+                {"N", InterpValue::MakeUBits(/*bit_count=*/32, /*value=*/4)}}));
+  EXPECT_EQ(order[1].f()->identifier(), "next");
+}
+
+TEST_F(GetConversionRecordsTest, TestProcDefOutputsEmptyWhenDisabled) {
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(kTestProcDef, "test.x", "test", &import_data));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto records,
+      GetConversionRecords(tm.module, tm.type_info, /*include_tests=*/false));
+  EXPECT_TRUE(records.empty());
+}
+
 TEST_F(GetConversionRecordsTest, Quickcheck) {
   constexpr std::string_view kProgram = R"(
 #[quickcheck]

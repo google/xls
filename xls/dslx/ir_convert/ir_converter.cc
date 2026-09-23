@@ -54,6 +54,7 @@
 #include "xls/dslx/error_printer.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/ast_node.h"
+#include "xls/dslx/frontend/ast_utils.h"
 #include "xls/dslx/frontend/module.h"
 #include "xls/dslx/frontend/parser.h"
 #include "xls/dslx/frontend/pos.h"
@@ -206,6 +207,12 @@ absl::Status ConvertOneFunctionInternal(PackageData& package_data,
   }
 
   if (record.proc_def().has_value()) {
+    if (!options.convert_tests && IsTestProcDef(*record.proc_def())) {
+      return absl::InvalidArgumentError(absl::StrFormat(
+          "Tried to convert a proc '%s' used in tests, but test conversion is "
+          "disabled",
+          (*record.proc_def())->identifier()));
+    }
     return converter.ConvertProcDef(
         *record.proc_def(), *record.init_value(), *record.proc_id(),
         record.config_record()->type_info(), record.type_info(),
@@ -559,6 +566,12 @@ absl::Status ConvertOneFunctionIntoPackage(Module* module,
   if (proc_def.ok()) {
     XLS_ASSIGN_OR_RETURN(TypeInfo * ti, import_data->GetRootTypeInfo());
     XLS_RETURN_IF_ERROR(CheckAcceptableTopProcDef(*proc_def, ti));
+    if (!options.convert_tests && IsTestProcDef(*proc_def)) {
+      return absl::InvalidArgumentError(
+          absl::StrFormat("IR conversion of tests is disabled, but conversion "
+                          "of a test proc '%s' from module %s was requested.",
+                          entry_function_name, module->name()));
+    }
     return ConvertOneFunctionIntoPackageInternal(*proc_def, import_data,
                                                  options, conv);
   }

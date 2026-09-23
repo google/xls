@@ -34,6 +34,7 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "absl/types/variant.h"
+#include "xls/common/attribute_data.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/common/visitor.h"
@@ -152,6 +153,21 @@ bool IsImportedModuleReference(const NameRef* n) {
   return parent != nullptr && parent->kind() == AstNodeKind::kImport;
 }
 
+bool HasTestCfgAttribute(const AstNode* node) {
+  std::optional<Attribute*> cfg = GetAttribute(node, AttributeKind::kCfg);
+  if (!cfg.has_value()) {
+    return false;
+  }
+  CHECK_EQ((*cfg)->args().size(), 1);
+  CHECK(std::holds_alternative<std::string>((*cfg)->args()[0]));
+  return std::get<std::string>((*cfg)->args()[0]) == "test";
+}
+
+bool IsTestProcDef(const ProcDef* p) {
+  return GetAttribute(p, AttributeKind::kTest).has_value() ||
+         HasTestCfgAttribute(p);
+}
+
 bool IsTestFn(const Function* f) {
   if (f == nullptr) {
     return false;
@@ -171,6 +187,13 @@ bool IsTestFn(const Function* f) {
         return true;
       }
     }
+  }
+
+  std::optional<const StructDefBase*> target_struct = f->GetTargetStruct();
+  if (target_struct.has_value() &&
+      (GetAttribute(*target_struct, AttributeKind::kTest).has_value() ||
+       HasTestCfgAttribute(*target_struct))) {
+    return true;
   }
 
   return false;
@@ -674,7 +697,7 @@ bool IsInTestEntity(const Function* f) {
   if (f == nullptr) {
     return false;
   }
-  if (f->is_test_utility()) {
+  if (f->is_test_utility() || IsTestFn(f)) {
     return true;
   }
   if (f->parent() != nullptr &&

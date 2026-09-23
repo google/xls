@@ -56,6 +56,12 @@ Span AttrSpan(const NodeT* node) {
               node->span().limit());
 }
 
+// Returns true if `node` has a `#[cfg(test)]` attribute.
+bool HasTestCfgAttribute(const AstNode* node);
+
+// Returns true if `p` is a test proc (marked with `#[test]` or `#[cfg(test)]`).
+bool IsTestProcDef(const ProcDef* p);
+
 // Returns true if `fn` is a test function or part of a test proc.
 bool IsTestFn(const Function* fn);
 

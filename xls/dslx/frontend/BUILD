@@ -268,6 +268,7 @@ cc_library(
         ":pos",
         ":proc",
         ":token_utils",
+        "//xls/common:attribute_data",
         "//xls/common:visitor",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",

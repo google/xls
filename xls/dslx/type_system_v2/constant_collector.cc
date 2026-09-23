@@ -761,13 +761,26 @@ class Visitor : public AstNodeVisitorWithDefault {
       }
     }
 
+    std::optional<const Function*> caller = GetContainingFunction(invocation);
+    bool from_test_entity_caller =
+        caller.has_value() && IsInTestEntity(*caller);
+    if (!from_test_entity_caller &&
+        IsTestProcDef(internal_initializer.proc_def())) {
+      return TypeInferenceErrorStatus(
+          invocation->span(), nullptr,
+          absl::Substitute(
+              "Test proc `$0` can only be instantiated in a test context.",
+              internal_initializer.proc_def()->identifier()),
+          file_table_);
+    }
     XLS_RETURN_IF_ERROR(ti_->NoteProcConstructorInvocation(
         invocation, table_.GetParametricEnv(parametric_context_),
         InterpValue::MakeProcInitializer(
             internal_initializer.proc_def(), internal_initializer.definer(),
             internal_initializer.parametrics(),
             std::move(external_instance_args),
-            std::move(external_instance_forwarded_values))));
+            std::move(external_instance_forwarded_values)),
+        from_test_entity_caller));
     return absl::OkStatus();
   }
 

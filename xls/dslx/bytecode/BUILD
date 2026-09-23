@@ -400,6 +400,7 @@ cc_test(
         "//xls/dslx/frontend:ast",
         "//xls/dslx/frontend:proc_id",
         "//xls/dslx/run_routines",
+        "//xls/dslx/run_routines:run_comparator",
         "//xls/dslx/type_system:type_info",
         "//xls/ir:format_preference",
         "@abseil-cpp//absl/container:flat_hash_map",

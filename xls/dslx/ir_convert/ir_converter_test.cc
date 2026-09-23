@@ -8322,5 +8322,163 @@ impl Top {
   ExpectIr(converted);
 }
 
+TEST_F(IrConverterTest, TestProcDefWithNonLowerableLoop) {
+  constexpr std::string_view kModule = R"(
+#![feature(explicit_state_access)]
+
+proc ChildProc<N: u32> {
+  c_in: chan<uN[N]> in,
+  c_out: chan<uN[N]> out,
+}
+
+impl ChildProc<N> {
+  fn new(c_in: chan<uN[N]> in, c_out: chan<uN[N]> out) -> Self {
+    ChildProc { c_in, c_out }
+  }
+
+  fn next(self) {
+    let (tok, val) = recv(join(), self.c_in);
+    send(tok, self.c_out, val);
+  }
+}
+
+pub proc TopProc {
+  c_in: chan<u8> in,
+  c_out: chan<u8> out,
+}
+
+impl TopProc {
+  fn new(c_in: chan<u8> in, c_out: chan<u8> out) -> Self {
+    ChildProc<8>::new(c_in, c_out).spawn();
+    TopProc { c_in, c_out }
+  }
+}
+
+#[test]
+proc TestProc {
+  data_out_s: chan<u16> out,
+  data_in_r: chan<u16> in,
+  terminator: chan<bool> out,
+}
+
+impl TestProc {
+  fn new(terminator: chan<bool> out) -> Self {
+    let (data_out_s, data_out_r) = chan<u16>("data_out");
+    let (data_in_s, data_in_r) = chan<u16>("data_in");
+    ChildProc<16>::new(data_out_r, data_in_s).spawn();
+    TestProc { data_out_s, data_in_r, terminator }
+  }
+
+  fn next(self) {
+    let tok = for (i, tok) in u32:0..4 {
+      let tok = send(tok, self.data_out_s, i as u16);
+      let (tok, _) = recv(tok, self.data_in_r);
+      tok
+    }(token());
+    send(tok, self.terminator, true);
+  }
+}
+)";
+
+  ConvertOptions options = kProcScopedChannelOptions;
+  options.convert_tests = false;
+  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
+                           ConvertModuleForTest(kModule, options));
+  ExpectIr(converted);
+}
+
+TEST_F(IrConverterTest, TestProcDefAsTopWithTestConversionOff) {
+  constexpr std::string_view kModule = R"(
+#![feature(explicit_state_access)]
+
+#[test]
+proc TestProc {
+  terminator: chan<bool> out,
+}
+
+impl TestProc {
+  fn new(terminator: chan<bool> out) -> Self {
+    TestProc { terminator }
+  }
+
+  fn next(self) {
+    send(join(), self.terminator, true);
+  }
+}
+)";
+
+  ConvertOptions options = kProcScopedChannelOptions;
+  options.convert_tests = false;
+  EXPECT_THAT(
+      ConvertOneFunctionForTest(kModule, "TestProc", options),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("IR conversion of tests is disabled, but conversion "
+                         "of a test proc")));
+}
+
+TEST_F(IrConverterTest, ProcDefUsedInTestProcAndThenNonTestProc) {
+  constexpr std::string_view kModule = R"(
+#![feature(explicit_state_access)]
+
+proc ChildProc {
+  c_in: chan<u8> in,
+  c_out: chan<u8> out,
+}
+
+impl ChildProc {
+  fn new(c_in: chan<u8> in, c_out: chan<u8> out) -> Self {
+    ChildProc { c_in, c_out }
+  }
+
+  fn next(self) {
+    let (tok, val) = recv(join(), self.c_in);
+    send(tok, self.c_out, val);
+  }
+}
+
+#[test]
+proc TestProc {
+  data_out_s: chan<u8> out,
+  data_in_r: chan<u8> in,
+  terminator: chan<bool> out,
+}
+
+impl TestProc {
+  fn new(terminator: chan<bool> out) -> Self {
+    let (data_out_s, data_out_r) = chan<u8>("data_out");
+    let (data_in_s, data_in_r) = chan<u8>("data_in");
+    ChildProc::new(data_out_r, data_in_s).spawn();
+    TestProc { data_out_s, data_in_r, terminator }
+  }
+
+  fn next(self) {
+    let tok = send(join(), self.data_out_s, u8:42);
+    let (tok, _) = recv(tok, self.data_in_r);
+    send(tok, self.terminator, true);
+  }
+}
+
+pub proc TopProc {
+  c_in: chan<u8> in,
+  c_out: chan<u8> out,
+}
+
+impl TopProc {
+  fn new(c_in: chan<u8> in, c_out: chan<u8> out) -> Self {
+    ChildProc::new(c_in, c_out).spawn();
+    TopProc { c_in, c_out }
+  }
+}
+)";
+
+  ConvertOptions options = kProcScopedChannelOptions;
+  options.convert_tests = false;
+  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
+                           ConvertModuleForTest(kModule, options));
+  EXPECT_THAT(converted, HasSubstr("proc __test_module__ChildProc_next"));
+  EXPECT_THAT(converted, HasSubstr("proc __test_module__TopProc_next"));
+  EXPECT_THAT(converted, Not(HasSubstr("TestProc")));
+}
+
 }  // namespace
 }  // namespace xls::dslx

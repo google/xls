@@ -1328,6 +1328,13 @@ absl::StatusOr<ModuleMember> Parser::ApplyProcAttributes(
 absl::Status Parser::ApplyProcDefAttributes(
     ProcDef* p, std::vector<Attribute*> attributes) {
   for (Attribute* next : attributes) {
+    if (next->attribute_kind() == AttributeKind::kCfg) {
+      XLS_ASSIGN_OR_RETURN(bool test_utility, IsTestConfig(*next));
+      if (!test_utility) {
+        return UnsupportedAttributeError(*next);
+      }
+      continue;
+    }
     if (next->attribute_kind() != AttributeKind::kDerive &&
         next->attribute_kind() != AttributeKind::kTest) {
       return UnsupportedAttributeError(*next);

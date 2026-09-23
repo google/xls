@@ -37,6 +37,7 @@
 #include "xls/dslx/frontend/proc_id.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/parse_and_typecheck.h"
+#include "xls/dslx/run_routines/run_comparator.h"
 #include "xls/dslx/run_routines/run_routines.h"
 #include "xls/dslx/type_system/type_info.h"
 #include "xls/dslx/virtualizable_file_system.h"
@@ -1712,6 +1713,67 @@ impl TopProc {
   XLS_ASSERT_OK_AND_ASSIGN(auto temp_file,
                            TempFile::CreateWithContent(kProgram, "_test.x"));
   ParseAndTestOptions options;
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TestResultData result,
+      ParseAndTest(kProgram, "test", std::string{temp_file.path()}, options));
+  EXPECT_EQ(result.result(), TestResult::kAllPassed);
+}
+
+TEST_F(ProcHierarchyInterpreterTest,
+       TestProcDefWithNonUnrolledLoopAndJitComparison) {
+  constexpr std::string_view kProgram = R"(
+#![feature(explicit_state_access)]
+
+fn add_one(x: u32) -> u32 { x + u32:1 }
+
+proc Worker<N: u32> {
+  req_r: chan<u32> in,
+  resp_s: chan<u32> out,
+}
+
+impl Worker<N> {
+  fn new(req_r: chan<u32> in, resp_s: chan<u32> out) -> Self {
+    Worker { req_r, resp_s }
+  }
+
+  fn next(self) {
+    let (tok, x) = recv(join(), self.req_r);
+    send(tok, self.resp_s, add_one(x) + N);
+  }
+}
+
+#[test]
+proc TestProc {
+  req_s: chan<u32> out,
+  resp_r: chan<u32> in,
+  terminator: chan<bool> out,
+}
+
+impl TestProc {
+  fn new(terminator: chan<bool> out) -> Self {
+    let (req_s, req_r) = chan<u32>("req");
+    let (resp_s, resp_r) = chan<u32>("resp");
+    Worker<u32:10>::new(req_r, resp_s).spawn();
+    TestProc { req_s, resp_r, terminator }
+  }
+
+  fn next(self) {
+    let tok = for (i, tok): (u32, token) in u32:0..u32:4 {
+      let tok = send(tok, self.req_s, i);
+      let (tok, resp) = recv(tok, self.resp_r);
+      assert_eq(resp, i + u32:11);
+      tok
+    }(join());
+    send(tok, self.terminator, true);
+  }
+}
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(auto temp_file,
+                           TempFile::CreateWithContent(kProgram, "_test.x"));
+  RunComparator jit_comparator(CompareMode::kJit);
+  ParseAndTestOptions options;
+  options.run_comparator = &jit_comparator;
   XLS_ASSERT_OK_AND_ASSIGN(
       TestResultData result,
       ParseAndTest(kProgram, "test", std::string{temp_file.path()}, options));

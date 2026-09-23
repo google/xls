@@ -29,6 +29,7 @@
 #include <vector>
 
 #include "absl/container/btree_map.h"
+#include "absl/container/btree_set.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/node_hash_map.h"
 #include "absl/log/check.h"
@@ -107,6 +108,7 @@ struct ProcInitializerWithTypeInfo {
   TypeInfo* next_type_info = nullptr;
   ParametricEnv constructor_env;
   InterpValue initializer;
+  bool test_only = false;
 };
 
 // Parametric instantiation information related to an invocation AST node.
@@ -442,7 +444,7 @@ class TypeInfo {
                                     ParametricEnv env, InterpValue value);
   absl::Status NoteProcConstructorInvocation(
       const Invocation* invocation, ParametricEnv env,
-      InterpValue external_proc_initializer);
+      InterpValue external_proc_initializer, bool from_test_entity_caller);
   absl::Status NoteProcNextInvocation(const Invocation* invocation,
                                       ParametricEnv env,
                                       InterpValue external_proc_initializer);
@@ -613,6 +615,8 @@ class TypeInfo {
 
   absl::btree_map<InterpValue, InterpValue>
       external_to_canonical_proc_initializer_;
+
+  absl::btree_set<InterpValue> invoked_canonical_proc_initializers_;
 
   // External proc initializers, mapped by caller proc, stored on the
   // constructor TypeInfo where the spawn occurred.

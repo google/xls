@@ -1074,5 +1074,36 @@ impl Main {
   XLS_EXPECT_OK(TypecheckV2(kProgram));
 }
 
+TEST(TypecheckV2ProcTest, InvokeTestProcDefFromNonTestProcDefFails) {
+  EXPECT_THAT(
+      R"(
+#![feature(explicit_state_access)]
+
+#[test]
+proc TestProc {
+  terminator: chan<bool> out,
+}
+
+impl TestProc {
+  fn new(terminator: chan<bool> out) -> Self {
+    TestProc { terminator }
+  }
+}
+
+proc NormalProc {
+  terminator: chan<bool> out,
+}
+
+impl NormalProc {
+  fn new(terminator: chan<bool> out) -> Self {
+    TestProc::new(terminator).spawn();
+    NormalProc { terminator }
+  }
+}
+)",
+      TypecheckFails(HasSubstr(
+          "Test proc `TestProc` can only be instantiated in a test context.")));
+}
+
 }  // namespace
 }  // namespace xls::dslx

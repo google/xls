@@ -24,7 +24,9 @@
 #include <variant>
 #include <vector>
 
+#include "absl/container/btree_set.h"
 #include "absl/container/flat_hash_set.h"
+#include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -42,7 +44,6 @@
 #include "xls/dslx/interp_value.h"
 #include "xls/dslx/type_system/parametric_env.h"
 #include "xls/dslx/type_system/type_info.h"
-#include "xls/dslx/type_system_v2/import_utils.h"
 #include "xls/public/status_macros.h"
 
 namespace xls::dslx {
@@ -186,16 +187,22 @@ class ConversionRecordVisitor : public AstNodeRecursiveVisitor {
       return absl::OkStatus();
     }
 
-    XLS_ASSIGN_OR_RETURN(bool is_proc_def_spawn, IsProcDefSpawnFunction(f));
-    if (is_proc_def_spawn) {
-      VLOG(5) << "Skipping proc spawn function";
+    if (!include_tests_ && IsTestFn(f)) {
+      VLOG(5) << "include_tests_ is false; skipping test function "
+              << f->identifier();
       return absl::OkStatus();
     }
 
-    XLS_ASSIGN_OR_RETURN(std::optional<const ProcDef*> constructed_proc,
-                         GetProcConstructedByFunction(f, type_info_));
-    if (constructed_proc.has_value()) {
-      VLOG(5) << "Skipping proc constructor: " << f->ToString();
+    // `ProcDef` functions are traversed by `HandleProcDef` without invoking
+    // `HandleFunction` on them. If we were to traverse them here (e.g. in the
+    // context of the traversal of the Impl), we would generate duplicates that
+    // even `RemoveDuplicates` would not correctly rectify (it de-dups procs at
+    // the proc level).
+    if (std::optional<const StructDefBase*> target_struct =
+            f->GetTargetStruct();
+        target_struct.has_value() &&
+        (*target_struct)->kind() == AstNodeKind::kProcDef) {
+      VLOG(5) << "Skipping proc function: " << f->ToString();
       return absl::OkStatus();
     }
 
@@ -382,6 +389,12 @@ class ConversionRecordVisitor : public AstNodeRecursiveVisitor {
     std::optional<Function*> next_fn = GetProcNextFunction(p);
     XLS_RET_CHECK(next_fn.has_value());
 
+    if (!include_tests_ && IsTestProcDef(p)) {
+      VLOG(5) << "include_tests_ is false; skipping test ProcDef "
+              << p->identifier();
+      return absl::OkStatus();
+    }
+
     TypeInfo* proc_owner_ti = GetTypeInfo(p);
     XLS_ASSIGN_OR_RETURN(
         std::vector<ProcInitializerWithTypeInfo> canonical_initializers,
@@ -393,8 +406,10 @@ class ConversionRecordVisitor : public AstNodeRecursiveVisitor {
 
     for (const ProcInitializerWithTypeInfo& canonical_initializer :
          canonical_initializers) {
-      // TODO: https://github.com/google/xls/issues/4125 - Exclude test-only
-      // procs, and those only used in test-only contexts, if desired.
+      if (!include_tests_ && top_ != *next_fn &&
+          canonical_initializer.test_only) {
+        continue;
+      }
 
       XLS_ASSIGN_OR_RETURN(
           std::vector<InterpValue> spawns,
@@ -602,12 +617,21 @@ class ConversionRecordVisitor : public AstNodeRecursiveVisitor {
 
 // Filters duplicate conversion records from the given vector and returns a new
 // vector without duplicates.
-std::vector<ConversionRecord> RemoveFunctionDuplicates(
+std::vector<ConversionRecord> RemoveDuplicates(
     std::vector<ConversionRecord>& ready) {
-  absl::flat_hash_set<std::pair<Function*, ParametricEnv>> records;
+  absl::flat_hash_set<std::pair<Function*, ParametricEnv>> fn_records;
+  absl::btree_set<InterpValue> proc_def_records;
   std::vector<ConversionRecord> result;
   for (auto& record : ready) {
-    if (records.emplace(record.f(), record.parametric_env()).second) {
+    if (record.proc_def().has_value() && record.init_value().has_value()) {
+      // Note that the init value of the `ConversionRecord` for a `ProcDef` is a
+      // `ProcInitializer`, which encapsulates both which proc it is and what
+      // it's initialized with.
+      CHECK(record.init_value()->IsProcInitializer());
+      if (proc_def_records.insert(*record.init_value()).second) {
+        result.push_back(std::move(record));
+      }
+    } else if (fn_records.emplace(record.f(), record.parametric_env()).second) {
       result.push_back(std::move(record));
     }
   }
@@ -624,7 +648,7 @@ absl::StatusOr<std::vector<ConversionRecord>> GetConversionRecords(
       /*resolved_proc_alias=*/std::nullopt, records, processed_invocations);
   XLS_RETURN_IF_ERROR(module->Accept(&visitor));
 
-  return RemoveFunctionDuplicates(records);
+  return RemoveDuplicates(records);
 }
 
 absl::StatusOr<std::vector<ConversionRecord>> GetConversionRecordsForEntry(
@@ -665,6 +689,6 @@ absl::StatusOr<std::vector<ConversionRecord>> GetConversionRecordsForEntry(
                                   &proc_id_factory, top_fn, resolved_proc_alias,
                                   records, processed_invocations);
   XLS_RETURN_IF_ERROR(visit_target->Accept(&visitor));
-  return RemoveFunctionDuplicates(records);
+  return RemoveDuplicates(records);
 }
 }  // namespace xls::dslx

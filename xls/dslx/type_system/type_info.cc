@@ -223,7 +223,7 @@ void TypeInfo::NoteCanonicalProcInitializer(const StructInstance* definer,
 
 absl::Status TypeInfo::NoteProcConstructorInvocation(
     const Invocation* invocation, ParametricEnv caller_env,
-    InterpValue external_proc_initializer) {
+    InterpValue external_proc_initializer, bool from_test_entity_caller) {
   VLOG(6) << "Noting proc constructor invocation: `" << invocation->ToString()
           << "` with caller env " << caller_env.ToString() << " in TI "
           << name();
@@ -242,6 +242,12 @@ absl::Status TypeInfo::NoteProcConstructorInvocation(
   const auto it =
       root->decorated_canonical_proc_initializer_.find(canonical_initializer);
   XLS_RET_CHECK(it != root->decorated_canonical_proc_initializer_.end());
+  if (root->invoked_canonical_proc_initializers_.insert(canonical_initializer)
+          .second) {
+    it->second->test_only = from_test_entity_caller;
+  } else {
+    it->second->test_only &= from_test_entity_caller;
+  }
   root->external_to_canonical_proc_initializer_.emplace(
       std::move(external_proc_initializer), std::move(canonical_initializer));
 
