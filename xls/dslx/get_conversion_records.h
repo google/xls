@@ -40,8 +40,7 @@ absl::StatusOr<std::vector<ConversionRecord>> GetConversionRecords(
 //  entry: Proc or Function to start from (the top)
 //  type_info: Mapping from node to type.
 absl::StatusOr<std::vector<ConversionRecord>> GetConversionRecordsForEntry(
-    std::variant<Proc*, Function*, ProcDef*> entry, TypeInfo* type_info,
-    std::optional<ResolvedProcAlias> resolved_proc_alias);
+    std::variant<Proc*, Function*, ProcDef*> entry, TypeInfo* type_info);
 
 }  // namespace xls::dslx
 

@@ -239,13 +239,17 @@ absl::Status ConvertOneFunctionInternal(PackageData& package_data,
     if (!proc_data->id_to_initial_value.contains(record.proc_id().value()) &&
         (!options.lower_to_proc_scoped_channels || record.IsTop())) {
       // For proc scoped channels, we will defer the init evaluation to later.
-      Proc* p = f->proc().value();
-      // If there's no value in the map, then this should be a top-level proc.
-      XLS_ASSIGN_OR_RETURN(
-          InterpValue iv,
-          ConstexprEvaluator::EvaluateToValue(
-              import_data, record.type_info(), kNoWarningCollector,
-              record.parametric_env(), p->init().body()));
+      InterpValue iv = InterpValue::MakeTuple({});
+      if (record.init_value().has_value()) {
+        iv = *record.init_value();
+      } else {
+        Proc* p = f->proc().value();
+        // If there's no value in the map, then this should be a top-level proc.
+        XLS_ASSIGN_OR_RETURN(
+            iv, ConstexprEvaluator::EvaluateToValue(
+                    import_data, record.type_info(), kNoWarningCollector,
+                    record.parametric_env(), p->init().body()));
+      }
       XLS_ASSIGN_OR_RETURN(Value ir_value, iv.ConvertToIr());
       proc_data->id_to_initial_value[record.proc_id().value()] = ir_value;
     }
@@ -388,15 +392,14 @@ absl::StatusOr<std::vector<ConversionRecord>> GetConversionRecords(
 
 template <typename BlockT>
 absl::StatusOr<std::vector<ConversionRecord>> GetConversionRecords(
-    BlockT* block, TypeInfo* type_info, const ConvertOptions& options,
-    std::optional<ResolvedProcAlias> resolved_proc_alias) {
+    BlockT* block, TypeInfo* type_info, const ConvertOptions& options) {
   // TODO: https://github.com/google/xls/issues/2078 - Remove this `if` after
   // lower_to_proc_scoped_channels is turned on everywhere, and call
   // GetConversionRecordsForEntry unconditionally.
   if (options.lower_to_proc_scoped_channels) {
-    return GetConversionRecordsForEntry(block, type_info, resolved_proc_alias);
+    return GetConversionRecordsForEntry(block, type_info);
   }
-  return GetOrderForEntry(block, type_info, resolved_proc_alias);
+  return GetOrderForEntry(block, type_info);
 }
 
 }  // namespace
@@ -474,13 +477,11 @@ absl::Status CheckAcceptableTopProcDef(const ProcDef* proc, TypeInfo* ti) {
 template <typename BlockT>
 absl::Status ConvertOneFunctionIntoPackageInternal(
     BlockT* block, ImportData* import_data, const ConvertOptions& options,
-    PackageConversionData* conv,
-    std::optional<ResolvedProcAlias> resolved_proc_alias = std::nullopt) {
+    PackageConversionData* conv) {
   XLS_ASSIGN_OR_RETURN(TypeInfo * func_type_info,
                        import_data->GetRootTypeInfoForNode(block));
   XLS_ASSIGN_OR_RETURN(std::vector<ConversionRecord> order,
-                       GetConversionRecords(block, func_type_info, options,
-                                            resolved_proc_alias));
+                       GetConversionRecords(block, func_type_info, options));
   PackageData package_data{.conversion_info = conv};
   XLS_RETURN_IF_ERROR(
       ConvertCallGraph(order, import_data, options, package_data));
@@ -561,16 +562,6 @@ absl::Status ConvertOneFunctionIntoPackage(Module* module,
     XLS_RETURN_IF_ERROR(CheckAcceptableTopProcDef(*proc_def, ti));
     return ConvertOneFunctionIntoPackageInternal(*proc_def, import_data,
                                                  options, conv);
-  }
-
-  absl::StatusOr<ProcAlias*> proc_alias =
-      module->GetMemberOrError<ProcAlias>(entry_function_name);
-  if (proc_alias.ok()) {
-    XLS_ASSIGN_OR_RETURN(TypeInfo * ti, import_data->GetRootTypeInfo());
-    ResolvedProcAlias resolved_alias = ti->GetResolvedProcAlias(*proc_alias);
-    XLS_RETURN_IF_ERROR(CheckAcceptableTopProc(resolved_alias.proc));
-    return ConvertOneFunctionIntoPackageInternal(
-        resolved_alias.proc, import_data, options, conv, resolved_alias);
   }
 
   return absl::InvalidArgumentError(

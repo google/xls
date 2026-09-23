@@ -897,6 +897,12 @@ class AstCloner : public AstNodeVisitor {
     new_body.config->set_proc(p);
     new_body.next->set_proc(p);
     new_body.init->set_proc(p);
+    if (n->alias_target() != nullptr) {
+      auto it = old_to_new_.find(n->alias_target());
+      p->set_alias_target(it != old_to_new_.end()
+                              ? absl::down_cast<Proc*>(it->second)
+                              : n->alias_target());
+    }
 
     old_to_new_[n] = p;
     return absl::OkStatus();
@@ -1068,7 +1074,18 @@ class AstCloner : public AstNodeVisitor {
   }
 
   absl::Status HandleProcDef(const ProcDef* n) override {
-    return HandleStructDefBaseInternal(n);
+    XLS_RETURN_IF_ERROR(HandleStructDefBaseInternal(n));
+    if (auto it = old_to_new_.find(n); it != old_to_new_.end()) {
+      auto* new_proc_def = absl::down_cast<ProcDef*>(it->second);
+      if (n->alias_target() != nullptr) {
+        auto target_it = old_to_new_.find(n->alias_target());
+        new_proc_def->set_alias_target(
+            target_it != old_to_new_.end()
+                ? absl::down_cast<ProcDef*>(target_it->second)
+                : n->alias_target());
+      }
+    }
+    return absl::OkStatus();
   }
 
   absl::Status HandleImpl(const Impl* n) override {
@@ -1279,21 +1296,22 @@ class AstCloner : public AstNodeVisitor {
     return absl::OkStatus();
   }
 
-  absl::Status HandleProcAlias(const ProcAlias* n) override {
+  absl::Status HandleAliasDef(const AliasDef* n) override {
     XLS_RETURN_IF_ERROR(VisitChildren(n));
 
     NameDef* new_name_def =
         absl::down_cast<NameDef*>(old_to_new_.at(n->name_def()));
     AstNode* new_target_node = old_to_new_.at(ToAstNode(n->target()));
-    ProcAlias::Target new_target;
+    AliasDef::Target new_target;
     if (new_target_node->kind() == AstNodeKind::kNameRef) {
       new_target = absl::down_cast<NameRef*>(new_target_node);
     } else {
       new_target = absl::down_cast<ColonRef*>(new_target_node);
     }
-    ProcAlias* new_pa = module(n)->Make<ProcAlias>(
+    AliasDef* new_pa = module(n)->Make<AliasDef>(
         n->span(), new_name_def, new_target, n->is_public(),
-        CloneParametrics(n->parametrics()));
+        CloneParametrics(n->parametrics()), n->is_function_alias(),
+        n->is_synthetic());
     new_name_def->set_definer(new_pa);
     old_to_new_[n] = new_pa;
     return absl::OkStatus();

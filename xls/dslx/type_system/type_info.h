@@ -90,15 +90,6 @@ struct SpawnData {
   InterpValue init_value;
 };
 
-// The information for a `ProcAlias` that is resolved during type inference.
-struct ResolvedProcAlias {
-  std::string name;
-  Proc* proc;
-  ParametricEnv env;
-  TypeInfo* config_type_info;
-  TypeInfo* next_type_info;
-};
-
 // A decorated ProcInitializer-type InterpValue with the TypeInfo's and
 // ParametricEnv for the instantiated proc. We can't put this all inside the
 // InterpValue because it would create a dependency cycle.
@@ -325,18 +316,6 @@ class TypeInfo {
   }
   void SetItem(const AstNode* key, std::unique_ptr<Type> value) {
     dict_[key] = std::move(value);
-  }
-
-  // Used by type inference to set the resolved data for a `ProcAlias`.
-  void SetResolvedProcAlias(const ProcAlias* alias,
-                            ResolvedProcAlias resolved) {
-    resolved_proc_aliases_[alias] = std::move(resolved);
-  }
-
-  // Used by phases downstream of type inference to retrieve a proc alias
-  // resolution result.
-  const ResolvedProcAlias& GetResolvedProcAlias(const ProcAlias* alias) {
-    return resolved_proc_aliases_.at(alias);
   }
 
   // Attempts to resolve AST node 'key' in the node-to-type dictionary.
@@ -598,8 +577,6 @@ class TypeInfo {
   // Maps a Proc to the TypeInfo used for its top-level typechecking.
   absl::flat_hash_map<const Proc*, TypeInfo*> top_level_proc_type_info_;
 
-  absl::flat_hash_map<const ProcAlias*, ResolvedProcAlias>
-      resolved_proc_aliases_;
   absl::flat_hash_map<const Proc*, std::vector<SpawnData>> spawns_;
 
   // Initializers for each callee proc.
