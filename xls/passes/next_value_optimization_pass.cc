@@ -19,6 +19,7 @@
 #include <optional>
 #include <ostream>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "absl/algorithm/container.h"
@@ -31,7 +32,6 @@
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "absl/types/span.h"
-#include "cppitertools/sorted.hpp"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/bits.h"
@@ -271,44 +271,55 @@ absl::StatusOr<std::optional<std::vector<IdenticalNexts>>> SplitSelect(
   return new_next_values;
 }
 
+struct PredicatedValue {
+  Node* value;
+  std::optional<Node*> predicate;
+
+  template <typename H>
+  friend H AbslHashValue(H h, const PredicatedValue& pv) {
+    return H::combine(std::move(h), pv.value, pv.predicate);
+  }
+
+  friend bool operator==(const PredicatedValue& lhs,
+                         const PredicatedValue& rhs) {
+    return lhs.value == rhs.value && lhs.predicate == rhs.predicate;
+  }
+};
 struct StateElementInfo {
-  // sorted by id of next values
-  std::vector<Node*> values;
-  // sorted by id of next values
-  std::vector<std::optional<Node*>> predicates;
+  std::vector<PredicatedValue> next_values;
   Value initial_value;
 
   static StateElementInfo Create(Proc* p, StateElement* st) {
     StateElementInfo si;
     si.initial_value = st->initial_value();
-    for (Next* n : iter::sorted(p->next_values(st), [](Node* l, Node* r) {
-           return l->id() < r->id();
-         })) {
-      si.values.push_back(n->value());
-      si.predicates.push_back(n->predicate());
+    for (Next* n : p->next_values(st)) {
+      si.next_values.push_back(
+          PredicatedValue{.value = n->value(), .predicate = n->predicate()});
     }
-    absl::c_sort(si.values, [](Node* l, Node* r) { return l->id() < r->id(); });
-    absl::c_sort(si.predicates,
-                 [](std::optional<Node*> l, std::optional<Node*> r) {
-                   if (!l && r) {
+    absl::c_sort(si.next_values,
+                 [](const PredicatedValue& l, const PredicatedValue& r) {
+                   if (l.value->id() != r.value->id()) {
+                     return l.value->id() < r.value->id();
+                   }
+                   if (!l.predicate && r.predicate) {
                      return true;
-                   } else if (!r) {
+                   }
+                   if (!r.predicate) {
                      return false;
                    }
-                   return (*l)->id() < (*r)->id();
+                   return (*l.predicate)->id() < (*r.predicate)->id();
                  });
     return si;
   }
 
   template <typename H>
   friend H AbslHashValue(H h, const StateElementInfo& info) {
-    return H::combine(std::move(h), info.values, info.predicates,
-                      info.initial_value);
+    return H::combine(std::move(h), info.next_values, info.initial_value);
   }
 
   friend bool operator==(const StateElementInfo& lhs,
                          const StateElementInfo& rhs) {
-    return lhs.values == rhs.values && lhs.predicates == rhs.predicates &&
+    return lhs.next_values == rhs.next_values &&
            lhs.initial_value == rhs.initial_value;
   }
 };

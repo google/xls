@@ -560,6 +560,45 @@ TEST_F(NextValueOptimizationPassTest,
                   m::Eq(m::StateRead("a"), m::Literal(1)))));
 }
 
+TEST_F(NextValueOptimizationPassTest, SwappedValuesAndPredicatesWithNonSynth) {
+  auto p = CreatePackage();
+  ProcBuilder pb("pb", p.get());
+  BStateElement x_element = pb.StateElement("x", Value(UBits(0, 32)),
+                                            /*non_synthesizable=*/false);
+  BStateElement y_element = pb.StateElement("y", Value(UBits(0, 32)),
+                                            /*non_synthesizable=*/false);
+  BStateElement x_non_synth =
+      pb.StateElement("x_non_synth", Value(UBits(0, 32)),
+                      /*non_synthesizable=*/true);
+  BStateElement y_non_synth =
+      pb.StateElement("y_non_synth", Value(UBits(0, 32)),
+                      /*non_synthesizable=*/true);
+  BValue v1 = pb.ReadStateElement("v1", Value(UBits(0, 32)));
+  BValue v2 = pb.ReadStateElement("v2", Value(UBits(0, 32)));
+  BValue p1 = pb.ReadStateElement("p1", Value(UBits(0, 1)));
+  BValue p2 = pb.ReadStateElement("p2", Value(UBits(0, 1)));
+  pb.StateRead(x_element);
+  pb.StateRead(y_element);
+  pb.StateRead(x_non_synth);
+  pb.StateRead(y_non_synth);
+
+  // x and x_non_synth assign v1 on p1 and v2 on p2.
+  pb.Next(x_element, v1, p1);
+  pb.Next(x_element, v2, p2);
+  pb.Next(x_non_synth, v1, p1);
+  pb.Next(x_non_synth, v2, p2);
+
+  // y and y_non_synth assign v2 on p1 and v1 on p2 (same sets of values and
+  // predicates as x, but paired differently).
+  pb.Next(y_element, v2, p1);
+  pb.Next(y_element, v1, p2);
+  pb.Next(y_non_synth, v2, p1);
+  pb.Next(y_non_synth, v1, p2);
+
+  XLS_ASSERT_OK(pb.Build().status());
+  EXPECT_THAT(Run(p.get()), IsOkAndHolds(false));
+}
+
 void IrFuzzNextValueOptimization(FuzzPackageWithArgs fuzz_package_with_args) {
   NextValueOptimizationPass pass;
   OptimizationPassChangesOutputs(std::move(fuzz_package_with_args), pass);
