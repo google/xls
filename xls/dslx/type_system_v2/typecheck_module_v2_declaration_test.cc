@@ -1462,5 +1462,20 @@ fn main() {
       TypecheckFails(HasTypeMismatch("u13", "u8")));
 }
 
+TEST(TypecheckV2Test, NegativeBitsWidthFails) {
+  EXPECT_THAT("const X = !s12:26; const Y = bits[X]:0;",
+              TypecheckFails(HasSignednessMismatch("s12", "u32")));
+}
+
+TEST(TypecheckV2Test, NegativeArrayDimensionFails) {
+  EXPECT_THAT("const X = !s12:26; const Y: u32[X] = [];",
+              TypecheckFails(HasSignednessMismatch("s12", "u32")));
+}
+
+TEST(TypecheckV2Test, NegativeChannelDimensionFails) {
+  EXPECT_THAT("const X = !s12:26; type C = chan<u32>[X] in;",
+              TypecheckFails(HasSignednessMismatch("s12", "u32")));
+}
+
 }  // namespace
 }  // namespace xls::dslx

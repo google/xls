@@ -1729,6 +1729,12 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
     if (const auto* array = CastToNonBitsArrayTypeAnnotation(annotation)) {
       XLS_ASSIGN_OR_RETURN(int64_t size, evaluator_->EvaluateU32OrExpr(
                                              parametric_context, array->dim()));
+      if (size < 0) {
+        return TypeInferenceErrorStatusForAnnotation(
+            annotation->span(), annotation,
+            absl::Substitute("Array dimension $0 cannot be negative.", size),
+            file_table_);
+      }
       XLS_ASSIGN_OR_RETURN(
           std::unique_ptr<Type> element_type,
           Concretize(array->element_type(), parametric_context));
@@ -1760,6 +1766,13 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
         for (Expr* dim : *channel->dims()) {
           XLS_ASSIGN_OR_RETURN(int64_t size, evaluator_->EvaluateU32OrExpr(
                                                  parametric_context, dim));
+          if (size < 0) {
+            return TypeInferenceErrorStatusForAnnotation(
+                annotation->span(), annotation,
+                absl::Substitute("Channel dimension $0 cannot be negative.",
+                                 size),
+                file_table_);
+          }
           type = std::make_unique<ArrayType>(
               std::move(type), TypeDim(InterpValue::MakeU32(size)));
         }
@@ -1886,8 +1899,14 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
         int64_t bit_count,
         evaluator_->EvaluateU32OrExpr(parametric_context,
                                       signedness_and_bit_count.bit_count));
-    uint32_t u_bit_count = static_cast<uint32_t>(bit_count);
-    if (bit_count < 0 || bit_count > kMaxBitCount) {
+    if (bit_count < 0) {
+      return TypeInferenceErrorStatusForAnnotation(
+          annotation->span(), annotation,
+          absl::Substitute("Bit count $0 cannot be negative.", bit_count),
+          file_table_);
+    }
+    if (bit_count > kMaxBitCount) {
+      uint32_t u_bit_count = static_cast<uint32_t>(bit_count);
       return TypeInferenceErrorStatusForAnnotation(
           annotation->span(), annotation,
           absl::Substitute("Bit count $0 exceeds maximum limit of $1.",
