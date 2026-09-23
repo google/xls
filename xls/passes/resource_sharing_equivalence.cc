@@ -149,8 +149,12 @@ class BitwidthExtendingEquivalenceMapping : public EquivalenceMapping {
       XLS_RET_CHECK(dst_->operand(i)->GetType()->IsBits());
       int64_t target_width = dst_->operand(i)->BitCountOrDie();
       if (op->BitCountOrDie() < target_width) {
-        Op ext_op =
-            IsSigned(const_cast<Node*>(dst_)) ? Op::kSignExt : Op::kZeroExt;
+        bool is_shift_amt_node =
+            dst_->OpIn({Op::kShll, Op::kShrl, Op::kShra}) && i == 1;
+        // When extending a shift amount's bit width, always zero extend.
+        Op ext_op = (IsSigned(const_cast<Node*>(dst_)) && !is_shift_amt_node)
+                        ? Op::kSignExt
+                        : Op::kZeroExt;
         XLS_ASSIGN_OR_RETURN(
             Node * ext,
             f->MakeNode<ExtendOp>(op->loc(), op, target_width, ext_op));
@@ -456,14 +460,16 @@ absl::StatusOr<PackageAndNode> CreatePaddedSubPackage(int64_t target_width) {
       });
 }
 
-absl::StatusOr<PackageAndNode> CreatePaddedShraPackage(Node* original) {
-  return CreateModifiedDstAndPackage([original](Package* p,
-                                                FunctionBuilder& fb) -> BValue {
-    Type* padded_shift_ty =
-        p->GetBitsType(original->operand(0)->BitCountOrDie() + 1);
-    Type* shift_amt_ty = p->GetBitsType(original->operand(1)->BitCountOrDie());
-    return fb.Shra(fb.Param("a", padded_shift_ty), fb.Param("b", shift_amt_ty));
-  });
+absl::StatusOr<PackageAndNode> CreateModifiedShiftPackage(
+    Node* original, int64_t target_val_width, int64_t target_shift_width) {
+  return CreateModifiedDstAndPackage(
+      [original, target_val_width, target_shift_width](
+          Package* p, FunctionBuilder& fb) -> BValue {
+        Type* val_ty = p->GetBitsType(target_val_width);
+        Type* shift_amt_ty = p->GetBitsType(target_shift_width);
+        return fb.AddBinOp(original->op(), fb.Param("a", val_ty),
+                           fb.Param("b", shift_amt_ty));
+      });
 }
 
 // `CompareToArithEquivalenceMapping` handles folding comparison operations
@@ -650,48 +656,49 @@ class ShiftEquivalenceMapping : public EquivalenceMapping {
     if (!bit_typed_two_op_shift(dst)) {
       return std::nullopt;
     }
-    bool needs_dst_widening = false;
+    bool needs_msb_padding = false;
+    int64_t target_shift_width = dst->operand(1)->BitCountOrDie();
     for (Node* src : sources) {
       // We gain nothing by handling edge case where src and dst have same op.
       if (!bit_typed_two_op_shift(src) || src->op() == dst->op()) {
         return std::nullopt;
       }
-      // Cannot shift by a larger bit width amount.
-      if (src->operand(1)->BitCountOrDie() > dst->operand(1)->BitCountOrDie()) {
+      // Cannot shift a value that is a larger bit width.
+      if (src->BitCountOrDie() > dst->BitCountOrDie() ||
+          src->operand(0)->BitCountOrDie() > dst->operand(0)->BitCountOrDie()) {
         return std::nullopt;
       }
       if (dst->op() == Op::kShra) {
-        // Cannot shift a value that is a larger bit width.
-        if (src->BitCountOrDie() > dst->BitCountOrDie() ||
-            src->operand(0)->BitCountOrDie() >
-                dst->operand(0)->BitCountOrDie()) {
-          return std::nullopt;
-        }
         // The destination must be 0-padded if the source is not shra and the
         // bit-widths are equal, since an arithmetic shift would fill in 1s.
         if (src->op() != Op::kShra && (src->operand(0)->BitCountOrDie() ==
                                        dst->operand(0)->BitCountOrDie())) {
-          needs_dst_widening = true;
-        }
-      } else {
-        if (!LessThanOrEqualBitwidth(src, dst)) {
-          return std::nullopt;
+          needs_msb_padding = true;
         }
       }
+      target_shift_width =
+          std::max(target_shift_width, src->operand(1)->BitCountOrDie());
     }
 
-    if (!needs_dst_widening) {
+    bool needs_shift_amt_wider =
+        target_shift_width > dst->operand(1)->BitCountOrDie();
+    bool needs_dst_wider = needs_msb_padding || needs_shift_amt_wider;
+
+    if (!needs_dst_wider) {
       return ComputeMappingsSourcesToDest<ShiftEquivalenceMapping>(sources,
                                                                    dst);
     }
 
-    XLS_ASSIGN_OR_RETURN((PackageAndNode p_and_shra),
-                         CreatePaddedShraPackage(dst));
+    int64_t target_val_width =
+        dst->operand(0)->BitCountOrDie() + (needs_msb_padding ? 1 : 0);
+    XLS_ASSIGN_OR_RETURN(
+        (PackageAndNode p_and_dst),
+        CreateModifiedShiftPackage(dst, target_val_width, target_shift_width));
     NodeToMappings mappings =
         ComputeMappingsSourcesToDest<ShiftEquivalenceMapping>(
-            sources, p_and_shra.node, p_and_shra.package);
+            sources, p_and_dst.node, p_and_dst.package);
     mappings[dst] = std::make_unique<BitwidthExtendingEquivalenceMapping>(
-        dst, p_and_shra.node, p_and_shra.package);
+        dst, p_and_dst.node, p_and_dst.package);
     return mappings;
   }
 
