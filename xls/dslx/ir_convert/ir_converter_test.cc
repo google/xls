@@ -8533,5 +8533,26 @@ pub fn main() -> u32 {
   std::filesystem::remove(dep_clean_path);
 }
 
+TEST_F(IrConverterTest, ConfiguredValueUnusedWarningFailsWhenWarningsAsErrors) {
+  constexpr std::string_view kProgram = R"(
+pub fn main() -> u32 {
+  42
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(xls::TempFile temp,
+                           xls::TempFile::CreateWithContent(kProgram, ".x"));
+  ConvertOptions options = kProcScopedChannelOptions;
+  options.warnings_as_errors = true;
+  options.configured_values = {"unused_key:u32:99"};
+  const std::string str_path = temp.path().string();
+  bool printed_error = false;
+  EXPECT_THAT(
+      ConvertFilesToPackage(
+          {str_path}, /*stdlib_path=*/"", {temp.path().parent_path()}, options,
+          /*top=*/"main", /*package_name=*/"test_pkg", &printed_error),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("Warnings encountered and warnings-as-errors set")));
+}
+
 }  // namespace
 }  // namespace xls::dslx

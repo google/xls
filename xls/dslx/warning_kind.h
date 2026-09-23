@@ -28,7 +28,7 @@ namespace xls::dslx {
 // The integer type underlying a warning -- this is used in enough places, and
 // has a high enough probability that it will grow over time as the flag set
 // gets larger, that we factor it out here into an alias.
-using WarningKindInt = uint16_t;
+using WarningKindInt = uint32_t;
 
 enum class WarningKind : WarningKindInt {
   kConstexprEvalRollover = 1 << 0,
@@ -46,8 +46,9 @@ enum class WarningKind : WarningKindInt {
   kAlreadyExhaustiveMatch = 1 << 12,
   kIllegalPackageName = 1 << 13,
   kWidthSliceOutOfRange = 1 << 14,
+  kUnusedConfiguredValue = 1 << 15,
 };
-constexpr WarningKindInt kWarningKindCount = 15;
+constexpr WarningKindInt kWarningKindCount = 16;
 
 inline constexpr std::array<WarningKind, kWarningKindCount> kAllWarningKinds = {
     WarningKind::kConstexprEvalRollover,
@@ -65,6 +66,7 @@ inline constexpr std::array<WarningKind, kWarningKindCount> kAllWarningKinds = {
     WarningKind::kAlreadyExhaustiveMatch,
     WarningKind::kIllegalPackageName,
     WarningKind::kWidthSliceOutOfRange,
+    WarningKind::kUnusedConfiguredValue,
 };
 
 // Flag set datatype.

@@ -717,6 +717,12 @@ absl::StatusOr<PackageConversionData> ConvertFilesToPackage(
   if (!printed_error) {
     printed_error = &dummy_printed_error;
   }
+  ImportData summary_import_data(
+      CreateImportData(stdlib_path, dslx_paths, convert_options.warnings,
+                       std::make_unique<RealFilesystem>()));
+  XLS_RETURN_IF_ERROR(summary_import_data.RegisterConfiguredValues(
+      convert_options.configured_values));
+
   for (size_t i = 0; i < paths.size(); ++i) {
     std::string_view path = paths[i];
     ImportData import_data(
@@ -724,6 +730,8 @@ absl::StatusOr<PackageConversionData> ConvertFilesToPackage(
                          std::make_unique<RealFilesystem>()));
     XLS_RETURN_IF_ERROR(import_data.RegisterConfiguredValues(
         convert_options.configured_values));
+    import_data.MergeConfiguredValueUsageFrom(summary_import_data);
+    import_data.SetDeferUnusedCheck(i + 1 < paths.size());
 
     XLS_ASSIGN_OR_RETURN(std::string text,
                          import_data.vfs().GetFileContents(path));
@@ -752,6 +760,7 @@ absl::StatusOr<PackageConversionData> ConvertFilesToPackage(
     XLS_RETURN_IF_ERROR(AddContentsToPackage(
         text, module_name, /*path=*/path, /*entry=*/top, convert_options,
         &import_data, &conversion_data, printed_error));
+    summary_import_data.MergeConfiguredValueUsageFrom(import_data);
   }
   return conversion_data;
 }
