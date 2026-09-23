@@ -747,13 +747,26 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
     const bool canonicalized = table_.MapToCanonicalInvocationTypeInfo(
         invocation_context, std::move(env));
 
-    // Set a parametric-free RHS for each impl type alias in the invocation
-    // context.
+    // Set a parametric-free RHS for each struct/proc generic type parameter
+    // and impl type alias in the invocation context.
     if (function->impl().has_value() && (*function->impl())->IsParametric()) {
       XLS_ASSIGN_OR_RETURN(
           std::optional<StructOrProcRef> struct_or_proc_ref,
           GetStructOrProcRef((*function->impl())->struct_ref(), import_data_));
       XLS_RET_CHECK(struct_or_proc_ref.has_value());
+      for (const ParametricBinding* binding :
+           struct_or_proc_ref->def->parametric_bindings()) {
+        if (binding->type_annotation()->IsAnnotation<GenericTypeAnnotation>()) {
+          XLS_ASSIGN_OR_RETURN(
+              const TypeAnnotation* generic_type,
+              table_.GetGenericType(
+                  function_and_target_object.target_struct_context,
+                  binding->name_def()));
+          XLS_RETURN_IF_ERROR(
+              table_.AddTypeAnnotationToVariableForParametricContext(
+                  invocation_context, binding, generic_type));
+        }
+      }
       for (const TypeAlias* alias : (*function->impl())->GetTypeAliases()) {
         const NameRef* variable = *table_.GetTypeVariable(alias);
         XLS_ASSIGN_OR_RETURN(

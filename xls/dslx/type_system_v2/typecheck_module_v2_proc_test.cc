@@ -1105,5 +1105,33 @@ impl NormalProc {
           "Test proc `TestProc` can only be instantiated in a test context.")));
 }
 
+TEST(TypecheckV2ProcTest, ProcDefWithGenericTypeParamUsedInNew) {
+  XLS_EXPECT_OK(TypecheckV2(
+      R"(
+#![feature(explicit_state_access)]
+#![feature(generics)]
+
+proc Worker<W: u32, Data: type = bits[W]> {
+  c_in: chan<Data> in,
+  state: Data,
+}
+
+impl Worker<W, Data> {
+  fn new(c_in: chan<Data> in) -> Self {
+    Worker { c_in, state: Data:0 }
+  }
+}
+
+proc Top {}
+
+impl Top {
+  fn new(c_in: chan<u32> in) -> Self {
+    Worker<32>::new(c_in).spawn();
+    Top {}
+  }
+}
+)"));
+}
+
 }  // namespace
 }  // namespace xls::dslx
