@@ -33,6 +33,12 @@ package(
     licenses = ["notice"],
 )
 
+filegroup(
+    name = "x_files",
+    srcs = glob(["*.x"]),
+    visibility = ["//xls:xls_internal"],
+)
+
 CLOCK_PERIOD_PS = "750"
 
 COMMON_CODEGEN_ARGS = {
