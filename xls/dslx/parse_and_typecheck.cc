@@ -76,11 +76,11 @@ absl::StatusOr<TypecheckedModule> ParseAndTypecheck(
 absl::StatusOr<std::unique_ptr<Module>> ParseModule(
     std::string_view text, std::string_view path, std::string_view module_name,
     FileTable& file_table, std::vector<CommentData>* comments,
-    bool parse_fn_stubs) {
+    bool parse_fn_stubs, Bindings* bindings) {
   Fileno fileno = file_table.GetOrCreate(path);
   Scanner scanner(file_table, fileno, std::string{text});
   Parser parser(std::string{module_name}, &scanner, parse_fn_stubs);
-  XLS_ASSIGN_OR_RETURN(auto module, parser.ParseModule());
+  XLS_ASSIGN_OR_RETURN(auto module, parser.ParseModule(bindings));
   if (comments != nullptr) {
     *comments = scanner.PopComments();
   }

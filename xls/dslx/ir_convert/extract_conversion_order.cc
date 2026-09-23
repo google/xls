@@ -452,6 +452,9 @@ absl::StatusOr<std::vector<Proc*>> GetTopLevelProcs(Module* module,
     return absl::OkStatus();
   };
   for (Proc* proc : module->GetProcs()) {
+    if (proc->alias_target() != nullptr) {
+      continue;
+    }
     XLS_RETURN_IF_ERROR(collect_spawns_from_proc(proc, include_tests));
   }
   if (include_tests) {
@@ -463,6 +466,7 @@ absl::StatusOr<std::vector<Proc*>> GetTopLevelProcs(Module* module,
   }
 
   absl::flat_hash_set<Proc*> spawned;
+  std::vector<Proc*> worklist;
   for (Spawn* spawn : spawns) {
     Expr* spawnee = spawn->callee();
     NameRef* spawnee_nameref = dynamic_cast<NameRef*>(spawnee);
@@ -474,13 +478,26 @@ absl::StatusOr<std::vector<Proc*>> GetTopLevelProcs(Module* module,
     }
 
     auto* this_spawned = absl::down_cast<Proc*>(spawnee_nameref->GetDefiner());
-    spawned.insert(this_spawned);
+    if (spawned.insert(this_spawned).second &&
+        this_spawned->alias_target() != nullptr) {
+      worklist.push_back(this_spawned);
+    }
+  }
+  while (!worklist.empty()) {
+    Proc* alias_proc = worklist.back();
+    worklist.pop_back();
+    Proc* target = alias_proc->alias_target();
+    if (target->owner() == module && spawned.insert(target).second &&
+        target->alias_target() != nullptr) {
+      worklist.push_back(target);
+    }
   }
 
   // All non-parametric procs that are not spawned are top level.
   std::vector<Proc*> results;
   auto add_if_top_level_proc = [&results, &spawned](Proc* proc) {
-    if (!proc->IsParametric() && !spawned.contains(proc) &&
+    if (proc->alias_target() == nullptr && !proc->IsParametric() &&
+        !spawned.contains(proc) &&
         absl::c_all_of(proc->config().params(),
                        [&](const Param* param) -> bool {
                          // param is a channel.
@@ -594,12 +611,11 @@ static absl::Status ProcessCallees(absl::Span<const Callee> orig_callees,
                                    std::vector<ConversionRecord>* ready);
 
 // Adds (f, bindings) to conversion order after deps have been added.
-static absl::Status AddToReady(std::variant<Function*, TestFunction*> f,
-                               Module* m, TypeInfo* type_info,
-                               const ParametricEnv& bindings,
-                               std::vector<ConversionRecord>* ready,
-                               const std::optional<ProcId>& proc_id,
-                               bool is_top = false) {
+static absl::Status AddToReady(
+    std::variant<Function*, TestFunction*> f, Module* m, TypeInfo* type_info,
+    const ParametricEnv& bindings, std::vector<ConversionRecord>* ready,
+    const std::optional<ProcId>& proc_id, bool is_top = false,
+    std::optional<InterpValue> init_value = std::nullopt) {
   if (IsReady(f, m, bindings, ready)) {
     return absl::OkStatus();
   }
@@ -623,7 +639,8 @@ static absl::Status AddToReady(std::variant<Function*, TestFunction*> f,
   VLOG(3) << "Adding to ready sequence: " << fn->identifier();
   XLS_ASSIGN_OR_RETURN(
       ConversionRecord cr,
-      ConversionRecord::Make(fn, m, type_info, bindings, proc_id, is_top));
+      ConversionRecord::Make(fn, m, type_info, bindings, proc_id, is_top,
+                             /*config_record=*/nullptr, std::move(init_value)));
   ready->push_back(std::move(cr));
   return absl::OkStatus();
 }
@@ -652,8 +669,7 @@ static absl::Status ProcessCallees(absl::Span<const Callee> orig_callees,
 }
 
 static absl::StatusOr<std::vector<ConversionRecord>> GetOrderForProc(
-    std::variant<Proc*, TestProc*> entry, TypeInfo* type_info, bool is_top,
-    std::optional<ResolvedProcAlias> resolved_proc_alias = std::nullopt) {
+    std::variant<Proc*, TestProc*> entry, TypeInfo* type_info, bool is_top) {
   std::vector<ConversionRecord> ready;
   Proc* p;
   if (std::holds_alternative<TestProc*>(entry)) {
@@ -666,19 +682,38 @@ static absl::StatusOr<std::vector<ConversionRecord>> GetOrderForProc(
   TypeInfo* next_ti = type_info;
   ParametricEnv env;
   std::optional<std::string> alias_name;
-  if (resolved_proc_alias.has_value()) {
-    config_ti = resolved_proc_alias->config_type_info;
-    next_ti = resolved_proc_alias->next_type_info;
-    env = resolved_proc_alias->env;
-    alias_name = resolved_proc_alias->name;
+  std::optional<InterpValue> init_value;
+  if (p->alias_target() != nullptr) {
+    alias_name = p->identifier();
+    const Proc* target_proc = p;
+    TypeInfo* curr_ti = type_info;
+    std::optional<SpawnData> resolved_spawn;
+    while (target_proc->alias_target() != nullptr) {
+      const Spawn* spawn_stmt = absl::down_cast<const Spawn*>(std::get<Expr*>(
+          target_proc->config().body()->statements()[0]->wrapped()));
+      XLS_ASSIGN_OR_RETURN(std::vector<SpawnData> spawns,
+                           curr_ti->GetSpawns(target_proc->alias_target()));
+      auto it = absl::c_find_if(spawns, [&](const SpawnData& sd) {
+        return sd.config_invocation == spawn_stmt->config();
+      });
+      XLS_RET_CHECK(it != spawns.end());
+      resolved_spawn = *it;
+      target_proc = resolved_spawn->proc;
+      curr_ti = resolved_spawn->config_type_info;
+    }
+    p = const_cast<Proc*>(target_proc);
+    config_ti = resolved_spawn->config_type_info;
+    next_ti = resolved_spawn->next_type_info;
+    env = resolved_spawn->env;
+    init_value = resolved_spawn->init_value;
   }
 
   // The next function of a proc is the entry function when converting a proc to
   // IR.
   XLS_RETURN_IF_ERROR(AddToReady(
       &p->next(), p->owner(), next_ti, env, &ready,
-      ProcId{.proc_instance_stack = {{p, 0}}, .alias_name = alias_name},
-      is_top));
+      ProcId{.proc_instance_stack = {{p, 0}}, .alias_name = alias_name}, is_top,
+      std::move(init_value)));
   XLS_RETURN_IF_ERROR(AddToReady(
       &p->config(), p->owner(), config_ti, env, &ready,
       ProcId{.proc_instance_stack = {{p, 0}}, .alias_name = alias_name}));
@@ -770,7 +805,7 @@ absl::StatusOr<std::vector<ConversionRecord>> GetOrder(Module* module,
             [](TypeAlias*) { return absl::OkStatus(); },
             [](StructDef*) { return absl::OkStatus(); },
             [](ProcDef*) { return absl::OkStatus(); },
-            [](ProcAlias*) { return absl::OkStatus(); },
+            [](AliasDef*) { return absl::OkStatus(); },
             [](Impl*) { return absl::OkStatus(); },
             [](EnumDef*) { return absl::OkStatus(); },
             [](SumDef*) { return absl::OkStatus(); },
@@ -819,8 +854,7 @@ absl::StatusOr<std::vector<ConversionRecord>> GetOrder(Module* module,
 }
 
 absl::StatusOr<std::vector<ConversionRecord>> GetOrderForEntry(
-    std::variant<Function*, Proc*, ProcDef*> entry, TypeInfo* type_info,
-    std::optional<ResolvedProcAlias> resolved_proc_alias) {
+    std::variant<Function*, Proc*, ProcDef*> entry, TypeInfo* type_info) {
   std::vector<ConversionRecord> ready;
   if (std::holds_alternative<Function*>(entry)) {
     Function* f = std::get<Function*>(entry);
@@ -843,8 +877,7 @@ absl::StatusOr<std::vector<ConversionRecord>> GetOrderForEntry(
   Proc* p = std::get<Proc*>(entry);
   XLS_ASSIGN_OR_RETURN(TypeInfo * new_ti,
                        type_info->GetTopLevelProcTypeInfo(p));
-  XLS_ASSIGN_OR_RETURN(
-      ready, GetOrderForProc(p, new_ti, /*is_top=*/true, resolved_proc_alias));
+  XLS_ASSIGN_OR_RETURN(ready, GetOrderForProc(p, new_ti, /*is_top=*/true));
   RemoveFunctionDuplicates(&ready);
   return ready;
 }

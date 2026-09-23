@@ -3,7 +3,7 @@ package test_module
 file_number 0 "test_module.x"
 
 fn __test_module__bar__16(i: bits[16] id=1) -> bits[16] {
-  Y: bits[5] = literal(value=16, id=2)
+  Y: bits[32] = literal(value=16, id=2)
   ret add.3: bits[16] = add(i, i, id=3)
 }
 

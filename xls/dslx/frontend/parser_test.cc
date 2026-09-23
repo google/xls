@@ -5747,4 +5747,49 @@ struct MyStruct {
   EXPECT_TRUE(my_domain->is_domain_struct());
   EXPECT_EQ(my_domain->name_def()->definer(), my_struct);
 }
+
+TEST_F(ParserTest, FunctionAlias) {
+  constexpr std::string_view kProgram = R"(#![feature(generics)]
+
+fn foo<N: u32, T: type>(x: T) -> T {
+    x
+}
+pub fn my_alias = foo<u32:8, u16>;)";
+  RoundTrip(kProgram);
+  auto module = ExpectParsesSuccessfully(kProgram);
+  ASSERT_NE(module, nullptr);
+  XLS_ASSERT_OK_AND_ASSIGN(AliasDef * alias,
+                           module->GetMemberOrError<AliasDef>("my_alias"));
+  EXPECT_TRUE(alias->is_function_alias());
+  EXPECT_TRUE(alias->is_public());
+  EXPECT_EQ(alias->identifier(), "my_alias");
+  EXPECT_EQ(alias->parametrics().size(), 2);
+}
+
+TEST_F(ParserTest, ParseSyntheticTopAlias) {
+  constexpr std::string_view kProgram = R"(#![feature(generics)]
+
+fn foo<N: u32, T: type>(x: T) -> T {
+    x
+}
+)";
+  auto module = ExpectParsesSuccessfully(kProgram);
+  ASSERT_NE(module, nullptr);
+  Bindings bindings;
+  for (const ModuleMember& member : module->top()) {
+    for (NameDef* name_def : ModuleMemberGetNameDefs(member)) {
+      bindings.Add(name_def->identifier(), name_def);
+    }
+  }
+  FileTable file_table;
+  Scanner scanner(file_table, Fileno(0), "foo<u32:16, u64>");
+  Parser parser(module.get(), &scanner);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      AliasDef * pa, parser.ParseSyntheticTopAlias("__synth_foo", bindings));
+  EXPECT_TRUE(pa->is_function_alias());
+  EXPECT_EQ(pa->identifier(), "__synth_foo");
+  EXPECT_TRUE(pa->is_synthetic());
+  EXPECT_EQ(pa->parametrics().size(), 2);
+}
+
 }  // namespace xls::dslx

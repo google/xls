@@ -89,6 +89,13 @@ absl::Status ConvertOneFunctionIntoPackage(Module* module,
                                            const ConvertOptions& options,
                                            PackageConversionData* conv);
 
+// If `entry_function_name` specifies a parametric instantiation (e.g.
+// `foo<u32:8>`) or refers to a `TypeAlias` in `module`, injects a synthetic top
+// alias into `module` before typechecking.
+absl::Status PrepareModuleForTopEntry(Module* module,
+                                      std::string_view entry_function_name,
+                                      FileTable& file_table);
+
 // As above but takes a function pointer for a function in the module.
 absl::Status ConvertOneFunctionIntoPackage(Function* fn,
                                            ImportData* import_data,

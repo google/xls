@@ -38,6 +38,8 @@
 
 namespace xls::dslx {
 
+class Bindings;
+
 enum class TypeInferenceVersion : uint8_t { kVersion1 = 1, kVersion2 = 2 };
 
 inline constexpr TypeInferenceVersion kDefaultTypeInferenceVersion =
@@ -84,7 +86,7 @@ absl::StatusOr<TypecheckedModule> ParseAndTypecheck(
 absl::StatusOr<std::unique_ptr<Module>> ParseModule(
     std::string_view text, std::string_view path, std::string_view module_name,
     FileTable& file_table, std::vector<CommentData>* comments = nullptr,
-    bool parse_fn_stubs = false);
+    bool parse_fn_stubs = false, Bindings* bindings = nullptr);
 
 // Helper that parses and created a new Module from the given DSLX file path.
 //   path - path to the file to read and parse.
