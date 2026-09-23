@@ -521,6 +521,15 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
                                     function_and_target_object.function);
 
     const Function* function = function_and_target_object.function;
+    if (function->IsMethod() &&
+        !function_and_target_object.target_object.has_value()) {
+      return TypeInferenceErrorStatus(
+          invocation->span(), nullptr,
+          absl::Substitute(
+              "Instance method `$0` must be called on a target object.",
+              function->identifier()),
+          file_table_);
+    }
     if (caller.has_value() && function == *caller) {
       return TypeInferenceErrorStatus(
           invocation->span(), nullptr,

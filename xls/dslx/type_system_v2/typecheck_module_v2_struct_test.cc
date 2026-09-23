@@ -1554,7 +1554,8 @@ const X = uN[W.area()]:0;
 }
 
 TEST(TypecheckV2StructTest, InstanceMethodCalledStaticallyWithNoParamsFails) {
-  EXPECT_THAT(R"(
+  EXPECT_THAT(
+      R"(
 struct Point { x: u32, y: u32 }
 
 impl Point {
@@ -1565,7 +1566,25 @@ impl Point {
 
 const P = Point::area();
 )",
-              TypecheckFails(HasSubstr("Expected 1 argument(s) but got 0")));
+      TypecheckFails(HasSubstr(
+          "Instance method `area` must be called on a target object.")));
+}
+
+TEST(TypecheckV2StructTest, InstanceMethodNotAttributeOnInstanceFails) {
+  EXPECT_THAT(
+      R"(
+struct Point { x: u32, y: u32 }
+
+impl Point {
+    fn area(self) -> u32 {
+        self.x * self.y
+    }
+}
+
+const P = Point::area(Point { x: 4, y: 2 });
+)",
+      TypecheckFails(HasSubstr(
+          "Instance method `area` must be called on a target object.")));
 }
 
 TEST(TypecheckV2StructTest, ImplFunctionCalledOnSelf) {
