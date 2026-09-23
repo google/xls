@@ -38,9 +38,12 @@
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/ascii.h"
+#include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
+#include "absl/strings/str_replace.h"
 #include "absl/strings/substitute.h"
 #include "absl/types/span.h"
 #include "cppitertools/filter.hpp"
@@ -239,13 +242,17 @@ absl::Status ConvertOneFunctionInternal(PackageData& package_data,
     if (!proc_data->id_to_initial_value.contains(record.proc_id().value()) &&
         (!options.lower_to_proc_scoped_channels || record.IsTop())) {
       // For proc scoped channels, we will defer the init evaluation to later.
-      Proc* p = f->proc().value();
-      // If there's no value in the map, then this should be a top-level proc.
-      XLS_ASSIGN_OR_RETURN(
-          InterpValue iv,
-          ConstexprEvaluator::EvaluateToValue(
-              import_data, record.type_info(), kNoWarningCollector,
-              record.parametric_env(), p->init().body()));
+      InterpValue iv = InterpValue::MakeTuple({});
+      if (record.init_value().has_value()) {
+        iv = *record.init_value();
+      } else {
+        Proc* p = f->proc().value();
+        // If there's no value in the map, then this should be a top-level proc.
+        XLS_ASSIGN_OR_RETURN(
+            iv, ConstexprEvaluator::EvaluateToValue(
+                    import_data, record.type_info(), kNoWarningCollector,
+                    record.parametric_env(), p->init().body()));
+      }
       XLS_ASSIGN_OR_RETURN(Value ir_value, iv.ConvertToIr());
       proc_data->id_to_initial_value[record.proc_id().value()] = ir_value;
     }
@@ -388,15 +395,14 @@ absl::StatusOr<std::vector<ConversionRecord>> GetConversionRecords(
 
 template <typename BlockT>
 absl::StatusOr<std::vector<ConversionRecord>> GetConversionRecords(
-    BlockT* block, TypeInfo* type_info, const ConvertOptions& options,
-    std::optional<ResolvedProcAlias> resolved_proc_alias) {
+    BlockT* block, TypeInfo* type_info, const ConvertOptions& options) {
   // TODO: https://github.com/google/xls/issues/2078 - Remove this `if` after
   // lower_to_proc_scoped_channels is turned on everywhere, and call
   // GetConversionRecordsForEntry unconditionally.
   if (options.lower_to_proc_scoped_channels) {
-    return GetConversionRecordsForEntry(block, type_info, resolved_proc_alias);
+    return GetConversionRecordsForEntry(block, type_info);
   }
-  return GetOrderForEntry(block, type_info, resolved_proc_alias);
+  return GetOrderForEntry(block, type_info);
 }
 
 }  // namespace
@@ -474,13 +480,11 @@ absl::Status CheckAcceptableTopProcDef(const ProcDef* proc, TypeInfo* ti) {
 template <typename BlockT>
 absl::Status ConvertOneFunctionIntoPackageInternal(
     BlockT* block, ImportData* import_data, const ConvertOptions& options,
-    PackageConversionData* conv,
-    std::optional<ResolvedProcAlias> resolved_proc_alias = std::nullopt) {
+    PackageConversionData* conv) {
   XLS_ASSIGN_OR_RETURN(TypeInfo * func_type_info,
                        import_data->GetRootTypeInfoForNode(block));
   XLS_ASSIGN_OR_RETURN(std::vector<ConversionRecord> order,
-                       GetConversionRecords(block, func_type_info, options,
-                                            resolved_proc_alias));
+                       GetConversionRecords(block, func_type_info, options));
   PackageData package_data{.conversion_info = conv};
   XLS_RETURN_IF_ERROR(
       ConvertCallGraph(order, import_data, options, package_data));
@@ -495,12 +499,63 @@ absl::Status ConvertOneFunctionIntoPackage(Function* fn,
   return ConvertOneFunctionIntoPackageInternal(fn, import_data, options, conv);
 }
 
+// When `--top` specifies explicit parametric arguments (`foo<...>`) or targets
+// a `TypeAlias` (`pub type Counter16 = Counter<u32:16>;`), inject a synthetic
+// top alias (`__xls_top_entry__`, marked with `is_synthetic() == true`) prior
+// to `TypecheckModule`. During pre-typecheck semantics analysis, this desugars
+// into a concrete wrapper function/proc so that `TypecheckModule` instantiates
+// the target and records its monomorphized `TypeInfo` / canonical initializer.
+absl::Status PrepareModuleForTopEntry(Module* module,
+                                      std::string_view entry_function_name,
+                                      FileTable& file_table) {
+  std::string_view trimmed = absl::StripAsciiWhitespace(entry_function_name);
+  if (!absl::StrContains(trimmed, '<') &&
+      !module->GetMemberOrError<TypeAlias>(trimmed).ok()) {
+    return absl::OkStatus();
+  }
+  std::string synth_name = "__xls_top_entry__";
+
+  Fileno fileno = file_table.GetOrCreate("<top_instantiation>");
+  Scanner scanner(file_table, fileno, std::string(trimmed));
+  Bindings bindings;
+  for (const ModuleMember& member : module->top()) {
+    for (NameDef* name_def : ModuleMemberGetNameDefs(member)) {
+      bindings.Add(name_def->identifier(), name_def);
+    }
+  }
+  Parser parser(module, &scanner);
+  XLS_ASSIGN_OR_RETURN(AliasDef * pa,
+                       parser.ParseSyntheticTopAlias(synth_name, bindings));
+  return module->AddTop(pa, /*make_collision_error=*/nullptr);
+}
+
 absl::Status ConvertOneFunctionIntoPackage(Module* module,
                                            std::string_view entry_function_name,
                                            ImportData* import_data,
                                            const ParametricEnv* parametric_env,
                                            const ConvertOptions& options,
                                            PackageConversionData* conv) {
+  std::optional<std::string> base_name_override;
+  std::string_view trimmed = absl::StripAsciiWhitespace(entry_function_name);
+  if (absl::StrContains(trimmed, '<') ||
+      module->GetMemberOrError<TypeAlias>(trimmed).ok()) {
+    base_name_override = std::string(trimmed.substr(0, trimmed.find('<')));
+    entry_function_name = "__xls_top_entry__";
+  }
+
+  auto finalize_top = [&](absl::Status status) -> absl::Status {
+    if (!status.ok() || !base_name_override.has_value()) {
+      return status;
+    }
+    for (xls::FunctionBase* fb : conv->package->GetFunctionBases()) {
+      if (absl::StrContains(fb->name(), "__xls_top_entry__")) {
+        fb->SetName(absl::StrReplaceAll(
+            fb->name(), {{"__xls_top_entry__", *base_name_override}}));
+      }
+    }
+    return absl::OkStatus();
+  };
+
   absl::StatusOr<TestFunction*> test_fn = module->GetTest(entry_function_name);
   if (test_fn.ok()) {
     if (!options.convert_tests) {
@@ -509,14 +564,14 @@ absl::Status ConvertOneFunctionIntoPackage(Module* module,
           "function \"%s\" from module %s was requested.",
           entry_function_name, module->name()));
     }
-    return ConvertOneFunctionIntoPackageInternal(&(*test_fn)->fn(), import_data,
-                                                 options, conv);
+    return finalize_top(ConvertOneFunctionIntoPackageInternal(
+        &(*test_fn)->fn(), import_data, options, conv));
   }
   absl::StatusOr<FuzzTestFunction*> fuzz_test_fn =
       module->GetMemberOrError<FuzzTestFunction>(entry_function_name);
   if (fuzz_test_fn.ok()) {
-    return ConvertOneFunctionIntoPackageInternal(&(*fuzz_test_fn)->fn(),
-                                                 import_data, options, conv);
+    return finalize_top(ConvertOneFunctionIntoPackageInternal(
+        &(*fuzz_test_fn)->fn(), import_data, options, conv));
   }
 
   std::optional<Function*> fn_or = module->GetFunction(entry_function_name);
@@ -527,9 +582,15 @@ absl::Status ConvertOneFunctionIntoPackage(Module* module,
           "utility function \"%s\" from module %s was requested.",
           entry_function_name, module->name()));
     }
+    if (fn_or.value()->IsParametric()) {
+      return absl::InvalidArgumentError(absl::StrFormat(
+          "Function \"%s\" in module %s is parametric; specify parametric "
+          "arguments in top (e.g. \"%s<...>\") or define a function alias.",
+          entry_function_name, module->name(), entry_function_name));
+    }
 
-    return ConvertOneFunctionIntoPackageInternal(*fn_or, import_data, options,
-                                                 conv);
+    return finalize_top(ConvertOneFunctionIntoPackageInternal(
+        *fn_or, import_data, options, conv));
   }
 
   absl::StatusOr<TestProc*> test_proc =
@@ -542,35 +603,37 @@ absl::Status ConvertOneFunctionIntoPackage(Module* module,
                           "of a test proc \"%s\" from module %s was requested.",
                           entry_function_name, module->name()));
     }
-    return ConvertOneFunctionIntoPackageInternal((*test_proc)->proc(),
-                                                 import_data, options, conv);
+    return finalize_top(ConvertOneFunctionIntoPackageInternal(
+        (*test_proc)->proc(), import_data, options, conv));
   }
 
   absl::StatusOr<Proc*> proc =
       module->GetMemberOrError<Proc>(entry_function_name);
   if (proc.ok()) {
+    if ((*proc)->IsParametric()) {
+      return absl::InvalidArgumentError(absl::StrFormat(
+          "Proc \"%s\" in module %s is parametric; specify parametric "
+          "arguments in top (e.g. \"%s<...>\") or define a proc alias.",
+          entry_function_name, module->name(), entry_function_name));
+    }
     XLS_RETURN_IF_ERROR(CheckAcceptableTopProc(*proc));
-    return ConvertOneFunctionIntoPackageInternal(*proc, import_data, options,
-                                                 conv);
+    return finalize_top(ConvertOneFunctionIntoPackageInternal(
+        *proc, import_data, options, conv));
   }
 
   absl::StatusOr<ProcDef*> proc_def =
       module->GetMemberOrError<ProcDef>(entry_function_name);
   if (proc_def.ok()) {
+    if ((*proc_def)->IsParametric()) {
+      return absl::InvalidArgumentError(absl::StrFormat(
+          "Proc \"%s\" in module %s is parametric; specify parametric "
+          "arguments in top (e.g. \"%s<...>\") or define a proc alias.",
+          entry_function_name, module->name(), entry_function_name));
+    }
     XLS_ASSIGN_OR_RETURN(TypeInfo * ti, import_data->GetRootTypeInfo());
     XLS_RETURN_IF_ERROR(CheckAcceptableTopProcDef(*proc_def, ti));
-    return ConvertOneFunctionIntoPackageInternal(*proc_def, import_data,
-                                                 options, conv);
-  }
-
-  absl::StatusOr<ProcAlias*> proc_alias =
-      module->GetMemberOrError<ProcAlias>(entry_function_name);
-  if (proc_alias.ok()) {
-    XLS_ASSIGN_OR_RETURN(TypeInfo * ti, import_data->GetRootTypeInfo());
-    ResolvedProcAlias resolved_alias = ti->GetResolvedProcAlias(*proc_alias);
-    XLS_RETURN_IF_ERROR(CheckAcceptableTopProc(resolved_alias.proc));
-    return ConvertOneFunctionIntoPackageInternal(
-        resolved_alias.proc, import_data, options, conv, resolved_alias);
+    return finalize_top(ConvertOneFunctionIntoPackageInternal(
+        *proc_def, import_data, options, conv));
   }
 
   return absl::InvalidArgumentError(
@@ -637,6 +700,15 @@ absl::Status AddContentsToPackage(
                                  /*filename=*/path_value, printed_error));
   XLS_RETURN_IF_ERROR(
       module->SetConfiguredValues(convert_options.configured_values));
+  if (entry.has_value()) {
+    absl::Status prep_status = PrepareModuleForTopEntry(
+        module.get(), *entry, import_data->file_table());
+    if (!prep_status.ok()) {
+      *printed_error = TryPrintError(prep_status, import_data->file_table(),
+                                     import_data->vfs());
+      return prep_status;
+    }
+  }
   absl::StatusOr<TypecheckedModule> typechecked_module =
       TypecheckModule(std::move(module), path_value, import_data);
   if (!typechecked_module.ok()) {

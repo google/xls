@@ -311,6 +311,75 @@ absl::StatusOr<Function*> Parser::ParseFunction(
   return f;
 }
 
+absl::StatusOr<ModuleMember> Parser::ParseFunctionOrAlias(
+    const Pos& start_pos, bool is_public, Bindings& outer_bindings,
+    absl::flat_hash_map<std::string, Function*>* name_to_fn) {
+  XLS_ASSIGN_OR_RETURN(Token fn_tok, PopKeywordOrError(Keyword::kFn));
+  XLS_ASSIGN_OR_RETURN(NameDef * name_def, ParseNameDefNoBind());
+  XLS_ASSIGN_OR_RETURN(bool is_alias, TryDropToken(TokenKind::kEquals));
+  if (is_alias) {
+    outer_bindings.Add(name_def->identifier(), name_def);
+    std::variant<NameRef*, ColonRef*> target;
+    XLS_ASSIGN_OR_RETURN(target, ParseNameOrColonRef(outer_bindings));
+    XLS_ASSIGN_OR_RETURN(bool has_parametrics, PeekTokenIs(TokenKind::kOAngle));
+    std::vector<ExprOrType> parametrics;
+    if (has_parametrics) {
+      XLS_ASSIGN_OR_RETURN(parametrics, ParseParametrics(outer_bindings));
+    }
+    XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kSemi, &fn_tok,
+                                         "';' at end of function alias"));
+    Span span(start_pos, GetPos());
+    AliasDef* pa =
+        module_->Make<AliasDef>(span, name_def, target, is_public, parametrics,
+                                /*is_function_alias=*/true);
+    name_def->set_definer(pa);
+    return pa;
+  }
+  XLS_ASSIGN_OR_RETURN(
+      Function * f,
+      ParseFunctionAfterName(start_pos, name_def, is_public, outer_bindings));
+  if (name_to_fn != nullptr) {
+    auto [item, inserted] = name_to_fn->insert({f->identifier(), f});
+    if (!inserted) {
+      return ParseErrorStatus(
+          f->name_def()->span(),
+          absl::StrFormat("Function '%s' is defined in this module multiple "
+                          "times; previously @ %s'",
+                          f->identifier(),
+                          item->second->span().ToString(file_table())));
+    }
+  }
+  XLS_RETURN_IF_ERROR(VerifyParentage(f));
+  return f;
+}
+
+absl::StatusOr<AliasDef*> Parser::ParseSyntheticTopAlias(
+    std::string_view alias_name, Bindings& bindings) {
+  Pos start_pos = GetPos();
+  XLS_ASSIGN_OR_RETURN(AliasDef::Target target, ParseNameOrColonRef(bindings));
+  XLS_ASSIGN_OR_RETURN(bool has_parametrics, PeekTokenIs(TokenKind::kOAngle));
+  std::vector<ExprOrType> parametrics;
+  if (has_parametrics) {
+    XLS_ASSIGN_OR_RETURN(parametrics, ParseParametrics(bindings));
+  }
+  Span span(start_pos, GetPos());
+  NameDef* name_def =
+      module_->Make<NameDef>(span, std::string(alias_name), nullptr);
+  bindings.Add(name_def->identifier(), name_def);
+  bool is_function_alias = false;
+  if (std::holds_alternative<NameRef*>(target)) {
+    const AstNode* definer = std::get<NameRef*>(target)->GetDefiner();
+    if (definer != nullptr && definer->kind() == AstNodeKind::kFunction) {
+      is_function_alias = true;
+    }
+  }
+  AliasDef* pa = module_->Make<AliasDef>(
+      span, name_def, target, /*is_public=*/true, parametrics,
+      is_function_alias, /*is_synthetic=*/true);
+  name_def->set_definer(pa);
+  return pa;
+}
+
 // Lambda syntax: | <PARAM>[: <TYPE>], ... | [-> <RETURN_TYPE>] { <BODY> }
 absl::StatusOr<Lambda*> Parser::ParseLambda(Bindings& bindings) {
   Pos start_pos = GetPos();
@@ -560,14 +629,17 @@ absl::StatusOr<std::unique_ptr<Module>> Parser::ParseModule(
 
     switch (peek->GetKeyword()) {
       case Keyword::kFn: {
-        XLS_ASSIGN_OR_RETURN(Function * fn,
-                             ParseFunction(*module_member_start_pos, is_public,
-                                           *bindings, &name_to_fn));
         XLS_ASSIGN_OR_RETURN(
-            ModuleMember fn_or_wrapper,
-            ApplyFunctionAttributes(fn, pending_attributes, *bindings));
-        XLS_RETURN_IF_ERROR(
-            module_->AddTop(fn_or_wrapper, make_collision_error));
+            ModuleMember fn_or_alias,
+            ParseFunctionOrAlias(*module_member_start_pos, is_public, *bindings,
+                                 &name_to_fn));
+        if (std::holds_alternative<Function*>(fn_or_alias)) {
+          XLS_ASSIGN_OR_RETURN(
+              fn_or_alias,
+              ApplyFunctionAttributes(std::get<Function*>(fn_or_alias),
+                                      pending_attributes, *bindings));
+        }
+        XLS_RETURN_IF_ERROR(module_->AddTop(fn_or_alias, make_collision_error));
         break;
       }
       case Keyword::kProc: {
@@ -2613,7 +2685,12 @@ absl::StatusOr<Function*> Parser::ParseFunctionInternal(
   // parsed; this prevents self-references inside the signature (e.g., in
   // return type or parametric defaults).
   XLS_ASSIGN_OR_RETURN(NameDef * name_def, ParseNameDefNoBind());
+  return ParseFunctionAfterName(start_pos, name_def, is_public, outer_bindings);
+}
 
+absl::StatusOr<Function*> Parser::ParseFunctionAfterName(
+    const Pos& start_pos, NameDef* name_def, bool is_public,
+    Bindings& outer_bindings) {
   Bindings bindings(&outer_bindings);
   bindings.NoteFunctionScoped();
 
@@ -3756,8 +3833,8 @@ absl::StatusOr<ModuleMember> Parser::ParseProcLike(const Pos& start_pos,
     XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kSemi, &leading_token,
                                          "';' at end of proc alias"));
     Span span(start_pos, GetPos());
-    return module_->Make<ProcAlias>(span, name_def, target, is_public,
-                                    parametrics);
+    return module_->Make<AliasDef>(span, name_def, target, is_public,
+                                   parametrics);
   }
 
   // Bindings for "within the proc" scope.

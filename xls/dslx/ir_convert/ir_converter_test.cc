@@ -8205,121 +8205,142 @@ impl Top {
   ExpectIr(converted);
 }
 
-TEST_F(IrConverterTest, ParametricProcDefWithLocalChannel) {
-  constexpr std::string_view kModule = R"(
-proc Stage<N: u32> {
-  c_in: chan<bits[N]> in,
-  c_out: chan<bits[N]> out,
+TEST_F(IrConverterTest, FunctionAliasAsTop) {
+  constexpr std::string_view kProgram = R"(#![feature(generics)]
+
+fn add_n<N: u32, T: type>(x: T) -> T {
+  x + (N as T)
 }
 
-impl Stage<N> {
-  fn new(c_in: chan<bits[N]> in, c_out: chan<bits[N]> out) -> Self {
-    Stage { c_in, c_out }
-  }
-
-  fn next(self) {
-    let (t, val) = recv(join(), self.c_in);
-    send(t, self.c_out, val);
-  }
+pub fn my_top = add_n<u32:8, u16>;
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
+                           ConvertOneFunctionForTest(kProgram, "my_top"));
+  EXPECT_THAT(converted,
+              testing::HasSubstr("top fn __test_module__my_top(x: bits[16]"));
 }
 
-proc Middle<N: u32> {
-  c_in: chan<bits[N]> in,
-  c_out: chan<bits[N]> out,
-}
+TEST_F(IrConverterTest, ParametricFunctionDirectTopString) {
+  constexpr std::string_view kProgram = R"(#![feature(generics)]
 
-impl Middle<N> {
-  fn new(c_in: chan<bits[N]> in, c_out: chan<bits[N]> out) -> Self {
-    let (s, r) = chan<bits[N]>("local_chan");
-    Stage<N>::new(c_in, s).spawn();
-    Stage<N>::new(r, c_out).spawn();
-    Middle { c_in, c_out }
-  }
-}
-
-proc Top {
-  c_in: chan<u32> in,
-  c_out: chan<u32> out,
-}
-
-impl Top {
-  fn new(c_in: chan<u32> in, c_out: chan<u32> out) -> Self {
-    Middle<32>::new(c_in, c_out).spawn();
-    Top { c_in, c_out }
-  }
+fn add_n<N: u32, T: type>(x: T) -> T {
+  x + (N as T)
 }
 )";
-
-  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
-                           ConvertOneFunctionForTest(kModule, "Top"));
-  ExpectIr(converted);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertOneFunctionForTest(kProgram, "add_n<u32:8, u16>"));
+  EXPECT_THAT(converted,
+              testing::HasSubstr("top fn __test_module__add_n(x: bits[16]"));
 }
 
-TEST_F(IrConverterTest,
-       ParametricProcDefWithLocalChannelMultipleInstantiations) {
-  constexpr std::string_view kModule = R"(
-proc Stage<N: u32> {
-  c_in: chan<bits[N]> in,
-  c_out: chan<bits[N]> out,
-}
-
-impl Stage<N> {
-  fn new(c_in: chan<bits[N]> in, c_out: chan<bits[N]> out) -> Self {
-    Stage { c_in, c_out }
-  }
-
-  fn next(self) {
-    let (t, val) = recv(join(), self.c_in);
-    send(t, self.c_out, val);
-  }
-}
-
-proc Middle<N: u32> {
-  c_in: chan<bits[N]> in,
-  c_out: chan<bits[N]> out,
-}
-
-impl Middle<N> {
-  fn new(c_in: chan<bits[N]> in, c_out: chan<bits[N]> out) -> Self {
-    let (s, r) = chan<bits[N]>("local_chan");
-    Stage<N>::new(c_in, s).spawn();
-    Stage<N>::new(r, c_out).spawn();
-    Middle { c_in, c_out }
-  }
-}
-
-proc OtherCaller {
-  c_in: chan<u32> in,
-  c_out: chan<u32> out,
-}
-
-impl OtherCaller {
-  fn new(c_in: chan<u32> in, c_out: chan<u32> out) -> Self {
-    Middle<32>::new(c_in, c_out).spawn();
-    OtherCaller { c_in, c_out }
-  }
-}
-
-proc Top {
-  in32: chan<u32> in,
-  out32: chan<u32> out,
-  in16: chan<u16> in,
-  out16: chan<u16> out,
-}
-
-impl Top {
-  fn new(in32: chan<u32> in, out32: chan<u32> out,
-         in16: chan<u16> in, out16: chan<u16> out) -> Self {
-    Middle<32>::new(in32, out32).spawn();
-    Middle<16>::new(in16, out16).spawn();
-    Top { in32, out32, in16, out16 }
-  }
+TEST_F(IrConverterTest, UninstantiatedParametricTopError) {
+  constexpr std::string_view kProgram = R"(
+fn add_n<N: u32>(x: uN[N]) -> uN[N] {
+  x
 }
 )";
+  EXPECT_THAT(
+      ConvertOneFunctionForTest(kProgram, "add_n"),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               testing::HasSubstr(
+                   "is parametric; specify parametric arguments in top")));
+}
 
-  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
-                           ConvertOneFunctionForTest(kModule, "Top"));
-  ExpectIr(converted);
+TEST_F(IrConverterTest, ImplStyleProcAliasAndDirectTopString) {
+  constexpr std::string_view kProgram = R"(#![feature(explicit_state_access)]
+
+proc Counter<WIDTH: u32> {
+  state: uN[WIDTH],
+}
+
+impl Counter<WIDTH> {
+  fn new() -> Self {
+    Counter { state: uN[WIDTH]:0 }
+  }
+  fn next(self) {
+    let val = read(self.state);
+    write(self.state, val + uN[WIDTH]:1);
+  }
+}
+
+pub type CounterType16 = Counter<u32:16>;
+
+proc Parent {
+  state: u32,
+}
+
+impl Parent {
+  fn new() -> Self {
+    CounterType16::new().spawn();
+    Parent { state: u32:0 }
+  }
+  fn next(self) {}
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted_type_alias,
+      ConvertOneFunctionForTest(kProgram, "CounterType16"));
+  EXPECT_THAT(converted_type_alias,
+              testing::HasSubstr("top proc __test_module__CounterType16_next"));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted_direct,
+      ConvertOneFunctionForTest(kProgram, "Counter<u32:32>"));
+  EXPECT_THAT(converted_direct,
+              testing::HasSubstr("top proc __test_module__Counter_next"));
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::string converted_parent,
+                           ConvertOneFunctionForTest(kProgram, "Parent"));
+  EXPECT_THAT(converted_parent,
+              testing::HasSubstr("top proc __test_module__Parent_next"));
+  EXPECT_THAT(converted_parent,
+              testing::HasSubstr("proc __test_module__Counter__16_next"));
+
+  constexpr std::string_view kInvalidProcAliasProgram =
+      R"(#![feature(explicit_state_access)]
+
+proc Counter<WIDTH: u32> {
+  state: uN[WIDTH],
+}
+
+impl Counter<WIDTH> {
+  fn new() -> Self {
+    Counter { state: uN[WIDTH]:0 }
+  }
+  fn next(self) {}
+}
+
+pub proc Counter16 = Counter<u32:16>;
+)";
+  EXPECT_THAT(ConvertOneFunctionForTest(kInvalidProcAliasProgram, "Counter16"),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       testing::HasSubstr(
+                           "impl-based procs must be aliased using `type`")));
+}
+
+TEST_F(IrConverterTest, LegacyStyleProcAliasAndDirectTopString) {
+  constexpr std::string_view kProgram = R"(
+proc LegacyCounter<WIDTH: u32> {
+  init { uN[WIDTH]:0 }
+  config() { () }
+  next(state: uN[WIDTH]) { state + uN[WIDTH]:1 }
+}
+
+pub proc LegacyCounter16 = LegacyCounter<u32:16>;
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted_alias,
+      ConvertOneFunctionForTest(kProgram, "LegacyCounter16"));
+  EXPECT_THAT(
+      converted_alias,
+      testing::HasSubstr("top proc __test_module__LegacyCounter16_next"));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted_direct,
+      ConvertOneFunctionForTest(kProgram, "LegacyCounter<u32:32>"));
+  EXPECT_THAT(converted_direct,
+              testing::HasSubstr("top proc __test_module__LegacyCounter_next"));
 }
 
 }  // namespace

@@ -17,7 +17,9 @@
 These functions are typically used to validate the arguments of macro definitions.
 """
 
-def _type_check(arg_name, arg_value, subject_type_name, subject_type, can_be_none = False):
+_SELECT_TYPE = type(select({"//conditions:default": None}))
+
+def _type_check(arg_name, arg_value, subject_type_name, subject_type, can_be_none = False, can_be_select = False):
     """A macro that produces a failure if the type of 'arg_value' is not of type 'subject_type'.
 
     Args:
@@ -27,8 +29,11 @@ def _type_check(arg_name, arg_value, subject_type_name, subject_type, can_be_non
       subject_type_name: The name of the subject type.
       subject_type: The type of the subject.
       can_be_none: Flag denoting that the type of 'arg_valu'e can also be of type 'None'.
+      can_be_select: Flag denoting that the value can be a select() expression.
     """
     if can_be_none and not arg_value:
+        return
+    if can_be_select and type(arg_value) == _SELECT_TYPE:
         return
     if (type(arg_value) != subject_type):
         fail("Argument '%s' must be of %s type." % (arg_name, subject_type_name))
@@ -55,7 +60,7 @@ def int_type_check(argument_name, argument_value, can_be_none = False):
     """
     _type_check(argument_name, argument_value, "integer", type(0), can_be_none)
 
-def string_type_check(argument_name, argument_value, can_be_none = False):
+def string_type_check(argument_name, argument_value, can_be_none = False, can_be_select = False):
     """A macro that produces a failure if the value is not of string type.
 
     Args:
@@ -63,8 +68,9 @@ def string_type_check(argument_name, argument_value, can_be_none = False):
         argument.
       argument_value: The value of the argument.
       can_be_none: Flag denoting that the type of the argument value can also be of type 'None'.
+      can_be_select: Flag denoting that the value can be a select() expression.
     """
-    _type_check(argument_name, argument_value, "string", type(""), can_be_none)
+    _type_check(argument_name, argument_value, "string", type(""), can_be_none, can_be_select)
 
 def list_type_check(argument_name, argument_value, can_be_none = False):
     """A macro that produces a failure if the value is not of list type.

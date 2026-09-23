@@ -1399,5 +1399,28 @@ fn test2() -> u32 {
 )"));
 }
 
+TEST(TypecheckV2FunctionTest, FunctionAliasWithValuesAndTypes) {
+  XLS_EXPECT_OK(TypecheckV2(
+      R"(#![feature(generics)]
+
+fn foo<N: u32, T: type, M: u32 = {N * u32:2}>(x: T) -> uN[M] {
+  x as uN[M]
+}
+
+pub fn foo_8_u16 = foo<u32:8, u16>;
+pub fn foo_4_u8_12 = foo<u32:4, u8, u32:12>;
+)"));
+}
+
+TEST(TypecheckV2FunctionTest, FunctionAliasTooManyParametrics) {
+  EXPECT_THAT(TypecheckV2(
+                  R"(
+fn foo<N: u32>(x: uN[N]) -> uN[N] { x }
+pub fn bad_alias = foo<u32:8, u32:16>;
+)"),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Too many parametric values supplied")));
+}
+
 }  // namespace
 }  // namespace xls::dslx

@@ -102,7 +102,7 @@ def xls_dslx_ir_macro(
     list_type_check("srcs", srcs, True)
     list_type_check("deps", deps, True)
     string_type_check("library", library, True)
-    string_type_check("dslx_top", dslx_top)
+    string_type_check("dslx_top", dslx_top, can_be_select = True)
     dictionary_type_check("ir_conv_args", ir_conv_args)
     bool_type_check("enable_generated_file", enable_generated_file)
     bool_type_check("enable_presubmit_generated_file", enable_presubmit_generated_file)
@@ -239,7 +239,7 @@ def xls_ir_cc_library_macro(
     """
     string_type_check("name", name)
     string_type_check("src", src)
-    string_type_check("top", top, True)
+    string_type_check("top", top, True, can_be_select = True)
     string_type_check("namespaces", namespaces)
 
     aot_name = name + "_gen_aot"

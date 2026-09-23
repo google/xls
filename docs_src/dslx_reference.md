@@ -855,6 +855,41 @@ Note, however, that structs are generally preferred for this purpose, as they
 are more readable and users do not need to rely on tuple elements having a
 stable order in the future (i.e., they are resilient to refactoring).
 
+### Function and Proc Aliases
+
+DSLX supports defining named aliases for instantiated parametric functions and
+procs. Under the hood, function aliases (`pub fn`) and older-style
+`config`/`init`/`next`-based-proc aliases (`pub proc`) are syntactic sugar for
+forwarding wrapper functions/procs. This is particularly useful for defining
+specialized top-level entry points for IR conversion or Verilog generation:
+
+```dslx
+#![feature(generics)]
+
+fn add_n<N: u32, T: type>(x: T) -> T { x + (N as T) }
+
+pub fn add_8_u16 = add_n<8, u16>;
+```
+
+For parametric procs, older-style `config`/`init`/`next`-based procs are aliased
+with `pub proc`, whereas `impl`-based procs must be aliased using standard
+`type` aliases (`pub type`):
+
+```dslx-snippet
+// Older-style (config/init/next) proc alias:
+pub proc LegacyCounter16 = LegacyCounter<u32:16>;
+
+// impl-based proc alias:
+pub type Counter16 = Counter<u32:16>;
+```
+
+When used as a top-level entry point (via `--top=` or `dslx_top`), an alias
+produces a stable top module name in the generated IR and Verilog (e.g.,
+`__module__add_8_u16` or `__module__Counter16_next`). In addition, `--top`
+supports direct parametric instantiation strings (such as `--top="add_n<u32:8,
+u16>"`), which emit an unmangled top symbol named after the base entity
+(`__module__add_n`).
+
 ### Type Casting
 
 Bit types can be cast from one bit-width to another with the `as` keyword. Types

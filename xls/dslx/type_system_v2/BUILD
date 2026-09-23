@@ -669,6 +669,7 @@ cc_test(
         "//xls/dslx:warning_kind",
         "//xls/dslx/type_system:typecheck_test_utils",
         "@abseil-cpp//absl/container:flat_hash_map",
+        "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:status_matchers",
         "@abseil-cpp//absl/strings",
         "@googletest//:gtest",

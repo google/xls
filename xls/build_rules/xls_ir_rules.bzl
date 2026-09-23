@@ -680,9 +680,9 @@ def get_mangled_ir_symbol(
     bool_type_check("is_proc_next", is_proc_next, True)
 
     # Presence validation for optional inputs.
-    if is_proc_next and (parametric_values or is_implicit_token):
-        fail("Argument 'is_proc_next' is mutually exclusive with arguments: " +
-             "'parametric_values' and 'is_implicit_token'.")
+    if is_proc_next and is_implicit_token:
+        fail("Argument 'is_proc_next' is mutually exclusive with argument: " +
+             "'is_implicit_token'.")
 
     prefix_str = ""
     if is_implicit_token:

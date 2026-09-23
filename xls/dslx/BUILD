@@ -1027,6 +1027,8 @@ cc_library(
         "//xls/dslx/type_system:type_info",
         "//xls/dslx/type_system_v2:import_utils",
         "//xls/public:status_macros",
+        "@abseil-cpp//absl/algorithm:container",
+        "@abseil-cpp//absl/base",
         "@abseil-cpp//absl/container:flat_hash_set",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/status",
