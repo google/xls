@@ -38,6 +38,7 @@
 #include "xls/dslx/errors.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/ast_node.h"
+#include "xls/dslx/frontend/builtin_stubs_utils.h"
 #include "xls/dslx/frontend/module.h"
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/import_record.h"
@@ -76,6 +77,35 @@ absl::StatusOr<Module*> ImportData::GetBuiltinStubsModule() const {
     return absl::NotFoundError("Builtin stubs module not loaded yet.");
   }
   return builtin_stubs_module_;
+}
+
+absl::StatusOr<Module*> ImportData::GetOrLoadBuiltinStubsModule() {
+  if (builtin_stubs_module_ != nullptr) {
+    return builtin_stubs_module_;
+  }
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<Module> module,
+                       LoadBuiltinStubs(file_table_));
+  XLS_ASSIGN_OR_RETURN(std::filesystem::path path, BuiltinStubsPath());
+  XLS_ASSIGN_OR_RETURN(ImportTokens tokens,
+                       ImportTokens::FromString(kBuiltinStubsModuleName));
+  XLS_RETURN_IF_ERROR(
+      Put(tokens, std::make_unique<ModuleInfo>(
+                      std::move(module), /*type_info=*/nullptr, path,
+                      /*inference_table_converter=*/nullptr,
+                      /*builtin_stubs=*/true))
+          .status());
+  return builtin_stubs_module_;
+}
+
+absl::Status ImportData::SetBuiltinStubsTypeInfo(
+    TypeInfo* type_info, std::unique_ptr<InferenceTableConverter> converter) {
+  XLS_ASSIGN_OR_RETURN(ImportTokens tokens,
+                       ImportTokens::FromString(kBuiltinStubsModuleName));
+  XLS_ASSIGN_OR_RETURN(ModuleInfo * info, Get(tokens));
+  SetInferenceTableConverter(builtin_stubs_module_, converter.get());
+  info->type_info_ = type_info;
+  info->inference_table_converter_ = std::move(converter);
+  return absl::OkStatus();
 }
 
 absl::StatusOr<InferenceTableConverter*> ImportData::GetInferenceTableConverter(

@@ -64,5 +64,35 @@ proc Counter {
   EXPECT_EQ(member->type()->ToString(), "BuiltinProcState<u32>");
 }
 
+TEST(SemanticsAnalysisTest, StatefulProcWithoutPriorTypecheck) {
+  constexpr std::string_view kProgram = R"(
+#![feature(explicit_state_access)]
+proc Counter {
+    state: u32,
+}
+)";
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> module,
+                           ParseModule(kProgram, "fake_path.x", "the_module",
+                                       import_data.file_table()));
+
+  // The builtin stubs have not been loaded by a typecheck, so the pass must
+  // load them itself.
+  WarningCollector warnings(import_data.enabled_warnings());
+  auto dummy_typecheck =
+      [](std::unique_ptr<Module>,
+         std::filesystem::path) -> absl::StatusOr<std::unique_ptr<ModuleInfo>> {
+    return absl::InternalError("Dummy typecheck should not be called");
+  };
+  SemanticsAnalysis semantics_analysis;
+  XLS_EXPECT_OK(semantics_analysis.RunPreTypeCheckPass(
+      *module, warnings, import_data, dummy_typecheck));
+
+  XLS_ASSERT_OK_AND_ASSIGN(ProcDef * proc,
+                           module->GetMemberOrError<ProcDef>("Counter"));
+  ASSERT_EQ(proc->members().size(), 1);
+  EXPECT_EQ(proc->members()[0]->type()->ToString(), "BuiltinProcState<u32>");
+}
+
 }  // namespace
 }  // namespace xls::dslx

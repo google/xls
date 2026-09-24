@@ -514,7 +514,6 @@ cc_library(
         "//xls/dslx/frontend:ast",
         "//xls/dslx/frontend:ast_node",
         "//xls/dslx/frontend:ast_node_visitor_with_default",
-        "//xls/dslx/frontend:builtin_stubs_utils",
         "//xls/dslx/frontend:module",
         "//xls/dslx/type_system:type_info",
         "@abseil-cpp//absl/log:check",

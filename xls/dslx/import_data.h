@@ -74,6 +74,10 @@ class ModuleInfo {
   }
 
  private:
+  // `ImportData` registers the builtin stubs module before it is typechecked
+  // sets type_info and inference_table_converter.
+  friend class ImportData;
+
   std::unique_ptr<Module> module_;
   TypeInfo* type_info_;
   std::unique_ptr<InferenceTableConverter> inference_table_converter_;
@@ -208,6 +212,16 @@ class ImportData {
   absl::StatusOr<InferenceTableConverter*> GetInferenceTableConverter(
       std::string_view module_name);
   absl::StatusOr<Module*> GetBuiltinStubsModule() const;
+
+  // Parses `builtin_stubs.x` and registers it on first use, so that modules can
+  // bind to its definitions while being parsed. Its type information is
+  // attached later via `SetBuiltinStubsTypeInfo`.
+  absl::StatusOr<Module*> GetOrLoadBuiltinStubsModule();
+
+  // Attaches the results of type inference to the builtin stubs module
+  // registered by `GetOrLoadBuiltinStubsModule`.
+  absl::Status SetBuiltinStubsTypeInfo(
+      TypeInfo* type_info, std::unique_ptr<InferenceTableConverter> converter);
 
   TypeInfoOwner& type_info_owner() { return type_info_owner_; }
 

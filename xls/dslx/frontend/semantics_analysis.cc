@@ -712,7 +712,7 @@ absl::Status SemanticsAnalysis::RunPreTypeCheckPass(
 
   if (module.attributes().contains(ModuleAttribute::kExplicitStateAccess)) {
     XLS_ASSIGN_OR_RETURN(Module * builtins,
-                         import_data.GetBuiltinStubsModule());
+                         import_data.GetOrLoadBuiltinStubsModule());
     XLS_ASSIGN_OR_RETURN(
         StructDef * state_struct_def,
         builtins->GetMemberOrError<StructDef>(kBuiltinProcStateStructName));
