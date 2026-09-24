@@ -89,7 +89,7 @@ def main(argv: Sequence[str]) -> None:
         check=True,
     )
     test_file = open(f"{tmpdir}/testit.sh", "wt")
-    test_file.write("#!/bin/bash\n")
+    test_file.write("#!/usr/bin/env bash\n")
     if _CHECK_EQUIV.value:
       test_file.write(f"""
 if ! {_OPT_MAIN_BIN} '--passes={_PASS.value}' $1 --output_path={tmpdir}/fuzz.opt.ir --alsologtostderr;
