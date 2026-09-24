@@ -60,6 +60,11 @@ TEST(SubprocessTest, WorkingDirectoryDoesNotChangeParent) {
 }
 
 TEST(SubprocessTest, RelativeExecutableUsesChildWorkingDirectory) {
+  if (!std::filesystem::exists("/bin/pwd")) {
+    // Don't fail the test if this binary is not available on test platform.
+    std::cerr << "No test binary /bin/pwd available; skipping\n";
+    return;
+  }
   XLS_ASSERT_OK_AND_ASSIGN(TempDirectory directory, TempDirectory::Create());
   std::filesystem::create_symlink("/bin/pwd", directory.path() / "command");
 
