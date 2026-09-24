@@ -71,6 +71,9 @@ class FakeAreaEstimator : public AreaEstimator {
     if (node->op() == Op::kXor) {
       return 5.0 * node->BitCountOrDie();
     }
+    if (node->op() == Op::kSub) {
+      return 100.0 * node->BitCountOrDie();
+    }
     return 1.0;
   }
 };
@@ -966,13 +969,21 @@ TEST_F(ResourceSharingEquivalenceTest, CompareToArithEquivalenceMapping) {
   BValue sub32 = fb.Subtract(a, b);
   BValue add32 = fb.Add(a, b);
 
-  // 16-bit unsigned inequalities
+  // 32-bit inequalities
+  BValue ult32 = fb.ULt(a, b);
+  BValue ugt32 = fb.UGt(a, b);
+  BValue ule32 = fb.ULe(a, b);
+  BValue uge32 = fb.UGe(a, b);
+  BValue slt32 = fb.SLt(a, b);
+  BValue sgt32 = fb.SGt(a, b);
+  BValue sle32 = fb.SLe(a, b);
+  BValue sge32 = fb.SGe(a, b);
+
+  // 16-bit inequalities
   BValue ult16 = fb.ULt(a16, b16);
   BValue ugt16 = fb.UGt(a16, b16);
   BValue ule16 = fb.ULe(a16, b16);
   BValue uge16 = fb.UGe(a16, b16);
-
-  // 16-bit signed inequalities
   BValue slt16 = fb.SLt(a16, b16);
   BValue sgt16 = fb.SGt(a16, b16);
   BValue sle16 = fb.SLe(a16, b16);
@@ -986,63 +997,123 @@ TEST_F(ResourceSharingEquivalenceTest, CompareToArithEquivalenceMapping) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(eq16));
   FakeAreaEstimator area_estimator;
 
-  // Helper to test swapping comparator nodes mapped to subtraction in the tuple
-  auto test_swap = [&](Node* src, Node* dst, int tuple_index,
-                       double expected_overhead) {
-    XLS_ASSERT_OK_AND_ASSIGN(
+  // Helper to test swapping comparator nodes mapped to subtraction.
+  auto test_swap = [&](Node* src, Node* dst,
+                       double expected_overhead) -> absl::StatusOr<Node*> {
+    XLS_ASSIGN_OR_RETURN(
         std::optional<NodeToMappings> mappings,
         GetNodeEquivalenceMapper().ComputeMappings({src}, dst));
-    ASSERT_TRUE(mappings.has_value());
+    XLS_RET_CHECK(mappings.has_value());
     const std::unique_ptr<EquivalenceMapping>& mapping = mappings->at(src);
 
-    XLS_ASSERT_OK_AND_ASSIGN(
+    XLS_ASSIGN_OR_RETURN(
         double overhead,
         mapping->EstimateAreaOverhead(area_estimator, src->operands(), src));
     EXPECT_EQ(overhead, expected_overhead);
 
-    XLS_ASSERT_OK(f->set_return_value(src));
+    XLS_RETURN_IF_ERROR(f->set_return_value(src));
     ScopedVerifyEquivalence sve(f);
     absl::Span<Node* const> src_ops = src->operands();
-    XLS_ASSERT_OK_AND_ASSIGN(std::vector<Node*> coerced,
-                             mapping->ApplyToOperands(f, src_ops));
+    XLS_ASSIGN_OR_RETURN(std::vector<Node*> coerced,
+                         mapping->ApplyToOperands(f, src_ops));
     // Confirm the mapping knows when it has to transform operands.
-    ASSERT_EQ(coerced.size(), src_ops.size());
+    XLS_RET_CHECK_EQ(coerced.size(), src_ops.size());
     for (int i = 0; i < coerced.size(); ++i) {
-      XLS_ASSERT_OK_AND_ASSIGN(bool requires_transform,
-                               mapping->RequiresOperandTransformation());
+      XLS_ASSIGN_OR_RETURN(bool requires_transform,
+                           mapping->RequiresOperandTransformation());
       EXPECT_EQ(coerced[i] != src_ops[i], requires_transform);
     }
-    XLS_ASSERT_OK_AND_ASSIGN(Node * new_dst,
-                             dst->CloneInNewFunction(coerced, f));
-    XLS_ASSERT_OK_AND_ASSIGN(Node * output, mapping->ApplyToOutput(f, new_dst));
+    XLS_ASSIGN_OR_RETURN(Node * new_dst, dst->CloneInNewFunction(coerced, f));
+    XLS_ASSIGN_OR_RETURN(Node * output, mapping->ApplyToOutput(f, new_dst));
     // Confirm the mapping knows when it has to transform the output.
-    XLS_ASSERT_OK_AND_ASSIGN(bool requires_output_transform,
-                             mapping->RequiresOutputTransformation());
+    XLS_ASSIGN_OR_RETURN(bool requires_output_transform,
+                         mapping->RequiresOutputTransformation());
     EXPECT_EQ(output != new_dst, requires_output_transform);
-    XLS_ASSERT_OK(f->set_return_value(output));
+    XLS_RETURN_IF_ERROR(f->set_return_value(output));
+    return output;
   };
 
-  // Test unsigned inequality mappings to subtraction (tuple element 0):
-  // ult16 -> sub32 (with zero extension): extend (overhead 0.0)
-  test_swap(ult16.node(), sub32.node(), /*tuple_index=*/0, 0.0);
-  // ugt16 -> sub32 (with zero extension): swap operands + extend (overhead 0.0)
-  test_swap(ugt16.node(), sub32.node(), /*tuple_index=*/0, 0.0);
-  // ule16 -> sub32 (with zero extension): swap operands + extend + invert
-  // output (overhead 1.0)
-  test_swap(ule16.node(), sub32.node(), /*tuple_index=*/0, 1.0);
-  // uge16 -> sub32 (with zero extension): extend + invert output (overhead 1.0)
-  test_swap(uge16.node(), sub32.node(), /*tuple_index=*/0, 1.0);
+  auto msb = [](auto node_matcher, int64_t width = 32) {
+    return m::BitSlice(node_matcher, width - 1, 1);
+  };
+  auto msb_a = msb(m::Param("a"));
+  auto msb_b = msb(m::Param("b"));
+  auto msb_a_sub_b = msb(m::Sub(m::Param("a"), m::Param("b")));
+  auto msb_b_sub_a = msb(m::Sub(m::Param("b"), m::Param("a")));
+  Node* output = nullptr;
 
-  // Test signed inequality mappings to subtraction (tuple element 1):
-  // slt16 -> sub32 (with sign extension): extend (overhead 0.0)
-  test_swap(slt16.node(), sub32.node(), /*tuple_index=*/1, 0.0);
-  // sgt16 -> sub32 (with sign extension): swap operands + extend (overhead 0.0)
-  test_swap(sgt16.node(), sub32.node(), /*tuple_index=*/1, 0.0);
-  // sle16 -> sub32 (with sign extension): swap operands + extend + invert
-  // output (overhead 1.0)
-  test_swap(sle16.node(), sub32.node(), /*tuple_index=*/1, 1.0);
-  // sge16 -> sub32 (with sign extension): extend + invert output (overhead 1.0)
-  test_swap(sge16.node(), sub32.node(), /*tuple_index=*/1, 1.0);
+  // 32-bit unsigned compares mapped into 32-bit sub
+  // overhead: 5.0 xor + 1.0 sel = 6.0, + 1.0 if inverted = 7.0
+  XLS_ASSERT_OK_AND_ASSIGN(output, test_swap(ult32.node(), sub32.node(), 6.0));
+  EXPECT_THAT(output,
+              m::Select(m::Xor(msb_a, msb_b), /*cases=*/{msb_a_sub_b, msb_b}));
+  XLS_ASSERT_OK_AND_ASSIGN(output, test_swap(ugt32.node(), sub32.node(), 6.0));
+  EXPECT_THAT(output,
+              m::Select(m::Xor(msb_b, msb_a), /*cases=*/{msb_b_sub_a, msb_a}));
+  XLS_ASSERT_OK_AND_ASSIGN(output, test_swap(ule32.node(), sub32.node(), 7.0));
+  EXPECT_THAT(output, m::Not(m::Select(m::Xor(msb_b, msb_a),
+                                       /*cases=*/{msb_b_sub_a, msb_a})));
+  XLS_ASSERT_OK_AND_ASSIGN(output, test_swap(uge32.node(), sub32.node(), 7.0));
+  EXPECT_THAT(output, m::Not(m::Select(m::Xor(msb_a, msb_b),
+                                       /*cases=*/{msb_a_sub_b, msb_b})));
+
+  // 32-bit signed compares mapped into 32-bit sub
+  // overhead: 6.0, or 7.0 if inverted
+  XLS_ASSERT_OK_AND_ASSIGN(output, test_swap(slt32.node(), sub32.node(), 6.0));
+  EXPECT_THAT(output,
+              m::Select(m::Xor(msb_a, msb_b), /*cases=*/{msb_a_sub_b, msb_a}));
+  XLS_ASSERT_OK_AND_ASSIGN(output, test_swap(sgt32.node(), sub32.node(), 6.0));
+  EXPECT_THAT(output,
+              m::Select(m::Xor(msb_b, msb_a), /*cases=*/{msb_b_sub_a, msb_b}));
+  XLS_ASSERT_OK_AND_ASSIGN(output, test_swap(sle32.node(), sub32.node(), 7.0));
+  EXPECT_THAT(output, m::Not(m::Select(m::Xor(msb_b, msb_a),
+                                       /*cases=*/{msb_b_sub_a, msb_b})));
+  XLS_ASSERT_OK_AND_ASSIGN(output, test_swap(sge32.node(), sub32.node(), 7.0));
+  EXPECT_THAT(output, m::Not(m::Select(m::Xor(msb_a, msb_b),
+                                       /*cases=*/{msb_a_sub_b, msb_a})));
+
+  auto a16_m = m::Param("a16");
+  auto b16_m = m::Param("b16");
+
+  // 16-bit unsigned inequality mappings to 32-bit subtraction (with zeroext):
+  XLS_ASSERT_OK_AND_ASSIGN(output, test_swap(ult16.node(), sub32.node(), 0.0));
+  EXPECT_THAT(output, msb(m::Sub(m::ZeroExt(a16_m), m::ZeroExt(b16_m))));
+  XLS_ASSERT_OK_AND_ASSIGN(output, test_swap(ugt16.node(), sub32.node(), 0.0));
+  EXPECT_THAT(output, msb(m::Sub(m::ZeroExt(b16_m), m::ZeroExt(a16_m))));
+  XLS_ASSERT_OK_AND_ASSIGN(output, test_swap(ule16.node(), sub32.node(), 1.0));
+  EXPECT_THAT(output,
+              m::Not(msb(m::Sub(m::ZeroExt(b16_m), m::ZeroExt(a16_m)))));
+  XLS_ASSERT_OK_AND_ASSIGN(output, test_swap(uge16.node(), sub32.node(), 1.0));
+  EXPECT_THAT(output,
+              m::Not(msb(m::Sub(m::ZeroExt(a16_m), m::ZeroExt(b16_m)))));
+
+  // 16-bit signed inequality mappings to 32-bit subtraction (with signext):
+  XLS_ASSERT_OK_AND_ASSIGN(output, test_swap(slt16.node(), sub32.node(), 0.0));
+  EXPECT_THAT(output, msb(m::Sub(m::SignExt(a16_m), m::SignExt(b16_m))));
+  XLS_ASSERT_OK_AND_ASSIGN(output, test_swap(sgt16.node(), sub32.node(), 0.0));
+  EXPECT_THAT(output, msb(m::Sub(m::SignExt(b16_m), m::SignExt(a16_m))));
+  XLS_ASSERT_OK_AND_ASSIGN(output, test_swap(sle16.node(), sub32.node(), 1.0));
+  EXPECT_THAT(output,
+              m::Not(msb(m::Sub(m::SignExt(b16_m), m::SignExt(a16_m)))));
+  XLS_ASSERT_OK_AND_ASSIGN(output, test_swap(sge16.node(), sub32.node(), 1.0));
+  EXPECT_THAT(output,
+              m::Not(msb(m::Sub(m::SignExt(a16_m), m::SignExt(b16_m)))));
+
+  // Multi-source mapping without widening: {ult16, slt32} -> sub32
+  {
+    XLS_ASSERT_OK_AND_ASSIGN(std::optional<NodeToMappings> mappings,
+                             GetNodeEquivalenceMapper().ComputeMappings(
+                                 {ult16.node(), slt32.node()}, sub32.node()));
+    ASSERT_TRUE(mappings.has_value());
+    EXPECT_THAT(*mappings,
+                UnorderedElementsAre(Key(ult16.node()), Key(slt32.node())));
+    XLS_ASSERT_OK(VerifyEquivalence(f, ult16.node(), sub32.node(),
+                                    *mappings->at(ult16.node()))
+                      .status());
+    XLS_ASSERT_OK(VerifyEquivalence(f, slt32.node(), sub32.node(),
+                                    *mappings->at(slt32.node()))
+                      .status());
+  }
 
   // Incompatible compare-to-arith mappings
   {
@@ -1075,7 +1146,6 @@ TEST_F(ResourceSharingEquivalenceTest,
   BValue a16 = fb.Param("a16", p->GetBitsType(16));
   BValue b16 = fb.Param("b16", p->GetBitsType(16));
 
-  BValue sub32 = fb.Subtract(a, b);
   BValue sub16 = fb.Subtract(a16, b16);
 
   // 32-bit unsigned inequalities
@@ -1093,7 +1163,7 @@ TEST_F(ResourceSharingEquivalenceTest,
   // 16-bit unsigned inequality
   BValue ult16 = fb.ULt(a16, b16);
 
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(sub32));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(sub16));
   FakeAreaEstimator area_estimator;
 
   auto verify_mapping = [&](Node* node, const EquivalenceMapping& mapping,
@@ -1130,37 +1200,28 @@ TEST_F(ResourceSharingEquivalenceTest,
     verify_mapping(dst, *to_mapping, expected_target_width);
   };
 
-  // 32-bit unsigned compares mapped into 32-bit sub (widened to 33 bits):
-  test_widened_mapping(ult32.node(), sub32.node(), /*expected_target_width=*/33,
-                       /*expected_overhead=*/0.0);
-  test_widened_mapping(ugt32.node(), sub32.node(), /*expected_target_width=*/33,
-                       /*expected_overhead=*/0.0);
-  test_widened_mapping(ule32.node(), sub32.node(), /*expected_target_width=*/33,
-                       /*expected_overhead=*/1.0);
-  test_widened_mapping(uge32.node(), sub32.node(), /*expected_target_width=*/33,
-                       /*expected_overhead=*/1.0);
+  // 32-bit unsigned compares mapped into 16-bit sub (widened to 32 bits):
+  // overhead: (32 - 16) * 100.0 sub diff + 5.0 xor + 1.0 sel, +1 if inverted
+  test_widened_mapping(ult32.node(), sub16.node(), /*expected_target_width=*/32,
+                       /*expected_overhead=*/1606.0);
+  test_widened_mapping(ugt32.node(), sub16.node(), /*expected_target_width=*/32,
+                       /*expected_overhead=*/1606.0);
+  test_widened_mapping(ule32.node(), sub16.node(), /*expected_target_width=*/32,
+                       /*expected_overhead=*/1607.0);
+  test_widened_mapping(uge32.node(), sub16.node(), /*expected_target_width=*/32,
+                       /*expected_overhead=*/1607.0);
 
-  // 32-bit signed compares mapped into 32-bit sub (widened to 33 bits):
-  test_widened_mapping(slt32.node(), sub32.node(), /*expected_target_width=*/33,
-                       /*expected_overhead=*/0.0);
-  test_widened_mapping(sgt32.node(), sub32.node(), /*expected_target_width=*/33,
-                       /*expected_overhead=*/0.0);
-  test_widened_mapping(sle32.node(), sub32.node(), /*expected_target_width=*/33,
-                       /*expected_overhead=*/1.0);
-  test_widened_mapping(sge32.node(), sub32.node(), /*expected_target_width=*/33,
-                       /*expected_overhead=*/1.0);
+  // 32-bit signed compares mapped into 16-bit sub (widened to 32 bits):
+  test_widened_mapping(slt32.node(), sub16.node(), /*expected_target_width=*/32,
+                       /*expected_overhead=*/1606.0);
+  test_widened_mapping(sgt32.node(), sub16.node(), /*expected_target_width=*/32,
+                       /*expected_overhead=*/1606.0);
+  test_widened_mapping(sle32.node(), sub16.node(), /*expected_target_width=*/32,
+                       /*expected_overhead=*/1607.0);
+  test_widened_mapping(sge32.node(), sub16.node(), /*expected_target_width=*/32,
+                       /*expected_overhead=*/1607.0);
 
-  // 32-bit compare mapped into 16-bit sub (widened to 33 bits):
-  test_widened_mapping(ult32.node(), sub16.node(), /*expected_target_width=*/33,
-                       /*expected_overhead=*/0.0);
-  test_widened_mapping(slt32.node(), sub16.node(), /*expected_target_width=*/33,
-                       /*expected_overhead=*/0.0);
-
-  // 16-bit compare mapped into 16-bit sub (widened to 17 bits):
-  test_widened_mapping(ult16.node(), sub16.node(), /*expected_target_width=*/17,
-                       /*expected_overhead=*/0.0);
-
-  // Multi-source mapping with widening: {ult16, slt32} -> sub16 (widened to 33
+  // Multi-source mapping with widening: {ult16, slt32} -> sub16 (widened to 32
   // bits)
   {
     XLS_ASSERT_OK_AND_ASSIGN(std::optional<NodeToMappings> mappings,
@@ -1173,7 +1234,7 @@ TEST_F(ResourceSharingEquivalenceTest,
 
     // Verify equivalence for all three
     for (Node* node : {ult16.node(), slt32.node(), sub16.node()}) {
-      verify_mapping(node, *mappings->at(node), /*expected_target_width=*/33);
+      verify_mapping(node, *mappings->at(node), /*expected_target_width=*/32);
     }
   }
 }
@@ -1188,6 +1249,7 @@ TEST_F(ResourceSharingEquivalenceTest, CloneEquivalenceMapping) {
   BValue add0 = fb.Add(a, b);
   BValue add1 = fb.Add(a, b);
   BValue sub0 = fb.Subtract(a, b);
+  BValue sub16 = fb.Subtract(a16, b16);
   BValue shra0 = fb.Shra(a, b);
   BValue shrl0 = fb.Shrl(a, b);
   BValue shrl_b16 = fb.Shrl(a, b16);
@@ -1244,6 +1306,7 @@ TEST_F(ResourceSharingEquivalenceTest, CloneEquivalenceMapping) {
   eq_mapping_clone(ult16.node(), sub0.node());
   eq_mapping_clone(sle16.node(), sub0.node());
   eq_mapping_clone(ult0.node(), sub0.node());
+  eq_mapping_clone(ult0.node(), sub16.node());
 }
 
 }  // namespace

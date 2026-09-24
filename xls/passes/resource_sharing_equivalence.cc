@@ -83,9 +83,15 @@ absl::StatusOr<double> EstimateAreaForNodes(
   FunctionBuilder fb("area_check", &p);
   XLS_RETURN_IF_ERROR(build_fn(&p, &fb));
   XLS_ASSIGN_OR_RETURN(Function * f, fb.Build());
-  XLS_ASSIGN_OR_RETURN(
-      double area,
-      area_estimator.GetOperationAreaInSquareMicrons(f->return_value()));
+  double area = 0.0;
+  for (Node* node : f->nodes()) {
+    if (node->Is<Param>()) {
+      continue;
+    }
+    XLS_ASSIGN_OR_RETURN(double node_area,
+                         area_estimator.GetOperationAreaInSquareMicrons(node));
+    area += node_area;
+  }
   return area;
 }
 
@@ -530,6 +536,10 @@ absl::StatusOr<PackageAndNode> CreateModifiedShiftPackage(
 
 // `CompareToArithEquivalenceMapping` handles folding comparison operations
 // into subtraction nodes then taking the msb.
+//
+// When `src` and `dst` have the same bitwidth, overflow is still avoided
+// because either the msb differ and you can use that as the result, or the msb
+// is the same in which case overflow is not possible.
 class CompareToArithEquivalenceMapping : public EquivalenceMapping {
  public:
   static absl::StatusOr<std::optional<NodeToMappings>> TryCreate(
@@ -555,7 +565,7 @@ class CompareToArithEquivalenceMapping : public EquivalenceMapping {
         return std::nullopt;
       }
       int64_t required_width =
-          std::max(src_lhs->BitCountOrDie(), src_rhs->BitCountOrDie()) + 1;
+          std::max(src_lhs->BitCountOrDie(), src_rhs->BitCountOrDie());
       needs_dst_widening |= required_width > dst->BitCountOrDie();
       target_width = std::max(target_width, required_width);
     }
@@ -567,24 +577,47 @@ class CompareToArithEquivalenceMapping : public EquivalenceMapping {
 
     XLS_ASSIGN_OR_RETURN((PackageAndNode p_and_sub),
                          CreatePaddedSubPackage(target_width));
-    NodeToMappings mappings =
-        ComputeMappingsSourcesToDest<CompareToArithEquivalenceMapping>(
-            sources, p_and_sub.node, p_and_sub.package);
+    NodeToMappings mappings;
+    mappings.reserve(sources.size() + 1);
+    for (Node* src : sources) {
+      mappings[src] = std::make_unique<CompareToArithEquivalenceMapping>(
+          src, p_and_sub.node, p_and_sub.package, dst);
+    }
     mappings[dst] = std::make_unique<BitwidthExtendingEquivalenceMapping>(
         dst, p_and_sub.node, p_and_sub.package);
     return mappings;
   }
 
-  using EquivalenceMapping::EquivalenceMapping;
+  CompareToArithEquivalenceMapping(
+      Node* src, Node* dst, std::shared_ptr<Package> tmp_package = nullptr,
+      std::optional<Node*> orig_dst = std::nullopt)
+      : EquivalenceMapping(src, dst, std::move(tmp_package)),
+        orig_dst_(orig_dst.value_or(dst)) {}
 
   absl::StatusOr<std::unique_ptr<EquivalenceMapping>> Clone(
       std::optional<const absl::flat_hash_map<Node*, Node*>*>
           original_node_to_clone) const override {
-    return CloneEqMapping(this, original_node_to_clone);
+    XLS_ASSIGN_OR_RETURN(Node * new_src, MapNode(src_, original_node_to_clone));
+    XLS_ASSIGN_OR_RETURN(Node * new_dst, MapNode(dst_, original_node_to_clone));
+    XLS_ASSIGN_OR_RETURN(Node * new_orig_dst,
+                         MapNode(orig_dst_, original_node_to_clone));
+    return std::make_unique<CompareToArithEquivalenceMapping>(
+        new_src, new_dst, tmp_package_, new_orig_dst);
+  }
+
+  bool RequiresMsbSelect() const {
+    return src_->operand(0)->BitCountOrDie() == dst_->BitCountOrDie();
   }
 
   absl::StatusOr<bool> RequiresOperandTransformation() const override {
-    return true;
+    for (int i = 0; i < src_->operand_count(); ++i) {
+      if (src_->operand(i)->BitCountOrDie() <
+          dst_->operand(i)->BitCountOrDie()) {
+        return true;
+      }
+    }
+    XLS_ASSIGN_OR_RETURN(bool requires_swap, RequiresOperandSwap(src_->op()));
+    return requires_swap;
   }
   absl::StatusOr<bool> RequiresOutputTransformation() const override {
     return true;
@@ -602,6 +635,8 @@ class CompareToArithEquivalenceMapping : public EquivalenceMapping {
     XLS_RET_CHECK(dst_lhs->GetType()->IsBits());
     XLS_RET_CHECK(dst_rhs->GetType()->IsBits());
 
+    // Normalizing to ult/slt, e.g. for ule -> ult, we swap operands here, and
+    // in ApplyToOutput, we will invert the result.
     XLS_ASSIGN_OR_RETURN(bool requires_swap, RequiresOperandSwap(src_->op()));
     if (requires_swap) {
       std::swap(op0, op1);
@@ -621,27 +656,82 @@ class CompareToArithEquivalenceMapping : public EquivalenceMapping {
     XLS_RET_CHECK(src_->GetType()->IsBits());
     XLS_RET_CHECK(dst_->GetType()->IsBits());
     XLS_ASSIGN_OR_RETURN(
-        Node * msb,
+        Node * result,
         f->MakeNode<BitSlice>(dst_output->loc(), dst_output,
                               /*start=*/dst_output->BitCountOrDie() - 1,
                               /*width=*/1));
+    if (RequiresMsbSelect()) {
+      Node* op0 = src_->operand(0);
+      Node* op1 = src_->operand(1);
+      // Normalize to ult/slt, e.g. we swap operands for ugt -> ult, or we swap
+      // operands AND invert result for sge -> slt
+      XLS_ASSIGN_OR_RETURN(bool requires_swap, RequiresOperandSwap(src_->op()));
+      if (requires_swap) {
+        std::swap(op0, op1);
+      }
+      int64_t width = op0->BitCountOrDie();
+      XLS_ASSIGN_OR_RETURN(
+          Node * msb0,
+          FindOrMakeBitSlice(op0, /*start=*/width - 1, /*width=*/1));
+      XLS_ASSIGN_OR_RETURN(
+          Node * msb1,
+          FindOrMakeBitSlice(op1, /*start=*/width - 1, /*width=*/1));
+      XLS_ASSIGN_OR_RETURN(
+          Node * msb_diff,
+          f->MakeNode<NaryOp>(dst_output->loc(), std::vector<Node*>{msb0, msb1},
+                              Op::kXor));
+      // Note we "normalize" to ult/slt. Given that, and if the msb differ,
+      // msb(b) == a ult b, and msb(a) == a slt b.
+      Node* msb_when_diff = IsSignedCompare(src_) ? msb0 : msb1;
+      XLS_ASSIGN_OR_RETURN(
+          result, f->MakeNode<Select>(dst_output->loc(), msb_diff,
+                                      std::vector<Node*>{result, msb_when_diff},
+                                      /*default_value=*/std::nullopt));
+    }
+    // Normalizing to ult/slt, e.g. for ule -> ult, we have already swapped
+    // operands and now we invert the result.
     XLS_ASSIGN_OR_RETURN(bool requires_inversion,
                          RequiresOutputInversion(src_->op()));
     if (requires_inversion) {
-      return f->MakeNode<UnOp>(dst_output->loc(), msb, Op::kNot);
+      return f->MakeNode<UnOp>(dst_output->loc(), result, Op::kNot);
     }
-    return msb;
+    return result;
   }
 
   absl::StatusOr<double> EstimateAreaOverhead(
       const AreaEstimator& area_estimator, absl::Span<Node* const> operands,
       Node* output) const override {
+    double area = 0.0;
+    if (dst_ != orig_dst_) {
+      XLS_ASSIGN_OR_RETURN(
+          double dst_area,
+          area_estimator.GetOperationAreaInSquareMicrons(dst_));
+      XLS_ASSIGN_OR_RETURN(
+          double orig_dst_area,
+          area_estimator.GetOperationAreaInSquareMicrons(orig_dst_));
+      area += dst_area - orig_dst_area;
+    }
+    if (RequiresMsbSelect()) {
+      XLS_ASSIGN_OR_RETURN(
+          double msb_select_area,
+          EstimateAreaForNodes(
+              area_estimator,
+              [](Package* p, FunctionBuilder* fb) -> absl::Status {
+                Type* u1 = p->GetBitsType(1);
+                fb->Select(fb->Xor(fb->Param("a", u1), fb->Param("b", u1)),
+                           {fb->Param("sub_msb", u1), fb->Param("c", u1)});
+                return absl::OkStatus();
+              }));
+      area += msb_select_area;
+    }
     XLS_ASSIGN_OR_RETURN(bool requires_inversion,
                          RequiresOutputInversion(src_->op()));
     if (requires_inversion) {
-      return EstimateAreaForSingleBitInversion(area_estimator);
+      XLS_ASSIGN_OR_RETURN(double inv_area,
+                           EstimateAreaForSingleBitInversion(area_estimator));
+      area += inv_area;
     }
-    return 0.0;
+    return area;
   }
 
   static bool IsSignedCompareOp(Op src_op) {
@@ -659,6 +749,10 @@ class CompareToArithEquivalenceMapping : public EquivalenceMapping {
     Op base_lt = IsSignedCompareOp(src_op) ? Op::kSLt : Op::kULt;
     return ComparatorEquivalenceMapping::RequiresOperandSwap(src_op, base_lt);
   }
+
+ private:
+  // Used to estimate area overhead if the subtraction has to be widened.
+  Node* orig_dst_;
 };
 
 // Returns `target` XORed with a sign-extended mask created from the MSB of
