@@ -27,6 +27,7 @@
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
 #include "xls/common/status/matchers.h"
+#include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/estimators/area_model/area_estimator.h"
 #include "xls/ir/function.h"
@@ -808,72 +809,128 @@ TEST_F(ResourceSharingEquivalenceTest, ComparatorEquivalenceMapping) {
   FakeAreaEstimator area_estimator;
 
   // Helper to test swapping either the equality or inequality comparison.
-  auto test_swap = [&](Node* src, Node* dst, int tuple_index,
-                       double expected_overhead) {
-    XLS_ASSERT_OK_AND_ASSIGN(
+  auto test_swap = [&](Node* src, Node* dst,
+                       double expected_overhead) -> absl::StatusOr<Node*> {
+    XLS_ASSIGN_OR_RETURN(
         std::optional<NodeToMappings> mappings,
         GetNodeEquivalenceMapper().ComputeMappings({src}, dst));
-    ASSERT_TRUE(mappings.has_value());
+    XLS_RET_CHECK(mappings.has_value());
     const std::unique_ptr<EquivalenceMapping>& mapping = mappings->at(src);
 
-    XLS_ASSERT_OK_AND_ASSIGN(
+    XLS_ASSIGN_OR_RETURN(
         double overhead,
         mapping->EstimateAreaOverhead(area_estimator, src->operands(), src));
     EXPECT_EQ(overhead, expected_overhead);
 
-    XLS_ASSERT_OK(f->set_return_value(src));
+    XLS_RETURN_IF_ERROR(f->set_return_value(src));
     ScopedVerifyEquivalence sve(f);
     absl::Span<Node* const> src_ops = src->operands();
-    XLS_ASSERT_OK_AND_ASSIGN(std::vector<Node*> coerced,
-                             mapping->ApplyToOperands(f, src_ops));
+    XLS_ASSIGN_OR_RETURN(std::vector<Node*> coerced,
+                         mapping->ApplyToOperands(f, src_ops));
     // Confirm the mapping knows when it has to transform operands.
-    ASSERT_EQ(coerced.size(), src_ops.size());
+    XLS_RET_CHECK_EQ(coerced.size(), src_ops.size());
     for (int i = 0; i < coerced.size(); ++i) {
-      XLS_ASSERT_OK_AND_ASSIGN(bool requires_transform,
-                               mapping->RequiresOperandTransformation());
+      XLS_ASSIGN_OR_RETURN(bool requires_transform,
+                           mapping->RequiresOperandTransformation());
       EXPECT_EQ(coerced[i] != src_ops[i], requires_transform);
     }
-    XLS_ASSERT_OK_AND_ASSIGN(Node * new_dst,
-                             dst->CloneInNewFunction(coerced, f));
-    XLS_ASSERT_OK_AND_ASSIGN(Node * output, mapping->ApplyToOutput(f, new_dst));
+    XLS_ASSIGN_OR_RETURN(Node * new_dst, dst->CloneInNewFunction(coerced, f));
+    XLS_ASSIGN_OR_RETURN(Node * output, mapping->ApplyToOutput(f, new_dst));
     // Confirm the mapping knows when it has to transform the output.
-    XLS_ASSERT_OK_AND_ASSIGN(bool requires_output_transform,
-                             mapping->RequiresOutputTransformation());
+    XLS_ASSIGN_OR_RETURN(bool requires_output_transform,
+                         mapping->RequiresOutputTransformation());
     EXPECT_EQ(output != new_dst, requires_output_transform);
-    XLS_ASSERT_OK(f->set_return_value(output));
+    XLS_RETURN_IF_ERROR(f->set_return_value(output));
+    return output;
   };
 
-  // Test unsigned inequality swaps (tuple element 0):
+  auto swap_msb = [](auto lsb_param, auto msb_param, int64_t width) {
+    return m::Concat(m::BitSlice(msb_param, width - 1, 1),
+                     m::BitSlice(lsb_param, 0, width - 1));
+  };
+  auto a_msbswap = swap_msb(m::Param("a"), m::Param("b"), 32);
+  auto b_msbswap = swap_msb(m::Param("b"), m::Param("a"), 32);
+  auto a16_msbswap = m::ZeroExt(swap_msb(m::Param("a16"), m::Param("b16"), 16));
+  auto b16_msbswap = m::ZeroExt(swap_msb(m::Param("b16"), m::Param("a16"), 16));
+  Node* output = nullptr;
+
+  // Test unsigned inequality swaps:
   // ult -> ugt: swap operands (overhead 0.0)
-  test_swap(ult.node(), ugt.node(), /*tuple_index=*/0, 0.0);
+  XLS_ASSERT_OK_AND_ASSIGN(output, test_swap(ult.node(), ugt.node(), 0.0));
+  EXPECT_THAT(output, m::UGt(m::Param("b"), m::Param("a")));
   // ult -> ule: swap operands + invert output (overhead 1.0)
-  test_swap(ult.node(), ule.node(), /*tuple_index=*/0, 1.0);
+  XLS_ASSERT_OK_AND_ASSIGN(output, test_swap(ult.node(), ule.node(), 1.0));
+  EXPECT_THAT(output, m::Not(m::ULe(m::Param("b"), m::Param("a"))));
   // ult -> uge: invert output (overhead 1.0)
-  test_swap(ult.node(), uge.node(), /*tuple_index=*/0, 1.0);
+  XLS_ASSERT_OK_AND_ASSIGN(output, test_swap(ult.node(), uge.node(), 1.0));
+  EXPECT_THAT(output, m::Not(m::UGe(m::Param("a"), m::Param("b"))));
   // ult16 -> ugt (with zero extension): swap operands + extend (overhead 0.0)
-  test_swap(ult16.node(), ugt.node(), /*tuple_index=*/0, 0.0);
+  XLS_ASSERT_OK_AND_ASSIGN(output, test_swap(ult16.node(), ugt.node(), 0.0));
+  EXPECT_THAT(output,
+              m::UGt(m::ZeroExt(m::Param("b16")), m::ZeroExt(m::Param("a16"))));
   // ult16 -> uge (with zero extension): extend + invert output (overhead 1.0)
-  test_swap(ult16.node(), uge.node(), /*tuple_index=*/0, 1.0);
+  XLS_ASSERT_OK_AND_ASSIGN(output, test_swap(ult16.node(), uge.node(), 1.0));
+  EXPECT_THAT(output, m::Not(m::UGe(m::ZeroExt(m::Param("a16")),
+                                    m::ZeroExt(m::Param("b16")))));
 
-  // Test signed inequality swaps (tuple element 0):
+  // Test signed inequality swaps:
   // slt -> sgt: swap operands (overhead 0.0)
-  test_swap(slt.node(), sgt.node(), /*tuple_index=*/0, 0.0);
+  XLS_ASSERT_OK_AND_ASSIGN(output, test_swap(slt.node(), sgt.node(), 0.0));
+  EXPECT_THAT(output, m::SGt(m::Param("b"), m::Param("a")));
   // slt -> sle: swap operands + invert output (overhead 1.0)
-  test_swap(slt.node(), sle.node(), /*tuple_index=*/0, 1.0);
+  XLS_ASSERT_OK_AND_ASSIGN(output, test_swap(slt.node(), sle.node(), 1.0));
+  EXPECT_THAT(output, m::Not(m::SLe(m::Param("b"), m::Param("a"))));
   // slt -> sge: invert output (overhead 1.0)
-  test_swap(slt.node(), sge.node(), /*tuple_index=*/0, 1.0);
+  XLS_ASSERT_OK_AND_ASSIGN(output, test_swap(slt.node(), sge.node(), 1.0));
+  EXPECT_THAT(output, m::Not(m::SGe(m::Param("a"), m::Param("b"))));
   // slt16 -> sgt (with sign extension): swap operands + extend (overhead 0.0)
-  test_swap(slt16.node(), sgt.node(), /*tuple_index=*/0, 0.0);
+  XLS_ASSERT_OK_AND_ASSIGN(output, test_swap(slt16.node(), sgt.node(), 0.0));
+  EXPECT_THAT(output,
+              m::SGt(m::SignExt(m::Param("b16")), m::SignExt(m::Param("a16"))));
   // slt16 -> sge (with sign extension): extend + invert output (overhead 1.0)
-  test_swap(slt16.node(), sge.node(), /*tuple_index=*/0, 1.0);
+  XLS_ASSERT_OK_AND_ASSIGN(output, test_swap(slt16.node(), sge.node(), 1.0));
+  EXPECT_THAT(output, m::Not(m::SGe(m::SignExt(m::Param("a16")),
+                                    m::SignExt(m::Param("b16")))));
 
-  // Test equality swaps (tuple element 1):
+  // Test signed <-> unsigned inequality swaps:
+  // ult -> slt: swap MSBs (overhead 0.0)
+  XLS_ASSERT_OK_AND_ASSIGN(output, test_swap(ult.node(), slt.node(), 0.0));
+  EXPECT_THAT(output, m::SLt(a_msbswap, b_msbswap));
+  // ult -> sle: swap operands + swap MSBs + invert output (overhead 1.0)
+  XLS_ASSERT_OK_AND_ASSIGN(output, test_swap(ult.node(), sle.node(), 1.0));
+  EXPECT_THAT(output, m::Not(m::SLe(b_msbswap, a_msbswap)));
+  // ult16 -> sgt (with zero extension): swap operands + extend (overhead 0.0)
+  XLS_ASSERT_OK_AND_ASSIGN(output, test_swap(ult16.node(), sgt.node(), 0.0));
+  EXPECT_THAT(output,
+              m::SGt(m::ZeroExt(m::Param("b16")), m::ZeroExt(m::Param("a16"))));
+  // ult16 -> sge (with zero extension): extend + invert output (overhead 1.0)
+  XLS_ASSERT_OK_AND_ASSIGN(output, test_swap(ult16.node(), sge.node(), 1.0));
+  EXPECT_THAT(output, m::Not(m::SGe(m::ZeroExt(m::Param("a16")),
+                                    m::ZeroExt(m::Param("b16")))));
+  // slt -> ult: swap MSBs (overhead 0.0)
+  XLS_ASSERT_OK_AND_ASSIGN(output, test_swap(slt.node(), ult.node(), 0.0));
+  EXPECT_THAT(output, m::ULt(a_msbswap, b_msbswap));
+  // slt -> uge: swap MSBs + invert output (overhead 1.0)
+  XLS_ASSERT_OK_AND_ASSIGN(output, test_swap(slt.node(), uge.node(), 1.0));
+  EXPECT_THAT(output, m::Not(m::UGe(a_msbswap, b_msbswap)));
+  // slt16 -> ugt: swap operands + swap MSBs + extend (overhead 0.0)
+  XLS_ASSERT_OK_AND_ASSIGN(output, test_swap(slt16.node(), ugt.node(), 0.0));
+  EXPECT_THAT(output, m::UGt(b16_msbswap, a16_msbswap));
+  // slt16 -> ule: swap operands + swap MSBs + extend + invert output (1.0)
+  XLS_ASSERT_OK_AND_ASSIGN(output, test_swap(slt16.node(), ule.node(), 1.0));
+  EXPECT_THAT(output, m::Not(m::ULe(b16_msbswap, a16_msbswap)));
+
+  // Test equality swaps:
   // eq -> ne: invert output (overhead 1.0)
-  test_swap(eq.node(), ne.node(), /*tuple_index=*/1, 1.0);
+  XLS_ASSERT_OK_AND_ASSIGN(output, test_swap(eq.node(), ne.node(), 1.0));
+  EXPECT_THAT(output, m::Not(m::Ne(m::Param("a"), m::Param("b"))));
   // ne -> eq: invert output (overhead 1.0)
-  test_swap(ne.node(), eq.node(), /*tuple_index=*/1, 1.0);
+  XLS_ASSERT_OK_AND_ASSIGN(output, test_swap(ne.node(), eq.node(), 1.0));
+  EXPECT_THAT(output, m::Not(m::Eq(m::Param("a"), m::Param("b"))));
   // eq16 -> ne (with zero extension): extend + invert output (overhead 1.0)
-  test_swap(eq16.node(), ne.node(), /*tuple_index=*/1, 1.0);
+  XLS_ASSERT_OK_AND_ASSIGN(output, test_swap(eq16.node(), ne.node(), 1.0));
+  EXPECT_THAT(output, m::Not(m::Ne(m::ZeroExt(m::Param("a16")),
+                                   m::ZeroExt(m::Param("b16")))));
 
   // Incompatible comparator mappings
   {
@@ -888,18 +945,6 @@ TEST_F(ResourceSharingEquivalenceTest, ComparatorEquivalenceMapping) {
         std::optional<NodeToMappings> ult_eq,
         GetNodeEquivalenceMapper().ComputeMappings({ult.node()}, eq.node()));
     EXPECT_FALSE(ult_eq.has_value());
-
-    // Signed -> Unsigned
-    XLS_ASSERT_OK_AND_ASSIGN(
-        std::optional<NodeToMappings> slt_ult,
-        GetNodeEquivalenceMapper().ComputeMappings({slt.node()}, ult.node()));
-    EXPECT_FALSE(slt_ult.has_value());
-
-    // Unsigned -> Signed
-    XLS_ASSERT_OK_AND_ASSIGN(
-        std::optional<NodeToMappings> ult_slt,
-        GetNodeEquivalenceMapper().ComputeMappings({ult.node()}, slt.node()));
-    EXPECT_FALSE(ult_slt.has_value());
 
     // Narrowing unsupported (32-bit -> 16-bit)
     XLS_ASSERT_OK_AND_ASSIGN(

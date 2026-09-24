@@ -21,6 +21,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <tuple>
 #include <utility>
 #include <vector>
 
@@ -287,13 +288,38 @@ class AddSubEquivalenceMapping : public EquivalenceMapping {
 };
 
 // Returns true if `src` and `dst` belong to the same comparator grouping:
-// equality, unsigned inequality, or signed inequality.
+// equality (`eq`, `ne`) or inequality (`ult`, `ule`, `ugt`, `uge`, `slt`,
+// `sle`, `sgt`, `sge`).
 bool AreCompatibleComparators(Node* src, Node* dst) {
   if (!OpIsCompare(src->op()) || !OpIsCompare(dst->op())) {
     return false;
   }
-  return (IsSignedCompare(src) == IsSignedCompare(dst)) &&
-         (IsUnsignedCompare(src) == IsUnsignedCompare(dst));
+  return src->OpIn({Op::kEq, Op::kNe}) == dst->OpIn({Op::kEq, Op::kNe});
+}
+
+// Swaps the most significant bits of `op0` and `op1`.
+absl::StatusOr<std::pair<Node*, Node*>> SwapMsbs(FunctionBase* f, Node* op0,
+                                                 Node* op1) {
+  int64_t width = op0->BitCountOrDie();
+  XLS_RET_CHECK_EQ(width, op1->BitCountOrDie());
+  if (width <= 1) {
+    return std::make_pair(op1, op0);
+  }
+  XLS_ASSIGN_OR_RETURN(
+      Node * msb0, FindOrMakeBitSlice(op0, /*start=*/width - 1, /*width=*/1));
+  XLS_ASSIGN_OR_RETURN(
+      Node * msb1, FindOrMakeBitSlice(op1, /*start=*/width - 1, /*width=*/1));
+  XLS_ASSIGN_OR_RETURN(
+      Node * lsb0, FindOrMakeBitSlice(op0, /*start=*/0, /*width=*/width - 1));
+  XLS_ASSIGN_OR_RETURN(
+      Node * lsb1, FindOrMakeBitSlice(op1, /*start=*/0, /*width=*/width - 1));
+  XLS_ASSIGN_OR_RETURN(
+      Node * new_op0,
+      f->MakeNode<Concat>(op0->loc(), std::vector<Node*>{msb1, lsb0}));
+  XLS_ASSIGN_OR_RETURN(
+      Node * new_op1,
+      f->MakeNode<Concat>(op1->loc(), std::vector<Node*>{msb0, lsb1}));
+  return std::make_pair(new_op0, new_op1);
 }
 
 // Returns the area of a single bit NOT gate, cached by AreaEstimator
@@ -324,7 +350,7 @@ absl::StatusOr<double> EstimateAreaForSingleBitInversion(
 }
 
 // `ComparatorEquivalenceMapping` handles folding within comparator operation
-// groups: equality, unsigned inequalities, and signed inequalities.
+// groups: equalities and inequalities.
 class ComparatorEquivalenceMapping : public EquivalenceMapping {
  public:
   static absl::StatusOr<std::optional<NodeToMappings>> TryCreate(
@@ -355,7 +381,22 @@ class ComparatorEquivalenceMapping : public EquivalenceMapping {
     return CloneEqMapping(this, original_node_to_clone);
   }
 
+  bool RequiresMsbSwap() const {
+    if (IsSignedCompare(src_) == IsSignedCompare(dst_)) {
+      return false;
+    }
+    // If dst is wider and we map from unsigned to signed, skip MSB swap.
+    if (IsUnsignedCompare(src_) && IsSignedCompare(dst_)) {
+      return src_->operand(0)->BitCountOrDie() ==
+             dst_->operand(0)->BitCountOrDie();
+    }
+    return true;
+  }
+
   absl::StatusOr<bool> RequiresOperandTransformation() const override {
+    if (RequiresMsbSwap()) {
+      return true;
+    }
     XLS_ASSIGN_OR_RETURN(bool requires_swap,
                          RequiresOperandSwap(src_->op(), dst_->op()));
     if (requires_swap) {
@@ -392,7 +433,13 @@ class ComparatorEquivalenceMapping : public EquivalenceMapping {
       std::swap(op0, op1);
     }
 
-    Op ext_op = IsSigned(dst_) ? Op::kSignExt : Op::kZeroExt;
+    if (RequiresMsbSwap()) {
+      XLS_ASSIGN_OR_RETURN(std::tie(op0, op1), SwapMsbs(f, op0, op1));
+    }
+
+    Op ext_op = (!IsUnsignedCompare(src_) && !IsUnsignedCompare(dst_))
+                    ? Op::kSignExt
+                    : Op::kZeroExt;
     XLS_ASSIGN_OR_RETURN(op0,
                          ExtendIf(f, op0, dst_lhs->BitCountOrDie(), ext_op));
     XLS_ASSIGN_OR_RETURN(op1,
@@ -416,24 +463,33 @@ class ComparatorEquivalenceMapping : public EquivalenceMapping {
   absl::StatusOr<double> EstimateAreaOverhead(
       const AreaEstimator& area_estimator, absl::Span<Node* const> operands,
       Node* output) const override {
-    XLS_ASSIGN_OR_RETURN(bool requires_inversion,
-                         RequiresOutputTransformation());
-    if (requires_inversion) {
+    XLS_ASSIGN_OR_RETURN(bool result_inversion, RequiresOutputTransformation());
+    if (result_inversion) {
       return EstimateAreaForSingleBitInversion(area_estimator);
     }
     return 0.0;
   }
 
   static absl::StatusOr<bool> RequiresOutputInversion(Op src_op, Op dst_op) {
+    src_op = SignedCompareToUnsigned(src_op).value_or(src_op);
+    dst_op = SignedCompareToUnsigned(dst_op).value_or(dst_op);
     XLS_ASSIGN_OR_RETURN(Op invert_dst_op, InvertComparisonOp(dst_op));
     XLS_ASSIGN_OR_RETURN(Op rev_dst_op, ReverseComparisonOp(dst_op));
     XLS_ASSIGN_OR_RETURN(Op invert_rev_dst_op, InvertComparisonOp(rev_dst_op));
+    // Inverting the op, e.g. from ult to uge, requires not-ing the result
     return src_op == invert_dst_op || src_op == invert_rev_dst_op;
   }
 
   static absl::StatusOr<bool> RequiresOperandSwap(Op src_op, Op dst_op) {
+    src_op = SignedCompareToUnsigned(src_op).value_or(src_op);
+    dst_op = SignedCompareToUnsigned(dst_op).value_or(dst_op);
     XLS_ASSIGN_OR_RETURN(Op rev_dst_op, ReverseComparisonOp(dst_op));
+    // If equality comparison, no operand swap is needed:
+    if (rev_dst_op == dst_op) {
+      return false;
+    }
     XLS_ASSIGN_OR_RETURN(Op invert_rev_dst_op, InvertComparisonOp(rev_dst_op));
+    // Reversing the op, e.g. from ult to ugt, requires swapping the operands.
     return src_op == rev_dst_op || src_op == invert_rev_dst_op;
   }
 };

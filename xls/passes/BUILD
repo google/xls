@@ -1226,6 +1226,7 @@ cc_test(
         ":resource_sharing_equivalence",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
+        "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "//xls/estimators/area_model:area_estimator",
         "//xls/ir",
