@@ -125,6 +125,14 @@ class TypeRefUnwrapper : public AstNodeVisitorWithDefault {
     return absl::OkStatus();
   }
 
+  absl::Status HandleSelfTypeAnnotation(
+      const SelfTypeAnnotation* annotation) override {
+    if (annotation->struct_ref() != nullptr) {
+      return annotation->struct_ref()->Accept(this);
+    }
+    return absl::OkStatus();
+  }
+
   absl::Status HandleProcDef(const ProcDef* def) override {
     type_def_ = const_cast<ProcDef*>(def);
     return absl::OkStatus();
@@ -203,7 +211,8 @@ absl::StatusOr<std::optional<StructOrProcRef>> GetStructOrProcRef(
     const TypeAnnotation* annotation, const ImportData& import_data,
     bool include_generic) {
   if (!annotation->IsAnnotation<TypeRefTypeAnnotation>() &&
-      !annotation->IsAnnotation<TypeVariableTypeAnnotation>()) {
+      !annotation->IsAnnotation<TypeVariableTypeAnnotation>() &&
+      !annotation->IsAnnotation<SelfTypeAnnotation>()) {
     return std::nullopt;
   }
   TypeRefUnwrapper unwrapper(import_data, include_generic);
@@ -215,7 +224,8 @@ absl::StatusOr<std::optional<StructOrProcRef>> GetStructOrProcRef(
     const TypeAnnotation* annotation, ImportData& import_data,
     const TypecheckModuleFn& typecheck_imported_module, bool include_generic) {
   if (!annotation->IsAnnotation<TypeRefTypeAnnotation>() &&
-      !annotation->IsAnnotation<TypeVariableTypeAnnotation>()) {
+      !annotation->IsAnnotation<TypeVariableTypeAnnotation>() &&
+      !annotation->IsAnnotation<SelfTypeAnnotation>()) {
     return std::nullopt;
   }
   TypeRefUnwrapper unwrapper(import_data, typecheck_imported_module,

@@ -2640,5 +2640,82 @@ fn test_lambda() -> u32[5] {
   ASSERT_TRUE(result.tm.warnings.warnings().empty());
 }
 
+TEST(TypecheckV2StructTest, ImplConstructorYieldingSelfInstance) {
+  EXPECT_THAT(
+      R"(
+struct Point {
+  x: u32,
+  y: u32,
+}
+
+impl Point {
+  fn new() -> Self {
+    Self { x: 1, y: 2 }
+  }
+}
+
+struct S<N: u32, M: u32 = {N * 2}> {
+  a: uN[N],
+  b: uN[M],
+}
+
+impl S<N, M> {
+  fn new() -> Self {
+    Self { a: 5, b: 10 }
+  }
+
+  fn with_a(self, a: uN[N]) -> Self {
+    Self { a, ..self }
+  }
+
+  fn foo(self) -> uN[M] { (self.a as uN[M]) + self.b }
+}
+
+const P = Point::new();
+const S1 = S<16>::new();
+const S2 = S1.with_a(20);
+const X = S2.foo();
+const_assert!(P.x + P.y == 3);
+const_assert!(X == 30);
+)",
+      TypecheckSucceeds(
+          AllOf(HasNodeWithType("P", "Point { x: uN[32], y: uN[32] }"),
+                HasNodeWithType("S1", "S { a: uN[16], b: uN[32] }"),
+                HasNodeWithType("S2", "S { a: uN[16], b: uN[32] }"),
+                HasNodeWithType("X", "uN[32]"))));
+}
+
+TEST(TypecheckV2StructTest, ImplColonRefOnSelf) {
+  EXPECT_THAT(
+      R"(
+struct S<N: u32, M: u32 = {N * 2}> {
+  a: uN[N],
+  b: uN[M],
+}
+
+impl S<N, M> {
+  const DEFAULT_A = uN[N]:5;
+  const WIDTH = M;
+
+  fn new(a: uN[N], b: uN[Self::WIDTH]) -> Self {
+    Self { a, b }
+  }
+
+  fn default_instance() -> Self {
+    Self::new(Self::DEFAULT_A, 10)
+  }
+
+  fn foo(self) -> uN[Self::WIDTH] { (self.a as uN[Self::WIDTH]) + self.b }
+}
+
+const S1 = S<16>::default_instance();
+const X = S1.foo();
+const_assert!(X == 15);
+)",
+      TypecheckSucceeds(
+          AllOf(HasNodeWithType("S1", "S { a: uN[16], b: uN[32] }"),
+                HasNodeWithType("X", "uN[32]"))));
+}
+
 }  // namespace
 }  // namespace xls::dslx

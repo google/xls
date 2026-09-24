@@ -227,6 +227,7 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
   }
 
   absl::Status HandleImpl(const Impl* node) override {
+    XLS_RETURN_IF_ERROR(node->struct_ref()->Accept(this));
     XLS_ASSIGN_OR_RETURN(std::optional<const StructDefBase*> struct_def_base,
                          GetStructOrProcDef(node->struct_ref(), import_data_));
     if (struct_def_base.has_value() &&
@@ -368,6 +369,14 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
     if (std::holds_alternative<TypeRefTypeAnnotation*>(node->subject())) {
       const auto* annotation =
           std::get<TypeRefTypeAnnotation*>(node->subject());
+      XLS_RETURN_IF_ERROR(annotation->Accept(this));
+      return table_.SetTypeAnnotation(
+          node, module_.Make<MemberTypeAnnotation>(AttrSpan(node), annotation,
+                                                   node->attr()));
+    }
+
+    if (std::holds_alternative<SelfTypeAnnotation*>(node->subject())) {
+      const auto* annotation = std::get<SelfTypeAnnotation*>(node->subject());
       XLS_RETURN_IF_ERROR(annotation->Accept(this));
       return table_.SetTypeAnnotation(
           node, module_.Make<MemberTypeAnnotation>(AttrSpan(node), annotation,
