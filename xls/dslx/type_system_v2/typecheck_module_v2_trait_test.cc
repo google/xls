@@ -469,6 +469,20 @@ const_assert!(Foo{}.to_bits() == bits[0]:0);
 )"));
 }
 
+TEST(TypecheckV2TraitTest, ToBitsWithEmptyArrayAndTuple) {
+  XLS_ASSERT_OK(TypecheckV2(R"(
+#[derive(ToBits)]
+struct Foo {
+  a: u8,
+  b: u8[0],
+  c: (),
+  d: (u2, u4[0]),
+}
+
+const_assert!(Foo { a: 5, b: [], c: (), d: (1, []) }.to_bits() == u10:0b00000101_01);
+)"));
+}
+
 TEST(TypecheckV2TraitTest, MapToBits) {
   XLS_ASSERT_OK(TypecheckV2(R"(
 #[derive(ToBits)]
@@ -518,6 +532,298 @@ fn main() {
               StatusIs(absl::StatusCode::kInvalidArgument,
                        HasSubstr("Trait `ToBits` is only supported on structs, "
                                  "but proc `Foo` attempted to derive it")));
+}
+
+TEST(TypecheckV2TraitTest, DefaultSimple) {
+  XLS_ASSERT_OK(TypecheckV2(R"(
+#[derive(ToBits, Default)]
+struct Foo {
+  a: u32,
+  b: s8,
+  c: bool,
+  d: (u2, u8),
+}
+
+#[derive(Default)]
+struct Big {
+  a: u16[1024],
+  b: (u2, u8[0]),
+}
+
+#[derive(Default)]
+struct Empty {}
+
+const_assert!(Foo::default() == Foo { a: 0, b: 0, c: false, d: (0, 0) });
+const_assert!(Foo::default().to_bits() == 0);
+const_assert!(Big::default() == zero!<Big>());
+const_assert!(Empty::default() == Empty {});
+)"));
+}
+
+TEST(TypecheckV2TraitTest, DefaultUsesNestedDefaults) {
+  XLS_ASSERT_OK(TypecheckV2(R"(
+struct Leaf {
+  x: u8,
+}
+
+impl Leaf {
+  fn default() -> Self { Leaf { x: 7 } }
+}
+
+#[derive(Default)]
+struct Middle {
+  leaf: Leaf,
+  leaves: Leaf[2],
+}
+
+#[derive(Default)]
+struct Top {
+  middle: Middle,
+  pair: (u4, Leaf),
+  row: (u8, Leaf[3]),
+  grid: Leaf[2][3],
+}
+
+const T = Top::default();
+const_assert!(T.middle.leaf.x == 7);
+const_assert!(T.middle.leaves == [Leaf { x: 7 }, Leaf { x: 7 }]);
+const_assert!(T.pair == (u4:0, Leaf { x: 7 }));
+const_assert!(T.row.1[2].x == 7);
+const_assert!(T.grid[2][1].x == 7);
+const_assert!(zero!<Top>().middle.leaf.x == 0);
+)"));
+}
+
+TEST(TypecheckV2TraitTest, DefaultOnStructArrays) {
+  XLS_ASSERT_OK(TypecheckV2(R"(
+struct Leaf {
+  x: u8,
+}
+
+impl Leaf {
+  fn default() -> Self { Leaf { x: 7 } }
+}
+
+#[derive(Default)]
+struct Arrays {
+  none: Leaf[0],
+  one: Leaf[1],
+  many: Leaf[65536],
+}
+
+const A = Arrays::default();
+const_assert!(A.none == Leaf[0]:[]);
+const_assert!(A.one == [Leaf { x: 7 }]);
+const_assert!(A.many[65535].x == 7);
+)"));
+}
+
+TEST(TypecheckV2TraitTest, DefaultWithTypeAliases) {
+  XLS_ASSERT_OK(TypecheckV2(R"(
+struct Inner<M: u32> {
+  v: uN[M],
+}
+
+impl Inner<M> {
+  fn default() -> Self { Inner { v: all_ones!<uN[M]>() } }
+}
+
+type Inner4 = Inner<4>;
+type Pair = Inner<4>[2];
+
+#[derive(Default)]
+struct Foo {
+  a: u16,
+  b: Inner4,
+  c: Pair,
+}
+
+type FooAlias = Foo;
+
+const_assert!(FooAlias::default() ==
+    Foo { a: 0, b: Inner { v: 15 }, c: [Inner { v: 15 }, Inner { v: 15 }] });
+)"));
+}
+
+TEST(TypecheckV2TraitTest, DefaultOnParametricStruct) {
+  XLS_ASSERT_OK(TypecheckV2(R"(
+struct Inner<M: u32> {
+  v: uN[M],
+}
+
+impl Inner<M> {
+  fn default() -> Self { Inner { v: all_ones!<uN[M]>() } }
+}
+
+#[derive(Default)]
+struct Leaf {
+  x: u8,
+}
+
+#[derive(Default)]
+struct Foo<N: u32> {
+  values: u32[N],
+  inners: Inner<N>[N],
+  leaf: Leaf,
+}
+
+const_assert!(Foo<2>::default() == Foo<2> {
+    values: [0, 0], inners: [Inner { v: 3 }, Inner { v: 3 }], leaf: Leaf { x: 0 } });
+const_assert!(Foo<3>::default().inners[2].v == 7);
+)"));
+}
+
+TEST(TypecheckV2TraitTest, DefaultOnGenericStruct) {
+  XLS_ASSERT_OK(TypecheckV2(R"(
+#![feature(generics)]
+
+struct Inner<M: u32> {
+  v: uN[M],
+}
+
+impl Inner<M> {
+  fn default() -> Self { Inner { v: all_ones!<uN[M]>() } }
+}
+
+#[derive(Default)]
+struct Wrapper<T: type> {
+  value: T,
+}
+
+const_assert!(Wrapper<Inner<4>>::default().value.v == 15);
+)"));
+}
+
+TEST(TypecheckV2TraitTest, DefaultOnImportedStruct) {
+  constexpr std::string_view kImported = R"(
+pub struct Child {
+  x: u32,
+}
+
+impl Child {
+  pub fn default() -> Self { Child { x: 5 } }
+}
+
+#[derive(Default)]
+pub struct Parent<N: u32> {
+  child: Child,
+  values: uN[N],
+}
+
+pub const W = u32:4;
+pub type Parents = Parent<W>[2];
+)";
+  constexpr std::string_view kProgram = R"(
+import imported;
+
+#[derive(Default)]
+struct Local {
+  parent: imported::Parent<4>,
+  parents: imported::Parents,
+  child: imported::Child,
+}
+
+const_assert!(Local::default().parent.child.x == 5);
+const_assert!(Local::default().parents[1].child.x == 5);
+const_assert!(Local::default().child.x == 5);
+)";
+  ImportData import_data = CreateImportDataForTest();
+  XLS_EXPECT_OK(TypecheckV2(kImported, "imported", &import_data).status());
+  XLS_EXPECT_OK(TypecheckV2(kProgram, "main", &import_data));
+}
+
+TEST(TypecheckV2TraitTest, DefaultDerivedLazily) {
+  XLS_ASSERT_OK(TypecheckV2(R"(
+enum E : u2 {
+  A = 0,
+}
+
+#[derive(Default)]
+struct Foo {
+  e: E,
+}
+
+impl Foo {
+  const LIMIT = u32:5;
+}
+
+const_assert!(Foo::LIMIT == 5);
+)"));
+}
+
+TEST(TypecheckV2TraitTest, DefaultWithFieldLackingDefaultFails) {
+  EXPECT_THAT(R"(
+struct Child {
+  x: u32,
+}
+
+#[derive(Default)]
+struct Parent {
+  child: Child,
+}
+
+const P = Parent::default();
+)",
+              TypecheckFails(HasSubstr(
+                  "Cannot derive `Default` for `Parent`: field `child` has "
+                  "type `Child`, which does not implement `Default`.")));
+}
+
+TEST(TypecheckV2TraitTest, DefaultWithEnumFieldFails) {
+  EXPECT_THAT(R"(
+enum E : u2 {
+  A = 0,
+}
+
+#[derive(Default)]
+struct Foo {
+  e: (u8, E),
+}
+
+const F = Foo::default();
+)",
+              TypecheckFails(HasSubstr(
+                  "Cannot derive `Default` for `Foo`: field `e` has type "
+                  "`(uN[8], E)`, which does not implement `Default`.")));
+}
+
+TEST(TypecheckV2TraitTest, DefaultDerivedAndExplicitFails) {
+  EXPECT_THAT(TypecheckV2(R"(
+#[derive(Default)]
+struct Foo {
+  a: u32,
+}
+
+impl Foo {
+  fn default() -> Self { Foo { a: 1 } }
+}
+
+const F = Foo::default();
+)"),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Attempting to derive conflicting function "
+                                 "`default` from trait `Default`")));
+}
+
+TEST(TypecheckV2TraitTest, DefaultOnProcFails) {
+  EXPECT_THAT(TypecheckV2(R"(
+#[derive(Default)]
+proc Foo {}
+
+impl Foo {
+  fn new() -> Self {
+    Foo {}
+  }
+}
+
+fn main() {
+  let f = Foo::default();
+}
+)"),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Trait `Default` is only supported on "
+                                 "structs, but proc `Foo` attempted to "
+                                 "derive it")));
 }
 
 }  // namespace
