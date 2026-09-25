@@ -323,15 +323,6 @@ class DecomposeDataflowVisitor final : public DataflowVisitor<Node*> {
                 slice->loc(), Value(UBits(source_array_size - 1,
                                           Bits::MinBitCountUnsigned(
                                               source_array_size - 1)))));
-      } else if (Bits::MinBitCountUnsigned(i) + 1 < selector->BitCountOrDie()) {
-        XLS_ASSIGN_OR_RETURN(
-            Node * off,
-            slice->function_base()->MakeNode<Literal>(
-                slice->loc(), Value(UBits(i, selector->BitCountOrDie()))));
-        XLS_ASSIGN_OR_RETURN(element_idx,
-                             slice->function_base()->MakeNodeWithName<BinOp>(
-                                 slice->loc(), selector, off, Op::kAdd,
-                                 NodeNameFormat("%s_slice_idx_%d", slice, i)));
       } else {
         XLS_ASSIGN_OR_RETURN(
             Node * off, slice->function_base()->MakeNode<Literal>(
