@@ -739,3 +739,9 @@ place_and_route(
     ],
     target_die_utilization_percentage = "10",
 )
+
+filegroup(
+    name = "x_files",
+    srcs = glob(["*.x"]),
+    visibility = ["//xls:xls_internal"],
+)
