@@ -383,7 +383,7 @@ absl::Status CheckMutualExclusion(Proc* proc,
                            solvers::CreateSolver(solvers::SolverKind::kZ3));
       XLS_ASSIGN_OR_RETURN(
           solver_instance,
-          solver->CreateSolverInstance(proc, /*allow_unsupported=*/true));
+          solver->CreateSolverInstance(proc, {.allow_unsupported = true}));
     }
     return solver_instance.get();
   };

@@ -127,23 +127,23 @@ Z3_ast GetAsFormattedArrayIndex(Z3_context ctx, Z3_ast index,
 }  // namespace
 
 absl::StatusOr<std::unique_ptr<IrTranslator>> IrTranslator::CreateAndTranslate(
-    FunctionBase* source, bool allow_unsupported) {
+    FunctionBase* source, const SolverOptions& options) {
   Z3_config config = Z3_mk_config();
   Z3_set_param_value(config, "proof", "true");
-  auto translator = absl::WrapUnique(new IrTranslator(config, source));
-  translator->allow_unsupported_ = allow_unsupported;
+  auto translator = absl::WrapUnique(new IrTranslator(config, source, options));
   if (source != nullptr) {
     XLS_RET_CHECK(!source->IsBlock());
-    XLS_RETURN_IF_ERROR(source->Accept(translator.get()));
+    if (options.pre_translate) {
+      XLS_RETURN_IF_ERROR(source->Accept(translator.get()));
+    }
   }
   return translator;
 }
 
 absl::StatusOr<std::unique_ptr<IrTranslator>> IrTranslator::CreateAndTranslate(
-    Z3_context ctx, Node* source, bool allow_unsupported) {
+    Z3_context ctx, Node* source, const SolverOptions& options) {
   auto translator = absl::WrapUnique(new IrTranslator(
-      ctx, nullptr, std::optional<absl::Span<const Z3_ast>>()));
-  translator->allow_unsupported_ = allow_unsupported;
+      ctx, nullptr, std::optional<absl::Span<const Z3_ast>>(), options));
   if (source != nullptr) {
     XLS_RETURN_IF_ERROR(source->Accept(translator.get()));
   }
@@ -152,12 +152,13 @@ absl::StatusOr<std::unique_ptr<IrTranslator>> IrTranslator::CreateAndTranslate(
 
 absl::StatusOr<std::unique_ptr<IrTranslator>> IrTranslator::CreateAndTranslate(
     Z3_context ctx, FunctionBase* function_base,
-    absl::Span<const Z3_ast> imported_params, bool allow_unsupported) {
-  auto translator =
-      absl::WrapUnique(new IrTranslator(ctx, function_base, imported_params));
-  translator->allow_unsupported_ = allow_unsupported;
+    absl::Span<const Z3_ast> imported_params, const SolverOptions& options) {
+  auto translator = absl::WrapUnique(
+      new IrTranslator(ctx, function_base, imported_params, options));
   XLS_RET_CHECK(!function_base->IsBlock());
-  XLS_RETURN_IF_ERROR(function_base->Accept(translator.get()));
+  if (options.pre_translate) {
+    XLS_RETURN_IF_ERROR(function_base->Accept(translator.get()));
+  }
   return translator;
 }
 
@@ -168,18 +169,24 @@ absl::Status IrTranslator::Retranslate(
   return xls_function_->Accept(this);
 }
 
-IrTranslator::IrTranslator(Z3_config config, FunctionBase* source)
+IrTranslator::IrTranslator(Z3_config config, FunctionBase* source,
+                           const SolverOptions& options)
     : config_(config),
       ctx_(Z3_mk_context(config_)),
+      allow_unsupported_(options.allow_unsupported),
       borrowed_context_(false),
+      pre_translate_(options.pre_translate),
       xls_function_(source),
       current_symbol_(0) {}
 
 IrTranslator::IrTranslator(
     Z3_context ctx, FunctionBase* source,
-    std::optional<absl::Span<const Z3_ast>> imported_params)
+    std::optional<absl::Span<const Z3_ast>> imported_params,
+    const SolverOptions& options)
     : ctx_(ctx),
+      allow_unsupported_(options.allow_unsupported),
       borrowed_context_(true),
+      pre_translate_(options.pre_translate),
       imported_params_(imported_params),
       xls_function_(source),
       current_symbol_(0) {}
@@ -192,6 +199,9 @@ IrTranslator::~IrTranslator() {
 }
 
 Z3_ast IrTranslator::GetTranslation(const Node* source) {
+  if (!translations_.contains(source)) {
+    CHECK_OK(const_cast<Node*>(source)->Accept(this));
+  }
   return translations_.at(source);
 }
 
@@ -1736,9 +1746,11 @@ absl::Status IrTranslator::HandleInvoke(Invoke* invoke) {
   XLS_ASSIGN_OR_RETURN(
       std::unique_ptr<IrTranslator> sub_translator,
       CreateAndTranslate(ctx(), invoke->to_apply(),
-                         /*imported_params=*/z3_params, allow_unsupported_));
+                         /*imported_params=*/z3_params,
+                         {.allow_unsupported = allow_unsupported_,
+                          .pre_translate = pre_translate_}));
 
-  Z3_ast z3_ret = sub_translator->GetValue(invoke->to_apply()->return_value());
+  Z3_ast z3_ret = sub_translator->GetReturnNode();
 
   NoteTranslation(invoke, z3_ret);
 
@@ -1933,9 +1945,17 @@ absl::StatusOr<Z3_ast> IrTranslator::PredicateToNegatedObjective(
 absl::StatusOr<ProverResult> IrTranslator::TryProveCombination(
     absl::Span<const PredicateOfNode> terms,
     PredicateCombination predicate_combination,
-    absl::Span<const PredicateOfNode> assumptions) {
-  Z3_context ctx = this->ctx();
-  Z3OpTranslator t(ctx);
+    absl::Span<const PredicateOfNode> assumptions, Z3_solver solver,
+    const ProveOptions& options) {
+  // If no solver is provided, create a new one and clean it up on exit.
+  auto solver_cleanup = absl::Cleanup([&] { Z3_solver_dec_ref(ctx_, solver); });
+  if (solver == nullptr) {
+    solver = solvers::z3::CreateSolver(ctx_, /*num_threads=*/1);
+  } else {
+    std::move(solver_cleanup).Cancel();
+  }
+
+  Z3OpTranslator t(ctx_);
   std::optional<Z3_ast> objective;
 
   for (const PredicateOfNode& term : terms) {
@@ -1967,11 +1987,11 @@ absl::StatusOr<ProverResult> IrTranslator::TryProveCombination(
   CHECK(objective.has_value());
   CHECK(objective.value() != nullptr);
 
-  VLOG(1) << "objective:\n" << Z3_ast_to_string(ctx, objective.value());
-  Z3_solver solver = solvers::z3::CreateSolver(ctx, num_threads_);
-  auto cleanup = absl::Cleanup([&] { Z3_solver_dec_ref(ctx, solver); });
+  VLOG(1) << "objective:\n" << Z3_ast_to_string(ctx_, objective.value());
+  ScopedSolverParams solver_params(ctx_, solver, timeout(), rlimit());
 
-  ScopedSolverParams solver_params(ctx, solver, timeout(), rlimit());
+  std::vector<Z3_ast> z3_assumptions;
+  z3_assumptions.reserve(assumptions.size() + 1);
 
   // Assert all assumptions.
   for (const PredicateOfNode& assumption : assumptions) {
@@ -1981,29 +2001,39 @@ absl::StatusOr<ProverResult> IrTranslator::TryProveCombination(
         Z3_ast assumption_term,
         PredicateToAssertion(assumption.p, assumption.subject, value));
     XLS_RET_CHECK(assumption_term != nullptr);
-    Z3_solver_assert(ctx, solver, assumption_term);
+    z3_assumptions.push_back(assumption_term);
   }
 
-  Z3_solver_assert(ctx, solver, objective.value());
-  Z3_lbool satisfiable = Z3_solver_check(ctx, solver);
+  z3_assumptions.push_back(objective.value());
+
+  Z3_lbool satisfiable = Z3_solver_check_assumptions(
+      ctx_, solver, static_cast<unsigned int>(z3_assumptions.size()),
+      z3_assumptions.data());
 
   if (VLOG_IS_ON(1)) {
-    Z3_stats solver_stats = Z3_solver_get_statistics(ctx, solver);
-    Z3_stats_inc_ref(ctx, solver_stats);
-    VLOG(1) << "Solver stats: " << Z3_stats_to_string(ctx, solver_stats);
-    Z3_stats_dec_ref(ctx, solver_stats);
+    Z3_stats solver_stats = Z3_solver_get_statistics(ctx_, solver);
+    Z3_stats_inc_ref(ctx_, solver_stats);
+    VLOG(1) << "Solver stats: " << Z3_stats_to_string(ctx_, solver_stats);
+    Z3_stats_dec_ref(ctx_, solver_stats);
   }
 
-  VLOG(1) << solvers::z3::SolverResultToString(ctx, solver, satisfiable);
+  VLOG(1) << solvers::z3::SolverResultToString(ctx_, solver, satisfiable);
   switch (satisfiable) {
     case Z3_L_FALSE:
       // Unsatisfiable; no value contradicts the claim, so the result is true.
       return ProvenTrue();
     case Z3_L_TRUE: {
+      if (!options.produce_counterexample) {
+        return ProvenFalse{
+            .counterexample = absl::InvalidArgumentError(
+                "Counterexample production disabled"),
+            .message = "",
+        };
+      }
       // Satisfiable; found a value that contradicts the claim.
       absl::StatusOr<absl::flat_hash_map<Node*, Value>> counterexample =
           absl::flat_hash_map<Node*, Value>();
-      auto model = Z3_solver_get_model(ctx, solver);
+      auto model = Z3_solver_get_model(ctx_, solver);
       for (Node* node : xls_function()->nodes()) {
         if (!node->OpIn({Op::kParam, Op::kRegisterRead, Op::kStateRead,
                          Op::kReceive, Op::kInputPort,
@@ -2011,8 +2041,13 @@ absl::StatusOr<ProverResult> IrTranslator::TryProveCombination(
           continue;
         }
 
+        if (!translations_.contains(node)) {
+          counterexample->emplace(node, ZeroOfType(node->GetType()));
+          continue;
+        }
+
         absl::StatusOr<Value> value =
-            NodeValue(ctx, model, GetTranslation(node), node->GetType());
+            NodeValue(ctx_, model, GetTranslation(node), node->GetType());
         if (value.ok()) {
           counterexample->emplace(node, *std::move(value));
         } else {
@@ -2023,7 +2058,7 @@ absl::StatusOr<ProverResult> IrTranslator::TryProveCombination(
       return ProvenFalse{
           .counterexample = std::move(counterexample),
           .message =
-              solvers::z3::SolverResultToString(ctx, solver, satisfiable),
+              solvers::z3::SolverResultToString(ctx_, solver, satisfiable),
       };
     }
     case Z3_L_UNDEF:
@@ -2040,7 +2075,8 @@ absl::StatusOr<ProverResult> TryProveConjunction(
     absl::Span<const PredicateOfNode> assumptions) {
   XLS_RET_CHECK(!terms.empty());
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<IrTranslator> translator,
-                       IrTranslator::CreateAndTranslate(f, allow_unsupported));
+                       IrTranslator::CreateAndTranslate(
+                           f, {.allow_unsupported = allow_unsupported}));
   translator->SetTimeout(timeout);
   return translator->TryProveCombination(
       terms, PredicateCombination::kConjunction, assumptions);
@@ -2051,7 +2087,8 @@ absl::StatusOr<ProverResult> TryProveConjunction(
     bool allow_unsupported, absl::Span<const PredicateOfNode> assumptions) {
   XLS_RET_CHECK(!terms.empty());
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<IrTranslator> translator,
-                       IrTranslator::CreateAndTranslate(f, allow_unsupported));
+                       IrTranslator::CreateAndTranslate(
+                           f, {.allow_unsupported = allow_unsupported}));
   translator->SetRlimit(rlimit);
   return translator->TryProveCombination(
       terms, PredicateCombination::kConjunction, assumptions);
@@ -2089,7 +2126,8 @@ absl::StatusOr<ProverResult> TryProveDisjunction(
     absl::Span<const PredicateOfNode> assumptions) {
   XLS_RET_CHECK(!terms.empty());
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<IrTranslator> translator,
-                       IrTranslator::CreateAndTranslate(f, allow_unsupported));
+                       IrTranslator::CreateAndTranslate(
+                           f, {.allow_unsupported = allow_unsupported}));
   translator->SetTimeout(timeout);
   return translator->TryProveCombination(
       terms, PredicateCombination::kDisjunction, assumptions);
@@ -2100,7 +2138,8 @@ absl::StatusOr<ProverResult> TryProveDisjunction(
     bool allow_unsupported, absl::Span<const PredicateOfNode> assumptions) {
   XLS_RET_CHECK(!terms.empty());
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<IrTranslator> translator,
-                       IrTranslator::CreateAndTranslate(f, allow_unsupported));
+                       IrTranslator::CreateAndTranslate(
+                           f, {.allow_unsupported = allow_unsupported}));
   translator->SetRlimit(rlimit);
   return translator->TryProveCombination(
       terms, PredicateCombination::kDisjunction, assumptions);
@@ -2218,6 +2257,17 @@ absl::StatusOr<std::string> EmitFunctionAsSmtLib(Function* function) {
   return std::string(smt_cstr);
 }
 
+Z3SolverInstance::Z3SolverInstance(std::unique_ptr<IrTranslator> translator)
+    : translator_(std::move(translator)),
+      solver_(
+          solvers::z3::CreateSolver(translator_->ctx(), /*num_threads=*/1)) {
+  Z3_solver_inc_ref(translator_->ctx(), solver_);
+}
+
+Z3SolverInstance::~Z3SolverInstance() {
+  Z3_solver_dec_ref(translator_->ctx(), solver_);
+}
+
 void Z3SolverInstance::SetLimit(const SolverLimit& limit) {
   if (limit.timeout.has_value()) {
     translator_->SetTimeout(*limit.timeout);
@@ -2233,53 +2283,26 @@ void Z3SolverInstance::SetLimit(const SolverLimit& limit) {
 
 absl::StatusOr<ProverResult> Z3SolverInstance::TryProve(
     Node* subject, const Predicate& p,
-    absl::Span<const PredicateOfNode> assumptions) {
-  if (translator_->timeout().has_value()) {
-    return TryProveWithTranslator(translator_.get(), subject, p,
-                                  *translator_->timeout(), assumptions);
-  }
-  if (translator_->rlimit().has_value()) {
-    return TryProveWithTranslator(translator_.get(), subject, p,
-                                  *translator_->rlimit(), assumptions);
-  }
-  return TryProveWithTranslator(translator_.get(), subject, p,
-                                absl::InfiniteDuration(), assumptions);
+    absl::Span<const PredicateOfNode> assumptions,
+    const ProveOptions& options) {
+  PredicateOfNode term = {.subject = subject, .p = p};
+  return TryProveCombination(absl::MakeConstSpan(&term, 1),
+                             PredicateCombination::kConjunction, assumptions,
+                             options);
 }
 
 absl::StatusOr<ProverResult> Z3SolverInstance::TryProveCombination(
     absl::Span<const PredicateOfNode> terms, PredicateCombination combination,
-    absl::Span<const PredicateOfNode> assumptions) {
-  if (translator_->timeout().has_value()) {
-    return combination == PredicateCombination::kConjunction
-               ? TryProveConjunctionWithTranslator(translator_.get(), terms,
-                                                   *translator_->timeout(),
-                                                   assumptions)
-               : TryProveDisjunctionWithTranslator(translator_.get(), terms,
-                                                   *translator_->timeout(),
-                                                   assumptions);
-  }
-  if (translator_->rlimit().has_value()) {
-    return combination == PredicateCombination::kConjunction
-               ? TryProveConjunctionWithTranslator(translator_.get(), terms,
-                                                   *translator_->rlimit(),
-                                                   assumptions)
-               : TryProveDisjunctionWithTranslator(translator_.get(), terms,
-                                                   *translator_->rlimit(),
-                                                   assumptions);
-  }
-  return combination == PredicateCombination::kConjunction
-             ? TryProveConjunctionWithTranslator(translator_.get(), terms,
-                                                 absl::InfiniteDuration(),
-                                                 assumptions)
-             : TryProveDisjunctionWithTranslator(translator_.get(), terms,
-                                                 absl::InfiniteDuration(),
-                                                 assumptions);
+    absl::Span<const PredicateOfNode> assumptions,
+    const ProveOptions& options) {
+  return translator_->TryProveCombination(terms, combination, assumptions,
+                                          solver_, options);
 }
 
 absl::StatusOr<std::unique_ptr<xls::solvers::SolverInstance>>
-Z3Solver::CreateSolverInstance(FunctionBase* f, bool allow_unsupported) {
+Z3Solver::CreateSolverInstance(FunctionBase* f, const SolverOptions& options) {
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<IrTranslator> translator,
-                       IrTranslator::CreateAndTranslate(f, allow_unsupported));
+                       IrTranslator::CreateAndTranslate(f, options));
   return std::make_unique<Z3SolverInstance>(std::move(translator));
 }
 
@@ -2287,8 +2310,9 @@ absl::StatusOr<ProverResult> Z3Solver::TryProve(
     FunctionBase* f, Node* subject, const Predicate& p,
     const SolverLimit& limit, bool allow_unsupported,
     absl::Span<const PredicateOfNode> assumptions) {
-  XLS_ASSIGN_OR_RETURN(auto instance,
-                       CreateSolverInstance(f, allow_unsupported));
+  XLS_ASSIGN_OR_RETURN(
+      auto instance,
+      CreateSolverInstance(f, {.allow_unsupported = allow_unsupported}));
   instance->SetLimit(limit);
   return instance->TryProve(subject, p, assumptions);
 }
@@ -2297,8 +2321,9 @@ absl::StatusOr<ProverResult> Z3Solver::TryProveCombination(
     FunctionBase* f, absl::Span<const PredicateOfNode> terms,
     PredicateCombination combination, const SolverLimit& limit,
     bool allow_unsupported, absl::Span<const PredicateOfNode> assumptions) {
-  XLS_ASSIGN_OR_RETURN(auto instance,
-                       CreateSolverInstance(f, allow_unsupported));
+  XLS_ASSIGN_OR_RETURN(
+      auto instance,
+      CreateSolverInstance(f, {.allow_unsupported = allow_unsupported}));
   instance->SetLimit(limit);
   return instance->TryProveCombination(terms, combination, assumptions);
 }
