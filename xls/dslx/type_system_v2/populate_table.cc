@@ -27,7 +27,6 @@
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/ast_node.h"
 #include "xls/dslx/frontend/ast_node_visitor_with_default.h"
-#include "xls/dslx/frontend/builtin_stubs_utils.h"
 #include "xls/dslx/frontend/module.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/import_routines.h"
@@ -44,19 +43,17 @@ namespace xls::dslx {
 absl::Status PopulateBuiltinStubs(ImportData* import_data,
                                   WarningCollector* warnings,
                                   InferenceTable* table) {
-  XLS_ASSIGN_OR_RETURN(ImportTokens builtin_tokens,
-                       ImportTokens::FromString(kBuiltinStubsModuleName));
-  if (import_data->Contains(builtin_tokens)) {
+  XLS_ASSIGN_OR_RETURN(Module * builtins_module,
+                       import_data->GetOrLoadBuiltinStubsModule());
+
+  if (import_data->GetInferenceTableConverter(builtins_module).ok()) {
     return absl::OkStatus();
   }
 
-  XLS_ASSIGN_OR_RETURN(std::unique_ptr<Module> builtins_module,
-                       LoadBuiltinStubs(import_data->file_table()));
   std::unique_ptr<PopulateTableVisitor> builtins_visitor =
-      CreatePopulateTableVisitor(builtins_module.get(), table, import_data,
+      CreatePopulateTableVisitor(builtins_module, table, import_data,
                                  /*typecheck_imported_module=*/nullptr);
-  XLS_RETURN_IF_ERROR(
-      builtins_visitor->PopulateFromModule(builtins_module.get()));
+  XLS_RETURN_IF_ERROR(builtins_visitor->PopulateFromModule(builtins_module));
 
   // Do not emit unused variable warnings for builtins.
   XLS_ASSIGN_OR_RETURN(
@@ -69,15 +66,8 @@ absl::Status PopulateBuiltinStubs(ImportData* import_data,
                                     /*trait_deriver=*/std::nullopt));
   XLS_ASSIGN_OR_RETURN(TypeInfo * builtins_type_info,
                        import_data->GetRootTypeInfo());
-
-  XLS_ASSIGN_OR_RETURN(std::filesystem::path builtins_path, BuiltinStubsPath());
-  std::unique_ptr<ModuleInfo> builtins_module_info =
-      std::make_unique<ModuleInfo>(std::move(builtins_module),
-                                   builtins_type_info, builtins_path,
-                                   std::move(builtins_converter),
-                                   /*builtin_stubs=*/true);
-  return import_data->Put(builtin_tokens, std::move(builtins_module_info))
-      .status();
+  return import_data->SetBuiltinStubsTypeInfo(builtins_type_info,
+                                              std::move(builtins_converter));
 }
 
 absl::Status PopulateTable(InferenceTable* table, Module* module,
