@@ -48,6 +48,7 @@ inline bool OpHasTokenProvenance(Op op) {
     case Op::kAssert:
     case Op::kCover:
     case Op::kTrace:
+    case Op::kPeek:
     case Op::kReceive:
     case Op::kSend:
     case Op::kAfterAll:

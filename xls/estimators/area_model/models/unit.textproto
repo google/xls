@@ -49,6 +49,7 @@ op_models { op: "kOneHotSel" estimator { fixed: 1 } }
 op_models { op: "kPrioritySel" estimator { fixed: 1 } }
 op_models { op: "kOr" estimator { fixed: 1 } }
 op_models { op: "kOrReduce" estimator { fixed: 1 } }
+op_models { op: "kPeek" estimator { fixed: 1 } }
 op_models { op: "kReceive" estimator { fixed: 1 } }
 op_models { op: "kReverse" estimator { fixed: 1 } }
 op_models { op: "kSDiv" estimator { fixed: 1 } }

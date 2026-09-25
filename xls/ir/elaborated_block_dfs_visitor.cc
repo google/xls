@@ -133,6 +133,11 @@ absl::Status ElaboratedBlockDfsVisitorWithDefault::HandleCover(
   return DefaultHandler(ElaboratedNode{.node = cover, .instance = instance});
 }
 
+absl::Status ElaboratedBlockDfsVisitorWithDefault::HandlePeek(
+    Peek* peek, BlockInstance* instance) {
+  return DefaultHandler(ElaboratedNode{.node = peek, .instance = instance});
+}
+
 absl::Status ElaboratedBlockDfsVisitorWithDefault::HandleReceive(
     Receive* receive, BlockInstance* instance) {
   return DefaultHandler(ElaboratedNode{.node = receive, .instance = instance});

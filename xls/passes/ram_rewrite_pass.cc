@@ -852,6 +852,10 @@ absl::Status ReplaceChannelReferences(Package* p, OptimizationContext& context,
       } else if (node->Is<Receive>()) {
         XLS_RETURN_IF_ERROR(
             handle_receive(node->As<Receive>(), metadata.proc_scope.value()));
+      } else if (node->Is<Peek>()) {
+        return absl::AbortedError(
+            absl::StrFormat("`peek` operation on RAM channel: %s",
+                            node->ToString()));
       }
     }
   } else {
@@ -866,6 +870,10 @@ absl::Status ReplaceChannelReferences(Package* p, OptimizationContext& context,
         } else if (node->Is<Receive>()) {
           XLS_RETURN_IF_ERROR(handle_receive(node->As<Receive>(),
                                              /*proc_scope=*/std::nullopt));
+        } else if (node->Is<Peek>()) {
+          return absl::AbortedError(
+              absl::StrFormat("`peek` operation on RAM channel: %s",
+                              node->ToString()));
         }
       }
     }

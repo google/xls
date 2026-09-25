@@ -142,6 +142,28 @@ class ProcIrInterpreter : public IrInterpreter {
         queue_manager_(queue_manager),
         active_next_values_(active_next_values) {}
 
+  absl::Status HandlePeek(Peek* peek) override {
+    XLS_ASSIGN_OR_RETURN(ChannelQueue* queue,
+                         GetChannelQueue(peek->channel_name()));
+
+    if (peek->predicate().has_value()) {
+      const Bits& pred = ResolveAsBits(peek->predicate().value());
+      if (pred.IsZero()) {
+        // If the predicate is false, nothing is read from the channel.
+        // Rather the result of the peek is the zero values of the
+        // respective type.
+        return SetValueResult(peek, ZeroOfType(peek->GetType()));
+      }
+    }
+
+    std::optional<Value> value = queue->Peek();
+    if (!value.has_value()) {
+      return SetValueResult(peek, ZeroOfType(peek->GetType()));
+    }
+    return SetValueResult(
+        peek, Value::Tuple({Value::Token(), *value, Value(UBits(1, 1))}));
+  }
+
   absl::Status HandleReceive(Receive* receive) override {
     XLS_ASSIGN_OR_RETURN(ChannelQueue * queue,
                          GetChannelQueue(receive->channel_name()));

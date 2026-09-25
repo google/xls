@@ -70,15 +70,16 @@ namespace xls {
 
 namespace {
 
-// A concept for a function that can generate inputs for a given receive.
+// A concept for a function that can generate inputs for a given receive or
+// peek.
 //
-// Take the receive node, the function builder, the argument set of the recieve
-// and the current activation index, and the previous IOAction (if any). It
-// returns an IOAction representing the receive and holding the resulting value,
-// and whether or not it completed.
+// Take the receive/peek node, the function builder, the argument set of the
+// receive/peek and the current activation index, and the previous IOAction
+// (if any). It returns an IOAction representing the receive/peek and holding
+// the resulting value, and whether or not it completed.
 template <typename T>
 concept InputGeneratorConcept = std::is_invocable_r_v<
-    absl::StatusOr<IOAction>, T, /*receive=*/Receive*,
+    absl::StatusOr<IOAction>, T, /*receive=*/ChannelNode*,
     /*fb=*/FunctionBuilder&, /*args=*/absl::Span<BValue const>,
     /*activation_index=*/int64_t,
     /*prev_action=*/std::optional<IOAction>, /*active=*/BValue>;
@@ -330,39 +331,12 @@ class UnrollProcVisitor final : public DfsVisitorWithDefault {
     return absl::OkStatus();
   }
 
-  absl::Status HandleReceive(Receive* r) override {
-    XLS_RETURN_IF_ERROR(fb_.GetError());
-    BValue real_data;
-    XLS_ASSIGN_OR_RETURN(ReceiveChannelRef recv_channel_ref,
-                         r->GetReceiveChannelRef());
-    std::optional<IOAction> prev_action =
-        recv_state_.contains(recv_channel_ref)
-            ? std::make_optional(recv_state_.at(recv_channel_ref))
-            : std::nullopt;
-    BValue token = values_[r->token()];
-    BValue active = node_active_[r->token()];
-    IOAction action;
-    if (r->predicate()) {
-      active = fb_.And({active, node_active_[r->predicate().value()]});
-      BValue predicate_value = values_[r->predicate().value()];
-      XLS_ASSIGN_OR_RETURN(action,
-                           input_generator_(r, fb_, {token, predicate_value},
-                                            activation_, prev_action, active));
-    } else {
-      XLS_ASSIGN_OR_RETURN(
-          action,
-          input_generator_(r, fb_, {token}, activation_, prev_action, active));
-    }
-    std::vector<BValue> result_values{fb_.Literal(token_value_), action.data};
-    if (!r->is_blocking()) {
-      result_values.push_back(action.executed);
-    }
-    node_active_[r] = fb_.And({active, action.completes});
-    recv_state_[recv_channel_ref] = std::move(action);
-    VLOG(2) << "got " << r << " -> " << recv_state_[recv_channel_ref].data;
-    values_[r] = fb_.Tuple(std::move(result_values));
+  absl::Status HandlePeek(Peek* p) override {
+    return HandleReceivingNode(p);
+  }
 
-    return absl::OkStatus();
+  absl::Status HandleReceive(Receive* r) override {
+    return HandleReceivingNode(r);
   }
 
   absl::Status HandleAfterAll(AfterAll* aa) override {
@@ -398,6 +372,42 @@ class UnrollProcVisitor final : public DfsVisitorWithDefault {
   }
 
  private:
+  absl::Status HandleReceivingNode(ChannelNode* node) {
+    XLS_RET_CHECK(node->Is<Receive>() || node->Is<Peek>());
+    XLS_RETURN_IF_ERROR(fb_.GetError());
+    BValue real_data;
+    XLS_ASSIGN_OR_RETURN(ReceiveChannelRef recv_channel_ref,
+                         node->GetReceiveChannelRef());
+    std::optional<IOAction> prev_action =
+        recv_state_.contains(recv_channel_ref)
+            ? std::make_optional(recv_state_.at(recv_channel_ref))
+            : std::nullopt;
+    BValue token = values_[node->token()];
+    BValue active = node_active_[node->token()];
+    IOAction action;
+    if (node->predicate()) {
+      active = fb_.And({active, node_active_[node->predicate().value()]});
+      BValue predicate_value = values_[node->predicate().value()];
+      XLS_ASSIGN_OR_RETURN(action,
+                           input_generator_(node, fb_, {token, predicate_value},
+                                            activation_, prev_action, active));
+    } else {
+      XLS_ASSIGN_OR_RETURN(
+          action,
+          input_generator_(node, fb_, {token}, activation_, prev_action, active));
+    }
+    std::vector<BValue> result_values{fb_.Literal(token_value_), action.data};
+    if (!node->is_blocking()) {
+      result_values.push_back(action.executed);
+    }
+    node_active_[node] = fb_.And({active, action.completes});
+    recv_state_[recv_channel_ref] = std::move(action);
+    VLOG(2) << "got " << node << " -> " << recv_state_[recv_channel_ref].data;
+    values_[node] = fb_.Tuple(std::move(result_values));
+
+    return absl::OkStatus();
+  }
+
   // The function we are building to do verification on.
   FunctionBuilder& fb_;
   // The previous activation.
@@ -516,7 +526,7 @@ absl::StatusOr<UnrolledProc> UnrollProc(Proc* p, int64_t activation_count,
       absl::StrFormat("%s_x%d_function", p->name(), activation_count), pkg);
   absl::flat_hash_map<std::pair<ReceiveChannelRef, int64_t>, BValue>
       recvd_value;
-  auto recv_gen = [&recvd_value](Receive* r, FunctionBuilder& fb,
+  auto recv_gen = [&recvd_value](ChannelNode* r, FunctionBuilder& fb,
                                  absl::Span<BValue const> args, int64_t act_idx,
                                  std::optional<IOAction> prev_action,
                                  BValue active) -> absl::StatusOr<IOAction> {
@@ -731,7 +741,7 @@ class UntimedInputGen {
     return out;
   }
 
-  absl::StatusOr<IOAction> operator()(Receive* r, FunctionBuilder& fb,
+  absl::StatusOr<IOAction> operator()(ChannelNode* r, FunctionBuilder& fb,
                                       absl::Span<BValue const> args,
                                       int64_t act_idx,
                                       std::optional<IOAction> prev_action,
@@ -766,6 +776,11 @@ class UntimedInputGen {
         fb.TupleIndex(pop_result, 3, SourceInfo(),
                       absl::StrFormat("was_not_empty_%s_act%d",
                                       ChannelRefName(recv_chan_ref), act_idx));
+    if (r->Is<Peek>()) {
+      // A peek observes the head of the queue but does not consume it, so
+      // the read pointer must not advance for later activations.
+      next_count = prev_recv_count;
+    }
     recv_count_[{recv_chan_ref, act_idx}] = next_count;
     return IOAction{
         .is_send = false,
@@ -965,6 +980,11 @@ struct ChannelActionCallback final : public ChannelQueueCallback {
       full_ = full_ || actions_.actions.size() == *size_;
     }
   }
+  void PeekValue(ChannelInstance* channel_instance,
+                 const Value& value) override {
+    // Noop as a peek does not consume/produce a channel value.
+  }
+
   void ReadValue(ChannelInstance* channel_instance,
                  const Value& value) override {
     HandleValue(value);
