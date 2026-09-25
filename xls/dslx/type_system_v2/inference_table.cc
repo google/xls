@@ -380,7 +380,7 @@ class InferenceTableImpl : public InferenceTable {
   }
 
   absl::StatusOr<ParametricContext*> AddProcAliasParametricContext(
-      const ProcAlias& alias, const ParametricEnv& env,
+      const AliasDef& alias, const ParametricEnv& env,
       const std::vector<Expr*>& parametrics, const Function& config_or_next,
       TypeInfo* ti) override {
     VLOG(5) << "Add proc alias context: " << alias.ToString();

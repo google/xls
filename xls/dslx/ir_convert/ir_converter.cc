@@ -576,8 +576,8 @@ absl::Status ConvertOneFunctionIntoPackage(Module* module,
                                                  options, conv);
   }
 
-  absl::StatusOr<ProcAlias*> proc_alias =
-      module->GetMemberOrError<ProcAlias>(entry_function_name);
+  absl::StatusOr<AliasDef*> proc_alias =
+      module->GetMemberOrError<AliasDef>(entry_function_name);
   if (proc_alias.ok()) {
     XLS_ASSIGN_OR_RETURN(TypeInfo * ti, import_data->GetRootTypeInfo());
     ResolvedProcAlias resolved_alias = ti->GetResolvedProcAlias(*proc_alias);

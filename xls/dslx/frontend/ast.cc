@@ -275,8 +275,8 @@ std::string_view AstNodeKindToString(AstNodeKind kind) {
       return "function";
     case AstNodeKind::kProc:
       return "proc";
-    case AstNodeKind::kProcAlias:
-      return "proc alias";
+    case AstNodeKind::kAliasDef:
+      return "alias";
     case AstNodeKind::kProcMember:
       return "proc member";
     case AstNodeKind::kNameRef:
@@ -3623,10 +3623,10 @@ std::string TypeAlias::ToString() const {
       is_public_ ? "pub " : "", identifier(), type_annotation_.ToString());
 }
 
-// -- class ProcAlias
+// -- class AliasDef
 
-ProcAlias::ProcAlias(Module* owner, Span span, NameDef* name_def, Target target,
-                     bool is_public, const std::vector<ExprOrType>& parametrics)
+AliasDef::AliasDef(Module* owner, Span span, NameDef* name_def, Target target,
+                   bool is_public, const std::vector<ExprOrType>& parametrics)
     : AstNode(owner),
       span_(span),
       name_def_(name_def),
@@ -3634,9 +3634,9 @@ ProcAlias::ProcAlias(Module* owner, Span span, NameDef* name_def, Target target,
       is_public_(is_public),
       parametrics_(parametrics) {}
 
-ProcAlias::~ProcAlias() = default;
+AliasDef::~AliasDef() = default;
 
-std::vector<AstNode*> ProcAlias::GetChildren(bool want_types) const {
+std::vector<AstNode*> AliasDef::GetChildren(bool want_types) const {
   std::vector<AstNode*> result{name_def_, ToAstNode(target_)};
   result.reserve(result.size() + parametrics_.size());
   for (ExprOrType next : parametrics_) {
@@ -3645,7 +3645,7 @@ std::vector<AstNode*> ProcAlias::GetChildren(bool want_types) const {
   return result;
 }
 
-std::string ProcAlias::ToString() const {
+std::string AliasDef::ToString() const {
   std::string str = absl::Substitute("proc $0 = $1", identifier(),
                                      ToAstNode(target_)->ToString());
   if (is_public_) {
