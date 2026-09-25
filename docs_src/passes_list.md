@@ -3345,6 +3345,25 @@ ret invoke.1
 
 
 
+## loop_idiom - Recognize loop idioms {#loop_idiom}
+
+
+Recognizes common loop idioms in `counted_for` loops and rewrites them into
+more direct IR forms BEFORE the loop is unrolled.
+
+First target: a zero-filled array shift (DSLX `data << shift` expressed as a
+`for` loop with `result[i] = if i < shift { false } else { data[i-shift] }`).
+The counted_for body lowers to an `array_update` of
+`sel(ult(i, shift), [array_index(data, [i - shift]), 0])`; rewriting that to
+a packed `shll` + per-bit `bit_slice` shape lets codegen emit a native shift
+instead of per-element index muxes.
+
+
+[Header](http://github.com/google/xls/tree/main/xls/passes/loop_idiom_pass.h)
+
+
+
+
 
 ## lut_conversion - LUT Conversion {#lut_conversion}
 
