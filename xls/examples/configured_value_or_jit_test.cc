@@ -17,6 +17,7 @@
 
 #include "gtest/gtest.h"
 #include "xls/common/status/matchers.h"
+#include "xls/examples/configured_value_or_importer_wrapper.h"
 #include "xls/examples/configured_value_or_jit_wrapper.h"
 #include "xls/ir/value.h"
 
@@ -54,6 +55,26 @@ TEST(ConfiguredValueOrJitTest, TestOverrides) {
   EXPECT_EQ(GetUintValue(result.element(5)), 123);       // u32_override
   EXPECT_EQ(GetIntValue(result.element(6)), -200);       // s32_override
   EXPECT_EQ(GetUintValue(result.element(7)), kMyEnumB);  // enum_override
+}
+
+TEST(ConfiguredValueOrJitTest, TestImporterOverrides) {
+  XLS_ASSERT_OK_AND_ASSIGN(auto configured_value_or,
+                           ConfiguredValueOrImporter::Create());
+  XLS_ASSERT_OK_AND_ASSIGN(xls::Value result, configured_value_or->Run());
+
+  ASSERT_TRUE(result.IsTuple());
+  ASSERT_EQ(result.size(), 8);
+
+  // Expected values from BUILD file overrides or defaults
+  EXPECT_EQ(GetUintValue(result.element(0)), true);      // b_override
+  EXPECT_EQ(GetUintValue(result.element(1)), 123);       // u32_override
+  EXPECT_EQ(GetIntValue(result.element(2)), -200);       // s32_override
+  EXPECT_EQ(GetUintValue(result.element(3)), kMyEnumB);  // enum_override
+
+  EXPECT_EQ(GetUintValue(result.element(4)), false);     // b_default
+  EXPECT_EQ(GetUintValue(result.element(5)), 42);        // u32_default
+  EXPECT_EQ(GetIntValue(result.element(6)), -100);       // s32_default
+  EXPECT_EQ(GetUintValue(result.element(7)), kMyEnumC);  // enum_default
 }
 
 }  // namespace

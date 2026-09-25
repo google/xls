@@ -15,13 +15,13 @@
 // Simple demonstration of configured_values_or usage. Overwrite the default
 // values for bool, u32, s32, and enum types.
 
-enum MyEnum : u2 {
+pub enum MyEnum : u2 {
     A = 0,
     B = 1,
     C = 2,
 }
 
-fn main() -> (bool, u32, s32, MyEnum, bool, u32, s32, MyEnum) {
+pub fn main() -> (bool, u32, s32, MyEnum, bool, u32, s32, MyEnum) {
     let b_default = configured_value_or<bool>("b_default", false);
     let u_default = configured_value_or<u32>("u32_default", u32:42);
     let s_default = configured_value_or<s32>("s32_default", s32:-100);

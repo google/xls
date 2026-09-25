@@ -145,6 +145,37 @@ xls_dslx_test(
     },
 )
 
+xls_dslx_library(
+    name = "configured_value_or_library",
+    srcs = ["configured_value_or.x"],
+)
+
+xls_dslx_opt_ir(
+    name = "configured_value_or_importer",
+    srcs = ["configured_value_or_importer.x"],
+    configured_values = {
+        "b_override": "true",
+        "u32_override": "123",
+        "s32_override": "-200",
+        "enum_override": "MyEnum::B",
+    },
+    dslx_top = "real_main",
+    deps = [":configured_value_or_library"],
+)
+
+xls_dslx_test(
+    name = "configured_value_or_importer_test",
+    srcs = ["configured_value_or_importer.x"],
+    configured_values = {
+        "b_override": "true",
+        "u32_override": "123",
+        "s32_override": "-200",
+        "enum_override": "MyEnum::B",
+        "inside_test_override": "123",
+    },
+    deps = [":configured_value_or_library"],
+)
+
 cc_xls_ir_wrapper(
     name = "configured_value_or_jit_wrapper",
     src = ":configured_value_or",
@@ -155,10 +186,21 @@ cc_xls_ir_wrapper(
     },
 )
 
+cc_xls_ir_wrapper(
+    name = "configured_value_or_importer_wrapper",
+    src = ":configured_value_or_importer",
+    jit_wrapper_args = {
+        "class_name": "ConfiguredValueOrImporter",
+        "function": "real_main",
+        "namespace": "xls::examples",
+    },
+)
+
 cc_test(
     name = "configured_value_or_jit_test",
     srcs = ["configured_value_or_jit_test.cc"],
     deps = [
+        ":configured_value_or_importer_wrapper",
         ":configured_value_or_jit_wrapper",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",

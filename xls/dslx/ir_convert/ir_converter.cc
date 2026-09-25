@@ -718,6 +718,10 @@ absl::StatusOr<PackageConversionData> ConvertFilesToPackage(
     ImportData import_data(
         CreateImportData(stdlib_path, dslx_paths, convert_options.warnings,
                          std::make_unique<RealFilesystem>()));
+    // TODO(allight): This is sort of weird. Due to the way the type-checking
+    // actually realizes the configured values we need to directly tell the
+    // import about them really early.
+    import_data.SetConfiguredValues(convert_options.configured_values);
     XLS_ASSIGN_OR_RETURN(std::string text,
                          import_data.vfs().GetFileContents(path));
     XLS_ASSIGN_OR_RETURN(std::string module_name, PathToName(path));

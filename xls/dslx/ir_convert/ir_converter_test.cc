@@ -4054,6 +4054,35 @@ fn main() -> (bool, u32, s32, MyEnum, bool, u32, s32, MyEnum) {
   ExpectIr(converted);
 }
 
+TEST_F(IrConverterTest, ConfiguredValueInImportedModule) {
+  ConvertOptions options;
+  options.configured_values = {"the_answer:u32:42"};
+  options.emit_positions = false;
+  ImportData import_data = CreateImportDataForTest();
+  constexpr std::string_view imported = R"(
+pub fn deep_thoughts() -> u32 {
+  configured_value_or<u32>("the_answer", u32:0xDEADBEEF)
+}
+)";
+  // NB This isn't really how the ir_converter_main works to bind configured
+  // values but it is the best we can do.
+  XLS_EXPECT_OK(::xls::dslx::ParseAndTypecheck(imported, "imported.x",
+                                               "imported", &import_data,
+                                               /*comments=*/nullptr, options));
+
+  constexpr std::string_view program = R"(
+import imported;
+
+fn the_answer() -> (u32, u32) {
+    (imported::deep_thoughts(), configured_value_or<u32>("the_answer", u32:0x2C0FFEE5))
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertModuleForTest(program, options, &import_data));
+  ExpectIr(converted);
+}
+
 TEST_F(IrConverterTest, ConfiguredValueBoolFalse) {
   constexpr std::string_view program = R"(
 fn main() -> bool {
