@@ -163,7 +163,7 @@ void EmitAction(const Action& action, StatementBlock* statement_block,
         if (s.value.bit_count() > 0) {
           statement_block->Add<BlockingAssignment>(
               SourceInfo(), signal_refs.at(s.signal_name),
-              file.Literal(s.value, SourceInfo()));
+              file.LiteralOrDie(s.value, SourceInfo()));
         }
       },
       [&](const SetSignalX& s) {
@@ -195,7 +195,8 @@ void EmitAction(const Action& action, StatementBlock* statement_block,
           if (std::holds_alternative<Bits>(signal_value.value)) {
             element = file.Equals(
                 signal_refs.at(signal_value.signal_name),
-                file.Literal(std::get<Bits>(signal_value.value), SourceInfo()),
+                file.LiteralOrDie(std::get<Bits>(signal_value.value),
+                                  SourceInfo()),
                 SourceInfo());
           } else if (std::holds_alternative<IsX>(signal_value.value)) {
             // To test whether any bit is X do an XOR reduce of the bits. If any
@@ -605,7 +606,7 @@ absl::Status ModuleTestbenchThread::EmitInto(
     procedure->statements()->Add<BlankLine>(SourceInfo());
     procedure->statements()->Add<BlockingAssignment>(
         SourceInfo(), (*signal_refs)[done_signal_->name],
-        procedure->file()->Literal(UBits(1, 1), SourceInfo()));
+        procedure->file()->LiteralOrDie(UBits(1, 1), SourceInfo()));
   }
   return absl::OkStatus();
 }
