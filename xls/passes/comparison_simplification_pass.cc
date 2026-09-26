@@ -240,9 +240,12 @@ struct Comparison {
   }
 };
 
-// Removes a non-wrapping unit offset from an ordered comparison. For example,
-// a < b + 1 => a <= b, and a <= b - 1 => a < b. The reversed and signed forms
-// are handled in the same way.
+// Removes a non-wrapping unit offset from an ordered comparison:
+//   a < b + 1 => a <= b
+//   a >= b + 1 => a > b
+//   a <= b - 1 => a < b
+//   a > b - 1 => a >= b
+// The reversed and signed forms are handled in the same way.
 absl::StatusOr<bool> SimplifyComparisonWithUnitOffset(
     CompareOp* compare, const QueryEngine& query_engine,
     OptimizationContext& context) {
