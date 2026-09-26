@@ -16,10 +16,10 @@
 
 #include <utility>
 
+#include "absl/status/statusor.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "xls/common/fuzzing/fuzztest.h"
-#include "absl/status/statusor.h"
 #include "xls/common/status/matchers.h"
 #include "xls/fuzzer/ir_fuzzer/ir_fuzz_domain.h"
 #include "xls/fuzzer/ir_fuzzer/ir_fuzz_test_library.h"
@@ -31,6 +31,7 @@
 #include "xls/ir/package.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/pass_base.h"
+#include "xls/solvers/ir_equivalence_testutils.h"
 
 namespace m = ::xls::op_matchers;
 
@@ -50,6 +51,118 @@ class ComparisonSimplificationPassTest : public IrTestBase {
                                               &results, context);
   }
 };
+
+TEST_F(ComparisonSimplificationPassTest, UnsignedIncrementWithMultipleUses) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue a = fb.ZeroExtend(fb.Param("a", p->GetBitsType(3)), 4);
+  BValue b = fb.ZeroExtend(fb.Param("b", p->GetBitsType(3)), 4);
+  BValue incremented = fb.Add(b, fb.Literal(UBits(1, 4)));
+  fb.Tuple({fb.ULt(a, incremented), incremented});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  solvers::ScopedVerifyEquivalence stays_equivalent(f);
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::Tuple(m::ULe(a.node(), b.node()), incremented.node()));
+}
+
+TEST_F(ComparisonSimplificationPassTest, SignedIncrement) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue a = fb.Param("a", p->GetBitsType(4));
+  BValue b = fb.SignExtend(fb.Param("b", p->GetBitsType(3)), 4);
+  fb.SGe(a, fb.Add(b, fb.Literal(UBits(1, 4))));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  solvers::ScopedVerifyEquivalence stays_equivalent(f);
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(), m::SGt(a.node(), b.node()));
+}
+
+TEST_F(ComparisonSimplificationPassTest, UnsignedDecrement) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue a = fb.Param("a", p->GetBitsType(4));
+  BValue b =
+      fb.Concat({fb.Literal(UBits(1, 1)), fb.Param("b", p->GetBitsType(3))});
+  fb.ULe(a, fb.Subtract(b, fb.Literal(UBits(1, 4))));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  solvers::ScopedVerifyEquivalence stays_equivalent(f);
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(), m::ULt(a.node(), b.node()));
+}
+
+TEST_F(ComparisonSimplificationPassTest, SignedDecrementOnLhs) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue a = fb.Param("a", p->GetBitsType(4));
+  BValue b = fb.SignExtend(fb.Param("b", p->GetBitsType(3)), 4);
+  fb.SLt(fb.Subtract(b, fb.Literal(UBits(1, 4))), a);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  solvers::ScopedVerifyEquivalence stays_equivalent(f);
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(), m::SLe(b.node(), a.node()));
+}
+
+TEST_F(ComparisonSimplificationPassTest, UnsignedIncrementMayWrap) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue a = fb.Param("a", p->GetBitsType(4));
+  BValue b = fb.Param("b", p->GetBitsType(4));
+  BValue incremented = fb.Add(b, fb.Literal(UBits(1, 4)));
+  fb.ULt(a, incremented);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(false));
+  EXPECT_THAT(f->return_value(), m::ULt(a.node(), incremented.node()));
+}
+
+TEST_F(ComparisonSimplificationPassTest, UnsignedDecrementMayWrap) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue a = fb.Param("a", p->GetBitsType(4));
+  BValue b = fb.Param("b", p->GetBitsType(4));
+  BValue decremented = fb.Subtract(b, fb.Literal(UBits(1, 4)));
+  fb.ULe(a, decremented);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(false));
+  EXPECT_THAT(f->return_value(), m::ULe(a.node(), decremented.node()));
+}
+
+TEST_F(ComparisonSimplificationPassTest, SignedIncrementMayWrap) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue a = fb.Param("a", p->GetBitsType(4));
+  BValue b = fb.Param("b", p->GetBitsType(4));
+  BValue incremented = fb.Add(b, fb.Literal(UBits(1, 4)));
+  fb.SLt(a, incremented);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(false));
+  EXPECT_THAT(f->return_value(), m::SLt(a.node(), incremented.node()));
+}
+
+TEST_F(ComparisonSimplificationPassTest, SignedDecrementMayWrap) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue a = fb.Param("a", p->GetBitsType(4));
+  BValue b = fb.Param("b", p->GetBitsType(4));
+  BValue decremented = fb.Subtract(b, fb.Literal(UBits(1, 4)));
+  fb.SLe(a, decremented);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(false));
+  EXPECT_THAT(f->return_value(), m::SLe(a.node(), decremented.node()));
+}
+
+TEST_F(ComparisonSimplificationPassTest, UnitOffsetUsesPropagatedRange) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue a = fb.Param("a", p->GetBitsType(4));
+  BValue b = fb.Param("b", p->GetBitsType(4));
+  BValue base = fb.UMod(b, fb.Literal(UBits(3, 4)));
+  fb.ULt(a, fb.Add(base, fb.Literal(UBits(1, 4))));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  solvers::ScopedVerifyEquivalence stays_equivalent(f);
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(), m::ULe(a.node(), base.node()));
+}
 
 TEST_F(ComparisonSimplificationPassTest, OrOfEqAndNe) {
   auto p = CreatePackage();

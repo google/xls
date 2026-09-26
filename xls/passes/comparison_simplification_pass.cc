@@ -37,6 +37,7 @@
 #include "xls/ir/source_location.h"
 #include "xls/ir/value.h"
 #include "xls/passes/optimization_pass.h"
+#include "xls/passes/partial_info_query_engine.h"
 #include "xls/passes/pass_base.h"
 #include "xls/passes/query_engine.h"
 #include "xls/passes/stateless_query_engine.h"
@@ -238,6 +239,83 @@ struct Comparison {
     return H::combine(std::move(h), c.lhs, c.rhs, c.op);
   }
 };
+
+// Removes a non-wrapping unit offset from an ordered comparison. For example,
+// a < b + 1 => a <= b, and a <= b - 1 => a < b. The reversed and signed forms
+// are handled in the same way.
+absl::StatusOr<bool> SimplifyComparisonWithUnitOffset(
+    CompareOp* compare, const QueryEngine& query_engine,
+    OptimizationContext& context) {
+  if (!compare->operand(0)->GetType()->IsBits() ||
+      compare->operand(0)->BitCountOrDie() == 0 ||
+      compare->OpIn({Op::kEq, Op::kNe})) {
+    return false;
+  }
+
+  const int64_t width = compare->operand(0)->BitCountOrDie();
+  const bool is_signed =
+      compare->OpIn({Op::kSLt, Op::kSLe, Op::kSGt, Op::kSGe});
+  for (int64_t adjusted_operand = 1; adjusted_operand >= 0;
+       --adjusted_operand) {
+    Op op = compare->op();
+    if (adjusted_operand == 0) {
+      XLS_ASSIGN_OR_RETURN(op, ReverseComparisonOp(op));
+    }
+
+    // With the adjusted operand on the right, the removable offset is +1 for
+    // < and >=, and -1 for <= and >.
+    const bool increment =
+        op == Op::kULt || op == Op::kUGe || op == Op::kSLt || op == Op::kSGe;
+    const Bits offset = increment ? UBits(1, width) : Bits::AllOnes(width);
+    Node* adjusted = compare->operand(adjusted_operand);
+    Node* base = nullptr;
+    if (adjusted->op() == Op::kAdd) {
+      if (query_engine.KnownValueAsBits(adjusted->operand(1)) == offset) {
+        base = adjusted->operand(0);
+      } else if (query_engine.KnownValueAsBits(adjusted->operand(0)) ==
+                 offset) {
+        base = adjusted->operand(1);
+      }
+    } else if (adjusted->op() == Op::kSub &&
+               query_engine.KnownValueAsBits(adjusted->operand(1)) ==
+                   bits_ops::Negate(offset)) {
+      base = adjusted->operand(0);
+    }
+    if (base == nullptr) {
+      continue;
+    }
+
+    // Unit offsets wrap only at the corresponding endpoint of the range.
+    const Bits boundary =
+        is_signed
+            ? (increment ? Bits::MaxSigned(width) : Bits::MinSigned(width))
+            : (increment ? Bits::AllOnes(width) : Bits(width));
+    const PartialInfoQueryEngine* range_query_engine =
+        context.SharedQueryEngine<PartialInfoQueryEngine>(
+            compare->function_base());
+    if (range_query_engine->Covers(base, boundary)) {
+      continue;
+    }
+
+    // Inverting and reversing toggles strictness while preserving direction.
+    XLS_ASSIGN_OR_RETURN(Op replacement_op, InvertComparisonOp(op));
+    XLS_ASSIGN_OR_RETURN(replacement_op, ReverseComparisonOp(replacement_op));
+    if (adjusted_operand == 0) {
+      XLS_ASSIGN_OR_RETURN(replacement_op, ReverseComparisonOp(replacement_op));
+    }
+    VLOG(2) << "Removing non-wrapping unit offset from comparison: "
+            << compare->ToString();
+    XLS_RETURN_IF_ERROR(
+        compare
+            ->ReplaceUsesWithNew<CompareOp>(
+                adjusted_operand == 0 ? base : compare->operand(0),
+                adjusted_operand == 1 ? base : compare->operand(1),
+                replacement_op)
+            .status());
+    return true;
+  }
+  return false;
+}
 
 // Replaces all comparisons which can be trivially derived from other
 // comparisons. For example, assuming `a > b` already exists in the graph, then
@@ -464,6 +542,16 @@ absl::StatusOr<bool> ComparisonSimplificationPass::RunOnFunctionBaseInternal(
                               .status());
       changed = true;
     }
+  }
+
+  for (Node* node : topo_sort_nodes) {
+    if (!node->Is<CompareOp>() || node->IsDead()) {
+      continue;
+    }
+    XLS_ASSIGN_OR_RETURN(bool offset_changed,
+                         SimplifyComparisonWithUnitOffset(
+                             node->As<CompareOp>(), query_engine, context));
+    changed |= offset_changed;
   }
 
   XLS_ASSIGN_OR_RETURN(bool common_changed,
