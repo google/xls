@@ -765,7 +765,10 @@ class StatementBlock final : public VastNode {
   std::string Emit(LineInfo* line_info) const final;
 
   absl::Span<Statement* const> statements() const { return statements_; }
+  void label(std::optional<std::string> label) { label_ = std::move(label); }
+  std::optional<std::string> label() const { return label_; }
 
+  std::optional<std::string> label_ = std::nullopt;
  private:
   std::vector<Statement*> statements_;
 };

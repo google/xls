@@ -613,7 +613,10 @@ std::string StatementBlock::Emit(LineInfo* line_info) const {
     LineInfoEnd(line_info, this);
     return "begin end";
   }
-  std::string result = "begin\n";
+  std::string label_str = label_.has_value()
+                              ? absl::StrFormat(" : %s", *label_)
+                              : "";
+  std::string result = absl::StrFormat("begin%s\n", label_str);
   LineInfoIncrease(line_info, 1);
   std::vector<std::string> lines;
   for (const auto& statement : statements_) {
