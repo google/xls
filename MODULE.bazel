@@ -109,7 +109,8 @@ llvm_configure(
     ],
 )
 
-# Use Bzlmod (BCR) to supply zlib and zstd for LLVM
+# Use Bzlmod (BCR) to supply xz, zlib, and zstd for LLVM
+bazel_dep(name = "xz", version = "5.4.5.bcr.9", repo_name = "llvm_xz")
 bazel_dep(name = "zlib-ng", version = "2.3.3.bcr.2", repo_name = "llvm_zlib")
 bazel_dep(name = "zstd", version = "1.5.7.bcr.1", repo_name = "llvm_zstd")
 

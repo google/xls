@@ -26,7 +26,6 @@ def _llvm_raw_ext_impl(_ctx):
         sha256 = LLVM_SHA256,
         patches = [
             Label("@//dependency_support/llvm:llvm.patch"),
-            Label("@//dependency_support/llvm:zlib-header.patch"),
             Label("@//dependency_support/llvm:run_lit.patch"),
         ],
         patch_args = ["-p1"],
