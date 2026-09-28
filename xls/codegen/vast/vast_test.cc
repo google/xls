@@ -1888,6 +1888,27 @@ TEST_P(VastTest, SimpleConditional) {
 end)");
 }
 
+TEST_P(VastTest, ConditionalWithLabel) {
+  VerilogFile f(GetFileType());
+  Module* m = f.AddModule("top", SourceInfo());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * input,
+      m->AddInput("input", f.BitVectorType(1, SourceInfo()), SourceInfo()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * output,
+      m->AddReg("output", f.BitVectorType(1, SourceInfo()), SourceInfo()));
+  AlwaysComb* ac = m->Add<AlwaysComb>(SourceInfo());
+  Conditional* if_statement =
+      ac->statements()->Add<Conditional>(SourceInfo(), input);
+  if_statement->consequent()->Add<BlockingAssignment>(
+      SourceInfo(), output, f.Literal(1, 1, SourceInfo()));
+  if_statement->consequent()->label("cond_blk");
+  EXPECT_EQ(if_statement->Emit(nullptr),
+            R"(if (input) begin : cond_blk
+  output = 1'h1;
+end)");
+}
+
 TEST_P(VastTest, SignedOperation) {
   VerilogFile f(GetFileType());
   Module* m = f.AddModule("top", SourceInfo());
