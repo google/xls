@@ -1501,7 +1501,8 @@ GetBinaryFoldings(Function* f,
       const absl::btree_set<ResourceSharingPass::MutuallyExclPair>
           mutual_exclusivity,
       ResourceSharingPass::ComputeMutualExclusionAnalysis(
-          f, context, [](Node* n) { return true; }, visibilities));
+          f, context, [](Node* n) { return true; },
+          [](Node* a, Node* b) { return true; }, visibilities));
   return ResourceSharingPass::ComputeFoldableActions(
       f, mutual_exclusivity, visibilities, ResourceSharingPass::kDefaultConfig);
 }
