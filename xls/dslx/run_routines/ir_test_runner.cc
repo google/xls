@@ -156,8 +156,8 @@ class IrRunner : public AbstractParsedTestRunner {
   }
 
   absl::StatusOr<RunResult> RunTestProc(
-      std::string_view name,
-      const BytecodeInterpreterOptions& options) override {
+      std::string_view name, const BytecodeInterpreterOptions& options,
+      EvaluatorEventsProto* /*events_out*/ = nullptr) override {
     if (options.trace_channels()) {
       LOG(WARNING) << "Unable to trace channels with IR testing";
     }
