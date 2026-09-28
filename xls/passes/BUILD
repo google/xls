@@ -2586,6 +2586,7 @@ xls_pass(
     pass_class = "ComparisonSimplificationPass",
     deps = [
         ":optimization_pass",
+        ":partial_info_query_engine",
         ":pass_base",
         ":query_engine",
         ":stateless_query_engine",
@@ -4024,6 +4025,7 @@ cc_test(
         "//xls/ir:function_builder",
         "//xls/ir:ir_matcher",
         "//xls/ir:ir_test_base",
+        "//xls/solvers:ir_equivalence_testutils",
         "@abseil-cpp//absl/status:statusor",
         "@googletest//:gtest",
     ],
