@@ -768,9 +768,9 @@ class StatementBlock final : public VastNode {
   void label(std::optional<std::string> label) { label_ = std::move(label); }
   std::optional<std::string> label() const { return label_; }
 
-  std::optional<std::string> label_ = std::nullopt;
  private:
   std::vector<Statement*> statements_;
+  std::optional<std::string> label_ = std::nullopt;
 };
 
 // Similar to statement block,  but for use if `ifdef `else `endif blocks (no
@@ -2336,7 +2336,7 @@ using ModuleMember =
 
 // Represents a generate loop construct. Example:
 // ```verilog
-// for (genvar i = 0; i < 32; i = i + 1) begin : gen_loop
+// for (genvar i = 0; i < 32; i = i + 1) begin : loop_blk
 //   assign output[i] = input[i];
 // end
 // ```
@@ -2364,6 +2364,43 @@ class GenerateLoop final : public Statement {
   Expression* limit_;
   std::optional<std::string> label_;
   std::vector<ModuleMember> members_;
+};
+
+// Represents a for loop construct. Example:
+// ```verilog
+// for (integer i = 0; i < 32; i = i + 1) begin : gen_loop
+//   assign output[i] = input[i];
+// end
+// ```
+//
+class ForLoop final : public Statement {
+ public:
+  ForLoop(std::string_view var_name, Expression* init,
+          Expression* limit, std::optional<std::string> label,
+          bool ascending_step, Expression* step, VerilogFile* file,
+          const SourceInfo& loc);
+
+  LogicRef* var() const { return var_; }
+  Expression* init() const { return init_; }
+  Expression* limit() const { return limit_; }
+  const std::optional<std::string>& label() const { return label_; }
+  bool ascending_step() const { return ascending_step_; }
+  Expression* step() const { return step_; }
+
+  template <typename T, typename... Args>
+  T* Add(const SourceInfo& loc, Args&&... args);
+  void AddMember(Statement* member) { members_.push_back(member); }
+
+  std::string Emit(LineInfo* line_info) const final;
+
+ private:
+  LogicRef* var_;
+  Expression* init_;
+  Expression* limit_;
+  std::optional<std::string> label_;
+  bool ascending_step_;
+  Expression* step_;
+  std::vector<Statement*> members_;
 };
 
 // A ModuleSection is a container of ModuleMembers used to organize the contents
@@ -3092,6 +3129,13 @@ inline T* VerilogPackageSection::Add(const SourceInfo& loc, Args&&... args) {
 
 template <typename T, typename... Args>
 inline T* GenerateLoop::Add(const SourceInfo& loc, Args&&... args) {
+  T* ptr = file()->Make<T>(loc, std::forward<Args>(args)...);
+  AddMember(ptr);
+  return ptr;
+}
+
+template <typename T, typename... Args>
+inline T* ForLoop::Add(const SourceInfo& loc, Args&&... args) {
   T* ptr = file()->Make<T>(loc, std::forward<Args>(args)...);
   AddMember(ptr);
   return ptr;
