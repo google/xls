@@ -3076,6 +3076,32 @@ TEST_P(VastTest, SimpleGenerateLoop) {
 endmodule)");
 }
 
+TEST_P(VastTest, ForLoop) {
+  VerilogFile f(GetFileType());
+  const SourceInfo si;
+
+  ForLoop* ascending_loop = f.Make<ForLoop>(
+      si, "i", f.PlainLiteral(0, si), f.PlainLiteral(32, si), "ascending_loop",
+      /*ascending_step=*/true, f.PlainLiteral(1, si));
+  ascending_loop->Add<InlineVerilogStatement>(si, "output[i] = input[i];");
+
+  EXPECT_EQ(ascending_loop->Emit(/*line_info=*/nullptr),
+            R"(for (integer i = 0; i < 32; i = i + 1) begin : ascending_loop
+  output[i] = input[i];
+end)");
+
+  ForLoop* descending_loop =
+      f.Make<ForLoop>(si, "j", f.PlainLiteral(31, si), f.PlainLiteral(0, si),
+                      /*label=*/std::nullopt, /*ascending_step=*/false,
+                      f.PlainLiteral(2, si));
+  descending_loop->Add<InlineVerilogStatement>(si, "output[j] = input[j];");
+
+  EXPECT_EQ(descending_loop->Emit(/*line_info=*/nullptr),
+            R"(for (integer j = 31; j >= 0; j = j - 2) begin
+  output[j] = input[j];
+end)");
+}
+
 TEST_P(VastTest, NestedGenerateLoop) {
   VerilogFile f(GetFileType());
   const SourceInfo si;
