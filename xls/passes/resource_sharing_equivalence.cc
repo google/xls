@@ -45,6 +45,7 @@
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
 #include "xls/ir/package.h"
+#include "xls/ir/source_location.h"
 #include "xls/ir/type.h"
 
 namespace xls {
@@ -97,6 +98,30 @@ absl::StatusOr<double> EstimateAreaForNodes(
 
 using NodeToMappings =
     absl::flat_hash_map<Node*, std::unique_ptr<EquivalenceMapping>>;
+
+absl::StatusOr<Node*> ExtendIf(FunctionBase* f, Node* node,
+                               int64_t target_width, Op ext_op) {
+  XLS_RET_CHECK_LE(node->BitCountOrDie(), target_width);
+  if (node->BitCountOrDie() == target_width) {
+    return node;
+  }
+  for (Node* user : node->users()) {
+    if (user->function_base() == f && user->op() == ext_op &&
+        user->BitCountOrDie() == target_width) {
+      return user;
+    }
+  }
+  return f->MakeNode<ExtendOp>(node->loc(), node, target_width, ext_op);
+}
+
+absl::StatusOr<Node*> FindOrMakeUnaryOp(FunctionBase* f, Node* operand, Op op) {
+  for (Node* user : operand->users()) {
+    if (user->function_base() == f && user->op() == op) {
+      return user;
+    }
+  }
+  return f->MakeNode<UnOp>(operand->loc(), operand, op);
+}
 
 // `BitwidthExtendingEquivalenceMapping` handles nodes with identical ops where
 // the src node and its operands are narrower than or equal to the dst
@@ -155,20 +180,14 @@ class BitwidthExtendingEquivalenceMapping : public EquivalenceMapping {
       XLS_RET_CHECK(op->GetType()->IsBits());
       XLS_RET_CHECK(dst_->operand(i)->GetType()->IsBits());
       int64_t target_width = dst_->operand(i)->BitCountOrDie();
-      if (op->BitCountOrDie() < target_width) {
-        bool is_shift_amt_node =
-            dst_->OpIn({Op::kShll, Op::kShrl, Op::kShra}) && i == 1;
-        // When extending a shift amount's bit width, always zero extend.
-        Op ext_op = (IsSigned(const_cast<Node*>(dst_)) && !is_shift_amt_node)
-                        ? Op::kSignExt
-                        : Op::kZeroExt;
-        XLS_ASSIGN_OR_RETURN(
-            Node * ext,
-            f->MakeNode<ExtendOp>(op->loc(), op, target_width, ext_op));
-        result.push_back(ext);
-      } else {
-        result.push_back(op);
-      }
+      bool is_shift_amt_node =
+          dst_->OpIn({Op::kShll, Op::kShrl, Op::kShra}) && i == 1;
+      // When extending a shift amount's bit width, always zero extend.
+      Op ext_op = (IsSigned(const_cast<Node*>(dst_)) && !is_shift_amt_node)
+                      ? Op::kSignExt
+                      : Op::kZeroExt;
+      XLS_ASSIGN_OR_RETURN(Node * ext, ExtendIf(f, op, target_width, ext_op));
+      result.push_back(ext);
     }
     return result;
   }
@@ -185,14 +204,6 @@ class BitwidthExtendingEquivalenceMapping : public EquivalenceMapping {
     return dst_output;
   }
 };
-
-absl::StatusOr<Node*> ExtendIf(FunctionBase* f, Node* node,
-                               int64_t target_width, Op ext_op) {
-  if (node->BitCountOrDie() >= target_width) {
-    return node;
-  }
-  return f->MakeNode<ExtendOp>(node->loc(), node, target_width, ext_op);
-}
 
 // `AddSubEquivalenceMapping` handles folding between `add` and `sub` nodes.
 class AddSubEquivalenceMapping : public EquivalenceMapping {
@@ -248,7 +259,7 @@ class AddSubEquivalenceMapping : public EquivalenceMapping {
       if (op1->op() == Op::kNeg) {
         op1 = op1->operand(0);
       } else {
-        XLS_ASSIGN_OR_RETURN(op1, f->MakeNode<UnOp>(op1->loc(), op1, Op::kNeg));
+        XLS_ASSIGN_OR_RETURN(op1, FindOrMakeUnaryOp(f, op1, Op::kNeg));
       }
     }
 
@@ -303,6 +314,18 @@ bool AreCompatibleComparators(Node* src, Node* dst) {
   return src->OpIn({Op::kEq, Op::kNe}) == dst->OpIn({Op::kEq, Op::kNe});
 }
 
+absl::StatusOr<Node*> FindOrMakeConcat(FunctionBase* f, const SourceInfo& loc,
+                                       absl::Span<Node* const> args) {
+  if (!args.empty()) {
+    for (Node* user : args[0]->users()) {
+      if (user->Is<Concat>() && user->operands() == args) {
+        return user;
+      }
+    }
+  }
+  return f->MakeNode<Concat>(loc, args);
+}
+
 // Swaps the most significant bits of `op0` and `op1`.
 absl::StatusOr<std::pair<Node*, Node*>> SwapMsbs(FunctionBase* f, Node* op0,
                                                  Node* op1) {
@@ -321,10 +344,10 @@ absl::StatusOr<std::pair<Node*, Node*>> SwapMsbs(FunctionBase* f, Node* op0,
       Node * lsb1, FindOrMakeBitSlice(op1, /*start=*/0, /*width=*/width - 1));
   XLS_ASSIGN_OR_RETURN(
       Node * new_op0,
-      f->MakeNode<Concat>(op0->loc(), std::vector<Node*>{msb1, lsb0}));
+      FindOrMakeConcat(f, op0->loc(), std::vector<Node*>{msb1, lsb0}));
   XLS_ASSIGN_OR_RETURN(
       Node * new_op1,
-      f->MakeNode<Concat>(op1->loc(), std::vector<Node*>{msb0, lsb1}));
+      FindOrMakeConcat(f, op1->loc(), std::vector<Node*>{msb0, lsb1}));
   return std::make_pair(new_op0, new_op1);
 }
 
@@ -756,7 +779,7 @@ class CompareToArithEquivalenceMapping : public EquivalenceMapping {
 };
 
 // Returns `target` XORed with a sign-extended mask created from the MSB of
-// `msb_source`. Reuses existing BitSlice and SignExt nodes if available.
+// `msb_source`. Reuses existing BitSlice, SignExt, and Xor nodes if available.
 absl::StatusOr<Node*> XorWithSignExtendedMsb(FunctionBase* f, Node* target,
                                              Node* msb_source) {
   int64_t target_width = target->BitCountOrDie();
@@ -764,21 +787,14 @@ absl::StatusOr<Node*> XorWithSignExtendedMsb(FunctionBase* f, Node* target,
   XLS_ASSIGN_OR_RETURN(
       Node * msb, FindOrMakeBitSlice(msb_source, /*start=*/source_width - 1,
                                      /*width=*/1));
-
-  Node* mask = nullptr;
-  for (Node* user : msb->users()) {
-    if (user->op() == Op::kSignExt && user->BitCountOrDie() == target_width) {
-      mask = user;
-      break;
+  XLS_ASSIGN_OR_RETURN(Node * mask,
+                       ExtendIf(f, msb, target_width, Op::kSignExt));
+  for (Node* user : target->users()) {
+    if (user->function_base() == f && user->op() == Op::kXor &&
+        user->operands() == absl::Span<Node* const>{target, mask}) {
+      return user;
     }
   }
-  if (mask == nullptr) {
-    XLS_ASSIGN_OR_RETURN(
-        mask,
-        f->MakeNode<ExtendOp>(target->loc(), msb,
-                              /*new_bit_count=*/target_width, Op::kSignExt));
-  }
-
   return f->MakeNode<NaryOp>(target->loc(), std::vector<Node*>{target, mask},
                              Op::kXor);
 }
@@ -883,27 +899,16 @@ class ShiftEquivalenceMapping : public EquivalenceMapping {
 
     // If going between left and right shifts, reverse bits.
     if (dst_->op() == Op::kShll || src_->op() == Op::kShll) {
-      XLS_ASSIGN_OR_RETURN(op0,
-                           f->MakeNode<UnOp>(op0->loc(), op0, Op::kReverse));
+      XLS_ASSIGN_OR_RETURN(op0, FindOrMakeUnaryOp(f, op0, Op::kReverse));
     }
 
     // Extend shifted value to target width if necessary.
-    int64_t target_width = dst_->BitCountOrDie();
-    if (op0->BitCountOrDie() < target_width) {
-      XLS_ASSIGN_OR_RETURN(
-          op0,
-          f->MakeNode<ExtendOp>(op0->loc(), op0,
-                                /*new_bit_count=*/target_width, Op::kZeroExt));
-    }
+    XLS_ASSIGN_OR_RETURN(op0,
+                         ExtendIf(f, op0, dst_->BitCountOrDie(), Op::kZeroExt));
 
     // Extend shift amount to target width if necessary.
-    int64_t target_shift_width = dst_->operand(1)->BitCountOrDie();
-    if (op1->BitCountOrDie() < target_shift_width) {
-      XLS_ASSIGN_OR_RETURN(
-          op1, f->MakeNode<ExtendOp>(op1->loc(), op1,
-                                     /*new_bit_count=*/target_shift_width,
-                                     Op::kZeroExt));
-    }
+    XLS_ASSIGN_OR_RETURN(
+        op1, ExtendIf(f, op1, dst_->operand(1)->BitCountOrDie(), Op::kZeroExt));
 
     return std::vector<Node*>{op0, op1};
   }

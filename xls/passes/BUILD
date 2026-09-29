@@ -1207,6 +1207,7 @@ cc_library(
         "//xls/ir:function_builder",
         "//xls/ir:node_util",
         "//xls/ir:op",
+        "//xls/ir:source_location",
         "//xls/ir:type",
         "@abseil-cpp//absl/base:core_headers",
         "@abseil-cpp//absl/base:no_destructor",

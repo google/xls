@@ -1309,5 +1309,106 @@ TEST_F(ResourceSharingEquivalenceTest, CloneEquivalenceMapping) {
   eq_mapping_clone(ult0.node(), sub16.node());
 }
 
+TEST_F(ResourceSharingEquivalenceTest, ApplyToOperandsReusesExistingNodes) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue a16 = fb.Param("a16", p->GetBitsType(16));
+  BValue b16 = fb.Param("b16", p->GetBitsType(16));
+  BValue a32 = fb.Param("a32", p->GetBitsType(32));
+  BValue b32 = fb.Param("b32", p->GetBitsType(32));
+
+  BValue add16 = fb.Add(a16, b16);
+  BValue sub32 = fb.Subtract(a32, b32);
+  BValue shll16 = fb.Shll(a16, b16);
+  BValue shra32 = fb.Shra(a32, b32);
+  BValue shrl32 = fb.Shrl(a32, b32);
+  BValue ult32 = fb.ULt(a32, b32);
+  BValue slt32 = fb.SLt(a32, b32);
+  BValue smul16 = fb.SMul(a16, b16);
+  BValue smul32 = fb.SMul(a32, b32);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(sub32));
+
+  // Applies the `src` -> `dst` mapping twice. The first application must
+  // coerce at least one operand; the second must return the same nodes without
+  // adding any to `f`.
+  auto expect_reuse = [&](Node* src, Node* dst) {
+    SCOPED_TRACE(src->GetName() + " -> " + dst->GetName());
+    XLS_ASSERT_OK_AND_ASSIGN(
+        std::optional<NodeToMappings> mappings,
+        GetNodeEquivalenceMapper().ComputeMappings({src}, dst));
+    ASSERT_TRUE(mappings.has_value());
+    const EquivalenceMapping& mapping = *mappings->at(src);
+    XLS_ASSERT_OK_AND_ASSIGN(std::vector<Node*> first,
+                             mapping.ApplyToOperands(f, src->operands()));
+    EXPECT_NE(first, std::vector<Node*>(src->operands().begin(),
+                                        src->operands().end()));
+    int64_t node_count = f->node_count();
+    XLS_ASSERT_OK_AND_ASSIGN(std::vector<Node*> second,
+                             mapping.ApplyToOperands(f, src->operands()));
+    EXPECT_EQ(first, second);
+    EXPECT_EQ(f->node_count(), node_count);
+  };
+
+  // neg, zero_ext
+  expect_reuse(add16.node(), sub32.node());
+  // reverse, zero_ext
+  expect_reuse(shll16.node(), shra32.node());
+  // bit_slice, sign_ext mask, xor
+  expect_reuse(shra32.node(), shrl32.node());
+  // bit_slice, concat (MSB swap)
+  expect_reuse(ult32.node(), slt32.node());
+  // sign_ext
+  expect_reuse(smul16.node(), smul32.node());
+}
+
+TEST_F(ResourceSharingEquivalenceTest,
+       ApplyToOperandsReusesNodesAlreadyInGraph) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue a16 = fb.Param("a16", p->GetBitsType(16));
+  BValue b16 = fb.Param("b16", p->GetBitsType(16));
+  BValue a32 = fb.Param("a32", p->GetBitsType(32));
+  BValue b32 = fb.Param("b32", p->GetBitsType(32));
+
+  BValue sub16 = fb.Subtract(a16, b16);
+  BValue add32 = fb.Add(a32, b32);
+  BValue smul16 = fb.SMul(a16, b16);
+  BValue smul32 = fb.SMul(a32, b32);
+  // Coercions already present in the graph before any mapping is applied.
+  BValue zext_a16 = fb.ZeroExtend(a16, 32);
+  BValue zext_neg_b16 = fb.ZeroExtend(fb.Negate(b16), 32);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(add32));
+
+  // sub16 -> add32 needs zero_ext(a16) and zero_ext(neg(b16)); both exist.
+  {
+    XLS_ASSERT_OK_AND_ASSIGN(std::optional<NodeToMappings> mappings,
+                             GetNodeEquivalenceMapper().ComputeMappings(
+                                 {sub16.node()}, add32.node()));
+    ASSERT_TRUE(mappings.has_value());
+    const EquivalenceMapping& mapping = *mappings->at(sub16.node());
+    int64_t node_count = f->node_count();
+    XLS_ASSERT_OK_AND_ASSIGN(
+        std::vector<Node*> coerced,
+        mapping.ApplyToOperands(f, sub16.node()->operands()));
+    EXPECT_THAT(coerced, ElementsAre(zext_a16.node(), zext_neg_b16.node()));
+    EXPECT_EQ(f->node_count(), node_count);
+  }
+
+  // smul16 -> smul32 needs sign_ext; the existing zero_ext(a16) must not be
+  // reused.
+  {
+    XLS_ASSERT_OK_AND_ASSIGN(std::optional<NodeToMappings> mappings,
+                             GetNodeEquivalenceMapper().ComputeMappings(
+                                 {smul16.node()}, smul32.node()));
+    ASSERT_TRUE(mappings.has_value());
+    const EquivalenceMapping& mapping = *mappings->at(smul16.node());
+    XLS_ASSERT_OK_AND_ASSIGN(
+        std::vector<Node*> coerced,
+        mapping.ApplyToOperands(f, smul16.node()->operands()));
+    EXPECT_THAT(coerced, ElementsAre(m::SignExt(m::Param("a16")),
+                                     m::SignExt(m::Param("b16"))));
+  }
+}
+
 }  // namespace
 }  // namespace xls
