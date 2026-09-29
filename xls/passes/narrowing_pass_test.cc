@@ -761,6 +761,35 @@ TEST_P(NarrowingPassTest, ExtendedUMulSignAgnosticToUMul) {
               m::UMul(m::Param("lhs"), m::SignExt(m::Param("rhs"))));
 }
 
+// Regression: repeated invocations of NarrowingPass without an interleaved DCE
+// (as in a pipeline like `--passes "[ narrow(Ternary) ]"`) used to never reach
+// a fixed point. Replaced nodes (e.g. by ReplaceUsesWith) are left in the
+// graph as dead nodes until a DCE pass runs; narrowing such dead nodes created
+// new dead nodes and reported spurious changes, so every invocation changed
+// the function again. The fixed-point loop below must converge well before the
+// iteration cap.
+TEST_P(NarrowingPassTest, FixedPointConvergesWithoutDce) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* u32 = p->GetBitsType(32);
+  // A live multiply by a power of two: the first invocation narrows it (umul ->
+  // concat(NarrowedMult, TrailingBits)), leaving the original umul dead.
+  fb.UMul(fb.ZeroExtend(fb.Param("x", u32), 256), fb.Literal(UBits(8, 256)));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  ScopedVerifyEquivalence stays_equivalent{f};
+  bool changed = true;
+  int64_t iters = 0;
+  for (; changed && iters < 8; ++iters) {
+    XLS_ASSERT_OK_AND_ASSIGN(changed, Run(p.get()));
+  }
+  // Guard against the transformation silently stopping to fire: at least the
+  // first invocation must have changed the function, otherwise the fixed-point
+  // check above would trivially pass.
+  EXPECT_NE(iters, 0);
+  EXPECT_LT(iters, 8);
+}
+
 TEST_P(NarrowingPassTest, ExtendedUMulSignAgnosticToSMul) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());

@@ -2285,6 +2285,13 @@ absl::StatusOr<bool> NarrowingPass::RunOnFunctionBaseInternal(
 
   XLS_ASSIGN_OR_RETURN(std::vector<Node*> topo_sort_nodes, context.TopoSort(f));
   for (Node* node : topo_sort_nodes) {
+    // Dead nodes (no users, no implicit use) have already been replaced in a
+    // previous invocation (e.g. by ReplaceUsesWith) and are only waiting for
+    // DCE. Narrowing them again just creates new dead nodes and reports
+    // spurious changes, which can keep a fixed-point pipeline from converging.
+    if (node->IsDead()) {
+      continue;
+    }
     // We specifically want gate ops to be eligible for being reduced to a
     // constant since there entire purpose is for preventing power consumption
     // and literals are basically free.
