@@ -322,7 +322,7 @@ def main(argv: Sequence[str]) -> None:
   else:
     env.filters["append_each"] = lambda vs, suffix: [v + suffix for v in vs]
     env.filters["prefix_each"] = lambda vs, prefix: [prefix + v for v in vs]
-    env.filters["to_char_ints"] = lambda v: [x for x in v]
+    env.filters["to_char_ints"] = lambda v: [x for x in v]  # pyrefly: ignore[not-iterable]
     bindings = {"wrapped": wrapped, "len": len, "str": str}
     with open(f"{_OUTPUT_DIR.value}/{output_name}.cc", "wt") as cc_file:
       cc_template = env.from_string(_CC_TEMPLATES[wrapped.jit_type])

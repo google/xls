@@ -793,9 +793,9 @@ def render_fuzztest(
 ) -> str:
   """Renders the fuzztest C++ code."""
   env.filters["property_param"] = lambda p: (
-      f"const {p.cpp_type}& {p.name}"
-      if p.cpp_type == "xls::Value"
-      else f"{p.cpp_type} {p.name}"
+      f"const {p.cpp_type}& {p.name}"  # pyrefly: ignore[missing-attribute]
+      if p.cpp_type == "xls::Value"  # pyrefly: ignore[missing-attribute]
+      else f"{p.cpp_type} {p.name}"  # pyrefly: ignore[missing-attribute]
   )
   cc_template = env.from_string(cc_template_content)
   fuzztest = wrapped_to_fuzztest(wrapped, lib_class_name, lib_header_path)
