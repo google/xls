@@ -214,7 +214,6 @@ absl::StatusOr<absl::btree_set<ResourceSharingPass::MutuallyExclPair>>
 ResourceSharingPass::ComputeMutualExclusionAnalysis(
     FunctionBase* f, OptimizationContext& context,
     absl::FunctionRef<bool(Node*)> should_target,
-    absl::FunctionRef<absl::StatusOr<bool>(Node*, Node*)> should_target_pair,
     const VisibilityAnalyses& visibility) {
   absl::btree_set<MutuallyExclPair> mutual_exclusivity;
 
@@ -229,12 +228,6 @@ ResourceSharingPass::ComputeMutualExclusionAnalysis(
   for (auto&& nodes : iter::combinations(relevant_nodes, 2)) {
     Node* one_node = nodes[0];
     Node* other_node = nodes[1];
-    XLS_ASSIGN_OR_RETURN(bool valid_pair,
-                         should_target_pair(one_node, other_node));
-    if (!valid_pair) {
-      continue;
-    }
-
     // Leverage both single select visibility analysis and the general
     // visibility analysis in case the other of the two analyses produced a
     // conservative expression which is unable to prove mutual exclusivity.
@@ -2195,19 +2188,6 @@ bool ResourceSharingPass::ShouldTargetNodeForMutualExclusion(Node* node) const {
   return true;
 }
 
-absl::StatusOr<bool> ResourceSharingPass::ShouldTargetPairForMutualExclusion(
-    Node* one, Node* other) const {
-  const NodeEquivalenceMapper& mapper = GetNodeEquivalenceMapper();
-  XLS_ASSIGN_OR_RETURN(std::optional<NodeToMappings> mappings_from_to,
-                       mapper.ComputeMappings({one}, other));
-  if (mappings_from_to.has_value()) {
-    return true;
-  }
-  XLS_ASSIGN_OR_RETURN(std::optional<NodeToMappings> mappings_to_from,
-                       mapper.ComputeMappings({other}, one));
-  return mappings_to_from.has_value();
-}
-
 // static
 absl::StatusOr<ResourceSharingPass::VisibilityAnalyses>
 ResourceSharingPass::VisibilityAnalyses::Create(FunctionBase* f,
@@ -2293,9 +2273,6 @@ absl::StatusOr<bool> ResourceSharingPass::RunOnFunctionBaseInternal(
       ComputeMutualExclusionAnalysis(
           f, context,
           [this](Node* n) { return ShouldTargetNodeForMutualExclusion(n); },
-          [this](Node* one, Node* other) {
-            return ShouldTargetPairForMutualExclusion(one, other);
-          },
           visibilities));
 
   // Identify the set of legal folding actions

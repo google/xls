@@ -358,15 +358,12 @@ class ResourceSharingPass : public OptimizationFunctionBasePass {
   //   context: The optimization context.
   //   should_target: A function that returns true if a Node should be
   //     considered for the mutual exclusivity analysis.
-  //   should_target_pair: Returns true if a pair of Nodes could fold together.
   //   visibility: Contains precomputed visibility analyses used to determine
   //     mutual exclusivity.
   static absl::StatusOr<absl::btree_set<MutuallyExclPair>>
-  ComputeMutualExclusionAnalysis(
-      FunctionBase* f, OptimizationContext& context,
-      absl::FunctionRef<bool(Node*)> should_target,
-      absl::FunctionRef<absl::StatusOr<bool>(Node*, Node*)> should_target_pair,
-      const VisibilityAnalyses& visibility);
+  ComputeMutualExclusionAnalysis(FunctionBase* f, OptimizationContext& context,
+                                 absl::FunctionRef<bool(Node*)> should_target,
+                                 const VisibilityAnalyses& visibility);
 
   static absl::StatusOr<std::unique_ptr<BinaryFoldingAction>>
   GetFoldableActionForMutuallyExclusiveNodes(
@@ -508,8 +505,6 @@ class ResourceSharingPass : public OptimizationFunctionBasePass {
       VisibilityEstimator* visibility_estimator) const;
 
   virtual bool ShouldTargetNodeForMutualExclusion(Node* node) const;
-  virtual absl::StatusOr<bool> ShouldTargetPairForMutualExclusion(
-      Node* one, Node* other) const;
 
   ProfitabilityGuard RealProfitabilityGuard(
       const OptimizationPassOptions& options) const {
