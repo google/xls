@@ -1174,8 +1174,8 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
 
     XLS_ASSIGN_OR_RETURN(TypeInfo * ti, GetTypeInfo(parametric_context));
 
-    if (node->kind() == AstNodeKind::kProcAlias) {
-      const auto* alias = absl::down_cast<const ProcAlias*>(node);
+    if (node->kind() == AstNodeKind::kAliasDef) {
+      const auto* alias = absl::down_cast<const AliasDef*>(node);
       XLS_ASSIGN_OR_RETURN(ResolvedProcAlias resolved,
                            ResolveProcAlias(ti, alias));
       ti->SetResolvedProcAlias(alias, resolved);
@@ -3224,7 +3224,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
   }
 
   absl::StatusOr<ResolvedProcAlias> ResolveProcAlias(TypeInfo* alias_ti,
-                                                     const ProcAlias* alias) {
+                                                     const AliasDef* alias) {
     // Determine the target proc.
     AstNode* target_node = nullptr;
     if (std::holds_alternative<NameRef*>(alias->target())) {

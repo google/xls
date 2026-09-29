@@ -3582,7 +3582,7 @@ DocRef Formatter::FormatTypeAlias(const TypeAlias& n) {
   return FormatJoinWithAttrs(attrs, ConcatNGroup(arena_, pieces));
 }
 
-DocRef Formatter::FormatProcAlias(const ProcAlias& n) {
+DocRef Formatter::FormatAliasDef(const AliasDef& n) {
   std::vector<DocRef> pieces;
   std::optional<DocRef> attr;
   if (n.is_public()) {
@@ -3596,7 +3596,7 @@ DocRef Formatter::FormatProcAlias(const ProcAlias& n) {
   pieces.push_back(arena_.equals());
   pieces.push_back(arena_.break1());
 
-  ProcAlias::Target target = n.target();
+  AliasDef::Target target = n.target();
   if (std::holds_alternative<NameRef*>(target)) {
     pieces.push_back(FormatNameRef(*std::get<NameRef*>(target)));
   } else {
@@ -3626,8 +3626,8 @@ DocRef Formatter::FormatModuleMember(const ModuleMember& n) {
           [&](const TypeAlias* n) {
             return arena_.MakeConcat(FormatTypeAlias(*n), arena_.semi());
           },
-          [&](const ProcAlias* n) {
-            return arena_.MakeConcat(FormatProcAlias(*n), arena_.semi());
+          [&](const AliasDef* n) {
+            return arena_.MakeConcat(FormatAliasDef(*n), arena_.semi());
           },
           [&](const StructDef* n) { return FormatStructDef(*n); },
           [&](const SumDef* n) { return FormatSumDef(*n); },
