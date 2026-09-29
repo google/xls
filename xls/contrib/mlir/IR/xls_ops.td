@@ -21,6 +21,7 @@ def Xls_Dialect : Dialect {
 
   let useDefaultTypePrinterParser = 1;
   let useDefaultAttributePrinterParser = 1;
+  let useStrictPropertiesInAssemblyFormat = 0;
   let hasConstantMaterializer = 1;
 }
 
