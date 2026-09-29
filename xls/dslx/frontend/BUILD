@@ -230,6 +230,7 @@ cc_test(
     deps = [
         ":ast",
         ":bindings",
+        ":builtin_stubs_utils",
         ":builtins_metadata",
         ":module",
         ":parser",
@@ -240,6 +241,7 @@ cc_test(
         "//xls/common/file:filesystem",
         "//xls/common/file:get_runfile_path",
         "//xls/common/status:matchers",
+        "//xls/common/status:status_macros",
         "//xls/dslx:command_line_utils",
         "//xls/dslx:error_test_utils",
         "//xls/dslx:virtualizable_file_system",
@@ -451,6 +453,7 @@ cc_library(
     deps = [
         "@abseil-cpp//absl/base:no_destructor",
         "@abseil-cpp//absl/container:flat_hash_map",
+        "@abseil-cpp//absl/container:flat_hash_set",
     ],
 )
 

@@ -125,3 +125,67 @@ trait ToBits {
 trait Spawn {
   fn spawn(self);
 }
+
+// Ordering rules for multiple channel operations on the same channel.
+enum ChannelStrictness : u3 {
+  PROVEN_MUTUALLY_EXCLUSIVE = 0,
+  RUNTIME_MUTUALLY_EXCLUSIVE = 1,
+  TOTAL_ORDER = 2,
+  RUNTIME_ORDERED = 3,
+  ARBITRARY_STATIC_ORDER = 4,
+}
+
+// Options for channel flow control semantics.
+enum FlowControl : u2 {
+  NONE = 0,
+  READY_VALID = 1,
+  VALID_DATA = 2,
+}
+
+// Configuration options for channels, read with `config()` and set with `set_config()` on a
+// `Source` or `Sink`.
+struct ChannelConfig {
+  fifo_depth: u32,
+  strictness: ChannelStrictness,
+  flow_control: FlowControl,
+}
+
+// Encapsulates the token and the result, if any, of a Source or Sink I/O operation (e.g. send or
+// recv). If the op has a result then it is both.
+struct IOResult<T: type> {}
+
+// An object that can only receive data of type `T`, analogous to `chan<T> in`. Cannot be directly
+// instantiated, but should be used as a proc member or constructor argument type.
+struct Source<T: type> {}
+
+impl Source<T> {
+  // Callable in `new`:
+  fn forward(self, target: Source<T>);
+  fn config(self) -> ChannelConfig;
+  fn set_config(self, c: ChannelConfig);
+  fn set_name<N: u32>(self, name: u8[N]);
+
+  // Callable in `next`:
+  fn recv(self) -> IOResult<T>;
+  fn recv_if(self, pred: bool, default: T) -> IOResult<T>;
+  fn after<U: type>(self, r: IOResult<U>) -> Self;
+  fn non_blocking(self) -> Source<(T, bool)>;
+}
+
+// An object that can only send data of type `T`, analogous to `chan<T> out`. Cannot be directly
+// instantiated, but should be used as a proc member or constructor argument type.
+struct Sink<T: type> {}
+
+impl Sink<T> {
+  // Callable in `new`:
+  fn forward(self, target: Sink<T>);
+  fn bind(self, target: Source<T>);
+  fn config(self) -> ChannelConfig;
+  fn set_config(self, c: ChannelConfig);
+  fn set_name<N: u32>(self, name: u8[N]);
+
+  // Callable in `next`:
+  fn send(self, val: T) -> IOResult<()>;
+  fn send_if(self, pred: bool, val: T) -> IOResult<()>;
+  fn after<U: type>(self, r: IOResult<U>) -> Self;
+}

@@ -19,6 +19,7 @@
 
 #include "absl/base/no_destructor.h"
 #include "absl/container/flat_hash_map.h"
+#include "absl/container/flat_hash_set.h"
 
 namespace xls::dslx {
 
@@ -122,6 +123,12 @@ const absl::flat_hash_map<std::string, BuiltinsData>& GetParametricBuiltins() {
       });
 
   return *map;
+}
+
+const absl::flat_hash_set<std::string>& GetIoObjectBuiltins() {
+  static const absl::NoDestructor<absl::flat_hash_set<std::string>> set(
+      {"Source", "Sink", "IOResult", "ChannelConfig"});
+  return *set;
 }
 
 bool IsNameParametricBuiltin(std::string_view identifier) {

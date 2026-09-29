@@ -3008,6 +3008,42 @@ TEST(AstClonerTest, CloneModuleRemovingMembersPreservesExternalNodes) {
             ext_struct);
 }
 
+// Verifies that CloneModule does not clone a type definition owned by another
+// module when a TypeRef in the cloned module points to it (which happens for
+// the builtin I/O object structs, e.g. `Source`). The clone must keep pointing
+// at the external definition.
+TEST(AstClonerTest, CloneModulePreservesExternalTypeDefinitions) {
+  FileTable file_table;
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto ext_parsed,
+      ParseModule("struct Ext {}", "ext.x", "ext", file_table));
+  XLS_ASSERT_OK_AND_ASSIGN(StructDef * ext_struct,
+                           ext_parsed->GetMemberOrError<StructDef>("Ext"));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto main_module,
+      ParseModule("struct S { x: u32 }", "main.x", "main", file_table));
+  XLS_ASSERT_OK_AND_ASSIGN(StructDef * s,
+                           main_module->GetMemberOrError<StructDef>("S"));
+  ASSERT_EQ(s->members().size(), 1);
+  s->members()[0]->set_type(main_module->Make<TypeRefTypeAnnotation>(
+      Span::Fake(), main_module->Make<TypeRef>(Span::Fake(), ext_struct),
+      /*parametrics=*/std::vector<ExprOrType>()));
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> cloned_module,
+                           CloneModule(*main_module));
+
+  XLS_ASSERT_OK_AND_ASSIGN(StructDef * cloned_s,
+                           cloned_module->GetMemberOrError<StructDef>("S"));
+  ASSERT_EQ(cloned_s->members().size(), 1);
+  auto* cloned_type_annot =
+      dynamic_cast<TypeRefTypeAnnotation*>(cloned_s->members()[0]->type());
+  ASSERT_NE(cloned_type_annot, nullptr);
+  TypeDefinition cloned_def = cloned_type_annot->type_ref()->type_definition();
+  ASSERT_TRUE(std::holds_alternative<StructDef*>(cloned_def));
+  EXPECT_EQ(std::get<StructDef*>(cloned_def), ext_struct);
+}
+
 TEST(AstClonerTest, RetypePrunedModuleWithImportedParametricStruct) {
   constexpr std::string_view kImported = R"(
 pub struct Pair<A: u32, B: u32> {

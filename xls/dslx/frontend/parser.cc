@@ -451,7 +451,7 @@ absl::Status Parser::ParseModuleAttribute() {
 }
 
 absl::StatusOr<std::unique_ptr<Module>> Parser::ParseModule(
-    Bindings* bindings) {
+    Bindings* bindings, const Module* builtin_stubs) {
   const Pos module_start_pos = GetPos();
   std::optional<Bindings> stack_bindings;
   if (bindings == nullptr) {
@@ -466,6 +466,13 @@ absl::StatusOr<std::unique_ptr<Module>> Parser::ParseModule(
   for (auto const& it : GetParametricBuiltins()) {
     std::string name(it.first);
     bindings->Add(name, module_->GetOrCreateBuiltinNameDef(name));
+  }
+  if (builtin_stubs != nullptr) {
+    for (const std::string& name : GetIoObjectBuiltins()) {
+      XLS_ASSIGN_OR_RETURN(StructDef * struct_def,
+                           builtin_stubs->GetMemberOrError<StructDef>(name));
+      bindings->Add(name, struct_def);
+    }
   }
 
 #define ADD_SIZED_TYPE_KEYWORD(__enum, __caps, __str) \
@@ -1555,6 +1562,14 @@ absl::StatusOr<TypeRefOrAnnotation> Parser::ParseTypeRef(Bindings& bindings,
             "Expected a type, but identifier '%s' doesn't resolve to "
             "a type, it resolved to a %s",
             *tok.GetValue(), BoundNodeGetTypeString(type_def)));
+  }
+
+  if (!parse_fn_stubs_ &&
+      !module_->attributes().contains(ModuleAttribute::kIoObjects) &&
+      GetIoObjectBuiltins().contains(*tok.GetValue())) {
+    return ParseErrorStatus(
+        tok.span(), absl::StrFormat("`%s` requires #![feature(io_objects)]",
+                                    *tok.GetValue()));
   }
 
   XLS_ASSIGN_OR_RETURN(TypeDefinition type_definition,
