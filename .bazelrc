@@ -29,9 +29,10 @@ build --cxxopt "-Wno-deprecated-attributes"
 build --incompatible_default_to_explicit_init_py=true
 
 # Mac settings
-# Use 10.15 as the minimum OS; std::filesystem is only available from 10.15 on.
-build:macos --host_macos_minimum_os=10.15
-build:macos --macos_minimum_os=10.15
+# Use macOS 11.0 for both host tools and target binaries. Older deployment
+# targets can cause gnulib spawn declarations to conflict with modern SDKs.
+build:macos --host_macos_minimum_os=11.0
+build:macos --macos_minimum_os=11.0
 build:macos --nointerface_shared_objects
 
 # Minimum c++ standard used. We set it in the llvm toolchain, but
