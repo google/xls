@@ -999,5 +999,44 @@ proc my_new_proc<>() {}
                                  "proc-scoped channels")));
 }
 
+TEST_F(VerifierTest, TraceStringFormatting) {
+  std::string input = R"(package test
+
+fn my_fn() -> bits[32] {
+  literal.1: bits[8] = literal(value=65)
+  literal.2: bits[8] = literal(value=66)
+  literal.3: bits[8] = literal(value=67)
+  array.4: bits[8][3] = array(literal.1, literal.2, literal.3)
+  after_all.5: token = after_all()
+  literal.6: bits[1] = literal(value=1)
+  trace.7: token = trace(after_all.5, literal.6, format = "{:s}", data_operands=[array.4])
+  ret literal.8: bits[32] = literal(value=0)
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(auto p, ParsePackageNoVerify(input));
+  XLS_EXPECT_OK(VerifyPackage(p.get()));
+}
+
+TEST_F(VerifierTest, TraceStringFormattingWithIncorrectType) {
+  std::string input = R"(package test
+
+fn my_fn() -> bits[32] {
+  literal.1: bits[9] = literal(value=65)
+  literal.2: bits[9] = literal(value=66)
+  literal.3: bits[9] = literal(value=67)
+  array.4: bits[9][3] = array(literal.1, literal.2, literal.3)
+  after_all.5: token = after_all()
+  literal.6: bits[1] = literal(value=1)
+  trace.7: token = trace(after_all.5, literal.6, format = "{:s}", data_operands=[array.4])
+  ret literal.8: bits[32] = literal(value=0)
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(auto p, ParsePackageNoVerify(input));
+  EXPECT_THAT(VerifyPackage(p.get()),
+              StatusIs(absl::StatusCode::kInternal,
+                       HasSubstr("uses the `{:s}` string format but is not a "
+                                 "u8 array")));
+}
+
 }  // namespace
 }  // namespace xls

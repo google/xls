@@ -359,15 +359,34 @@ absl::StatusOr<std::string> InterpValue::ToArrayString(
     const ValueFormatDescriptor& fmt_desc, bool include_type_prefix,
     int64_t indentation) const {
   XLS_RET_CHECK(fmt_desc.IsArray());
+  const std::vector<InterpValue>& values = GetValuesOrDie();
+  const ValueFormatDescriptor& format_descriptor =
+      fmt_desc.array_element_format();
+  if (format_descriptor.IsLeafValue() &&
+      format_descriptor.leaf_format() == FormatPreference::kString) {
+    if (values.empty()) {
+      return "";
+    }
+    std::string as_string;
+    as_string.reserve(values.size());
+    for (size_t i = 0; i < values.size(); ++i) {
+      XLS_ASSIGN_OR_RETURN(uint64_t code, values[i].GetBitValueUnsigned());
+      if (code == '\0') {
+        break;
+      }
+      as_string += char(code);
+    }
+    return as_string;
+  }
+
   std::vector<std::string> pieces;
   pieces.push_back("[");
-  const std::vector<InterpValue>& values = GetValuesOrDie();
   for (size_t i = 0; i < values.size(); ++i) {
     const InterpValue& v = values.at(i);
     XLS_ASSIGN_OR_RETURN(
         std::string elem,
-        v.ToFormattedString(fmt_desc.array_element_format(),
-                            include_type_prefix, indentation + 1));
+        v.ToFormattedString(format_descriptor, include_type_prefix,
+                            indentation + 1));
     std::string piece = IndentString(elem, indentation + 1);
     if (i + 1 != values.size()) {
       absl::StrAppend(&piece, ",");

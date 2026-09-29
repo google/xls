@@ -41,6 +41,7 @@ TEST(FormatPreferenceTest, ToString) {
            {FormatPreference::kUnsignedDecimal, "unsigned-decimal", true},
            {FormatPreference::kSignedDecimal, "signed-decimal", true},
            {FormatPreference::kHex, "hex", true},
+           {FormatPreference::kString, "string", true},
            {static_cast<FormatPreference>(42), "<invalid format preference>",
             false},
        }) {

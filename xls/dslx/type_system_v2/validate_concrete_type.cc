@@ -276,10 +276,18 @@ class TypeValidator : public AstNodeVisitorWithDefault {
   }
 
   absl::Status HandleFormatMacro(const FormatMacro* macro) override {
-    for (const Expr* arg : macro->args()) {
+    absl::Span<Expr* const> args = macro->args();
+    int arg_index = 0;
+    for (const FormatStep& step : macro->format()) {
+      // String literal pieces don't consume an operand.
+      if (!std::holds_alternative<FormatPreference>(step)) {
+        continue;
+      }
+      const Expr* arg = args[arg_index++];
       const Type& type = **ti_.GetItem(arg);
       XLS_RETURN_IF_ERROR(
-          ValidateFormatMacroArgument(type, arg->span(), file_table_));
+          ValidateFormatMacroArgument(type, arg->span(), file_table_,
+                                      std::get<FormatPreference>(step)));
     }
     return absl::OkStatus();
   }

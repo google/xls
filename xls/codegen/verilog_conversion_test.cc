@@ -873,6 +873,56 @@ TEST_P(VerilogConversionTest, BlockWithExtraBracesTrace) {
   }
 }
 
+TEST_P(VerilogConversionTest, BlockWithTraceString) {
+  Package package(TestBaseName());
+  BlockBuilder b(TestBaseName(), &package);
+  BValue mess = b.InputPort("message",
+                            package.GetArrayType(16, package.GetBitsType(8)));
+  BValue cond = b.InputPort("cond", package.GetBitsType(1));
+  b.Trace(b.AfterAll({}), cond, {mess}, "{:s}");
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block, b.Build());
+  CodegenOptions options;
+  options.use_system_verilog(UseSystemVerilog());
+  XLS_ASSERT_OK_AND_ASSIGN(std::string verilog,
+                           GenerateVerilog(block, options));
+  ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
+                                 verilog);
+}
+
+TEST_P(VerilogConversionTest, BlockWithTraceMultipleStrings) {
+  Package package(TestBaseName());
+  BlockBuilder b(TestBaseName(), &package);
+  BValue first =
+      b.InputPort("first", package.GetArrayType(16, package.GetBitsType(8)));
+  BValue second =
+      b.InputPort("second", package.GetArrayType(8, package.GetBitsType(8)));
+  BValue cond = b.InputPort("cond", package.GetBitsType(1));
+  b.Trace(b.AfterAll({}), cond, {first, second}, "first: {:s}, second: {:s}");
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block, b.Build());
+  CodegenOptions options;
+  options.use_system_verilog(UseSystemVerilog());
+  XLS_ASSERT_OK_AND_ASSIGN(std::string verilog,
+                           GenerateVerilog(block, options));
+  ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
+                                 verilog);
+}
+
+TEST_P(VerilogConversionTest, BlockWithTraceStringMultipleRefsToOneArgument) {
+  Package package(TestBaseName());
+  BlockBuilder b(TestBaseName(), &package);
+  BValue arg =
+      b.InputPort("arg", package.GetArrayType(16, package.GetBitsType(8)));
+  BValue cond = b.InputPort("cond", package.GetBitsType(1));
+  b.Trace(b.AfterAll({}), cond, {arg, arg}, "first: {:s}, second: {:s}");
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block, b.Build());
+  CodegenOptions options;
+  options.use_system_verilog(UseSystemVerilog());
+  XLS_ASSERT_OK_AND_ASSIGN(std::string verilog,
+                           GenerateVerilog(block, options));
+  ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
+                                 verilog);
+}
+
 TEST_P(VerilogConversionTest, PortOrderTest) {
   Package package(TestBaseName());
   Type* u32 = package.GetBitsType(32);

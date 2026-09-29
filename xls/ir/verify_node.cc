@@ -86,6 +86,25 @@ class NodeChecker : public DfsVisitor {
     XLS_RETURN_IF_ERROR(ExpectOperandCount(
         trace_op, OperandsExpectedByFormat(trace_op->format()) + 2));
 
+    int64_t arg_index = 0;
+    for (const FormatStep& step : trace_op->format()) {
+      if (!std::holds_alternative<FormatPreference>(step)) {
+        continue;
+      }
+      Node* arg = trace_op->args()[arg_index++];
+      if (std::get<FormatPreference>(step) != FormatPreference::kString) {
+        continue;
+      }
+      Type* type = arg->GetType();
+      if (!type->IsArray() ||
+          !type->AsArrayOrDie()->element_type()->IsBits() ||
+          type->AsArrayOrDie()->element_type()->GetFlatBitCount() != 8) {
+        return absl::InternalError(absl::StrFormat(
+            "Trace operand %d uses the `{:s}` string format but is not a "
+            "u8 array, is %s", arg_index - 1, type->ToString()));
+      }
+    }
+
     return ExpectHasTokenType(trace_op);
   }
 

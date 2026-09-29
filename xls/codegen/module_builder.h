@@ -348,6 +348,22 @@ class ModuleBuilder {
   std::string SanitizeAndUniquifyName(std::string_view name,
                                       bool remember_name = true);
 
+  struct TraceStringFormatting {
+    LogicRef* input = nullptr;
+    LogicRef* display_value = nullptr;
+    LogicRef* display_size = nullptr;
+    int64_t bit_count = 0;
+  };
+
+  absl::StatusOr<TraceStringFormatting> DeclareTraceStringFormatting(
+      Expression* arg, Conditional* trace_if);
+
+  void AddVerilogTraceStringFormatting(const TraceStringFormatting& formatting,
+                                       Conditional* trace_if);
+
+  void AddSystemVerilogTraceStringFormatting(
+      const TraceStringFormatting& formatting, Conditional* trace_if);
+
   std::string module_name_;
   VerilogFile* file_;
 

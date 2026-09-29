@@ -1,0 +1,19 @@
+package test_module
+
+file_number 0 "test_module.x"
+
+top proc __test_module__test_0_next<_message_r: bits[8][16] in>(__state: (), init={()}) {
+  chan_interface _message_r(direction=receive, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
+  after_all.5: token = after_all(id=5)
+  literal.3: bits[1] = literal(value=1, id=3)
+  receive.6: (token, bits[8][16]) = receive(after_all.5, predicate=literal.3, channel=_message_r, id=6)
+  __token: token = literal(value=token, id=1)
+  message: bits[8][16] = tuple_index(receive.6, index=1, id=9)
+  tuple.11: () = tuple(id=11)
+  __state: () = state_read(state_element=__state, id=2)
+  tuple.4: () = tuple(id=4)
+  tuple_index.7: token = tuple_index(receive.6, index=0, id=7)
+  tok: token = tuple_index(receive.6, index=0, id=8)
+  trace.10: token = trace(__token, literal.3, format="The message is {:s}", data_operands=[message], id=10)
+  next_value.12: () = next_value(state_element=__state, value=tuple.11, id=12)
+}

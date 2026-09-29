@@ -483,6 +483,23 @@ class UnpackedArrayType final : public ArrayTypeBase {
                                  std::string_view identifier) const final;
 };
 
+class StringType final : public DataType {
+ public:
+  StringType(VerilogFile* file, const SourceInfo& loc)
+      : DataType(file, loc) {}
+
+  bool IsScalar() const final { return false; }
+  absl::StatusOr<int64_t> WidthAsInt64() const final {
+    return absl::InvalidArgumentError("Cannot get width of a string type");
+  }
+  absl::StatusOr<int64_t> FlatBitCountAsInt64() const final {
+    return absl::InvalidArgumentError(
+        "Cannot get compile time bit count of a string type");
+  }
+  std::optional<Expression*> width() const final { return std::nullopt; }
+  std::string Emit(LineInfo* line_info) const final;
+};
+
 // The kind of a net/variable. kReg, kWire, kLogic can be arbitrarily
 // typed. kInteger definitions can only be of IntegerType.
 enum class DataKind : int8_t {
@@ -498,6 +515,7 @@ enum class DataKind : int8_t {
   kUntypedEnum,
   // Used as an integer during elaboration to evaluate a generate loop.
   kGenvar,
+  kString,
 };
 
 std::string DataKindToString(DataKind kind);
@@ -527,6 +545,9 @@ class Def : public Statement {
   // Emit the definition without the trailing semicolon.
   std::string EmitNoSemi(LineInfo* line_info) const;
 
+  bool automatic() const { return automatic_; }
+  void automatic(bool value) { automatic_ = value; }
+
   const std::string& GetName() const { return name_; }
   DataKind data_kind() const { return data_kind_; }
   DataType* data_type() const { return data_type_; }
@@ -539,6 +560,7 @@ class Def : public Statement {
   DataKind data_kind_;
   DataType* data_type_;
   std::optional<Expression*> init_;
+  bool automatic_ = false;
 };
 
 // A wire definition. Example:
@@ -663,6 +685,15 @@ class WaitStatement final : public Statement {
   Expression* event_;
 };
 
+// Represents a `break` statement.
+class BreakStatement final : public Statement {
+ public:
+  BreakStatement(VerilogFile* file, const SourceInfo& loc)
+      : Statement(file, loc) {}
+
+  std::string Emit(LineInfo* line_info) const final;
+};
+
 // Represents a forever construct which runs a statement continuously.
 class Forever final : public Statement {
  public:
@@ -743,9 +774,12 @@ class StatementBlock final : public VastNode {
   std::string Emit(LineInfo* line_info) const final;
 
   absl::Span<Statement* const> statements() const { return statements_; }
+  void label(std::optional<std::string> label) { label_ = std::move(label); }
+  std::optional<std::string> label() const { return label_; }
 
  private:
   std::vector<Statement*> statements_;
+  std::optional<std::string> label_ = std::nullopt;
 };
 
 // Similar to statement block,  but for use if `ifdef `else `endif blocks (no
@@ -2311,7 +2345,7 @@ using ModuleMember =
 
 // Represents a generate loop construct. Example:
 // ```verilog
-// for (genvar i = 0; i < 32; i = i + 1) begin : gen_loop
+// for (genvar i = 0; i < 32; i = i + 1) begin : loop_blk
 //   assign output[i] = input[i];
 // end
 // ```
@@ -2339,6 +2373,43 @@ class GenerateLoop final : public Statement {
   Expression* limit_;
   std::optional<std::string> label_;
   std::vector<ModuleMember> members_;
+};
+
+// Represents a for loop construct. Example:
+// ```verilog
+// for (integer i = 0; i < 32; i = i + 1) begin : gen_loop
+//   assign output[i] = input[i];
+// end
+// ```
+//
+class ForLoop final : public Statement {
+ public:
+  ForLoop(std::string_view var_name, Expression* init,
+          Expression* limit, std::optional<std::string> label,
+          bool ascending_step, Expression* step, VerilogFile* file,
+          const SourceInfo& loc);
+
+  LogicRef* var() const { return var_; }
+  Expression* init() const { return init_; }
+  Expression* limit() const { return limit_; }
+  const std::optional<std::string>& label() const { return label_; }
+  bool ascending_step() const { return ascending_step_; }
+  Expression* step() const { return step_; }
+
+  template <typename T, typename... Args>
+  T* Add(const SourceInfo& loc, Args&&... args);
+  void AddMember(Statement* member) { members_.push_back(member); }
+
+  std::string Emit(LineInfo* line_info) const final;
+
+ private:
+  LogicRef* var_;
+  Expression* init_;
+  Expression* limit_;
+  std::optional<std::string> label_;
+  bool ascending_step_;
+  Expression* step_;
+  std::vector<Statement*> members_;
 };
 
 // A ModuleSection is a container of ModuleMembers used to organize the contents
@@ -2939,6 +3010,10 @@ class VerilogFile {
     return Make<verilog::IntType>(loc);
   }
 
+  DataType* StringType(const SourceInfo& loc) {
+    return Make<verilog::StringType>(loc);
+  }
+
   // Returns a bit vector type for widths greater than one, and a scalar type
   // for a width of one. The motivation for this special case is avoiding types
   // with trivial single bit ranges "[0:0]" (as in "reg [0:0] foo"). This
@@ -3063,6 +3138,13 @@ inline T* VerilogPackageSection::Add(const SourceInfo& loc, Args&&... args) {
 
 template <typename T, typename... Args>
 inline T* GenerateLoop::Add(const SourceInfo& loc, Args&&... args) {
+  T* ptr = file()->Make<T>(loc, std::forward<Args>(args)...);
+  AddMember(ptr);
+  return ptr;
+}
+
+template <typename T, typename... Args>
+inline T* ForLoop::Add(const SourceInfo& loc, Args&&... args) {
   T* ptr = file()->Make<T>(loc, std::forward<Args>(args)...);
   AddMember(ptr);
   return ptr;

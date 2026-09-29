@@ -1,0 +1,54 @@
+module BlockWithTraceMultipleStrings(
+  input wire [127:0] first,
+  input wire [63:0] second,
+  input wire cond
+);
+  wire [7:0] first_unflattened[16];
+  assign first_unflattened[0] = first[7:0];
+  assign first_unflattened[1] = first[15:8];
+  assign first_unflattened[2] = first[23:16];
+  assign first_unflattened[3] = first[31:24];
+  assign first_unflattened[4] = first[39:32];
+  assign first_unflattened[5] = first[47:40];
+  assign first_unflattened[6] = first[55:48];
+  assign first_unflattened[7] = first[63:56];
+  assign first_unflattened[8] = first[71:64];
+  assign first_unflattened[9] = first[79:72];
+  assign first_unflattened[10] = first[87:80];
+  assign first_unflattened[11] = first[95:88];
+  assign first_unflattened[12] = first[103:96];
+  assign first_unflattened[13] = first[111:104];
+  assign first_unflattened[14] = first[119:112];
+  assign first_unflattened[15] = first[127:120];
+  wire [7:0] second_unflattened[8];
+  assign second_unflattened[0] = second[7:0];
+  assign second_unflattened[1] = second[15:8];
+  assign second_unflattened[2] = second[23:16];
+  assign second_unflattened[3] = second[31:24];
+  assign second_unflattened[4] = second[39:32];
+  assign second_unflattened[5] = second[47:40];
+  assign second_unflattened[6] = second[55:48];
+  assign second_unflattened[7] = second[63:56];
+
+  `ifdef SIMULATION
+  always_ff @ (*) begin
+    if (cond) begin : trace
+      automatic string first_unflattened_string_display;
+      automatic string second_unflattened_string_display;
+      for (integer i = 0; i < 16; i = i + 1) begin
+        if (first_unflattened[i] == 0) begin
+          break;
+        end
+        first_unflattened_string_display = {first_unflattened_string_display, first_unflattened[i]};
+      end
+      for (integer i = 0; i < 8; i = i + 1) begin
+        if (second_unflattened[i] == 0) begin
+          break;
+        end
+        second_unflattened_string_display = {second_unflattened_string_display, second_unflattened[i]};
+      end
+      $display("first: %0s, second: %0s", first_unflattened_string_display, second_unflattened_string_display);
+    end
+  end
+  `endif  // SIMULATION
+endmodule

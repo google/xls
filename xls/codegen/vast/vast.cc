@@ -613,7 +613,10 @@ std::string StatementBlock::Emit(LineInfo* line_info) const {
     LineInfoEnd(line_info, this);
     return "begin end";
   }
-  std::string result = "begin\n";
+  std::string label_str = label_.has_value()
+                              ? absl::StrFormat(" : %s", *label_)
+                              : "";
+  std::string result = absl::StrFormat("begin%s\n", label_str);
   LineInfoIncrease(line_info, 1);
   std::vector<std::string> lines;
   for (const auto& statement : statements_) {
@@ -661,6 +664,48 @@ std::string GenerateLoop::Emit(LineInfo* line_info) const {
     }
     lines.push_back(Indent(
         absl::visit([=](auto* m) { return m->Emit(line_info); }, member)));
+    LineInfoIncrease(line_info, 1);
+  }
+  lines.push_back("end");
+  LineInfoIncrease(line_info, 1);
+  LineInfoEnd(line_info, this);
+  return absl::StrJoin(lines, "\n");
+}
+
+ForLoop::ForLoop(std::string_view var_name, Expression* init,
+                 Expression* limit, std::optional<std::string> label,
+                 bool ascending_step, Expression* step, VerilogFile* file,
+                 const SourceInfo& loc)
+    : Statement(file, loc),
+      var_(file->Make<LogicRef>(
+               loc, file->Make<GenvarDef>(loc, std::string(var_name)))),
+      init_(init),
+      limit_(limit),
+      label_(std::move(label)),
+      ascending_step_(ascending_step),
+      step_(step) {}
+
+std::string ForLoop::Emit(LineInfo* line_info) const {
+  LineInfoStart(line_info, this);
+  std::vector<std::string> lines;
+  std::string label_suffix =
+      label_.has_value() ? absl::StrCat(" : ", label_.value()) : "";
+  std::string var_str = var_->Emit(line_info);
+  std::string init_str = init_->Emit(line_info);
+  std::string limit_str = limit_->Emit(line_info);
+  std::string step_str = step_->Emit(line_info);
+  lines.push_back(absl::StrFormat(
+      "for (integer %s = %s; %s %s %s; %s = %s %s %s) begin%s", var_str,
+      init_str, var_str, ascending_step_ ? "<" : ">=", limit_str, var_str,
+      var_str, ascending_step_ ? "+" : "-", step_str, label_suffix));
+  LineInfoIncrease(line_info, 1);
+  for (Statement* member : members_) {
+    std::string pre_emit = member->PreEmit(line_info);
+    if (!pre_emit.empty()) {
+      lines.push_back(Indent(pre_emit, kDefaultIndentSpaces));
+      LineInfoIncrease(line_info, 1);
+    }
+    lines.push_back(Indent(member->Emit(line_info)));
     LineInfoIncrease(line_info, 1);
   }
   lines.push_back("end");
@@ -1309,6 +1354,10 @@ std::string UnpackedArrayType::EmitWithIdentifier(
   return result;
 }
 
+std::string StringType::Emit(LineInfo* line_info) const {
+  return "string";
+}
+
 std::string Def::Emit(LineInfo* line_info) const {
   std::string result = EmitNoSemi(line_info);
   if (init().has_value()) {
@@ -1323,7 +1372,9 @@ std::string Def::EmitNoSemi(LineInfo* line_info) const {
   std::string kind_str = DataKindToString(data_kind());
   std::string data_type_str =
       data_type()->EmitWithIdentifier(line_info, GetName());
-  std::string result = CombineKindAndDataType(kind_str, data_type_str);
+  std::string result =
+      absl::StrFormat("%s%s", automatic_ ? "automatic " : "",
+                      CombineKindAndDataType(kind_str, data_type_str));
 
   LineInfoEnd(line_info, this);
   return result;
@@ -2233,6 +2284,13 @@ std::string DelayStatement::Emit(LineInfo* line_info) const {
 std::string WaitStatement::Emit(LineInfo* line_info) const {
   LineInfoStart(line_info, this);
   std::string result = absl::StrFormat("wait(%s);", event_->Emit(line_info));
+  LineInfoEnd(line_info, this);
+  return result;
+}
+
+std::string BreakStatement::Emit(LineInfo* line_info) const {
+  LineInfoStart(line_info, this);
+  std::string result = absl::StrFormat("break;");
   LineInfoEnd(line_info, this);
   return result;
 }
