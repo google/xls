@@ -520,10 +520,24 @@ absl::Status NewFSMGenerator::LayoutNewFSMStateElements(
         layout.state_elements.size() - 1);
   }
 
+  absl::flat_hash_map<const ContinuationValue*, absl::flat_hash_set<int64_t>>
+      disallowed_elements_by_value;
+  absl::flat_hash_map<const ContinuationValue*,
+                      absl::flat_hash_set<const ContinuationValue*>>
+      co_occurring_values_by_value;
+
   for (const NewFSMState& state : layout.states) {
     // Only need to save continuation values on activation transitions
     if (!layout.transition_by_slice_from_index.contains(state.slice_index)) {
       continue;
+    }
+
+    for (const ContinuationValue* v1 : state.values_to_save) {
+      for (const ContinuationValue* v2 : state.values_to_save) {
+        if (v1 != v2) {
+          co_occurring_values_by_value[v1].insert(v2);
+        }
+      }
     }
 
     // A state element can only be used once in a given transition
@@ -555,11 +569,18 @@ absl::Status NewFSMGenerator::LayoutNewFSMStateElements(
       // - state B: save value B (decl X) into element 1
       // - state C: save value A (decl X) into element 0
       //            save value B (decl X) into element 1
-      if (used_state_element_indices.contains(element_index)) {
+      if (used_state_element_indices.contains(element_index) ||
+          disallowed_elements_by_value[value].contains(element_index)) {
         layout.state_element_by_continuation_value.erase(value);
         continue;
       }
+      XLSCC_CHECK(!used_state_element_indices.contains(element_index),
+                  body_loc);
       used_state_element_indices.insert(element_index);
+      for (const ContinuationValue* co_val :
+           co_occurring_values_by_value[value]) {
+        disallowed_elements_by_value[co_val].insert(element_index);
+      }
     }
 
     for (const ContinuationValue* value : state.values_to_save) {
@@ -585,7 +606,9 @@ absl::Status NewFSMGenerator::LayoutNewFSMStateElements(
             state_element_indices_by_decl.at(decl);
 
         for (const int64_t element_for_decl_index : elements_for_this_decl) {
-          if (used_state_element_indices.contains(element_for_decl_index)) {
+          if (used_state_element_indices.contains(element_for_decl_index) ||
+              disallowed_elements_by_value[value].contains(
+                  element_for_decl_index)) {
             continue;
           }
 
@@ -622,6 +645,10 @@ absl::Status NewFSMGenerator::LayoutNewFSMStateElements(
       XLSCC_CHECK_LT(element_index, layout.state_elements.size(), body_loc);
       layout.state_element_by_continuation_value[value] = element_index;
       used_state_element_indices.insert(element_index);
+      for (const ContinuationValue* co_val :
+           co_occurring_values_by_value[value]) {
+        disallowed_elements_by_value[co_val].insert(element_index);
+      }
       for (const DeclLeaf& decl : decls) {
         state_element_indices_by_decl[decl].push_back(element_index);
       }
