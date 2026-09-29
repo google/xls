@@ -2293,10 +2293,7 @@ absl::StatusOr<bool> ResourceSharingPass::RunOnFunctionBaseInternal(
       ComputeMutualExclusionAnalysis(
           f, context,
           [this](Node* n) { return ShouldTargetNodeForMutualExclusion(n); },
-          [this](Node* one, Node* other) {
-            return ShouldTargetPairForMutualExclusion(one, other);
-          },
-          visibilities));
+          [](Node* one, Node* other) { return true; }, visibilities));
 
   // Identify the set of legal folding actions
   XLS_ASSIGN_OR_RETURN(
