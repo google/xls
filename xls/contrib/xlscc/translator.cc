@@ -7459,9 +7459,7 @@ absl::StatusOr<xls::solvers::z3::IrTranslator*> Translator::GetZ3Translator(
     XLS_ASSIGN_OR_RETURN(
         iter->second,
         xls::solvers::z3::IrTranslator::CreateAndTranslate(
-            // Don't preemptively convert everything as this is expensive and we
-            // might get away with converting less.
-            /*source=*/nullptr, /*allow_unsupported=*/false));
+            func, {.allow_unsupported = false, .pre_translate = false}));
   }
   return iter->second.get();
 }

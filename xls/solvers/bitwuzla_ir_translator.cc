@@ -114,45 +114,53 @@ class XlsTerminator : public ::bitwuzla::Terminator {
 }  // namespace
 
 IrTranslator::IrTranslator(std::unique_ptr<TermManager> owned_tm,
-                           FunctionBase* source, bool allow_unsupported)
+                           FunctionBase* source, const SolverOptions& options)
     : owned_tm_(std::move(owned_tm)),
       tm_(*owned_tm_),
       xls_function_(source),
-      allow_unsupported_(allow_unsupported) {}
+      allow_unsupported_(options.allow_unsupported),
+      pre_translate_(options.pre_translate) {}
 
 IrTranslator::IrTranslator(TermManager& tm, FunctionBase* source,
-                           bool allow_unsupported)
-    : tm_(tm), xls_function_(source), allow_unsupported_(allow_unsupported) {}
+                           const SolverOptions& options)
+    : tm_(tm),
+      xls_function_(source),
+      allow_unsupported_(options.allow_unsupported),
+      pre_translate_(options.pre_translate) {}
 
 IrTranslator::~IrTranslator() = default;
 
 absl::StatusOr<std::unique_ptr<IrTranslator>> IrTranslator::CreateAndTranslate(
-    FunctionBase* source, bool allow_unsupported) {
+    FunctionBase* source, const SolverOptions& options) {
   auto owned_tm = std::make_unique<TermManager>();
   auto translator = std::unique_ptr<IrTranslator>(
-      new IrTranslator(std::move(owned_tm), source, allow_unsupported));
-  XLS_RETURN_IF_ERROR(source->Accept(translator.get()));
+      new IrTranslator(std::move(owned_tm), source, options));
+  if (options.pre_translate) {
+    XLS_RETURN_IF_ERROR(source->Accept(translator.get()));
+  }
   return translator;
 }
 
 absl::StatusOr<std::unique_ptr<IrTranslator>> IrTranslator::CreateAndTranslate(
     TermManager& tm, FunctionBase* source,
-    absl::Span<const Term> imported_params, bool allow_unsupported) {
-  auto translator = std::unique_ptr<IrTranslator>(
-      new IrTranslator(tm, source, allow_unsupported));
+    absl::Span<const Term> imported_params, const SolverOptions& options) {
+  auto translator =
+      std::unique_ptr<IrTranslator>(new IrTranslator(tm, source, options));
   auto params = source->params();
   XLS_RET_CHECK_EQ(params.size(), imported_params.size());
   for (int64_t i = 0; i < params.size(); ++i) {
     translator->NoteTranslation(params[i], imported_params[i]);
   }
-  XLS_RETURN_IF_ERROR(source->Accept(translator.get()));
+  if (options.pre_translate) {
+    XLS_RETURN_IF_ERROR(source->Accept(translator.get()));
+  }
   return translator;
 }
 
 absl::StatusOr<std::unique_ptr<IrTranslator>> IrTranslator::CreateAndTranslate(
-    TermManager& tm, Node* source, bool allow_unsupported) {
+    TermManager& tm, Node* source, const SolverOptions& options) {
   auto translator = std::unique_ptr<IrTranslator>(
-      new IrTranslator(tm, source->function_base(), allow_unsupported));
+      new IrTranslator(tm, source->function_base(), options));
   XLS_RETURN_IF_ERROR(source->Accept(translator.get()));
   return translator;
 }
@@ -176,6 +184,10 @@ void IrTranslator::SetDeterministicLimit(std::optional<int64_t> limit) {
 
 Term IrTranslator::GetTranslation(const Node* source) {
   auto it = translations_.find(source);
+  if (it == translations_.end()) {
+    CHECK_OK(const_cast<Node*>(source)->Accept(this));
+    it = translations_.find(source);
+  }
   CHECK(it != translations_.end())
       << "Node not translated: " << source->ToString();
   return it->second;
@@ -1619,15 +1631,19 @@ absl::Status IrTranslator::HandleInvoke(Invoke* invoke) {
     params.push_back(GetTranslation(n));
   }
   XLS_ASSIGN_OR_RETURN(
-      auto sub,
-      CreateAndTranslate(tm_, invoke->to_apply(), params, allow_unsupported_));
+      auto sub, CreateAndTranslate(tm_, invoke->to_apply(), params,
+                                   {
+                                       .allow_unsupported = allow_unsupported_,
+                                       .pre_translate = pre_translate_,
+                                   }));
   NoteTranslation(invoke, sub->GetReturnNode());
   return absl::OkStatus();
 }
 
 absl::StatusOr<ProverResult> IrTranslator::TryProveCombination(
     absl::Span<const PredicateOfNode> terms, PredicateCombination combination,
-    absl::Span<const PredicateOfNode> assumptions) {
+    absl::Span<const PredicateOfNode> assumptions,
+    ::bitwuzla::Bitwuzla* bitwuzla, const ProveOptions& options) {
   CHECK(!terms.empty());
   std::vector<Term> neg_objs;
   neg_objs.reserve(terms.size());
@@ -1646,28 +1662,44 @@ absl::StatusOr<ProverResult> IrTranslator::TryProveCombination(
     objective = tm_.mk_term(Kind::AND, neg_objs);
   }
 
-  ::bitwuzla::Options options;
-  options.set(::bitwuzla::Option::PRODUCE_MODELS, true);
-  ::bitwuzla::Bitwuzla bitwuzla(tm_, options);
+  std::unique_ptr<::bitwuzla::Bitwuzla> local_bitwuzla;
+  if (bitwuzla == nullptr) {
+    ::bitwuzla::Options options;
+    options.set(::bitwuzla::Option::PRODUCE_MODELS, true);
+    local_bitwuzla = std::make_unique<::bitwuzla::Bitwuzla>(tm_, options);
+    bitwuzla = local_bitwuzla.get();
+  }
+
   std::unique_ptr<::bitwuzla::Terminator> term_cb;
   if (timeout_.has_value() || limit_.has_value()) {
     term_cb = std::make_unique<XlsTerminator>(timeout_, limit_);
-    bitwuzla.configure_terminator(term_cb.get());
+    bitwuzla->configure_terminator(term_cb.get());
+  } else {
+    bitwuzla->configure_terminator(nullptr);
   }
 
+  std::vector<Term> bitwuzla_assumptions;
+  bitwuzla_assumptions.reserve(assumptions.size() + 1);
   for (const auto& ass : assumptions) {
     Term val = GetTranslation(ass.subject);
     XLS_ASSIGN_OR_RETURN(Term ass_t,
                          PredicateToAssertion(ass.p, ass.subject, val));
-    bitwuzla.assert_formula(ass_t);
+    bitwuzla_assumptions.push_back(ass_t);
   }
-  bitwuzla.assert_formula(objective);
+  bitwuzla_assumptions.push_back(objective);
 
-  ::bitwuzla::Result res = bitwuzla.check_sat();
+  ::bitwuzla::Result res = bitwuzla->check_sat(bitwuzla_assumptions);
   if (res == ::bitwuzla::Result::UNSAT) {
     return ProvenTrue();
   }
   if (res == ::bitwuzla::Result::SAT) {
+    if (!options.produce_counterexample) {
+      return ProvenFalse{
+          .counterexample =
+              absl::InvalidArgumentError("Counterexample production disabled"),
+          .message = "",
+      };
+    }
     absl::flat_hash_map<Node*, Value> counterexample;
     std::string message = "Bitwuzla returned SAT with counterexample:\n";
     for (Node* node : xls_function_->nodes()) {
@@ -1682,7 +1714,7 @@ absl::StatusOr<ProverResult> IrTranslator::TryProveCombination(
       }
       XLS_ASSIGN_OR_RETURN(
           Value val,
-          ExtractValue(bitwuzla, GetTranslation(node), node->GetType()));
+          ExtractValue(*bitwuzla, GetTranslation(node), node->GetType()));
       absl::StrAppend(&message, "- ", node->ToString(), " = ", val.ToString(),
                       "\n");
       counterexample.emplace(node, std::move(val));
@@ -1693,6 +1725,17 @@ absl::StatusOr<ProverResult> IrTranslator::TryProveCombination(
   return absl::DeadlineExceededError("Bitwuzla solver timed out or unknown");
 }
 
+BitwuzlaSolverInstance::BitwuzlaSolverInstance(
+    std::unique_ptr<IrTranslator> translator)
+    : translator_(std::move(translator)) {
+  ::bitwuzla::Options options;
+  options.set(::bitwuzla::Option::PRODUCE_MODELS, true);
+  bitwuzla_ =
+      std::make_unique<::bitwuzla::Bitwuzla>(translator_->tm(), options);
+}
+
+BitwuzlaSolverInstance::~BitwuzlaSolverInstance() = default;
+
 void BitwuzlaSolverInstance::SetLimit(const SolverLimit& limit) {
   translator_->SetTimeout(limit.timeout);
   translator_->SetDeterministicLimit(limit.deterministic_limit);
@@ -1700,22 +1743,27 @@ void BitwuzlaSolverInstance::SetLimit(const SolverLimit& limit) {
 
 absl::StatusOr<ProverResult> BitwuzlaSolverInstance::TryProve(
     Node* subject, const Predicate& p,
-    absl::Span<const PredicateOfNode> assumptions) {
+    absl::Span<const PredicateOfNode> assumptions,
+    const ProveOptions& options) {
   PredicateOfNode pon{.subject = subject, .p = p};
-  return translator_->TryProveCombination(
-      absl::MakeSpan(&pon, 1), PredicateCombination::kConjunction, assumptions);
+  return TryProveCombination(absl::MakeSpan(&pon, 1),
+                             PredicateCombination::kConjunction, assumptions,
+                             options);
 }
 
 absl::StatusOr<ProverResult> BitwuzlaSolverInstance::TryProveCombination(
     absl::Span<const PredicateOfNode> terms, PredicateCombination combination,
-    absl::Span<const PredicateOfNode> assumptions) {
-  return translator_->TryProveCombination(terms, combination, assumptions);
+    absl::Span<const PredicateOfNode> assumptions,
+    const ProveOptions& options) {
+  return translator_->TryProveCombination(terms, combination, assumptions,
+                                          bitwuzla_.get(), options);
 }
 
 absl::StatusOr<std::unique_ptr<xls::solvers::SolverInstance>>
-BitwuzlaSolver::CreateSolverInstance(FunctionBase* f, bool allow_unsupported) {
+BitwuzlaSolver::CreateSolverInstance(FunctionBase* f,
+                                     const SolverOptions& options) {
   XLS_ASSIGN_OR_RETURN(auto translator,
-                       IrTranslator::CreateAndTranslate(f, allow_unsupported));
+                       IrTranslator::CreateAndTranslate(f, options));
   return std::make_unique<BitwuzlaSolverInstance>(std::move(translator));
 }
 
@@ -1723,7 +1771,9 @@ absl::StatusOr<ProverResult> BitwuzlaSolver::TryProve(
     FunctionBase* f, Node* subject, const Predicate& p,
     const SolverLimit& limit, bool allow_unsupported,
     absl::Span<const PredicateOfNode> assumptions) {
-  XLS_ASSIGN_OR_RETURN(auto inst, CreateSolverInstance(f, allow_unsupported));
+  XLS_ASSIGN_OR_RETURN(
+      auto inst,
+      CreateSolverInstance(f, {.allow_unsupported = allow_unsupported}));
   inst->SetLimit(limit);
   return inst->TryProve(subject, p, assumptions);
 }
@@ -1732,7 +1782,9 @@ absl::StatusOr<ProverResult> BitwuzlaSolver::TryProveCombination(
     FunctionBase* f, absl::Span<const PredicateOfNode> terms,
     PredicateCombination combination, const SolverLimit& limit,
     bool allow_unsupported, absl::Span<const PredicateOfNode> assumptions) {
-  XLS_ASSIGN_OR_RETURN(auto inst, CreateSolverInstance(f, allow_unsupported));
+  XLS_ASSIGN_OR_RETURN(
+      auto inst,
+      CreateSolverInstance(f, {.allow_unsupported = allow_unsupported}));
   inst->SetLimit(limit);
   return inst->TryProveCombination(terms, combination, assumptions);
 }
