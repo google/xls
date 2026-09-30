@@ -16,11 +16,12 @@
 
 #include <memory>
 #include <utility>
+#include <vector>
 
+#include "absl/status/statusor.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "xls/common/fuzzing/fuzztest.h"
-#include "absl/status/statusor.h"
 #include "xls/common/status/matchers.h"
 #include "xls/fuzzer/ir_fuzzer/ir_fuzz_domain.h"
 #include "xls/fuzzer/ir_fuzzer/ir_fuzz_test_library.h"
@@ -782,6 +783,65 @@ TEST_F(BasicSimplificationPassTest, EqNeOfSelectNotOrIncrementAgainstZero) {
                          m::Eq(m::Literal(Bits::AllOnes(32)), m::Param("x"))),
           testing::AnyOf(m::Ne(m::Param("x"), m::Literal(Bits::AllOnes(32))),
                          m::Ne(m::Literal(Bits::AllOnes(32)), m::Param("x")))));
+}
+
+TEST_F(BasicSimplificationPassTest, EqNeSelectOfComparedOperands) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetBitsType(32));
+  BValue y = fb.Param("y", p->GetBitsType(32));
+  BValue eq = fb.Eq(x, y);
+  BValue ne = fb.Ne(x, y);
+  BValue r = fb.Tuple({
+      fb.Select(eq, {x, y}),
+      fb.Select(eq, {y, x}),
+      fb.Select(ne, {x, y}),
+      fb.Select(ne, {y, x}),
+      fb.Select(eq, std::vector<BValue>{x}, /*default_value=*/y),
+      fb.Select(ne, std::vector<BValue>{x}, /*default_value=*/y),
+  });
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(r));
+
+  ScopedVerifyEquivalence sve(f);
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::Tuple(m::Param("x"), m::Param("y"), m::Param("y"),
+                       m::Param("x"), m::Param("x"), m::Param("y")));
+}
+
+TEST_F(BasicSimplificationPassTest, EqNePrioritySelectOfComparedOperands) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetBitsType(32));
+  BValue y = fb.Param("y", p->GetBitsType(32));
+  BValue eq = fb.Eq(x, y);
+  BValue ne = fb.Ne(x, y);
+  BValue r = fb.Tuple({
+      fb.PrioritySelect(eq, {y}, x),
+      fb.PrioritySelect(eq, {x}, y),
+      fb.PrioritySelect(ne, {y}, x),
+      fb.PrioritySelect(ne, {x}, y),
+  });
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(r));
+
+  ScopedVerifyEquivalence sve(f);
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(), m::Tuple(m::Param("x"), m::Param("y"),
+                                          m::Param("y"), m::Param("x")));
+}
+
+TEST_F(BasicSimplificationPassTest, EqSelectOfValueAndLiteral) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetBitsType(10));
+  BValue zero = fb.Literal(UBits(0, 10));
+  BValue eq = fb.Eq(x, zero);
+  BValue result = fb.Select(eq, {x, zero});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(result));
+
+  ScopedVerifyEquivalence sve(f);
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(), m::Param("x"));
 }
 
 TEST_F(BasicSimplificationPassTest, AddWithZero) {

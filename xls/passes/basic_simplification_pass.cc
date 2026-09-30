@@ -131,6 +131,33 @@ TryMatchEqOrNeSelectNotOrIncAgainstZero(Node* n) {
   return std::nullopt;
 }
 
+// Matches a binary select-like operation whose selector compares its two
+// possible values for equality or inequality:
+//
+//   sel(eq(x, y), cases=[x, y]) => x
+//   sel(ne(x, y), cases=[x, y]) => y
+//
+// The same identities hold with the arms swapped. MatchBinarySelectLike also
+// covers one-case/default selects and binary priority selects.
+absl::StatusOr<std::optional<Node*>> TryMatchEqNeSelectOfOperands(Node* n) {
+  XLS_ASSIGN_OR_RETURN(std::optional<BinarySelectView> sel,
+                       MatchBinarySelectLike(n));
+  if (!sel.has_value()) {
+    return std::nullopt;
+  }
+  Node* selector = sel->selector;
+  if (selector->op() != Op::kEq && selector->op() != Op::kNe) {
+    return std::nullopt;
+  }
+  Node* lhs = selector->operand(0);
+  Node* rhs = selector->operand(1);
+  if (!((sel->on_false == lhs && sel->on_true == rhs) ||
+        (sel->on_false == rhs && sel->on_true == lhs))) {
+    return std::nullopt;
+  }
+  return selector->op() == Op::kEq ? sel->on_false : sel->on_true;
+}
+
 // MatchPatterns matches simple tree patterns to find opportunities
 // for simplification.
 //
@@ -145,6 +172,17 @@ absl::StatusOr<bool> MatchPatterns(Node* n) {
     VLOG(2) << "FOUND: PrioritySel(bits[0], cases=[], default_value=X) => X";
     XLS_RETURN_IF_ERROR(
         n->ReplaceUsesWith(n->As<PrioritySelect>()->default_value()));
+    return true;
+  }
+
+  // Under equality, either arm is equal when the selector is true, so the
+  // false arm is valid unconditionally. Under inequality, the true arm is
+  // valid unconditionally.
+  XLS_ASSIGN_OR_RETURN(std::optional<Node*> eq_ne_select_replacement,
+                       TryMatchEqNeSelectOfOperands(n));
+  if (eq_ne_select_replacement.has_value()) {
+    VLOG(2) << "FOUND: select of operands compared by eq/ne";
+    XLS_RETURN_IF_ERROR(n->ReplaceUsesWith(*eq_ne_select_replacement));
     return true;
   }
 
