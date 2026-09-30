@@ -536,20 +536,6 @@ class OptimizationContext {
       shared_lazy_node_data_;
 };
 
-// Construct a query engine that forwards to the shared implementation from
-// 'ctx' on 'f' if the context is not null and otherwise creates a new engine
-// using the given args.
-//
-// TODO(allight): It might be nice to put this in OptimizationContext and force
-// there to always be a value there.
-template <typename QueryEngineT, typename... Args>
-  requires(std::is_base_of_v<QueryEngine, QueryEngineT>)
-MaybeOwnedForwardingQueryEngine<QueryEngineT> GetSharedQueryEngine(
-    OptimizationContext& ctx, FunctionBase* absl_nonnull f, Args... args) {
-  return MaybeOwnedForwardingQueryEngine<QueryEngineT>(
-      ctx.SharedQueryEngine<QueryEngineT>(f, args...));
-}
-
 // An object containing information about the invocation of a pass (single call
 // to PassBase::Run).
 // Defines the pass types for optimizations which operate strictly on XLS IR

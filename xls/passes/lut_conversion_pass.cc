@@ -408,7 +408,7 @@ absl::StatusOr<bool> LutConversionPass::RunOnFunctionBaseInternal(
 
   auto query_engine = UnionQueryEngine::Of(
       StatelessQueryEngine(),
-      GetSharedQueryEngine<LazyTernaryQueryEngine>(context, func));
+      context.SharedQueryEngine<LazyTernaryQueryEngine>(func));
   XLS_RETURN_IF_ERROR(query_engine.Populate(func).status());
 
   std::optional<DataflowGraphAnalysis> dataflow_graph_analysis;

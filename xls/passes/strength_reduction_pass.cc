@@ -796,7 +796,7 @@ absl::StatusOr<bool> StrengthReductionPass::RunOnFunctionBaseInternal(
     PassResults* results, OptimizationContext& context) const {
   auto query_engine = UnionQueryEngine::Of(
       StatelessQueryEngine(),
-      GetSharedQueryEngine<PartialInfoQueryEngine>(context, f));
+      context.SharedQueryEngine<PartialInfoQueryEngine>(f));
 
   XLS_RETURN_IF_ERROR(query_engine.Populate(f).status());
 

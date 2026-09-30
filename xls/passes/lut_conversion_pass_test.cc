@@ -67,7 +67,7 @@ absl::StatusOr<std::vector<Bits>> ComputeLutSelectCasesForNode(Function* f,
   OptimizationContext context;
   auto query_engine = UnionQueryEngine::Of(
       StatelessQueryEngine(),
-      GetSharedQueryEngine<LazyTernaryQueryEngine>(context, f));
+      context.SharedQueryEngine<LazyTernaryQueryEngine>(f));
   XLS_RETURN_IF_ERROR(query_engine.Populate(f).status());
 
   std::vector<LutConversionCandidate> candidates;

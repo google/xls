@@ -1436,9 +1436,8 @@ absl::StatusOr<bool> ReassociationPass::RunOnFunctionBaseInternal(
     FunctionBase* f, const OptimizationPassOptions& options,
     PassResults* results, OptimizationContext& context) const {
   UnionQueryEngine query_engine = UnionQueryEngine::Of(
-      StatelessQueryEngine(),
-      GetSharedQueryEngine<BitCountQueryEngine>(context, f),
-      GetSharedQueryEngine<LazyTernaryQueryEngine>(context, f));
+      StatelessQueryEngine(), context.SharedQueryEngine<BitCountQueryEngine>(f),
+      context.SharedQueryEngine<LazyTernaryQueryEngine>(f));
   XLS_RETURN_IF_ERROR(query_engine.Populate(f).status());
   Reassociation reassoc(f, query_engine, context);
   return reassoc.Reassociate();

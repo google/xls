@@ -201,7 +201,7 @@ absl::StatusOr<bool> ProcStateFSMPass::RunOnProcInternal(
     OptimizationContext& context) const {
   auto query_engine = UnionQueryEngine::Of(
       StatelessQueryEngine(),
-      GetSharedQueryEngine<LazyTernaryQueryEngine>(context, proc));
+      context.SharedQueryEngine<LazyTernaryQueryEngine>(proc));
 
   XLS_ASSIGN_OR_RETURN(
       bool constant_chains_changed,

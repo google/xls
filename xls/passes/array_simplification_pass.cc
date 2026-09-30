@@ -1668,7 +1668,7 @@ absl::StatusOr<bool> ArraySimplificationPass::RunOnFunctionBaseInternal(
 
   auto query_engine = UnionQueryEngine::Of(
       StatelessQueryEngine(),
-      GetSharedQueryEngine<LazyTernaryQueryEngine>(context, func));
+      context.SharedQueryEngine<LazyTernaryQueryEngine>(func));
   XLS_RETURN_IF_ERROR(query_engine.Populate(func).status());
 
   // Replace known OOB indicates with clamped value. This helps later

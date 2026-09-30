@@ -374,7 +374,7 @@ absl::StatusOr<bool> ProcStateEliminationPass::RunOnProcInternal(
 
   auto query_engine = UnionQueryEngine::Of(
       StatelessQueryEngine(),
-      GetSharedQueryEngine<LazyTernaryQueryEngine>(context, proc));
+      context.SharedQueryEngine<LazyTernaryQueryEngine>(proc));
 
   // Run constant state-element removal to fixed point; should usually take just
   // one additional pass to verify, except for chains like next_s1 := s1,

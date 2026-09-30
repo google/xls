@@ -200,7 +200,7 @@ absl::StatusOr<bool> MergeSelectorPass::RunOnFunctionBaseInternal(
 
   auto query_engine = UnionQueryEngine::Of(
       StatelessQueryEngine(),
-      GetSharedQueryEngine<LazyTernaryQueryEngine>(context, func));
+      context.SharedQueryEngine<LazyTernaryQueryEngine>(func));
   XLS_RETURN_IF_ERROR(query_engine.Populate(func).status());
 
   // By running in reverse topological order, the analyses will stay valid for
