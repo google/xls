@@ -267,6 +267,7 @@ absl::StatusOr<TestResult> RealMain(
       .trace_calls = trace_calls,
       .max_ticks = max_ticks,
   };
+  options.convert_options.configured_values = configured_values;
 
   // Create a results proto if requested and plumb it through options.
   xls::EvaluatorResultsProto results_proto;
@@ -314,6 +315,7 @@ absl::StatusOr<TestResult> RealMain(
         .convert_tests = is_convert_tests,
         .type_inference_v2 = is_type_inference_v2,
         .lower_to_proc_scoped_channels = true,
+        .configured_values = configured_values,
     };
     std::array<std::string_view, 1> module_path{entry_module_path};
 
@@ -321,8 +323,9 @@ absl::StatusOr<TestResult> RealMain(
         dslx_stdlib_path.string(), dslx_paths, ir_convert_options.warnings,
         std::make_unique<RealFilesystem>()));
 
-    absl::StatusOr<TypecheckedModule> tm = ParseAndTypecheck(
-        program, entry_module_path, module_name, &import_data);
+    absl::StatusOr<TypecheckedModule> tm =
+        ParseAndTypecheck(program, entry_module_path, module_name, &import_data,
+                          /*comments=*/nullptr, ir_convert_options);
 
     // Module conversion cannot be used because it skips CheckAcceptableTopProc.
     // Instead, we collect non-parametric processes and functions which are then

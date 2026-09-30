@@ -159,7 +159,7 @@ static absl::StatusOr<DslxPath> FindExistingPath(
     if (absl::StatusOr<std::string> runfile_path = GetXlsRunfilePath(
             absl::StrCat(GetXLSRootDir(), subject_parent_path->c_str()));
         runfile_path.ok() && vfs.FileExists(*runfile_path).ok()) {
-      return DslxPath{.source_path = subject_path,
+      return DslxPath{.source_path = *subject_parent_path,
                       .filesystem_path = *runfile_path};
     }
   }
@@ -212,6 +212,8 @@ static absl::StatusOr<std::unique_ptr<ModuleInfo>> DslxPathToModuleInfo(
   Scanner scanner(file_table, fileno, contents);
   Parser parser(/*module_name=*/fully_qualified_name, &scanner);
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<Module> module, parser.ParseModule());
+  module->SetConfiguredValuesMap(import_data->ResolveConfiguredValuesForModule(
+      fully_qualified_name, dslx_path.source_path, /*is_entry_module=*/false));
   return ftypecheck(std::move(module), dslx_path.source_path);
 }
 

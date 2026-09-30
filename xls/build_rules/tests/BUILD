@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
 load("@rules_cc//cc:cc_test.bzl", "cc_test")
 load("@rules_shell//shell:sh_test.bzl", "sh_test")
 load(
@@ -950,4 +951,91 @@ cc_test(
         "//xls/common:xls_gunit_main",
         "@googletest//:gtest",
     ],
+)
+
+################################################################################
+# Tests for module-scoped configured_values on xls_dslx_library.
+################################################################################
+xls_dslx_library(
+    name = "configured_value_dep_a_lib",
+    srcs = [
+        "configured_value_dep_a.x",
+        "configured_value_multi_unused.x",
+    ],
+    configured_values = {
+        "shared_key": "100",
+    },
+    warnings_as_errors = True,
+)
+
+xls_dslx_library(
+    name = "configured_value_dep_b_lib",
+    srcs = ["configured_value_dep_b.x"],
+    configured_values = {
+        "shared_key": "200",
+    },
+    warnings_as_errors = True,
+    deps = [":configured_value_dep_a_lib"],
+)
+
+xls_dslx_test(
+    name = "configured_value_library_scoping_test",
+    srcs = ["configured_value_top.x"],
+    configured_values = {
+        "shared_key": "50",
+    },
+    deps = [
+        ":configured_value_dep_a_lib",
+        ":configured_value_dep_b_lib",
+    ],
+)
+
+xls_dslx_library(
+    name = "configured_value_top_lib",
+    srcs = ["configured_value_top.x"],
+    configured_values = {
+        "shared_key": "10",
+    },
+    warnings_as_errors = True,
+    deps = [
+        ":configured_value_dep_a_lib",
+        ":configured_value_dep_b_lib",
+    ],
+)
+
+xls_dslx_library(
+    name = "type_definitions",
+    srcs = ["type_definitions.x"],
+)
+
+xls_dslx_test(
+    name = "configured_value_library_override_test",
+    configured_values = {
+        "shared_key": "50",
+    },
+    library = ":configured_value_top_lib",
+)
+
+xls_dslx_ir(
+    name = "configured_value_top_ir",
+    srcs = ["configured_value_top.x"],
+    configured_values = {
+        "shared_key": "50",
+    },
+    dslx_top = "compute",
+    deps = [
+        ":configured_value_dep_a_lib",
+        ":configured_value_dep_b_lib",
+    ],
+)
+
+xls_eval_ir_test(
+    name = "configured_value_top_eval_ir_test",
+    src = ":configured_value_top_ir",
+)
+
+bzl_library(
+    name = "test_build_defs_bzl",
+    srcs = ["test_build_defs.bzl"],
+    visibility = ["//visibility:private"],
 )

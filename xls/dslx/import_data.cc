@@ -17,6 +17,7 @@
 #include <cstddef>
 #include <filesystem>
 #include <memory>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -27,11 +28,15 @@
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
+#include "absl/strings/str_replace.h"
 #include "absl/strings/str_split.h"
+#include "absl/strings/strip.h"
 #include "absl/strings/substitute.h"
+#include "absl/types/span.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/bytecode/bytecode_cache_interface.h"
@@ -261,6 +266,191 @@ absl::Status ImportData::PopFromImporterStack(const Span& import_span) {
           << importer_stack_.back().imported_from.ToString(file_table());
   importer_stack_.pop_back();
   return absl::OkStatus();
+}
+
+namespace {
+
+std::string PathToDottedModuleId(std::string_view raw) {
+  std::string_view s = absl::StripSuffix(raw, ".x");
+  while (absl::StartsWith(s, "./")) {
+    s.remove_prefix(2);
+  }
+  while (absl::StartsWith(s, "/")) {
+    s.remove_prefix(1);
+  }
+  return absl::StrReplaceAll(s, {{"/", "."}});
+}
+
+std::optional<std::string_view> StripPathPrefix(std::string_view full_path,
+                                                std::string_view prefix) {
+  while (absl::StartsWith(full_path, "./")) {
+    full_path.remove_prefix(2);
+  }
+  while (absl::StartsWith(prefix, "./")) {
+    prefix.remove_prefix(2);
+  }
+  while (absl::EndsWith(prefix, "/")) {
+    prefix.remove_suffix(1);
+  }
+  if (prefix.empty()) {
+    return std::nullopt;
+  }
+  if (absl::StartsWith(full_path, prefix) && full_path.size() > prefix.size() &&
+      full_path[prefix.size()] == '/') {
+    std::string_view remainder = full_path.substr(prefix.size() + 1);
+    while (absl::StartsWith(remainder, "/")) {
+      remainder.remove_prefix(1);
+    }
+    return remainder;
+  }
+  return std::nullopt;
+}
+
+}  // namespace
+
+bool ImportData::ModuleMatchesScope(
+    std::string_view scope_id, std::string_view module_name,
+    const std::filesystem::path& module_path) const {
+  std::string norm_scope = PathToDottedModuleId(scope_id);
+  if (norm_scope.empty()) {
+    return false;
+  }
+  if (PathToDottedModuleId(module_name) == norm_scope) {
+    return true;
+  }
+  if (!module_path.empty()) {
+    std::string path_str = module_path.generic_string();
+    if (PathToDottedModuleId(path_str) == norm_scope) {
+      return true;
+    }
+    for (const std::filesystem::path& search_path : additional_search_paths_) {
+      if (std::optional<std::string_view> rel =
+              StripPathPrefix(path_str, search_path.generic_string());
+          rel.has_value() && PathToDottedModuleId(*rel) == norm_scope) {
+        return true;
+      }
+    }
+    if (!stdlib_path_.empty()) {
+      if (std::optional<std::string_view> rel =
+              StripPathPrefix(path_str, stdlib_path_.generic_string());
+          rel.has_value() && PathToDottedModuleId(*rel) == norm_scope) {
+        return true;
+      }
+    }
+    if (vfs_ != nullptr) {
+      if (absl::StatusOr<std::filesystem::path> cwd =
+              vfs_->GetCurrentDirectory();
+          cwd.ok() && !cwd->empty()) {
+        if (std::optional<std::string_view> rel =
+                StripPathPrefix(path_str, cwd->generic_string());
+            rel.has_value() && PathToDottedModuleId(*rel) == norm_scope) {
+          return true;
+        }
+      }
+    }
+  }
+  return false;
+}
+
+absl::Status ImportData::RegisterConfiguredValues(
+    absl::Span<const std::string> configured_values) {
+  for (const std::string& item : configured_values) {
+    std::vector<std::string> key_value =
+        absl::StrSplit(item, absl::MaxSplits(':', 1));
+    if (key_value.size() != 2) {
+      return absl::InvalidArgumentError(absl::StrFormat(
+          "Configured value '%s' is not in the form 'key:value'.", item));
+    }
+    std::string_view lhs = key_value[0];
+    const std::string& rhs = key_value[1];
+
+    ConfiguredValueGroup new_group;
+    new_group.value = rhs;
+    if (absl::StrContains(lhs, '@')) {
+      std::vector<std::string_view> key_scope =
+          absl::StrSplit(lhs, absl::MaxSplits('@', 1));
+      new_group.key = std::string(key_scope[0]);
+      for (std::string_view s : absl::StrSplit(key_scope[1], '+')) {
+        if (!s.empty()) {
+          new_group.scope_modules.push_back(std::string(s));
+        }
+      }
+      if (new_group.scope_modules.empty()) {
+        return absl::InvalidArgumentError(absl::StrFormat(
+            "Configured value '%s' has empty module scope after '@'.", item));
+      }
+    } else {
+      new_group.key = std::string(lhs);
+    }
+    if (new_group.key.empty()) {
+      return absl::InvalidArgumentError(
+          absl::StrFormat("Configured value '%s' has an empty key.", item));
+    }
+
+    bool duplicate = false;
+    for (const auto& existing : configured_value_groups_) {
+      if (existing.key != new_group.key) {
+        continue;
+      }
+      if (existing.scope_modules.empty() && new_group.scope_modules.empty()) {
+        if (existing.value == new_group.value) {
+          duplicate = true;
+          break;
+        }
+        return absl::InvalidArgumentError(
+            absl::StrFormat("Conflicting unscoped configured values for key "
+                            "'%s': '%s' vs '%s'.",
+                            new_group.key, existing.value, new_group.value));
+      }
+      if (!existing.scope_modules.empty() && !new_group.scope_modules.empty()) {
+        if (existing.scope_modules == new_group.scope_modules &&
+            existing.value == new_group.value) {
+          duplicate = true;
+          break;
+        }
+        for (const std::string& s1 : existing.scope_modules) {
+          for (const std::string& s2 : new_group.scope_modules) {
+            if (PathToDottedModuleId(s1) == PathToDottedModuleId(s2) &&
+                existing.value != new_group.value) {
+              return absl::InvalidArgumentError(absl::StrFormat(
+                  "Conflicting configured values for key '%s' on module '%s': "
+                  "'%s' vs '%s'.",
+                  new_group.key, s1, existing.value, new_group.value));
+            }
+          }
+        }
+      }
+    }
+    if (!duplicate) {
+      configured_value_groups_.push_back(std::move(new_group));
+    }
+  }
+  return absl::OkStatus();
+}
+
+absl::flat_hash_map<std::string, std::string>
+ImportData::ResolveConfiguredValuesForModule(
+    std::string_view module_name, const std::filesystem::path& module_path,
+    bool is_entry_module) {
+  absl::flat_hash_map<std::string, std::string> result;
+  for (const auto& group : configured_value_groups_) {
+    if (!group.scope_modules.empty()) {
+      for (const std::string& scope_id : group.scope_modules) {
+        if (ModuleMatchesScope(scope_id, module_name, module_path)) {
+          result[group.key] = group.value;
+          break;
+        }
+      }
+    }
+  }
+  if (is_entry_module) {
+    for (const auto& group : configured_value_groups_) {
+      if (group.scope_modules.empty()) {
+        result[group.key] = group.value;
+      }
+    }
+  }
+  return result;
 }
 
 }  // namespace xls::dslx

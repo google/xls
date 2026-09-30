@@ -68,7 +68,10 @@ absl::StatusOr<TypecheckedModule> ParseAndTypecheck(
                        ParseModule(text, path, module_name,
                                    import_data->file_table(), comments));
 
-  XLS_RETURN_IF_ERROR(module->SetConfiguredValues(options.configured_values));
+  XLS_RETURN_IF_ERROR(
+      import_data->RegisterConfiguredValues(options.configured_values));
+  module->SetConfiguredValuesMap(import_data->ResolveConfiguredValuesForModule(
+      module_name, path, /*is_entry_module=*/true));
   return TypecheckModule(std::move(module), path, import_data, error_handler,
                          trait_deriver, /*transform_test_functions=*/true);
 }
@@ -136,6 +139,8 @@ absl::StatusOr<TypecheckedModule> TypecheckModule(
                            ParseModule(new_module_as_string, path, module_name,
                                        import_data->file_table(),
                                        /*comments=*/nullptr));
+      newly_parsed_module->SetConfiguredValuesMap(
+          module_info->module().configured_values());
       // Keep the old module alive until import_data is destroyed.
       import_data->KeepAlive(std::move(module_info));
       return TypecheckModule(std::move(newly_parsed_module), path, import_data,

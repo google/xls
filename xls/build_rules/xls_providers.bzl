@@ -35,6 +35,9 @@ DslxInfo = provider(
         "target_dslx_source_files": "List: A list containing the DSLX source " +
                                     "(.x) files of the xls_dslx_library " +
                                     "target.",
+        "configured_values": "Depset: A depset of module-scoped configured value " +
+                             "strings ('key@mod_1+...+mod_n:value') from this " +
+                             "target and its transitive xls_dslx_library dependencies.",
     },
 )
 

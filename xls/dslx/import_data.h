@@ -42,9 +42,19 @@
 #include "xls/dslx/type_system_v2/inference_table_converter.h"
 #include "xls/dslx/type_system_v2/trait_deriver.h"
 #include "xls/dslx/virtualizable_file_system.h"
+#include "xls/dslx/warning_collector.h"
 #include "xls/dslx/warning_kind.h"
 
 namespace xls::dslx {
+
+struct ConfiguredValueGroup {
+  std::string key;
+  std::string value;
+  // Empty means unscoped (applies only to entry module).
+  // Non-empty means scoped to these module identifiers (from
+  // key@mod_1+...+mod_n:value).
+  std::vector<std::string> scope_modules;
+};
 
 // An entry that goes into the ImportData.
 class ModuleInfo {
@@ -286,6 +296,29 @@ class ImportData {
 
   VirtualizableFilesystem& vfs() const { return *vfs_; }
 
+  // Registers raw `--configured_values` entries (`key:value` or
+  // `key@mod_1+...+mod_n:value`). Deduplicates identical entries and returns
+  // InvalidArgumentError if conflicting values are specified for overlapping
+  // scopes.
+  absl::Status RegisterConfiguredValues(
+      absl::Span<const std::string> configured_values);
+
+  // Resolves the effective `key -> value` map for a given module, recording
+  // that the module was loaded in this `ImportData`.
+  // If `is_entry_module` is true, unscoped values apply and override `@`-scoped
+  // values for the same key. If `is_entry_module` is false, ONLY `@`-scoped
+  // values matching `module_name` or `module_path` apply.
+  absl::flat_hash_map<std::string, std::string>
+  ResolveConfiguredValuesForModule(std::string_view module_name,
+                                   const std::filesystem::path& module_path,
+                                   bool is_entry_module);
+
+  // Returns true if `module_name` or `module_path` (normalized relative to
+  // configured search paths) matches `scope_id`.
+  bool ModuleMatchesScope(std::string_view scope_id,
+                          std::string_view module_name,
+                          const std::filesystem::path& module_path) const;
+
  private:
   friend ImportData CreateImportData(const std::filesystem::path&,
                                      absl::Span<const std::filesystem::path>,
@@ -347,6 +380,8 @@ class ImportData {
   std::unique_ptr<TraitDeriver> builtin_trait_deriver_;
 
   std::unique_ptr<VirtualizableFilesystem> vfs_;
+
+  std::vector<ConfiguredValueGroup> configured_value_groups_;
 };
 
 }  // namespace xls::dslx

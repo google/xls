@@ -20,6 +20,8 @@
 
 #include "xls/dslx/ir_convert/ir_converter.h"
 
+#include <cctype>
+#include <filesystem>
 #include <memory>
 #include <optional>
 #include <string>
@@ -32,6 +34,8 @@
 #include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_cat.h"
+#include "absl/strings/str_format.h"
 #include "xls/common/file/temp_file.h"
 #include "xls/common/status/matchers.h"
 #include "xls/dslx/create_import_data.h"
@@ -8478,6 +8482,55 @@ impl TopProc {
   EXPECT_THAT(converted, HasSubstr("proc __test_module__ChildProc_next"));
   EXPECT_THAT(converted, HasSubstr("proc __test_module__TopProc_next"));
   EXPECT_THAT(converted, Not(HasSubstr("TestProc")));
+}
+
+TEST_F(IrConverterTest, ConfiguredValueScopedAndUnscopedAcrossImports) {
+  constexpr std::string_view kDepProgram = R"(
+pub fn get_dep() -> u32 {
+  configured_value_or<u32>("shared_key", 1)
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(xls::TempFile dep_temp,
+                           xls::TempFile::CreateWithContent(kDepProgram, ".x"));
+  std::string dep_mod_name = dep_temp.path().stem().string();
+  for (char& c : dep_mod_name) {
+    if (!std::isalnum(static_cast<unsigned char>(c)) && c != '_') {
+      c = '_';
+    }
+  }
+  std::filesystem::path dep_clean_path =
+      dep_temp.path().parent_path() / absl::StrCat(dep_mod_name, ".x");
+  std::filesystem::rename(dep_temp.path(), dep_clean_path);
+
+  std::string entry_program = absl::StrFormat(R"(
+import %s;
+pub fn main() -> u32 {
+  %s::get_dep() + configured_value_or<u32>("shared_key", 2)
+}
+)",
+                                              dep_mod_name, dep_mod_name);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      xls::TempFile entry_temp,
+      xls::TempFile::CreateWithContent(entry_program, ".x"));
+
+  ConvertOptions options = kProcScopedChannelOptions;
+  options.emit_positions = false;
+  options.configured_values = {
+      absl::StrCat("shared_key@", dep_mod_name, ":u32:100"),
+      "shared_key:u32:23",
+  };
+  const std::string entry_str_path = entry_temp.path().string();
+  bool printed_error = false;
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PackageConversionData result,
+      ConvertFilesToPackage({entry_str_path}, /*stdlib_path=*/"",
+                            {dep_clean_path.parent_path()}, options,
+                            /*top=*/"main", /*package_name=*/"test_pkg",
+                            &printed_error));
+  std::string ir = result.DumpIr();
+  EXPECT_THAT(ir, HasSubstr("ret literal.3: bits[32] = literal(value=100"));
+  EXPECT_THAT(ir, HasSubstr("literal(value=23"));
+  std::filesystem::remove(dep_clean_path);
 }
 
 }  // namespace

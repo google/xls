@@ -17,7 +17,6 @@
 #include <optional>
 #include <string>
 #include <string_view>
-#include <utility>
 #include <vector>
 
 #include "absl/flags/flag.h"
@@ -34,8 +33,12 @@
 #include "xls/dslx/command_line_utils.h"
 #include "xls/dslx/create_import_data.h"
 #include "xls/dslx/default_dslx_stdlib_path.h"
+#include "xls/dslx/error_printer.h"
+#include "xls/dslx/import_data.h"
+#include "xls/dslx/ir_convert/convert_options.h"
 #include "xls/dslx/parse_and_typecheck.h"
 #include "xls/dslx/virtualizable_file_system.h"
+#include "xls/dslx/warning_collector.h"
 #include "xls/dslx/warning_kind.h"
 
 // TODO: https://github.com/google/xls/issues/2498 - Consider consolidating
@@ -56,44 +59,61 @@ ABSL_FLAG(bool, warnings_as_errors, true,
           "Whether to fail early, as an error, if warnings are detected");
 ABSL_FLAG(std::optional<bool>, type_inference_v2, std::nullopt,
           "Whether to use type system v2 when type checking the input.");
+ABSL_FLAG(std::vector<std::string>, configured_values, {},
+          "Comma-delimited list of configured_values of the form "
+          "'key:value' or 'key@mod_1+...+mod_n:value'.");
 
 namespace xls::dslx {
 namespace {
 
 static constexpr std::string_view kUsage = R"(
-Parses and typechecks a DSLX module.
+Parses and typechecks one or more DSLX modules.
 )";
 
-absl::Status RealMain(std::string_view entry_module_path,
+absl::Status RealMain(absl::Span<const std::string_view> entry_module_paths,
                       absl::Span<const std::filesystem::path> dslx_paths,
                       const std::filesystem::path& dslx_stdlib_path,
-                      bool warnings_as_errors) {
+                      bool warnings_as_errors,
+                      absl::Span<const std::string> configured_values) {
   XLS_ASSIGN_OR_RETURN(
       WarningKindSet warnings,
       GetWarningsSetFromFlags(absl::GetFlag(FLAGS_enable_warnings),
                               absl::GetFlag(FLAGS_disable_warnings)));
-  std::unique_ptr<VirtualizableFilesystem> vfs =
-      std::make_unique<RealFilesystem>();
-
-  XLS_ASSIGN_OR_RETURN(std::string program,
-                       vfs->GetFileContents(entry_module_path));
-  XLS_ASSIGN_OR_RETURN(std::string module_name, PathToName(entry_module_path));
 
   ParseAndTypecheckOptions options = {.dslx_stdlib_path = dslx_stdlib_path,
                                       .dslx_paths = dslx_paths,
                                       .warnings_as_errors = warnings_as_errors,
                                       .warnings = warnings};
 
-  auto import_data =
-      CreateImportData(options.dslx_stdlib_path, options.dslx_paths,
-                       options.warnings, std::move(vfs));
+  ConvertOptions convert_options;
+  convert_options.configured_values.assign(configured_values.begin(),
+                                           configured_values.end());
 
-  absl::StatusOr<TypecheckedModule> tm = ParseAndTypecheck(
-      program, entry_module_path, module_name, &import_data, nullptr);
-  if (!tm.ok()) {
-    TryPrintError(tm.status(), import_data.file_table(), import_data.vfs());
+  for (std::string_view entry_module_path : entry_module_paths) {
+    auto import_data =
+        CreateImportData(options.dslx_stdlib_path, options.dslx_paths,
+                         options.warnings, std::make_unique<RealFilesystem>());
+
+    XLS_ASSIGN_OR_RETURN(std::string program,
+                         import_data.vfs().GetFileContents(entry_module_path));
+    XLS_ASSIGN_OR_RETURN(std::string module_name,
+                         PathToName(entry_module_path));
+    absl::StatusOr<TypecheckedModule> tm =
+        ParseAndTypecheck(program, entry_module_path, module_name, &import_data,
+                          /*comments=*/nullptr, convert_options);
+    if (!tm.ok()) {
+      TryPrintError(tm.status(), import_data.file_table(), import_data.vfs());
+      return tm.status();
+    }
+    if (!tm->warnings.empty()) {
+      PrintWarnings(tm->warnings, import_data.file_table(), import_data.vfs());
+      if (warnings_as_errors) {
+        return absl::InvalidArgumentError(
+            "Warnings encountered and warnings-as-errors set.");
+      }
+    }
   }
-  return tm.status();
+  return absl::OkStatus();
 }
 
 }  // namespace
@@ -105,7 +125,7 @@ int main(int argc, char* argv[]) {
   if (args.empty()) {
     LOG(QFATAL) << "Wrong number of command-line arguments; got " << args.size()
                 << ": `" << absl::StrJoin(args, " ") << "`; want " << argv[0]
-                << " <input-file>";
+                << " <input-file>...";
   }
   std::string dslx_path = absl::GetFlag(FLAGS_dslx_path);
   std::vector<std::string> dslx_path_strs = absl::StrSplit(dslx_path, ':');
@@ -119,8 +139,11 @@ int main(int argc, char* argv[]) {
 
   std::filesystem::path dslx_stdlib_path =
       absl::GetFlag(FLAGS_dslx_stdlib_path);
+  std::vector<std::string> configured_values =
+      absl::GetFlag(FLAGS_configured_values);
 
-  absl::Status status = xls::dslx::RealMain(
-      args[0], dslx_paths, dslx_stdlib_path, warnings_as_errors);
+  absl::Status status =
+      xls::dslx::RealMain(args, dslx_paths, dslx_stdlib_path,
+                          warnings_as_errors, configured_values);
   return xls::ExitStatus(status);
 }

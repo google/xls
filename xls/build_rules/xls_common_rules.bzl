@@ -17,6 +17,7 @@
 load(
     "//xls/build_rules:xls_providers.bzl",
     "ConvIrInfo",
+    "DslxInfo",
     "IrFileInfo",
     "OptIrArgInfo",
 )
@@ -376,3 +377,92 @@ def fixup_extra_args(inp):
         else:
             res[-1] = res[-1][:-1] + "," + v
     return res
+
+def get_dslx_module_scope_for_file(f):
+    """Returns the canonical dot-separated module ID for a DSLX source File.
+
+    Derives the module scope by stripping the file's search path roots
+    (f.root.path and f.owner.workspace_root) from f.path, stripping the .x
+    extension, and replacing '/' with '.'.
+
+    Args:
+      f: A DSLX source File.
+
+    Returns:
+      The dot-separated module scope string.
+    """
+    path = f.path
+    if f.root.path and path.startswith(f.root.path + "/"):
+        path = path[len(f.root.path) + 1:]
+    if (
+        f.owner and
+        f.owner.workspace_root and
+        path.startswith(f.owner.workspace_root + "/")
+    ):
+        path = path[len(f.owner.workspace_root) + 1:]
+    if path.endswith(".x"):
+        path = path[:-2]
+    path = path.lstrip("./")
+    return path.replace("/", ".")
+
+def format_scoped_configured_values(srcs, configured_values_dict):
+    """Formats target configured_values dict into ['key@mod_1+...+mod_n:value'].
+
+    Args:
+      srcs: A list of DSLX source Files belonging to the target.
+      configured_values_dict: A dictionary of key/value configured overrides.
+
+    Returns:
+      A list of formatted module-scoped configured_values strings.
+    """
+    if not configured_values_dict or not srcs:
+        return []
+    scope_str = "+".join([get_dslx_module_scope_for_file(s) for s in srcs])
+    return [
+        "{}@{}:{}".format(k, scope_str, v)
+        for k, v in configured_values_dict.items()
+    ]
+
+def collect_dslx_configured_values(ctx):
+    """Collects transitive and direct configured_values for a DSLX target.
+
+    Args:
+      ctx: The current rule's context object.
+
+    Returns:
+      A list of formatted configured_values strings ('key@mod_1+...+mod_n:value'
+      followed by 'key:value').
+    """
+    dep_depsets = []
+    lib_scope_str = ""
+    if getattr(ctx.attr, "library", None) and DslxInfo in ctx.attr.library:
+        dep_depsets.append(ctx.attr.library[DslxInfo].configured_values)
+        lib_srcs = ctx.attr.library[DslxInfo].target_dslx_source_files
+        if lib_srcs:
+            lib_scope_str = "+".join([
+                get_dslx_module_scope_for_file(s)
+                for s in lib_srcs
+            ])
+    if getattr(ctx.attr, "dep", None) and DslxInfo in ctx.attr.dep:
+        dep_depsets.append(ctx.attr.dep[DslxInfo].configured_values)
+    for dep in getattr(ctx.attr, "deps", []):
+        if DslxInfo in dep:
+            dep_depsets.append(dep[DslxInfo].configured_values)
+
+    direct_dict = getattr(ctx.attr, "configured_values", {})
+    overridden_scoped_lhs = {}
+    for k in direct_dict:
+        overridden_scoped_lhs[k] = True
+        if lib_scope_str:
+            overridden_scoped_lhs["{}@{}".format(k, lib_scope_str)] = True
+
+    transitive_scoped = []
+    for entry in depset(transitive = dep_depsets).to_list():
+        lhs = entry.split(":", 1)[0]
+        if lhs not in overridden_scoped_lhs:
+            transitive_scoped.append(entry)
+
+    unscoped = []
+    for k, v in direct_dict.items():
+        unscoped.append("{}:{}".format(k, v))
+    return transitive_scoped + unscoped

@@ -20,6 +20,7 @@ load(
     "append_cmd_line_args_to",
     "append_default_to_args",
     "args_to_string",
+    "collect_dslx_configured_values",
     "get_runfiles_for_xls",
     "get_transitive_built_files_for_xls",
     "is_args_valid",
@@ -130,8 +131,12 @@ def _get_dslx_test_cmdline(ctx, src, all_srcs, append_cmd_line_args = True):
     # e.g., Label("@repo//pkg/xls:binary").workspace_root == "external/repo"
     wsroot = ctx.attr._xls_dslx_interpreter_tool.label.workspace_root
     wsroot_dslx_path = ":{}".format(wsroot) if wsroot != "" else ""
-    dslx_srcs_wsroot = ":".join([s.owner.workspace_root for s in all_srcs] +
-                                [ctx.genfiles_dir.path + "/" + s.owner.workspace_root for s in all_srcs])
+    dslx_srcs_wsroot = ":".join(
+        [s.root.path for s in all_srcs if s.root.path] +
+        [s.owner.workspace_root for s in all_srcs] +
+        [ctx.genfiles_dir.path + "/" + s.owner.workspace_root for s in all_srcs] +
+        [ctx.bin_dir.path + "/" + s.owner.workspace_root for s in all_srcs],
+    )
     dslx_srcs_wsroot_path = ":{}".format(dslx_srcs_wsroot) if dslx_srcs_wsroot != "" else ""
 
     dslx_test_args["dslx_path"] = (
@@ -139,11 +144,9 @@ def _get_dslx_test_cmdline(ctx, src, all_srcs, append_cmd_line_args = True):
         ctx.genfiles_dir.path + ":" + ctx.bin_dir.path +
         dslx_srcs_wsroot_path + wsroot_dslx_path
     )
-    if ctx.attr.configured_values:
-        formatted_values = []
-        for k, v in ctx.attr.configured_values.items():
-            formatted_values.append("{}:{}".format(k, v))
-        dslx_test_args["configured_values"] = ",".join(formatted_values)
+    all_configured_values = collect_dslx_configured_values(ctx)
+    if all_configured_values:
+        dslx_test_args["configured_values"] = ",".join(all_configured_values)
     is_args_valid(dslx_test_args, DSLX_TEST_FLAGS)
     dslx_test_args["evaluator"] = ctx.attr.evaluator
     my_args = args_to_string(dslx_test_args)

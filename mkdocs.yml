@@ -80,6 +80,7 @@ nav:
       - Proc-scoped channels: 'design_docs/proc_scoped_channels.md'
       - Synchronous Procs: 'design_docs/synchronous_procs.md'
       - DSLX Pattern Exhaustiveness: 'design_docs/dslx_pattern_exhaustiveness.md'
+      - DSLX Configured Values: 'design_docs/dslx_configured_values.md'
       - Optimizations:
         - Value Set Simplification:
           - Division: 'design_docs/optimizations/value_set_simp/division_simplification_design.md'

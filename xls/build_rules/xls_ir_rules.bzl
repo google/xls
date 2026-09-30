@@ -22,6 +22,7 @@ load(
     "append_cmd_line_args_to",
     "append_default_to_args",
     "args_to_string",
+    "collect_dslx_configured_values",
     "fixup_extra_args",
     "get_original_input_files_for_xls",
     "get_output_filename_value",
@@ -167,8 +168,12 @@ def _convert_to_ir(ctx, src):
 
     # Get workspaces for the source as well.
     dslx_srcs = [src]
-    dslx_srcs_wsroot = ":".join([s.owner.workspace_root for s in dslx_srcs] +
-                                [ctx.genfiles_dir.path + "/" + s.owner.workspace_root for s in dslx_srcs])
+    dslx_srcs_wsroot = ":".join(
+        [s.root.path for s in dslx_srcs if s.root.path] +
+        [s.owner.workspace_root for s in dslx_srcs] +
+        [ctx.genfiles_dir.path + "/" + s.owner.workspace_root for s in dslx_srcs] +
+        [ctx.bin_dir.path + "/" + s.owner.workspace_root for s in dslx_srcs],
+    )
     dslx_srcs_wsroot_path = ":{}".format(dslx_srcs_wsroot) if dslx_srcs_wsroot != "" else ""
 
     ir_conv_args = dict(ctx.attr.ir_conv_args)
@@ -197,11 +202,9 @@ def _convert_to_ir(ctx, src):
         # don't mix well with short-flags.
         my_args.add("--{}={}".format(flag, value))
 
-    if ctx.attr.configured_values:
-        formatted_values = []
-        for k, v in ctx.attr.configured_values.items():
-            formatted_values.append("{}:{}".format(k, v))
-        my_args.add("--configured_values={}".format(",".join(formatted_values)))
+    all_configured_values = collect_dslx_configured_values(ctx)
+    if all_configured_values:
+        my_args.add("--configured_values={}".format(",".join(all_configured_values)))
 
     ir_filename = get_output_filename_value(
         ctx,

@@ -382,19 +382,9 @@ class Module : public AstNode {
 
   FileTable* file_table() const { return file_table_; }
 
-  absl::Status SetConfiguredValues(std::vector<std::string> configured_values) {
-    absl::flat_hash_map<std::string, std::string> configured_values_map;
-    for (const auto& item : configured_values) {
-      std::vector<std::string> key_value =
-          absl::StrSplit(item, absl::MaxSplits(':', 1));
-      if (key_value.size() != 2) {
-        return absl::InvalidArgumentError(absl::StrFormat(
-            "Configured value '%s' is not in the form 'key:value'.", item));
-      }
-      configured_values_map.insert({key_value[0], key_value[1]});
-    }
-    configured_values_ = std::move(configured_values_map);
-    return absl::OkStatus();
+  void SetConfiguredValuesMap(
+      absl::flat_hash_map<std::string, std::string> configured_values) {
+    configured_values_ = std::move(configured_values);
   }
 
   const absl::flat_hash_map<std::string, std::string>& configured_values()

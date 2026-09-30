@@ -20,6 +20,7 @@ load(
     "//xls/build_rules:xls_common_rules.bzl",
     "append_cmd_line_args_to",
     "args_to_string",
+    "format_scoped_configured_values",
     "get_runfiles_for_xls",
     "get_transitive_built_files_for_xls",
 )
@@ -39,7 +40,6 @@ load(
 )
 
 _H_FILE_EXTENSION = ".h"
-_CC_FILE_EXTENSION = ".cc"
 _SV_FILE_EXTENSION = ".sv"
 
 def get_transitive_dslx_srcs_files_depset(srcs, deps):
@@ -78,6 +78,13 @@ def get_transitive_dslx_placeholder_files_depset(srcs, deps):
     return depset(
         srcs,
         transitive = [dep[DslxInfo].dslx_placeholder_files for dep in deps],
+    )
+
+def get_transitive_dslx_configured_values_depset(direct_scoped_values, deps):
+    """Returns a depset of transitive module-scoped configured value strings."""
+    return depset(
+        direct_scoped_values,
+        transitive = [dep[DslxInfo].configured_values for dep in deps],
     )
 
 def _get_dslx_prove_quickcheck_test_cmdline(ctx, src, all_srcs, append_cmd_line_args = True):
@@ -158,6 +165,13 @@ def get_DslxInfo_from_dslx_library_as_input(ctx):
                 [],
                 ctx.attr.deps,
             ),
+            configured_values = get_transitive_dslx_configured_values_depset(
+                format_scoped_configured_values(
+                    ctx.files.srcs,
+                    getattr(ctx.attr, "configured_values", {}),
+                ),
+                ctx.attr.deps,
+            ),
         )
         count += 1
 
@@ -179,6 +193,11 @@ _xls_dslx_library_attrs = {
     "warnings_as_errors": attr.bool(
         doc = "Whether warnings are errors within this library definition.",
         mandatory = False,
+    ),
+    "configured_values": attr.string_dict(
+        doc = "Dictionary of overrides to use for overridable constants " +
+              "scoped to the DSLX modules in this library. " +
+              "Format is \"key\":\"value\" pairs.",
     ),
 }
 
@@ -227,31 +246,50 @@ def _xls_dslx_library_impl(ctx):
     # e.g., Label("@repo//pkg/xls:binary").workspace_root == "external/repo"
     wsroot = ctx.attr._xls_dslx_parse_and_typecheck_tool.label.workspace_root
     wsroot_dslx_path = ":{}".format(wsroot) if wsroot != "" else ""
-    dslx_srcs_wsroot = ":".join([s.owner.workspace_root for s in my_srcs_list] +
-                                [ctx.genfiles_dir.path + "/" + s.owner.workspace_root for s in my_srcs_list])
+    all_library_srcs = get_transitive_dslx_srcs_files_depset(
+        my_srcs_list,
+        ctx.attr.deps,
+    ).to_list()
+    dslx_srcs_wsroot = ":".join(
+        [s.root.path for s in all_library_srcs if s.root.path] +
+        [s.owner.workspace_root for s in all_library_srcs] +
+        [ctx.genfiles_dir.path + "/" + s.owner.workspace_root for s in all_library_srcs] +
+        [ctx.bin_dir.path + "/" + s.owner.workspace_root for s in all_library_srcs],
+    )
     dslx_srcs_wsroot_path = ":{}".format(dslx_srcs_wsroot) if dslx_srcs_wsroot != "" else ""
+
+    direct_scoped_values = format_scoped_configured_values(
+        my_srcs_list,
+        ctx.attr.configured_values,
+    )
+    configured_values_depset = get_transitive_dslx_configured_values_depset(
+        direct_scoped_values,
+        ctx.attr.deps,
+    )
+    all_configured_values = configured_values_depset.to_list()
+    configured_values_flag = (
+        " --configured_values={}".format(",".join(all_configured_values)) if all_configured_values else ""
+    )
 
     ctx.actions.run_shell(
         outputs = [placeholder_file],
         tools = [dslx_parse_and_typecheck_tool],
         inputs = runfiles.files,
-        # Generate a placeholder file for the DSLX source file when the source file is
-        # successfully parsed and type checked.
-        # TODO (vmirian) 01-05-21 Enable the interpreter to take multiple files.
         command = "\n".join([
             "FILES=\"{}\"".format(dslx_srcs_str),
-            "for file in $FILES; do",
-            "{} $file --dslx_path={}{}".format(
+            "if [ -n \"$FILES\" ]; then",
+            "{} $FILES --dslx_path={}{}{}".format(
                 dslx_parse_and_typecheck_tool.path,
                 ":${PWD}:" + ctx.genfiles_dir.path + ":" + ctx.bin_dir.path +
                 dslx_srcs_wsroot_path + wsroot_dslx_path,
                 " --warnings_as_errors=false" if not ctx.attr.warnings_as_errors else "",
+                configured_values_flag,
             ),
             "if [ $? -ne 0 ]; then",
-            "echo \"Error parsing and type checking DSLX source file: $file\"",
+            "echo \"Error parsing and type checking DSLX source files: $FILES\"",
             "exit -1",
             "fi",
-            "done",
+            "fi",
             "touch {}".format(placeholder_file.path),
             "exit 0",
         ]),
@@ -273,6 +311,7 @@ def _xls_dslx_library_impl(ctx):
                 ctx.attr.deps,
             ),
             dslx_placeholder_files = placeholder_files_depset,
+            configured_values = configured_values_depset,
         ),
         DefaultInfo(
             files = placeholder_files_depset,
