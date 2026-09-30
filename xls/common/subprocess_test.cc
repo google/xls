@@ -45,6 +45,10 @@ TEST(SubprocessTest, EmptyArgvFails) {
   EXPECT_THAT(result, StatusIs(absl::StatusCode::kInvalidArgument));
 }
 
+// TODO: the binaries we call in our tests (pwd, env, bash) make
+// assumptions about the system. We should probably have our own little
+// binary that we can invoke and test various aspects.
+
 TEST(SubprocessTest, WorkingDirectoryDoesNotChangeParent) {
   XLS_ASSERT_OK_AND_ASSIGN(TempDirectory directory, TempDirectory::Create());
   const std::filesystem::path parent_directory =
@@ -66,11 +70,15 @@ TEST(SubprocessTest, RelativeExecutableUsesChildWorkingDirectory) {
     return;
   }
   XLS_ASSERT_OK_AND_ASSIGN(TempDirectory directory, TempDirectory::Create());
-  std::filesystem::create_symlink("/bin/pwd", directory.path() / "command");
+
+  // We symlink the /bin/pwd to our test directory, but with the same
+  // name: often pwd itself is a symlink to coreutils which requires
+  // argv[0] to be named exactly that.
+  std::filesystem::create_symlink("/bin/pwd", directory.path() / "pwd");
 
   XLS_ASSERT_OK_AND_ASSIGN(SubprocessResult result,
                            SubprocessErrorAsStatus(InvokeSubprocess(
-                               {"./command", "-P"}, directory.path())));
+                               {"./pwd", "-P"}, directory.path())));
 
   EXPECT_EQ(result.stdout_content,
             std::filesystem::canonical(directory.path()).string() + "\n");
