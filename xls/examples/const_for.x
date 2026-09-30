@@ -36,7 +36,7 @@ proc ConstForInst {
 
 impl ConstForInst {
     fn new(req_r: chan<()> in, resp_s: chan<u32> out) -> Self {
-        ConstForInst { req_r, resp_s }
+        Self { req_r, resp_s }
     }
 
     fn next(self) {
@@ -64,7 +64,7 @@ impl ConstForProcSpawnTest {
         const for (idx, _): (u32, ()) in u32:0..NUM_OF_CHANNELS {
             ConstForInst::new(req_r[idx], resp_s[idx]).spawn();
         }(());
-        ConstForProcSpawnTest { req_s, resp_r, terminator }
+        Self { req_s, resp_r, terminator }
     }
 
     fn next(self) {

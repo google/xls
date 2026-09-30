@@ -181,7 +181,7 @@ impl Producer {
     fn new(input_s: chan<u32> out) -> Self {
         // A comment inside config.
         let x = u32:42;
-        Producer { s: input_s, state: 0 }
+        Self { s: input_s, state: 0 }
     }
 
     fn next(self) {
@@ -238,7 +238,7 @@ proc Producer {
 
 impl Producer {
     fn new(s: chan<u32> out) -> Self {
-        Producer { s }
+        Self { s }
     }
 
     fn next(self) {
@@ -252,7 +252,7 @@ proc Consumer {
 
 impl Consumer {
     fn new(r: chan<u32> in) -> Self {
-        Consumer { r }
+        Self { r }
     }
 
     fn next(self) {
@@ -267,7 +267,7 @@ impl Main {
         let (s, r) = chan<u32>("my_chan");
         Producer::new(s).spawn();
         Consumer::new(r).spawn();
-        Main {}
+        Self {}
     }
 }
 )");
@@ -293,7 +293,7 @@ proc Producer {
 
 impl Producer {
     fn new(s: chan<u32> out) -> Self {
-        Producer { s }
+        Self { s }
     }
 
     fn next(self) {
@@ -323,7 +323,7 @@ proc Stateful {
 
 impl Stateful {
     fn new() -> Self {
-        Stateful { state: 0 }
+        Self { state: 0 }
     }
 
     fn next(self) {
@@ -371,7 +371,7 @@ impl Main {
     // Config comment.
     // Init comment.
     fn new(c: chan<u32> out) -> Self {
-        Main { c, state: 42 }
+        Self { c, state: 42 }
     }
 
     // Next comment.
@@ -410,7 +410,7 @@ proc Main {
 
 impl Main {
     fn new() -> Self {
-        Main {
+        Self {
             state:
                 (
                     // Init element 0 comment.
@@ -460,7 +460,7 @@ impl Main {
     const MY_CONST = u32:42;
 
     fn new(s: chan<u32> out) -> Self {
-        Main { s, state: u32:0 }
+        Self { s, state: u32:0 }
     }
 
     fn next(self) {
@@ -521,7 +521,7 @@ impl Main {
     type MyType = u32;
 
     fn new(s: chan<u32> out) -> Self {
-        Main { s, state: u32:0 }
+        Self { s, state: u32:0 }
     }
 
     fn next(self) {
@@ -559,7 +559,7 @@ impl Main {
     type T = u32;
 
     fn new(s: chan<u32> out) -> Self {
-        Main { s, state: u32:0 }
+        Self { s, state: u32:0 }
     }
 
     fn next(self) {
@@ -596,7 +596,7 @@ impl Main<N> {
     type MyType = uN[N];
 
     fn new(s: chan<uN[N]> out) -> Self {
-        Main { s }
+        Self { s }
     }
 
     fn next(self) {
@@ -627,7 +627,7 @@ proc Main<MyType: type = u32> {
 
 impl Main<MyType> {
     fn new(s: chan<u32> out) -> Self {
-        Main { s, state: u32:0 }
+        Self { s, state: u32:0 }
     }
 
     fn next(self) {
@@ -664,7 +664,7 @@ impl Main<MyType> {
     const WIDTH = u32:8;
 
     fn new(s: chan<MyType> out) -> Self {
-        Main { s, state: bits[WIDTH]:0 }
+        Self { s, state: bits[WIDTH]:0 }
     }
 
     fn next(self) {
@@ -710,7 +710,7 @@ proc Producer {
 
 impl Producer {
     fn new(s: chan<u32> out) -> Self {
-        Producer { s }
+        Self { s }
     }
 
     fn next(self) {
@@ -724,7 +724,7 @@ impl Main {
     fn new() -> Self {
         let (s, r) = chan<u32>("my_chan");
         let p = Producer::new(s).spawn();
-        Main {}
+        Self {}
     }
 }
 )");
@@ -756,7 +756,7 @@ proc MyProc<X: u32, Y: u32> {
 
 impl MyProc<X, Y> {
     fn new(s: chan<u32> out) -> Self {
-        MyProc { s, state: u32:0 }
+        Self { s, state: u32:0 }
     }
 
     fn next(self) {
@@ -794,7 +794,7 @@ proc MyProc<A: u32, B: u32, C: u32, D: u32, E: u32> {
 
 impl MyProc<A, B, C, D, E> {
     fn new(s: chan<u32> out) -> Self {
-        MyProc { s, state: u32:0 }
+        Self { s, state: u32:0 }
     }
 
     fn next(self) {
@@ -847,7 +847,7 @@ proc Producer {
 
 impl Producer {
     fn new(s: chan<u32> out) -> Self {
-        Producer { s }
+        Self { s }
     }
 
     fn next(self) {
@@ -865,7 +865,7 @@ impl MyTestProc {
     fn new(terminator: chan<bool> out) -> Self {
         let (s, r) = chan<u32>("my_chan");
         Producer::new(s).spawn();
-        MyTestProc { r, terminator }
+        Self { r, terminator }
     }
 
     fn next(self) {
@@ -901,7 +901,7 @@ proc MyTestProc {
 
 impl MyTestProc {
     fn new(terminator: chan<bool> out) -> Self {
-        MyTestProc { terminator }
+        Self { terminator }
     }
 
     fn next(self) {
@@ -983,7 +983,7 @@ proc ChildProc {}
 
 impl ChildProc {
     fn new() -> Self {
-        ChildProc {}
+        Self {}
     }
 }
 
@@ -992,7 +992,7 @@ proc ZeroMembers {}
 impl ZeroMembers {
     fn new() -> Self {
         ChildProc::new().spawn();
-        ZeroMembers {}
+        Self {}
     }
 }
 )");
@@ -1014,7 +1014,7 @@ proc MyProc {}
 
 impl MyProc {
     fn new() -> Self {
-        MyProc {}
+        Self {}
     }
 
     // comment before next
@@ -1049,7 +1049,7 @@ proc Producer {
 
 impl Producer {
     fn new(input_s: chan<u32> out) -> Self {
-        Producer { s: input_s, foo: u32:42 }
+        Self { s: input_s, foo: u32:42 }
     }
 
     fn next(self) {
@@ -1089,7 +1089,7 @@ proc Producer {
 
 impl Producer {
     fn new(input_s: chan<u32> out) -> Self {
-        Producer { s: input_s, x: u32:42, y: u32:100 }
+        Self { s: input_s, x: u32:42, y: u32:100 }
     }
 
     fn next(self) {
@@ -1136,7 +1136,7 @@ impl Producer {
     fn new(input_s: chan<u32> out) -> Self {
         let a = u32:42;
         let b = u32:100;
-        Producer { s: input_s, x: a, y: b }
+        Self { s: input_s, x: a, y: b }
     }
 
     fn next(self) {
@@ -1172,7 +1172,7 @@ proc Counter {
 
 impl Counter {
     fn new() -> Self {
-        Counter { state: 0 }
+        Self { state: 0 }
     }
 
     fn next(self) {
@@ -1218,7 +1218,7 @@ proc Producer {
 impl Producer {
     fn new(input_s: chan<u32> out) -> Self {
         let init_state = get_initial_tuple();
-        Producer { s: input_s, x: init_state.0, y: init_state.1 }
+        Self { s: input_s, x: init_state.0, y: init_state.1 }
     }
 
     fn next(self) {
@@ -1335,7 +1335,7 @@ proc Producer {
 
 impl Producer {
     fn new(input_s: chan<u32> out) -> Self {
-        Producer { s: input_s, state: 0 }
+        Self { s: input_s, state: 0 }
     }
 
     fn next(self) {
@@ -1380,7 +1380,7 @@ impl MyProc {
         (first_long_channel_input: chan<u32> in, second_long_channel_input: chan<u32> in,
          third_long_channel_input: chan<u32> in, fourth_long_channel_output: chan<u32> out)
         -> Self {
-        MyProc {
+        Self {
             first_long_channel_input,
             second_long_channel_input,
             third_long_channel_input,
@@ -1420,7 +1420,7 @@ proc MyProc<FIRST_PARAM_WIDTH: u32, SECOND_PARAM_SIZE: u32,
 
 impl MyProc<FIRST_PARAM_WIDTH, SECOND_PARAM_SIZE, THIRD_PARAM_ADDR_WIDTH> {
     fn new(s: chan<bits[FIRST_PARAM_WIDTH]> out) -> Self {
-        MyProc { s }
+        Self { s }
     }
 
     fn next(self) {
@@ -1471,7 +1471,7 @@ impl Child {
         (first_long_channel_input: chan<u32> in, second_long_channel_input: chan<u32> in,
          third_long_channel_input: chan<u32> in, fourth_long_channel_output: chan<u32> out)
         -> Self {
-        Child {
+        Self {
             first_long_channel_input,
             second_long_channel_input,
             third_long_channel_input,
@@ -1495,7 +1495,7 @@ impl Parent {
             first_long_channel_input, second_long_channel_input, third_long_channel_input,
             fourth_long_channel_output).spawn(
             );
-        Parent {}
+        Self {}
     }
 }
 )");
@@ -1528,7 +1528,7 @@ proc MyProc {}
 
 impl MyProc {
     fn new() -> Self {
-        MyProc {}
+        Self {}
     }
 }
 )");
@@ -1543,7 +1543,7 @@ pub proc OtherChild<N: u32> {}
 
 impl OtherChild<N> {
     pub fn new() -> Self {
-        OtherChild {}
+        Self {}
     }
 }
 
@@ -1551,7 +1551,7 @@ pub proc UnparametricChild {}
 
 impl UnparametricChild {
     pub fn new() -> Self {
-        UnparametricChild {}
+        Self {}
     }
 }
 )"}};
@@ -1586,7 +1586,7 @@ proc Child<N: u32> {}
 
 impl Child<N> {
     fn new() -> Self {
-        Child {}
+        Self {}
     }
 }
 
@@ -1597,7 +1597,7 @@ impl Parent {
         Child<u32:32>::new().spawn();
         other_mod::OtherChild<u32:64>::new().spawn();
         other_mod::UnparametricChild::new().spawn();
-        Parent {}
+        Self {}
     }
 }
 )");
@@ -1628,7 +1628,7 @@ proc FailingTest {
 
 impl FailingTest {
     fn new(terminator: chan<bool> out) -> Self {
-        FailingTest { terminator }
+        Self { terminator }
     }
 
     fn next(self) {
@@ -1671,7 +1671,7 @@ proc MultiState {
 
 impl MultiState {
     fn new() -> Self {
-        MultiState { state: init_helper() }
+        Self { state: init_helper() }
     }
 
     fn next(self) {
@@ -1705,7 +1705,7 @@ proc StatelessProc {
 
 impl StatelessProc {
     fn new(s: chan<u32> out) -> Self {
-        StatelessProc { s }
+        Self { s }
     }
 
     fn next(self) {
@@ -1740,7 +1740,7 @@ proc ChainedAliases<BaseType: type = u32, ArrayType: type = BaseType[4]> {
 
 impl ChainedAliases<BaseType, ArrayType> {
     fn new(data: chan<ArrayType> in) -> Self {
-        ChainedAliases { data }
+        Self { data }
     }
 
     fn next(self) {
@@ -1819,7 +1819,7 @@ proc MyProc {
 
 impl MyProc {
     fn new(req: chan<Req> in) -> Self {
-        MyProc { req }
+        Self { req }
     }
 
     fn next(self) {
@@ -1854,7 +1854,7 @@ proc Counter {
 
 impl Counter {
     fn new() -> Self {
-        Counter { state: 0 }
+        Self { state: 0 }
     }
 
     fn next(self) {

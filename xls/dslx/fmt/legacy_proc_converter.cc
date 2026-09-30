@@ -222,7 +222,7 @@ class LegacyProcConverter : public Formatter {
   //       x: chan<u32> in,
   //   }
   //   impl Foo {
-  //       fn new(x: chan<u32> in) -> Self { Foo { x } }
+  //       fn new(x: chan<u32> in) -> Self { Self { x } }
   //       fn next(self) { ... }
   //   }
   DocRef FormatProc(const Proc& n, bool is_test = false) override {
@@ -351,8 +351,7 @@ class LegacyProcConverter : public Formatter {
                                           : members.back()->span().limit();
     ProcDef* proc_def = CreateSyntheticProcDef(n, is_test, state_params,
                                                members, additional_parametrics);
-    Function* new_fn =
-        CreateSyntheticNewFunction(n, proc_def, state_params, members);
+    Function* new_fn = CreateSyntheticNewFunction(n, state_params, members);
     Function* next_fn = CreateSyntheticNextFunction(
         n, proc_def, already_has_explicit_state_access, state_params);
     Impl* impl = CreateSyntheticImpl(
@@ -600,8 +599,7 @@ class LegacyProcConverter : public Formatter {
   }
 
   Function* CreateSyntheticNewFunction(
-      const Proc& n, ProcDef* proc_def,
-      absl::Span<const Param* const> state_params,
+      const Proc& n, absl::Span<const Param* const> state_params,
       absl::Span<const ProcMember* const> members) {
     Module* owner = n.owner();
     Span span = n.config().span();
@@ -717,9 +715,8 @@ class LegacyProcConverter : public Formatter {
     }
 
     Span struct_span(prev_pos, prev_pos);
-    auto* struct_type_ref = owner->Make<TypeRef>(struct_span, proc_def);
-    auto* struct_type_annot = owner->Make<TypeRefTypeAnnotation>(
-        struct_span, struct_type_ref, std::vector<ExprOrType>{});
+    auto* struct_type_annot =
+        owner->Make<SelfTypeAnnotation>(struct_span, false, nullptr);
     auto* struct_instance = owner->Make<StructInstance>(
         struct_span, struct_type_annot, struct_members);
     new_statements.push_back(owner->Make<Statement>(struct_instance));

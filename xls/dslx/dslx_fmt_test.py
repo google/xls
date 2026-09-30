@@ -225,7 +225,7 @@ class DslxFmtTest(absltest.TestCase):
 
     impl Producer {
         fn new(s: chan<u32> out) -> Self {
-            Producer { s, state: 0 }
+            Self { s, state: 0 }
         }
 
         fn next(self) {

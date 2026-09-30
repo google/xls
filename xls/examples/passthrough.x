@@ -25,7 +25,7 @@ proc Passthrough {
 
 impl Passthrough {
     fn new(data_r: chan<u32> in, data_s: chan<u32> out) -> Self {
-        Passthrough { data_r, data_s }
+        Self { data_r, data_s }
     }
 
     fn next(self) {
@@ -46,7 +46,7 @@ impl PassthroughTest {
     fn new(terminator: chan<bool> out) -> Self {
         let (data_s, data_r) = chan<u32>("data");
         Passthrough::new(data_r, data_s).spawn();
-        PassthroughTest { terminator, data_s, data_r, count: u32:10 }
+        Self { terminator, data_s, data_r, count: u32:10 }
     }
 
     fn next(self) {

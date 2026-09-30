@@ -25,7 +25,7 @@ proc A_proc {
 
 impl A_proc {
     fn new(inp: chan<s32> in, output: chan<s32> out, ext: chan<s32> in) -> Self {
-        A_proc { inp, output, ext }
+        Self { inp, output, ext }
     }
 
     fn next(self) {
@@ -43,7 +43,7 @@ proc B_proc {
 
 impl B_proc {
     fn new(inp: chan<s32> in, output: chan<s32> out) -> Self {
-        B_proc { inp, output }
+        Self { inp, output }
     }
 
     fn next(self) {
@@ -60,7 +60,7 @@ proc C_proc {
 
 impl C_proc {
     fn new(inp: chan<s32> in, output: chan<s32> out, ext: chan<s32> out) -> Self {
-        C_proc { inp, output, ext }
+        Self { inp, output, ext }
     }
 
     fn next(self) {
@@ -96,7 +96,7 @@ impl Initiator {
         B_proc::new(b1_to_b2_in, b2_to_b3_out).spawn();
         B_proc::new(b2_to_b3_in, b3_to_c_out).spawn();
         C_proc::new(b3_to_c_in, c_to_a_out, c_ext).spawn();
-        Initiator { ext_in, ext_out, init_snd, init_recv: init_rcv }
+        Self { ext_in, ext_out, init_snd, init_recv: init_rcv }
     }
 
     fn next(self) {
@@ -119,7 +119,7 @@ impl Testing {
         let (c_ext, init_snd) = chan<s32>("init_in_chans");
         let (init_recv, a_ext) = chan<s32>("init_out_chans");
         Initiator::new(a_ext, c_ext).spawn();
-        Testing { terminator, ext_send: init_recv, ext_recv: init_snd }
+        Self { terminator, ext_send: init_recv, ext_recv: init_snd }
     }
 
     fn next(self) {
