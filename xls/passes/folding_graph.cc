@@ -342,6 +342,22 @@ std::vector<BinaryFoldingAction*> FoldingGraph::GetEdgesTo(Node* n) const {
   return edges_to_n;
 }
 
+BinaryFoldingAction* FoldingGraph::GetEdge(Node* from, Node* to) const {
+  auto from_it = node_to_index_.find(from);
+  auto to_it = node_to_index_.find(to);
+  if (from_it == node_to_index_.end() || to_it == node_to_index_.end()) {
+    return nullptr;
+  }
+  NodeIndex from_id = from_it->second;
+  NodeIndex to_id = to_it->second;
+  for (EdgeIndex edge_index : graph_->OutgoingArcs(from_id)) {
+    if (graph_->Head(edge_index) == to_id) {
+      return edges_[edge_index].get();
+    }
+  }
+  return nullptr;
+}
+
 absl::StatusOr<std::unique_ptr<NaryFoldingAction>> NaryFoldingAction::Clone(
     const NaryFoldingAction& other,
     const absl::flat_hash_map<Node*, Node*>& original_node_to_clone) {

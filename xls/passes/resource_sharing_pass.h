@@ -34,6 +34,7 @@
 #include "xls/ir/node.h"
 #include "xls/ir/node_util.h"
 #include "xls/passes/bdd_query_engine.h"
+#include "xls/passes/bit_provenance_analysis.h"
 #include "xls/passes/critical_path_delay_analysis.h"
 #include "xls/passes/folding_graph.h"
 #include "xls/passes/node_dependency_analysis.h"
@@ -266,15 +267,19 @@ class ResourceSharingPass : public OptimizationFunctionBasePass {
 
     VisibilityAnalyses(
         std::unique_ptr<NodeForwardDependencyAnalysis> nda,
+        std::unique_ptr<NodeBackwardDependencyAnalysis> nda_backwards,
         std::unique_ptr<LazyPostDominatorAnalysis> post_dom,
         std::unique_ptr<BddQueryEngine> bdd_engine,
+        std::unique_ptr<BitProvenanceAnalysis> bpa,
         std::unique_ptr<OperandVisibilityAnalysis> op_visibility,
         std::unique_ptr<VisibilityAnalysis> general_storage,
         std::unique_ptr<OperandVisibilityAnalysis> op_vis_large,
         std::unique_ptr<SingleSelectVisibilityAnalysis> single_select_storage)
         : nda(std::move(nda)),
+          nda_backwards(std::move(nda_backwards)),
           post_dom(std::move(post_dom)),
           bdd_engine(std::move(bdd_engine)),
+          bpa(std::move(bpa)),
           op_visibility(std::move(op_visibility)),
           general_storage(std::move(general_storage)),
           op_vis_large(std::move(op_vis_large)),
@@ -284,8 +289,10 @@ class ResourceSharingPass : public OptimizationFunctionBasePass {
 
     VisibilityAnalyses(VisibilityAnalyses&& o)
         : nda(std::move(o.nda)),
+          nda_backwards(std::move(o.nda_backwards)),
           post_dom(std::move(o.post_dom)),
           bdd_engine(std::move(o.bdd_engine)),
+          bpa(std::move(o.bpa)),
           op_visibility(std::move(o.op_visibility)),
           general_storage(std::move(o.general_storage)),
           op_vis_large(std::move(o.op_vis_large)),
@@ -300,8 +307,10 @@ class ResourceSharingPass : public OptimizationFunctionBasePass {
     VisibilityAnalyses& operator=(const VisibilityAnalyses&) = delete;
 
     std::unique_ptr<NodeForwardDependencyAnalysis> nda;
+    std::unique_ptr<NodeBackwardDependencyAnalysis> nda_backwards;
     std::unique_ptr<LazyPostDominatorAnalysis> post_dom;
     std::unique_ptr<BddQueryEngine> bdd_engine;
+    std::unique_ptr<BitProvenanceAnalysis> bpa;
     std::unique_ptr<OperandVisibilityAnalysis> op_visibility;
     std::unique_ptr<VisibilityAnalysis> general_storage;
     std::unique_ptr<OperandVisibilityAnalysis> op_vis_large;
@@ -309,6 +318,12 @@ class ResourceSharingPass : public OptimizationFunctionBasePass {
 
     const VisibilityAnalysis& general;
     const SingleSelectVisibilityAnalysis& single_select;
+  };
+
+  struct FunctionFoldingGraph {
+    std::unique_ptr<FoldingGraph> graph;
+    absl::btree_set<MutuallyExclPair> mutual_exclusivity;
+    VisibilityAnalyses visibility;
   };
 
   ~ResourceSharingPass() override = default;
@@ -378,6 +393,13 @@ class ResourceSharingPass : public OptimizationFunctionBasePass {
       const absl::btree_set<MutuallyExclPair>& mutual_exclusivity,
       const VisibilityAnalyses& visibility, const Config& config);
 
+  // Computes visibility analyses, mutual exclusion, and foldable actions for
+  // `f`, returning the resulting `FoldingGraph` and its associated analyses.
+  static absl::StatusOr<FunctionFoldingGraph> ComputeFoldingGraph(
+      FunctionBase* f, OptimizationContext& context,
+      absl::FunctionRef<bool(Node*)> should_target,
+      const Config& config = kDefaultConfig);
+
   // Returns node mappings if all sources from the binary folding actions can be
   // mapped to the destination simultaneously. Theoretically, this should always
   // by possible, but equivalence mapping implementations may have limitations.
@@ -415,6 +437,18 @@ class ResourceSharingPass : public OptimizationFunctionBasePass {
       std::optional<const AreaEstimator*> area_estimator,
       const ResourceSharingPass::Config& config);
 
+  // Groups selected binary folding actions by destination into n-ary folding
+  // actions, sorts them by node area and topological index, and legalizes the
+  // resulting sequence.
+  static absl::StatusOr<
+      std::pair<std::vector<std::unique_ptr<NaryFoldingAction>>, bool>>
+  LegalizeBinaryFoldingActions(
+      FunctionBase* f, absl::Span<BinaryFoldingAction* const> edges_selected,
+      const absl::btree_set<MutuallyExclPair>& mutual_exclusivity,
+      const VisibilityAnalyses& visibility, const NodeEquivalenceMapper& mapper,
+      const AreaEstimator& area_estimator,
+      const Config& config = kDefaultConfig);
+
   // Prepares timing and backward dependency analyses as well as the visibility
   // estimator for `f` and invokes `SelectFoldingActions` to choose the sequence
   // of folding actions to perform on `folding_graph`.
@@ -434,6 +468,10 @@ class ResourceSharingPass : public OptimizationFunctionBasePass {
       FunctionBase* f, int64_t next_node_id,
       VisibilityBuilder* visibility_builder,
       const NodeBackwardDependencyAnalysis& nda,
+      const std::vector<std::unique_ptr<NaryFoldingAction>>&
+          folding_actions_to_perform);
+  static absl::StatusOr<bool> PerformFoldingActions(
+      FunctionBase* f, const VisibilityAnalyses& visibility,
       const std::vector<std::unique_ptr<NaryFoldingAction>>&
           folding_actions_to_perform);
 
