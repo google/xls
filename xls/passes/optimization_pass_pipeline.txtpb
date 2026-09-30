@@ -378,7 +378,7 @@ compound_passes: [
   {
     long_name: "Iteratively inline and simplify"
     short_name: "simplify-and-inline"
-    passes: ["pre-inlining", "one-leaf-inlining"]
+    passes: ["loop_idiom", "dfe", "pre-inlining", "one-leaf-inlining"]
     fixedpoint: true
     comment:
       "Inlining segment of the pipeline\n"

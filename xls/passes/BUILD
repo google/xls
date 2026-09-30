@@ -96,6 +96,7 @@ xls_pass_registry(
         ":dfe_pass",
         ":identity_removal_pass",
         ":label_recovery_pass",
+        ":loop_idiom_pass",
         ":lut_conversion_pass",
         ":map_inlining_pass",
         ":select_to_bitwise_ops_pass",
@@ -413,6 +414,48 @@ cc_test(
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/strings:str_format",
+        "@googletest//:gtest",
+    ],
+)
+
+xls_pass(
+    name = "loop_idiom_pass",
+    srcs = ["loop_idiom_pass.cc"],
+    hdrs = ["loop_idiom_pass.h"],
+    pass_class = "LoopIdiomPass",
+    deps = [
+        ":optimization_pass",
+        ":pass_base",
+        "//xls/common/status:status_macros",
+        "//xls/ir",
+        "//xls/ir:bits",
+        "//xls/ir:op",
+        "//xls/ir:type",
+        "//xls/ir:value",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/types:span",
+    ],
+)
+
+cc_test(
+    name = "loop_idiom_pass_test",
+    srcs = ["loop_idiom_pass_test.cc"],
+    deps = [
+        ":loop_idiom_pass",
+        ":optimization_pass",
+        ":pass_base",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/fuzzing:fuzztest",
+        "//xls/common/status:matchers",
+        "//xls/common/status:status_macros",
+        "//xls/fuzzer/ir_fuzzer:ir_fuzz_domain",
+        "//xls/fuzzer/ir_fuzzer:ir_fuzz_test_library",
+        "//xls/ir",
+        "//xls/ir:ir_matcher",
+        "//xls/ir:ir_parser",
+        "@abseil-cpp//absl/status:statusor",
         "@googletest//:gtest",
     ],
 )
