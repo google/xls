@@ -2999,17 +2999,22 @@ fn to_uint_test() {
         u4:0, to_uint<u32:4>(APFloat<u32:8, u32:7> { sign: u1:1, bexp: u8:0x80, fraction: u7:0 }));
 }
 
-// Calculate difference of two positive values and return values in sign-magnitude
-// form. Returns sign-magnitude tuple (|a| - |b| <= 0, abs(|a| - |b|)).
-// Note, this returns -0 if (a == b), which is used in our application, which is good
-// for testing if strictly |a| > |b|.
-fn sign_magnitude_difference<WIDTH: u32>(a: uN[WIDTH], b: uN[WIDTH]) -> (bool, uN[WIDTH]) {
-    let abs_diff_result = abs_diff::abs_diff(a, b);
+// Calculate difference of two values and return values in sign-magnitude form. Returns
+// sign-magnitude tuple (a - b <= 0, |a - b|).
+//
+// NOTE: This returns -0 if (a == b). We take advantage of this elsewhere; it makes it trivial to
+//       test if a is strictly greater than b.
+fn sign_magnitude_difference<WIDTH: u32, SIGNED: bool>
+    (a: xN[SIGNED][WIDTH], b: xN[SIGNED][WIDTH]) -> (bool, uN[WIDTH]) {
+    // If signed, bias the inputs into an unsigned domain, so we can use unsigned abs_diff.
+    let a_biased = const if SIGNED { !std::msb(a) ++ (a as uN[WIDTH])[:-1] } else { a };
+    let b_biased = const if SIGNED { !std::msb(b) ++ (b as uN[WIDTH])[:-1] } else { b };
+    let abs_diff_result = abs_diff::abs_diff(a_biased, b_biased);
     (!abs_diff::is_x_larger(abs_diff_result), abs_diff::to_corrected(abs_diff_result))
 }
 
 #[test]
-fn sign_magnitude_difference_test() {
+fn unsigned_sign_magnitude_difference_test() {
     // The way we like our ones differencer is to yield a -0 for (a == b), i.e. result.0==(a >= b)
     assert_eq(sign_magnitude_difference(u8:0, u8:0), (true, u8:0));
     assert_eq(sign_magnitude_difference(u8:42, u8:42), (true, u8:0));
@@ -3021,29 +3026,65 @@ fn sign_magnitude_difference_test() {
     assert_eq(sign_magnitude_difference(u1:0, u1:1), (true, u1:1));
     assert_eq(sign_magnitude_difference(u1:1, u1:0), (false, u1:1));
 
-    // Exhaustive for u2
-    for (left, _): (u2, ()) in u2:0..u2:3 {
-        for (right, _): (u2, ()) in u2:0..u2:3 {
-            assert_eq(
-                sign_magnitude_difference(left, right),
-                ((right >= left), if right >= left { right - left } else { left - right }));
-        }(());
-    }(());
-
-    // Exhaustive for u8
-    for (left, _): (u8, ()) in u8:0..u8:255 {
-        for (right, _): (u8, ()) in u8:0..u8:255 {
-            assert_eq(
-                sign_magnitude_difference(left, right),
-                ((right >= left), if right >= left { right - left } else { left - right }));
-        }(());
-    }(());
-
     // Close to overflow is handled correctly
     assert_eq(sign_magnitude_difference(u8:255, u8:0), (false, u8:255));
     assert_eq(sign_magnitude_difference(u8:255, u8:5), (false, u8:250));
+    assert_eq(sign_magnitude_difference(u8:250, u8:0), (false, u8:250));
     assert_eq(sign_magnitude_difference(u8:0, u8:255), (true, u8:255));
     assert_eq(sign_magnitude_difference(u8:5, u8:255), (true, u8:250));
+    assert_eq(sign_magnitude_difference(u8:0, u8:250), (true, u8:250));
+}
+
+#[test]
+fn signed_sign_magnitude_difference_test() {
+    assert_eq(sign_magnitude_difference(s8:0, s8:0), (true, u8:0));
+    assert_eq(sign_magnitude_difference(s8:-42, s8:-42), (true, u8:0));
+    assert_eq(sign_magnitude_difference(s8:-6, s8:5), (true, u8:11));
+    assert_eq(sign_magnitude_difference(s8:5, s8:-6), (false, u8:11));
+    assert_eq(sign_magnitude_difference(s8:-128, s8:127), (true, u8:255));
+    assert_eq(sign_magnitude_difference(s8:127, s8:-128), (false, u8:255));
+
+    // Make sure this works for very small width; exhaustive for s1
+    assert_eq(sign_magnitude_difference(s1:0, s1:0), (true, u1:0));
+    assert_eq(sign_magnitude_difference(s1:-1, s1:-1), (true, u1:0));
+    assert_eq(sign_magnitude_difference(s1:0, s1:-1), (false, u1:1));
+    assert_eq(sign_magnitude_difference(s1:-1, s1:0), (true, u1:1));
+
+    // Close to overflow is handled correctly
+    assert_eq(sign_magnitude_difference(s8:127, s8:-128), (false, u8:255));
+    assert_eq(sign_magnitude_difference(s8:122, s8:-128), (false, u8:250));
+    assert_eq(sign_magnitude_difference(s8:127, s8:-123), (false, u8:250));
+    assert_eq(sign_magnitude_difference(s8:-128, s8:127), (true, u8:255));
+    assert_eq(sign_magnitude_difference(s8:-128, s8:122), (true, u8:250));
+    assert_eq(sign_magnitude_difference(s8:-123, s8:127), (true, u8:250));
+}
+
+fn sign_magnitude_difference_equivalence<WIDTH: u32, SIGNED: bool>
+    (left: xN[SIGNED][WIDTH], right: xN[SIGNED][WIDTH]) -> bool {
+    let (a_is_smaller, diff) = sign_magnitude_difference(left, right);
+    let expected_diff =
+        if right >= left { (right - left) as uN[WIDTH] } else { (left - right) as uN[WIDTH] };
+    (a_is_smaller == (right >= left)) && (diff == expected_diff)
+}
+
+#[quickcheck(exhaustive)]
+fn sign_magnitude_difference_u2_equivalence(left: u2, right: u2) -> bool {
+    sign_magnitude_difference_equivalence(left, right)
+}
+
+#[quickcheck(exhaustive)]
+fn sign_magnitude_difference_u8_equiivalence(left: u8, right: u8) -> bool {
+    sign_magnitude_difference_equivalence(left, right)
+}
+
+#[quickcheck(exhaustive)]
+fn sign_magnitude_difference_s2_equivalence(left: s2, right: s2) -> bool {
+    sign_magnitude_difference_equivalence(left, right)
+}
+
+#[quickcheck(exhaustive)]
+fn sign_magnitude_difference_s8_equivalence(left: s8, right: s8) -> bool {
+    sign_magnitude_difference_equivalence(left, right)
 }
 
 // Manually apply optimization https://github.com/google/xls/issues/1217
@@ -3450,6 +3491,12 @@ struct RawProduct<SIGNED_EXP: u32, WIDE_FRACTION: u32> {
     fraction: uN[WIDE_FRACTION],
 }
 
+// Returns true if the given RawProduct is infinite.
+fn is_raw_product_inf<SIGNED_EXP: u32, WIDE_FRACTION: u32>
+    (p: RawProduct<SIGNED_EXP, WIDE_FRACTION>) -> bool {
+    !p.is_nan && p.bexp == std::signed_max_value<SIGNED_EXP>()
+}
+
 // Returns the full result of a floating-point multiplication, without any rounding or truncation.
 // The only exception is that input denormals are flushed to/treated as 0.
 pub fn raw_mul
@@ -3567,66 +3614,6 @@ pub fn full_precision_mul
     }
 }
 
-// Simple utility struct for holding the result of the multiplication step.
-struct Product<EXP_CARRY: u32, WIDE_FRACTION: u32> {
-    sign: u1,
-    bexp: uN[EXP_CARRY],
-    fraction: uN[WIDE_FRACTION],
-}
-
-// Returns true if the given Product is infinite.
-fn is_product_inf<EXP_CARRY: u32, WIDE_FRACTION: u32>
-    (p: Product<EXP_CARRY, WIDE_FRACTION>) -> bool {
-    p.bexp == std::mask_bits<EXP_CARRY>() && p.fraction == uN[WIDE_FRACTION]:0
-}
-
-// Returns true if the given Product is NaN.
-fn is_product_nan<EXP_CARRY: u32, WIDE_FRACTION: u32>
-    (p: Product<EXP_CARRY, WIDE_FRACTION>) -> bool {
-    p.bexp == std::mask_bits<EXP_CARRY>() && p.fraction != uN[WIDE_FRACTION]:0
-}
-
-// The first step in FMA: multiply the first two operands, but skip rounding
-// and truncation.
-// Parametrics:
-//   EXP_SZ: The bit width of the exponent of the current type.
-//   FRACTION_SZ: The bit width of the fraction of the current type.
-//   WIDE_FRACTION: 2x the full fraction size (i.e., including the usually
-//    implicit leading "1"), necessary for correct precision.
-//   EXP_CARRY: EXP_SZ plus one carry bit.
-//   EXP_SIGN_CARRY: EXP_CARRY plus one sign bit.
-// For an IEEE binary32 ("float"), these values would be 8, 23, 48, 9, and 10.
-fn mul_no_round
-    <EXP_SZ: u32, FRACTION_SZ: u32, WIDE_FRACTION: u32 = {(FRACTION_SZ + u32:1) * u32:2},
-     EXP_CARRY: u32 = {EXP_SZ + u32:1}, EXP_SIGN_CARRY: u32 = {EXP_SZ + u32:2}>
-    (a: APFloat<EXP_SZ, FRACTION_SZ>, b: APFloat<EXP_SZ, FRACTION_SZ>)
-    -> Product<EXP_CARRY, WIDE_FRACTION> {
-    let raw_product = raw_mul(a, b);
-
-    // Note that we usually flush subnormals. Here, we preserve what we can for
-    // compatability with reference implementations.
-    // We only do this for the internal product - we otherwise don't handle
-    // subnormal values (we flush them to 0).
-    let is_subnormal = raw_product.bexp <= sN[EXP_SIGN_CARRY]:0;
-    let result_exp = if is_subnormal { uN[EXP_CARRY]:0 } else { raw_product.bexp as uN[EXP_CARRY] };
-    let result_fraction = if is_subnormal {
-        raw_product.fraction >> (-raw_product.bexp as uN[EXP_CARRY])
-    } else {
-        raw_product.fraction
-    };
-
-    if raw_product.is_nan {
-        // If the result is NaN, force it to our standard quiet NaN. (Don't forget the leading 1!)
-        Product {
-            sign: u1:0,
-            bexp: std::mask_bits<EXP_CARRY>(),
-            fraction: u2:3 ++ uN[WIDE_FRACTION - u32:2]:0,
-        }
-    } else {
-        Product { sign: raw_product.sign, bexp: result_exp, fraction: result_fraction }
-    }
-}
-
 // Fused multiply-add for any given APFloat configuration.
 //
 // This implementation uses (2 * (FRACTION + 1)) bits of precision for the
@@ -3663,15 +3650,16 @@ pub fn fma<EXP_SZ: u32, FRACTION_SZ: u32>
     // most-significant rounding bit.
     const WIDE_FRACTION_TOP_ROUNDING: u32 = WIDE_FRACTION_LOW_BIT - u32:1;
 
-    let ab = mul_no_round<EXP_SZ, FRACTION_SZ>(a, b);
+    let ab = raw_mul(a, b);
 
     let (ab_exp_smaller, exp_difference) =
-        sign_magnitude_difference(ab.bexp, c.bexp as uN[EXP_CARRY]);
+        sign_magnitude_difference(ab.bexp, c.bexp as sN[EXP_SIGN_CARRY]);
+    let exp_difference = exp_difference as uN[EXP_CARRY];
     let (greater_exp, greater_sign) =
-        if ab_exp_smaller { (c.bexp as uN[EXP_CARRY], c.sign) } else { (ab.bexp, ab.sign) };
+        if ab_exp_smaller { (c.bexp as sN[EXP_SIGN_CARRY], c.sign) } else { (ab.bexp, ab.sign) };
 
-    // Make the implicit '1' explicit and flush subnormal "c" to 0 (already
-    // done for ab inside mul_no_round()).
+    // Make the implicit leading `1` explicit and flush subnormal `c` to 0 (already
+    // done for `a` and `b` inside raw_mul()).
     let wide_c = c.fraction as uN[WIDE_FRACTION] | (uN[WIDE_FRACTION]:1 << FRACTION_SZ);
     let wide_c = if c.bexp == uN[EXP_SZ]:0 { uN[WIDE_FRACTION]:0 } else { wide_c };
 
@@ -3755,8 +3743,8 @@ pub fn fma<EXP_SZ: u32, FRACTION_SZ: u32>
                           ((WIDE_FRACTION_LOW_BIT - u32:1) as uN[WIDE_FRACTION_CARRY])) as
                           uN[FRACTION_SZ];
 
-    let bexp = greater_exp as sN[EXP_SIGN_CARRY] + rounding_carry as sN[EXP_SIGN_CARRY] +
-               sN[EXP_SIGN_CARRY]:1 - leading_zeroes as sN[EXP_SIGN_CARRY];
+    let bexp = greater_exp + rounding_carry as sN[EXP_SIGN_CARRY] + sN[EXP_SIGN_CARRY]:1 -
+               leading_zeroes as sN[EXP_SIGN_CARRY];
     let bexp = if fraction_is_zero { sN[EXP_SIGN_CARRY]:0 } else { bexp };
     let bexp = if bexp < sN[EXP_SIGN_CARRY]:0 { uN[EXP_CARRY]:0 } else { (bexp as uN[EXP_CARRY]) };
 
@@ -3772,17 +3760,18 @@ pub fn fma<EXP_SZ: u32, FRACTION_SZ: u32>
     let result_exp = if bexp < saturated_exp { bexp as uN[EXP_SZ] } else { max_exp };
 
     // Handle arg infinities.
-    let is_operand_inf = is_product_inf(ab) | is_inf(c);
+    let is_ab_inf = is_raw_product_inf(ab);
+    let is_operand_inf = is_ab_inf | is_inf(c);
     let result_exp = if is_operand_inf { max_exp } else { result_exp };
     let result_fraction = if is_operand_inf { uN[FRACTION_SZ]:0 } else { result_fraction };
     // Result infinity is negative iff all infinite operands are neg.
-    let has_pos_inf = (is_product_inf(ab) & (ab.sign == u1:0)) | (is_inf(c) & (c.sign == u1:0));
+    let has_pos_inf = (is_ab_inf & (ab.sign == u1:0)) | (is_inf(c) & (c.sign == u1:0));
     let result_sign = if is_operand_inf { !has_pos_inf } else { result_sign };
 
     // Handle NaN; NaN trumps infinities, so we handle it last.
     // -inf + inf = NaN, i.e., if we have both positive and negative inf.
-    let has_neg_inf = (is_product_inf(ab) & (ab.sign == u1:1)) | (is_inf(c) & (c.sign == u1:1));
-    let is_result_nan = is_product_nan(ab) | is_nan(c) | (has_pos_inf & has_neg_inf);
+    let has_neg_inf = (is_ab_inf & (ab.sign == u1:1)) | (is_inf(c) & (c.sign == u1:1));
+    let is_result_nan = ab.is_nan | is_nan(c) | (has_pos_inf & has_neg_inf);
     let result_exp = if is_result_nan { max_exp } else { result_exp };
     let result_fraction =
         if is_result_nan { uN[FRACTION_SZ]:1 << (FRACTION_SZ - u32:4) } else { result_fraction };
@@ -4215,6 +4204,17 @@ fn fail_case_aa() {
     let expected = F32 { sign: u1:0x1, bexp: u8:0x58, fraction: u23:0x1acde3 };
     let actual = fma<u32:8, u32:23>(a, b, c);
     assert_eq(expected, actual)
+}
+
+#[test]
+fn fma_subnormal_intermediate_rounding_test() {
+    type F32 = APFloat<8, 23>;
+    let a = F32 { sign: u1:0, bexp: u8:0x6d, fraction: u23:0x694e0d };
+    let b = F32 { sign: u1:0, bexp: u8:0x0b, fraction: u23:0x6ffa53 };
+    let c = F32 { sign: u1:0, bexp: u8:0x05, fraction: u23:0x04ee18 };
+    let expected = F32 { sign: u1:0, bexp: u8:0x05, fraction: u23:0x05096f };
+    let actual = fma<u32:8, u32:23>(a, b, c);
+    assert_eq(expected, actual);
 }
 
 // Returns whether or not the given APFloat has a fractional part.
