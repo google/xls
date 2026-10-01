@@ -136,6 +136,26 @@ template <typename PassRunner>
 class ResourceSharingPassTestBase : public IrTestBase {
  protected:
   absl::StatusOr<bool> Run(Function* f) { return PassRunner::RunPass(f); }
+
+  void CheckMergeMultipliesAndAddsUsedByTwoSelects(Function* f) {
+    if constexpr (requires {
+                    PassRunner::CheckMergeMultipliesAndAddsUsedByTwoSelects(f);
+                  }) {
+      PassRunner::CheckMergeMultipliesAndAddsUsedByTwoSelects(f);
+    } else {
+      EXPECT_EQ(NumberOfAdders(f), 3);
+    }
+  }
+
+  void CheckPreventCyclesInFoldingChainsIndirect(Function* f) {
+    if constexpr (requires {
+                    PassRunner::CheckPreventCyclesInFoldingChainsIndirect(f);
+                  }) {
+      PassRunner::CheckPreventCyclesInFoldingChainsIndirect(f);
+    } else {
+      EXPECT_EQ(NumberOfShifts(f), 2);
+    }
+  }
 };
 
 TYPED_TEST_SUITE_P(ResourceSharingPassTestBase);
@@ -1386,7 +1406,7 @@ TYPED_TEST_P(ResourceSharingPassTestBase,
   EXPECT_THAT(this->Run(f), IsOkAndHolds(true));
   EXPECT_EQ(NumberOfMultiplications(f), 2);
   // Note: this counts both the 2 remaining adders and the subtract:
-  EXPECT_EQ(NumberOfAdders(f), 3);
+  this->CheckMergeMultipliesAndAddsUsedByTwoSelects(f);
   InterpretAndCheck(f, {0, 2, 3, 5}, 16 + 6);
   InterpretAndCheck(f, {1, 2, 3, 5}, 7 + 6);
   InterpretAndCheck(f, {2, 2, 3, 5}, 9 + 10);
@@ -1489,7 +1509,7 @@ TYPED_TEST_P(ResourceSharingPassTestBase,
   ScopedVerifyEquivalence check_equivalent(f, absl::Seconds(10));
   EXPECT_THAT(this->Run(f), IsOkAndHolds(true));
   EXPECT_EQ(NumberOfMultiplications(f), 1);
-  EXPECT_EQ(NumberOfShifts(f), 2);
+  this->CheckPreventCyclesInFoldingChainsIndirect(f);
 }
 
 // Wraps mutual exclusion analysis and binary folding creation
