@@ -1,4 +1,3 @@
-
 // Copyright 2024 The XLS Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -13,23 +12,24 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-fn f(x: u32) -> u32 {
-  x*x+x
-}
+#![feature(explicit_state_access)]
+#![feature(generics)]
+
+fn f(x: u32) -> u32 { x * x + x }
 
 pub proc f_proc {
-  input_r: chan<u32> in;
-  output_w: chan<u32> out;
+    input_r: chan<u32> in,
+    output_w: chan<u32> out,
+}
 
-  init { () }
+impl f_proc {
+    fn new(r: chan<u32> in, w: chan<u32> out) -> Self {
+        Self { input_r: r, output_w: w }
+    }
 
-  config(r: chan<u32> in, w: chan<u32> out) {
-    (r, w)
-  }
-
-  next(state: ()) {
-    let (tok, data) = recv(join(), input_r);
-    let data  = f(data);
-    send(tok, output_w, data);
-  }
+    fn next(self) {
+        let (tok, data) = recv(join(), self.input_r);
+        let data = f(data);
+        send(tok, self.output_w, data);
+    }
 }
