@@ -28,7 +28,6 @@
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
-#include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
 #include "xls/common/math_util.h"
@@ -45,6 +44,7 @@
 #include "xls/ir/ternary.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
+#include "xls/passes/cached_state_element_query_engine.h"
 #include "xls/passes/lazy_ternary_query_engine.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/partial_info_query_engine.h"
@@ -61,10 +61,14 @@ static absl::StatusOr<UnionQueryEngine> GetQueryEngine(
   QueryEngine* base_query_engine;
   if (opt_level >= 3) {
     // High opt level, use the range analysis too.
-    base_query_engine = context.SharedQueryEngine<PartialInfoQueryEngine>(f);
+    base_query_engine =
+        CachedStateElementQueryEngine::FromContext<PartialInfoQueryEngine>(
+            context, f);
   } else {
     // Normal use only the ternary alone.
-    base_query_engine = context.SharedQueryEngine<LazyTernaryQueryEngine>(f);
+    base_query_engine =
+        CachedStateElementQueryEngine::FromContext<LazyTernaryQueryEngine>(
+            context, f);
   }
   UnionQueryEngine query_engine =
       UnionQueryEngine::Of(StatelessQueryEngine(), base_query_engine);

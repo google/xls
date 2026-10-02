@@ -282,6 +282,7 @@ compound_passes: [
       #
       "dce",
       #
+      "invalidate_cached_proc_state_info",
       "proc_state_narrow",
       "dce",
       "proc_state_elimination",
@@ -295,6 +296,7 @@ compound_passes: [
       "proc_state_fsm",
       "proc_state_elimination",
       "dce",
+      "repopulate_cached_proc_state_info",
       #
       "bdd_simp(3)",
       "dce",
@@ -324,19 +326,23 @@ compound_passes: [
       "bdd_cse",
       "dce",
       #
+      "invalidate_cached_proc_state_info",
       "proc_state_bits_shatter",
       "proc_state_tuple_flat",
+      "repopulate_cached_proc_state_info",
       "fixedpoint_simp(3)",
       #
       "useless_assert_remove",
       "useless_io_remove",
       # Narrow proc elements
+      "invalidate_cached_proc_state_info",
       "proc_state_provenance_narrow",
       "dce",
       "proc_state_elimination",
       "proc_state_fsm",
       "proc_state_elimination",
       "dce",
+      "repopulate_cached_proc_state_info",
       #
       "bdd_simp(3)",
       "dce",
@@ -345,11 +351,13 @@ compound_passes: [
       "bdd_cse",
       "dce",
       "fixedpoint_simp(3)",
+      "invalidate_cached_proc_state_info",
       "next_value_opt",
       "proc_state_elimination",
       "proc_state_fsm",
       "proc_state_elimination",
       "dce",
+      "repopulate_cached_proc_state_info",
       #
       "cond_spec(Bdd)",
       "dce",
