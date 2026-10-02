@@ -23,8 +23,10 @@
 #include <vector>
 
 #include "absl/algorithm/container.h"
+#include "absl/container/btree_map.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
+#include "absl/container/inlined_vector.h"
 #include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -102,11 +104,19 @@ static bool IsInlineable(const Invoke* invoke) {
   return !invoke->to_apply()->ForeignFunctionData().has_value();
 }
 
+// Maps a cover to the cover it ultimately derives from. Clones of clones (from
+// multi-level inlining) thereby collapse to one source. Keyed by clone, ordered
+// by node id for deterministic iteration.
+using CoverToUltimateSource =
+    absl::btree_map<Cover*, Cover*, Node::NodeIdLessThan>;
+
 // Inlines the node "invoke" by replacing it with the contents of the called
-// function.
+// function, recording cloned covers in `clone_to_ultimate_source`. See
+// CommonizeCovers.
 template <bool kCheckNoSubInvokes = true>
 absl::Status InlineInvoke(Invoke* invoke, OptimizationContext& context,
-                          int inline_count) {
+                          int inline_count,
+                          CoverToUltimateSource& clone_to_ultimate_source) {
   Function* invoked = invoke->to_apply();
   absl::flat_hash_map<Node*, Node*> invoked_node_to_replacement;
   for (int64_t i = 0; i < invoked->params().size(); ++i) {
@@ -192,6 +202,10 @@ absl::Status InlineInvoke(Invoke* invoke, OptimizationContext& context,
       XLS_RETURN_IF_ERROR(cover->ReplaceUsesWith(new_cover));
       XLS_RETURN_IF_ERROR(cover->function_base()->RemoveNode(cover));
       invoked_node_to_replacement.at(node) = new_cover;
+      // Collapse clones of clones under the same ultimate source.
+      auto source_it = clone_to_ultimate_source.find(c);
+      clone_to_ultimate_source[new_cover] =
+          source_it != clone_to_ultimate_source.end() ? source_it->second : c;
     } else if (node->Is<Assert>() && node->As<Assert>()->label().has_value()) {
       Assert* a = node->As<Assert>();
       std::optional<std::string> original_label =
@@ -214,6 +228,49 @@ absl::Status InlineInvoke(Invoke* invoke, OptimizationContext& context,
   XLS_RETURN_IF_ERROR(invoke->ReplaceUsesWith(
       invoked_node_to_replacement.at(invoked->return_value())));
   return invoke->function_base()->RemoveNode(invoke);
+}
+
+// Merges clones of the same ultimate source (per caller) into one cover whose
+// condition is the OR of theirs ("ever reached"). Per caller, since an IR node
+// can't reference operands of another FunctionBase
+absl::Status CommonizeCovers(
+    const CoverToUltimateSource& clone_to_ultimate_source) {
+  // Group clones by ultimate source
+  absl::btree_map<Cover*, absl::InlinedVector<Cover*, 1>, Node::NodeIdLessThan>
+      clones_by_source;
+  for (const auto& [clone, ultimate_source] : clone_to_ultimate_source) {
+    clones_by_source[ultimate_source].push_back(clone);
+  }
+
+  for (auto& [_, clones] : clones_by_source) {
+    // Further group by caller name
+    absl::btree_map<std::string, absl::InlinedVector<Cover*, 1>>
+        clones_by_caller;
+    for (Cover* clone : clones) {
+      clones_by_caller[clone->function_base()->name()].push_back(clone);
+    }
+
+    for (auto& [_, caller_clones] : clones_by_caller) {
+      if (caller_clones.size() <= 1) {
+        continue;
+      }
+      Cover* representative = caller_clones.front();
+      absl::InlinedVector<Node*, 1> conditions;
+      conditions.reserve(caller_clones.size());
+      for (Cover* clone : caller_clones) {
+        conditions.push_back(clone->condition());
+      }
+      XLS_ASSIGN_OR_RETURN(Node * or_node,
+                           representative->function_base()->MakeNode<NaryOp>(
+                               representative->loc(), conditions, Op::kOr));
+      XLS_RETURN_IF_ERROR(representative->ReplaceOperandNumber(
+          Cover::kConditionOperand, or_node, /*type_must_match=*/true));
+      for (Cover* clone : absl::MakeSpan(caller_clones).subspan(1)) {
+        XLS_RETURN_IF_ERROR(representative->function_base()->RemoveNode(clone));
+      }
+    }
+  }
+  return absl::OkStatus();
 }
 
 std::vector<FunctionBase*> GetFunctionsToInlineByLeaf(Package* p,
@@ -260,8 +317,9 @@ std::vector<FunctionBase*> GetFunctionsToInlineByLeaf(Package* p,
 
 absl::Status InliningPass::InlineOneInvoke(Invoke* invoke) {
   OptimizationContext context;
-  return InlineInvoke</*kCheckNoSubInvokes=*/false>(invoke, context,
-                                                    /*inline_count=*/0);
+  CoverToUltimateSource clone_to_ultimate_source;
+  return InlineInvoke</*kCheckNoSubInvokes=*/false>(
+      invoke, context, /*inline_count=*/0, clone_to_ultimate_source);
 }
 
 absl::StatusOr<bool> InliningPass::RunInternal(
@@ -281,6 +339,7 @@ absl::StatusOr<bool> InliningPass::RunInternal(
   } else {
     functions_to_inline = GetFunctionsToInlineByLeaf(p, cg);
   }
+  CoverToUltimateSource clone_to_ultimate_source;
   for (FunctionBase* f : functions_to_inline) {
     // Skip functions we don't want to inline into.
     if (!ShouldInlineInto(f)) {
@@ -290,12 +349,14 @@ absl::StatusOr<bool> InliningPass::RunInternal(
     // during inlining.
     for (Node* node : cg.FunctionsCalledBy(f)) {
       if (node->Is<Invoke>() && IsInlineable(node->As<Invoke>())) {
-        XLS_RETURN_IF_ERROR(
-            InlineInvoke(node->As<Invoke>(), context, inline_count++));
+        XLS_RETURN_IF_ERROR(InlineInvoke(node->As<Invoke>(), context,
+                                         inline_count++,
+                                         clone_to_ultimate_source));
         changed = true;
       }
     }
   }
+  XLS_RETURN_IF_ERROR(CommonizeCovers(clone_to_ultimate_source));
   return changed;
 }
 
