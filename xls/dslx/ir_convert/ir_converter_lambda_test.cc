@@ -89,6 +89,27 @@ fn main(x: u32[4]) -> u32[4] {
   ExpectIr(converted);
 }
 
+TEST_F(IrConverterTest, MapInvocationWithUnaryBuiltinFunctions) {
+  constexpr std::string_view program =
+      R"(
+fn main(x: u8[4]) -> (u8[4], u8[4], u1[4], u1[4], u1[4], u8[4], u3[4]) {
+  (
+    map(x, clz),
+    map(x, ctz),
+    map(x, and_reduce),
+    map(x, or_reduce),
+    map(x, xor_reduce),
+    map(x, rev),
+    map(x, encode),
+  )
+}
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
+                           ConvertModuleForTest(program));
+  ExpectIr(converted);
+}
+
 TEST_F(IrConverterTest, MapInvocationWithParametricFunction) {
   constexpr std::string_view program =
       R"(

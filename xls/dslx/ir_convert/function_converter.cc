@@ -2074,6 +2074,16 @@ absl::StatusOr<BValue> FunctionConverter::DefMapWithBuiltin(
       result = fb.Clz(param);
     } else if (builtin_name == "ctz") {
       result = fb.Ctz(param);
+    } else if (builtin_name == "and_reduce") {
+      result = fb.AndReduce(param);
+    } else if (builtin_name == "or_reduce") {
+      result = fb.OrReduce(param);
+    } else if (builtin_name == "xor_reduce") {
+      result = fb.XorReduce(param);
+    } else if (builtin_name == "rev") {
+      result = fb.Reverse(param);
+    } else if (builtin_name == "encode") {
+      result = fb.Encode(param);
     } else {
       return absl::InternalError(
           absl::StrCat("Invalid builtin name for map: ", builtin_name));

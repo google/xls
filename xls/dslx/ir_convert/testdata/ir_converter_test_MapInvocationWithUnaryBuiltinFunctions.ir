@@ -1,0 +1,47 @@
+package test_module
+
+file_number 0 "test_module.x"
+
+fn __test_module__clz__8(arg: bits[8] id=2) -> bits[8] {
+  reverse.3: bits[8] = reverse(arg, id=3)
+  one_hot.4: bits[9] = one_hot(reverse.3, lsb_prio=true, id=4)
+  encode.5: bits[4] = encode(one_hot.4, id=5)
+  ret zero_ext.6: bits[8] = zero_ext(encode.5, new_bit_count=8, id=6)
+}
+
+fn __test_module__ctz__8(arg: bits[8] id=8) -> bits[8] {
+  one_hot.9: bits[9] = one_hot(arg, lsb_prio=true, id=9)
+  encode.10: bits[4] = encode(one_hot.9, id=10)
+  ret zero_ext.11: bits[8] = zero_ext(encode.10, new_bit_count=8, id=11)
+}
+
+fn __test_module__and_reduce__8(arg: bits[8] id=13) -> bits[1] {
+  ret and_reduce.14: bits[1] = and_reduce(arg, id=14)
+}
+
+fn __test_module__or_reduce__8(arg: bits[8] id=16) -> bits[1] {
+  ret or_reduce.17: bits[1] = or_reduce(arg, id=17)
+}
+
+fn __test_module__xor_reduce__8(arg: bits[8] id=19) -> bits[1] {
+  ret xor_reduce.20: bits[1] = xor_reduce(arg, id=20)
+}
+
+fn __test_module__rev__8(arg: bits[8] id=22) -> bits[8] {
+  ret reverse.23: bits[8] = reverse(arg, id=23)
+}
+
+fn __test_module__encode__3_8(arg: bits[8] id=25) -> bits[3] {
+  ret encode.26: bits[3] = encode(arg, id=26)
+}
+
+fn __test_module__main(x: bits[8][4] id=1) -> (bits[8][4], bits[8][4], bits[1][4], bits[1][4], bits[1][4], bits[8][4], bits[3][4]) {
+  map.7: bits[8][4] = map(x, to_apply=__test_module__clz__8, id=7)
+  map.12: bits[8][4] = map(x, to_apply=__test_module__ctz__8, id=12)
+  map.15: bits[1][4] = map(x, to_apply=__test_module__and_reduce__8, id=15)
+  map.18: bits[1][4] = map(x, to_apply=__test_module__or_reduce__8, id=18)
+  map.21: bits[1][4] = map(x, to_apply=__test_module__xor_reduce__8, id=21)
+  map.24: bits[8][4] = map(x, to_apply=__test_module__rev__8, id=24)
+  map.27: bits[3][4] = map(x, to_apply=__test_module__encode__3_8, id=27)
+  ret tuple.28: (bits[8][4], bits[8][4], bits[1][4], bits[1][4], bits[1][4], bits[8][4], bits[3][4]) = tuple(map.7, map.12, map.15, map.18, map.21, map.24, map.27, id=28)
+}
