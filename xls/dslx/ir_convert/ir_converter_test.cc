@@ -8533,5 +8533,48 @@ pub fn main() -> u32 {
   std::filesystem::remove(dep_clean_path);
 }
 
+TEST_F(IrConverterTest, ProcDefWithConstConditionalSpawn) {
+  constexpr std::string_view kModule = R"(
+proc Truthy<N: u32> {}
+impl Truthy<N> {
+  fn new() -> Self { Self {} }
+  fn next(self) {}
+}
+
+proc Falsy<N: u32> {}
+impl Falsy<N> {
+  fn new() -> Self { Self {} }
+  fn next(self) {}
+}
+
+proc Foo<C: bool, N: u32> {}
+impl Foo<C, N> {
+  fn new() -> Self {
+    const if C {
+      Truthy<N>::new().spawn();
+    } else {
+      Falsy<N>::new().spawn();
+    };
+    Self {}
+  }
+  fn next(self) {}
+}
+
+proc Top {}
+impl Top {
+  fn new() -> Self {
+    Foo<true, 10>::new().spawn();
+    Foo<false, 20>::new().spawn();
+    Self {}
+  }
+  fn next(self) {}
+}
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
+                           ConvertOneFunctionForTest(kModule, "Top"));
+  ExpectIr(converted);
+}
+
 }  // namespace
 }  // namespace xls::dslx

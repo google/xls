@@ -372,6 +372,13 @@ absl::Status ConstexprEvaluator::HandleLambda(const Lambda* expr) {
 absl::Status ConstexprEvaluator::HandleMatch(const Match* expr) {
   EVAL_AS_CONSTEXPR_OR_RETURN(expr->matched());
 
+  if (expr->IsConst()) {
+    XLS_ASSIGN_OR_RETURN(uint32_t arm_id,
+                         type_info_->GetArmSelectionResult(expr));
+    EVAL_AS_CONSTEXPR_OR_RETURN(expr->arms()[arm_id]->expr());
+    return InterpretExpr(expr);
+  }
+
   for (const auto* arm : expr->arms()) {
     EVAL_AS_CONSTEXPR_OR_RETURN(arm->expr());
   }
@@ -521,16 +528,17 @@ absl::Status ConstexprEvaluator::HandleSumInstance(const SumInstance*) {
 absl::Status ConstexprEvaluator::HandleConditional(const Conditional* expr) {
   // Simple enough that we don't need to invoke the interpreter.
   EVAL_AS_CONSTEXPR_OR_RETURN(expr->test());
-  EVAL_AS_CONSTEXPR_OR_RETURN(expr->consequent());
-  EVAL_AS_CONSTEXPR_OR_RETURN(ToExprNode(expr->alternate()));
 
   InterpValue test = type_info_->GetConstExpr(expr->test()).value();
   if (test.IsTrue()) {
+    EVAL_AS_CONSTEXPR_OR_RETURN(expr->consequent());
     type_info_->NoteConstExpr(
         expr, type_info_->GetConstExpr(expr->consequent()).value());
   } else {
-    type_info_->NoteConstExpr(
-        expr, type_info_->GetConstExpr(ToExprNode(expr->alternate())).value());
+    const Expr* alternate = ToExprNode(expr->alternate());
+    EVAL_AS_CONSTEXPR_OR_RETURN(alternate);
+    type_info_->NoteConstExpr(expr,
+                              type_info_->GetConstExpr(alternate).value());
   }
 
   return absl::OkStatus();
