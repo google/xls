@@ -246,6 +246,10 @@ class FoldingGraph {
   // In other words, these are edges that have @n as head.
   std::vector<BinaryFoldingAction*> GetEdgesTo(Node* n) const;
 
+  // This function returns the edge from @from to @to, or nullptr if no such
+  // edge exists in the folding graph.
+  BinaryFoldingAction* GetEdge(Node* from, Node* to) const;
+
  private:
   using NodeIndex = int32_t;
   using EdgeIndex = int32_t;
