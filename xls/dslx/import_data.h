@@ -15,6 +15,7 @@
 #ifndef XLS_DSLX_IMPORT_DATA_H_
 #define XLS_DSLX_IMPORT_DATA_H_
 
+#include <cstddef>
 #include <cstdint>
 #include <filesystem>
 #include <functional>
@@ -54,6 +55,9 @@ struct ConfiguredValueGroup {
   // Non-empty means scoped to these module identifiers (from
   // key@mod_1+...+mod_n:value).
   std::vector<std::string> scope_modules;
+  // Subset of `scope_modules` that have matched at least one loaded module.
+  absl::flat_hash_set<std::string> loaded_scope_modules;
+  bool used = false;
 };
 
 // An entry that goes into the ImportData.
@@ -313,11 +317,26 @@ class ImportData {
                                    const std::filesystem::path& module_path,
                                    bool is_entry_module);
 
+  // Marks `key` as used in the module identified by `module_name`.
+  void NoteConfiguredValueUsed(std::string_view module_name,
+                               std::string_view key);
+
+  absl::Span<const ConfiguredValueGroup> configured_value_groups() const {
+    return configured_value_groups_;
+  }
+
+  void SetDeferUnusedCheck(bool defer) { defer_unused_check_ = defer; }
+  bool defer_unused_check() const { return defer_unused_check_; }
+
   // Returns true if `module_name` or `module_path` (normalized relative to
   // configured search paths) matches `scope_id`.
   bool ModuleMatchesScope(std::string_view scope_id,
                           std::string_view module_name,
                           const std::filesystem::path& module_path) const;
+
+  // Merges loaded module records and used configured value group markers from
+  // `other` into this `ImportData`.
+  void MergeConfiguredValueUsageFrom(const ImportData& other);
 
  private:
   friend ImportData CreateImportData(const std::filesystem::path&,
@@ -382,6 +401,9 @@ class ImportData {
   std::unique_ptr<VirtualizableFilesystem> vfs_;
 
   std::vector<ConfiguredValueGroup> configured_value_groups_;
+  absl::flat_hash_map<std::pair<std::string, std::string>, std::vector<size_t>>
+      module_key_to_groups_;
+  bool defer_unused_check_ = false;
 };
 
 }  // namespace xls::dslx

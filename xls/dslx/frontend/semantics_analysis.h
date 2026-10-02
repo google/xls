@@ -22,6 +22,7 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "xls/dslx/frontend/ast.h"
+#include "xls/dslx/frontend/module.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/import_routines.h"
 #include "xls/dslx/type_system/type.h"
@@ -59,6 +60,8 @@ class SemanticsAnalysis {
   std::vector<std::pair<const Function*, std::vector<const NameDef*>>>
       maybe_unreferenced_defs;
   absl::flat_hash_map<const NameDef*, std::unique_ptr<Type>> def_to_type_;
+  Module* module_ = nullptr;
+  ImportData* import_data_ = nullptr;
   bool suppress_warnings_;
 };
 

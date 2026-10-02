@@ -24,6 +24,7 @@
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
@@ -433,24 +434,60 @@ ImportData::ResolveConfiguredValuesForModule(
     std::string_view module_name, const std::filesystem::path& module_path,
     bool is_entry_module) {
   absl::flat_hash_map<std::string, std::string> result;
-  for (const auto& group : configured_value_groups_) {
-    if (!group.scope_modules.empty()) {
-      for (const std::string& scope_id : group.scope_modules) {
-        if (ModuleMatchesScope(scope_id, module_name, module_path)) {
-          result[group.key] = group.value;
-          break;
-        }
+  for (size_t i = 0; i < configured_value_groups_.size(); ++i) {
+    ConfiguredValueGroup& group = configured_value_groups_[i];
+    if (group.scope_modules.empty()) {
+      continue;
+    }
+    bool matched = false;
+    for (const std::string& scope_id : group.scope_modules) {
+      if (ModuleMatchesScope(scope_id, module_name, module_path)) {
+        group.loaded_scope_modules.insert(scope_id);
+        matched = true;
       }
+    }
+    if (matched) {
+      result[group.key] = group.value;
+      module_key_to_groups_[{std::string(module_name), group.key}].push_back(i);
     }
   }
   if (is_entry_module) {
-    for (const auto& group : configured_value_groups_) {
+    for (size_t i = 0; i < configured_value_groups_.size(); ++i) {
+      const ConfiguredValueGroup& group = configured_value_groups_[i];
       if (group.scope_modules.empty()) {
         result[group.key] = group.value;
+        module_key_to_groups_[{std::string(module_name), group.key}].push_back(
+            i);
       }
     }
   }
   return result;
+}
+
+void ImportData::NoteConfiguredValueUsed(std::string_view module_name,
+                                         std::string_view key) {
+  auto it =
+      module_key_to_groups_.find({std::string(module_name), std::string(key)});
+  if (it == module_key_to_groups_.end()) {
+    return;
+  }
+  for (size_t group_idx : it->second) {
+    configured_value_groups_[group_idx].used = true;
+  }
+}
+
+void ImportData::MergeConfiguredValueUsageFrom(const ImportData& other) {
+  for (const auto& other_group : other.configured_value_groups_) {
+    for (auto& group : configured_value_groups_) {
+      if (group.key == other_group.key && group.value == other_group.value &&
+          group.scope_modules == other_group.scope_modules) {
+        group.used = group.used || other_group.used;
+        group.loaded_scope_modules.insert(
+            other_group.loaded_scope_modules.begin(),
+            other_group.loaded_scope_modules.end());
+      }
+    }
+  }
 }
 
 }  // namespace xls::dslx
