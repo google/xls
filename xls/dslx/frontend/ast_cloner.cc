@@ -1309,6 +1309,9 @@ class AstCloner : public AstNodeVisitor {
     // A TypeRef doesn't own its referenced type definition, so we have to
     // explicitly visit it.
     XLS_RETURN_IF_ERROR(absl::visit(Visitor{[&](auto* ref) -> absl::Status {
+                                      if (ref->owner() != n->owner()) {
+                                        return absl::OkStatus();
+                                      }
                                       XLS_RETURN_IF_ERROR(ReplaceOrVisit(ref));
                                       new_type_definition =
                                           absl::down_cast<decltype(ref)>(
