@@ -248,6 +248,12 @@ class Bindings {
            std::holds_alternative<SumDef*>(*bn);
   }
 
+  // Returns whether 'name' is bound via a `use` statement.
+  bool ResolveNodeIsUseBound(std::string_view name) const {
+    std::optional<BoundNode> bn = ResolveNode(name);
+    return bn.has_value() && std::holds_alternative<UseTreeEntry*>(*bn);
+  }
+
   // As above, but flags a ParseError() if the binding cannot be resolved,
   // attributing the source of the binding resolution as span.
   absl::StatusOr<BoundNode> ResolveNodeOrError(
