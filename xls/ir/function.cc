@@ -95,16 +95,17 @@ std::string Function::DumpIrWithAnnotations(
 
 std::string Function::DumpIr(const IrAnnotator& annotate) const {
   std::string res = DumpAttributes();
+  Annotation fn_annotation = annotate.FunctionAnnotation(this);
+  if (fn_annotation.prefix.has_value()) {
+    absl::StrAppend(&res, *fn_annotation.prefix, "\n");
+  }
   absl::StrAppendFormat(&res, "%s%sfn %s(", IsTop() ? "top " : "",
                         IsScheduled() ? "scheduled_" : "", name());
   absl::StrAppend(
       &res,
-      absl::StrJoin(params_, ", ", [&](std::string* s, Param* const param) {
-        Annotation param_annotation = annotate.NodeAnnotation(param);
-        std::string base =
-            absl::StrFormat("%s: %s id=%d", param->name(),
-                            param->GetType()->ToString(), param->id());
-        absl::StrAppend(s, param_annotation.Decorate(base));
+      absl::StrJoin(params_, ", ", [](std::string* s, Param* const param) {
+        absl::StrAppendFormat(s, "%s: %s id=%d", param->name(),
+                              param->GetType()->ToString(), param->id());
       }));
   absl::StrAppend(&res, ") -> ");
 
@@ -150,6 +151,9 @@ std::string Function::DumpIr(const IrAnnotator& annotate) const {
   }
 
   absl::StrAppend(&res, "}\n");
+  if (fn_annotation.suffix.has_value()) {
+    absl::StrAppend(&res, *fn_annotation.suffix, "\n");
+  }
   return res;
 }
 

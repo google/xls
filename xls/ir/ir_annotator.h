@@ -29,6 +29,7 @@
 namespace xls {
 
 class Node;
+class Function;
 class FunctionBase;
 class Channel;
 class ChannelInterface;
@@ -78,6 +79,7 @@ struct Annotation {
     return res;
   }
 };
+
 // Helper to allow users to emit custom annotations in the IR. By default,
 // no annotations are emitted.
 class IrAnnotator {
@@ -90,6 +92,9 @@ class IrAnnotator {
   virtual std::optional<std::vector<Node*>> NodeOrder(FunctionBase* fb) const {
     return std::nullopt;
   }
+  // Additional information to associate with 'function' in the IR.
+  // By default, emits lines for annotated parameters of 'function'.
+  virtual Annotation FunctionAnnotation(const Function* function) const;
   // Additional information to associate with 'node' in the IR.
   virtual Annotation NodeAnnotation(Node* node) const { return {}; }
   // Additional information to associate with 'channel' in the IR.
@@ -139,6 +144,13 @@ class IrAnnotatorJoiner : public IrAnnotator {
           return ReduceNodeOrder(fb, annotators...);
         },
         annotators_);
+  }
+  Annotation FunctionAnnotation(const Function* function) const override {
+    return RunAnnotate(
+        [](const IrAnnotator& annotator, const Function* function) {
+          return annotator.FunctionAnnotation(function);
+        },
+        function);
   }
   Annotation NodeAnnotation(Node* node) const override {
     return RunAnnotate(
@@ -260,6 +272,9 @@ class IrAnnotatorRef : public IrAnnotator {
   explicit IrAnnotatorRef(const Base& base) : base_(base) {}
   std::optional<std::vector<Node*>> NodeOrder(FunctionBase* fb) const override {
     return base_.NodeOrder(fb);
+  }
+  Annotation FunctionAnnotation(const Function* function) const override {
+    return base_.FunctionAnnotation(function);
   }
   Annotation NodeAnnotation(Node* node) const override {
     return base_.NodeAnnotation(node);

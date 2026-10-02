@@ -2834,9 +2834,12 @@ TEST_F(Z3IrTranslatorTest, DumpWithNodeValues) {
   absl::flat_hash_map<Node*, Value> counterexample{
       {x.node(), Value(UBits(1, 32))}};
   solvers::ProvenFalse proven_false{.counterexample = counterexample};
-  EXPECT_THAT(f->DumpIr(solvers::CounterExampleAnnotator(proven_false)),
-              AllOf(ContainsRegex("x: bits\\[32\\] id=[0-9]+ \\(1\\)"),
-                    ContainsRegex("y: bits\\[32\\] id=[0-9]+ \\(0\\)")));
+  EXPECT_THAT(
+      f->DumpIr(solvers::CounterExampleAnnotator(proven_false)),
+      AllOf(ContainsRegex(
+                "x: bits\\[32\\] = param\\(name=x, id=[0-9]+\\) \\(1\\)"),
+            ContainsRegex(
+                "y: bits\\[32\\] = param\\(name=y, id=[0-9]+\\) \\(0\\)")));
 }
 
 class FunctionInterpreter : public IrInterpreter {

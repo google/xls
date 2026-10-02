@@ -15,15 +15,34 @@
 #include "xls/ir/ir_annotator.h"
 
 #include <optional>
+#include <string>
 #include <vector>
 
 #include "absl/log/check.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_join.h"
+#include "xls/ir/function.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/node.h"
+#include "xls/ir/nodes.h"
 #include "xls/ir/topo_sort.h"
 
 namespace xls {
+
+// Emits parameter annotations as a prefix before the function.
+Annotation IrAnnotator::FunctionAnnotation(const Function* function) const {
+  std::vector<std::string> param_annotations;
+  for (Param* param : function->params()) {
+    Annotation note = NodeAnnotation(param);
+    if (!note.filter && (note.prefix.has_value() || note.suffix.has_value())) {
+      param_annotations.push_back(note.Decorate(param->ToString()));
+    }
+  }
+  if (param_annotations.empty()) {
+    return {};
+  }
+  return Annotation{.prefix = absl::StrJoin(param_annotations, "\n")};
+}
 
 std::optional<std::vector<Node*>> TopoSortAnnotator::NodeOrder(
     FunctionBase* fb) const {
