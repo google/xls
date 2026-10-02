@@ -146,7 +146,7 @@ GetSignednessAndBitCountWithUserFacingError(
 // value. If the `number` is negative, then the annotation will be signed and
 // have room for a sign bit; otherwise, it will not.
 absl::StatusOr<TypeAnnotation*> CreateAnnotationSizedToFit(
-    Module& module, const Number& number);
+    Module& module, const Number& number, const FileTable& file_table);
 
 // Creates a type annotation for the unit tuple, `()`.
 TypeAnnotation* CreateUnitTupleAnnotation(Module& module, const Span& span);

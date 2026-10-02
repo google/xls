@@ -14,6 +14,7 @@
 
 #include <filesystem>
 #include <memory>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -25,9 +26,14 @@
 #include "absl/status/status_matchers.h"
 #include "xls/common/status/matchers.h"
 #include "xls/dslx/create_import_data.h"
+#include "xls/dslx/frontend/ast.h"
+#include "xls/dslx/frontend/bindings.h"
+#include "xls/dslx/frontend/module.h"
+#include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/type_system/typecheck_test_utils.h"
 #include "xls/dslx/type_system_v2/matchers.h"
+#include "xls/dslx/type_system_v2/type_annotation_utils.h"
 #include "xls/dslx/virtualizable_file_system.h"
 
 // Tests for constant/let declarations.
@@ -1475,6 +1481,23 @@ TEST(TypecheckV2Test, NegativeArrayDimensionFails) {
 TEST(TypecheckV2Test, NegativeChannelDimensionFails) {
   EXPECT_THAT("const X = !s12:26; type C = chan<u32>[X] in;",
               TypecheckFails(HasSignednessMismatch("s12", "u32")));
+}
+
+TEST(TypecheckV2Test, MalformedNumberProducesPositionalError) {
+  FileTable file_table;
+  Module module("test", /*fs_path=*/std::nullopt, file_table);
+
+  for (std::string text : {"-", "+", "0b", "0x"}) {
+    Number number(&module, Span::Fake(), text, NumberKind::kOther,
+                  /*type=*/nullptr);
+    absl::StatusOr<TypeAnnotation*> result =
+        CreateAnnotationSizedToFit(module, number, file_table);
+    EXPECT_THAT(result.status(),
+                absl_testing::StatusIs(absl::StatusCode::kInvalidArgument,
+                                       HasSubstr("TypeInferenceError: ")));
+    XLS_EXPECT_OK(
+        GetPositionalErrorData(result.status(), std::nullopt, file_table));
+  }
 }
 
 }  // namespace
