@@ -245,6 +245,21 @@ class DslxFmtTest(absltest.TestCase):
     )
     self.assertEqual(p.stdout, want)
 
+  def test_io_objects_proc(self):
+    contents = textwrap.dedent("""\
+    #![feature(io_objects)]
+    proc Loopback{c_in:Source<u32>,c_out:Sink<u32>}
+    """)
+    want = textwrap.dedent("""\
+    #![feature(io_objects)]
+
+    proc Loopback {
+        c_in: Source<u32>,
+        c_out: Sink<u32>,
+    }
+    """)
+    self.assertEqual(self._run(contents), want)
+
 
 if __name__ == '__main__':
   absltest.main()

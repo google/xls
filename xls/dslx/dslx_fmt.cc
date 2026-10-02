@@ -43,7 +43,9 @@
 #include "xls/dslx/frontend/comment_data.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/parse_and_typecheck.h"
+#include "xls/dslx/type_system_v2/populate_table.h"
 #include "xls/dslx/virtualizable_file_system.h"
+#include "xls/dslx/warning_collector.h"
 #include "xls/dslx/warning_kind.h"
 
 // Note: we attempt to keep our command line interface similar to clang-format.
@@ -101,10 +103,17 @@ absl::Status RunOnOneFile(std::string_view input_path, bool in_place,
 
   std::vector<CommentData> comments_vec;
 
+  if (!import_data.GetBuiltinStubsModule().ok()) {
+    WarningCollector warnings(import_data.enabled_warnings());
+    XLS_RETURN_IF_ERROR(PopulateBuiltinStubs(
+        &import_data, &warnings, import_data.GetOrCreateInferenceTable()));
+  }
+  XLS_ASSIGN_OR_RETURN(Module * builtin_stubs,
+                       import_data.GetBuiltinStubsModule());
   // Parse the module with comment collection enabled.
   absl::StatusOr<std::unique_ptr<Module>> module =
       ParseModule(contents, path.c_str(), module_name, import_data.file_table(),
-                  &comments_vec);
+                  &comments_vec, /*parse_fn_stubs=*/false, builtin_stubs);
   if (!module.ok()) {
     TryPrintError(module.status(), import_data.file_table(), import_data.vfs());
     return module.status();

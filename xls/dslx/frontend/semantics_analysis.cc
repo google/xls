@@ -603,9 +603,10 @@ class ProcStateVisitor : public AstNodeRecursiveVisitor {
     for (StructMemberNode* member : node->members()) {
       TypeAnnotation* type = member->type();
 
-      // Don't do the T -> State<T> conversion for channels, channel arrays, or
-      // sub-procs.
-      if (IsChannelOrChannelArrayAnnotation(type)) {
+      // Don't do the T -> State<T> conversion for channels, channel arrays,
+      // I/O objects, or sub-procs.
+      if (IsChannelOrChannelArrayAnnotation(type) ||
+          IsIoObjectAnnotation(type)) {
         continue;
       }
       XLS_ASSIGN_OR_RETURN(

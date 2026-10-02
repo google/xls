@@ -28,7 +28,11 @@ namespace xls::dslx {
 inline constexpr std::string_view kBuiltinStubsModuleName = "<builtin_stubs>";
 inline constexpr std::string_view kBuiltinProcStateStructName =
     "BuiltinProcState";
-
+inline constexpr std::string_view kBuiltinSourceStructName = "Source";
+inline constexpr std::string_view kBuiltinSinkStructName = "Sink";
+inline constexpr std::string_view kBuiltinIoResultStructName = "IOResult";
+inline constexpr std::string_view kBuiltinChannelConfigStructName =
+    "ChannelConfig";
 absl::StatusOr<std::filesystem::path> BuiltinStubsPath();
 
 // Load the (empty) functions in the builtin_stubs.x file into a Module.

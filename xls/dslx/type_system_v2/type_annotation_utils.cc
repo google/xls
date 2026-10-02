@@ -34,6 +34,7 @@
 #include "xls/dslx/errors.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/ast_node.h"
+#include "xls/dslx/frontend/builtin_stubs_utils.h"
 #include "xls/dslx/frontend/module.h"
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/interp_value.h"
@@ -525,4 +526,22 @@ std::vector<int> GetBindingIndicesWithGenericTvtasLast(
   return results;
 }
 
+bool IsIoObjectAnnotation(const TypeAnnotation* annotation) {
+  if (auto* tr_type = dynamic_cast<const TypeRefTypeAnnotation*>(annotation)) {
+    TypeDefinition def = tr_type->type_ref()->type_definition();
+    if (std::holds_alternative<StructDef*>(def)) {
+      const StructDef* struct_def = std::get<StructDef*>(def);
+      std::string_view name = struct_def->identifier();
+      return struct_def->owner()->name() == kBuiltinStubsModuleName &&
+             (name == kBuiltinSourceStructName ||
+              name == kBuiltinSinkStructName);
+    }
+  }
+  if (annotation->IsAnnotation<ArrayTypeAnnotation>()) {
+    return IsIoObjectAnnotation(
+        absl::down_cast<const ArrayTypeAnnotation*>(annotation)
+            ->element_type());
+  }
+  return false;
+}
 }  // namespace xls::dslx

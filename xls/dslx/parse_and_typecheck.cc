@@ -39,6 +39,7 @@
 #include "xls/dslx/ir_convert/convert_options.h"
 #include "xls/dslx/type_system/type_info.h"
 #include "xls/dslx/type_system_v2/builtin_trait_deriver.h"
+#include "xls/dslx/type_system_v2/populate_table.h"
 #include "xls/dslx/type_system_v2/trait_deriver.h"
 #include "xls/dslx/type_system_v2/type_inference_error_handler.h"
 #include "xls/dslx/type_system_v2/typecheck_module_v2.h"
@@ -64,9 +65,18 @@ absl::StatusOr<TypecheckedModule> ParseAndTypecheck(
     CHECK_OK(import_data->PopFromImporterStack(fake_import_span));
   };
 
-  XLS_ASSIGN_OR_RETURN(std::unique_ptr<Module> module,
-                       ParseModule(text, path, module_name,
-                                   import_data->file_table(), comments));
+  if (!import_data->GetBuiltinStubsModule().ok()) {
+    WarningCollector warnings(import_data->enabled_warnings());
+    XLS_RETURN_IF_ERROR(PopulateBuiltinStubs(
+        import_data, &warnings, import_data->GetOrCreateInferenceTable()));
+  }
+
+  XLS_ASSIGN_OR_RETURN(Module * builtin_stubs,
+                       import_data->GetBuiltinStubsModule());
+  XLS_ASSIGN_OR_RETURN(
+      std::unique_ptr<Module> module,
+      ParseModule(text, path, module_name, import_data->file_table(), comments,
+                  /*parse_fn_stubs=*/false, builtin_stubs));
 
   XLS_RETURN_IF_ERROR(
       import_data->RegisterConfiguredValues(options.configured_values));
@@ -79,11 +89,12 @@ absl::StatusOr<TypecheckedModule> ParseAndTypecheck(
 absl::StatusOr<std::unique_ptr<Module>> ParseModule(
     std::string_view text, std::string_view path, std::string_view module_name,
     FileTable& file_table, std::vector<CommentData>* comments,
-    bool parse_fn_stubs) {
+    bool parse_fn_stubs, const Module* builtin_stubs) {
   Fileno fileno = file_table.GetOrCreate(path);
   Scanner scanner(file_table, fileno, std::string{text});
   Parser parser(std::string{module_name}, &scanner, parse_fn_stubs);
-  XLS_ASSIGN_OR_RETURN(auto module, parser.ParseModule());
+  XLS_ASSIGN_OR_RETURN(auto module,
+                       parser.ParseModule(/*bindings=*/nullptr, builtin_stubs));
   if (comments != nullptr) {
     *comments = scanner.PopComments();
   }
@@ -97,8 +108,16 @@ absl::StatusOr<std::unique_ptr<Module>> ParseModuleFromFileAtPath(
                        GetXlsRunfilePath(file_path));
   XLS_ASSIGN_OR_RETURN(std::string text_dslx,
                        import_data->vfs().GetFileContents(path));
+  if (!import_data->GetBuiltinStubsModule().ok()) {
+    WarningCollector warnings(import_data->enabled_warnings());
+    XLS_RETURN_IF_ERROR(PopulateBuiltinStubs(
+        import_data, &warnings, import_data->GetOrCreateInferenceTable()));
+  }
+  XLS_ASSIGN_OR_RETURN(Module * builtin_stubs,
+                       import_data->GetBuiltinStubsModule());
   return ParseModule(text_dslx, file_path, module_name,
-                     import_data->file_table());
+                     import_data->file_table(), /*comments=*/nullptr,
+                     /*parse_fn_stubs=*/false, builtin_stubs);
 }
 
 absl::StatusOr<TypecheckedModule> TypecheckModule(
@@ -135,10 +154,13 @@ absl::StatusOr<TypecheckedModule> TypecheckModule(
     if (new_module != nullptr) {
       // The module was modified, so we will re-parse and typecheck it again.
       std::string new_module_as_string = new_module->ToString();
-      XLS_ASSIGN_OR_RETURN(std::unique_ptr<Module> newly_parsed_module,
-                           ParseModule(new_module_as_string, path, module_name,
-                                       import_data->file_table(),
-                                       /*comments=*/nullptr));
+      XLS_ASSIGN_OR_RETURN(Module * builtin_stubs,
+                           import_data->GetBuiltinStubsModule());
+      XLS_ASSIGN_OR_RETURN(
+          std::unique_ptr<Module> newly_parsed_module,
+          ParseModule(new_module_as_string, path, module_name,
+                      import_data->file_table(), /*comments=*/nullptr,
+                      /*parse_fn_stubs=*/false, builtin_stubs));
       newly_parsed_module->SetConfiguredValuesMap(
           module_info->module().configured_values());
       // Keep the old module alive until import_data is destroyed.
