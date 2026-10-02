@@ -565,6 +565,167 @@ fn main() -> u32{
                                        HasSubstr("not less than")));
 }
 
+TEST_F(BytecodeInterpreterTest, AssertNeFail) {
+  constexpr std::string_view kProgram = R"(
+fn main() -> u32{
+  let a = u32:3;
+  assert_ne(a, u32:3);
+  a
+}
+)";
+
+  absl::StatusOr<InterpValue> value = Interpret(kProgram, "main");
+  EXPECT_THAT(value.status(),
+              StatusIs(absl::StatusCode::kInternal,
+                       testing::AllOf(HasSubstr("were equal"),
+                                      HasSubstr("lhs: u32:3"),
+                                      HasSubstr("rhs: u32:3"))));
+}
+
+TEST_F(BytecodeInterpreterTest, AssertNePass) {
+  constexpr std::string_view kProgram = R"(
+fn main() -> u32{
+  let a = u32:3;
+  assert_ne(a, u32:2);
+  a
+}
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value, Interpret(kProgram, "main"));
+  EXPECT_EQ(value, InterpValue::MakeU32(3));
+}
+
+TEST_F(BytecodeInterpreterTest, AssertLeFail) {
+  constexpr std::string_view kProgram = R"(
+fn main() -> u32{
+  let a = u32:3;
+  assert_le(a, u32:2);
+  a
+}
+)";
+
+  absl::StatusOr<InterpValue> value = Interpret(kProgram, "main");
+  EXPECT_THAT(value.status(), StatusIs(absl::StatusCode::kInternal,
+                                       HasSubstr("not less than or equal")));
+}
+
+TEST_F(BytecodeInterpreterTest, AssertLePass) {
+  constexpr std::string_view kProgram = R"(
+fn main() -> u32{
+  let a = u32:2;
+  assert_le(a, u32:2);
+  a
+}
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value, Interpret(kProgram, "main"));
+  EXPECT_EQ(value, InterpValue::MakeU32(2));
+}
+
+TEST_F(BytecodeInterpreterTest, AssertGtFail) {
+  constexpr std::string_view kProgram = R"(
+fn main() -> u32{
+  let a = u32:2;
+  assert_gt(a, u32:3);
+  a
+}
+)";
+
+  absl::StatusOr<InterpValue> value = Interpret(kProgram, "main");
+  EXPECT_THAT(value.status(), StatusIs(absl::StatusCode::kInternal,
+                                       HasSubstr("not greater than")));
+}
+
+TEST_F(BytecodeInterpreterTest, AssertGtPass) {
+  constexpr std::string_view kProgram = R"(
+fn main() -> u32{
+  let a = u32:3;
+  assert_gt(a, u32:2);
+  a
+}
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value, Interpret(kProgram, "main"));
+  EXPECT_EQ(value, InterpValue::MakeU32(3));
+}
+
+TEST_F(BytecodeInterpreterTest, AssertGeFail) {
+  constexpr std::string_view kProgram = R"(
+fn main() -> u32{
+  let a = u32:2;
+  assert_ge(a, u32:3);
+  a
+}
+)";
+
+  absl::StatusOr<InterpValue> value = Interpret(kProgram, "main");
+  EXPECT_THAT(value.status(),
+              StatusIs(absl::StatusCode::kInternal,
+                       HasSubstr("not greater than or equal")));
+}
+
+TEST_F(BytecodeInterpreterTest, AssertGePass) {
+  constexpr std::string_view kProgram = R"(
+fn main() -> u32{
+  let a = u32:3;
+  assert_ge(a, u32:3);
+  a
+}
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value, Interpret(kProgram, "main"));
+  EXPECT_EQ(value, InterpValue::MakeU32(3));
+}
+
+TEST_F(BytecodeInterpreterTest, AssertNeOnAggregatesPass) {
+  constexpr std::string_view kProgram = R"(
+struct MyStruct { x: u32, y: u32 }
+
+enum MyEnum : u2 { FOO = 0, BAR = 1 }
+
+fn main() -> u32 {
+  assert_ne((u32:1, u8:2), (u32:1, u8:3));
+  assert_ne(u32[2]:[1, 2], u32[2]:[1, 3]);
+  assert_ne(MyStruct{x: u32:1, y: u32:2}, MyStruct{x: u32:1, y: u32:3});
+  assert_ne(MyEnum::FOO, MyEnum::BAR);
+  u32:1
+}
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value, Interpret(kProgram, "main"));
+  EXPECT_EQ(value, InterpValue::MakeU32(1));
+}
+
+TEST_F(BytecodeInterpreterTest, AssertRelationalSignedPass) {
+  constexpr std::string_view kProgram = R"(
+fn main() -> s32{
+  let a = s32:-1;
+  assert_lt(a, s32:1);
+  assert_le(a, s32:1);
+  assert_gt(s32:1, a);
+  assert_ge(s32:1, a);
+  a
+}
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value, Interpret(kProgram, "main"));
+  EXPECT_EQ(value, InterpValue::MakeS32(-1));
+}
+
+TEST_F(BytecodeInterpreterTest, AssertGtFailSigned) {
+  constexpr std::string_view kProgram = R"(
+fn main() -> s32{
+  let a = s32:-1;
+  assert_gt(a, s32:1);
+  a
+}
+)";
+
+  absl::StatusOr<InterpValue> value = Interpret(kProgram, "main");
+  EXPECT_THAT(value.status(), StatusIs(absl::StatusCode::kInternal,
+                                       HasSubstr("not greater than")));
+}
+
 TEST_F(BytecodeInterpreterTest, DestructuringNonConstantTupleWithRestOfTuple) {
   constexpr std::string_view kProgram = R"(
 fn tuple_not_constant() -> u32 {

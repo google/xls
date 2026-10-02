@@ -55,6 +55,7 @@
 #include "xls/ir/function_builder.h"
 #include "xls/ir/name_uniquer.h"
 #include "xls/ir/nodes.h"
+#include "xls/ir/op.h"
 #include "xls/ir/package.h"
 #include "xls/ir/source_location.h"
 #include "xls/ir/type.h"
@@ -481,9 +482,31 @@ class FunctionConverter {
   absl::Status HandleAssertEqBuiltin(const Invocation* node, BValue lhs,
                                      BValue rhs);
 
+  // Handles the `assert_ne` builtin invocation.
+  absl::Status HandleAssertNeBuiltin(const Invocation* node, BValue lhs,
+                                     BValue rhs);
+
   // Handles the `assert_lt` builtin invocation.
   absl::Status HandleAssertLtBuiltin(const Invocation* node, BValue lhs,
                                      BValue rhs);
+
+  // Handles the `assert_le` builtin invocation.
+  absl::Status HandleAssertLeBuiltin(const Invocation* node, BValue lhs,
+                                     BValue rhs);
+
+  // Handles the `assert_gt` builtin invocation.
+  absl::Status HandleAssertGtBuiltin(const Invocation* node, BValue lhs,
+                                     BValue rhs);
+
+  // Handles the `assert_ge` builtin invocation.
+  absl::Status HandleAssertGeBuiltin(const Invocation* node, BValue lhs,
+                                     BValue rhs);
+
+  // Lowers a relational assertion with a signed or unsigned comparison.
+  absl::Status HandleRelationalAssertBuiltin(const Invocation* node, BValue lhs,
+                                             BValue rhs, xls::Op signed_op,
+                                             xls::Op unsigned_op);
+
   // Handles the `cover!()` builtin invocation.
   absl::Status HandleCoverBuiltin(const Invocation* node, BValue condition);
 
