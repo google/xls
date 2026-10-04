@@ -165,8 +165,17 @@ class ConditionSet {
 
   // Add all conditions in `other` to this set.
   void Union(const ConditionSet& other) {
+    if (other.empty()) {
+      return;
+    }
+    if (empty()) {
+      conditions_ = other.conditions_;
+      return;
+    }
     ConditionVector original = std::move(conditions_);
     conditions_.clear();
+    conditions_.reserve(std::min<int64_t>(
+        kMaxConditions, original.size() + other.conditions_.size()));
     auto original_it = original.begin();
     auto other_it = other.conditions_.begin();
     while (conditions_.size() < kMaxConditions &&
@@ -445,6 +454,10 @@ class ConditionMap {
       }
     }
     return os.str();
+  }
+
+  const absl::flat_hash_map<Node*, int64_t>& topo_index() const {
+    return topo_index_;
   }
 
  private:
@@ -1276,8 +1289,39 @@ absl::StatusOr<bool> ConditionalSpecializationPass::RunOnFunctionBaseInternal(
       // reduce throughput.
       continue;
     }
+    const bool is_boolean_nary =
+        node->OpIn({Op::kAnd, Op::kNand, Op::kOr, Op::kNor});
+    std::optional<PartialInformation> non_absorbing_partial;
+    ConditionSet prefix_conditions(condition_map.topo_index());
+    std::vector<ConditionSet> suffix_conditions;
+    if (is_boolean_nary && node->operand_count() > 1) {
+      bool is_and_like = node->OpIn({Op::kAnd, Op::kNand});
+      int64_t bit_count = node->BitCountOrDie();
+      // Absorbing element for AND/NAND is all zeros, for OR/NOR is all ones.
+      Bits absorbing = is_and_like ? Bits(bit_count) : Bits::AllOnes(bit_count);
+      non_absorbing_partial =
+          PartialInformation(IntervalSet::Punctured(absorbing));
+
+      suffix_conditions.resize(node->operand_count() + 1,
+                               ConditionSet(condition_map.topo_index()));
+      for (int64_t i = node->operand_count() - 1; i >= 1; --i) {
+        suffix_conditions[i] = suffix_conditions[i + 1];
+        Node* op = node->operand(i);
+        if (!op->Is<Literal>()) {
+          suffix_conditions[i].Union(condition_cache.GetImplied(
+              Condition{.node = op, .partial = *non_absorbing_partial}));
+        }
+      }
+    }
     for (int64_t operand_no = 0; operand_no < node->operand_count();
          ++operand_no) {
+      if (operand_no > 0 && non_absorbing_partial.has_value()) {
+        Node* prev_operand = node->operand(operand_no - 1);
+        if (!prev_operand->Is<Literal>()) {
+          prefix_conditions.Union(condition_cache.GetImplied(Condition{
+              .node = prev_operand, .partial = *non_absorbing_partial}));
+        }
+      }
       Node* operand = node->operand(operand_no);
 
       if (operand->Is<Literal>()) {
@@ -1301,7 +1345,7 @@ absl::StatusOr<bool> ConditionalSpecializationPass::RunOnFunctionBaseInternal(
         return *modified_edge_set;
       };
 
-      if (node->OpIn({Op::kAnd, Op::kNand, Op::kOr, Op::kNor})) {
+      if (non_absorbing_partial.has_value()) {
         // For boolean operations we can assume that all other operands are
         // *not* the absorbing element for the operation when evaluating a given
         // operand.
@@ -1312,25 +1356,11 @@ absl::StatusOr<bool> ConditionalSpecializationPass::RunOnFunctionBaseInternal(
         // When evaluating `b`, we can assume `a` is not 0. Otherwise, the
         // result of the `and` would be equal to 0 regardless of `b`'s value,
         // and we are only interested in `b`'s value when it affects the result.
-        bool is_and_like = node->OpIn({Op::kAnd, Op::kNand});
-        int64_t bit_count = node->BitCountOrDie();
-        // Absorbing element for AND/NAND is all zeros, for OR/NOR is all ones.
-        Bits absorbing =
-            is_and_like ? Bits(bit_count) : Bits::AllOnes(bit_count);
-
-        for (int64_t other_operand_no = 0;
-             other_operand_no < node->operand_count(); ++other_operand_no) {
-          if (operand_no == other_operand_no) {
-            continue;
-          }
-          Node* other_operand = node->operand(other_operand_no);
-          if (other_operand->Is<Literal>()) {
-            continue;
-          }
-          mutable_edge_set().Union(condition_cache.GetImplied(Condition{
-              .node = other_operand,
-              .partial =
-                  PartialInformation(IntervalSet::Punctured(absorbing))}));
+        if (!prefix_conditions.empty()) {
+          mutable_edge_set().Union(prefix_conditions);
+        }
+        if (!suffix_conditions[operand_no + 1].empty()) {
+          mutable_edge_set().Union(suffix_conditions[operand_no + 1]);
         }
       }
 
