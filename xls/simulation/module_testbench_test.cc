@@ -161,7 +161,7 @@ class ModuleTestbenchTest : public VerilogTestBase {
     AlwaysFlop* af = m->Add<AlwaysFlop>(
         SourceInfo(), clk,
         Reset{.signal = reset, .asynchronous = false, .active_low = false});
-    Expression* reset_expr = f->Literal(UBits(0, width), SourceInfo());
+    Expression* reset_expr = f->LiteralOrDie(UBits(0, width), SourceInfo());
     af->AddRegister(p0, in, SourceInfo(), reset_expr);
     af->AddRegister(p1, p0, SourceInfo(), reset_expr);
 

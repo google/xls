@@ -201,7 +201,7 @@ FsmRegister* FsmBuilder::AddRegister(std::string_view name, int64_t width,
                                      std::optional<int64_t> reset_value) {
   Expression* reset_expr =
       reset_value.has_value()
-          ? file_->Literal(UBits(reset_value.value(), width), SourceInfo())
+          ? file_->LiteralOrDie(UBits(reset_value.value(), width), SourceInfo())
           : nullptr;
   return AddRegister(name, file_->BitVectorType(width, SourceInfo()),
                      reset_expr);
