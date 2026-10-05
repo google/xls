@@ -558,18 +558,25 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
       // Later during the generation of TypeInfo, after resolving parametrics,
       // and evaluating the test condition, we force the type of the selected
       // if branch on the conditional node.
-      XLS_RETURN_IF_ERROR(DefineAndSetTypeVariable(node->test(), "test"));
-      XLS_ASSIGN_OR_RETURN(
-          const NameRef* consequent_type,
-          DefineTypeVariable(node->consequent(), "consequent"));
+      XLS_ASSIGN_OR_RETURN(std::optional<const TypeAnnotation*> decl_annotation,
+                           table_.GetDeclarationTypeAnnotation(type_variable));
+      XLS_ASSIGN_OR_RETURN(const NameRef* consequent_type,
+                           DefineTypeVariable(node->consequent(), "consequent",
+                                              decl_annotation));
       XLS_RETURN_IF_ERROR(
           table_.SetTypeVariable(node->consequent(), consequent_type));
+      XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(
+          node->consequent(),
+          module_.Make<TypeVariableTypeAnnotation>(type_variable)));
 
-      XLS_ASSIGN_OR_RETURN(
-          const NameRef* alternate_type,
-          DefineTypeVariable(ToAstNode(node->alternate()), "alternate"));
+      XLS_ASSIGN_OR_RETURN(const NameRef* alternate_type,
+                           DefineTypeVariable(ToAstNode(node->alternate()),
+                                              "alternate", decl_annotation));
       XLS_RETURN_IF_ERROR(
           table_.SetTypeVariable(ToAstNode(node->alternate()), alternate_type));
+      XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(
+          ToAstNode(node->alternate()),
+          module_.Make<TypeVariableTypeAnnotation>(type_variable)));
 
       XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(
           node, module_.Make<ConstConditionalTypeAnnotation>(
@@ -640,12 +647,15 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
       }
 
       if (node->IsConst()) {
-        XLS_RETURN_IF_ERROR(
-            DefineAndSetTypeVariable(arm->expr(), "const_match_arm_expr"));
         XLS_ASSIGN_OR_RETURN(
-            const NameRef* arm_expr_type,
-            DefineTypeVariable(arm->expr(), "const_match_arm"));
+            std::optional<const TypeAnnotation*> decl_annotation,
+            table_.GetDeclarationTypeAnnotation(arm_type));
+        XLS_ASSIGN_OR_RETURN(const NameRef* arm_expr_type,
+                             DefineTypeVariable(arm->expr(), "const_match_arm",
+                                                decl_annotation));
         XLS_RETURN_IF_ERROR(table_.SetTypeVariable(arm->expr(), arm_expr_type));
+        XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(
+            arm->expr(), module_.Make<TypeVariableTypeAnnotation>(arm_type)));
 
         type_annotation_members.push_back(
             module_.Make<TypeVariableTypeAnnotation>(arm_expr_type));
@@ -666,13 +676,8 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
       }
     }
     if (node->IsConst()) {
-      XLS_ASSIGN_OR_RETURN(
-          const NameRef* matched_type,
-          DefineTypeVariable(node->matched(), "const_matched"));
-      XLS_RETURN_IF_ERROR(
-          table_.SetTypeVariable(node->matched(), matched_type));
       type_annotation_members.push_back(
-          module_.Make<TypeVariableTypeAnnotation>(matched_type));
+          module_.Make<TypeVariableTypeAnnotation>(matched_var));
       ConstMatchTypeAnnotation* type_annotation =
           module_.Make<ConstMatchTypeAnnotation>(
               node->span(), std::move(type_annotation_members));

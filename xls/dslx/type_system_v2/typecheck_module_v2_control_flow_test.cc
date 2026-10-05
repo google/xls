@@ -17,6 +17,7 @@
 #include <string>
 #include <string_view>
 #include <utility>
+#include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
@@ -25,7 +26,12 @@
 #include "absl/status/status_matchers.h"
 #include "xls/common/status/matchers.h"
 #include "xls/dslx/create_import_data.h"
+#include "xls/dslx/frontend/ast.h"
+#include "xls/dslx/frontend/module.h"
 #include "xls/dslx/import_data.h"
+#include "xls/dslx/interp_value.h"
+#include "xls/dslx/type_system/parametric_env.h"
+#include "xls/dslx/type_system/type_info.h"
 #include "xls/dslx/type_system/typecheck_test_utils.h"
 #include "xls/dslx/type_system_v2/matchers.h"
 #include "xls/dslx/virtualizable_file_system.h"
@@ -1574,6 +1580,378 @@ fn tuple_match(input: u32, sign: bool) -> u32 {
 )",
       TypecheckSucceeds(
           HasNodeWithType("tuple_match", "(uN[32], uN[1]) -> uN[32]")));
+}
+
+TEST(TypecheckV2Test, ConstConditionalUntakenBranchNotTypechecked) {
+  XLS_EXPECT_OK(TypecheckV2(R"(
+fn f<X: u32, Y: u32>() -> uN[Y] {
+  const if X == Y {
+    uN[X]:42
+  } else {
+    const_assert!(X != Y);
+    uN[X]:42
+  }
+}
+
+const_assert!(f<16, 16>() == 42);
+)"));
+}
+
+TEST(TypecheckV2Test, ConstMatchUntakenArmNotTypechecked) {
+  XLS_EXPECT_OK(TypecheckV2(R"(
+fn f<X: u32, Y: u32>() -> uN[Y] {
+  const match X {
+    32 => uN[Y]:42,
+    1 => {
+      const_assert!(X != Y);
+      u15:42
+    },
+    _ => {
+      const_assert!(X != Y);
+      uN[X]:42
+    },
+  }
+}
+
+const_assert!(f<32, 32>() == 42);
+)"));
+}
+
+TEST(TypecheckV2Test, ConstConditionalTopDownTypeInference) {
+  EXPECT_THAT(R"(
+const X: (u16, u32) = const if true {
+  (1, 2)
+} else {
+  (u8:3, u8:4)
+};
+
+const Y: (u16, (u32, u64)) = (1, const if false {
+  u8:0
+} else if true {
+  (2, 3)
+} else {
+  u8:1
+});
+)",
+              TypecheckSucceeds(
+                  AllOf(HasNodeWithType("X", "(uN[16], uN[32])"),
+                        HasNodeWithType("(1, 2)", "(uN[16], uN[32])"),
+                        HasNodeWithType("Y", "(uN[16], (uN[32], uN[64]))"),
+                        HasNodeWithType("(2, 3)", "(uN[32], uN[64])"))));
+}
+
+TEST(TypecheckV2Test, ConstMatchTopDownTypeInferenceAndPatternBindings) {
+  EXPECT_THAT(R"(
+const PAIR = (u8:42, u32:10);
+const X: (u16, uN[10]) = const match PAIR {
+  (42, y) => (1, uN[y]:2),
+  _ => u8:0,
+};
+const_assert!(X == (u16:1, u10:2));
+)",
+              TypecheckSucceeds(AllOf(HasNodeWithType("X", "(uN[16], uN[10])"),
+                                      HasNodeWithType("y", "uN[32]"))));
+}
+
+TEST(TypecheckV2Test,
+     ConstControlFlowWithConversionForUnificationAndUntakenConstDep) {
+  EXPECT_THAT(R"(
+fn lsb<S: bool, N: u32>(x: xN[S][N]) -> u1 { x as u1 }
+fn repro<C: bool>(x: u3) -> u2 {
+  let (_, upper) = if x > 3 {
+    (u8:0, 0b00)
+  } else {
+    let c = const if C {
+      const GOOD = s32:0;
+      GOOD
+    } else {
+      const BAD = u32:0 - 1;
+      BAD as s32
+    };
+    let d = const match C {
+      true => c,
+      false => {
+        const BAD_MATCH = u32:0 - 1;
+        BAD_MATCH as s32
+      },
+    };
+    (u8:0, lsb(x[d:]) ++ u1:0)
+  };
+  upper
+}
+const RES = repro<true>(1);
+)",
+              TypecheckSucceeds(HasNodeWithType("RES", "uN[2]")));
+}
+
+TEST(TypecheckV2Test, ConstConditionalParametricLegacyProcSpawns) {
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(R"(
+proc Truthy<N: u32> {
+  init { () }
+  config() { () }
+  next(state: ()) { () }
+}
+
+proc Falsy<N: u32> {
+  init { () }
+  config() { () }
+  next(state: ()) { () }
+}
+
+proc Foo<C: bool, N: u32> {
+  init { () }
+  config() {
+    const if C {
+      spawn Truthy<N>();
+    } else {
+      spawn Falsy<N>();
+    };
+    ()
+  }
+  next(state: ()) { () }
+}
+
+proc Top {
+  init { () }
+  config() {
+    spawn Foo<true, 10>();
+    spawn Foo<false, 20>();
+    ()
+  }
+  next(state: ()) { () }
+}
+)"));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * truthy,
+                           result.tm.module->GetMemberOrError<Proc>("Truthy"));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * falsy,
+                           result.tm.module->GetMemberOrError<Proc>("Falsy"));
+  XLS_ASSERT_OK_AND_ASSIGN(std::vector<SpawnData> truthy_spawns,
+                           result.tm.type_info->GetSpawns(truthy));
+  XLS_ASSERT_OK_AND_ASSIGN(std::vector<SpawnData> falsy_spawns,
+                           result.tm.type_info->GetSpawns(falsy));
+  ASSERT_EQ(truthy_spawns.size(), 1);
+  EXPECT_EQ(truthy_spawns[0].env,
+            ParametricEnv(absl::flat_hash_map<std::string, InterpValue>{
+                {"N", InterpValue::MakeUBits(32, 10)}}));
+  ASSERT_EQ(falsy_spawns.size(), 1);
+  EXPECT_EQ(falsy_spawns[0].env,
+            ParametricEnv(absl::flat_hash_map<std::string, InterpValue>{
+                {"N", InterpValue::MakeUBits(32, 20)}}));
+}
+
+TEST(TypecheckV2Test, ConstMatchParametricLegacyProcSpawns) {
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(R"(
+proc Truthy<N: u32> {
+  init { () }
+  config() { () }
+  next(state: ()) { () }
+}
+
+proc Falsy<N: u32> {
+  init { () }
+  config() { () }
+  next(state: ()) { () }
+}
+
+proc Foo<C: bool, N: u32> {
+  init { () }
+  config() {
+    const match C {
+      true => {
+        spawn Truthy<N>();
+      },
+      false => {
+        spawn Falsy<N>();
+      },
+    };
+    ()
+  }
+  next(state: ()) { () }
+}
+
+proc Top {
+  init { () }
+  config() {
+    spawn Foo<true, 10>();
+    spawn Foo<false, 20>();
+    ()
+  }
+  next(state: ()) { () }
+}
+)"));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * truthy,
+                           result.tm.module->GetMemberOrError<Proc>("Truthy"));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * falsy,
+                           result.tm.module->GetMemberOrError<Proc>("Falsy"));
+  XLS_ASSERT_OK_AND_ASSIGN(std::vector<SpawnData> truthy_spawns,
+                           result.tm.type_info->GetSpawns(truthy));
+  XLS_ASSERT_OK_AND_ASSIGN(std::vector<SpawnData> falsy_spawns,
+                           result.tm.type_info->GetSpawns(falsy));
+  ASSERT_EQ(truthy_spawns.size(), 1);
+  EXPECT_EQ(truthy_spawns[0].env,
+            ParametricEnv(absl::flat_hash_map<std::string, InterpValue>{
+                {"N", InterpValue::MakeUBits(32, 10)}}));
+  ASSERT_EQ(falsy_spawns.size(), 1);
+  EXPECT_EQ(falsy_spawns[0].env,
+            ParametricEnv(absl::flat_hash_map<std::string, InterpValue>{
+                {"N", InterpValue::MakeUBits(32, 20)}}));
+}
+
+TEST(TypecheckV2Test, ConstConditionalParametricImplProcSpawns) {
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(R"(
+#![feature(channel_attributes)]
+
+proc Truthy<N: u32> {}
+impl Truthy<N> {
+  fn new() -> Self { Self {} }
+  fn next(self) {}
+}
+
+proc Falsy<N: u32> {}
+impl Falsy<N> {
+  fn new() -> Self { Self {} }
+  fn next(self) {}
+}
+
+proc Foo<C: bool, N: u32> {}
+impl Foo<C, N> {
+  fn new() -> Self {
+    const if C {
+      Truthy<N>::new().spawn();
+    } else {
+      Falsy<N>::new().spawn();
+    };
+    Self {}
+  }
+  fn next(self) {}
+}
+
+proc Top {}
+impl Top {
+  fn new() -> Self {
+    Foo<true, 10>::new().spawn();
+    Foo<false, 20>::new().spawn();
+    Self {}
+  }
+  fn next(self) {}
+}
+)"));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      ProcDef * truthy, result.tm.module->GetMemberOrError<ProcDef>("Truthy"));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      ProcDef * falsy, result.tm.module->GetMemberOrError<ProcDef>("Falsy"));
+  XLS_ASSERT_OK_AND_ASSIGN(ProcDef * foo,
+                           result.tm.module->GetMemberOrError<ProcDef>("Foo"));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::vector<ProcInitializerWithTypeInfo> truthy_inits,
+      result.tm.type_info->GetCanonicalProcInitializers(truthy));
+  ASSERT_EQ(truthy_inits.size(), 1);
+  EXPECT_EQ(truthy_inits[0].constructor_env,
+            ParametricEnv(absl::flat_hash_map<std::string, InterpValue>{
+                {"N", InterpValue::MakeUBits(32, 10)}}));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::vector<ProcInitializerWithTypeInfo> falsy_inits,
+      result.tm.type_info->GetCanonicalProcInitializers(falsy));
+  ASSERT_EQ(falsy_inits.size(), 1);
+  EXPECT_EQ(falsy_inits[0].constructor_env,
+            ParametricEnv(absl::flat_hash_map<std::string, InterpValue>{
+                {"N", InterpValue::MakeUBits(32, 20)}}));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::vector<ProcInitializerWithTypeInfo> foo_inits,
+      result.tm.type_info->GetCanonicalProcInitializers(foo));
+  ASSERT_EQ(foo_inits.size(), 2);
+  for (const ProcInitializerWithTypeInfo& foo_init : foo_inits) {
+    XLS_ASSERT_OK_AND_ASSIGN(
+        std::vector<InterpValue> spawns,
+        foo_init.constructor_type_info->GetProcDefSpawnsFrom(foo));
+    ASSERT_EQ(spawns.size(), 1);
+    bool c_val = foo_init.constructor_env.ToMap().at("C").IsTrue();
+    EXPECT_EQ(spawns[0].GetProcInitializerOrDie().proc_def(),
+              c_val ? truthy : falsy);
+  }
+}
+
+TEST(TypecheckV2Test, ConstMatchParametricImplProcSpawns) {
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(R"(
+#![feature(channel_attributes)]
+
+proc Truthy<N: u32> {}
+impl Truthy<N> {
+  fn new() -> Self { Self {} }
+  fn next(self) {}
+}
+
+proc Falsy<N: u32> {}
+impl Falsy<N> {
+  fn new() -> Self { Self {} }
+  fn next(self) {}
+}
+
+proc Foo<C: bool, N: u32> {}
+impl Foo<C, N> {
+  fn new() -> Self {
+    const match C {
+      true => {
+        Truthy<N>::new().spawn();
+      },
+      false => {
+        Falsy<N>::new().spawn();
+      },
+    };
+    Self {}
+  }
+  fn next(self) {}
+}
+
+proc Top {}
+impl Top {
+  fn new() -> Self {
+    Foo<true, 10>::new().spawn();
+    Foo<false, 20>::new().spawn();
+    Self {}
+  }
+  fn next(self) {}
+}
+)"));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      ProcDef * truthy, result.tm.module->GetMemberOrError<ProcDef>("Truthy"));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      ProcDef * falsy, result.tm.module->GetMemberOrError<ProcDef>("Falsy"));
+  XLS_ASSERT_OK_AND_ASSIGN(ProcDef * foo,
+                           result.tm.module->GetMemberOrError<ProcDef>("Foo"));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::vector<ProcInitializerWithTypeInfo> truthy_inits,
+      result.tm.type_info->GetCanonicalProcInitializers(truthy));
+  ASSERT_EQ(truthy_inits.size(), 1);
+  EXPECT_EQ(truthy_inits[0].constructor_env,
+            ParametricEnv(absl::flat_hash_map<std::string, InterpValue>{
+                {"N", InterpValue::MakeUBits(32, 10)}}));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::vector<ProcInitializerWithTypeInfo> falsy_inits,
+      result.tm.type_info->GetCanonicalProcInitializers(falsy));
+  ASSERT_EQ(falsy_inits.size(), 1);
+  EXPECT_EQ(falsy_inits[0].constructor_env,
+            ParametricEnv(absl::flat_hash_map<std::string, InterpValue>{
+                {"N", InterpValue::MakeUBits(32, 20)}}));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::vector<ProcInitializerWithTypeInfo> foo_inits,
+      result.tm.type_info->GetCanonicalProcInitializers(foo));
+  ASSERT_EQ(foo_inits.size(), 2);
+  for (const ProcInitializerWithTypeInfo& foo_init : foo_inits) {
+    XLS_ASSERT_OK_AND_ASSIGN(
+        std::vector<InterpValue> spawns,
+        foo_init.constructor_type_info->GetProcDefSpawnsFrom(foo));
+    ASSERT_EQ(spawns.size(), 1);
+    bool c_val = foo_init.constructor_env.ToMap().at("C").IsTrue();
+    EXPECT_EQ(spawns[0].GetProcInitializerOrDie().proc_def(),
+              c_val ? truthy : falsy);
+  }
 }
 
 }  // namespace

@@ -1066,7 +1066,7 @@ class ConstantCollectorImpl : public ConstantCollector {
     if (const AstNode* parent_node = node->parent();
         parent_node && parent_node->kind() == AstNodeKind::kMatch) {
       const Match* parent_as_match = absl::down_cast<const Match*>(parent_node);
-      if (parent_as_match->IsConst()) {
+      if (parent_as_match->IsConst() && node == parent_as_match->matched()) {
         return EvaluateAndNoteMatchSelection(
             &import_data_, ti, &warning_collector_,
             table_.GetParametricEnv(parametric_context), parent_as_match);
@@ -1107,6 +1107,9 @@ class ConstantCollectorImpl : public ConstantCollector {
     std::optional<Type*> matched_type = type_info->GetItem(match->matched());
     XLS_RET_CHECK(matched_type.has_value());
     type_info->SetItem(fake_matched, **matched_type);
+    XLS_RETURN_IF_ERROR(ConstexprEvaluator::Evaluate(
+        import_data, type_info, warning_collector, bindings, match->matched(),
+        *matched_type));
     XLS_ASSIGN_OR_RETURN(InterpValue matched_val,
                          type_info->GetConstExpr(match->matched()));
     type_info->NoteConstExpr(fake_matched, matched_val);
@@ -1120,6 +1123,23 @@ class ConstantCollectorImpl : public ConstantCollector {
             import_data, type_info, warning_collector, bindings, fake_match));
     XLS_ASSIGN_OR_RETURN(uint32_t arm_id, interp_match.GetBitValueUnsigned());
     type_info->NoteArmSelectionResult(match, arm_id);
+
+    // Note: it's only legal for an arm to have multiple patterns if none of
+    // the patterns have a `NameDef`.
+    if (match->arms()[arm_id]->patterns().size() == 1) {
+      const auto note_members =
+          [&](AstNode* pattern_node, TypeOrAnnotation _,
+              std::optional<InterpValue> const_expr) -> absl::Status {
+        if (const_expr.has_value() &&
+            pattern_node->kind() == AstNodeKind::kNameDef) {
+          type_info->NoteConstExpr(pattern_node, *const_expr);
+        }
+        return absl::OkStatus();
+      };
+      XLS_RETURN_IF_ERROR(
+          MatchPatternToType(note_members, match->arms()[arm_id]->patterns()[0],
+                             *matched_type, file_table_, matched_val));
+    }
     return absl::OkStatus();
   }
 
