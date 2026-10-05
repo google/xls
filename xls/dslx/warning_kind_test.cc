@@ -60,6 +60,18 @@ TEST(WarningKindTest, DefaultSetAnyMissing) {
       WarningIsEnabled(kDefaultWarningsSet, WarningKind::kShouldUseAssert));
 }
 
+TEST(WarningKindTest, UnusedConfiguredValueWarningIsEnabledByDefault) {
+  EXPECT_TRUE(WarningIsEnabled(kDefaultWarningsSet,
+                               WarningKind::kUnusedConfiguredValue));
+  XLS_ASSERT_OK_AND_ASSIGN(WarningKind kind,
+                           WarningKindFromString("unused_configured_value"));
+  EXPECT_EQ(kind, WarningKind::kUnusedConfiguredValue);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string_view str,
+      WarningKindToString(WarningKind::kUnusedConfiguredValue));
+  EXPECT_EQ(str, "unused_configured_value");
+}
+
 TEST(WarningKindTest, Complement) {
   EXPECT_EQ(Complement(kAllWarningsSet), kNoWarningsSet);
   EXPECT_EQ(Complement(kNoWarningsSet), kAllWarningsSet);

@@ -31,6 +31,7 @@
 #include "absl/status/status.h"
 #include "absl/strings/match.h"
 #include "absl/strings/str_format.h"
+#include "absl/strings/str_join.h"
 #include "xls/common/attribute_data.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
@@ -698,6 +699,33 @@ class ProcDefTrivialNextGenerator : public AstNodeRecursiveVisitor {
   }
 };
 
+class ConfiguredValueUsageVisitor : public AstNodeRecursiveVisitor {
+ public:
+  ConfiguredValueUsageVisitor(std::string_view module_name,
+                              ImportData& import_data)
+      : AstNodeRecursiveVisitor(/*want_types=*/true),
+        module_name_(module_name),
+        import_data_(import_data) {}
+
+  absl::Status HandleInvocation(const Invocation* node) override {
+    if (node->callee() != nullptr &&
+        node->callee()->kind() == AstNodeKind::kNameRef &&
+        absl::down_cast<const NameRef*>(node->callee())->identifier() ==
+            "configured_value_or" &&
+        !node->args().empty() &&
+        node->args()[0]->kind() == AstNodeKind::kString) {
+      import_data_.NoteConfiguredValueUsed(
+          module_name_,
+          absl::down_cast<const String*>(node->args()[0])->text());
+    }
+    return DefaultHandler(node);
+  }
+
+ private:
+  std::string_view module_name_;
+  ImportData& import_data_;
+};
+
 }  // namespace
 
 SemanticsAnalysis::SemanticsAnalysis(bool suppress_warnings)
@@ -725,6 +753,13 @@ absl::Status SemanticsAnalysis::RunPreTypeCheckPass(
 
   AddSpawnTraitToProcDefs add_spawn_trait;
   XLS_RETURN_IF_ERROR(module.Accept(&add_spawn_trait));
+
+  module_ = &module;
+  import_data_ = &import_data;
+
+  ConfiguredValueUsageVisitor configured_value_usage_visitor(module.name(),
+                                                             import_data);
+  XLS_RETURN_IF_ERROR(module.Accept(&configured_value_usage_visitor));
 
   if (suppress_warnings_) {
     return absl::OkStatus();
@@ -788,6 +823,33 @@ absl::Status SemanticsAnalysis::RunPostTypeCheckPass(
             absl::StrFormat(
                 "Definition of `%s` (type `%s`) is not used in function `%s`",
                 def->identifier(), type->ToString(), f->identifier()));
+      }
+    }
+  }
+
+  if (module_ != nullptr && import_data_ != nullptr &&
+      !import_data_->defer_unused_check()) {
+    Span span =
+        module_->GetSpan().has_value()
+            ? Span(module_->GetSpan()->start(), module_->GetSpan()->start())
+            : Span::Fake();
+    for (const ConfiguredValueGroup& group :
+         import_data_->configured_value_groups()) {
+      if (group.used) {
+        continue;
+      }
+      if (group.scope_modules.empty()) {
+        warning_collector.Add(
+            span, WarningKind::kUnusedConfiguredValue,
+            absl::StrFormat("Configured value `%s` is not used", group.key));
+      } else if (group.loaded_scope_modules.size() ==
+                 group.scope_modules.size()) {
+        warning_collector.Add(
+            span, WarningKind::kUnusedConfiguredValue,
+            absl::StrFormat(
+                "Configured value `%s@%s` is not used in module(s) %s",
+                group.key, absl::StrJoin(group.scope_modules, "+"),
+                absl::StrJoin(group.scope_modules, ", ")));
       }
     }
   }

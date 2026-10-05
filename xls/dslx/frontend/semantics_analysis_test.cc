@@ -16,6 +16,7 @@
 
 #include <filesystem>
 #include <memory>
+#include <optional>
 #include <string_view>
 
 #include "gtest/gtest.h"
@@ -62,6 +63,26 @@ proc Counter {
   ASSERT_EQ(proc->members().size(), 1);
   StructMemberNode* member = proc->members()[0];
   EXPECT_EQ(member->type()->ToString(), "BuiltinProcState<u32>");
+}
+
+TEST(SemanticsAnalysisTest, ModuleWithoutSpanDoesNotCrashPostTypeCheckPass) {
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK(import_data.RegisterConfiguredValues({"unused_key:42"}));
+  Module module("synthetic_module", /*fs_path=*/std::nullopt,
+                import_data.file_table());
+  ASSERT_FALSE(module.GetSpan().has_value());
+
+  WarningCollector warnings(import_data.enabled_warnings());
+  auto dummy_typecheck =
+      [](std::unique_ptr<Module>,
+         std::filesystem::path) -> absl::StatusOr<std::unique_ptr<ModuleInfo>> {
+    return absl::InternalError("Dummy typecheck should not be called");
+  };
+  SemanticsAnalysis semantics_analysis;
+  XLS_ASSERT_OK(semantics_analysis.RunPreTypeCheckPass(
+      module, warnings, import_data, dummy_typecheck));
+  XLS_ASSERT_OK(semantics_analysis.RunPostTypeCheckPass(warnings));
+  ASSERT_EQ(warnings.warnings().size(), 1);
 }
 
 }  // namespace

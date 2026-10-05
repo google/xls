@@ -12,11 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <cstddef>
 #include <filesystem>
 #include <memory>
 #include <optional>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 #include "absl/flags/flag.h"
@@ -79,6 +81,8 @@ absl::Status RealMain(absl::Span<const std::string_view> entry_module_paths,
       WarningKindSet warnings,
       GetWarningsSetFromFlags(absl::GetFlag(FLAGS_enable_warnings),
                               absl::GetFlag(FLAGS_disable_warnings)));
+  std::unique_ptr<VirtualizableFilesystem> vfs =
+      std::make_unique<RealFilesystem>();
 
   ParseAndTypecheckOptions options = {.dslx_stdlib_path = dslx_stdlib_path,
                                       .dslx_paths = dslx_paths,
@@ -89,10 +93,21 @@ absl::Status RealMain(absl::Span<const std::string_view> entry_module_paths,
   convert_options.configured_values.assign(configured_values.begin(),
                                            configured_values.end());
 
-  for (std::string_view entry_module_path : entry_module_paths) {
+  auto summary_import_data =
+      CreateImportData(options.dslx_stdlib_path, options.dslx_paths,
+                       options.warnings, std::move(vfs));
+  XLS_RETURN_IF_ERROR(
+      summary_import_data.RegisterConfiguredValues(configured_values));
+
+  for (size_t i = 0; i < entry_module_paths.size(); ++i) {
+    std::string_view entry_module_path = entry_module_paths[i];
     auto import_data =
         CreateImportData(options.dslx_stdlib_path, options.dslx_paths,
                          options.warnings, std::make_unique<RealFilesystem>());
+    XLS_RETURN_IF_ERROR(
+        import_data.RegisterConfiguredValues(configured_values));
+    import_data.MergeConfiguredValueUsageFrom(summary_import_data);
+    import_data.SetDeferUnusedCheck(i + 1 < entry_module_paths.size());
 
     XLS_ASSIGN_OR_RETURN(std::string program,
                          import_data.vfs().GetFileContents(entry_module_path));
@@ -112,6 +127,7 @@ absl::Status RealMain(absl::Span<const std::string_view> entry_module_paths,
             "Warnings encountered and warnings-as-errors set.");
       }
     }
+    summary_import_data.MergeConfiguredValueUsageFrom(import_data);
   }
   return absl::OkStatus();
 }

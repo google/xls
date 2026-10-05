@@ -153,6 +153,85 @@ pub const RESULT: u32 = mod_a::A_VAL + mod_b::B_VAL;
   EXPECT_EQ(result_val, InterpValue::MakeU32(42));
 }
 
+TEST(ParseAndTypecheckTest,
+     MultiModuleScopedConfiguredValueWarnsWhenNoModuleInScopeUsesKey) {
+  ImportData import_data = MakeFakeImportData({
+      {"/root/mod_a.x", R"(pub const A_VAL: u32 = 1;)"},
+      {"/root/mod_b.x", R"(pub const B_VAL: u32 = 2;)"},
+  });
+
+  constexpr std::string_view kEntryProgram = R"(
+import mod_a;
+import mod_b;
+pub const RESULT: u32 = mod_a::A_VAL + mod_b::B_VAL;
+)";
+
+  ConvertOptions options;
+  options.configured_values = {"typo_key@mod_a+mod_b:u32:40"};
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(kEntryProgram, "entry_mod.x", "entry_mod", &import_data,
+                        /*comments=*/nullptr, options));
+
+  ASSERT_EQ(tm.warnings.warnings().size(), 1);
+  EXPECT_EQ(tm.warnings.warnings()[0].kind,
+            WarningKind::kUnusedConfiguredValue);
+  EXPECT_THAT(tm.warnings.warnings()[0].message, HasSubstr("typo_key"));
+  EXPECT_THAT(tm.warnings.warnings()[0].message, HasSubstr("mod_a+mod_b"));
+}
+
+TEST(ParseAndTypecheckTest,
+     UnusedUnscopedConfiguredValueWarnsAndRespectsDisableWarnings) {
+  constexpr std::string_view kEntryProgram = R"(
+pub const X: u32 = 5;
+)";
+
+  ConvertOptions options;
+  options.configured_values = {"unused_key:u32:99"};
+
+  {
+    ImportData import_data = MakeFakeImportData({}, kDefaultWarningsSet);
+    XLS_ASSERT_OK_AND_ASSIGN(
+        TypecheckedModule tm,
+        ParseAndTypecheck(kEntryProgram, "entry_mod.x", "entry_mod",
+                          &import_data, /*comments=*/nullptr, options));
+    ASSERT_EQ(tm.warnings.warnings().size(), 1);
+    EXPECT_EQ(tm.warnings.warnings()[0].kind,
+              WarningKind::kUnusedConfiguredValue);
+    EXPECT_THAT(tm.warnings.warnings()[0].message, HasSubstr("unused_key"));
+  }
+
+  {
+    WarningKindSet disabled_warnings = DisableWarning(
+        kDefaultWarningsSet, WarningKind::kUnusedConfiguredValue);
+    ImportData import_data = MakeFakeImportData({}, disabled_warnings);
+    XLS_ASSERT_OK_AND_ASSIGN(
+        TypecheckedModule tm,
+        ParseAndTypecheck(kEntryProgram, "entry_mod.x", "entry_mod",
+                          &import_data, /*comments=*/nullptr, options));
+    EXPECT_TRUE(tm.warnings.warnings().empty());
+  }
+}
+
+TEST(ParseAndTypecheckTest,
+     UninstantiatedParametricFunctionMarksConfiguredValueAsUsed) {
+  ImportData import_data = MakeFakeImportData({});
+  constexpr std::string_view kLibraryProgram = R"(
+pub fn p<N: u32>() -> u32 {
+  configured_value_or<u32>("param_key", 0) + N
+}
+)";
+
+  ConvertOptions options;
+  options.configured_values = {"param_key@lib_mod:u32:123"};
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(kLibraryProgram, "lib_mod.x", "lib_mod", &import_data,
+                        /*comments=*/nullptr, options));
+
+  EXPECT_TRUE(tm.warnings.warnings().empty());
+}
+
 TEST(ParseAndTypecheckTest, ConflictingScopedValuesFailWhileDiamondsSucceed) {
   {
     ImportData import_data = MakeFakeImportData({
