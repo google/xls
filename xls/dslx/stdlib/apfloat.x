@@ -393,6 +393,27 @@ pub enum RoundStyle : u1 {
     TIES_TO_AWAY = 1,
 }
 
+// Returns true when a value with the given LSB, guard (halfway) bit, and
+// sticky bit should round up under Round to Nearest, ties to Even (RNE).
+//
+//  L G S
+//  X 0 X   --> Round down (less than half)
+//  0 1 0   --> Round down (half, already even)
+//  1 1 0   --> Round up (half, to even)
+//  X 1 1   --> Round up (greater than half)
+fn round_to_nearest_even(lsb: bool, guard: bool, sticky: bool) -> bool { guard && (lsb || sticky) }
+
+// Applies a round-up increment to an unrounded mantissa using modulo-wrap
+// addition. When `unrounded_frac` is all-ones and `do_round_up` is true, the
+// FRACTION_SZ-bit addition wraps to 0 (matching the fractional bits of 2.0 =
+// 1.0 * 2^1) and `rounding_carry` is asserted to increment the exponent.
+fn apply_rounding<FRACTION_SZ: u32>
+    (unrounded_frac: uN[FRACTION_SZ], do_round_up: bool) -> (uN[FRACTION_SZ], bool) {
+    let rounding_carry = and_reduce(unrounded_frac) && do_round_up;
+    let rounded_frac = unrounded_frac + (do_round_up as uN[FRACTION_SZ]);
+    (rounded_frac, rounding_carry)
+}
+
 // Round to nearest, ties controlled by round_style.
 // if truncated bits > halfway bit: round up.
 // if truncated bits < halfway bit: round down.
@@ -3092,6 +3113,45 @@ fn or_last_bit<WIDTH: u32>(value: bits[WIDTH], lsb: u1) -> bits[WIDTH] {
     bit_slice_update(value, u1:0, (value[0:1] | lsb))
 }
 
+// Shifts `value` right by `shift`, accumulating any bits shifted out into the
+// LSB as a sticky bit.
+fn rshift_with_sticky<WIDTH: u32, SHIFT_SZ: u32>
+    (value: uN[WIDTH], shift: uN[SHIFT_SZ]) -> uN[WIDTH] {
+    let sticky = std::or_reduce_lsb(value, shift);
+    or_last_bit(value >> shift, sticky)
+}
+
+// Adjusts the biased exponent after normalization and rounding, flushing
+// underflows/zeros to 0 and saturating overflows to infinity.
+fn adjust_exponent_and_saturate
+    <EXP_SZ: u32, FRACTION_SZ: u32, EXP_IN_SZ: u32, LZ_SZ: u32, SIGNED_EXP: u32 = {EXP_SZ + u32:2}>
+    (greater_exp: uN[EXP_IN_SZ], leading_zeroes: uN[LZ_SZ], rounding_carry: bool,
+     fraction_is_zero: bool, rounded_fraction: uN[FRACTION_SZ]) -> (uN[EXP_SZ], uN[FRACTION_SZ]) {
+    const MAX_EXPONENT = std::mask_bits<EXP_SZ>();
+    let base_bexp =
+        (greater_exp as sN[SIGNED_EXP]) + sN[SIGNED_EXP]:1 - (leading_zeroes as sN[SIGNED_EXP]);
+    let bexp = if rounding_carry { base_bexp + sN[SIGNED_EXP]:1 } else { base_bexp };
+    let is_underflow_or_zero = fraction_is_zero || bexp <= sN[SIGNED_EXP]:0;
+    let is_overflow = bexp >= (MAX_EXPONENT as sN[SIGNED_EXP]);
+    let result_exp = if is_underflow_or_zero {
+        uN[EXP_SZ]:0
+    } else if is_overflow {
+        MAX_EXPONENT
+    } else {
+        bexp as uN[EXP_SZ]
+    };
+    let result_fraction =
+        if is_underflow_or_zero || is_overflow { uN[FRACTION_SZ]:0 } else { rounded_fraction };
+    (result_exp, result_fraction)
+}
+
+// Adds two numbers with a carry-in, returning the sum at the same width as the inputs.
+//
+// TODO(epastor): See if we can support add-with-carry-in more natively.
+fn add_with_carry_in<WIDTH: u32>(a: uN[WIDTH], b: uN[WIDTH], c_in: bool) -> uN[WIDTH] {
+    ((a ++ c_in) + (b ++ c_in))[1:]
+}
+
 // Floating point addition based on a generalization of IEEE 754 single-precision floating-point
 // addition, with the following exceptions:
 //  - Both input and output denormals are treated as/flushed to 0.
@@ -3106,163 +3166,115 @@ fn or_last_bit<WIDTH: u32>(value: bits[WIDTH], lsb: u1) -> bits[WIDTH] {
 pub fn add<EXP_SZ: u32, FRACTION_SZ: u32, USE_LZA: bool = {false}>
     (a: APFloat<EXP_SZ, FRACTION_SZ>, b: APFloat<EXP_SZ, FRACTION_SZ>)
     -> APFloat<EXP_SZ, FRACTION_SZ> {
-    // WIDE_EXP: Widened exponent to capture a possible carry bit.
-    const WIDE_EXP: u32 = EXP_SZ + u32:1;
-    // CARRY_EXP: WIDE_EXP plus one sign bit.
-    const CARRY_EXP: u32 = u32:1 + WIDE_EXP;
-
     // WIDE_FRACTION: Widened fraction to contain full precision + rounding
-    // (sign, hidden as well as guard, round, sticky) bits.
-    const SIGN_BIT = u32:1;
+    // (carry, hidden as well as guard, round, sticky) bits.
+    const CARRY_BIT = u32:1;
     const HIDDEN_BIT = u32:1;
     const GUARD_ROUND_STICKY_BITS = u32:3;
     const FRACTION = HIDDEN_BIT + FRACTION_SZ;
-    const SIGNED_FRACTION = SIGN_BIT + FRACTION;
-    const WIDE_FRACTION: u32 = SIGNED_FRACTION + GUARD_ROUND_STICKY_BITS;
-    // CARRY_FRACTION: WIDE_FRACTION plus one bit to capture a possible carry bit.
-    const CARRY_FRACTION: u32 = u32:1 + WIDE_FRACTION;
 
-    // NORMALIZED_FRACTION: WIDE_FRACTION minus one bit for post normalization
-    // (where the implicit leading 1 bit is dropped).
-    const NORMALIZED_FRACTION: u32 = WIDE_FRACTION - u32:1;
+    const CARRY_FRACTION = CARRY_BIT + FRACTION;
+    const WIDE_FRACTION: u32 = CARRY_FRACTION + GUARD_ROUND_STICKY_BITS;
 
-    // Step 0: Swap operands for x to contain value with greater exponent
-    let (a_is_smaller, shift) = sign_magnitude_difference(a.bexp, b.bexp);
+    // NORMALIZED_FRACTION: WIDE_FRACTION minus two bits (dropping round and sticky), used for
+    // normalization.
+    const NORMALIZED_FRACTION: u32 = WIDE_FRACTION - u32:2;
+
+    // Step 0: Swap operands so x has the larger magnitude (bexp, fraction).
+    let (a_exp_le_b, shift) = sign_magnitude_difference(a.bexp, b.bexp);
+    let a_is_smaller = if a.bexp == b.bexp { a.fraction < b.fraction } else { a_exp_le_b };
     let (x, y) = if a_is_smaller { (b, a) } else { (a, b) };
 
-    // Step 1: add hidden bit.
-    let fraction_x = (u1:1 ++ x.fraction) as uN[FRACTION];
-    let fraction_y = (u1:1 ++ y.fraction) as uN[FRACTION];
+    // Step 1: Add hidden bit and flush denormals to 0.
+    let fraction_x = if x.bexp == uN[EXP_SZ]:0 { uN[FRACTION]:0 } else { u1:1 ++ x.fraction };
+    let fraction_y = if y.bexp == uN[EXP_SZ]:0 { uN[FRACTION]:0 } else { u1:1 ++ y.fraction };
 
-    // Flush denormals to 0.
-    let fraction_x = if x.bexp == uN[EXP_SZ]:0 { uN[FRACTION]:0 } else { fraction_x };
-    let fraction_y = if y.bexp == uN[EXP_SZ]:0 { uN[FRACTION]:0 } else { fraction_y };
+    // Provide space for guard, round, and sticky bits, and align the smaller
+    // operand (y) to x's exponent.
+    let wide_x = (fraction_x as uN[WIDE_FRACTION]) << GUARD_ROUND_STICKY_BITS;
+    let wide_y = (fraction_y as uN[WIDE_FRACTION]) << GUARD_ROUND_STICKY_BITS;
+    let addend_y = rshift_with_sticky(wide_y, shift);
 
-    // Provide space for guard, round and sticky
-    let wide_x = fraction_x as uN[WIDE_FRACTION] << GUARD_ROUND_STICKY_BITS;
-    let wide_y = fraction_y as uN[WIDE_FRACTION] << GUARD_ROUND_STICKY_BITS;
+    // Step 2: Add or subtract significands.
+    // Since |x| >= |y|, effective subtraction (x - y) is always non-negative.
+    // Keep the 3 guard/round/sticky bits out of the main carry-propagate adder:
+    // in 1's complement subtraction, -y = !y_int + (1 - 0.grs), so the low 3 bits
+    // are -grs and the carry-in to the main adder is 1 iff grs == 0.
+    let is_sub = x.sign != y.sign;
+    let raw_grs = addend_y[0:3];
+    let grs = if is_sub { -raw_grs } else { raw_grs };
+    let c_in = is_sub && (raw_grs == u3:0);
+    let x_sig = fraction_x as uN[CARRY_FRACTION];
+    let y_sig = addend_y[3:];
+    let y_sig = if is_sub { !y_sig } else { y_sig };
+    let sig_sum = add_with_carry_in(x_sig, y_sig, c_in);
+    let abs_fraction = sig_sum ++ grs;
 
-    // Shift the smaller fraction to align with the largest exponent.
-    // x is already the larger, so no alignment needed which is done for y.
-    // Use the extra time on x to negate if we have an effective subtraction.
-    let addend_x = wide_x as sN[WIDE_FRACTION];
-    let addend_x = if x.sign != y.sign { -addend_x } else { addend_x };
-
-    // The smaller (y) needs to be shifted.
-    // Calculate the sticky bit - set to 1 if any set bits have to be shifted
-    // shifted out of the fraction.
-    let sticky = std::or_reduce_lsb(wide_y, shift);
-    let addend_y = or_last_bit(wide_y >> shift, sticky) as sN[WIDE_FRACTION];
-
-    // Step 2: Do some addition!
-    // Add one bit to capture potential carry: s28 -> s29.
-    let fraction = (addend_x as sN[CARRY_FRACTION]) + (addend_y as sN[CARRY_FRACTION]);
-    let fraction_is_zero = fraction == sN[CARRY_FRACTION]:0;
-    let result_sign = match (fraction_is_zero, fraction < sN[CARRY_FRACTION]:0) {
-        (true, _) => x.sign && y.sign,  // So that -0.0 + -0.0 results in -0.0
-        (false, true) => !y.sign,
-        _ => y.sign,
+    let raw_norm = sig_sum ++ grs[2+:u1];
+    let fraction_is_zero = raw_norm == uN[NORMALIZED_FRACTION]:0;
+    let result_sign = if fraction_is_zero {
+        x.sign && y.sign  // So that -0.0 + -0.0 results in -0.0
+    } else {
+        x.sign
     };
-
-    // Get the absolute value of the result then chop off the sign bit: s29 -> u28.
-    let abs_fraction =
-        (if fraction < sN[CARRY_FRACTION]:0 { -fraction } else { fraction }) as uN[WIDE_FRACTION];
 
     // Step 3: Normalize the fraction (shift until the leading bit is a 1).
-    // If the carry bit is set, shift right one bit (to capture the new bit of
-    // precision) - but don't drop the sticky bit!
-    let carry_bit = abs_fraction[-1:];
-    let carry_fraction = (abs_fraction >> u32:1) as uN[NORMALIZED_FRACTION];
-    let carry_fraction = or_last_bit(carry_fraction, abs_fraction[0:1]);
+    // Drop round and sticky bits before normalization: they can never contain the leading 1, and
+    // when >= 2 bits cancel (leading_zeroes >= 3), shift <= 1, so round and sticky are identically
+    // zero.
+    let carry_bit = std::msb(raw_norm);
 
-    // If we cancelled higher bits, then we'll need to shift left.
     const CLZ_WIDTH: u32 = std::clog2(WIDE_FRACTION + u32:1);
-    let (cancel_shift, is_approx) = if USE_LZA {
-        // For subtraction, lza is off-by-one at most and will be corrected later by examining the
-        // shifted_fraction. For addition, when there is carry, this is discarded, and when there
-        // is no carry, clz is exactly 1, because fraction sum is in range [1.0, 2.0)
-        let (approx_lz, _) =
-            lza::lza<WIDE_FRACTION>(wide_x as uN[WIDE_FRACTION], addend_y as uN[WIDE_FRACTION]);
-        (if x.sign != y.sign { approx_lz } else { uN[CLZ_WIDTH]:1 }, true)
+    let init_shift = if USE_LZA {
+        // For subtraction, lza is off-by-one at most and will be corrected later by examining
+        // shifted_norm. For addition, clz is 0 when there is a carry and 1 when there is no carry.
+        let (approx_lz, _) = lza::lza<WIDE_FRACTION>(wide_x, addend_y);
+        if is_sub { approx_lz } else { !carry_bit as uN[CLZ_WIDTH] }
     } else {
         // Leading zeroes will be 1 if there's no carry or cancellation.
-        (std::clzt(abs_fraction), false)
+        std::clzt(raw_norm) as uN[CLZ_WIDTH]
     };
 
-    // Manually apply https://github.com/google/xls/issues/1274
-    let cancel_fraction = abs_fraction as uN[WIDE_FRACTION + u32:1] << cancel_shift;
-    let cancel_fraction = (cancel_fraction >> u32:1) as uN[NORMALIZED_FRACTION];
-    let shifted_fraction = if carry_bit { carry_fraction } else { cancel_fraction };
-
-    let (shifted_fraction, leading_zeroes) = if is_approx && !carry_bit {
+    let shifted_norm = raw_norm << init_shift;
+    let (shifted_norm, leading_zeroes) = if USE_LZA && !carry_bit {
         // Leading zeroes will be off-by-one at most if there is cancellation. As an optimization,
         // we correct this in a separate shift-left instead of using LZA detection.
-        let lz_off_by_one = shifted_fraction[-1:] == u1:0;
-        let final_fraction =
-            if lz_off_by_one { shifted_fraction << u32:1 } else { shifted_fraction };
-        let final_lz = if lz_off_by_one { cancel_shift + uN[CLZ_WIDTH]:1 } else { cancel_shift };
-        (final_fraction, final_lz)
+        let lz_off_by_one = !std::msb(shifted_norm);
+        let final_norm = if lz_off_by_one { shifted_norm << u32:1 } else { shifted_norm };
+        let final_lz = if lz_off_by_one { init_shift + uN[CLZ_WIDTH]:1 } else { init_shift };
+        (final_norm, final_lz)
     } else {
-        (shifted_fraction, if carry_bit { uN[CLZ_WIDTH]:0 } else { cancel_shift })
+        (shifted_norm, init_shift)
     };
+    let unrounded_frac = shifted_norm[2+:uN[FRACTION_SZ]];
 
-    // Step 4: Rounding.
-    // Rounding down is a no-op, since we eventually have to shift off
-    // the extra precision bits, so we only need to be concerned with
-    // rounding up. We only support round to nearest, half to even
-    // mode. This means we round up if:
-    //  - The last three bits are greater than 1/2 way between
-    //    values, i.e., the last three bits are > 0b100.
-    //  - We're exactly 1/2 way between values (0b100) and bit 3 is 1
-    //    (i.e., 0x...1100). In other words, if we're "halfway", we round
-    //    in whichever direction makes the last bit in the fraction 0.
-    let normal_chunk = shifted_fraction[0:3];
-    let half_way_chunk = shifted_fraction[2:4];
-    let do_round_up = (normal_chunk > u3:0x4) || (half_way_chunk == u2:0x3);
-
-    // We again need an extra bit for carry.
-    let rounded_fraction = if do_round_up {
-        (shifted_fraction as uN[WIDE_FRACTION]) + uN[WIDE_FRACTION]:0x8
+    // Step 4: Rounding (decision decoupled from the normalization barrel shift).
+    // We only support round-to-nearest, half-to-even (RTNE) mode. Because >= 2-bit cancellation
+    // (leading_zeroes >= 3) only occurs when shift <= 1, where the round and sticky bits
+    // (abs_fraction[0:2]) are identically zero and the guard shifts into the mantissa, rounding up
+    // is only possible in three cases:
+    //  - Carry-out (leading_zeroes == 0): LSB is bit 4, guard is bit 3, sticky is bits [0:3].
+    //  - Normal (leading_zeroes == 1): LSB is bit 3, guard is bit 2, sticky is bits [0:2].
+    //  - 1-bit cancel (leading_zeroes == 2): LSB is bit 2, guard is bit 1, sticky is bit 0.
+    let do_round_up = if abs_fraction[FRACTION_SZ + u32:4+:u1] {
+        round_to_nearest_even(
+            abs_fraction[4+:u1], abs_fraction[3+:u1], or_reduce(abs_fraction[0:3]))
+    } else if abs_fraction[FRACTION_SZ + u32:3+:u1] {
+        round_to_nearest_even(
+            abs_fraction[3+:u1], abs_fraction[2+:u1], or_reduce(abs_fraction[0:2]))
+    } else if abs_fraction[FRACTION_SZ + u32:2+:u1] {
+        round_to_nearest_even(abs_fraction[2+:u1], abs_fraction[1+:u1], abs_fraction[0+:u1])
     } else {
-        shifted_fraction as uN[WIDE_FRACTION]
+        false
     };
-    let rounding_carry = rounded_fraction[-1:];
+    let (result_fraction, rounding_carry) = apply_rounding(unrounded_frac, do_round_up);
 
-    // After rounding, we can chop off the extra precision bits.
-    // As with normalization, if we carried, we need to shift right
-    // an extra place.
-    let fraction_shift =
-        GUARD_ROUND_STICKY_BITS as u3 + (if rounded_fraction[-1:] { u3:1 } else { u3:0 });
-    let result_fraction = (rounded_fraction >> fraction_shift) as uN[FRACTION_SZ];
-
-    // Finally, adjust the exponent based on addition and rounding -
-    // each bit of carry or cancellation moves it by one place.
-    let wide_exponent = (x.bexp as sN[CARRY_EXP]) + (rounding_carry as sN[CARRY_EXP]) +
-                        sN[CARRY_EXP]:1 - (leading_zeroes as sN[CARRY_EXP]);
-    let wide_exponent = if fraction_is_zero { sN[CARRY_EXP]:0 } else { wide_exponent };
-
-    // Chop off the sign bit.
-    let wide_exponent = if wide_exponent < sN[CARRY_EXP]:0 {
-        uN[WIDE_EXP]:0
-    } else {
-        wide_exponent as uN[WIDE_EXP]
-    };
-
-    // Extra bonus step 5: special case handling!
-
-    // If the exponent underflowed, don't bother with denormals. Just flush to 0.
-    let result_fraction =
-        if wide_exponent < uN[WIDE_EXP]:1 { uN[FRACTION_SZ]:0 } else { result_fraction };
-
-    // Handle exponent overflow infinities.
-    const MAX_EXPONENT = std::mask_bits<EXP_SZ>();
-    const SATURATED_EXPONENT = MAX_EXPONENT as uN[WIDE_EXP];
-    let result_fraction =
-        if wide_exponent < SATURATED_EXPONENT { result_fraction } else { uN[FRACTION_SZ]:0 };
-    let result_exponent =
-        if wide_exponent < SATURATED_EXPONENT { wide_exponent as uN[EXP_SZ] } else { MAX_EXPONENT };
+    // Step 5: Adjust exponent and handle underflow/overflow/special cases.
+    let (result_exponent, result_fraction) = adjust_exponent_and_saturate<EXP_SZ>(
+        x.bexp, leading_zeroes, rounding_carry, fraction_is_zero, result_fraction);
 
     // Handle arg infinities.
+    const MAX_EXPONENT = std::mask_bits<EXP_SZ>();
     let is_operand_inf = is_inf<EXP_SZ, FRACTION_SZ>(x) || is_inf<EXP_SZ, FRACTION_SZ>(y);
     let result_exponent = if is_operand_inf { MAX_EXPONENT } else { result_exponent };
     let result_fraction = if is_operand_inf { uN[FRACTION_SZ]:0 } else { result_fraction };
