@@ -5111,6 +5111,46 @@ cc_library(
 )
 
 cc_library(
+    name = "split_pipeline",
+    srcs = ["split_pipeline.cc"],
+    hdrs = ["split_pipeline.h"],
+    deps = [
+        ":optimization_pass",
+        ":optimization_pass_pipeline",
+        ":optimization_pass_pipeline_cc_proto",
+        ":optimization_pass_registry",
+        ":passes",
+        "//xls/common/status:status_macros",
+        "@abseil-cpp//absl/algorithm:container",
+        "@abseil-cpp//absl/container:flat_hash_map",
+        "@abseil-cpp//absl/container:flat_hash_set",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/log:vlog_is_on",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/types:span",
+        "@cppitertools",
+    ],
+)
+
+cc_test(
+    name = "split_pipeline_test",
+    srcs = ["split_pipeline_test.cc"],
+    deps = [
+        ":optimization_pass",
+        ":optimization_pass_pipeline_cc_proto",
+        ":optimization_pass_registry",
+        ":split_pipeline",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/file:filesystem",
+        "//xls/common/status:matchers",
+        "@abseil-cpp//absl/status",
+        "@googletest//:gtest",
+    ],
+)
+
+cc_library(
     name = "data_flow_node_info",
     hdrs = ["data_flow_node_info.h"],
     deps = [
