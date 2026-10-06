@@ -71,6 +71,10 @@ absl::StatusOr<Function*> CloneFunctionAndItsDependencies(
     Package* target_package = nullptr,
     absl::flat_hash_map<const Function*, Function*> call_remapping = {});
 
+// Returns the functions which are roots in the call graph, that is, the
+// functions which are not called by any other functions.
+std::vector<FunctionBase*> GetRootFunctions(const Package* p);
+
 // Returns the functions in package 'p' in a DFS post order traversal of the
 // call graph induced by function-invoking nodes. Called FunctionBases are
 // returned before callee FunctionBases in the returned order.
