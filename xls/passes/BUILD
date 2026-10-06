@@ -66,14 +66,6 @@ xls_default_pass_registry(
 xls_pass_registry(
     name = "oss_optimization_passes",
     passes = [
-        # TODO(allight): Passes with explicit always-link. Once more explicit
-        # configuration is supported these should become xls_pass targets.
-        ":bdd_simplification_pass",
-        ":conditional_specialization_pass",
-        ":inlining_pass",
-        ":narrowing_pass",
-        ":select_simplification_pass",
-
         # Normal passes
         ":arith_simplification_pass",
         ":array_simplification_pass",
@@ -95,6 +87,7 @@ xls_pass_registry(
         ":dce_pass",
         ":dfe_pass",
         ":identity_removal_pass",
+        ":invalidate_cached_proc_state_info_pass",
         ":label_recovery_pass",
         ":lut_conversion_pass",
         ":map_inlining_pass",
@@ -111,6 +104,7 @@ xls_pass_registry(
         ":ram_rewrite_pass",
         ":reassociation_pass",
         ":receive_default_value_simplification_pass",
+        ":repopulate_cached_proc_state_info_pass",
         ":resource_sharing_pass",
         ":select_lifting_pass",
         ":select_merging_pass",
@@ -122,6 +116,14 @@ xls_pass_registry(
         ":unroll_pass",
         ":useless_assert_removal_pass",
         ":useless_io_removal_pass",
+
+        # TODO(allight): Passes with explicit always-link. Once more explicit
+        # configuration is supported these should become xls_pass targets.
+        ":bdd_simplification_pass",
+        ":conditional_specialization_pass",
+        ":inlining_pass",
+        ":narrowing_pass",
+        ":select_simplification_pass",
     ],
     pipeline = "optimization_pass_pipeline.txtpb",
     tags = ["keep_dep"],
@@ -626,6 +628,7 @@ xls_pass(
     hdrs = ["bit_slice_simplification_pass.h"],
     pass_class = "BitSliceSimplificationPass",
     deps = [
+        ":cached_state_element_query_engine",
         ":lazy_ternary_query_engine",
         ":optimization_pass",
         ":partial_info_query_engine",
@@ -651,7 +654,6 @@ xls_pass(
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:statusor",
-        "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/strings:str_format",
         "@abseil-cpp//absl/types:span",
     ],
@@ -688,6 +690,7 @@ xls_pass(
     hdrs = ["bitwise_simplification_pass.h"],
     pass_class = "BitwiseSimplificationPass",
     deps = [
+        ":cached_state_element_query_engine",
         ":optimization_pass",
         ":partial_info_query_engine",
         ":pass_base",
@@ -971,6 +974,7 @@ xls_pass(
     hdrs = ["strength_reduction_pass.h"],
     pass_class = "StrengthReductionPass",
     deps = [
+        ":cached_state_element_query_engine",
         ":optimization_pass",
         ":partial_info_query_engine",
         ":pass_base",
@@ -1389,6 +1393,7 @@ cc_library(
     hdrs = ["select_simplification_pass.h"],
     deps = [
         ":bit_provenance_analysis",
+        ":cached_state_element_query_engine",
         ":lazy_ternary_query_engine",
         ":optimization_pass",
         ":optimization_pass_registry",
@@ -2326,6 +2331,7 @@ cc_library(
     deps = [
         ":aliasing_query_engine",
         ":bit_count_query_engine",
+        ":cached_state_element_query_engine",
         ":context_sensitive_range_query_engine",
         ":lazy_ternary_query_engine",
         ":optimization_pass",
@@ -5417,6 +5423,181 @@ cc_test(
         "//xls/ir:ir_test_base",
         "//xls/solvers:ir_equivalence_testutils",
         "@abseil-cpp//absl/status:status_matchers",
+        "@abseil-cpp//absl/status:statusor",
+        "@googletest//:gtest",
+    ],
+)
+
+cc_library(
+    name = "manual_given_query_engine",
+    srcs = ["manual_given_query_engine.cc"],
+    hdrs = ["manual_given_query_engine.h"],
+    deps = [
+        ":query_engine",
+        ":union_query_engine",
+        "//xls/common/status:status_macros",
+        "//xls/ir",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/types:span",
+    ],
+)
+
+cc_test(
+    name = "manual_given_query_engine_test",
+    srcs = ["manual_given_query_engine_test.cc"],
+    deps = [
+        ":lazy_ternary_query_engine",
+        ":manual_given_query_engine",
+        ":partial_info_query_engine",
+        ":query_engine",
+        ":range_query_engine",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/data_structures:leaf_type_tree",
+        "//xls/ir",
+        "//xls/ir:bits",
+        "//xls/ir:function_builder",
+        "//xls/ir:interval_ops",
+        "//xls/ir:interval_set",
+        "//xls/ir:ir_test_base",
+        "//xls/ir:ternary",
+        "@abseil-cpp//absl/algorithm:container",
+        "@abseil-cpp//absl/container:flat_hash_map",
+        "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/status:statusor",
+        "@googletest//:gtest",
+    ],
+)
+
+cc_library(
+    name = "cached_state_element_query_engine",
+    srcs = ["cached_state_element_query_engine.cc"],
+    hdrs = ["cached_state_element_query_engine.h"],
+    deps = [
+        ":manual_given_query_engine",
+        ":optimization_pass",
+        ":proc_state_provenance_narrowing_pass",
+        ":proc_state_range_query_engine",
+        ":query_engine",
+        ":stateless_query_engine",
+        ":union_query_engine",
+        "//xls/common/status:ret_check",
+        "//xls/common/status:status_macros",
+        "//xls/ir",
+        "@abseil-cpp//absl/algorithm:container",
+        "@abseil-cpp//absl/status",
+    ],
+)
+
+cc_test(
+    name = "cached_state_element_query_engine_test",
+    srcs = ["cached_state_element_query_engine_test.cc"],
+    deps = [
+        ":cached_state_element_query_engine",
+        ":lazy_ternary_query_engine",
+        ":optimization_pass",
+        ":partial_info_query_engine",
+        ":proc_state_range_query_engine",
+        ":query_engine",
+        ":range_query_engine",
+        ":union_query_engine",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/data_structures:leaf_type_tree",
+        "//xls/ir",
+        "//xls/ir:bits",
+        "//xls/ir:function_builder",
+        "//xls/ir:interval_set",
+        "//xls/ir:ir_test_base",
+        "//xls/ir:ternary",
+        "@googletest//:gtest",
+    ],
+)
+
+xls_pass(
+    name = "invalidate_cached_proc_state_info_pass",
+    srcs = ["invalidate_cached_proc_state_info_pass.cc"],
+    hdrs = ["invalidate_cached_proc_state_info_pass.h"],
+    pass_class = "InvalidateCachedProcStateInfoPass",
+    deps = [
+        ":cached_state_element_query_engine",
+        ":lazy_ternary_query_engine",
+        ":optimization_pass",
+        ":partial_info_query_engine",
+        ":pass_base",
+        "//xls/common/status:status_macros",
+        "//xls/ir",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+    ],
+)
+
+cc_test(
+    name = "invalidate_cached_proc_state_info_pass_test",
+    srcs = ["invalidate_cached_proc_state_info_pass_test.cc"],
+    deps = [
+        ":cached_state_element_query_engine",
+        ":invalidate_cached_proc_state_info_pass",
+        ":lazy_ternary_query_engine",
+        ":optimization_pass",
+        ":partial_info_query_engine",
+        ":pass_base",
+        ":range_query_engine",
+        ":repopulate_cached_proc_state_info_pass",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/data_structures:leaf_type_tree",
+        "//xls/ir",
+        "//xls/ir:bits",
+        "//xls/ir:function_builder",
+        "//xls/ir:interval_set",
+        "//xls/ir:ir_test_base",
+        "//xls/ir:ternary",
+        "@abseil-cpp//absl/status:statusor",
+        "@googletest//:gtest",
+    ],
+)
+
+xls_pass(
+    name = "repopulate_cached_proc_state_info_pass",
+    srcs = ["repopulate_cached_proc_state_info_pass.cc"],
+    hdrs = ["repopulate_cached_proc_state_info_pass.h"],
+    pass_class = "RepopulateCachedProcStateInfoPass",
+    deps = [
+        ":cached_state_element_query_engine",
+        ":lazy_ternary_query_engine",
+        ":optimization_pass",
+        ":partial_info_query_engine",
+        ":pass_base",
+        ":proc_state_range_query_engine",
+        "//xls/common/status:status_macros",
+        "//xls/ir",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+    ],
+)
+
+cc_test(
+    name = "repopulate_cached_proc_state_info_pass_test",
+    srcs = ["repopulate_cached_proc_state_info_pass_test.cc"],
+    deps = [
+        ":cached_state_element_query_engine",
+        ":lazy_ternary_query_engine",
+        ":optimization_pass",
+        ":partial_info_query_engine",
+        ":pass_base",
+        ":range_query_engine",
+        ":repopulate_cached_proc_state_info_pass",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/data_structures:leaf_type_tree",
+        "//xls/ir",
+        "//xls/ir:bits",
+        "//xls/ir:function_builder",
+        "//xls/ir:interval_set",
+        "//xls/ir:ir_test_base",
+        "//xls/ir:source_location",
+        "//xls/ir:ternary",
         "@abseil-cpp//absl/status:statusor",
         "@googletest//:gtest",
     ],
