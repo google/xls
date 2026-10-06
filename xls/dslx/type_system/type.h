@@ -698,10 +698,7 @@ class ArrayType : public Type {
       const override {
     ArrayType::InnerMostElementType innermost_element_type =
         GetInnermostElementType();
-    return innermost_element_type.element_type.IsChannel()
-               ? std::make_optional(
-                     &innermost_element_type.element_type.AsChannel())
-               : std::nullopt;
+    return innermost_element_type.element_type.GetDirectOrElementChannelType();
   }
 
   // Returns the number of dimensions (i.e., nested ArrayTypes)
@@ -1130,6 +1127,44 @@ class ChannelType : public Type {
  private:
   std::unique_ptr<Type> payload_type_;
   ChannelDirection direction_;
+};
+
+// Represents the type of a `Source<T>` or `Sink<T>` io object.
+//
+// These are declared as ordinary structs in `builtin_stubs.x`, so that method
+// calls like `s.recv()` resolve against an `impl`, but they lower to an IR
+// channel rather than to struct data. A `Source` holds a `kIn` or receive-only
+// channel and a `Sink` holds a `kOut` or send-only channel.
+class IoObjectType : public StructType {
+ public:
+  static std::string GetDebugName() { return "IoObjectType"; }
+
+  // Note: `members` must correspond to `struct_def`'s members, as for any
+  // `StructType`. For the current stubs that means it is empty.
+  IoObjectType(const StructDef& struct_def,
+               std::unique_ptr<ChannelType> channel_type);
+
+  std::string GetDebugTypeName() const override { return "io object"; }
+
+  bool operator==(const Type& other) const override;
+
+  std::unique_ptr<Type> CloneToUnique() const override;
+
+  std::string ToStringInternal(FullyQualify fully_qualify,
+                               const FileTable* file_table) const override;
+
+  // The channel this io object lowers to. Never null.
+  const ChannelType& channel_type() const { return *channel_type_; }
+
+  ChannelDirection direction() const { return channel_type_->direction(); }
+
+  std::optional<const ChannelType*> GetDirectOrElementChannelType()
+      const override {
+    return channel_type_.get();
+  }
+
+ private:
+  std::unique_ptr<ChannelType> channel_type_;
 };
 
 // Helper for the case where we have a derived (i.e. non-abstract) Type,

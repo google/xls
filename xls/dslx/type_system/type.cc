@@ -30,6 +30,7 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
+#include "absl/memory/memory.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
@@ -1108,6 +1109,40 @@ bool ChannelType::HasToken() const { return payload_type_->HasToken(); }
 std::unique_ptr<Type> ChannelType::CloneToUnique() const {
   return std::make_unique<ChannelType>(payload_type_->CloneToUnique(),
                                        direction_);
+}
+
+// -- IoObjectType
+
+IoObjectType::IoObjectType(const StructDef& struct_def,
+                           std::unique_ptr<ChannelType> channel_type)
+    : StructType(/*members=*/{}, struct_def),
+      channel_type_(std::move(channel_type)) {
+  CHECK(channel_type_ != nullptr);
+}
+
+bool IoObjectType::operator==(const Type& other) const {
+  if (auto* o = dynamic_cast<const IoObjectType*>(&other)) {
+    return &nominal_type() == &o->nominal_type() &&
+           *channel_type_ == *o->channel_type_;
+  }
+  return false;
+}
+
+std::unique_ptr<Type> IoObjectType::CloneToUnique() const {
+  // `ChannelType::CloneToUnique` always yields a `ChannelType`, so the cast
+  // cannot fail.
+  std::unique_ptr<Type> cloned_channel = channel_type_->CloneToUnique();
+  return std::make_unique<IoObjectType>(
+      nominal_type(), absl::WrapUnique(absl::down_cast<ChannelType*>(
+                          cloned_channel.release())));
+}
+
+std::string IoObjectType::ToStringInternal(FullyQualify fully_qualify,
+                                           const FileTable* file_table) const {
+  return absl::StrFormat(
+      "%s(%s, dir=%s)", nominal_type().identifier(),
+      channel_type_->payload_type().ToStringInternal(fully_qualify, file_table),
+      direction() == ChannelDirection::kIn ? "in" : "out");
 }
 
 absl::StatusOr<bool> IsSigned(const Type& c) {
