@@ -1133,5 +1133,57 @@ impl Top {
 )"));
 }
 
+TEST(TypecheckV2ProcTest, SourceSinkChannelSyntaxSucceeds) {
+  EXPECT_THAT(
+      R"(
+#![feature(io_objects)]
+proc Loopback<N: u32> {
+    c_in: Source<u32>,
+    c_out: Sink<u32>,
+}
+impl Loopback<N> {
+    fn new(c_in: Source<u32>, c_out: Sink<u32>) -> Self {
+        Loopback { c_in: c_in, c_out: c_out }
+    }
+    fn next(self) {}
+}
+)",
+      TypecheckSucceeds(::testing::_));
+}
+
+TEST(TypecheckV2ProcTest, ImportedModuleWithSourceAndSinkSucceeds) {
+  constexpr std::string_view kImported = R"(
+#![feature(io_objects)]
+pub proc Loopback<N: u32> {
+  c_in: Source<u32>,
+  c_out: Sink<u32>,
+}
+impl Loopback<N> {
+  pub fn new(c_in: Source<u32>, c_out: Sink<u32>) -> Self {
+    Loopback { c_in: c_in, c_out: c_out }
+  }
+  fn next(self) {}
+}
+)";
+
+  constexpr std::string_view kProgram = R"(
+import imported;
+
+fn f() -> u32 { u32:0 }
+)";
+
+  absl::flat_hash_map<std::filesystem::path, std::string> files;
+  files[std::filesystem::path("/imported.x")] = std::string(kImported);
+  auto vfs = std::make_unique<FakeFilesystem>(std::move(files),
+                                              std::filesystem::path("/"));
+
+  ImportData import_data =
+      CreateImportData(xls::kDefaultDslxStdlibPath,
+                       /*additional_search_paths=*/{std::filesystem::path("/")},
+                       kAllWarningsSet, std::move(vfs));
+
+  XLS_EXPECT_OK(TypecheckV2(kProgram, "main", &import_data));
+}
+
 }  // namespace
 }  // namespace xls::dslx

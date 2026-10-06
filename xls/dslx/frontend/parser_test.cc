@@ -36,10 +36,12 @@
 #include "xls/common/file/filesystem.h"
 #include "xls/common/file/get_runfile_path.h"
 #include "xls/common/status/matchers.h"
+#include "xls/common/status/status_macros.h"
 #include "xls/dslx/command_line_utils.h"
 #include "xls/dslx/error_test_utils.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/bindings.h"
+#include "xls/dslx/frontend/builtin_stubs_utils.h"
 #include "xls/dslx/frontend/builtins_metadata.h"
 #include "xls/dslx/frontend/module.h"
 #include "xls/dslx/frontend/pos.h"
@@ -146,7 +148,19 @@ class ParserTest : public ::testing::Test {
     return p.ParseTypeAnnotation(bindings);
   }
 
+  // Parses `program` with the builtin stubs module loaded, so that the builtin
+  // I/O object structs (e.g. `Source`, `Sink`) are bound.
+  absl::StatusOr<std::unique_ptr<Module>> ParseWithBuiltinStubs(
+      std::string_view program) {
+    XLS_ASSIGN_OR_RETURN(builtin_stubs_, LoadBuiltinStubs(file_table_));
+    scanner_.emplace(file_table_, file_table_.GetOrCreate("test.x"),
+                     std::string(program));
+    parser_.emplace("test", &*scanner_);
+    return parser_->ParseModule(/*bindings=*/nullptr, builtin_stubs_.get());
+  }
+
   FileTable file_table_;
+  std::unique_ptr<Module> builtin_stubs_;
   std::optional<Scanner> scanner_;
   std::optional<Parser> parser_;
 };
@@ -479,6 +493,102 @@ impl Loopback<T> {
         send(t, self.c_out, val);
     }
 })");
+}
+
+TEST_F(ParserTest, IOObjectsNoFeatureFlagSourceUsed) {
+  constexpr std::string_view kProgram = R"(
+proc Loopback<N: u32> {
+    c_in: Source<uN[N]>,
+    c_out: chan<uN[N]> out,
+}
+impl Loopback<N> {
+    fn new(c_in: Source<uN[N]>, c_out: chan<uN[N]> out) -> Self {
+        Loopback { c_in: c_in, c_out: c_out }
+    }
+    fn next(self) {}
+}
+)";
+  EXPECT_THAT(ParseWithBuiltinStubs(kProgram),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("`Source` requires "
+                                 "#![feature(io_objects)]")));
+}
+
+TEST_F(ParserTest, IOObjectsNoFeatureFlagSinkUsed) {
+  constexpr std::string_view kProgram = R"(
+proc Loopback<N: u32> {
+    c_in: chan<uN[N]> in,
+    c_out: Sink<uN[N]>,
+}
+impl Loopback<N> {
+    fn new(c_in: chan<uN[N]> in, c_out: Sink<uN[N]>) -> Self {
+        Loopback { c_in: c_in, c_out: c_out }
+    }
+    fn next(self) {}
+}
+)";
+  EXPECT_THAT(ParseWithBuiltinStubs(kProgram),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("`Sink` requires "
+                                 "#![feature(io_objects)]")));
+}
+
+TEST_F(ParserTest, IOObjectsNoFeatureFlagIOResultUsed) {
+  constexpr std::string_view kProgram = R"(
+fn f(r: IOResult<u32>) {}
+)";
+  EXPECT_THAT(ParseWithBuiltinStubs(kProgram),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("`IOResult` requires "
+                                 "#![feature(io_objects)]")));
+}
+
+TEST_F(ParserTest, IOObjectsNoFeatureFlagChannelConfigCreation) {
+  constexpr std::string_view kProgram = R"(
+fn f() {
+    let config = ChannelConfig { fifo_depth: u32:8 };
+}
+)";
+  EXPECT_THAT(ParseWithBuiltinStubs(kProgram),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("`ChannelConfig` requires "
+                                 "#![feature(io_objects)]")));
+}
+
+TEST_F(ParserTest, IOObjectsWithFeatureFlagBindToBuiltinStubs) {
+  constexpr std::string_view kProgram = R"(
+#![feature(io_objects)]
+struct Foo {
+    src: Source<u32>,
+    snk: Sink<u32>,
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> module,
+                           ParseWithBuiltinStubs(kProgram));
+  XLS_ASSERT_OK_AND_ASSIGN(StructDef * foo,
+                           module->GetMemberOrError<StructDef>("Foo"));
+  ASSERT_EQ(foo->members().size(), 2);
+  auto get_struct_def = [](const StructMemberNode* member) -> StructDef* {
+    auto* type = dynamic_cast<const TypeRefTypeAnnotation*>(member->type());
+    if (type == nullptr) {
+      return nullptr;
+    }
+    TypeDefinition def = type->type_ref()->type_definition();
+    return std::holds_alternative<StructDef*>(def) ? std::get<StructDef*>(def)
+                                                   : nullptr;
+  };
+
+  StructDef* source = get_struct_def(foo->members()[0]);
+  ASSERT_NE(source, nullptr);
+  EXPECT_EQ(source->owner(), builtin_stubs_.get());
+  ASSERT_TRUE(source->impl().has_value());
+  EXPECT_TRUE((*source->impl())->GetFunction("recv").has_value());
+
+  StructDef* sink = get_struct_def(foo->members()[1]);
+  ASSERT_NE(sink, nullptr);
+  EXPECT_EQ(sink->owner(), builtin_stubs_.get());
+  ASSERT_TRUE(sink->impl().has_value());
+  EXPECT_TRUE((*sink->impl())->GetFunction("send").has_value());
 }
 
 TEST_F(ParserTest, EmptyTrait) {

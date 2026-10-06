@@ -19,6 +19,7 @@
 #include <string_view>
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/container/flat_hash_set.h"
 
 namespace xls::dslx {
 
@@ -49,6 +50,9 @@ struct BuiltinsData {
 // convention and 2) whether calls to the builtin are represented using a
 // dedicated type of AST node rather than an `Invocation` node.
 const absl::flat_hash_map<std::string, BuiltinsData>& GetParametricBuiltins();
+
+// Set of builtin struct names (e.g. `Source`, `Sink`).
+const absl::flat_hash_set<std::string>& GetIoObjectBuiltins();
 
 // Returns whether the identifier is a builtin parametric function (i.e. a key
 // in the `GetParametricBuiltins` map)
