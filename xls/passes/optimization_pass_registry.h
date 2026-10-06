@@ -17,6 +17,7 @@
 
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <tuple>
@@ -50,9 +51,19 @@ class OptimizationPassRegistry : public OptimizationPassRegistryBase {
   // Register the compound passes described in the pipeline.
   absl::Status RegisterPipelineProto(const OptimizationPipelineProto& pipeline,
                                      std::string_view file);
+
+  // Returns the last registered pipeline proto with the registry
+  const std::optional<OptimizationPipelineProto>& GetDefaultPipelineProto()
+      const {
+    return pipeline_proto_;
+  }
+
   // Create a copy of this registry where existing pass names can be overwritten
   // without errors. Lifetime is the same as the source registry.
   OptimizationPassRegistry OverridableClone() const;
+
+ private:
+  std::optional<OptimizationPipelineProto> pipeline_proto_;
 };
 
 // Get the singleton pass registry for optimization passes.

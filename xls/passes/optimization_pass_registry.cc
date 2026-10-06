@@ -140,6 +140,7 @@ absl::Status OptimizationPassRegistry::RegisterPipelineProto(
       Register(compound.short_name(),
                std::make_unique<CompoundPassAdder>(*this, compound)))
       << "Failed to register compound pass " << compound.short_name();
+  pipeline_proto_ = pipeline;
   return absl::OkStatus();
 }
 
