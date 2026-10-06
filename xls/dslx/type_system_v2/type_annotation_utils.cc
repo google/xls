@@ -31,6 +31,7 @@
 #include "absl/strings/str_join.h"
 #include "absl/strings/substitute.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/dslx/channel_direction.h"
 #include "xls/dslx/errors.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/ast_node.h"
@@ -526,15 +527,34 @@ std::vector<int> GetBindingIndicesWithGenericTvtasLast(
   return results;
 }
 
+bool IsBuiltinIoObjectDef(const StructDefBase* def) {
+  if (def == nullptr || def->kind() != AstNodeKind::kStructDef) {
+    return false;
+  }
+  const Module* owner = def->owner();
+  return owner != nullptr && owner->name() == kBuiltinStubsModuleName;
+}
+
+std::optional<ChannelDirection> GetBuiltinIoObjectDirection(
+    const StructDefBase* def) {
+  if (!IsBuiltinIoObjectDef(def)) {
+    return std::nullopt;
+  }
+  const std::string_view name = def->identifier();
+  if (name == kBuiltinSourceStructName) {
+    return ChannelDirection::kIn;
+  }
+  if (name == kBuiltinSinkStructName) {
+    return ChannelDirection::kOut;
+  }
+  return std::nullopt;
+}
+
 bool IsIoObjectAnnotation(const TypeAnnotation* annotation) {
   if (auto* tr_type = dynamic_cast<const TypeRefTypeAnnotation*>(annotation)) {
-    TypeDefinition def = tr_type->type_ref()->type_definition();
+    const TypeDefinition& def = tr_type->type_ref()->type_definition();
     if (std::holds_alternative<StructDef*>(def)) {
-      const StructDef* struct_def = std::get<StructDef*>(def);
-      std::string_view name = struct_def->identifier();
-      return struct_def->owner()->name() == kBuiltinStubsModuleName &&
-             (name == kBuiltinSourceStructName ||
-              name == kBuiltinSinkStructName);
+      return GetBuiltinIoObjectDirection(std::get<StructDef*>(def)).has_value();
     }
   }
   if (annotation->IsAnnotation<ArrayTypeAnnotation>()) {

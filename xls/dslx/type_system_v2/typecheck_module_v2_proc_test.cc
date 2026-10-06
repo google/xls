@@ -1185,5 +1185,24 @@ fn f() -> u32 { u32:0 }
   XLS_EXPECT_OK(TypecheckV2(kProgram, "main", &import_data));
 }
 
+TEST(TypecheckV2ProcTest, SourceAndSinkMembersConcretizeToIoObjectTypes) {
+  EXPECT_THAT(
+      R"(
+#![feature(io_objects)]
+proc P {
+    c_in: Source<u32>,
+    c_out: Sink<(u8, u16)>,
+    c_arr: Source<u16>[4],
+    plain: u8,
+}
+)",
+      TypecheckSucceeds(AllOf(
+          HasNodeWithType("c_in: Source<u32>", "Source(uN[32], dir=in)"),
+          HasNodeWithType("c_out: Sink<(u8, u16)>",
+                          "Sink((uN[8], uN[16]), dir=out)"),
+          HasNodeWithType("c_arr: Source<u16>[4]", "Source(uN[16], dir=in)[4]"),
+          HasNodeWithType("plain: u8", "uN[8]"))));
+}
+
 }  // namespace
 }  // namespace xls::dslx

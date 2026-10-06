@@ -226,6 +226,7 @@ cc_library(
         "//xls/common:attribute_data",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
+        "//xls/dslx:channel_direction",
         "//xls/dslx:constexpr_evaluator",
         "//xls/dslx:errors",
         "//xls/dslx:import_data",
@@ -839,6 +840,7 @@ cc_library(
     hdrs = ["type_annotation_utils.h"],
     deps = [
         "//xls/common/status:status_macros",
+        "//xls/dslx:channel_direction",
         "//xls/dslx:errors",
         "//xls/dslx:interp_value",
         "//xls/dslx/frontend:ast",
