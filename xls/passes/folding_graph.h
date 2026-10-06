@@ -215,36 +215,37 @@ class FoldingGraph {
       FunctionBase* f,
       std::vector<std::unique_ptr<BinaryFoldingAction>> foldable_actions);
 
-  // This function returns a set of sets of edges, one outermost set per clique
-  // found in the graph.
+  // Returns a set of sets of edges, one outermost set per clique found.
   // Each outermost set includes the set of edges of the graph that creates a
   // clique within that graph.
   absl::flat_hash_set<absl::flat_hash_set<BinaryFoldingAction*>>
   GetEdgeCliques();
 
-  // This function returns the connected components of the folding graph.
+  // Returns the connected components of the folding graph.
   std::vector<absl::flat_hash_set<BinaryFoldingAction*>>
   GetConnectedComponents();
 
-  // This function returns the IR function that this folding graph represents.
+  // Returns the IR function that this folding graph represents.
   FunctionBase* function() const;
 
-  // This function returns all the nodes of the folding graph.
+  // Returns all the nodes of the folding graph.
   std::vector<Node*> GetNodes() const;
 
-  // This function returns all the edges of the folding graph.
+  // Returns all the edges of the folding graph.
   std::vector<BinaryFoldingAction*> GetEdges() const;
 
-  // This function returns the in-degree of the node @n.
+  // Returns the in-degree of the node @n.
   uint64_t GetInDegree(Node* n) const;
 
-  // This function returns the out-degree of the node @n.
+  // Returns the out-degree of the node @n.
   uint64_t GetOutDegree(Node* n) const;
 
-  // This function returns all the edges of the folding graph that have @n as
-  // destination.
+  // Returns all the edges of the folding graph that have @n as destination.
   // In other words, these are edges that have @n as head.
   std::vector<BinaryFoldingAction*> GetEdgesTo(Node* n) const;
+
+  // Returns the edge from @from to @to, or nullptr if no such edge exists.
+  BinaryFoldingAction* GetEdge(Node* from, Node* to) const;
 
  private:
   using NodeIndex = int32_t;
@@ -264,12 +265,12 @@ class FoldingGraph {
   void IdentifyCliques();
 };
 
-// Check if building visibility expression as result of performing this folding
+// Checks if building visibility expression as result of performing this folding
 // would create a data cycle.
 bool WouldCommittingFoldingActionCreateDataCycle(
     const NodeForwardDependencyAnalysis& nda, const BinaryFoldingAction& fold);
 
-// Check if building visibility expression as result of performing this folding
+// Checks if building visibility expression as result of performing this folding
 // would create a visibility cycle.
 absl::StatusOr<bool> WouldCommittingFoldingActionCreateVisibilityCycle(
     const NodeForwardDependencyAnalysis& nda, const BinaryFoldingAction& fold);

@@ -378,6 +378,26 @@ ResourceSharingPass::ComputeFoldableActions(
   return foldable_actions;
 }
 
+absl::StatusOr<ResourceSharingPass::FunctionFoldingGraph>
+ResourceSharingPass::ComputeFoldingGraph(
+    FunctionBase* f, OptimizationContext& context,
+    absl::FunctionRef<bool(Node*)> should_target, const Config& config) {
+  XLS_ASSIGN_OR_RETURN(VisibilityAnalyses visibility,
+                       VisibilityAnalyses::Create(f, config));
+  XLS_ASSIGN_OR_RETURN(
+      absl::btree_set<MutuallyExclPair> mutual_exclusivity,
+      ComputeMutualExclusionAnalysis(f, context, should_target, visibility));
+  XLS_ASSIGN_OR_RETURN(
+      std::vector<std::unique_ptr<BinaryFoldingAction>> foldable_actions,
+      ComputeFoldableActions(f, mutual_exclusivity, visibility, config));
+  auto graph = std::make_unique<FoldingGraph>(f, std::move(foldable_actions));
+  return FunctionFoldingGraph{
+      .graph = std::move(graph),
+      .mutual_exclusivity = std::move(mutual_exclusivity),
+      .visibility = std::move(visibility),
+  };
+}
+
 bool GreaterBitwidthComparator(const BinaryFoldingAction* a0,
                                const BinaryFoldingAction* a1) {
   const Node* a0_source = a0->GetFrom();
@@ -1288,6 +1308,96 @@ ResourceSharingPass::LegalizeSequenceOfFolding(
   return std::make_pair(std::move(folding_actions_to_perform), modified);
 }
 
+absl::StatusOr<absl::flat_hash_map<NaryFoldingAction*, double>>
+ComputeNaryFoldingNodeAreas(
+    absl::Span<const std::unique_ptr<NaryFoldingAction>> folding_actions,
+    const AreaEstimator& area_estimator) {
+  absl::flat_hash_map<NaryFoldingAction*, double> nary_to_area;
+  nary_to_area.reserve(folding_actions.size());
+  for (const auto& action : folding_actions) {
+    XLS_ASSIGN_OR_RETURN(
+        double area,
+        area_estimator.GetOperationAreaInSquareMicrons(action->GetTo()));
+    for (const auto& [node, _] : action->GetFrom()) {
+      XLS_ASSIGN_OR_RETURN(
+          double from_area,
+          area_estimator.GetOperationAreaInSquareMicrons(node));
+      area += from_area;
+    }
+    nary_to_area[action.get()] = area;
+  }
+  return nary_to_area;
+}
+
+// Sorts by total node area of the fold descending, ties broken by topo sort.
+absl::Status SortFoldingActionsByDescendingNodeArea(
+    FunctionBase* f,
+    std::vector<std::unique_ptr<NaryFoldingAction>>& folding_actions,
+    const absl::flat_hash_map<NaryFoldingAction*, double>& nary_to_area) {
+  OptimizationContext context;
+  XLS_ASSIGN_OR_RETURN(std::vector<Node*> topo_nodes, context.TopoSort(f));
+  absl::flat_hash_map<Node*, int64_t> node_to_topo;
+  node_to_topo.reserve(topo_nodes.size());
+  for (int64_t i = 0; i < topo_nodes.size(); ++i) {
+    node_to_topo[topo_nodes[i]] = i;
+  }
+  absl::c_sort(folding_actions,
+               [&nary_to_area, &node_to_topo](
+                   const std::unique_ptr<NaryFoldingAction>& a,
+                   const std::unique_ptr<NaryFoldingAction>& b) {
+                 return std::make_pair(-nary_to_area.at(a.get()),
+                                       node_to_topo.at(a->GetTo())) <
+                        std::make_pair(-nary_to_area.at(b.get()),
+                                       node_to_topo.at(b->GetTo()));
+               });
+  return absl::OkStatus();
+}
+
+absl::StatusOr<std::pair<std::vector<std::unique_ptr<NaryFoldingAction>>, bool>>
+ResourceSharingPass::LegalizeBinaryFoldingActions(
+    FunctionBase* f, absl::Span<BinaryFoldingAction* const> edges_selected,
+    const absl::btree_set<MutuallyExclPair>& mutual_exclusivity,
+    const VisibilityAnalyses& visibility, const NodeEquivalenceMapper& mapper,
+    const AreaEstimator& area_estimator, const Config& config) {
+  absl::flat_hash_map<Node*, std::vector<BinaryFoldingAction*>>
+      edges_selected_by_destination;
+  for (BinaryFoldingAction* edge : edges_selected) {
+    edges_selected_by_destination[edge->GetTo()].push_back(edge);
+  }
+
+  bool modified = false;
+  std::vector<std::unique_ptr<NaryFoldingAction>> folding_actions_to_perform;
+  for (auto& [to, edges_to_dest] : edges_selected_by_destination) {
+    XLS_ASSIGN_OR_RETURN(std::optional<NodeToMappings> mappings,
+                         CompatibleNaryMappings(edges_to_dest, mapper));
+    if (!mappings.has_value()) {
+      modified = true;
+      continue;
+    }
+    XLS_ASSIGN_OR_RETURN(std::unique_ptr<NaryFoldingAction> new_action,
+                         MakeNaryFoldingAction(edges_to_dest, 10, visibility,
+                                               std::move(*mappings), config));
+    if (new_action->GetFrom().size() != edges_to_dest.size()) {
+      modified = true;
+    }
+    folding_actions_to_perform.push_back(std::move(new_action));
+  }
+
+  XLS_ASSIGN_OR_RETURN(
+      (absl::flat_hash_map<NaryFoldingAction*, double> nary_to_area),
+      ComputeNaryFoldingNodeAreas(folding_actions_to_perform, area_estimator));
+  XLS_RETURN_IF_ERROR(SortFoldingActionsByDescendingNodeArea(
+      f, folding_actions_to_perform, nary_to_area));
+
+  bool sequence_modified = false;
+  XLS_ASSIGN_OR_RETURN(std::tie(folding_actions_to_perform, sequence_modified),
+                       LegalizeSequenceOfFolding(
+                           folding_actions_to_perform, mutual_exclusivity,
+                           *visibility.nda_backwards, std::nullopt, config));
+  return std::make_pair(std::move(folding_actions_to_perform),
+                        modified || sequence_modified);
+}
+
 // This function sorts the folding actions given as input in descending order
 // based on the amount of area they save.
 void SortFoldingActionsInDescendingOrderOfTheirAreaSavings(
@@ -1790,6 +1900,14 @@ ResourceSharingPass::SelectFoldingActions(
   return folding_actions_to_perform;
 }
 
+int64_t GetNextNodeId(FunctionBase* f) {
+  int64_t next_node_id = 0;
+  for (Node* node : f->nodes()) {
+    next_node_id = std::max(next_node_id, node->id());
+  }
+  return next_node_id + 1;
+}
+
 absl::StatusOr<std::vector<std::unique_ptr<NaryFoldingAction>>>
 ResourceSharingPass::SelectFoldingActionsForGraph(
     FunctionBase* f, FoldingGraph* folding_graph,
@@ -1811,23 +1929,15 @@ ResourceSharingPass::SelectFoldingActionsForGraph(
       std::make_unique<CriticalPathDelayAnalysis>(options.delay_estimator);
   XLS_RETURN_IF_ERROR(critical_path_delay->Attach(f).status());
 
-  NodeBackwardDependencyAnalysis nda_backwards;
-  XLS_RETURN_IF_ERROR(nda_backwards.Attach(f).status());
-
-  int64_t next_node_id = 0;
-  for (auto node : f->nodes()) {
-    next_node_id = std::max(next_node_id, node->id());
-  }
-  next_node_id++;
-
-  BitProvenanceAnalysis bpa;
+  int64_t next_node_id = GetNextNodeId(f);
   VisibilityEstimator visibility_estimator(
-      next_node_id - 1, visibility.bdd_engine.get(), *visibility.nda, bpa,
-      options.area_estimator, options.delay_estimator);
+      next_node_id - 1, visibility.bdd_engine.get(), *visibility.nda,
+      *visibility.bpa, options.area_estimator, options.delay_estimator);
 
   return SelectFoldingActions(context, folding_graph, mutual_exclusivity,
-                              visibility, nda_backwards, *critical_path_delay,
-                              eq_mapper, options, &visibility_estimator);
+                              visibility, *visibility.nda_backwards,
+                              *critical_path_delay, eq_mapper, options,
+                              &visibility_estimator);
 }
 
 namespace {
@@ -2153,6 +2263,19 @@ absl::StatusOr<bool> ResourceSharingPass::PerformFoldingActions(
   return modified;
 }
 
+absl::StatusOr<bool> ResourceSharingPass::PerformFoldingActions(
+    FunctionBase* f, const VisibilityAnalyses& visibility,
+    const std::vector<std::unique_ptr<NaryFoldingAction>>&
+        folding_actions_to_perform) {
+  int64_t next_node_id = GetNextNodeId(f);
+  VisibilityBuilder visibility_builder(next_node_id - 1,
+                                       visibility.bdd_engine.get(),
+                                       *visibility.nda, *visibility.bpa);
+  return PerformFoldingActions(f, next_node_id, &visibility_builder,
+                               *visibility.nda_backwards,
+                               folding_actions_to_perform);
+}
+
 RedundancyGuard ResourceSharingPass::GetRedundancyGuard(
     const OptimizationPassOptions& options,
     OptimizationContext& context) const {
@@ -2195,12 +2318,17 @@ ResourceSharingPass::VisibilityAnalyses::Create(FunctionBase* f,
   auto nda = std::make_unique<NodeForwardDependencyAnalysis>();
   XLS_RETURN_IF_ERROR(nda->Attach(f).status());
 
+  auto nda_backwards = std::make_unique<NodeBackwardDependencyAnalysis>();
+  XLS_RETURN_IF_ERROR(nda_backwards->Attach(f).status());
+
   auto post_dom = std::make_unique<LazyPostDominatorAnalysis>();
   XLS_RETURN_IF_ERROR(post_dom->Attach(f).status());
 
   auto bdd_engine =
       std::make_unique<BddQueryEngine>(config.max_path_count_for_bdd_engine);
   XLS_RETURN_IF_ERROR(bdd_engine->Populate(f).status());
+
+  auto bpa = std::make_unique<BitProvenanceAnalysis>();
 
   XLS_ASSIGN_OR_RETURN(
       auto op_visibility,
@@ -2225,8 +2353,9 @@ ResourceSharingPass::VisibilityAnalyses::Create(FunctionBase* f,
       SingleSelectVisibilityAnalysis::Create(op_vis_large_ptr.get(), nda.get(),
                                              bdd_engine.get()));
 
-  return VisibilityAnalyses(std::move(nda), std::move(post_dom),
-                            std::move(bdd_engine), std::move(op_visibility_ptr),
+  return VisibilityAnalyses(std::move(nda), std::move(nda_backwards),
+                            std::move(post_dom), std::move(bdd_engine),
+                            std::move(bpa), std::move(op_visibility_ptr),
                             std::move(visibility), std::move(op_vis_large_ptr),
                             std::move(single_select_visibility));
 }
@@ -2254,57 +2383,27 @@ absl::StatusOr<bool> ResourceSharingPass::RunOnFunctionBaseInternal(
     return absl::InvalidArgumentError(
         "Enabling resource sharing requires a delay estimator");
   }
-  bool modified = false;
   VLOG(2) << "Running resource sharing with the area model \""
           << options.area_estimator->name() << "\" and delay model \""
           << options.delay_estimator->name() << "\"";
 
-  XLS_ASSIGN_OR_RETURN(VisibilityAnalyses visibilities,
-                       VisibilityAnalyses::Create(f, config_));
-
-  int64_t next_node_id = 0;
-  for (auto node : f->nodes()) {
-    next_node_id = std::max(next_node_id, node->id());
-  }
-  next_node_id++;
-
   XLS_ASSIGN_OR_RETURN(
-      const absl::btree_set<MutuallyExclPair> mutual_exclusivity,
-      ComputeMutualExclusionAnalysis(
+      FunctionFoldingGraph fg,
+      ComputeFoldingGraph(
           f, context,
           [this](Node* n) { return ShouldTargetNodeForMutualExclusion(n); },
-          visibilities));
-
-  // Identify the set of legal folding actions
-  XLS_ASSIGN_OR_RETURN(
-      std::vector<std::unique_ptr<BinaryFoldingAction>> foldable_actions,
-      ComputeFoldableActions(f, mutual_exclusivity, visibilities, config_));
-
-  // Organize the folding actions into a graph
-  FoldingGraph folding_graph{f, std::move(foldable_actions)};
+          config_));
 
   // Select the folding actions to perform
-  XLS_ASSIGN_OR_RETURN(std::vector<std::unique_ptr<NaryFoldingAction>>
-                           folding_actions_to_perform,
-                       SelectFoldingActionsForGraph(
-                           f, &folding_graph, mutual_exclusivity, visibilities,
-                           GetNodeEquivalenceMapper(), options, context));
-
-  BitProvenanceAnalysis bpa;
-  VisibilityEstimator visibility_estimator(
-      next_node_id - 1, visibilities.bdd_engine.get(), *visibilities.nda, bpa,
-      options.area_estimator, options.delay_estimator);
-
-  NodeBackwardDependencyAnalysis nda_backwards;
-  XLS_RETURN_IF_ERROR(nda_backwards.Attach(f).status());
+  XLS_ASSIGN_OR_RETURN(
+      std::vector<std::unique_ptr<NaryFoldingAction>>
+          folding_actions_to_perform,
+      SelectFoldingActionsForGraph(f, fg.graph.get(), fg.mutual_exclusivity,
+                                   fg.visibility, GetNodeEquivalenceMapper(),
+                                   options, context));
 
   // Perform the folding
-  XLS_ASSIGN_OR_RETURN(
-      modified,
-      PerformFoldingActions(f, next_node_id, &visibility_estimator,
-                            nda_backwards, folding_actions_to_perform));
-
-  return modified;
+  return PerformFoldingActions(f, fg.visibility, folding_actions_to_perform);
 }
 
 TimingAnalysis::TimingAnalysis(
