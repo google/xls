@@ -240,6 +240,10 @@ bool IsTvtaToGeneric(const TypeAnnotation* type_annotation);
 std::vector<int> GetBindingIndicesWithGenericTvtasLast(
     const StructDefBase* def);
 
+// Returns true if `annotation` indicates an IoObject (e.g. `Source`,
+// `Sink`).
+bool IsIoObjectAnnotation(const TypeAnnotation* annotation);
+
 }  // namespace xls::dslx
 
 #endif  // XLS_DSLX_TYPE_SYSTEM_V2_TYPE_ANNOTATION_UTILS_H_

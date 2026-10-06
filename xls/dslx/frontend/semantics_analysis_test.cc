@@ -85,5 +85,33 @@ TEST(SemanticsAnalysisTest, ModuleWithoutSpanDoesNotCrashPostTypeCheckPass) {
   ASSERT_EQ(warnings.warnings().size(), 1);
 }
 
+TEST(SemanticsAnalysisTest, SourceAndSinkNotWrappedInBuiltinProcState) {
+  constexpr std::string_view kProgram = R"(
+#![feature(type_inference_v2)]
+#![feature(explicit_state_access)]
+#![feature(io_objects)]
+proc Loopback {
+    input: Source<u32>,
+    output: Sink<u32>,
+    in_bus: Source<u32>[4],
+    out_bus: Sink<u32>[4],
+    state: u32,
+}
+)";
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(kProgram, "fake_path.x", "the_module", &import_data));
+
+  XLS_ASSERT_OK_AND_ASSIGN(ProcDef * proc,
+                           tm.module->GetMemberOrError<ProcDef>("Loopback"));
+  ASSERT_EQ(proc->members().size(), 5);
+  EXPECT_EQ(proc->members()[0]->type()->ToString(), "Source<u32>");
+  EXPECT_EQ(proc->members()[1]->type()->ToString(), "Sink<u32>");
+  EXPECT_EQ(proc->members()[2]->type()->ToString(), "Source<u32>[4]");
+  EXPECT_EQ(proc->members()[3]->type()->ToString(), "Sink<u32>[4]");
+  EXPECT_EQ(proc->members()[4]->type()->ToString(), "BuiltinProcState<u32>");
+}
+
 }  // namespace
 }  // namespace xls::dslx
