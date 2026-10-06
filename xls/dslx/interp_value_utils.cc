@@ -1058,9 +1058,11 @@ absl::StatusOr<InterpValue> CreateChannelReferenceOrArray(
         elements);
   }
 
-  XLS_RET_CHECK(type->IsChannel())
+  std::optional<const ChannelType*> channel_type =
+      type->GetDirectOrElementChannelType();
+  XLS_RET_CHECK(channel_type.has_value())
       << "Expected channel type but got: " << type->ToString();
-  const ChannelType& ct = type->AsChannel();
+  const ChannelType& ct = **channel_type;
   std::optional<int64_t> channel_instance_id =
       channel_instance_allocator.has_value()
           ? std::make_optional((*channel_instance_allocator)())

@@ -45,6 +45,7 @@
 #include "xls/common/attribute_data.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/dslx/channel_direction.h"
 #include "xls/dslx/constexpr_evaluator.h"
 #include "xls/dslx/errors.h"
 #include "xls/dslx/frontend/ast.h"
@@ -369,7 +370,8 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
     std::optional<bool> callee_noted_requires_token =
         callee_ti->GetRequiresImplicitToken(*callee_fn);
     bool callee_requires_implicit_token =
-        (IsBuiltin(callee_fn) && GetBuiltinFnRequiresImplicitToken(callee)) ||
+        (IsBuiltin(callee_fn) && !callee_fn->IsMethod() &&
+         GetBuiltinFnRequiresImplicitToken(callee)) ||
         (callee_noted_requires_token.has_value() &&
          *callee_noted_requires_token);
     if (callee_requires_implicit_token) {
@@ -1866,8 +1868,6 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
     if (struct_or_proc.has_value()) {
       const StructDefBase* struct_def_base = struct_or_proc->def;
       XLS_RET_CHECK(struct_def_base != nullptr);
-      std::vector<std::unique_ptr<Type>> member_types;
-      member_types.reserve(struct_def_base->members().size());
       std::optional<const ParametricContext*> struct_context;
       if (struct_def_base->IsParametric()) {
         XLS_ASSIGN_OR_RETURN(struct_context, GetOrCreateParametricStructContext(
@@ -1879,6 +1879,32 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
       if (cached_type) {
         return cached_type;
       }
+      // `Source` and `Sink` are empty structs in `builtin_stubs.x`, but they
+      // represent a channel. Build an `IoObjectType` for them here,
+      // before the normal struct handling below, which would otherwise treat
+      // them as structs with no fields.
+      std::optional<ChannelDirection> io_direction =
+          GetBuiltinIoObjectDirection(struct_def_base);
+      if (io_direction.has_value()) {
+        // The payload is the sole `T` parametric.
+        XLS_RET_CHECK_EQ(struct_or_proc->parametrics.size(), 1);
+        const ExprOrType payload_annotation = struct_or_proc->parametrics[0];
+        XLS_RET_CHECK(
+            std::holds_alternative<TypeAnnotation*>(payload_annotation));
+        XLS_ASSIGN_OR_RETURN(
+            std::unique_ptr<Type> payload_type,
+            Concretize(std::get<TypeAnnotation*>(payload_annotation),
+                       parametric_context));
+        std::unique_ptr<Type> type = std::make_unique<IoObjectType>(
+            *absl::down_cast<const StructDef*>(struct_def_base),
+            std::make_unique<ChannelType>(std::move(payload_type),
+                                          *io_direction));
+        XLS_RETURN_IF_ERROR(
+            AddCachedType(struct_def_base, struct_context, *type));
+        return type;
+      }
+      std::vector<std::unique_ptr<Type>> member_types;
+      member_types.reserve(struct_def_base->members().size());
       for (const StructMemberNode* member : struct_def_base->members()) {
         XLS_ASSIGN_OR_RETURN(
             const TypeAnnotation* parametric_free_member_type,

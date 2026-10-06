@@ -65,6 +65,7 @@ cc_test(
         ":type",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
+        "//xls/dslx:channel_direction",
         "//xls/dslx:interp_value",
         "//xls/dslx/frontend:ast",
         "//xls/dslx/frontend:module",

@@ -25,6 +25,7 @@
 #include "absl/functional/any_invocable.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "xls/dslx/channel_direction.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/module.h"
 #include "xls/dslx/frontend/pos.h"
@@ -243,6 +244,13 @@ std::vector<int> GetBindingIndicesWithGenericTvtasLast(
 // Returns true if `annotation` indicates an IoObject (e.g. `Source`,
 // `Sink`).
 bool IsIoObjectAnnotation(const TypeAnnotation* annotation);
+
+// Returns the channel direction implied by `def`, if `def` is the builtin
+// `Source` or `Sink` definition.
+// Returns `std::nullopt` for any other struct or proc definition, so this
+// doubles as the test for whether `def` denotes an I/O object at all.
+std::optional<ChannelDirection> GetBuiltinIoObjectDirection(
+    const StructDefBase* def);
 
 }  // namespace xls::dslx
 

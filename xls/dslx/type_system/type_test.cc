@@ -28,6 +28,7 @@
 #include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
 #include "xls/common/status/matchers.h"
+#include "xls/dslx/channel_direction.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/module.h"
 #include "xls/dslx/frontend/pos.h"
@@ -249,6 +250,100 @@ TEST(TypeTest, EmptyStructTypeIsNotUnit) {
   EXPECT_EQ(s.ToString(), "S {}");
   EXPECT_EQ(s.ToInlayHintString(), "S");
   EXPECT_EQ(s.ToStringFullyQualified(file_table), "relpath/to/test.x:S {}");
+}
+
+// -- IoObjectTypeTest
+
+// Makes an empty struct definition standing in for the `Source` or `Sink` stub.
+StructDef* MakeIoObjectDef(Module& module, std::string_view name) {
+  return module.Make<StructDef>(
+      kFakeSpan, module.Make<NameDef>(kFakeSpan, std::string(name), nullptr),
+      std::vector<ParametricBinding*>{}, std::vector<StructMemberNode*>{},
+      /*is_public=*/false);
+}
+
+// Makes an io object over `def` with a `uN[payload_bits]` payload. The
+// direction follows the def's name, as for the real stubs: `Source` is `kIn`
+// and `Sink` is `kOut`.
+std::unique_ptr<IoObjectType> CreateIoObject(const StructDef& def,
+                                             int64_t payload_bits = 32) {
+  ChannelDirection direction = def.identifier() == "Source"
+                                   ? ChannelDirection::kIn
+                                   : ChannelDirection::kOut;
+  return std::make_unique<IoObjectType>(
+      def, std::make_unique<ChannelType>(
+               std::make_unique<BitsType>(false, payload_bits), direction));
+}
+
+TEST(TypeTest, IoObjectTypeReadsAsAStruct) {
+  FileTable file_table;
+  Module module("test", /*fs_path=*/std::nullopt, file_table);
+  std::unique_ptr<IoObjectType> source =
+      CreateIoObject(*MakeIoObjectDef(module, "Source"));
+
+  EXPECT_TRUE(source->IsStruct());
+
+  EXPECT_FALSE(source->IsProc());
+  // Deliberately not a `ChannelType`; callers reach the channel through
+  // `GetDirectOrElementChannelType` instead.
+  EXPECT_FALSE(source->IsChannel());
+}
+
+TEST(TypeTest, IoObjectTypeExposesItsChannel) {
+  FileTable file_table;
+  Module module("test", /*fs_path=*/std::nullopt, file_table);
+  std::unique_ptr<IoObjectType> source =
+      CreateIoObject(*MakeIoObjectDef(module, "Source"));
+  std::unique_ptr<IoObjectType> sink =
+      CreateIoObject(*MakeIoObjectDef(module, "Sink"));
+
+  std::optional<const ChannelType*> channel =
+      source->GetDirectOrElementChannelType();
+  ASSERT_TRUE(channel.has_value());
+  EXPECT_EQ(*channel, &source->channel_type());
+  EXPECT_EQ((*channel)->direction(), ChannelDirection::kIn);
+  EXPECT_EQ(source->direction(), ChannelDirection::kIn);
+
+  channel = sink->GetDirectOrElementChannelType();
+  ASSERT_TRUE(channel.has_value());
+  EXPECT_EQ(*channel, &sink->channel_type());
+  EXPECT_EQ((*channel)->direction(), ChannelDirection::kOut);
+  EXPECT_EQ(sink->direction(), ChannelDirection::kOut);
+}
+
+TEST(TypeTest, IoObjectTypeCloneIsNotSliced) {
+  FileTable file_table;
+  Module module("test", /*fs_path=*/std::nullopt, file_table);
+  std::unique_ptr<IoObjectType> sink =
+      CreateIoObject(*MakeIoObjectDef(module, "Sink"));
+
+  std::unique_ptr<Type> clone = sink->CloneToUnique();
+  auto* cloned = dynamic_cast<IoObjectType*>(clone.get());
+
+  ASSERT_NE(cloned, nullptr);
+
+  EXPECT_EQ(cloned->direction(), ChannelDirection::kOut);
+  EXPECT_EQ(cloned->channel_type(), sink->channel_type());
+  // The channel is deep-copied, not aliased.
+  EXPECT_NE(&cloned->channel_type(), &sink->channel_type());
+  EXPECT_EQ(*clone, *sink);
+}
+
+TEST(TypeTest, IoObjectTypeEqualityComparesChannel) {
+  FileTable file_table;
+  Module module("test", /*fs_path=*/std::nullopt, file_table);
+  const StructDef& source_def = *MakeIoObjectDef(module, "Source");
+  std::unique_ptr<IoObjectType> source_u32 = CreateIoObject(source_def, 32);
+  std::unique_ptr<IoObjectType> sink_u32 =
+      CreateIoObject(*MakeIoObjectDef(module, "Sink"), 32);
+
+  EXPECT_EQ(*source_u32, *CreateIoObject(source_def, 32));
+  // Same struct definition, different payload.
+  EXPECT_NE(*source_u32, *CreateIoObject(source_def, 8));
+  // Different struct definition and direction.
+  EXPECT_NE(*source_u32, *sink_u32);
+  // Not equal to the bare channel it holds.
+  EXPECT_NE(*source_u32, source_u32->channel_type());
 }
 
 // -- TypeDimTest
