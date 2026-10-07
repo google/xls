@@ -3020,22 +3020,6 @@ called a third function `callee3` then `callee3` would be inlined into
 
 
 
-## invalidate_cached_proc_state_info - Invalidate proc state cached range information. {#invalidate_cached_proc_state_info}
-
-
-Helper fake class that invalidates cached proc-state information in the
-query engines.
-
-This invalidates the givens in PartialInfoQueryEngine and BddQueryEngine.
-
-
-[Header](http://github.com/google/xls/tree/main/xls/passes/invalidate_cached_proc_state_info_pass.h)
-
-
-
-
-
-
 ## label-recovery - LabelRecovery {#label-recovery}
 
 
@@ -4760,7 +4744,6 @@ Passes performed after inlining
 - [dce](#dce)
 - [fixedpoint_simp(2)](#fixedpoint_simp2)
 - [dce](#dce)
-- [invalidate_cached_proc_state_info](#invalidate_cached_proc_state_info)
 - [proc_state_narrow](#proc_state_narrow)
 - [dce](#dce)
 - [proc_state_elimination](#proc_state_elimination)
@@ -4773,7 +4756,6 @@ Passes performed after inlining
 - [proc_state_fsm](#proc_state_fsm)
 - [proc_state_elimination](#proc_state_elimination)
 - [dce](#dce)
-- [repopulate_cached_proc_state_info](#repopulate_cached_proc_state_info)
 - [bdd_simp(3)](#bdd_simp3)
 - [dce](#dce)
 - [basic_simp](#basic_simp)
@@ -4795,21 +4777,17 @@ Passes performed after inlining
 - [dce](#dce)
 - [bdd_cse](#bdd_cse)
 - [dce](#dce)
-- [invalidate_cached_proc_state_info](#invalidate_cached_proc_state_info)
 - [proc_state_bits_shatter](#proc_state_bits_shatter)
 - [proc_state_tuple_flat](#proc_state_tuple_flat)
-- [repopulate_cached_proc_state_info](#repopulate_cached_proc_state_info)
 - [fixedpoint_simp(3)](#fixedpoint_simp3)
 - [useless_assert_remove](#useless_assert_remove)
 - [useless_io_remove](#useless_io_remove)
-- [invalidate_cached_proc_state_info](#invalidate_cached_proc_state_info)
 - [proc_state_provenance_narrow](#proc_state_provenance_narrow)
 - [dce](#dce)
 - [proc_state_elimination](#proc_state_elimination)
 - [proc_state_fsm](#proc_state_fsm)
 - [proc_state_elimination](#proc_state_elimination)
 - [dce](#dce)
-- [repopulate_cached_proc_state_info](#repopulate_cached_proc_state_info)
 - [bdd_simp(3)](#bdd_simp3)
 - [dce](#dce)
 - [basic_simp](#basic_simp)
@@ -4817,13 +4795,11 @@ Passes performed after inlining
 - [bdd_cse](#bdd_cse)
 - [dce](#dce)
 - [fixedpoint_simp(3)](#fixedpoint_simp3)
-- [invalidate_cached_proc_state_info](#invalidate_cached_proc_state_info)
 - [next_value_opt](#next_value_opt)
 - [proc_state_elimination](#proc_state_elimination)
 - [proc_state_fsm](#proc_state_fsm)
 - [proc_state_elimination](#proc_state_elimination)
 - [dce](#dce)
-- [repopulate_cached_proc_state_info](#repopulate_cached_proc_state_info)
 - [cond_spec(Bdd)](#cond_specBdd)
 - [dce](#dce)
 - [select_merge](#select_merge)
@@ -6009,21 +5985,6 @@ smaller and potentially more efficient hardware implementations.
 
 
 [Header](http://github.com/google/xls/tree/main/xls/passes/receive_default_value_simplification_pass.h)
-
-
-
-
-
-
-## repopulate_cached_proc_state_info - Recompute and repopulate the cached proc-state element information. {#repopulate_cached_proc_state_info}
-
-
-Fully populates the cached proc-state information in the query engines.
-
-This repopulates the givens in PartialInfoQueryEngine and BddQueryEngine.
-
-
-[Header](http://github.com/google/xls/tree/main/xls/passes/repopulate_cached_proc_state_info_pass.h)
 
 
 

@@ -65,7 +65,6 @@
 #include "xls/ir/value.h"
 #include "xls/ir/value_utils.h"
 #include "xls/passes/bit_provenance_analysis.h"
-#include "xls/passes/cached_state_element_query_engine.h"
 #include "xls/passes/lazy_ternary_query_engine.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/optimization_pass_registry.h"
@@ -193,7 +192,7 @@ template <typename SelectT, typename SqueezeF, typename UnsqueezeF,
   requires(std::is_invocable_r_v<absl::StatusOr<Node*>, SqueezeF, Node*> &&
            std::is_invocable_r_v<absl::StatusOr<Node*>, UnsqueezeF, Node*> &&
            std::is_invocable_r_v<absl::StatusOr<Node*>, MakeSelectF, SelectT*,
-                                 absl::Span<Node * const>>)
+                                 absl::Span<Node* const>>)
 absl::Status SqueezeSelect(SelectT* select, SqueezeF squeeze,
                            UnsqueezeF unsqueeze, MakeSelectF make_select) {
   Node* sel_node = select;
@@ -2450,13 +2449,9 @@ absl::StatusOr<bool> SelectSimplificationPassBase::RunOnFunctionBaseInternal(
     PassResults* results, OptimizationContext& context) const {
   QueryEngine* value_engine;
   if (range_analysis_) {
-    value_engine =
-        CachedStateElementQueryEngine::FromContext<PartialInfoQueryEngine>(
-            context, func);
+    value_engine = context.SharedQueryEngine<PartialInfoQueryEngine>(func);
   } else {
-    value_engine =
-        CachedStateElementQueryEngine::FromContext<LazyTernaryQueryEngine>(
-            context, func);
+    value_engine = context.SharedQueryEngine<LazyTernaryQueryEngine>(func);
   }
   VLOG(2) << "Range analysis is " << std::boolalpha << range_analysis_;
 
