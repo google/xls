@@ -580,25 +580,27 @@ absl::StatusOr<std::vector<BddNodeIndex>> BinaryDecisionDiagram::GarbageCollect(
   // Avoid having to deal with the leafs.
   live_nodes.Set(zero().value());
   live_nodes.Set(one().value());
-  std::deque<BddNodeIndex> worklist;
+  std::vector<BddNodeIndex> worklist;
+  worklist.reserve(roots.size());
   for (BddNodeIndex root : roots) {
-    worklist.push_back(root);
+    if (!live_nodes.Get(root.value())) {
+      live_nodes.Set(root.value());
+      worklist.push_back(root);
+    }
   }
   int64_t cnt_live = 2;
   while (!worklist.empty()) {
-    BddNodeIndex node = worklist.front();
-    worklist.pop_front();
-    if (live_nodes.Get(node.value())) {
-      continue;
-    }
+    BddNodeIndex node = worklist.back();
+    worklist.pop_back();
     const BddNode& bdd_node = GetNode(node);
     ++cnt_live;
-    live_nodes.Set(node.value());
     live_variables.Set(bdd_node.variable.value());
-    if (bdd_node.high != one() && bdd_node.high != zero()) {
+    if (!live_nodes.Get(bdd_node.high.value())) {
+      live_nodes.Set(bdd_node.high.value());
       worklist.push_back(bdd_node.high);
     }
-    if (bdd_node.low != one() && bdd_node.low != zero()) {
+    if (!live_nodes.Get(bdd_node.low.value())) {
+      live_nodes.Set(bdd_node.low.value());
       worklist.push_back(bdd_node.low);
     }
   }
@@ -607,6 +609,7 @@ absl::StatusOr<std::vector<BddNodeIndex>> BinaryDecisionDiagram::GarbageCollect(
   if (static_cast<double>(cnt_live) / nodes_size_ >= gc_threshold ||
       cnt_live == nodes_size_) {
     VLOG(2) << "Skipping GC because insufficient dead nodes found.";
+    prev_nodes_size_ = cnt_live;
     return std::vector<BddNodeIndex>();
   }
 

@@ -315,5 +315,25 @@ TEST(BinaryDecisionDiagramTest, ThreeVariableExhaustive) {
   }
 }
 
+TEST(BinaryDecisionDiagramTest,
+     GarbageCollectUpdatesLastGcNodeSizeWhenThresholdNotMet) {
+  BinaryDecisionDiagram bdd;
+  std::vector<BddNodeIndex> vars = bdd.NewVariables(4);
+  BddNodeIndex live_root =
+      bdd.And(bdd.Or(vars[0], vars[1]), bdd.Or(vars[2], vars[3]));
+  // Create one dead node so cnt_live < nodes_size_, while keeping the live
+  // ratio above gc_threshold (0.8).
+  bdd.And(vars[0], vars[2]);
+
+  int64_t initial_last_gc_size = bdd.last_gc_node_size();
+  EXPECT_GT(bdd.size(), initial_last_gc_size);
+
+  std::vector<BddNodeIndex> roots = vars;
+  roots.push_back(live_root);
+  EXPECT_THAT(bdd.GarbageCollect(roots, /*gc_threshold=*/0.8),
+              IsOkAndHolds(testing::IsEmpty()));
+  EXPECT_GT(bdd.last_gc_node_size(), initial_last_gc_size);
+}
+
 }  // namespace
 }  // namespace xls
