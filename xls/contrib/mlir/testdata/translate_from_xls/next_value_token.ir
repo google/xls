@@ -16,7 +16,7 @@ proc hw0_state_machine(implicit_token__receive_8: token, state_machine_state_mac
  next_value.86: () = next_value(state_element=state_machine_state_machine_hw0_state_machine, value=literal.107, id=86)
 }
 
-// CHECK:      xls.chan @arg0 {send_supported = false} : i8
+// CHECK:      xls.chan @arg0 <send_supported = false> : i8
 // CHECK-NEXT: xls.eproc @hw0_state_machine(%[[ARG0:.*]]: !xls.token, %[[ARG1:.*]]: i1) zeroinitializer {
 // CHECK-NEXT:   %[[TKN_OUT:.*]], %[[RESULT:.*]] = xls.blocking_receive %[[ARG0]], %[[ARG1]], @arg0 : i8
 // CHECK-NEXT:   %[[TUPLE:.*]] = "xls.tuple"(%[[TKN_OUT]], %[[RESULT]]) : (!xls.token, i8) -> tuple<!xls.token, i8>

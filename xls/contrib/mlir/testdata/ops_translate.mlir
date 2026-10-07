@@ -274,8 +274,8 @@ func.func @tuple_index(%arg0: tuple<i32, i16>) -> i32 {
 
 // MLIR-LABEL: func.func @bit_slice
 func.func @bit_slice(%arg0: i32) -> i8 {
-  // MLIR: %{{.*}} = xls.bit_slice %{{.*}} {start = 8 : i64, width = 8 : i64} : (i32) -> i8
-  %0 = xls.bit_slice %arg0 { start = 8 : i64, width = 8 : i64 } : (i32) -> i8
+  // MLIR: %{{.*}} = xls.bit_slice %{{.*}} <start = 8, width = 8> : (i32) -> i8
+  %0 = xls.bit_slice %arg0 <start = 8, width = 8> : (i32) -> i8
   return %0 : i8
 }
 
@@ -309,8 +309,8 @@ func.func @reverse(%arg0: i32) -> i32 {
 
 // MLIR-LABEL: func.func @decode
 func.func @decode(%arg0: i4) -> i16 {
-  // MLIR: %{{.*}} = xls.decode %{{.*}} {width = 16 : i64} : (i4) -> i16
-  %0 = xls.decode %arg0 { width = 16 : i64 } : (i4) -> i16
+  // MLIR: %{{.*}} = xls.decode %{{.*}} <width = 16> : (i4) -> i16
+  %0 = xls.decode %arg0 <width = 16> : (i4) -> i16
   return %0 : i16
 }
 
@@ -323,8 +323,8 @@ func.func @encode(%arg0: i16) -> i4 {
 
 // MLIR-LABEL: func.func @one_hot
 func.func @one_hot(%arg0: i4) -> i5 {
-  // MLIR: %{{.*}} = xls.one_hot %{{.*}} {lsb_prio = true} : (i4) -> i5
-  %0 = xls.one_hot %arg0 { lsb_prio = true } : (i4) -> i5
+  // MLIR: %{{.*}} = xls.one_hot %{{.*}} <lsb_prio = true> : (i4) -> i5
+  %0 = xls.one_hot %arg0 <lsb_prio = true> : (i4) -> i5
   return %0 : i5
 }
 

@@ -7,11 +7,11 @@
 // CHECK:           %[[VAL_1:.*]] = "xls.constant_scalar"() <{value = 6 : i32}> : () -> i32
 // CHECK:           %[[VAL_2:.*]] = "xls.constant_scalar"() <{value = 7 : i32}> : () -> i32
 // CHECK:           %[[VAL_3:.*]] = xls.concat %[[VAL_2]], %[[VAL_1]] : (i32, i32) -> i64
-// CHECK:           %[[VAL_4:.*]] = xls.bit_slice %[[VAL_0]] {start = 0 : i64, width = 32 : i64} : (i64) -> i32
-// CHECK:           %[[VAL_5:.*]] = xls.bit_slice %[[VAL_3]] {start = 0 : i64, width = 32 : i64} : (i64) -> i32
+// CHECK:           %[[VAL_4:.*]] = xls.bit_slice %[[VAL_0]] <start = 0, width = 32> : (i64) -> i32
+// CHECK:           %[[VAL_5:.*]] = xls.bit_slice %[[VAL_3]] <start = 0, width = 32> : (i64) -> i32
 // CHECK:           %[[VAL_6:.*]] = xls.add %[[VAL_4]], %[[VAL_5]] : i32
-// CHECK:           %[[VAL_7:.*]] = xls.bit_slice %[[VAL_0]] {start = 32 : i64, width = 32 : i64} : (i64) -> i32
-// CHECK:           %[[VAL_8:.*]] = xls.bit_slice %[[VAL_3]] {start = 32 : i64, width = 32 : i64} : (i64) -> i32
+// CHECK:           %[[VAL_7:.*]] = xls.bit_slice %[[VAL_0]] <start = 32, width = 32> : (i64) -> i32
+// CHECK:           %[[VAL_8:.*]] = xls.bit_slice %[[VAL_3]] <start = 32, width = 32> : (i64) -> i32
 // CHECK:           %[[VAL_9:.*]] = xls.add %[[VAL_7]], %[[VAL_8]] : i32
 // CHECK:           %[[VAL_10:.*]] = xls.concat %[[VAL_9]], %[[VAL_6]] : (i32, i32) -> i64
 // CHECK:           return %[[VAL_10]] : i64
@@ -34,11 +34,11 @@ func.func @signature(%arg0: !xls.array<2 x i32>) -> !xls.array<2 x i32> attribut
 // CHECK:           %[[VAL_0:.*]] = "xls.constant_scalar"() <{value = 6 : i32}> : () -> i32
 // CHECK:           %[[VAL_1:.*]] = "xls.constant_scalar"() <{value = 7 : i32}> : () -> i32
 // CHECK:           %[[VAL_2:.*]] = xls.concat %[[VAL_1]], %[[VAL_0]] : (i32, i32) -> i64
-// CHECK:           %[[VAL_3:.*]] = xls.bit_slice %[[VAL_2]] {start = 0 : i64, width = 32 : i64} : (i64) -> i32
-// CHECK:           %[[VAL_4:.*]] = xls.bit_slice %[[VAL_2]] {start = 0 : i64, width = 32 : i64} : (i64) -> i32
+// CHECK:           %[[VAL_3:.*]] = xls.bit_slice %[[VAL_2]] <start = 0, width = 32> : (i64) -> i32
+// CHECK:           %[[VAL_4:.*]] = xls.bit_slice %[[VAL_2]] <start = 0, width = 32> : (i64) -> i32
 // CHECK:           %[[VAL_5:.*]] = xls.add %[[VAL_3]], %[[VAL_4]] : i32
-// CHECK:           %[[VAL_6:.*]] = xls.bit_slice %[[VAL_2]] {start = 32 : i64, width = 32 : i64} : (i64) -> i32
-// CHECK:           %[[VAL_7:.*]] = xls.bit_slice %[[VAL_2]] {start = 32 : i64, width = 32 : i64} : (i64) -> i32
+// CHECK:           %[[VAL_6:.*]] = xls.bit_slice %[[VAL_2]] <start = 32, width = 32> : (i64) -> i32
+// CHECK:           %[[VAL_7:.*]] = xls.bit_slice %[[VAL_2]] <start = 32, width = 32> : (i64) -> i32
 // CHECK:           %[[VAL_8:.*]] = xls.add %[[VAL_6]], %[[VAL_7]] : i32
 // CHECK:           %[[VAL_9:.*]] = xls.concat %[[VAL_8]], %[[VAL_5]] : (i32, i32) -> i64
 // CHECK:           return %[[VAL_9]] : i64
@@ -192,7 +192,7 @@ func.func @tensor_extract_single_slice_1d_all(%arg0: !xls.array<3 x i32>, %arg1:
 // CHECK:             %[[VAL_11:.*]] = "xls.dynamic_bit_slice"(%[[VAL_5]], %[[VAL_S]]) <{width = 32 : i64}> : (i64, index) -> i32
 // CHECK:             %[[VAL_12:.*]] = arith.addi %[[VAL_4]], %[[VAL_11]] : i32
 // CHECK:             xls.yield %[[VAL_12]] : i32
-// CHECK:           } {trip_count = 1024 : i64} : (i32, i64) -> i32
+// CHECK:           } <trip_count = 1024> : (i32, i64) -> i32
 // CHECK:           return %[[VAL_2]] : i32
 // CHECK:         }
 func.func @extern(%arg0: !xls.array<2 x i32>) -> !xls.array<2 x i32> attributes {xls = true} {
@@ -215,7 +215,7 @@ func.func @for(%arg0: !xls.array<2 x i32>) -> i32 attributes {xls = true} {
     %4 = "xls.array_index"(%invariant, %3) : (!xls.array<2 x i32>, index) -> i32
     %5 = arith.addi %carry, %4 : i32
     xls.yield %5 : i32
-  } {trip_count = 1024 : i64} : (i32, !xls.array<2 x i32>) -> i32
+  } <trip_count = 1024> : (i32, !xls.array<2 x i32>) -> i32
   return %0 : i32
 }
 
@@ -228,8 +228,8 @@ func.func @tensor_empty() -> !xls.array<4 x i32> attributes {xls = true} {
   return %0 : !xls.array<4 x i32>
 }
 
-// CHECK-LABEL: xls.chan @mychan {fifo_config = #xls.fifo_config<fifo_depth = 1, bypass = true, register_push_outputs = true, register_pop_outputs = false>} : i24
-xls.chan @mychan {fifo_config = #xls.fifo_config<fifo_depth = 1, bypass = true, register_push_outputs = true, register_pop_outputs = false>} : !xls.array<3 x i8>
+// CHECK-LABEL: xls.chan @mychan <fifo_config = <fifo_depth = 1, bypass = true, register_push_outputs = true, register_pop_outputs = false>> : i24
+xls.chan @mychan <fifo_config = <fifo_depth = 1, bypass = true, register_push_outputs = true, register_pop_outputs = false>> : !xls.array<3 x i8>
 
 // CHECK-LABEL:   xls.eproc @eproc(
 // CHECK-SAME:                     %[[VAL_0:.*]]: i32) zeroinitializer {
@@ -255,13 +255,13 @@ xls.eproc @eproc(%arg0: i32) zeroinitializer {
 
 // CHECK-LABEL:   func.func @call_dslx(
 // CHECK-SAME:                         %[[VAL_0:.*]]: i128) -> i128 attributes {xls = true} {
-// CHECK:           %[[VAL_1:.*]] = xls.bit_slice %[[VAL_0]] {start = 0 : i64, width = 32 : i64} : (i128) -> i32
+// CHECK:           %[[VAL_1:.*]] = xls.bit_slice %[[VAL_0]] <start = 0, width = 32> : (i128) -> i32
 // CHECK:           %[[VAL_2:.*]] = xls.call_dslx "foo.x" : "f"(%[[VAL_1]]) : (i32) -> f32
-// CHECK:           %[[VAL_3:.*]] = xls.bit_slice %[[VAL_0]] {start = 32 : i64, width = 32 : i64} : (i128) -> i32
+// CHECK:           %[[VAL_3:.*]] = xls.bit_slice %[[VAL_0]] <start = 32, width = 32> : (i128) -> i32
 // CHECK:           %[[VAL_4:.*]] = xls.call_dslx "foo.x" : "f"(%[[VAL_3]]) : (i32) -> f32
-// CHECK:           %[[VAL_5:.*]] = xls.bit_slice %[[VAL_0]] {start = 64 : i64, width = 32 : i64} : (i128) -> i32
+// CHECK:           %[[VAL_5:.*]] = xls.bit_slice %[[VAL_0]] <start = 64, width = 32> : (i128) -> i32
 // CHECK:           %[[VAL_6:.*]] = xls.call_dslx "foo.x" : "f"(%[[VAL_5]]) : (i32) -> f32
-// CHECK:           %[[VAL_7:.*]] = xls.bit_slice %[[VAL_0]] {start = 96 : i64, width = 32 : i64} : (i128) -> i32
+// CHECK:           %[[VAL_7:.*]] = xls.bit_slice %[[VAL_0]] <start = 96, width = 32> : (i128) -> i32
 // CHECK:           %[[VAL_8:.*]] = xls.call_dslx "foo.x" : "f"(%[[VAL_7]]) : (i32) -> f32
 // CHECK:           %[[VAL_9:.*]] = arith.bitcast %[[VAL_2]] : f32 to i32
 // CHECK:           %[[VAL_10:.*]] = arith.bitcast %[[VAL_4]] : f32 to i32

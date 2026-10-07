@@ -20,7 +20,7 @@ module attributes {test.name = "simple"} {
 // CHECK-LABEL: Testing : "eproc"
 module attributes {test.name = "eproc"} {
   // CHECK-NOT: func @nope
-  // CHECK: xls.chan @yeschan {recv_supported = false} : i32
+  // CHECK: xls.chan @yeschan <recv_supported = false> : i32
   // CHECK-NOT: xls.chan @nochan
   // CHECK: xls.eproc @eproc
   // CHECK-NOT: func @nope

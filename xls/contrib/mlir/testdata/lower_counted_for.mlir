@@ -24,7 +24,7 @@ func.func @reduce(%arg0: i32) -> i32 attributes {xls = true} {
     %1 = arith.index_cast %indvar : i32 to index
     %2 = arith.addi %carry, %invariant : i32
     xls.yield %2 : i32
-  } {trip_count = 1024 : i64} : (i32, i32) -> i32
+  } <trip_count = 1024> : (i32, i32) -> i32
   return %0 : i32
 }
 
@@ -61,7 +61,7 @@ func.func @reduce_arity_2(%arg0: i32, %arg1: i32) -> i32 attributes {xls = true}
     %2 = arith.muli %carry, %invariant : i32
     %3 = arith.addi %2, %invariant_1 : i32
     xls.yield %3, %carry_0 : i32, i32
-  } {trip_count = 1024 : i64} : (i32, i32, i32, i32) -> (i32, i32)
+  } <trip_count = 1024> : (i32, i32, i32, i32) -> (i32, i32)
   return %0#0 : i32
 }
 
@@ -107,11 +107,11 @@ func.func @triple_nest(%arg0: i32) -> i32 attributes {xls = true} {
         %5 = arith.index_cast %indvar_3 : i32 to index
         %6 = arith.addi %invariant_5, %invariant_6 : i32
         xls.yield %6 : i32
-      } {trip_count = 1024 : i64} : (i32, i32, i32) -> i32
+      } <trip_count = 1024> : (i32, i32, i32) -> i32
       xls.yield %4 : i32
-    } {trip_count = 1024 : i64} : (i32, i32) -> i32
+    } <trip_count = 1024> : (i32, i32) -> i32
     xls.yield %2 : i32
-  } {trip_count = 1024 : i64} : (i32, i32) -> i32
+  } <trip_count = 1024> : (i32, i32) -> i32
   return %0 : i32
 }
 
@@ -133,6 +133,6 @@ xls.eproc @proc_reduce(%arg0: i32) zeroinitializer  {
     %1 = arith.index_cast %indvar : i32 to index
     %2 = arith.addi %carry, %invariant : i32
     xls.yield %2 : i32
-  } {trip_count = 1024 : i64} : (i32, i32) -> i32
+  } <trip_count = 1024> : (i32, i32) -> i32
   xls.yield %0 : i32
 }

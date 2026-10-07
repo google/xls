@@ -62,8 +62,8 @@ xls.instantiate_eproc @p (@Local as @InstantiateTwice2)
 // CHECK-NEXT:    %tkn_out, %result = xls.blocking_receive %1, @resp : i32
 // CHECK-NEXT:    xls.yield %result : i32
 // CHECK-NEXT:  }
-// CHECK-NEXT:  xls.chan @boundary1 {send_supported = false} : i32
-// CHECK-NEXT:  xls.chan @boundary2 {recv_supported = false} : i32
+// CHECK-NEXT:  xls.chan @boundary1 <send_supported = false> : i32
+// CHECK-NEXT:  xls.chan @boundary2 <recv_supported = false> : i32
 // CHECK-NEXT:  xls.eproc @rom_0(%arg0: i32) zeroinitializer {
 // CHECK-NEXT:    %0 = "xls.constant_scalar"() <{value = 1 : i32}> : () -> i32
 // CHECK-NEXT:    %1 = xls.after_all  : !xls.token
@@ -111,7 +111,7 @@ xls.eproc @fetch_0(%arg0: i32) zeroinitializer discardable {
 xls.chan @fetch_arg0 : i32
 xls.chan @fetch_arg1 : i32
 xls.instantiate_eproc @fetch_0 (@fetch_arg0 as @IntegrationTestLabel, @fetch_arg1 as @resp)
-xls.chan @boundary1 {send_supported = false} : i32
-xls.chan @boundary2 {recv_supported = false} : i32
+xls.chan @boundary1 <send_supported = false> : i32
+xls.chan @boundary2 <recv_supported = false> : i32
 xls.instantiate_eproc @rom_0 (@rom_arg0 as @boundary1, @rom_arg1 as @boundary2)
 

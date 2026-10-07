@@ -221,8 +221,8 @@ func.func @tuple_index(%arg0: tuple<i32, tensor<2xi8>>) -> i32 {
 
 // CHECK-LABEL: func @bit_slice
 func.func @bit_slice(%arg0: i32) -> i8 {
-  // CHECK: xls.bit_slice
-  %0 = xls.bit_slice %arg0 { start = 8 : i64, width = 8 : i64 } : (i32) -> i8
+  // CHECK: xls.bit_slice %arg0 <start = 8, width = 8> : (i32) -> i8
+  %0 = xls.bit_slice %arg0 <start = 8, width = 8> : (i32) -> i8
   return %0 : i8
 }
 
@@ -256,8 +256,8 @@ func.func @reverse(%arg0: i32) -> i32 {
 
 // CHECK-LABEL: decode
 func.func @decode(%arg0: i4) -> i16 {
-  // CHECK: xls.decode
-  %0 = xls.decode %arg0 { width = 16 : i64 } : (i4) -> i16
+  // CHECK: xls.decode %arg0 <width = 16> : (i4) -> i16
+  %0 = xls.decode %arg0 <width = 16> : (i4) -> i16
   return %0 : i16
 }
 
@@ -270,8 +270,8 @@ func.func @encode(%arg0: i16) -> i4 {
 
 // CHECK-LABEL: one_hot
 func.func @one_hot(%arg0: i4) -> i5 {
-  // CHECK: xls.one_hot
-  %0 = xls.one_hot %arg0 { lsb_prio = true } : (i4) -> i5
+  // CHECK: xls.one_hot %arg0 <lsb_prio = true> : (i4) -> i5
+  %0 = xls.one_hot %arg0 <lsb_prio = true> : (i4) -> i5
   return %0 : i5
 }
 
@@ -411,11 +411,12 @@ func.func @complex_literal() -> tuple<tuple<i1, i2, tuple<i32, i32>>, !xls.array
 
 // CHECK-LABEL: for
 func.func @for(%arg0: i32, %arg1: i8, %arg2: i9) -> i32 {
-  // CHECK: xls.for
+  // CHECK: xls.for inits(%arg0) invariants(%arg1, %arg2) {
+  // CHECK: } <trip_count = 6> : (i32, i8, i9) -> i32
   %0 = xls.for inits(%arg0) invariants(%arg1, %arg2) {
     ^bb0(%arg3: i32, %arg4: i32, %arg5: i8, %arg6: i9):
     xls.yield %arg3 : i32
-  } { trip_count = 6 : i64 } : (i32, i8, i9) -> i32
+  } <trip_count = 6> : (i32, i8, i9) -> i32
   return %0 : i32
 }
 
@@ -545,6 +546,22 @@ xls.instantiate_extern_eproc "external" as "different_name" ("arg0" as @c1, "res
 // CHECK-LABEL: xls.extern_sproc @external_sproc (arg0: !xls.schan<i32, in>, result0: !xls.schan<i32, out>)
 xls.extern_sproc @external_sproc (arg0: !xls.schan<i32, in>, result0: !xls.schan<i32, out>)
 
+// CHECK-LABEL: xls.extern_sproc @private_external_sproc (arg0: !xls.schan<i32, in>) <sym_visibility = "private">
+xls.extern_sproc @private_external_sproc (arg0: !xls.schan<i32, in>) <sym_visibility = "private">
+
+// CHECK-LABEL: xls.import_dslx_file_package "foo.x" as @f32lib <sym_visibility = "private">
+xls.import_dslx_file_package "foo.x" as @f32lib <sym_visibility = "private">
+
+// CHECK-LABEL: xls.import_verilog_file "bar.v" as @vlib <sym_visibility = "private">
+xls.import_verilog_file "bar.v" as @vlib <sym_visibility = "private">
+
+// CHECK-LABEL: func @call_dslx_pure
+func.func @call_dslx_pure(%arg0: i32) -> i32 {
+  // CHECK: xls.call_dslx "foo.x" : "g"(%arg0) <is_pure> {some_attr = 1 : i64} : (i32) -> i32
+  %0 = xls.call_dslx "foo.x" : "g"(%arg0) <is_pure> {some_attr = 1 : i64} : (i32) -> i32
+  return %0 : i32
+}
+
 // CHECK-LABEL: xls.export_dslx @myfunc <@f32lib : "add">
 xls.export_dslx @myfunc <@f32lib: "add">
 
@@ -668,8 +685,9 @@ xls.block @multi_port[clock: "clk"](%a : i32, %b : i1) -> (%sum : i32, %flag : i
 // CHECK-LABEL: xls.block @with_reset
 // CHECK-SAME: [clock: "clk", reset: %rst]
 // CHECK-SAME: (%in: i32) -> (%out : i32)
+// CHECK: xls.register @r <reset_value = 0 : i32> : i32
 xls.block @with_reset[clock: "clk", reset: %rst](%in : i32) -> (%out : i32) {
-  xls.register @r {reset_value = 0 : i32} : i32
+  xls.register @r <reset_value = 0 : i32> : i32
   %q = xls.register_read @r : i32
   xls.register_write @r, %in : i32
   xls.block_output %q : i32
@@ -691,7 +709,7 @@ xls.block @register_write_with_le[clock: "clk"](%in : i32, %le : i1) -> (%out : 
 // CHECK-LABEL: xls.block @register_write_with_reset
 // CHECK: xls.register_write @r, %in reset %rst : i32
 xls.block @register_write_with_reset[clock: "clk", reset: %rst](%in : i32) -> (%out : i32) {
-  xls.register @r {reset_value = 0 : i32} : i32
+  xls.register @r <reset_value = 0 : i32> : i32
   %q = xls.register_read @r : i32
   xls.register_write @r, %in reset %rst : i32
   xls.block_output %q : i32
@@ -702,7 +720,7 @@ xls.block @register_write_with_reset[clock: "clk", reset: %rst](%in : i32) -> (%
 // CHECK-LABEL: xls.block @register_write_with_le_and_reset
 // CHECK: xls.register_write @r, %in load_enable %le reset %rst : i32
 xls.block @register_write_with_le_and_reset[clock: "clk", reset: %rst](%in : i32, %le : i1) -> (%out : i32) {
-  xls.register @r {reset_value = 0 : i32} : i32
+  xls.register @r <reset_value = 0 : i32> : i32
   %q = xls.register_read @r : i32
   xls.register_write @r, %in load_enable %le reset %rst : i32
   xls.block_output %q : i32

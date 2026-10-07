@@ -9,7 +9,7 @@
 // CHECK-NEXT:    ^bb0(%indvar: index, %carry: i32, %invariant: i32):
 // CHECK-NEXT:      %1 = arith.addi %carry, %invariant : i32
 // CHECK-NEXT:      xls.yield %1 : i32
-// CHECK-NEXT:    } {trip_count = 1024 : i64} : (i32, i32) -> i32
+// CHECK-NEXT:    } <trip_count = 1024> : (i32, i32) -> i32
 // CHECK-NEXT:    return %0 : i32
 // CHECK-NEXT:  }
 func.func @reduce(%addend: i32) -> (i32) attributes { "xls" = true } {
@@ -39,7 +39,7 @@ func.func @reduce(%addend: i32) -> (i32) attributes { "xls" = true } {
 // CHECK-NEXT:      %1 = arith.muli %carry, %invariant : i32
 // CHECK-NEXT:      %2 = arith.addi %1, %invariant_1 : i32
 // CHECK-NEXT:      xls.yield %2, %carry_0 : i32, i32
-// CHECK-NEXT:    } {trip_count = 1024 : i64} : (i32, i32, i32, i32) -> (i32, i32)
+// CHECK-NEXT:    } <trip_count = 1024> : (i32, i32, i32, i32) -> (i32, i32)
 // CHECK-NEXT:    return %0#0 : i32
 // CHECK-NEXT:  }
 func.func @reduce_arity_2(%addend: i32, %mulend: i32) -> (i32) attributes { "xls" = true } {
@@ -73,11 +73,11 @@ func.func @reduce_arity_2(%addend: i32, %mulend: i32) -> (i32) attributes { "xls
 // CHECK-NEXT:        ^bb0(%indvar_3: index, %carry_4: i32, %invariant_5: i32, %invariant_6: i32):
 // CHECK-NEXT:          %3 = arith.addi %invariant_5, %invariant_6 : i32
 // CHECK-NEXT:          xls.yield %3 : i32
-// CHECK-NEXT:        } {trip_count = 1024 : i64} : (i32, i32, i32) -> i32
+// CHECK-NEXT:        } <trip_count = 1024> : (i32, i32, i32) -> i32
 // CHECK-NEXT:        xls.yield %2 : i32
-// CHECK-NEXT:      } {trip_count = 1024 : i64} : (i32, i32) -> i32
+// CHECK-NEXT:      } <trip_count = 1024> : (i32, i32) -> i32
 // CHECK-NEXT:      xls.yield %1 : i32
-// CHECK-NEXT:    } {trip_count = 1024 : i64} : (i32, i32) -> i32
+// CHECK-NEXT:    } <trip_count = 1024> : (i32, i32) -> i32
 // CHECK-NEXT:    return %0 : i32
 // CHECK-NEXT:  }
 func.func @triple_nest(%addend: i32) -> (i32) attributes { "xls" = true } {

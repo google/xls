@@ -119,7 +119,7 @@ func.func @truncf(%arg0: f32) -> bf16 attributes { "xls" = true } {
 }
 
 // CHECK-LABEL: @trunci(
-// CHECK: xls.bit_slice %{{.*}} {start = 0 : i64, width = 16 : i64} : (i32) -> i16
+// CHECK: xls.bit_slice %{{.*}} <start = 0, width = 16> : (i32) -> i16
 func.func @trunci(%arg0: i32) -> i16 attributes { "xls" = true } {
   %0 = arith.trunci %arg0 : i32 to i16
   return %0 : i16
@@ -243,7 +243,7 @@ func.func @fp16tosi32(%arg0: bf16) -> (i32, i32) attributes { "xls" = true } {
 // CHECK: xls.call_dslx
 // CHECK-SAME: to_int16
 // CHECK-SAME: (bf16) -> i16
-// CHECK-NEXT: xls.bit_slice %0 {start = 0 : i64, width = 8 : i64} : (i16) -> i8
+// CHECK-NEXT: xls.bit_slice %0 <start = 0, width = 8> : (i16) -> i8
 func.func @fptosi8(%arg0: bf16) -> i8 attributes { "xls" = true } {
   %0 = arith.fptosi %arg0 : bf16 to i8
   return %0 : i8
@@ -271,7 +271,7 @@ func.func @fptoui16(%arg0: bf16) -> i16 attributes { "xls" = true } {
 // CHECK: xls.call_dslx
 // CHECK-SAME: to_uint16
 // CHECK-SAME: (bf16) -> i16
-// CHECK-NEXT: xls.bit_slice %0 {start = 0 : i64, width = 8 : i64} : (i16) -> i8
+// CHECK-NEXT: xls.bit_slice %0 <start = 0, width = 8> : (i16) -> i8
 func.func @fptoui8(%arg0: bf16) -> i8 attributes { "xls" = true } {
   %0 = arith.fptoui %arg0 : bf16 to i8
   return %0 : i8
@@ -321,7 +321,7 @@ func.func @si4tofp16(%arg0: i4) -> bf16 attributes { "xls" = true } {
 // CHECK-LABEL: @fp16tosi4
 // CHECK: xls.call_dslx
 // CHECK-SAME: to_int16
-// CHECK-NEXT: xls.bit_slice %0 {start = 0 : i64, width = 4 : i64} : (i16) -> i4
+// CHECK-NEXT: xls.bit_slice %0 <start = 0, width = 4> : (i16) -> i4
 func.func @fp16tosi4(%arg0: bf16) -> i4 attributes { "xls" = true } {
   %0 = arith.fptosi %arg0 : bf16 to i4
   return %0 : i4
@@ -330,7 +330,7 @@ func.func @fp16tosi4(%arg0: bf16) -> i4 attributes { "xls" = true } {
 // CHECK-LABEL: @fp32toui4
 // CHECK: xls.call_dslx
 // CHECK-SAME: to_uint32
-// CHECK-NEXT: xls.bit_slice %0 {start = 0 : i64, width = 4 : i64} : (i32) -> i4
+// CHECK-NEXT: xls.bit_slice %0 <start = 0, width = 4> : (i32) -> i4
 func.func @fp32toui4(%arg0: f32) -> i4 attributes { "xls" = true } {
   %0 = arith.fptoui %arg0 : f32 to i4
   return %0 : i4

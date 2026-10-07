@@ -5,7 +5,7 @@ package translate_block_reset
 // CHECK-LABEL: xls.block @pipeline
 // CHECK-SAME: [clock: "clk", reset: %rst]
 // CHECK-SAME: (%a: i32) -> (%out : i32)
-// CHECK:   xls.register @state {reset_value = 0 : i32} : i32
+// CHECK:   xls.register @state <reset_value = 0 : i32> : i32
 // CHECK:   xls.register_read @state
 // CHECK:   xls.add
 // CHECK:   xls.register_write @state, %{{.*}} reset %rst : i32
@@ -24,7 +24,7 @@ block pipeline(clk: clock, rst: bits[1], a: bits[32], out: bits[32]) {
 // CHECK-LABEL: xls.block @array_pipeline
 // CHECK-SAME: [clock: "clk", reset: %rst]
 // CHECK-SAME: (%a: !xls.array<2xi32>) -> (%out : !xls.array<2xi32>)
-// CHECK:   xls.register @state {reset_value = [0 : i32, 42 : i32]} : !xls.array<2xi32>
+// CHECK:   xls.register @state <reset_value = [0 : i32, 42 : i32]> : !xls.array<2xi32>
 // CHECK:   xls.register_read @state
 // CHECK:   xls.register_write @state, %{{.*}} reset %rst : !xls.array<2xi32>
 // CHECK:   xls.block_output
@@ -41,7 +41,7 @@ block array_pipeline(clk: clock, rst: bits[1], a: bits[32][2], out: bits[32][2])
 // CHECK-LABEL: xls.block @tuple_pipeline
 // CHECK-SAME: [clock: "clk", reset: %rst]
 // CHECK-SAME: (%a: tuple<i32, i16>) -> (%out : tuple<i32, i16>)
-// CHECK:   xls.register @state {reset_value = [0 : i32, 42 : i16]} : tuple<i32, i16>
+// CHECK:   xls.register @state <reset_value = [0 : i32, 42 : i16]> : tuple<i32, i16>
 // CHECK:   xls.register_read @state
 // CHECK:   xls.register_write @state, %{{.*}} reset %rst : tuple<i32, i16>
 // CHECK:   xls.block_output

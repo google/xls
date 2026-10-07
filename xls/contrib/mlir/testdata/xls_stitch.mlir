@@ -11,8 +11,8 @@
 // CHECK:    .clk(clk),
 // CHECK:    .rst(rst)
 // CHECK:  );
-xls.chan @send {recv_supported = false} : i32
-xls.chan @recv {send_supported = false} : i32
+xls.chan @send <recv_supported = false> : i32
+xls.chan @recv <send_supported = false> : i32
 xls.instantiate_eproc @eproc(@template_send as @send, @template_recv as @recv)
 
 xls.chan @template_recv : i32
@@ -37,6 +37,6 @@ xls.eproc @eproc(%state: i32) zeroinitializer discardable {
 // CHECK:    .clk(clk),
 // CHECK:    .rst(rst)
 // CHECK:  );
-xls.chan @"kwargs['send']" {recv_supported = false} : i32
-xls.chan @recv {send_supported = false} : i32
+xls.chan @"kwargs['send']" <recv_supported = false> : i32
+xls.chan @recv <send_supported = false> : i32
 xls.instantiate_extern_eproc "eproc" ("template_send" as @"kwargs['send']", "template_recv" as @recv)

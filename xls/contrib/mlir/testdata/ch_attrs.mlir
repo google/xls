@@ -11,19 +11,19 @@
 // CHECK-SAME:    bypass = true
 // CHECK-SAME:    register_push_outputs = true
 // CHECK-SAME:    register_pop_outputs = false
-xls.chan @chan0 {fifo_config = #xls.fifo_config<fifo_depth = 1, bypass = true, register_push_outputs = true, register_pop_outputs = false>, send_supported = false} : i1
+xls.chan @chan0 <fifo_config = <fifo_depth = 1, bypass = true, register_push_outputs = true, register_pop_outputs = false>, send_supported = false> : i1
 
 // CHECK-LABEL: xls.chan @chan1
 // CHECK-NOT:     fifo_config
-// CHECK-SAME:    input_flop_kind = #xls<flop_kind skid>
-// CHECK-SAME:    output_flop_kind = #xls<flop_kind none>
-xls.chan @chan1 {input_flop_kind = #xls<flop_kind skid>, output_flop_kind = #xls<flop_kind none>, send_supported = false} : i32
+// CHECK-SAME:    input_flop_kind = skid
+// CHECK-SAME:    output_flop_kind = none
+xls.chan @chan1 <input_flop_kind = skid, output_flop_kind = none, send_supported = false> : i32
 
 // CHECK-LABEL: xls.chan @chan2
 // CHECK-NOT:    fifo_config
 // CHECK-NOT:    input_flop_kind
 // CHECK-NOT:    output_flop_kind
-xls.chan @chan2 {send_supported = false} : i32
+xls.chan @chan2 <send_supported = false> : i32
 
 xls.eproc @foo() zeroinitializer {
   %tok = xls.after_all : !xls.token

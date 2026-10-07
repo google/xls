@@ -21,7 +21,6 @@ def Xls_Dialect : Dialect {
 
   let useDefaultTypePrinterParser = 1;
   let useDefaultAttributePrinterParser = 1;
-  let useStrictPropertiesInAssemblyFormat = 0;
   let hasConstantMaterializer = 1;
 }
 
@@ -138,8 +137,9 @@ def Xls_TranslationLinkage : Xls_Attr<"TranslationLinkage"> {
     OptionalParameter<"std::optional<int64_t>">:$delay_ps
   );
   let mnemonic = "translation_linkage";
-  let assemblyFormat =
-    "`<` $package `:` $function (`,` $kind^)? (`,` `delay` `=` $delay_ps^)? `>`";
+  let assemblyFormat = [{
+    `<` $package `:` $function (`,` $kind^)? (`,` `delay` `=` $delay_ps^)? `>`
+  }];
   let attrName = "xls.translation_linkage";
 }
 
@@ -289,7 +289,8 @@ class Xls_UnaryOp<string name, list<Trait> traits = []> :
     Scalarizable,
   ])> {
   let assemblyFormat = [{
-    $operand attr-dict `:` custom<SameOperandsAndResultType>(type($operand), type($result))
+    $operand prop-dict attr-dict
+    `:` custom<SameOperandsAndResultType>(type($operand), type($result))
   }];
 }
 
@@ -300,7 +301,8 @@ class Xls_BinaryOp<string name, list<Trait> traits = []> :
     Scalarizable,
   ])> {
   let assemblyFormat = [{
-    $lhs `,` $rhs attr-dict `:` custom<SameOperandsAndResultType>(type($lhs), type($rhs), type($result))
+    $lhs `,` $rhs attr-dict
+    `:` custom<SameOperandsAndResultType>(type($lhs), type($rhs), type($result))
   }];
 }
 
@@ -311,7 +313,9 @@ class Xls_NaryOp<string name, list<Trait> traits = []> :
     Scalarizable
   ])> {
   let assemblyFormat = [{
-    $inputs attr-dict `:` custom<VariadicSameOperandsAndResultType>(ref($inputs), type($inputs), type($result))
+    $inputs attr-dict
+    `:` custom<VariadicSameOperandsAndResultType>(
+        ref($inputs), type($inputs), type($result))
   }];
   let builders = [
     OpBuilder<(ins "::mlir::ValueRange":$inputs), [{
@@ -329,7 +333,9 @@ class Xls_NonScalarizableNaryOp<string name, list<Trait> traits = []> :
     ShapesAreConsistent<["inputs", "result"]>,
   ])> {
   let assemblyFormat = [{
-    $inputs attr-dict `:` custom<VariadicSameOperandsAndResultType>(ref($inputs), type($inputs), type($result))
+    $inputs attr-dict
+    `:` custom<VariadicSameOperandsAndResultType>(
+        ref($inputs), type($inputs), type($result))
   }];
 }
 
@@ -985,9 +991,10 @@ def Xls_ArrayUpdateSliceOp : Xls_Op<"array_update_slice", [Pure, ShapesAreConsis
   // The custom<SameOperandsAndResultType> binds the array and result types.
   // The custom<ArrayUpdateSliceBrackets> binds the slice type.
   let assemblyFormat = [{
-    $slice `into` $array `[` $start `+` `` `:` $width `]` attr-dict `:`
-    custom<SameOperandsAndResultType>(type($array), type($result))
-    custom<ArrayUpdateSliceBrackets>(ref(type($array)), ref($width), type($slice))
+    $slice `into` $array `[` $start `+` `` `:` $width `]` attr-dict
+    `:` custom<SameOperandsAndResultType>(type($array), type($result))
+    custom<ArrayUpdateSliceBrackets>(
+        ref(type($array)), ref($width), type($slice))
   }];
 }
 
@@ -1002,7 +1009,9 @@ def Xls_ArrayConcatOp : Xls_Op<"array_concat", [Pure, TensorArrayTypeFungible]> 
   let results = (outs
     Xls_ArrayType:$result
   );
-  let assemblyFormat = "operands attr-dict `:` functional-type(operands, results)";
+  let assemblyFormat = [{
+    operands attr-dict `:` functional-type(operands, results)
+  }];
 }
 
 //===----------------------------------------------------------------------===//
@@ -1236,7 +1245,8 @@ def Xls_SelOp : Xls_Op<"sel", [
   );
   let assemblyFormat = [{
     $selector `in` ` ` `[` $cases `]` (`else` $otherwise^)? attr-dict
-    `:` `(` type($selector) `,` `[` type($cases) `]` (`,` type($otherwise)^)? `)` `->` type($result)
+    `:` `(` type($selector) `,` `[` type($cases) `]`
+        (`,` type($otherwise)^)? `)` `->` type($result)
   }];
   let builders = [
     OpBuilder<(ins "::mlir::Value":$selector, "::mlir::Value":$otherwise, "::mlir::ValueRange":$cases), [{
@@ -1313,7 +1323,9 @@ def Xls_PrioritySelOp : Xls_Op<"priority_sel", [
     Xls_BitsOrTuple:$result
   );
   let assemblyFormat = [{
-    $selector `in` ` ` `[` $cases `]` `else` $default_value attr-dict `:` `(` type($selector) `,` `[` type($cases) `]` `,` type($default_value) `)` `->` type($result)
+    $selector `in` ` ` `[` $cases `]` `else` $default_value attr-dict
+    `:` `(` type($selector) `,` `[` type($cases) `]` `,`
+        type($default_value) `)` `->` type($result)
   }];
 }
 
@@ -1387,7 +1399,8 @@ def Xls_ForOp : Xls_Op<"for", [
   let regions = (region SizedRegion<1>:$body);
 
   let assemblyFormat = [{
-    `inits` `(` $inits `)` `invariants` `(` $invariants `)` regions attr-dict `:` functional-type(operands, results)
+    `inits` `(` $inits `)` `invariants` `(` $invariants `)` regions
+    prop-dict attr-dict `:` functional-type(operands, results)
   }];
 }
 
@@ -1490,7 +1503,9 @@ def Xls_AfterAllOp : Xls_Op<"after_all", [
     }
   }];
   let assemblyFormat = [{
-    $inputs attr-dict `:` custom<VariadicSameOperandsAndResultType>(ref($inputs), type($inputs), type($result))
+    $inputs attr-dict
+    `:` custom<VariadicSameOperandsAndResultType>(
+        ref($inputs), type($inputs), type($result))
   }];
 }
 
@@ -1608,7 +1623,7 @@ def Xls_ImportDslxFilePackageOp : Xls_Op<"import_dslx_file_package", [
     // TODO(jpienaar): Expand to include search paths, define symbols etc.
   );
   let assemblyFormat = [{
-    $filename `as` $sym_name attr-dict
+    $filename `as` $sym_name prop-dict attr-dict
   }];
   let extraClassDeclaration = [{
     // Imports can always be discarded if they are not used.
@@ -1635,7 +1650,8 @@ def Xls_CallDslxOp : Xls_Op<"call_dslx", [DeclareOpInterfaceMethods<MemoryEffect
   );
   let results = (outs AnyType);
   let assemblyFormat = [{
-    $filename `:` $function `(` $operands `)` attr-dict `:` functional-type($operands, results)
+    $filename `:` $function `(` $operands `)` prop-dict attr-dict
+    `:` functional-type($operands, results)
   }];
 }
 
@@ -1783,7 +1799,7 @@ def Xls_ChanOp : Xls_Op<"chan", [
     DefaultValuedAttr<BoolAttr, "true">:$recv_supported
   );
   let assemblyFormat = [{
-    $sym_name attr-dict `:` $type
+    $sym_name prop-dict attr-dict `:` $type
   }];
   let extraClassDeclaration = [{
     // Channels can always be discarded if they are not used.
@@ -1832,7 +1848,8 @@ def Xls_InstantiateEprocOp : Xls_Op<"instantiate_eproc", [DeclareOpInterfaceMeth
     OptionalAttr<StrAttr>:$name
   );
   let assemblyFormat = [{
-    $eproc (`as` $name^)? custom<ZippedSymbols>($global_channels, $local_channels) attr-dict
+    $eproc (`as` $name^)?
+    custom<ZippedSymbols>($global_channels, $local_channels) attr-dict
   }];
 }
 
@@ -1861,7 +1878,8 @@ def Xls_InstantiateExternEprocOp : Xls_Op<"instantiate_extern_eproc", []> {
     OptionalAttr<StrAttr>:$name
   );
   let assemblyFormat = [{
-    $eproc_name (`as` $name^)? custom<ZippedSymbols>($global_channels, $boundary_channel_names) attr-dict
+    $eproc_name (`as` $name^)?
+    custom<ZippedSymbols>($global_channels, $boundary_channel_names) attr-dict
   }];
 }
 
@@ -1886,7 +1904,8 @@ def Xls_NextValueOp : Xls_Op<"next_value", [Pure, SameVariadicOperandSize]> {
   );
   let hasVerifier = true;
   let assemblyFormat = [{
-    custom<NextValuePair>($predicates, $values) attr-dict `:` functional-type($values, results)
+    custom<NextValuePair>($predicates, $values) attr-dict
+    `:` functional-type($values, results)
   }];
 }
 
@@ -1901,7 +1920,9 @@ def Xls_SchanType : Xls_Type<"Schan", []> {
     TypeParameter<"::mlir::Type", "Underlying type">:$element_type,
     TypeParameter<"bool", "Direction is input?">:$is_input
   );
-  let assemblyFormat = "`<` $element_type `,` custom<InOutSpecifier>($is_input) `>`";
+  let assemblyFormat = [{
+    `<` $element_type `,` custom<InOutSpecifier>($is_input) `>`
+  }];
   let extraClassDeclaration = [{
     bool getIsOutput() const { return !getIsInput(); }
   }];
@@ -2109,7 +2130,8 @@ def Xls_SpawnOp : Xls_Op<"spawn", [
     OptionalAttr<StrAttr>:$name_hint
   );
   let assemblyFormat = [{
-    $callee `(` operands `)` (`name_hint` `(` $name_hint^ `)`)? attr-dict `:` type(operands)
+    $callee `(` operands `)` (`name_hint` `(` $name_hint^ `)`)?
+    attr-dict `:` type(operands)
   }];
   let extraClassDeclaration = [{
     SprocOp resolveCallee(::mlir::SymbolTableCollection* symbolTable = nullptr);
@@ -2162,7 +2184,9 @@ def Xls_ExternSprocOp : Xls_Op<"extern_sproc", [
     TypeArrayAttr:$channel_argument_types
   );
   let assemblyFormat = [{
-    $sym_name custom<ChannelNamesAndTypes>($boundary_channel_names, $channel_argument_types) attr-dict
+    $sym_name custom<ChannelNamesAndTypes>(
+        $boundary_channel_names, $channel_argument_types)
+    prop-dict attr-dict
   }];
   let extraClassDeclaration = [{
     ::mlir::Region* getCallableRegion() {
@@ -2316,7 +2340,8 @@ def Xls_TraceOp : Xls_Op<"trace", [TensorArrayTypeFungible,
     Xls_TokenType:$tkn_out
   );
   let assemblyFormat = [{
-    $tkn `,` ($predicate^ `,`)? $format (`(` $args^ `)` `:` type($args))? (`verbosity` $verbosity^)? attr-dict
+    $tkn `,` ($predicate^ `,`)? $format (`(` $args^ `)`
+    `:` type($args))? (`verbosity` $verbosity^)? attr-dict
   }];
   let extraClassDeclaration = [{
     ::mlir::Value getCondition() {
@@ -2462,7 +2487,7 @@ def Xls_RegisterOp : Xls_Op<"register", [
     Example:
     ```mlir
     xls.register @foo : i32
-    xls.register @bar {reset_value = 42 : i32} : i32
+    xls.register @bar <reset_value = 42 : i32> : i32
     ```
   }];
   let arguments = (ins
@@ -2472,7 +2497,7 @@ def Xls_RegisterOp : Xls_Op<"register", [
     OptionalAttr<AnyAttr>:$reset_value
   );
   let assemblyFormat = [{
-    $sym_name attr-dict `:` $type
+    $sym_name prop-dict attr-dict `:` $type
   }];
   let extraClassDeclaration = [{
     // Register declarations use symbol references, which aren't tracked by
@@ -2543,7 +2568,7 @@ def Xls_BlockOp : Xls_Op<"block", [
     ```mlir
     xls.block @pipeline[clock: "clk", reset: %rst](
         %a : i32) -> (%out : i32) {
-      xls.register @state {reset_value = 0 : i32} : i32
+      xls.register @state <reset_value = 0 : i32> : i32
       %q = xls.register_read @state : i32
       %sum = xls.add %a, %q : i32
       xls.register_write @state, %sum reset %rst : i32
@@ -2656,7 +2681,8 @@ def Xls_RegisterWriteOp : Xls_Op<"register_write", [
     Optional<I1>:$reset
   );
   let assemblyFormat = [{
-    $reg `,` $data (`load_enable` $load_enable^)? (`reset` $reset^)? attr-dict `:` type($data)
+    $reg `,` $data (`load_enable` $load_enable^)? (`reset` $reset^)?
+    attr-dict `:` type($data)
   }];
 }
 
@@ -2837,7 +2863,7 @@ def Xls_ImportVerilogFileOp : Xls_Op<"import_verilog_file", [
     OptionalAttr<StrAttr>:$sym_visibility
   );
   let assemblyFormat = [{
-    $filename `as` $sym_name attr-dict
+    $filename `as` $sym_name prop-dict attr-dict
   }];
   let extraClassDeclaration = [{
     // Imports can always be discarded if they are not used.

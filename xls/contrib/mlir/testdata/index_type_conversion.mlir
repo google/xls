@@ -8,9 +8,9 @@
 // INDEX32-SAME:  %[[rhs:.*]]: i64) -> i64 attributes {xls = true} {
 // INDEX64-SAME:  %[[rhs:.*]]: i64) -> i64 attributes {xls = true} {
 func.func @i64_to_index(%lhs : i64, %rhs : i64) -> i64 attributes {xls = true} {
-  // INDEX32:           %[[lhs_i32:.*]] = xls.bit_slice %[[lhs]] {start = 0 : i64, width = 32 : i64} : (i64) -> i32
+  // INDEX32:           %[[lhs_i32:.*]] = xls.bit_slice %[[lhs]] <start = 0, width = 32> : (i64) -> i32
   %lhs_index = arith.index_cast %lhs : i64 to index
-  // INDEX32:           %[[rhs_i32:.*]] = xls.bit_slice %[[rhs]] {start = 0 : i64, width = 32 : i64} : (i64) -> i32
+  // INDEX32:           %[[rhs_i32:.*]] = xls.bit_slice %[[rhs]] <start = 0, width = 32> : (i64) -> i32
   %rhs_index = arith.index_cast %rhs : i64 to index
 
   // INDEX32:           %[[add:.*]] = xls.add %[[lhs_i32]], %[[rhs_i32]] : i32
@@ -41,7 +41,7 @@ func.func @i32_to_index(%lhs : i32, %rhs : i32) -> i32 attributes {xls = true} {
   // INDEX64:           %[[add:.*]] = xls.add %[[lhs_index]], %[[rhs_index]] : i64
   %add = xls.add %lhs_index, %rhs_index : index
 
-  // INDEX64:           %[[ret:.*]] = xls.bit_slice %[[add]] {start = 0 : i64, width = 32 : i64} : (i64) -> i32
+  // INDEX64:           %[[ret:.*]] = xls.bit_slice %[[add]] <start = 0, width = 32> : (i64) -> i32
   %ret = arith.index_castui %add: index to i32
 
   // INDEX32:           return %[[add]] : i32
@@ -85,7 +85,7 @@ func.func @array() -> i32 attributes {xls = true} {
   // INDEX64:           %[[ele:.*]] = "xls.array_index"(%[[array]], %[[cst]]) : (!xls.array<2xi64>, i64) -> i64
   %ret = "xls.array_index"(%array, %cst) : (!xls.array<2xindex>, index) -> index
 
-  // INDEX64:           %[[ret:.*]] = xls.bit_slice %[[ele]] {start = 0 : i64, width = 32 : i64} : (i64) -> i32
+  // INDEX64:           %[[ret:.*]] = xls.bit_slice %[[ele]] <start = 0, width = 32> : (i64) -> i32
   %ret_i32 = arith.index_cast %ret: index to i32
 
   // INDEX32:           return %[[ele]] : i32
@@ -116,7 +116,7 @@ func.func @array_nested() -> i32 attributes {xls = true} {
   // INDEX64:           %[[ret:.*]] = "xls.array_index"(%[[ele]], %[[cst]]) : (!xls.array<2xi64>, i64) -> i64
   %ret = "xls.array_index"(%array_1, %cst) : (!xls.array<2xindex>, index) -> index
 
-  // INDEX64:           %[[ret_i32:.*]] = xls.bit_slice %[[ret]] {start = 0 : i64, width = 32 : i64} : (i64) -> i32
+  // INDEX64:           %[[ret_i32:.*]] = xls.bit_slice %[[ret]] <start = 0, width = 32> : (i64) -> i32
   %ret_i32 = arith.index_cast %ret: index to i32
 
   // INDEX32:           return %[[ret]] : i32
@@ -142,7 +142,7 @@ func.func @tuple(%i : i64) -> i32 attributes {xls = true} {
   // INDEX64:           %[[ele:.*]] = "xls.tuple_index"(%[[tuple]]) <{index = 0 : i64}> : (tuple<i64, i64>) -> i64
   %ret = "xls.tuple_index"(%tuple) { index = 0 : i64 } : (tuple<index, i64> ) -> index
 
-  // INDEX64:           %[[ret:.*]] = xls.bit_slice %[[ele]] {start = 0 : i64, width = 32 : i64} : (i64) -> i32
+  // INDEX64:           %[[ret:.*]] = xls.bit_slice %[[ele]] <start = 0, width = 32> : (i64) -> i32
   %ret_i32 = arith.index_cast %ret: index to i32
 
   // INDEX32:           return %[[ele]] : i32
@@ -157,16 +157,16 @@ func.func @forloop(%arg0: i32, %arg1: i8, %arg2: i9) -> i32 attributes {xls = tr
     ^bb0(%arg3: index, %arg4: i32, %arg5: i8, %arg6: i9):
     // INDEX32:         %indvar: i32
     // INDEX64:         %indvar: i64
-    // INDEX64-NEXT:    xls.bit_slice %indvar {start = 0 : i64, width = 32 : i64} : (i64) -> i32
+    // INDEX64-NEXT:    xls.bit_slice %indvar <start = 0, width = 32> : (i64) -> i32
     %i = arith.index_cast %arg3 : index to i32
     xls.yield %i : i32
-  } { trip_count = 6 : i64 } : (i32, i8, i9) -> i32
+  } <trip_count = 6> : (i32, i8, i9) -> i32
   return %0 : i32
 }
 
-// INDEX32-LABEL:   xls.chan @mychan {fifo_config = #xls.fifo_config<fifo_depth = 1, bypass = true, register_push_outputs = true, register_pop_outputs = false>} : i32
-// INDEX64-LABEL:   xls.chan @mychan {fifo_config = #xls.fifo_config<fifo_depth = 1, bypass = true, register_push_outputs = true, register_pop_outputs = false>} : i64
-xls.chan @mychan {fifo_config = #xls.fifo_config<fifo_depth = 1, bypass = true, register_push_outputs = true, register_pop_outputs = false>} : index
+// INDEX32-LABEL:   xls.chan @mychan <fifo_config = <fifo_depth = 1, bypass = true, register_push_outputs = true, register_pop_outputs = false>> : i32
+// INDEX64-LABEL:   xls.chan @mychan <fifo_config = <fifo_depth = 1, bypass = true, register_push_outputs = true, register_pop_outputs = false>> : i64
+xls.chan @mychan <fifo_config = <fifo_depth = 1, bypass = true, register_push_outputs = true, register_pop_outputs = false>> : index
 
 // INDEX32-LABEL:   func.func @funcarg(%arg0: i32) -> i32 attributes {xls = true} {
 // INDEX64-LABEL:   func.func @funcarg(%arg0: i64) -> i64 attributes {xls = true} {

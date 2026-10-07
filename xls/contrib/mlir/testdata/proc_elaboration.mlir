@@ -1,6 +1,6 @@
 // RUN: xls_opt -elaborate-procs=io-constraints -split-input-file %s 2>&1 | FileCheck %s
 // CHECK-LABEL:   xls.chan @req : i32
-// CHECK-NEXT:    xls.chan @resp {fifo_config = #xls.fifo_config<fifo_depth = 1, bypass = true, register_push_outputs = true, register_pop_outputs = false>} : i32
+// CHECK-NEXT:    xls.chan @resp <fifo_config = <fifo_depth = 1, bypass = true, register_push_outputs = true, register_pop_outputs = false>> : i32
 // CHECK-NEXT:    xls.chan @rom1_req : i32
 // CHECK-NEXT:    xls.chan @rom1_resp : i32
 
@@ -44,8 +44,8 @@
 // CHECK-NEXT:    xls.chan @fetch_arg0 : i32
 // CHECK-NEXT:    xls.chan @fetch_arg1 : i32
 // CHECK-NEXT:    xls.instantiate_eproc @fetch (@fetch_arg0 as @req, @fetch_arg1 as @resp)
-// CHECK-NEXT:    xls.chan @boundary1 {fifo_config = #xls.fifo_config<fifo_depth = 1, bypass = true, register_push_outputs = true, register_pop_outputs = false>, input_flop_kind = #xls<flop_kind skid>, send_supported = false} : i32
-// CHECK-NEXT:    xls.chan @boundary2 {recv_supported = false} : i32
+// CHECK-NEXT:    xls.chan @boundary1 <fifo_config = <fifo_depth = 1, bypass = true, register_push_outputs = true, register_pop_outputs = false>, input_flop_kind = skid, send_supported = false> : i32
+// CHECK-NEXT:    xls.chan @boundary2 <recv_supported = false> : i32
 // CHECK-NEXT:    xls.instantiate_eproc @rom (@rom_arg0 as @boundary1, @rom_arg1 as @boundary2)
 
 
