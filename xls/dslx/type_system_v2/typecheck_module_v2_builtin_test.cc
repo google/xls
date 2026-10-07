@@ -784,10 +784,10 @@ TEST(TypecheckV2BuiltinTest, MapWithParametricsForbidden) {
   EXPECT_THAT(
       R"(
 fn to_zero_31(x: uN[32]) -> u31 { u31:0 }
-const Y = map<u32, u31, u32, u32:1>([u32:1], to_zero_31);
+const Y = map<u31, u32, u32:1>([u32:1], to_zero_31);
 )",
       TypecheckFails(
-          HasSubstr(R"(Expected 0 parametric arguments to `map` but got 4)")));
+          HasSubstr(R"(Expected 0 parametric arguments to `map` but got 3)")));
 }
 
 TEST(TypecheckV2BuiltinTest, MapSameFunctionDifferentArraySize) {
@@ -811,7 +811,7 @@ fn f() -> u30[2] {
 )",
       TypecheckSucceeds(
           AllOf(HasNodeWithType("f", "() -> uN[30][2]"),
-                HasNodeWithType("identity", "(uN[30]) -> uN[30]"))));
+                HasNodeWithType("identity<u32:30>", "(uN[30]) -> uN[30]"))));
 }
 
 TEST(TypecheckV2BuiltinTest, MapParametricMapperImplied) {
@@ -866,9 +866,9 @@ fn f() -> u31[2] {
   map([u30:5, u30:6], mapper<u32:30, u32:31>)
 }
 )",
-      TypecheckSucceeds(
-          AllOf(HasNodeWithType("f", "() -> uN[31][2]"),
-                HasNodeWithType("mapper", "(uN[30]) -> uN[31]"))));
+      TypecheckSucceeds(AllOf(
+          HasNodeWithType("f", "() -> uN[31][2]"),
+          HasNodeWithType("mapper<u32:30, u32:31>", "(uN[30]) -> uN[31]"))));
 }
 
 TEST(TypecheckV2BuiltinTest, MapParametricMapperImpliedConstWithHint) {

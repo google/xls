@@ -401,7 +401,8 @@ class Unifier {
       unified_param_types.push_back(unified_param_type);
     }
     return module_.Make<FunctionTypeAnnotation>(
-        unified_param_types, const_cast<TypeAnnotation*>(unified_return_type));
+        unified_return_type->span(), unified_param_types,
+        const_cast<TypeAnnotation*>(unified_return_type));
   }
 
   // Unifies multiple annotations for a channel. The channels must be in the

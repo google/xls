@@ -48,8 +48,7 @@ fn cover!<N: u32>(name: u8[N], condition: u1) -> ();
 
 fn ctz<N: u32>(x: uN[N]) -> uN[N];
 
-// The type of `f` must be fn f(x: T) -> U
-fn map<F: type, U: type, T: type, N: u32>(arr: T[N], f: F) -> U[N];
+fn map<U: type, T: type, N: u32>(arr: T[N], f: fn(T) -> U) -> U[N];
 
 // T must be an unsigned type.
 fn decode<T: type, N: u32>(x: uN[N]) -> T;

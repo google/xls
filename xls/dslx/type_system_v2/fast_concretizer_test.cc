@@ -141,6 +141,7 @@ TEST_F(FastConcretizerTest, FunctionOfBuiltin) {
   XLS_ASSERT_OK_AND_ASSIGN(
       std::unique_ptr<Type> type,
       concretizer_->Concretize(module_->Make<FunctionTypeAnnotation>(
+          Span::Fake(),
           std::vector<const TypeAnnotation*>{
               CreateU32Annotation(*module_, Span::Fake()),
               CreateUnOrSnAnnotation(*module_, Span::Fake(), true, 8)},

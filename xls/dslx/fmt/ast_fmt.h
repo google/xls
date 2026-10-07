@@ -143,6 +143,7 @@ class Formatter {
   virtual DocRef FormatFor(const For& n);
   virtual DocRef FormatFormatMacro(const FormatMacro& n);
   virtual DocRef FormatFunctionRef(const FunctionRef& n);
+  virtual DocRef FormatFunctionTypeAnnotation(const FunctionTypeAnnotation& n);
   virtual DocRef FormatImpl(const Impl& n);
   virtual DocRef FormatImplMember(const ImplMember& n);
   virtual DocRef FormatImport(const Import& n);

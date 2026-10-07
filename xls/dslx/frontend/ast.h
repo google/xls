@@ -795,9 +795,10 @@ class FunctionTypeAnnotation : public TypeAnnotation {
   static constexpr TypeAnnotationKind kAnnotationKind =
       TypeAnnotationKind::kFunction;
 
-  FunctionTypeAnnotation(Module* owner,
+  FunctionTypeAnnotation(Module* owner, Span span,
                          std::vector<const TypeAnnotation*> param_types,
-                         TypeAnnotation* return_type);
+                         TypeAnnotation* return_type,
+                         bool explicit_return = true);
 
   absl::Status Accept(AstNodeVisitor* v) const override {
     return v->HandleFunctionTypeAnnotation(this);
@@ -819,7 +820,7 @@ class FunctionTypeAnnotation : public TypeAnnotation {
 
  private:
   const std::vector<const TypeAnnotation*> param_types_;
-  TypeAnnotation* return_type_;
+  TypeAnnotation* return_type_;  // May be null.
 };
 
 // Used internally in type inference to annotate the type of some node as the
@@ -2974,6 +2975,19 @@ class Invocation : public Instantiation {
     return originating_invocation_;
   }
 
+  bool is_originator() const { return is_originator_; }
+
+  void mark_originator() { is_originator_ = true; }
+
+  bool IncludeSelfInOriginated(const Function* fn) const {
+    return include_self_.contains(fn);
+  }
+
+  void AddIncludeSelfInOriginated(const Function* fn) {
+    CHECK(is_originator());
+    include_self_.emplace(fn);
+  }
+
  private:
   std::string ToStringInternal() const final {
     std::string prefix;
@@ -2989,6 +3003,15 @@ class Invocation : public Instantiation {
   // `map(f, arr)`, an invocation is generated for `f(arr)` and the
   // `originating_invocation` will point to the `map` invocation.
   std::optional<const Invocation*> originating_invocation_;
+
+  // Whether this invocation originated other invocations, i.e., whether this
+  // invocation contains params that are functions.
+  bool is_originator_ = false;
+
+  // If this invocation is an originator, these methods should include their
+  // `self` argument when resolving the type annotations for the function
+  // parameters.
+  absl::flat_hash_set<const Function*> include_self_;
 };
 
 // Represents a call to spawn a proc, e.g.,
