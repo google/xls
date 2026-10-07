@@ -18,8 +18,6 @@
 #include <cstdint>
 #include <memory>
 #include <optional>
-#include <string>
-#include <utility>
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
@@ -27,7 +25,6 @@
 #include "absl/functional/any_invocable.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
-#include "absl/strings/str_cat.h"
 #include "absl/types/span.h"
 #include "xls/data_structures/binary_decision_diagram.h"
 #include "xls/ir/change_listener.h"
@@ -41,6 +38,7 @@
 #include "xls/passes/node_dependency_analysis.h"
 #include "xls/passes/post_dominator_analysis.h"
 #include "xls/passes/query_engine.h"
+#include "xls/passes/visibility_contracted_dag.h"
 
 namespace xls {
 
@@ -54,31 +52,7 @@ namespace xls {
 // (operand, node) pairs for a given node, not all of them.
 class OperandVisibilityAnalysis : public ChangeListener {
  public:
-  struct OperandNode {
-    Node* operand;
-    Node* node;
-
-    OperandNode(Node* operand, Node* node) : operand(operand), node(node) {}
-
-    template <typename H>
-    friend H AbslHashValue(H h, const OperandNode& op_node) {
-      return H::combine(std::move(h), op_node.operand, op_node.node);
-    }
-
-    bool operator<(const OperandNode& other) const {
-      if (operand->id() == other.operand->id()) {
-        return node->id() < other.node->id();
-      }
-      return operand->id() < other.operand->id();
-    }
-    bool operator==(const OperandNode& other) const {
-      return operand == other.operand && node == other.node;
-    }
-
-    std::string ToString() const {
-      return absl::StrCat(operand->GetName(), "->", node->GetName());
-    }
-  };
+  using OperandNode = ::xls::OperandNode;
 
   static constexpr int64_t kDefaultTermLimitForNodeToUserEdge = 32;
 
