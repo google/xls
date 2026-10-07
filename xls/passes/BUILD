@@ -5128,6 +5128,7 @@ cc_library(
         ":passes",
         "//xls/common/status:status_macros",
         "@abseil-cpp//absl/algorithm:container",
+        "@abseil-cpp//absl/cleanup",
         "@abseil-cpp//absl/container:flat_hash_map",
         "@abseil-cpp//absl/container:flat_hash_set",
         "@abseil-cpp//absl/log",

@@ -52,7 +52,6 @@ class SplitPipelineFactory {
         split_pass_name_to_index_(std::move(split_pass_name_to_index)),
         registry_(std::move(registry)) {}
 
-  // TODO(joshuata): Move reordering of pipeline proto to within Create()
   static absl::StatusOr<std::unique_ptr<SplitPipelineFactory>> Create(
       OptimizationPassRegistry& registry,
       absl::Span<const std::string> split_passes,
