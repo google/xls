@@ -255,3 +255,52 @@ cc_test(
         "@googletest//:gtest",
     ],
 )
+
+cc_library(
+    name = "type_annotation_simplifier",
+    srcs = ["type_annotation_simplifier.cc"],
+    hdrs = ["type_annotation_simplifier.h"],
+    deps = [
+        ":ast_fmt",
+        ":comments",
+        ":pretty_print",
+        "//xls/common:visitor",
+        "//xls/common/status:status_macros",
+        "//xls/dslx/frontend:ast",
+        "//xls/dslx/frontend:ast_node_visitor_with_default",
+        "//xls/dslx/frontend:builtins_metadata",
+        "//xls/dslx/frontend:module",
+        "//xls/dslx/frontend:pos",
+        "//xls/dslx/frontend:token_utils",
+        "//xls/dslx/type_system:type_info",
+        "@abseil-cpp//absl/container:flat_hash_map",
+        "@abseil-cpp//absl/container:flat_hash_set",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings:str_format",
+        "@abseil-cpp//absl/types:span",
+        "@abseil-cpp//absl/types:variant",
+    ],
+)
+
+cc_test(
+    name = "type_annotation_simplifier_test",
+    srcs = ["type_annotation_simplifier_test.cc"],
+    deps = [
+        ":ast_fmt",
+        ":comments",
+        ":pretty_print",
+        ":type_annotation_simplifier",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/dslx:create_import_data",
+        "//xls/dslx:import_data",
+        "//xls/dslx:parse_and_typecheck",
+        "//xls/dslx:virtualizable_file_system",
+        "//xls/dslx/frontend:ast",
+        "//xls/dslx/frontend:comment_data",
+        "//xls/dslx/frontend:pos",
+        "@abseil-cpp//absl/container:flat_hash_map",
+        "@googletest//:gtest",
+    ],
+)

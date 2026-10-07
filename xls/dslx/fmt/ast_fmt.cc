@@ -1700,7 +1700,7 @@ DocRef Formatter::FormatStructMembersBreak(
                            arena_.hard_line(), arena_.MakeNest(field_expr)});
 
       DocRef on_other;
-      if (expr->IsBlockedExprWithLeader()) {
+      if (IsBlockedExprWithLeader(*expr)) {
         DocRef leader =
             ConcatN(arena_, {arena_.MakeText(field_name), arena_.colon(),
                              arena_.space(), FormatBlockedExprLeader(*expr)});
@@ -2092,7 +2092,7 @@ DocRef Formatter::FormatExpr(const Expr& n, bool suppress_parens) {
 // Precondition: `e` must be a blocked expression with a leader component; e.g.
 // invocation (leader is callee), conditional (leader is test), etc.
 DocRef Formatter::FormatBlockedExprLeader(const Expr& e) {
-  CHECK(e.IsBlockedExprWithLeader());
+  CHECK(IsBlockedExprWithLeader(e));
   switch (e.kind()) {
     case AstNodeKind::kInvocation: {
       return arena_.MakeConcat(
@@ -2306,7 +2306,7 @@ DocRef Formatter::FormatConstAssert(const ConstAssert& n) {
 
   DocRef arg_with_nest = arena_.MakeNestIfFlatFits(
       /*on_nested_flat_ref=*/arg_doc,
-      /*on_other_ref=*/n.arg()->IsBlockedExprWithLeader()
+      /*on_other_ref=*/IsBlockedExprWithLeader(*n.arg())
           ? make_blocked()
           : arena_.MakeAlign(arg_doc));
   return ConcatNGroup(arena_, {

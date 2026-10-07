@@ -150,6 +150,7 @@ class Formatter {
   virtual DocRef FormatIndexRhs(const IndexRhs& n);
   virtual DocRef FormatInvocation(const Invocation& n);
   virtual DocRef FormatLambda(const Lambda& n);
+  virtual DocRef FormatMakeArrayLeader(const Array& n);
   virtual DocRef FormatMatch(const Match& n);
   virtual DocRef FormatModuleMember(const ModuleMember& n);
   virtual DocRef FormatNameDef(const NameDef& n);
@@ -198,6 +199,8 @@ class Formatter {
   virtual DocRef FormatWildcardPattern(const WildcardPattern& n);
   virtual DocRef FormatXlsTuple(const XlsTuple& n);
   virtual DocRef FormatZeroMacro(const ZeroMacro& n);
+  virtual std::optional<DocRef> FormatExplicitParametrics(
+      absl::Span<const ExprOrType> parametrics);
   // keep-sorted end
 
   DocRef Format(const Expr* n);
@@ -210,8 +213,6 @@ class Formatter {
                                   std::optional<Span> last_comment_span);
   std::optional<DocRef> FormatCommentsNested(const Pos start, const Pos limit);
   DocRef FormatConditionalMultiline(const Conditional& n);
-  std::optional<DocRef> FormatExplicitParametrics(
-      absl::Span<const ExprOrType> parametrics);
   DocRef FormatExprOrType(const ExprOrType& n);
   DocRef FormatFlatBody(const Array& n);
   DocRef FormatFlatRest(const StructInstance& n);
@@ -221,7 +222,6 @@ class Formatter {
                                  const ForLoopBase& n, bool is_const_for);
   DocRef FormatJoinWithAttr(std::optional<DocRef> attr, DocRef rest);
   DocRef FormatJoinWithAttrs(absl::Span<const DocRef> attrs, DocRef rest);
-  DocRef FormatMakeArrayLeader(const Array& n);
   DocRef FormatMakeConditionalTest(const Conditional& n);
   DocRef FormatMatchArm(const MatchArm& n);
   DocRef FormatParametricArg(const ExprOrType& n);

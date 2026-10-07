@@ -260,6 +260,45 @@ class DslxFmtTest(absltest.TestCase):
     """)
     self.assertEqual(self._run(contents), want)
 
+  def test_simplify_type_annotations(self):
+    program = textwrap.dedent("""\
+    const X = u32:42;
+    const Y: u32 = u32:42;
+    const A = u32[3]:[u32:1, u32:2, u32:3];
+    """)
+    want = textwrap.dedent("""\
+    const X = u32:42;
+    const Y: u32 = 42;
+    const A = [u32:1, 2, 3];
+    """)
+    f = self.create_tempfile(content=program)
+    p = subp.run(
+        [_DSLX_FMT_PATH, '--simplify_type_annotations', f.full_path],
+        check=True,
+        encoding='utf-8',
+        stdout=subp.PIPE,
+        stderr=subp.PIPE,
+    )
+    self.assertEqual(p.stdout, want)
+
+  def test_error_for_convert_legacy_procs_and_simplify_type_annotations(self):
+    with self.assertRaises(subp.CalledProcessError) as e:
+      subp.check_output(
+          [
+              _DSLX_FMT_PATH,
+              '--convert_legacy_procs',
+              '--simplify_type_annotations',
+              '/tmp/dne.x',
+          ],
+          encoding='utf-8',
+          stderr=subp.PIPE,
+      )
+    self.assertIn(
+        'Cannot specify both --convert_legacy_procs and'
+        ' --simplify_type_annotations.',
+        str(e.exception.stderr),
+    )
+
 
 if __name__ == '__main__':
   absltest.main()

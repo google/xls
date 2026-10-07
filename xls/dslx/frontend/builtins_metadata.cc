@@ -16,15 +16,32 @@
 #include <string>
 #include <string_view>
 #include <utility>
+#include <variant>
 
+#include "absl/base/casts.h"
 #include "absl/base/no_destructor.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
+#include "xls/dslx/frontend/ast.h"
 
 namespace xls::dslx {
 
 bool IsAstNodeBuiltinWithExplicitParametrics(std::string_view identifier) {
   return identifier == "zero!" || identifier == "all_ones!";
+}
+
+bool IsParametricBuiltinWithInferrableType(const Expr* callee) {
+  if (callee->kind() != AstNodeKind::kNameRef) {
+    return false;
+  }
+  const auto* name_ref = absl::down_cast<const NameRef*>(callee);
+  if (!std::holds_alternative<BuiltinNameDef*>(name_ref->name_def())) {
+    return false;
+  }
+  std::string_view name = name_ref->identifier();
+  return name == "send" || name == "send_if" || name == "recv_if" ||
+         name == "recv_non_blocking" || name == "recv_if_non_blocking" ||
+         name == "write";
 }
 
 const absl::flat_hash_map<std::string, BuiltinsData>& GetParametricBuiltins() {

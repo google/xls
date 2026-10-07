@@ -20,6 +20,7 @@
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
+#include "xls/dslx/frontend/ast.h"
 
 namespace xls::dslx {
 
@@ -67,6 +68,13 @@ bool IsNameParametricBuiltin(std::string_view identifier);
 // Returns true if the identifier names an AST-node builtin that allows explicit
 // parametrics at the callsite (currently: zero!, all_ones!).
 bool IsAstNodeBuiltinWithExplicitParametrics(std::string_view identifier);
+
+// Returns true if `callee` refers to a parametric builtin function whose
+// parametrics are guaranteed to be inferrable without type annotations on the
+// argument expressions. For example, a valid call to send() has a channel
+// argument that indicates the payload type, so the payload argument in the call
+// never needs an explicit type.
+bool IsParametricBuiltinWithInferrableType(const Expr* callee);
 
 }  // namespace xls::dslx
 

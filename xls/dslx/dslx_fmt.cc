@@ -19,6 +19,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 #include "absl/flags/flag.h"
@@ -39,8 +40,11 @@
 #include "xls/dslx/fmt/comments.h"
 #include "xls/dslx/fmt/legacy_proc_converter.h"
 #include "xls/dslx/fmt/pretty_print.h"
+#include "xls/dslx/fmt/type_annotation_simplifier.h"
 #include "xls/dslx/frontend/ast.h"
+#include "xls/dslx/frontend/ast_cloner.h"
 #include "xls/dslx/frontend/comment_data.h"
+#include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/parse_and_typecheck.h"
 #include "xls/dslx/type_system_v2/populate_table.h"
@@ -56,6 +60,9 @@ ABSL_FLAG(bool, error_on_changes, false,
 
 ABSL_FLAG(bool, convert_legacy_procs, false,
           "Whether to convert legacy procs to impl-style procs");
+
+ABSL_FLAG(bool, simplify_type_annotations, false,
+          "Whether to simplify/remove redundant type annotations on literals");
 
 ABSL_FLAG(std::string, dslx_path, "",
           "Additional paths to search for modules (colon delimited).");
@@ -86,15 +93,16 @@ enum class Mode {
   kAutofmt,
 };
 
-absl::Status RunOnOneFile(std::string_view input_path, bool in_place,
-                          bool error_on_changes,
+absl::Status RunOnOneFile(std::string_view input_path,
+                          absl::Span<const std::filesystem::path> dslx_paths,
+                          bool in_place, bool error_on_changes,
                           bool opportunistic_postcondition, Mode mode,
-                          bool convert_legacy_procs) {
+                          bool convert_legacy_procs,
+                          bool simplify_type_annotations) {
   std::filesystem::path path = input_path;
 
   ImportData import_data =
-      CreateImportData(xls::kDefaultDslxStdlibPath,
-                       /*additional_search_paths=*/{}, kNoWarningsSet,
+      CreateImportData(xls::kDefaultDslxStdlibPath, dslx_paths, kNoWarningsSet,
                        std::make_unique<RealFilesystem>());
 
   XLS_ASSIGN_OR_RETURN(std::string module_name, PathToName(path.c_str()));
@@ -131,6 +139,31 @@ absl::Status RunOnOneFile(std::string_view input_path, bool in_place,
         XLS_ASSIGN_OR_RETURN(
             formatted,
             AutoFmt(import_data.vfs(), *module.value(), *converter, contents));
+      } else if (simplify_type_annotations) {
+        Fileno fileno = import_data.file_table().GetOrCreate(path.c_str());
+        const Span fake_import_span(Pos(fileno, 0, 0), Pos(fileno, 0, 0));
+        XLS_RETURN_IF_ERROR(
+            import_data.AddToImporterStack(fake_import_span, path));
+        // Clone the parsed module for typechecking because TypecheckModule
+        // mutates the AST in-place (e.g. rewriting impl-style proc state fields
+        // and synthesizing derived trait methods).
+        XLS_ASSIGN_OR_RETURN(std::unique_ptr<Module> module_for_typecheck,
+                             CloneModule(**module));
+        absl::StatusOr<TypecheckedModule> tm = TypecheckModule(
+            std::move(module_for_typecheck), path.c_str(), &import_data,
+            /*error_handler=*/nullptr, /*trait_deriver=*/nullptr,
+            /*transform_test_functions=*/false);
+        XLS_RETURN_IF_ERROR(import_data.PopFromImporterStack(fake_import_span));
+        if (!tm.ok()) {
+          TryPrintError(tm.status(), import_data.file_table(),
+                        import_data.vfs());
+          return tm.status();
+        }
+        DocArena arena(import_data.file_table());
+        std::unique_ptr<Formatter> simplifier =
+            CreateTypeAnnotationSimplifier(comments, arena, *tm->type_info);
+        XLS_ASSIGN_OR_RETURN(formatted, AutoFmt(import_data.vfs(), **module,
+                                                *simplifier, contents));
       } else {
         XLS_ASSIGN_OR_RETURN(
             formatted,
@@ -173,9 +206,11 @@ absl::Status RunOnOneFile(std::string_view input_path, bool in_place,
 }
 
 absl::Status RealMain(absl::Span<const std::string_view> input_paths,
+                      absl::Span<const std::filesystem::path> dslx_paths,
                       bool in_place, bool error_on_changes,
                       bool opportunistic_postcondition,
-                      std::string_view mode_str, bool convert_legacy_procs) {
+                      std::string_view mode_str, bool convert_legacy_procs,
+                      bool simplify_type_annotations) {
   // Note notable restrictions we place on the CLI, to avoid confusing results /
   // interactions:
   //
@@ -185,6 +220,12 @@ absl::Status RealMain(absl::Span<const std::string_view> input_paths,
   // - If we error-on-changes or use the opportunistic postcondition, there
   //   should be only one input, to avoid semantic ambiguity when we're
   //   side-effecting the formatting of files and when we flag the error.
+
+  if (convert_legacy_procs && simplify_type_annotations) {
+    return absl::InvalidArgumentError(
+        "Cannot specify both --convert_legacy_procs and "
+        "--simplify_type_annotations.");
+  }
 
   bool has_stdin_arg =
       std::any_of(input_paths.begin(), input_paths.end(),
@@ -231,9 +272,10 @@ absl::Status RealMain(absl::Span<const std::string_view> input_paths,
   }
 
   for (std::string_view input_path : input_paths) {
-    XLS_RETURN_IF_ERROR(RunOnOneFile(input_path, in_place, error_on_changes,
-                                     opportunistic_postcondition, mode,
-                                     convert_legacy_procs));
+    XLS_RETURN_IF_ERROR(
+        RunOnOneFile(input_path, dslx_paths, in_place, error_on_changes,
+                     opportunistic_postcondition, mode, convert_legacy_procs,
+                     simplify_type_annotations));
   }
 
   return absl::OkStatus();
@@ -251,14 +293,21 @@ int main(int argc, char* argv[]) {
   }
   std::string dslx_path = absl::GetFlag(FLAGS_dslx_path);
   std::vector<std::string> dslx_path_strs = absl::StrSplit(dslx_path, ':');
+  std::vector<std::filesystem::path> dslx_paths;
+  dslx_paths.reserve(dslx_path_strs.size());
+  for (const auto& path : dslx_path_strs) {
+    dslx_paths.push_back(std::filesystem::path(path));
+  }
 
   absl::Status status = xls::dslx::RealMain(
-      args,
+      args, dslx_paths,
       /*in_place=*/absl::GetFlag(FLAGS_i),
       /*error_on_changes=*/absl::GetFlag(FLAGS_error_on_changes),
       /*opportunistic_postcondition=*/
       absl::GetFlag(FLAGS_opportunistic_postcondition),
       /*mode_str=*/absl::GetFlag(FLAGS_mode),
-      /*convert_legacy_procs=*/absl::GetFlag(FLAGS_convert_legacy_procs));
+      /*convert_legacy_procs=*/absl::GetFlag(FLAGS_convert_legacy_procs),
+      /*simplify_type_annotations=*/
+      absl::GetFlag(FLAGS_simplify_type_annotations));
   return xls::ExitStatus(status);
 }
