@@ -669,6 +669,7 @@ TEST_F(InferenceTableTest, CachingForCanonicalizedParametricContext) {
                                                         canonical_env));
   const FunctionTypeAnnotation* function_type =
       module_->Make<FunctionTypeAnnotation>(
+          Span::Fake(),
           std::vector<const TypeAnnotation*>{
               CreateU32Annotation(*module_, Span::Fake())},
           CreateU32Annotation(*module_, Span::Fake()));

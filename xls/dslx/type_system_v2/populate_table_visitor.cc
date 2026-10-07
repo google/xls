@@ -1755,9 +1755,10 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
 
     const NameRef* return_type_variable = *table_.GetTypeVariable(node);
     XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(
-        node->callee(), module_.Make<FunctionTypeAnnotation>(
-                            arg_types, module_.Make<TypeVariableTypeAnnotation>(
-                                           return_type_variable))));
+        node->callee(),
+        module_.Make<FunctionTypeAnnotation>(
+            return_type_variable->span(), arg_types,
+            module_.Make<TypeVariableTypeAnnotation>(return_type_variable))));
     return node->callee()->Accept(this);
   }
 
@@ -1777,6 +1778,7 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
           auto* ret_type =
               std::get<TypeAnnotation*>(node->explicit_parametrics().front());
           auto* fn_type = module_.Make<FunctionTypeAnnotation>(
+              ret_type->span(),
               /*param_types=*/std::vector<const TypeAnnotation*>{}, ret_type);
           table_.SetAnnotationFlag(fn_type,
                                    TypeInferenceFlag::kFormalFunctionType);

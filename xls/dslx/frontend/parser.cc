@@ -4727,7 +4727,42 @@ absl::StatusOr<Param*> Parser::ParseParam(
       XLS_RETURN_IF_ERROR(
           DropTokenOrError(TokenKind::kColon, /*start=*/nullptr,
                            "Expect type annotation on parameters"));
-      XLS_ASSIGN_OR_RETURN(type, ParseTypeAnnotation(bindings));
+
+      XLS_ASSIGN_OR_RETURN(bool dropped_fn, TryDropKeyword(Keyword::kFn));
+      if (dropped_fn) {
+        // Currently, FunctionTypeAnnotations are only allowed in parameter
+        // lists in DSLX, so detect and parse here instead of in
+        // ParseTypeAnnotation.
+        Pos type_start = GetPos();
+        XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kOParen));
+        auto parse_param_list = [&]() -> absl::StatusOr<const TypeAnnotation*> {
+          XLS_ASSIGN_OR_RETURN(const TypeAnnotation* param_type,
+                               ParseTypeAnnotation(bindings));
+          XLS_ASSIGN_OR_RETURN(bool peek_is_comma,
+                               PeekTokenIs(TokenKind::kComma));
+          XLS_ASSIGN_OR_RETURN(bool peek_is_paren,
+                               PeekTokenIs(TokenKind::kCParen));
+          if (!peek_is_comma && !peek_is_paren) {
+            return ParseErrorStatus(param_type->span(),
+                                    "Param list in function parameters "
+                                    "must only contain types");
+          }
+          return param_type;
+        };
+        XLS_ASSIGN_OR_RETURN(std::vector<const TypeAnnotation*> param_types,
+                             ParseCommaSeq<const TypeAnnotation*>(
+                                 parse_param_list, TokenKind::kCParen));
+        XLS_ASSIGN_OR_RETURN(bool dropped_arrow,
+                             TryDropToken(TokenKind::kArrow));
+        TypeAnnotation* return_type = nullptr;
+        if (dropped_arrow) {
+          XLS_ASSIGN_OR_RETURN(return_type, ParseTypeAnnotation(bindings));
+        }
+        type = module_->Make<FunctionTypeAnnotation>(Span(type_start, GetPos()),
+                                                     param_types, return_type);
+      } else {
+        XLS_ASSIGN_OR_RETURN(type, ParseTypeAnnotation(bindings));
+      }
     }
   }
   if (dynamic_cast<SelfTypeAnnotation*>(type) &&

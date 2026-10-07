@@ -917,8 +917,10 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
           GenerateTypeInfo(caller_context, invocation->callee()));
     }
 
-    XLS_RETURN_IF_ERROR(AddAnnotationsAndConvertParameters(
-        parametric_free_function_type, actual_args, caller_context, caller));
+    if (!IsMapInvocation(invocation)) {
+      XLS_RETURN_IF_ERROR(AddAnnotationsAndConvertParameters(
+          parametric_free_function_type, actual_args, caller_context, caller));
+    }
 
     // Convert the actual parametric function in the context of this invocation,
     // and finally, convert the invocation node. If the function is in a proc,
@@ -2031,6 +2033,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
   absl::StatusOr<const FunctionTypeAnnotation*> CreateMapperFunctionType(
       const std::optional<const Function*> caller, Invocation* invocation,
       const ParametricContext* invocation_context) {
+    invocation->mark_originator();
     std::vector<ExprOrType> explicit_parametrics =
         invocation->explicit_parametrics();
     if (!explicit_parametrics.empty()) {
@@ -2085,6 +2088,8 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
         mapper =
             module_.Make<Attr>(mapper->span(), array_of_0, colon_ref->attr());
         mapper_args.clear();
+        invocation->AddIncludeSelfInOriginated(
+            absl::down_cast<const Function*>(*target));
       }
     } else if (mapper->kind() == AstNodeKind::kAttr) {
       // This is the `map(arr, obj_not_in_arr.instance_method)` case, which is
@@ -2193,10 +2198,6 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
                                    const_cast<Invocation*>(invocation),
                                    invocation_context));
 
-      // These must be the first actual two parametrics because they're listed
-      // as the first two formals.
-      explicit_parametrics.push_back(
-          const_cast<FunctionTypeAnnotation*>(mapper_fn_type));
       explicit_parametrics.push_back(
           const_cast<TypeAnnotation*>(mapper_fn_type->return_type()));
     }
@@ -3554,7 +3555,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
     table_.SetParametricEnv(invocation_context, ParametricEnv(env_values));
 
     return function->owner()->Make<FunctionTypeAnnotation>(
-        parametric_free_function_type->param_types(),
+        (*return_ta)->span(), parametric_free_function_type->param_types(),
         const_cast<TypeAnnotation*>(*return_ta));
   }
 
