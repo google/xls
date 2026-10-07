@@ -40,7 +40,6 @@
 #include "xls/ir/op.h"
 #include "xls/ir/ternary.h"
 #include "xls/ir/value.h"
-#include "xls/passes/cached_state_element_query_engine.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/partial_info_query_engine.h"
 #include "xls/passes/pass_base.h"
@@ -797,8 +796,7 @@ absl::StatusOr<bool> StrengthReductionPass::RunOnFunctionBaseInternal(
     PassResults* results, OptimizationContext& context) const {
   auto query_engine = UnionQueryEngine::Of(
       StatelessQueryEngine(),
-      CachedStateElementQueryEngine::FromContext<PartialInfoQueryEngine>(
-          context, f));
+      context.SharedQueryEngine<PartialInfoQueryEngine>(f));
 
   XLS_RETURN_IF_ERROR(query_engine.Populate(f).status());
 
