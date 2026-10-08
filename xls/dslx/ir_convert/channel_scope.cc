@@ -14,6 +14,7 @@
 
 #include "xls/dslx/ir_convert/channel_scope.h"
 
+#include <algorithm>
 #include <cstdint>
 #include <optional>
 #include <string>
@@ -37,6 +38,7 @@
 #include "xls/dslx/channel_direction.h"
 #include "xls/dslx/constexpr_evaluator.h"
 #include "xls/dslx/frontend/ast.h"
+#include "xls/dslx/frontend/builtin_stubs_utils.h"
 #include "xls/dslx/frontend/proc_id.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/interp_value.h"
@@ -58,6 +60,59 @@ namespace {
 
 constexpr std::string_view kNameAndDimsSeparator = "__";
 constexpr std::string_view kBetweenDimsSeparator = "_";
+
+// The pieces of a boundary channel's type annotation that are needed in order
+// to define the channel: what it carries, which way it goes, and how many of
+// it there are.
+struct BoundaryChannelAnnotation {
+  TypeAnnotation* payload;
+  ChannelDirection direction;
+  // Absent for a scalar channel. Otherwise in the opposite of indexing order,
+  // as `DefineChannelOrArrayInternal` expects.
+  std::optional<std::vector<Expr*>> dims;
+};
+
+// Decomposes the annotation of a proc member declared as an io object, e.g.
+// `Source<u32>` or `Sink<u32>[4]`.
+absl::StatusOr<BoundaryChannelAnnotation> SplitIoObjectAnnotation(
+    TypeAnnotation* annot) {
+  // Unlike `chan<T>[N]`, which keeps its dims inside the channel annotation,
+  // an io object array is spelled as enclosing array annotations, which yields
+  // the dims in indexing order.
+  std::vector<Expr*> dims;
+  TypeAnnotation* element = annot;
+  while (auto* array_annot = dynamic_cast<ArrayTypeAnnotation*>(element)) {
+    dims.push_back(array_annot->dim());
+    element = array_annot->element_type();
+  }
+  std::reverse(dims.begin(), dims.end());
+
+  auto* type_ref_annot = dynamic_cast<TypeRefTypeAnnotation*>(element);
+  std::optional<ChannelDirection> direction;
+  if (type_ref_annot != nullptr) {
+    TypeDefinition def = type_ref_annot->type_ref()->type_definition();
+    if (std::holds_alternative<StructDef*>(def)) {
+      direction = GetBuiltinIoObjectDirection(std::get<StructDef*>(def));
+    }
+  }
+  if (!direction.has_value()) {
+    return absl::InvalidArgumentError(absl::Substitute(
+        "Type is not usable as a boundary channel: $0", annot->ToString()));
+  }
+  if (type_ref_annot->parametrics().size() != 1 ||
+      !std::holds_alternative<TypeAnnotation*>(
+          type_ref_annot->parametrics()[0])) {
+    return absl::InvalidArgumentError(absl::Substitute(
+        "Expected exactly one type parametric on: $0", annot->ToString()));
+  }
+  BoundaryChannelAnnotation result{
+      .payload = std::get<TypeAnnotation*>(type_ref_annot->parametrics()[0]),
+      .direction = *direction};
+  if (!dims.empty()) {
+    result.dims = std::move(dims);
+  }
+  return result;
+}
 
 }  // namespace
 
@@ -164,26 +219,52 @@ absl::StatusOr<ChannelOrArray> ChannelScope::DefineBoundaryChannelOrArray(
     std::optional<ChannelConfig> channel_config,
     std::optional<ChannelStrictness> strictness,
     std::optional<FlowControl> flow_control) {
-  XLS_RET_CHECK(function_context_.has_value());
   VLOG(4) << "ChannelScope::DefineBoundaryChannelOrArray: "
           << param->ToString();
   auto* type_annot =
       dynamic_cast<ChannelTypeAnnotation*>(param->type_annotation());
   XLS_RET_CHECK(type_annot != nullptr);
-  std::optional<Type*> type = type_info->GetItem(type_annot->payload());
-  XLS_RET_CHECK(type.has_value());
+  return DefineBoundaryChannelOrArrayInternal(
+      param->identifier(), type_annot->payload(), type_annot->direction(),
+      type_annot->dims(), type_info, channel_config, strictness, flow_control);
+}
+
+absl::StatusOr<ChannelOrArray> ChannelScope::DefineBoundaryChannelOrArray(
+    const StructMemberNode* member, TypeInfo* type_info,
+    std::optional<ChannelConfig> channel_config,
+    std::optional<ChannelStrictness> strictness,
+    std::optional<FlowControl> flow_control) {
+  VLOG(4) << "ChannelScope::DefineBoundaryChannelOrArray: "
+          << member->ToString();
+  XLS_ASSIGN_OR_RETURN(BoundaryChannelAnnotation annot,
+                       SplitIoObjectAnnotation(member->type()));
+  return DefineBoundaryChannelOrArrayInternal(
+      member->name(), annot.payload, annot.direction, annot.dims, type_info,
+      channel_config, strictness, flow_control);
+}
+
+absl::StatusOr<ChannelOrArray>
+ChannelScope::DefineBoundaryChannelOrArrayInternal(
+    std::string_view short_name, TypeAnnotation* payload_annot,
+    ChannelDirection direction, const std::optional<std::vector<Expr*>>& dims,
+    TypeInfo* type_info, std::optional<ChannelConfig> channel_config,
+    std::optional<ChannelStrictness> strictness,
+    std::optional<FlowControl> flow_control) {
+  XLS_RET_CHECK(function_context_.has_value());
+  std::optional<Type*> payload_type = type_info->GetItem(payload_annot);
+  XLS_RET_CHECK(payload_type.has_value());
   XLS_ASSIGN_OR_RETURN(xls::Type * ir_type,
-                       TypeToIr(conversion_info_->package.get(), **type,
+                       TypeToIr(conversion_info_->package.get(), **payload_type,
                                 function_context_->bindings));
-  ChannelOps op = type_annot->direction() == ChannelDirection::kIn
-                      ? ChannelOps::kReceiveOnly
-                      : ChannelOps::kSendOnly;
-  XLS_ASSIGN_OR_RETURN(ChannelOrArray channel_or_array,
-                       DefineChannelOrArrayInternal(
-                           param->identifier(), op, ir_type, channel_config,
-                           type_annot->dims(), true, strictness, flow_control));
-  XLS_RETURN_IF_ERROR(DefineProtoChannelOrArray(channel_or_array, type_annot,
-                                                ir_type, type_info));
+  ChannelOps op = direction == ChannelDirection::kIn ? ChannelOps::kReceiveOnly
+                                                     : ChannelOps::kSendOnly;
+  XLS_ASSIGN_OR_RETURN(
+      ChannelOrArray channel_or_array,
+      DefineChannelOrArrayInternal(short_name, op, ir_type, channel_config,
+                                   dims, /*interface_channel=*/true, strictness,
+                                   flow_control));
+  XLS_RETURN_IF_ERROR(DefineProtoChannelOrArray(channel_or_array, payload_annot,
+                                                direction, ir_type, type_info));
   return channel_or_array;
 }
 
@@ -198,15 +279,16 @@ std::string_view GetChannelName(ChannelOrArray channel_or_array) {
 }
 
 absl::Status ChannelScope::DefineProtoChannelOrArray(
-    ChannelOrArray channel_or_array, dslx::ChannelTypeAnnotation* type_annot,
-    xls::Type* ir_type, TypeInfo* type_info) {
+    ChannelOrArray channel_or_array, TypeAnnotation* payload_annot,
+    ChannelDirection direction, xls::Type* ir_type, TypeInfo* type_info) {
   if (std::holds_alternative<ChannelArray*>(channel_or_array)) {
     auto* array = std::get<ChannelArray*>(channel_or_array);
     for (const std::string& name : array->flattened_names_in_order()) {
       std::optional<ChannelRef> channel_ref = array->FindChannel(name);
       XLS_RET_CHECK(channel_ref.has_value());
       XLS_RETURN_IF_ERROR(DefineProtoChannelOrArray(
-          ToChannelOrArray(*channel_ref), type_annot, ir_type, type_info));
+          ToChannelOrArray(*channel_ref), payload_annot, direction, ir_type,
+          type_info));
     }
     return absl::OkStatus();
   }
@@ -217,11 +299,11 @@ absl::Status ChannelScope::DefineProtoChannelOrArray(
   *proto_chan->mutable_type() = ir_type->ToProto();
   // Channels at the boundary only have one direction, with the other direction
   // being used externally to the DSLX code.
-  proto_chan->set_direction(type_annot->direction() == ChannelDirection::kIn
+  proto_chan->set_direction(direction == ChannelDirection::kIn
                                 ? PackageInterfaceProto::Channel::IN
                                 : PackageInterfaceProto::Channel::OUT);
   XLS_ASSIGN_OR_RETURN(std::optional<std::string> first_sv_type,
-                       type_info->FindSvType(type_annot->payload()));
+                       type_info->FindSvType(payload_annot));
   if (first_sv_type) {
     *proto_chan->mutable_sv_type() = *first_sv_type;
   }

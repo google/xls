@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include <cstdint>
+#include <memory>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -38,6 +39,7 @@
 #include "xls/dslx/frontend/ast_node.h"
 #include "xls/dslx/frontend/ast_node_visitor_with_default.h"
 #include "xls/dslx/frontend/ast_utils.h"
+#include "xls/dslx/frontend/builtin_stubs_utils.h"
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/interp_value.h"
@@ -70,6 +72,25 @@ bool ContainsConstructorPattern(const PatternTree& pattern) {
   } else if (const auto* fields = std::get_if<StructPattern*>(&pattern)) {
     for (const auto& [name, member] : (*fields)->fields()) {
       if (ContainsConstructorPattern(member)) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+// Returns whether `type` is a `Source`/`Sink` io object, or an array or tuple
+// that contains one.
+bool ContainsIoObject(const Type& type) {
+  if (const auto* struct_type = dynamic_cast<const StructType*>(&type)) {
+    return IsBuiltinIoObjectDef(&struct_type->nominal_type());
+  }
+  if (const auto* array = dynamic_cast<const ArrayType*>(&type)) {
+    return ContainsIoObject(array->element_type());
+  }
+  if (const auto* tuple = dynamic_cast<const TupleType*>(&type)) {
+    for (const std::unique_ptr<Type>& member : tuple->members()) {
+      if (ContainsIoObject(*member)) {
         return true;
       }
     }
@@ -317,6 +338,24 @@ class TypeValidator : public AstNodeVisitorWithDefault {
           file_table_);
     }
     return DefaultHandler(cast);
+  }
+
+  // Io object (`Source`/`Sink`) members of a proc are default-initialized, so
+  // they cannot be passed in through the proc's constructor.
+  absl::Status HandleParam(const Param* node) override {
+    XLS_ASSIGN_OR_RETURN(bool is_proc_def_constructor_param,
+                         IsProcDefConstructorParam(node));
+    if (is_proc_def_constructor_param && ContainsIoObject(*type_)) {
+      return TypeInferenceErrorStatus(
+          node->span(), type_,
+          absl::Substitute(
+              "Proc constructor parameter `$0` contains an io object; io "
+              "object members are default-initialized and cannot be passed "
+              "to a proc constructor.",
+              node->ToString()),
+          file_table_);
+    }
+    return DefaultHandler(node);
   }
 
   absl::Status HandleFunction(const Function* node) override {
@@ -647,6 +686,25 @@ class TypeValidator : public AstNodeVisitorWithDefault {
     }
 
     return absl::OkStatus();
+  }
+
+  // Returns whether `param` belongs to a proc constructor, i.e. a function in
+  // the proc's impl that returns the proc.
+  absl::StatusOr<bool> IsProcDefConstructorParam(const Param* param) {
+    const AstNode* parent = param->parent();
+    if (parent == nullptr || parent->kind() != AstNodeKind::kFunction) {
+      return false;
+    }
+    const auto* f = absl::down_cast<const Function*>(parent);
+    XLS_ASSIGN_OR_RETURN(std::optional<const StructDefBase*> proc_def,
+                         GetStructOrProcDef(f, import_data_));
+    if (!proc_def.has_value() || (*proc_def)->kind() != AstNodeKind::kProcDef ||
+        f->return_type() == nullptr) {
+      return false;
+    }
+    XLS_ASSIGN_OR_RETURN(std::optional<const StructDefBase*> return_def,
+                         GetStructOrProcDef(f->return_type(), import_data_));
+    return return_def == proc_def;
   }
 
   absl::Status ValidateSliceLhs(const Index* index) {

@@ -147,10 +147,16 @@ class ChannelScope {
   absl::StatusOr<ChannelOrArray> DefineChannelOrArray(const ChannelDecl* decl);
 
   // Creates the channel object, or array of channel objects, indicated by the
-  // given parameter at the overall DSLX->IR conversion boundary. Channels at
-  // the boundary have only a send or receive side.
+  // given parameter or proc member at the overall DSLX->IR conversion
+  // boundary. Channels at the boundary have only a send or receive side.
   absl::StatusOr<ChannelOrArray> DefineBoundaryChannelOrArray(
       const Param* param, TypeInfo* type_info,
+      std::optional<ChannelConfig> channel_config = std::nullopt,
+      std::optional<ChannelStrictness> strictness = std::nullopt,
+      std::optional<FlowControl> flow_control = std::nullopt);
+
+  absl::StatusOr<ChannelOrArray> DefineBoundaryChannelOrArray(
+      const StructMemberNode* member, TypeInfo* type_info,
       std::optional<ChannelConfig> channel_config = std::nullopt,
       std::optional<ChannelStrictness> strictness = std::nullopt,
       std::optional<FlowControl> flow_control = std::nullopt);
@@ -205,6 +211,16 @@ class ChannelScope {
       std::optional<FlowControl> flow_control = std::nullopt);
 
  private:
+  // Defines the channel, or array of channels, that a boundary `Param` or proc
+  // member stands for, given the pieces already extracted from its type
+  // annotation.
+  absl::StatusOr<ChannelOrArray> DefineBoundaryChannelOrArrayInternal(
+      std::string_view short_name, TypeAnnotation* payload_annot,
+      ChannelDirection direction, const std::optional<std::vector<Expr*>>& dims,
+      TypeInfo* type_info, std::optional<ChannelConfig> channel_config,
+      std::optional<ChannelStrictness> strictness,
+      std::optional<FlowControl> flow_control);
+
   absl::StatusOr<ChannelOrArray> DefineChannelOrArrayInternal(
       std::string_view short_name, ChannelOps ops, xls::Type* type,
       std::optional<ChannelConfig> channel_config,
@@ -213,9 +229,11 @@ class ChannelScope {
       std::optional<ChannelStrictness> strictness = std::nullopt,
       std::optional<FlowControl> flow_control = std::nullopt);
 
-  absl::Status DefineProtoChannelOrArray(
-      ChannelOrArray array, dslx::ChannelTypeAnnotation* type_annot,
-      xls::Type* ir_type, TypeInfo* type_info);
+  absl::Status DefineProtoChannelOrArray(ChannelOrArray array,
+                                         TypeAnnotation* payload_annot,
+                                         ChannelDirection direction,
+                                         xls::Type* ir_type,
+                                         TypeInfo* type_info);
 
   std::string_view GetBaseNameForChannelOrArray(
       ChannelOrArray channel_or_array);

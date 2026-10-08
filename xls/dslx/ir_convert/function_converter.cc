@@ -3959,37 +3959,38 @@ absl::Status FunctionConverter::DefineProcDefChannelOrArray(
     return absl::OkStatus();
   }
 
-  XLS_RET_CHECK(definer->kind() == AstNodeKind::kParam);
-  const auto* param = absl::down_cast<const Param*>(definer);
-  VLOG(5) << "Generating channel interface: " << param->ToString()
+  XLS_RET_CHECK(definer->kind() == AstNodeKind::kParam ||
+                definer->kind() == AstNodeKind::kStructMember);
+  VLOG(5) << "Generating channel interface: " << definer->ToString()
           << " with reference " << value.ToString();
 
   ChannelOrArray channel_or_array;
-  const ChannelType* channel_type = nullptr;
-
-  if (const auto* array_type = dynamic_cast<const ArrayType*>(type);
-      array_type != nullptr) {
-    const Type& innermost_type =
-        array_type->GetInnermostElementType().element_type;
-    VLOG(5) << "Lowering to PSC, innermost type: " << innermost_type.ToString();
-    channel_type = dynamic_cast<const ChannelType*>(&innermost_type);
-  } else if (type->IsChannel()) {
-    channel_type = dynamic_cast<const ChannelType*>(type);
-  } else {
+  if (!GetChannelLikeDirection(*type).has_value()) {
     return absl::InvalidArgumentError(
         absl::Substitute("Unsupported type for channel or array $0: $1",
-                         param->ToString(), type->ToString()));
+                         definer->ToString(), type->ToString()));
   }
 
-  XLS_RET_CHECK(channel_type != nullptr);
-
-  VLOG(10) << "Param " << param->ToString() << " has channel type "
-           << channel_type->ToString();
-  XLS_ASSIGN_OR_RETURN(
-      channel_or_array,
-      channel_scope_->DefineBoundaryChannelOrArray(
-          param, current_type_info_,
-          /* channel_config= */ std::nullopt, strictness, flow_control));
+  VLOG(10) << "Definer " << definer->ToString() << " has type "
+           << type->ToString();
+  const NameDef* definer_name_def = nullptr;
+  if (definer->kind() == AstNodeKind::kParam) {
+    const auto* param = absl::down_cast<const Param*>(definer);
+    definer_name_def = param->name_def();
+    XLS_ASSIGN_OR_RETURN(
+        channel_or_array,
+        channel_scope_->DefineBoundaryChannelOrArray(
+            param, current_type_info_,
+            /* channel_config= */ std::nullopt, strictness, flow_control));
+  } else {
+    const auto* member = absl::down_cast<const StructMemberNode*>(definer);
+    definer_name_def = member->name_def();
+    XLS_ASSIGN_OR_RETURN(
+        channel_or_array,
+        channel_scope_->DefineBoundaryChannelOrArray(
+            member, current_type_info_,
+            /* channel_config= */ std::nullopt, strictness, flow_control));
+  }
   SetNodeToChannelOrArray(node, channel_or_array);
 
   if (name_def.has_value()) {
@@ -3999,7 +4000,7 @@ absl::Status FunctionConverter::DefineProcDefChannelOrArray(
            << std::hex << (uint64_t)this;
   PopulateChannelOrArrayIdToObject(value, channel_or_array);
   XLS_RETURN_IF_ERROR(channel_scope_->AssociateWithExistingChannelOrArray(
-      *proc_id_, param->name_def(), channel_or_array));
+      *proc_id_, definer_name_def, channel_or_array));
   return absl::OkStatus();
 }
 
@@ -4031,7 +4032,7 @@ absl::Status FunctionConverter::InitProcDefChannels(
     VLOG(10) << "Member `" << member->name() << "` has canonical initializer `"
              << initializer.ToString() << "`";
 
-    if (!member_type->GetDirectOrElementChannelType().has_value()) {
+    if (!GetChannelLikeDirection(*member_type).has_value()) {
       continue;
     }
 
