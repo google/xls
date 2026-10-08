@@ -22,6 +22,7 @@
 #include <ostream>
 #include <string>
 #include <string_view>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -265,18 +266,6 @@ class NarrowVisitor final : public DfsVisitorWithDefault {
   bool changed() const { return changed_; }
 
   absl::Status DefaultHandler(Node* node) override { return NoChange(); }
-  absl::Status HandleArrayUpdate(ArrayUpdate* update) override {
-    if (!update->assumed_in_bounds() &&
-        ArrayIndicesAssumedInBounds(
-            update, update->indices(),
-            update->array_to_update()->GetType()->AsArrayOrDie())) {
-      update->SetAssumedInBounds(true);
-      VLOG(3) << "analysis proves that " << update
-              << " does not require bounds checks";
-      return Change();
-    }
-    return NoChange();
-  }
   absl::Status HandleGate(Gate* gate) override {
     // We explicitly never want anything to occur here except being replaced
     // with a constant.
@@ -1540,107 +1529,35 @@ class NarrowVisitor final : public DfsVisitorWithDefault {
 
     return NoChange();
   }
-  absl::Status HandleArrayIndex(ArrayIndex* array_index) override {
-    bool changed = false;
-    bool assumed_in_bounds = array_index->assumed_in_bounds();
 
-    if (!assumed_in_bounds &&
-        ArrayIndicesAssumedInBounds(
-            array_index, array_index->indices(),
-            array_index->array()->GetType()->AsArrayOrDie())) {
-      VLOG(3) << "analysis proves that " << array_index
-              << " does not require bounds checks";
-      assumed_in_bounds = true;
-    }
+  absl::Status HandleArrayIndex(ArrayIndex* array_index) override {
     if (analysis_ == AnalysisType::kRange &&
         options_.convert_array_index_to_select.has_value()) {
       int64_t threshold = options_.convert_array_index_to_select.value();
       XLS_ASSIGN_OR_RETURN(
           std::optional<Node*> chain_select,
           MaybeConvertArrayIndexToSelect(array_index, threshold));
-      if (chain_select) {
+      if (chain_select.has_value()) {
         return Change(/*original=*/array_index, /*replacement=*/*chain_select);
       }
     }
+    return MaybeNarrowArrayAccessOp(array_index);
+  }
 
-    std::vector<Node*> new_indices;
-    for (int64_t i = 0; i < array_index->indices().size(); ++i) {
-      Node* index = array_index->indices()[i];
+  absl::Status HandleArrayUpdate(ArrayUpdate* update) override {
+    return MaybeNarrowArrayAccessOp(update);
+  }
 
-      // Determine the array type that this index element is indexing into.
-      ArrayType* array_type = array_index->array()->GetType()->AsArrayOrDie();
-      for (int64_t j = 0; j < i; ++j) {
-        array_type = array_type->element_type()->AsArrayOrDie();
-      }
-
-      // Compute the minimum number of bits required to index the entire
-      // array.
-      int64_t array_size = array_type->AsArrayOrDie()->size();
-      int64_t min_index_width =
-          std::max(int64_t{1}, Bits::MinBitCountUnsigned(array_size - 1));
-
-      const QueryEngine& query_engine =
-          specialized_query_engine_.ForNode(index);
-      if (std::optional<Bits> bits_index = query_engine.KnownValueAsBits(index);
-          bits_index.has_value()) {
-        Bits new_bits_index = *bits_index;
-        if (bits_ops::UGreaterThanOrEqual(*bits_index, array_size)) {
-          // Index is out-of-bounds. Replace with a (potentially narrower)
-          // index equal to the first out-of-bounds element.
-          new_bits_index =
-              UBits(array_size, Bits::MinBitCountUnsigned(array_size));
-        } else if (bits_index->bit_count() > min_index_width) {
-          // Index is in-bounds and is wider than necessary to index the
-          // entire array. Replace with a literal which is perfectly sized
-          // (width) to index the whole array.
-          XLS_ASSIGN_OR_RETURN(int64_t int_index, bits_index->ToUint64());
-          new_bits_index = UBits(int_index, min_index_width);
-        }
-        Node* new_index = index;
-        if (*bits_index != new_bits_index) {
-          XLS_ASSIGN_OR_RETURN(new_index,
-                               array_index->function_base()->MakeNode<Literal>(
-                                   array_index->loc(), Value(new_bits_index)));
-          changed = true;
-        }
-        new_indices.push_back(new_index);
-        continue;
-      }
-
-      int64_t index_width = index->BitCountOrDie();
-      int64_t leading_zeros =
-          CountLeadingKnownZeros(index, /*user=*/array_index);
-      if (leading_zeros == index_width) {
-        XLS_ASSIGN_OR_RETURN(
-            Node * zero,
-            array_index->function_base()->MakeNode<Literal>(
-                array_index->loc(), Value(UBits(0, min_index_width))));
-        new_indices.push_back(zero);
-        changed = true;
-        continue;
-      }
-      if (leading_zeros > 0) {
-        XLS_ASSIGN_OR_RETURN(Node * narrowed_index,
-                             array_index->function_base()->MakeNode<BitSlice>(
-                                 array_index->loc(), index, /*start=*/0,
-                                 /*width=*/index_width - leading_zeros));
-        new_indices.push_back(narrowed_index);
-        changed = true;
-        continue;
-      }
-      new_indices.push_back(index);
-    }
-    if (changed) {
-      XLS_ASSIGN_OR_RETURN(
-          Node * new_idx,
-          array_index->ReplaceUsesWithNew<ArrayIndex>(
-              array_index->array(), new_indices, assumed_in_bounds));
-      return Change(/*original=*/array_index, /*replacement=*/new_idx);
-    }
-    if (assumed_in_bounds != array_index->assumed_in_bounds()) {
-      array_index->SetAssumedInBounds(assumed_in_bounds);
-      // The pointer doesn't change so no need to add an alias.
-      return Change();
+  absl::Status HandleArraySlice(ArraySlice* slice) override {
+    XLS_ASSIGN_OR_RETURN(
+        Node * new_start,
+        MaybeNarrowArrayAccessIndex(slice, slice->start(),
+                                    slice->array()->GetType()->AsArrayOrDie()));
+    if (new_start != slice->start()) {
+      XLS_ASSIGN_OR_RETURN(Node * replacement,
+                           slice->ReplaceUsesWithNew<ArraySlice>(
+                               slice->array(), new_start, slice->width()));
+      return Change(/*original=*/slice, /*replacement=*/replacement);
     }
     return NoChange();
   }
@@ -1790,8 +1707,7 @@ class NarrowVisitor final : public DfsVisitorWithDefault {
                                    ArrayType* array_type) {
     Type* ty = array_type;
     for (Node* n : indices) {
-      const QueryEngine& node_query_engine =
-          specialized_query_engine_.ForNode(user);
+      auto node_query_engine = QueryEngineForNodeAndUser(n, user);
       if (bits_ops::UGreaterThanOrEqual(node_query_engine.MaxUnsignedValue(n),
                                         ty->AsArrayOrDie()->size())) {
         return false;
@@ -2091,6 +2007,100 @@ class NarrowVisitor final : public DfsVisitorWithDefault {
     XLS_RETURN_IF_ERROR(array_index->ReplaceUsesWith(rest_of_chain));
 
     return rest_of_chain;
+  }
+
+  // Returns the narrowed index node for a single dimension, or `index`
+  // unchanged if it cannot be narrowed.
+  absl::StatusOr<Node*> MaybeNarrowArrayAccessIndex(Node* user, Node* index,
+                                                    ArrayType* array_type) {
+    int64_t array_size = array_type->size();
+    int64_t min_index_width =
+        std::max(int64_t{1}, Bits::MinBitCountUnsigned(array_size - 1));
+    const QueryEngine& query_engine = QueryEngineForNodeAndUser(index, user);
+    if (std::optional<Bits> bits_index = query_engine.KnownValueAsBits(index);
+        bits_index.has_value()) {
+      Bits new_bits_index = *bits_index;
+      if (bits_ops::UGreaterThanOrEqual(*bits_index, array_size)) {
+        // Index is out-of-bounds. Replace with a (potentially narrower)
+        // index equal to the first out-of-bounds element.
+        new_bits_index =
+            UBits(array_size, Bits::MinBitCountUnsigned(array_size));
+      } else if (bits_index->bit_count() > min_index_width) {
+        // Index is in-bounds and is wider than necessary to index the
+        // entire array. Replace with a literal which is perfectly sized
+        // (width) to index the whole array.
+        XLS_ASSIGN_OR_RETURN(int64_t int_index, bits_index->ToUint64());
+        new_bits_index = UBits(int_index, min_index_width);
+      }
+      if (*bits_index != new_bits_index) {
+        return user->function_base()->MakeNode<Literal>(user->loc(),
+                                                        Value(new_bits_index));
+      }
+      return index;
+    }
+    int64_t index_width = index->BitCountOrDie();
+    int64_t leading_zeros = CountLeadingKnownZeros(index, /*user=*/user);
+    if (leading_zeros == index_width) {
+      return user->function_base()->MakeNode<Literal>(
+          user->loc(), Value(UBits(0, min_index_width)));
+    }
+    if (leading_zeros > 0) {
+      return user->function_base()->MakeNode<BitSlice>(
+          user->loc(), index, /*start=*/0,
+          /*width=*/index_width - leading_zeros);
+    }
+    return index;
+  }
+
+  template <typename ArrayOp>
+    requires(std::is_same_v<ArrayOp, ArrayIndex> ||
+             std::is_same_v<ArrayOp, ArrayUpdate>)
+  absl::Status MaybeNarrowArrayAccessOp(ArrayOp* op) {
+    ArrayType* base_array_type;
+    if constexpr (std::is_same_v<ArrayOp, ArrayIndex>) {
+      base_array_type = op->array()->GetType()->AsArrayOrDie();
+    } else {
+      base_array_type = op->array_to_update()->GetType()->AsArrayOrDie();
+    }
+    bool assumed_in_bounds = op->assumed_in_bounds();
+    if (!assumed_in_bounds &&
+        ArrayIndicesAssumedInBounds(op, op->indices(), base_array_type)) {
+      VLOG(3) << "analysis proves that " << op
+              << " does not require bounds checks";
+      assumed_in_bounds = true;
+    }
+    bool changed = false;
+    std::vector<Node*> new_indices;
+    new_indices.reserve(op->indices().size());
+    Type* current_type = base_array_type;
+    for (Node* index : op->indices()) {
+      ArrayType* array_type = current_type->AsArrayOrDie();
+      XLS_ASSIGN_OR_RETURN(Node * new_index,
+                           MaybeNarrowArrayAccessIndex(op, index, array_type));
+      changed = changed || (new_index != index);
+      new_indices.push_back(new_index);
+      current_type = array_type->element_type();
+    }
+    if (changed) {
+      Node* replacement;
+      if constexpr (std::is_same_v<ArrayOp, ArrayIndex>) {
+        XLS_ASSIGN_OR_RETURN(replacement,
+                             op->template ReplaceUsesWithNew<ArrayIndex>(
+                                 op->array(), new_indices, assumed_in_bounds));
+      } else {
+        XLS_ASSIGN_OR_RETURN(replacement,
+                             op->template ReplaceUsesWithNew<ArrayUpdate>(
+                                 op->array_to_update(), op->update_value(),
+                                 new_indices, assumed_in_bounds));
+      }
+      return Change(/*original=*/op, /*replacement=*/replacement);
+    }
+    if (assumed_in_bounds != op->assumed_in_bounds()) {
+      op->SetAssumedInBounds(assumed_in_bounds);
+      // The pointer doesn't change so no need to add an alias.
+      return Change();
+    }
+    return NoChange();
   }
 
   // If it exists, returns the unique add immediately following a mulp.
