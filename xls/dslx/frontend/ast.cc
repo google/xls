@@ -1288,13 +1288,11 @@ std::string SliceTypeAnnotation::ToString() const {
 // -- class FunctionTypeAnnotation
 
 FunctionTypeAnnotation::FunctionTypeAnnotation(
-    Module* owner, std::vector<const TypeAnnotation*> param_types,
-    TypeAnnotation* return_type)
-    : TypeAnnotation(owner, return_type->span(), kAnnotationKind),
+    Module* owner, Span span, std::vector<const TypeAnnotation*> param_types,
+    TypeAnnotation* return_type, bool explicit_return)
+    : TypeAnnotation(owner, span, kAnnotationKind),
       param_types_(std::move(param_types)),
-      return_type_(return_type) {
-  CHECK_NE(return_type, nullptr);
-}
+      return_type_(return_type) {}
 
 std::string FunctionTypeAnnotation::ToString() const {
   std::vector<std::string> param_strings;
@@ -1302,8 +1300,16 @@ std::string FunctionTypeAnnotation::ToString() const {
   for (const TypeAnnotation* param : param_types_) {
     param_strings.push_back(param->ToString());
   }
-  return absl::Substitute("($0) -> $1", absl::StrJoin(param_strings, ", "),
-                          return_type_->ToString());
+  std::string prefix = "";
+  if (parent() != nullptr && parent()->kind() == AstNodeKind::kParam) {
+    prefix = "fn";
+  }
+  std::string suffix = "";
+  if (return_type_ != nullptr) {
+    suffix = absl::StrCat(" -> ", return_type_->ToString());
+  }
+  return absl::Substitute("$0($1)$2", prefix,
+                          absl::StrJoin(param_strings, ", "), suffix);
 }
 
 std::vector<AstNode*> FunctionTypeAnnotation::GetChildren(
@@ -1311,11 +1317,14 @@ std::vector<AstNode*> FunctionTypeAnnotation::GetChildren(
   // Note that, like in other TypeAnnotation subclasses, type children are
   // returned regardless of the `want_types` flag.
   std::vector<AstNode*> result;
-  result.reserve(param_types_.size() + 1);
+  uint64_t size = param_types_.size() + (return_type_ != nullptr ? 1 : 0);
+  result.reserve(size);
   for (const TypeAnnotation* param : param_types_) {
     result.push_back(const_cast<TypeAnnotation*>(param));
   }
-  result.push_back(return_type_);
+  if (return_type_ != nullptr) {
+    result.push_back(return_type_);
+  }
   return result;
 }
 

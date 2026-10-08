@@ -5892,4 +5892,38 @@ struct MyStruct {
   EXPECT_TRUE(my_domain->is_domain_struct());
   EXPECT_EQ(my_domain->name_def()->definer(), my_struct);
 }
+
+TEST_F(ParserTest, LambdaInUserFn) {
+  RoundTrip(R"(fn foo(f: fn(u32) -> u32, x: u32) -> u32 {
+    f(x)
+})");
+}
+
+TEST_F(ParserTest, LambdaInUserFnNoParams) {
+  RoundTrip(R"(fn foo(f: fn() -> u32, x: u32) -> u32 {
+    f(x)
+})");
+}
+
+TEST_F(ParserTest, LambdaInUserFnNoReturn) {
+  RoundTrip(R"(fn foo(f: fn(u32) -> (), x: u32) -> u32 {
+    f(x)
+})");
+}
+
+TEST_F(ParserTest, LambdaInUserFnNoReturnImplicit) {
+  RoundTrip(R"(fn foo(f: fn(u32), x: u32) -> u32 {
+    f(x)
+})");
+}
+
+TEST_F(ParserTest, LambdaInUserFnWithParameterName) {
+  EXPECT_THAT(Parse(R"(fn foo(f: fn(u32: in), x: u32) -> u32 {
+    f(x)
+})",
+                    /*parse_fn_stubs=*/true),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("must only contain types")));
+}
+
 }  // namespace xls::dslx

@@ -795,9 +795,10 @@ class FunctionTypeAnnotation : public TypeAnnotation {
   static constexpr TypeAnnotationKind kAnnotationKind =
       TypeAnnotationKind::kFunction;
 
-  FunctionTypeAnnotation(Module* owner,
+  FunctionTypeAnnotation(Module* owner, Span span,
                          std::vector<const TypeAnnotation*> param_types,
-                         TypeAnnotation* return_type);
+                         TypeAnnotation* return_type,
+                         bool explicit_return = true);
 
   absl::Status Accept(AstNodeVisitor* v) const override {
     return v->HandleFunctionTypeAnnotation(this);
@@ -819,7 +820,7 @@ class FunctionTypeAnnotation : public TypeAnnotation {
 
  private:
   const std::vector<const TypeAnnotation*> param_types_;
-  TypeAnnotation* return_type_;
+  TypeAnnotation* return_type_;  // May be null.
 };
 
 // Used internally in type inference to annotate the type of some node as the

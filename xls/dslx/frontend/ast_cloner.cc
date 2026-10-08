@@ -1413,7 +1413,7 @@ class AstCloner : public AstNodeVisitor {
           absl::down_cast<const TypeAnnotation*>(old_to_new_[argument]));
     }
     old_to_new_[n] = module(n)->Make<FunctionTypeAnnotation>(
-        std::move(param_types),
+        n->span(), std::move(param_types),
         absl::down_cast<TypeAnnotation*>(old_to_new_[n->return_type()]));
     return absl::OkStatus();
   }

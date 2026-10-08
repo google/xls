@@ -282,7 +282,7 @@ FunctionTypeAnnotation* CreateFunctionTypeAnnotation(Module& module,
     param_types.push_back(param->type_annotation());
   }
   return module.Make<FunctionTypeAnnotation>(
-      param_types,
+      function.span(), param_types,
       const_cast<TypeAnnotation*>(GetReturnType(module, function)));
 }
 
@@ -437,7 +437,7 @@ const FunctionTypeAnnotation* ExpandVarargs(
     param_types.push_back(last_param_type);
   }
 
-  return module.Make<FunctionTypeAnnotation>(param_types,
+  return module.Make<FunctionTypeAnnotation>(signature->span(), param_types,
                                              signature->return_type());
 }
 

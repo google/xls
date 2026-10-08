@@ -433,6 +433,25 @@ DocRef Formatter::FormatTypeVariableTypeAnnotation(
   return ConcatNGroup(arena_, pieces);
 }
 
+DocRef Formatter::FormatFunctionTypeAnnotation(
+    const FunctionTypeAnnotation& n) {
+  std::vector<DocRef> pieces = {arena_.Make(Keyword::kFn), arena_.oparen()};
+  DocRef params = FormatJoin<const TypeAnnotation*>(
+      n.param_types(), Joiner::kCommaBreak1AsGroupNoTrailingComma,
+      [this](const TypeAnnotation* t) { return Format(t); });
+  pieces.push_back(arena_.break0());
+  pieces.push_back(params);
+  pieces.push_back(arena_.break0());
+  pieces.push_back(arena_.cparen());
+  if (n.return_type() != nullptr) {
+    pieces.push_back(arena_.space());
+    pieces.push_back(arena_.arrow());
+    pieces.push_back(arena_.space());
+    pieces.push_back(Format(n.return_type()));
+  }
+  return ConcatNGroup(arena_, pieces);
+}
+
 DocRef Formatter::FormatTypeAnnotation(const TypeAnnotation& n) {
   if (auto* t = dynamic_cast<const BuiltinTypeAnnotation*>(&n)) {
     return FormatBuiltinTypeAnnotation(*t);
@@ -457,6 +476,9 @@ DocRef Formatter::FormatTypeAnnotation(const TypeAnnotation& n) {
   }
   if (dynamic_cast<const SelfTypeAnnotation*>(&n)) {
     return arena_.Make(Keyword::kSelfType);
+  }
+  if (auto* t = dynamic_cast<const FunctionTypeAnnotation*>(&n)) {
+    return FormatFunctionTypeAnnotation(*t);
   }
 
   LOG(FATAL) << "handle type annotation: " << n.ToString()

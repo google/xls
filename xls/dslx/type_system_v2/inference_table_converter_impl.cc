@@ -3554,7 +3554,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
     table_.SetParametricEnv(invocation_context, ParametricEnv(env_values));
 
     return function->owner()->Make<FunctionTypeAnnotation>(
-        parametric_free_function_type->param_types(),
+        (*return_ta)->span(), parametric_free_function_type->param_types(),
         const_cast<TypeAnnotation*>(*return_ta));
   }
 

@@ -2251,6 +2251,7 @@ TEST(AstClonerTest, FunctionAnnotation) {
                            module->GetMemberOrError<Function>("foo"));
   const FunctionTypeAnnotation* annotation =
       module->Make<FunctionTypeAnnotation>(
+          Span::Fake(),
           std::vector<const TypeAnnotation*>{
               foo->params()[0]->type_annotation(),
               foo->params()[1]->type_annotation()},
@@ -2269,6 +2270,7 @@ TEST(AstClonerTest, ReturnTypeAnnotation) {
                            module->GetMemberOrError<Function>("foo"));
   const ReturnTypeAnnotation* annotation =
       module->Make<ReturnTypeAnnotation>(module->Make<FunctionTypeAnnotation>(
+          Span::Fake(),
           std::vector<const TypeAnnotation*>{
               foo->params()[0]->type_annotation(),
               foo->params()[1]->type_annotation()},
@@ -2287,6 +2289,7 @@ TEST(AstClonerTest, ParamTypeAnnotation) {
                            module->GetMemberOrError<Function>("foo"));
   const ParamTypeAnnotation* annotation = module->Make<ParamTypeAnnotation>(
       module->Make<FunctionTypeAnnotation>(
+          Span::Fake(),
           std::vector<const TypeAnnotation*>{
               foo->params()[0]->type_annotation(),
               foo->params()[1]->type_annotation()},

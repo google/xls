@@ -478,6 +478,28 @@ TEST_F(FunctionFmtTest, FormatLetWithLongRhs) {
   EXPECT_EQ(got, original);
 }
 
+TEST_F(FunctionFmtTest, FormatLambdaParameter) {
+  const std::string_view original = "fn f(g: fn(u32, u32)->u32)->u32{g()}";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string got, DoFmt(original));
+  const std::string_view want =
+      R"(fn f(g: fn(u32, u32) -> u32) -> u32 { g() })";
+  EXPECT_EQ(got, want);
+}
+
+TEST_F(FunctionFmtTest, FormatLambdaParameterNoArgs) {
+  const std::string_view original = "fn f(g: fn()->u32)->u32{g()}";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string got, DoFmt(original));
+  const std::string_view want = R"(fn f(g: fn() -> u32) -> u32 { g() })";
+  EXPECT_EQ(got, want);
+}
+
+TEST_F(FunctionFmtTest, FormatLambdaParameterImplicitReturn) {
+  const std::string_view original = "fn f(g: fn(u32,u5,bool)){g()}";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string got, DoFmt(original));
+  const std::string_view want = R"(fn f(g: fn(u32, u5, bool)) { g() })";
+  EXPECT_EQ(got, want);
+}
+
 TEST_F(FunctionFmtTest, FormatTupleDestructure) {
   const std::string_view original = "fn f(t:(u32,u64))->u32{let(x,y)=t;x}";
   XLS_ASSERT_OK_AND_ASSIGN(std::string got, DoFmt(original));
