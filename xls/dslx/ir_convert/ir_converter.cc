@@ -74,6 +74,7 @@
 #include "xls/dslx/parse_and_typecheck.h"
 #include "xls/dslx/type_system/parametric_env.h"
 #include "xls/dslx/type_system/type_info.h"
+#include "xls/dslx/type_system_v2/populate_table.h"
 #include "xls/dslx/virtualizable_file_system.h"
 #include "xls/dslx/warning_collector.h"
 #include "xls/dslx/warning_kind.h"
@@ -609,11 +610,13 @@ namespace {
 absl::StatusOr<std::unique_ptr<Module>> ParseText(
     VirtualizableFilesystem& vfs, FileTable& file_table, std::string_view text,
     std::string_view module_name, bool print_on_error,
-    std::string_view filename, bool* printed_error) {
+    std::string_view filename, bool* printed_error,
+    const Module* builtin_stubs) {
   Fileno fileno = file_table.GetOrCreate(filename);
   Scanner scanner{file_table, fileno, std::string(text)};
   Parser parser(std::string(module_name), &scanner);
-  absl::StatusOr<std::unique_ptr<Module>> module = parser.ParseModule();
+  absl::StatusOr<std::unique_ptr<Module>> module =
+      parser.ParseModule(/*bindings=*/nullptr, builtin_stubs);
   *printed_error = TryPrintError(module.status(), file_table, vfs);
   return module;
 }
@@ -644,11 +647,19 @@ absl::Status AddContentsToPackage(
     PackageConversionData* conv, bool* printed_error) {
   // Parse the module text.
   const std::string_view path_value = path.value_or("<UNKNOWN>");
-  XLS_ASSIGN_OR_RETURN(std::unique_ptr<Module> module,
-                       ParseText(import_data->vfs(), import_data->file_table(),
-                                 file_contents, module_name,
-                                 /*print_on_error=*/true,
-                                 /*filename=*/path_value, printed_error));
+  if (!import_data->GetBuiltinStubsModule().ok()) {
+    WarningCollector warnings(import_data->enabled_warnings());
+    XLS_RETURN_IF_ERROR(PopulateBuiltinStubs(
+        import_data, &warnings, import_data->GetOrCreateInferenceTable()));
+  }
+  XLS_ASSIGN_OR_RETURN(Module * builtin_stubs,
+                       import_data->GetBuiltinStubsModule());
+  XLS_ASSIGN_OR_RETURN(
+      std::unique_ptr<Module> module,
+      ParseText(import_data->vfs(), import_data->file_table(), file_contents,
+                module_name,
+                /*print_on_error=*/true,
+                /*filename=*/path_value, printed_error, builtin_stubs));
   XLS_RETURN_IF_ERROR(
       import_data->RegisterConfiguredValues(convert_options.configured_values));
   module->SetConfiguredValuesMap(import_data->ResolveConfiguredValuesForModule(

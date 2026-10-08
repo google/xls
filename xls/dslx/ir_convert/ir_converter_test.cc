@@ -8554,5 +8554,61 @@ pub fn main() -> u32 {
                HasSubstr("Warnings encountered and warnings-as-errors set")));
 }
 
+TEST_F(IrConverterTest, TopProcWithDefaultInitializedSourceAndSinkMembers) {
+  constexpr std::string_view kModule = R"(#![feature(io_objects)]
+proc Top {
+  input: Source<u32>,
+  output: Sink<u32>,
+  arr_in: Source<u32>[2],
+  grid_out: Sink<u32>[2][3],
+}
+
+impl Top {
+  fn new() -> Self {
+    Top {}
+  }
+
+  fn next(self) {}
+}
+)";
+
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(kModule, "test_module.x", "test_module", &import_data));
+  XLS_ASSERT_OK_AND_ASSIGN(PackageConversionData conv,
+                           ConvertModuleToPackage(tm.module, &import_data,
+                                                  kProcScopedChannelOptions));
+  ExpectIr(conv.DumpIr());
+}
+
+// `ConvertFilesToPackage` parses the file itself rather than going through
+// `ParseAndTypecheck`, so it must also bind the builtin `Source`/`Sink`.
+TEST_F(IrConverterTest, ConvertFilesToPackageWithSourceAndSinkMembers) {
+  constexpr std::string_view kModule = R"(#![feature(io_objects)]
+proc Top {
+  input: Source<u32>,
+  output: Sink<u32>,
+}
+
+impl Top {
+  fn new() -> Self {
+    Top {}
+  }
+
+  fn next(self) {}
+}
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(xls::TempFile temp,
+                           xls::TempFile::CreateWithContent(kModule, ".x"));
+  bool printed_error = false;
+  XLS_EXPECT_OK(ConvertFilesToPackage(
+      {temp.path().string()},
+      /*stdlib_path=*/"", {temp.path()}, kProcScopedChannelOptions,
+      /*top=*/"Top",
+      /*package_name=*/"test_package", &printed_error));
+}
+
 }  // namespace
 }  // namespace xls::dslx
