@@ -15,8 +15,8 @@
 #include "xls/passes/visibility_analysis.h"
 
 #include <algorithm>
+#include <cstddef>
 #include <cstdint>
-#include <iterator>
 #include <memory>
 #include <optional>
 #include <queue>
@@ -26,6 +26,7 @@
 #include "absl/algorithm/container.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
+#include "absl/container/inlined_vector.h"
 #include "absl/functional/any_invocable.h"
 #include "absl/log/check.h"
 #include "absl/status/status.h"
@@ -50,14 +51,9 @@
 #include "xls/passes/node_dependency_analysis.h"
 #include "xls/passes/post_dominator_analysis.h"
 #include "xls/passes/query_engine.h"
+#include "xls/passes/visibility_contracted_dag.h"
 
 namespace xls {
-
-namespace {
-
-using OperandNode = OperandVisibilityAnalysis::OperandNode;
-
-}
 
 /* static */ absl::StatusOr<NodeImpactOnVisibilityAnalysis>
 NodeImpactOnVisibilityAnalysis::Create(FunctionBase* f) {
@@ -66,6 +62,10 @@ NodeImpactOnVisibilityAnalysis::Create(FunctionBase* f) {
   return node_impact;
 }
 
+// Returns the number of nodes in the function that have visibility expressions
+// that are dependent on `node`. This amplifies impact of more granular mask and
+// comparison operations, e.g. a bunch of individual equality comparisons vs. a
+// single inequality.
 int64_t NodeImpactOnVisibilityAnalysis::ComputeInfo(
     Node* node, absl::Span<const int64_t* const> user_infos) const {
   int64_t impact = 0;
@@ -86,14 +86,17 @@ int64_t NodeImpactOnVisibilityAnalysis::ComputeInfo(
     } else if (user->Is<PrioritySelect>()) {
       auto select = user->As<PrioritySelect>();
       if (select->selector() == node) {
-        // This does double count a node if multiple of its bits have separate
-        // def-use chain paths to the selector, e.g via a `concat`, this is
-        // acceptable amplification.
         impact += select->cases().size() + 1;
       }
     } else if (user->OpIn({Op::kAnd, Op::kOr, Op::kNand, Op::kNor})) {
       // Does not count the node itself towards impact
       impact += user->operands().size() - 1;
+    } else if (absl::StatusOr<std::optional<Node*>> predicate =
+                   GetPredicateUsedByNode(user);
+               predicate.ok() && predicate.value_or(nullptr) == node) {
+      impact += 1;
+    } else if (user->Is<Gate>() && user->As<Gate>()->condition() == node) {
+      impact += 1;
     }
   }
   return impact;
@@ -182,7 +185,7 @@ VisibilityAnalysis::Create(const OperandVisibilityAnalysis* operand_vis,
   std::unique_ptr<VisibilityAnalysis> visibility =
       std::make_unique<VisibilityAnalysis>(
           operand_vis, bdd_query_engine, post_dom_analysis,
-          max_edge_count_for_pruning, exclusions);
+          max_edge_count_for_pruning, std::move(exclusions));
   XLS_RETURN_IF_ERROR(visibility->Attach(f).status());
   return std::move(visibility);
 }
@@ -193,7 +196,8 @@ VisibilityAnalysis::VisibilityAnalysis(
     const LazyPostDominatorAnalysis* post_dom_analysis,
     int64_t max_edge_count_for_pruning,
     absl::flat_hash_set<OperandNode> exclusions)
-    : LazyNodeData<BddNodeIndex>(DagCacheInvalidateDirection::kInvalidatesBoth),
+    : LazyNodeData<NodeVisibility>(
+          DagCacheInvalidateDirection::kInvalidatesBoth),
       operand_visibility_(operand_vis),
       bdd_query_engine_(bdd_query_engine),
       post_dom_analysis_(post_dom_analysis),
@@ -205,12 +209,11 @@ VisibilityAnalysis::VisibilityAnalysis(
 }
 
 absl::StatusOr<ReachedFixpoint> VisibilityAnalysis::AttachWithGivens(
-    FunctionBase* f, absl::flat_hash_map<Node*, BddNodeIndex> givens) {
-  XLS_ASSIGN_OR_RETURN(ReachedFixpoint rf,
-                       node_impact_analysis_.AttachWithGivens(f, {}));
+    FunctionBase* f, absl::flat_hash_map<Node*, NodeVisibility> givens) {
+  XLS_ASSIGN_OR_RETURN(ReachedFixpoint rf, node_impact_analysis_.Attach(f));
   XLS_ASSIGN_OR_RETURN(
       ReachedFixpoint rf2,
-      LazyNodeData<BddNodeIndex>::AttachWithGivens(f, std::move(givens)));
+      LazyNodeData<NodeVisibility>::AttachWithGivens(f, std::move(givens)));
   return rf == ReachedFixpoint::Changed || rf2 == ReachedFixpoint::Changed
              ? ReachedFixpoint::Changed
              : ReachedFixpoint::Unchanged;
@@ -247,9 +250,9 @@ Node* TerminalPredicate(Node* node) {
 
 BddNodeIndex OperandVisibilityAnalysis::GetNodeBit(Node* node,
                                                    uint32_t bit_index) const {
-  return bdd_query_engine_
-      ->GetBddNodeOrVariable(TreeBitLocation(node, bit_index))
-      .value_or(bdd_query_engine_->bdd().NewVariable());
+  std::optional<BddNodeIndex> bit =
+      bdd_query_engine_->GetBddNodeOrVariable(TreeBitLocation(node, bit_index));
+  return bit.has_value() ? *bit : bdd_query_engine_->bdd().NewVariable();
 }
 
 std::vector<BddNodeIndex> OperandVisibilityAnalysis::GetNodeBits(
@@ -607,145 +610,170 @@ void OperandVisibilityAnalysis::OperandAdded(Node* node) {
   pair_to_op_vis_.clear();
 }
 
-BddNodeIndex VisibilityAnalysis::ComputeInfo(
-    Node* node, absl::Span<const BddNodeIndex* const> user_infos) const {
+VisibilityAnalysis::SaturatingVisibility VisibilityAnalysis::ComputeAnyUsesNode(
+    Node* node, absl::Span<const NodeVisibility* const> user_infos) const {
+  BinaryDecisionDiagram& bdd = bdd_query_engine_->bdd();
   if (user_infos.empty()) {
-    return bdd_query_engine_->bdd().one();
+    return {.visibility = bdd.one(), .saturated = false};
   }
 
   absl::Span<Node* const> users = node->users();
   std::vector<BddNodeIndex> user_conditions;
+  user_conditions.reserve(users.size());
   for (const auto& [user, info] : iter::zip(users, user_infos)) {
     if (exclusions_.contains({node, user})) {
-      user_conditions.push_back(*info);
+      user_conditions.push_back(info->visibility);
       continue;
     }
     BddNodeIndex user_uses_node =
         operand_visibility_->OperandVisibilityThroughNode(node, user);
-    if (user_uses_node == bdd_query_engine_->bdd().one()) {
-      user_conditions.push_back(*info);
-      continue;
-    }
-    user_conditions.push_back(
-        bdd_query_engine_->bdd().And(*info, user_uses_node));
+    user_conditions.push_back(bdd.And(info->visibility, user_uses_node));
   }
   BddNodeIndex any_uses_node = OrAggregate(user_conditions, bdd_query_engine_);
-  if (bdd_query_engine_->bdd().path_count(any_uses_node) >
-      bdd_query_engine_->path_limit()) {
-    // First fall back to pruning edges
-    BddNodeIndex conservative_vis = ConservativeVisibilityByPruningEdges(node);
-    if (conservative_vis != bdd_query_engine_->bdd().one()) {
-      return conservative_vis;
-    }
-    // Next fall back to the nearest post dominator's visibility
-    return VisibilityOfNearestPostDominator(node);
+  if (bdd.path_count(any_uses_node) > bdd_query_engine_->path_limit()) {
+    return {.visibility = bdd.one(), .saturated = true};
   }
-  return any_uses_node;
+  return {.visibility = any_uses_node, .saturated = false};
 }
 
-BddNodeIndex VisibilityAnalysis::ConservativeVisibilityByPruningEdges(
-    Node* node) const {
-  // This analysis is conservative; overlapping exclusions is not handled yet.
-  if (!exclusions_.empty()) {
-    return bdd_query_engine_->bdd().one();
+VisibilityAnalysis::NodeVisibility VisibilityAnalysis::ComputeInfo(
+    Node* node, absl::Span<const NodeVisibility* const> user_infos) const {
+  NodeVisibility result;
+  SaturatingVisibility any_uses_node = ComputeAnyUsesNode(node, user_infos);
+  if (any_uses_node.saturated) {
+    // Fall back to pruning edges on the contracted DAG.
+    BddNodeIndex conservative_vis =
+        ConservativeVisibilityByPruningEdges(node, result);
+    if (conservative_vis != bdd_query_engine_->bdd().one()) {
+      result.visibility = conservative_vis;
+      return result;
+    }
+    // Fall back to the nearest post-dominator's visibility.
+    result.visibility = VisibilityOfNearestPostDominator(node);
+    return result;
   }
+  result.visibility = any_uses_node.visibility;
+  return result;
+}
 
-  // Edges to consider pruning
-  absl::flat_hash_set<OperandNode> edges_visited;
-  // Nodes whose visibility will not be simplified; used to pre-populate the
-  // cache of the analysis created w/exclusions, i.e pruned edges.
-  absl::flat_hash_set<Node*> frontier;
+void VisibilityAnalysis::PopulateContractedVisibility(
+    Node* node, const NodeVisibility& info) const {
+  // If empty, construct the contracted DAG. If not empty, then it is up to date
+  // because if node's data is invalidated, all of NodeVisibility is dropped.
+  if (!info.contracted_nodes.empty()) {
+    return;
+  }
+  info.edges.clear();
   std::queue<Node*> worklist;
-  absl::flat_hash_set<Node*> visited;
-  for (Node* user : node->users()) {
-    frontier.insert(user);
-    worklist.push(user);
-    visited.insert(user);
-    BddNodeIndex user_uses_node =
-        operand_visibility_->OperandVisibilityThroughNode(node, user);
-    if (user_uses_node != bdd_query_engine_->bdd().one()) {
-      if (edges_visited.size() < max_edge_count_for_pruning_) {
-        edges_visited.insert({node, user});
-      }
-    }
-  }
-  while (!worklist.empty() &&
-         edges_visited.size() < max_edge_count_for_pruning_) {
-    auto next_node = worklist.front();
+  worklist.push(node);
+  absl::flat_hash_set<Node*> visited = {node};
+  while (!worklist.empty()) {
+    Node* curr = worklist.front();
     worklist.pop();
-    frontier.erase(next_node);
-    for (Node* user : next_node->users()) {
-      BddNodeIndex user_uses_node =
-          operand_visibility_->OperandVisibilityThroughNode(next_node, user);
-      if (user_uses_node != bdd_query_engine_->bdd().one()) {
-        if (edges_visited.size() < max_edge_count_for_pruning_) {
-          edges_visited.insert({next_node, user});
-        }
+    for (Node* user : curr->users()) {
+      OperandNode edge{curr, user};
+      if (!exclusions_.contains(edge) &&
+          operand_visibility_->OperandVisibilityThroughNode(curr, user) !=
+              bdd_query_engine_->bdd().one()) {
+        info.edges.push_back(edge);
       }
-      if (!visited.contains(user)) {
-        frontier.insert(user);
+      if (visited.insert(user).second) {
         worklist.push(user);
-        visited.insert(user);
       }
     }
   }
+  SortEdgesForPruning(absl::MakeSpan(info.edges));
+  info.contracted_nodes = BuildContractedVisibilityDag(
+      node, info.edges, [&](Node* operand, Node* user) {
+        return operand_visibility_->OperandVisibilityThroughNode(operand, user);
+      });
+}
 
-  // Sort edges, unknown and complex first, to minimize the number of edges
-  // needed to be pruned.
-  std::vector<OperandNode> edges_sorted(edges_visited.begin(),
-                                        edges_visited.end());
-  absl::c_sort(edges_sorted, [&](OperandNode a, OperandNode b) {
+void VisibilityAnalysis::SortEdgesForPruning(
+    absl::Span<OperandNode> edges) const {
+  absl::c_sort(edges, [&](OperandNode a, OperandNode b) {
     BddNodeIndex a_vis =
         operand_visibility_->OperandVisibilityThroughNode(a.operand, a.node);
     BddNodeIndex b_vis =
         operand_visibility_->OperandVisibilityThroughNode(b.operand, b.node);
-    auto a_bit = bdd_query_engine_->GetTreeBitLocation(a_vis);
-    auto a_unconstrained =
+    std::optional<TreeBitLocation> a_bit =
+        bdd_query_engine_->GetTreeBitLocation(a_vis);
+    bool a_unconstrained =
         a_bit.has_value() &&
-        bdd_query_engine_->IsFullyUnconstrained(a_bit->node());
-    auto b_bit = bdd_query_engine_->GetTreeBitLocation(b_vis);
-    auto b_unconstrained =
+        operand_visibility_->IsFullyUnconstrained(a_bit->node());
+    std::optional<TreeBitLocation> b_bit =
+        bdd_query_engine_->GetTreeBitLocation(b_vis);
+    bool b_unconstrained =
         b_bit.has_value() &&
-        bdd_query_engine_->IsFullyUnconstrained(b_bit->node());
-    // If both are unconstrained, prune the one less impactful to visibility
+        operand_visibility_->IsFullyUnconstrained(b_bit->node());
+    // If both are unconstrained, prune the one less impactful to visibility.
     if (a_unconstrained && b_unconstrained) {
-      return node_impact_analysis_.NodeImpactOnVisibility(a_bit->node()) <
-             node_impact_analysis_.NodeImpactOnVisibility(b_bit->node());
+      int64_t a_impact =
+          node_impact_analysis_.NodeImpactOnVisibility(a_bit->node());
+      int64_t b_impact =
+          node_impact_analysis_.NodeImpactOnVisibility(b_bit->node());
+      if (a_impact != b_impact) {
+        return a_impact < b_impact;
+      }
     }
     // If one is constrained, prefer pruning the unconstrained one.
-    if (a_unconstrained && !b_unconstrained) {
-      return true;
-    }
-    if (!a_unconstrained && b_unconstrained) {
-      return false;
+    if (a_unconstrained != b_unconstrained) {
+      return a_unconstrained;
     }
     int64_t a_path = bdd_query_engine_->bdd().path_count(a_vis);
     int64_t b_path = bdd_query_engine_->bdd().path_count(b_vis);
-    if (a_path == b_path) {
-      return a < b;
+    if (a_path != b_path) {
+      return a_path > b_path;
     }
-    return a_path > b_path;
+    return a < b;
   });
+}
 
-  // Prune edges until the conservative visibility expression does not saturate.
-  absl::flat_hash_set<OperandNode> exclusions;
-  for (auto& expensive_edge : edges_sorted) {
-    exclusions.insert(expensive_edge);
-    VisibilityAnalysis simplified_vis(operand_visibility_, bdd_query_engine_,
-                                      post_dom_analysis_,
-                                      max_edge_count_for_pruning_, exclusions);
-    auto bind_function = simplified_vis.Attach(bound_function());
-    CHECK_OK(bind_function);
-    for (Node* end : frontier) {
-      CHECK_OK(simplified_vis.SetForced(end, *GetInfo(end)));
+BddNodeIndex VisibilityAnalysis::PruneEdgesOnContractedDag(
+    const NodeVisibility& info,
+    absl::Span<const int32_t> sorted_candidate_edge_idxs,
+    absl::Span<bool> is_excluded_edge) const {
+  BinaryDecisionDiagram& bdd = bdd_query_engine_->bdd();
+  SaturatingVisibility eval =
+      ComputeInfoOnContractedDag(info, is_excluded_edge);
+  if (eval.visibility != bdd.one() || !eval.saturated) {
+    return eval.visibility;
+  }
+  absl::InlinedVector<bool, kEdgeInlineVecSize> is_excluded(
+      is_excluded_edge.begin(), is_excluded_edge.end());
+  for (int32_t expensive_edge_idx : sorted_candidate_edge_idxs) {
+    is_excluded[expensive_edge_idx] = true;
+    eval = ComputeInfoOnContractedDag(info, is_excluded);
+    if (eval.visibility != bdd.one()) {
+      absl::c_copy(is_excluded, is_excluded_edge.begin());
+      return eval.visibility;
     }
-    BddNodeIndex simplified_vis_expr = *simplified_vis.GetInfo(node);
-    if (simplified_vis_expr != bdd_query_engine_->bdd().one()) {
-      return simplified_vis_expr;
+    if (!eval.saturated) {
+      return bdd.one();
     }
   }
+  return bdd.one();
+}
 
-  return bdd_query_engine_->bdd().one();
+BddNodeIndex VisibilityAnalysis::ConservativeVisibilityByPruningEdges(
+    Node* node, const NodeVisibility& info,
+    absl::flat_hash_set<OperandNode> exclusions) const {
+  PopulateContractedVisibility(node, info);
+  exclusions.insert(exclusions_.begin(), exclusions_.end());
+  absl::InlinedVector<bool, kEdgeInlineVecSize> is_excluded_edge(
+      info.edges.size(), false);
+  absl::InlinedVector<int32_t, kEdgeInlineVecSize> candidate_edge_idxs;
+  candidate_edge_idxs.reserve(
+      std::min<int64_t>(info.edges.size(), max_edge_count_for_pruning_));
+  for (int32_t i = 0; i < static_cast<int32_t>(info.edges.size()); ++i) {
+    if (exclusions.contains(info.edges[i])) {
+      is_excluded_edge[i] = true;
+    } else if (candidate_edge_idxs.size() < max_edge_count_for_pruning_) {
+      candidate_edge_idxs.push_back(i);
+    }
+  }
+  return PruneEdgesOnContractedDag(info, candidate_edge_idxs,
+                                   absl::MakeSpan(is_excluded_edge));
 }
 
 VisibilityAnnotator VisibilityAnalysis::annotator() const {
@@ -754,19 +782,13 @@ VisibilityAnnotator VisibilityAnalysis::annotator() const {
 
 Annotation VisibilityAnnotator::NodeAnnotation(Node* node) const {
   return Annotation{
-      .suffix = absl::StrFormat(
-          "visible[%s]",
-          vis_->bdd_query_engine()->bdd().ToStringDnf(*vis_->GetInfo(node)))};
+      .suffix = absl::StrFormat("visible[%s]",
+                                vis_->bdd_query_engine()->bdd().ToStringDnf(
+                                    vis_->GetInfo(node)->visibility))};
 }
 
 BddNodeIndex VisibilityAnalysis::VisibilityOfNearestPostDominator(
     Node* node) const {
-  // If querying with exclusions, do not rely on the post dominator fallback
-  // and instead attempt to build as full a picture of visibility as possible.
-  if (!exclusions_.empty()) {
-    return bdd_query_engine_->bdd().one();
-  }
-
   // Find the nearest post dominator that constrains visibility. Post dominators
   // are sorted bottom up, so we start at the end of the list.
   auto post_doms = post_dom_analysis_->GetPostDominators(node);
@@ -775,7 +797,7 @@ BddNodeIndex VisibilityAnalysis::VisibilityOfNearestPostDominator(
     if (post_dom == node) {
       continue;
     }
-    BddNodeIndex post_dom_visibility = *GetInfo(post_dom);
+    BddNodeIndex post_dom_visibility = GetInfo(post_dom)->visibility;
     if (post_dom_visibility != bdd_query_engine_->bdd().one()) {
       return post_dom_visibility;
     }
@@ -784,8 +806,8 @@ BddNodeIndex VisibilityAnalysis::VisibilityOfNearestPostDominator(
 }
 
 absl::Status VisibilityAnalysis::MergeWithGiven(
-    BddNodeIndex& info, const BddNodeIndex& given) const {
-  if (given != BinaryDecisionDiagram::kInfeasible) {
+    NodeVisibility& info, const NodeVisibility& given) const {
+  if (given.visibility != BinaryDecisionDiagram::kInfeasible) {
     info = given;
   }
   return absl::OkStatus();
@@ -793,7 +815,8 @@ absl::Status VisibilityAnalysis::MergeWithGiven(
 
 bool VisibilityAnalysis::IsMutuallyExclusive(Node* one, Node* other) const {
   BinaryDecisionDiagram& bdd = bdd_query_engine_->bdd();
-  return bdd.MutuallyExclusive(*GetInfo(one), *GetInfo(other));
+  return bdd.MutuallyExclusive(GetInfo(one)->visibility,
+                               GetInfo(other)->visibility);
 }
 
 namespace {
@@ -801,7 +824,7 @@ namespace {
 absl::StatusOr<std::vector<Node*>> GetVisibilityControlConditions(
     const Node* operand, Node* node) {
   std::vector<Node*> conditions;
-  if (auto gs = GenericSelect::From(node); gs.ok()) {
+  if (auto gs = GenericSelect::TryFrom(node); gs.has_value()) {
     conditions.push_back(gs->selector());
   } else if (auto predicate = GetPredicateUsedByNode(node); predicate.ok()) {
     if (predicate->has_value()) {
@@ -841,45 +864,93 @@ absl::StatusOr<bool> IsVisibilityIndependentOf(
   return true;
 }
 
-namespace {
+VisibilityAnalysis::SaturatingVisibility
+VisibilityAnalysis::ComputeInfoOnContractedDag(
+    const NodeVisibility& info, absl::Span<const bool> is_excluded_edge) const {
+  BinaryDecisionDiagram& bdd = bdd_query_engine_->bdd();
+  absl::InlinedVector<BddNodeIndex, kNodeInlineVecSize> cache(
+      info.contracted_nodes.size());
+  absl::InlinedVector<BddNodeIndex, kEdgeInlineVecSize> adj_conditions;
+  absl::InlinedVector<BddNodeIndex, kNodeInlineVecSize> user_conditions;
+  bool any_saturated = false;
 
-// Determines if a visibility expression for 'one' given excluded edges can
-// still determine that none of 'others' are visible while ensuring that if
-// 'one' is visible, the expression must be true.
-// Computes a VisibilityAnalysis restricted by the given edge exclusions,
-// where the visibility BDD expr for 'one' is not derived using those edges.
-absl::StatusOr<bool> IsVisUsefulWithExclusions(
-    Node* one, BddNodeIndex one_visible,
-    absl::Span<const BddNodeIndex> others_visible,
-    const absl::flat_hash_set<OperandNode>& exclusions,
-    const OperandVisibilityAnalysis* operand_visibility,
-    const BddQueryEngine* bdd_query_engine,
-    const LazyPostDominatorAnalysis* post_dom_analysis,
-    int64_t max_edge_count_for_pruning) {
-  XLS_ASSIGN_OR_RETURN(
-      auto simplified_vis,
-      VisibilityAnalysis::Create(operand_visibility, bdd_query_engine,
-                                 post_dom_analysis, max_edge_count_for_pruning,
-                                 exclusions));
-  BinaryDecisionDiagram& bdd = bdd_query_engine->bdd();
-  BddNodeIndex vis_expr = *simplified_vis->GetInfo(one);
-  if (bdd.Implies(one_visible, vis_expr) != bdd.one()) {
+  for (size_t i = 0; i < info.contracted_nodes.size(); ++i) {
+    const ContractedDagNode& dag_node = info.contracted_nodes[i];
+    if (dag_node.adjacent.empty() && dag_node.joined.empty()) {
+      cache[i] = bdd.one();
+      continue;
+    }
+    user_conditions.clear();
+    if (!dag_node.adjacent.empty()) {
+      adj_conditions.clear();
+      for (const ContractedDagEdge& adj : dag_node.adjacent) {
+        BddNodeIndex user_vis = cache[adj.user_idx];
+        if (!is_excluded_edge[adj.edge_idx] && adj.edge_vis != bdd.one()) {
+          user_vis = bdd.And(user_vis, adj.edge_vis);
+        }
+        adj_conditions.push_back(user_vis);
+      }
+      BddNodeIndex adj_vis = OrAggregate(adj_conditions, bdd_query_engine_);
+      if (bdd.path_count(adj_vis) > bdd_query_engine_->path_limit()) {
+        adj_vis = bdd.one();
+        any_saturated = true;
+      }
+      user_conditions.push_back(adj_vis);
+    }
+    for (int32_t joined_idx : dag_node.joined) {
+      user_conditions.push_back(cache[joined_idx]);
+    }
+    BddNodeIndex any_uses_node =
+        OrAggregate(user_conditions, bdd_query_engine_);
+    if (bdd.path_count(any_uses_node) > bdd_query_engine_->path_limit()) {
+      any_saturated = true;
+      any_uses_node = bdd.one();
+    }
+    cache[i] = any_uses_node;
+  }
+  return {.visibility = cache.back(), .saturated = any_saturated};
+}
+
+// Determines if a simplified visibility expression for `one` can still
+// determine that none of `others` are visible while ensuring that if `one` is
+// visible, the expression must be true.
+bool VisibilityAnalysis::IsVisUsefulForMutualExclusivity(
+    BddNodeIndex one_visible, BddNodeIndex one_visible_simplified,
+    absl::Span<const BddNodeIndex> others_visible) const {
+  BinaryDecisionDiagram& bdd = bdd_query_engine_->bdd();
+  if (!bdd.DoesImply(one_visible, one_visible_simplified)) {
     return false;
   }
   for (BddNodeIndex other_visible : others_visible) {
-    if (bdd.Implies(vis_expr, bdd.Not(other_visible)) != bdd.one()) {
+    if (!bdd.DoesImply(one_visible_simplified, bdd.Not(other_visible))) {
       return false;
     }
   }
   return true;
-};
-
-}  // namespace
+}
 
 absl::StatusOr<absl::flat_hash_set<OperandNode>>
 VisibilityAnalysis::GetEdgesForMutuallyExclusiveVisibilityExpr(
     Node* one, absl::Span<Node* const> others,
     int64_t max_edges_to_handle) const {
+  const NodeVisibility& one_info = *GetInfo(one);
+  BddNodeIndex one_visible = one_info.visibility;
+  std::vector<BddNodeIndex> others_visible;
+  others_visible.reserve(others.size());
+  for (Node* other : others) {
+    others_visible.push_back(GetInfo(other)->visibility);
+  }
+  return GetEdgesForMutuallyExclusiveVisibilityExpr(
+      one, others, max_edges_to_handle, one_visible, others_visible,
+      exclusions_);
+}
+
+absl::StatusOr<absl::flat_hash_set<OperandNode>>
+VisibilityAnalysis::GetEdgesForMutuallyExclusiveVisibilityExpr(
+    Node* one, absl::Span<Node* const> others, int64_t max_edges_to_handle,
+    BddNodeIndex one_visible, absl::Span<const BddNodeIndex> others_visible,
+    absl::flat_hash_set<OperandNode> exclusions) const {
+  const NodeVisibility& one_info = *GetInfo(one);
   std::vector<Node*> sources;
   sources.reserve(others.size() + 1);
   sources.push_back(one);
@@ -888,111 +959,88 @@ VisibilityAnalysis::GetEdgesForMutuallyExclusiveVisibilityExpr(
   }
 
   // This set contains edges that are not to be used in constructing the
-  // visibility expression for 'one' because of either:
-  //   1. The expression for the edge depends on a value from 'others'; if this
+  // visibility expression for `one` because of either:
+  //   1. The edge was already excluded in this VisibilityAnalysis instance.
+  //   2. The expression for the edge depends on a value from `others`; if this
   //      was used in resource sharing's foldings, it would produce a cycle.
-  //   2. The edge is not needed to ensure the resulting visibility expression
-  //      is true if 'one' is visible and NOT true when any 'other' is visible.
-  absl::flat_hash_set<OperandNode> exclusions;
+  //   3. The edge is not needed to ensure the resulting visibility expression
+  //      is true if `one` is visible and NOT true when any `other` is visible.
+  PopulateContractedVisibility(one, one_info);
+  exclusions.insert(exclusions_.begin(), exclusions_.end());
 
-  // Populate edges by computing visibility
-  BddNodeIndex one_visible = *GetInfo(one);
-  std::queue<Node*> worklist;
-  worklist.push(one);
-  absl::flat_hash_set<Node*> visited = {one};
-  std::vector<OperandNode> edges;
-  while (!worklist.empty()) {
-    Node* node = worklist.front();
-    worklist.pop();
-    for (Node* user : node->users()) {
-      if (operand_visibility_->OperandVisibilityThroughNode(node, user) !=
-          bdd_query_engine_->bdd().one()) {
-        XLS_ASSIGN_OR_RETURN(
-            bool is_independent,
-            IsVisibilityIndependentOf(operand_visibility_->nda(), node, user,
-                                      sources));
-        if (is_independent) {
-          edges.push_back({node, user});
-        } else {
-          // The visibility defined by this edge is dependent on a value from
-          // 'others'; we cannot use it in producing the visibility IR
-          // expression for 'one' without risking a cycle.
-          exclusions.insert({node, user});
-        }
-      }
-      if (visited.contains(user)) {
-        continue;
-      }
-      visited.insert(user);
-      worklist.push(user);
+  const int32_t num_edges = static_cast<int32_t>(one_info.edges.size());
+  absl::InlinedVector<bool, kEdgeInlineVecSize> is_excluded_edge(num_edges,
+                                                                 false);
+  absl::InlinedVector<int32_t, kEdgeInlineVecSize> candidate_edge_idxs;
+  candidate_edge_idxs.reserve(num_edges);
+  for (int32_t i = 0; i < num_edges; ++i) {
+    const OperandNode& edge = one_info.edges[i];
+    if (exclusions.contains(edge)) {
+      is_excluded_edge[i] = true;
+      continue;
+    }
+    XLS_ASSIGN_OR_RETURN(
+        bool is_independent,
+        IsVisibilityIndependentOf(operand_visibility_->nda(), edge.operand,
+                                  edge.node, sources));
+    if (is_independent) {
+      candidate_edge_idxs.push_back(i);
+    } else {
+      // The visibility defined by this edge is dependent on a value from
+      // `others`; we cannot use it in producing the visibility IR expression
+      // for `one` without risking a cycle.
+      is_excluded_edge[i] = true;
     }
   }
-
-  // Heuristic: prefer pruning more complex edges first to reduce the chance
-  // they are disqualified later.
-  BinaryDecisionDiagram& bdd = bdd_query_engine_->bdd();
-  absl::c_sort(edges, [&](OperandNode a, OperandNode b) {
-    int64_t a_path =
-        bdd.path_count(operand_visibility_->OperandVisibilityThroughNode(a));
-    int64_t b_path =
-        bdd.path_count(operand_visibility_->OperandVisibilityThroughNode(b));
-    if (a_path == b_path) {
-      return a < b;
-    }
-    return a_path > b_path;
-  });
 
   // If there are more edges than the given threshold, drop all but the cheapest
-  // max_edges_to_handle number of edges.
-  if (max_edges_to_handle >= 0 && edges.size() > max_edges_to_handle) {
-    std::vector<OperandNode> cheapest_edges;
-    absl::c_copy(absl::MakeSpan(edges).last(max_edges_to_handle),
-                 std::back_inserter(cheapest_edges));
-    for (int i = 0; i < edges.size() - max_edges_to_handle; ++i) {
-      exclusions.insert(edges[i]);
+  // `max_edges_to_handle` number of edges. `one_info.edges` is already sorted
+  // in pruning order (more complex and unconstrained edges first).
+  if (max_edges_to_handle >= 0 &&
+      candidate_edge_idxs.size() > max_edges_to_handle) {
+    int64_t num_to_drop = candidate_edge_idxs.size() - max_edges_to_handle;
+    for (int64_t i = 0; i < num_to_drop; ++i) {
+      is_excluded_edge[candidate_edge_idxs[i]] = true;
     }
-    edges = std::move(cheapest_edges);
+    candidate_edge_idxs.erase(candidate_edge_idxs.begin(),
+                              candidate_edge_idxs.begin() + num_to_drop);
   }
 
-  std::vector<BddNodeIndex> others_visible;
-  others_visible.reserve(others.size());
-  for (Node* other : others) {
-    others_visible.push_back(*GetInfo(other));
-  }
-
-  // Confirm that even with all the required exclusions so far, a useful
-  // visibility expression can be constructed.
-  XLS_ASSIGN_OR_RETURN(
-      bool is_baseline_useful,
-      IsVisUsefulWithExclusions(
-          one, one_visible, others_visible, exclusions, operand_visibility_,
-          bdd_query_engine_, post_dom_analysis_, max_edge_count_for_pruning_));
-  if (!is_baseline_useful) {
+  // Ensure that with all required exclusions so far, the visibility expression
+  // on the contracted DAG does not saturate and remains useful for proving
+  // mutual exclusivity.
+  BddNodeIndex baseline_vis = PruneEdgesOnContractedDag(
+      one_info, candidate_edge_idxs, absl::MakeSpan(is_excluded_edge));
+  if (!IsVisUsefulForMutualExclusivity(one_visible, baseline_vis,
+                                       others_visible)) {
     return absl::flat_hash_set<OperandNode>{};
   }
+  absl::erase_if(candidate_edge_idxs,
+                 [&](int32_t edge_idx) { return is_excluded_edge[edge_idx]; });
 
-  if (others.empty() || (others.size() == 1 && absl::c_contains(others, one))) {
-    absl::flat_hash_set<OperandNode> edges_set(edges.begin(), edges.end());
-    return edges_set;
+  if (others.empty() || (others.size() == 1 && others[0] == one)) {
+    absl::flat_hash_set<OperandNode> kept_edges;
+    kept_edges.reserve(candidate_edge_idxs.size());
+    for (int32_t idx : candidate_edge_idxs) {
+      kept_edges.insert(one_info.edges[idx]);
+    }
+    return kept_edges;
   }
 
   absl::flat_hash_set<OperandNode> kept_edges;
-
-  for (auto& edge : edges) {
-    exclusions.insert(edge);
-    XLS_ASSIGN_OR_RETURN(bool can_exclude_edge,
-                         IsVisUsefulWithExclusions(
-                             one, one_visible, others_visible, exclusions,
-                             operand_visibility_, bdd_query_engine_,
-                             post_dom_analysis_, max_edge_count_for_pruning_));
-    if (can_exclude_edge) {
+  for (int32_t edge_idx : candidate_edge_idxs) {
+    is_excluded_edge[edge_idx] = true;
+    BddNodeIndex simplified_vis =
+        ComputeInfoOnContractedDag(one_info, is_excluded_edge).visibility;
+    if (IsVisUsefulForMutualExclusivity(one_visible, simplified_vis,
+                                        others_visible)) {
       continue;
     }
 
-    // The edge is needed to ensure the visibility expression is true if 'one'
-    // is visible and NOT true when any 'other' is visible.
-    exclusions.erase(edge);
-    kept_edges.insert(edge);
+    // The edge is needed to ensure the visibility expression is true if `one`
+    // is visible and NOT true when any `other` is visible.
+    is_excluded_edge[edge_idx] = false;
+    kept_edges.insert(one_info.edges[edge_idx]);
   }
   return kept_edges;
 }
@@ -1157,8 +1205,7 @@ SingleSelectVisibility SingleSelectVisibilityAnalysis::ComputeInfo(
                                                           curr_edge.node);
     // For the select edge to be representative, the source must be visible to
     // the select when it is visible on this edge.
-    if (bdd.Implies(curr_edge_condition, single_select_vis.visibility) ==
-        bdd.one()) {
+    if (bdd.DoesImply(curr_edge_condition, single_select_vis.visibility)) {
       continue;
     }
     if (curr_edge.node->users().empty()) {
@@ -1202,18 +1249,16 @@ SingleSelectVisibilityAnalysis::GetEdgesForVisibilityExpr(Node* one) const {
 }
 
 void VisibilityAnalysis::NodeAdded(Node* node) {
-  LazyNodeData<BddNodeIndex>::NodeAdded(node);
+  LazyNodeData<NodeVisibility>::NodeAdded(node);
   // On adding a node, normal invalidation is enough; dependency analysis does
   // not impact visibility by modifying a terminal node.
 }
 void VisibilityAnalysis::NodeDeleted(Node* node) {
-  LazyNodeData<BddNodeIndex>::NodeDeleted(node);
-  // On removing a node, normal invalidation is enough; dependency analysis does
-  // not impact visibility by modifying a terminal node.
+  LazyNodeData<NodeVisibility>::NodeDeleted(node);
 }
 
 void VisibilityAnalysis::UserAdded(Node* node, Node* user) {
-  LazyNodeData<BddNodeIndex>::UserAdded(node, user);
+  LazyNodeData<NodeVisibility>::UserAdded(node, user);
   if (user->users().empty()) {
     // On modifying a terminal node, normal invalidation is enough; dependency
     // analysis does not impact visibility by modifying a terminal node.
@@ -1223,7 +1268,7 @@ void VisibilityAnalysis::UserAdded(Node* node, Node* user) {
 }
 
 void VisibilityAnalysis::UserRemoved(Node* node, Node* user) {
-  LazyNodeData<BddNodeIndex>::UserRemoved(node, user);
+  LazyNodeData<NodeVisibility>::UserRemoved(node, user);
   if (user->users().empty()) {
     // On modifying a terminal node, normal invalidation is enough; dependency
     // analysis does not impact visibility by modifying a terminal node.
