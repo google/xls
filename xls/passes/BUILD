@@ -1856,6 +1856,36 @@ cc_test(
 )
 
 cc_library(
+    name = "visibility_contracted_dag",
+    srcs = ["visibility_contracted_dag.cc"],
+    hdrs = ["visibility_contracted_dag.h"],
+    deps = [
+        "//xls/data_structures:binary_decision_diagram",
+        "//xls/ir",
+        "@abseil-cpp//absl/container:flat_hash_map",
+        "@abseil-cpp//absl/container:flat_hash_set",
+        "@abseil-cpp//absl/functional:function_ref",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/types:span",
+    ],
+)
+
+cc_test(
+    name = "visibility_contracted_dag_test",
+    srcs = ["visibility_contracted_dag_test.cc"],
+    deps = [
+        ":visibility_contracted_dag",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/data_structures:binary_decision_diagram",
+        "//xls/ir",
+        "//xls/ir:function_builder",
+        "//xls/ir:ir_test_base",
+        "@googletest//:gtest",
+    ],
+)
+
+cc_library(
     name = "visibility_analysis",
     srcs = ["visibility_analysis.cc"],
     hdrs = ["visibility_analysis.h"],
@@ -1867,6 +1897,7 @@ cc_library(
         ":node_dependency_analysis",
         ":post_dominator_analysis",
         ":query_engine",
+        ":visibility_contracted_dag",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "//xls/data_structures:binary_decision_diagram",
@@ -1882,7 +1913,6 @@ cc_library(
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:statusor",
-        "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/strings:str_format",
         "@abseil-cpp//absl/types:span",
         "@cppitertools",
