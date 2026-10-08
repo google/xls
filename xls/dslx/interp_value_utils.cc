@@ -1049,23 +1049,21 @@ absl::StatusOr<InterpValue> CreateChannelReferenceOrArray(
     int64_t array_id = channel_instance_allocator.has_value()
                            ? (*channel_instance_allocator)()
                            : 0;
-    std::optional<const ChannelType*> ct =
-        array_type.GetDirectOrElementChannelType();
     ChannelDirection direction =
-        ct.has_value() ? (*ct)->direction() : ChannelDirection::kIn;
+        GetChannelLikeDirection(array_type).value_or(ChannelDirection::kIn);
     return InterpValue::MakeChannelArray(
         direction, array_id, definer.has_value() ? *definer : nullptr,
         elements);
   }
 
-  XLS_RET_CHECK(type->IsChannel())
-      << "Expected channel type but got: " << type->ToString();
-  const ChannelType& ct = type->AsChannel();
+  std::optional<ChannelDirection> direction = GetChannelLikeDirection(*type);
+  XLS_RET_CHECK(direction.has_value())
+      << "Expected channel or io object type but got: " << type->ToString();
   std::optional<int64_t> channel_instance_id =
       channel_instance_allocator.has_value()
           ? std::make_optional((*channel_instance_allocator)())
           : std::nullopt;
-  return InterpValue::MakeChannelReference(ct.direction(), channel_instance_id,
+  return InterpValue::MakeChannelReference(*direction, channel_instance_id,
                                            definer);
 }
 
