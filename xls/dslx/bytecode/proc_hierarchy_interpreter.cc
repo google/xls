@@ -453,7 +453,7 @@ absl::Status ProcHierarchyInterpreter::AddProcDefInstance(
                          next_ti->GetItemOrError(member));
     VLOG(5) << "Initializing member " << member->name() << " of proc "
             << proc->identifier();
-    if (member_type->GetDirectOrElementChannelType().has_value()) {
+    if (GetChannelLikeDirection(*member_type).has_value()) {
       XLS_RETURN_IF_ERROR(AllocateChannelOrArray(proc, member_values[i]));
     } else {
       VLOG(5) << "Setting state value for " << member->name() << " in proc "

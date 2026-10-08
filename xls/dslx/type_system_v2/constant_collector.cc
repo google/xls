@@ -811,6 +811,12 @@ class Visitor : public AstNodeVisitorWithDefault {
       if (it != replacements.end()) {
         return it->second;
       }
+    } else if (definer.has_value() &&
+               (*definer)->kind() == AstNodeKind::kStructMember &&
+               internal_arg.IsChannelReference()) {
+      return InterpValue::MakeChannelReference(
+          internal_arg.GetChannelReferenceOrDie().GetDirection(),
+          ++*next_channel_id_, *definer);
     }
 
     if (internal_arg.IsChannelArray()) {
@@ -832,8 +838,8 @@ class Visitor : public AstNodeVisitorWithDefault {
       if (replaced_any) {
         return InterpValue::MakeChannelArray(
             internal_arg.GetChannelArrayOrDie().direction(),
-            internal_arg.GetChannelArrayOrDie().channel_array_id(),
-            internal_arg.GetChannelArrayOrDie().definer(), new_elements);
+            ++*next_channel_id_, internal_arg.GetChannelArrayOrDie().definer(),
+            new_elements);
       }
     }
 
@@ -943,12 +949,30 @@ class Visitor : public AstNodeVisitorWithDefault {
     absl::flat_hash_set<const Param*> retained_params;
     const ProcType& type = type_.AsProc();
     std::vector<InterpValue> member_values;
-    for (const auto& [member_name, initializer] :
-         node->GetOrderedMembers(&type.AsProc().struct_def_base())) {
+    member_values.reserve(type.struct_def_base().members().size());
+    for (const StructMemberNode* member : type.struct_def_base().members()) {
+      const std::string& member_name = member->name();
       std::optional<const Type*> maybe_member_type =
           type.GetMemberTypeByName(member_name);
       XLS_RET_CHECK(maybe_member_type.has_value());
 
+      // Default-initialize the potential IoObject member if no initializer is
+      // provided.
+      absl::StatusOr<Expr*> maybe_initializer = node->GetExpr(member_name);
+      if (!maybe_initializer.ok()) {
+        XLS_RET_CHECK(absl::IsNotFound(maybe_initializer.status()));
+        XLS_ASSIGN_OR_RETURN(
+            InterpValue value,
+            CreateChannelReferenceOrArray(
+                *maybe_member_type, [this] { return ++*next_channel_id_; },
+                /*definer=*/member));
+        ti_->NoteConstExpr(member, value);
+        ti_->NoteConstExpr(member->name_def(), value);
+        member_values.push_back(std::move(value));
+        continue;
+      }
+
+      Expr* initializer = *maybe_initializer;
       absl::StatusOr<InterpValue> value = ConstexprEvaluator::EvaluateToValue(
           &import_data_, ti_, &warning_collector_,
           table_.GetParametricEnv(parametric_context_), initializer);

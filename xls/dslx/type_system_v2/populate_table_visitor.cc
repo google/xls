@@ -2162,17 +2162,25 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
       absl::btree_set<std::string> missing_set;
       absl::c_set_difference(formal_names, actual_names,
                              std::inserter(missing_set, missing_set.begin()));
-      std::vector<std::string> missing(missing_set.begin(), missing_set.end());
-      return TypeInferenceErrorStatus(
-          instance.span(), nullptr,
-          absl::Substitute(
-              "Instance of struct `$0` is missing member(s): $1",
-              def.identifier(),
-              absl::StrJoin(missing, ", ",
-                            [](std::string* out, const std::string& piece) {
-                              absl::StrAppendFormat(out, "`%s`", piece);
-                            })),
-          file_table_);
+      if (def.kind() == AstNodeKind::kProcDef) {
+        for (const StructMemberNode* member : def.members()) {
+          if (IsIoObjectAnnotation(member->type())) {
+            missing_set.erase(member->name());
+          }
+        }
+      }
+      if (!missing_set.empty()) {
+        return TypeInferenceErrorStatus(
+            instance.span(), nullptr,
+            absl::Substitute(
+                "Instance of struct `$0` is missing member(s): $1",
+                def.identifier(),
+                absl::StrJoin(missing_set, ", ",
+                              [](std::string* out, const std::string& piece) {
+                                absl::StrAppendFormat(out, "`%s`", piece);
+                              })),
+            file_table_);
+      }
     }
     return absl::OkStatus();
   }
