@@ -14,19 +14,29 @@
 
 #include <filesystem>
 #include <memory>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <utility>
+#include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status_matchers.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/substitute.h"
 #include "xls/common/status/matchers.h"
+#include "xls/common/status/ret_check.h"
+#include "xls/common/status/status_macros.h"
 #include "xls/dslx/create_import_data.h"
 #include "xls/dslx/default_dslx_stdlib_path.h"
+#include "xls/dslx/frontend/ast.h"
+#include "xls/dslx/frontend/module.h"
 #include "xls/dslx/import_data.h"
+#include "xls/dslx/interp_value.h"
+#include "xls/dslx/parse_and_typecheck.h"
+#include "xls/dslx/type_system/type_info.h"
 #include "xls/dslx/type_system/typecheck_test_utils.h"
 #include "xls/dslx/type_system_v2/matchers.h"
 #include "xls/dslx/virtualizable_file_system.h"
@@ -1183,6 +1193,126 @@ fn f() -> u32 { u32:0 }
                        kAllWarningsSet, std::move(vfs));
 
   XLS_EXPECT_OK(TypecheckV2(kProgram, "main", &import_data));
+}
+
+TEST(TypecheckV2ProcTest, SourceImplMethodIsCallableOnProcMember) {
+  EXPECT_THAT(R"(
+#![feature(io_objects)]
+proc P {
+    input: Source<u32>,
+}
+impl P {
+    fn new() -> Self { P {} }
+    fn next(self) { self.input.recv(); }
+}
+)",
+              TypecheckSucceeds(::testing::_));
+}
+
+TEST(TypecheckV2ProcTest, SinkImplMethodIsCallableOnProcMember) {
+  EXPECT_THAT(R"(
+#![feature(io_objects)]
+proc P {
+    output: Sink<u32>,
+}
+impl P {
+    fn new() -> Self { P {} }
+    fn next(self) { self.output.send(u32:0); }
+}
+)",
+              TypecheckSucceeds(::testing::_));
+}
+
+TEST(TypecheckV2ProcTest, UndefinedImplMethodOnProcMemberIsRejected) {
+  EXPECT_THAT(
+      R"(
+#![feature(io_objects)]
+proc P {
+    input: Source<u32>,
+}
+impl P {
+    fn new() -> Self { P {} }
+    fn next(self) { self.input.no_such_method(); }
+}
+)",
+      TypecheckFails(HasSubstr("Name 'no_such_method' is not defined by the "
+                               "impl for struct 'Source'")));
+}
+
+TEST(TypecheckV2ProcTest, SinkMethodOnSourceMemberIsRejected) {
+  EXPECT_THAT(
+      R"(
+#![feature(io_objects)]
+proc P {
+    input: Source<u32>,
+}
+impl P {
+    fn new() -> Self { P {} }
+    fn next(self) { self.input.send(u32:0); }
+}
+)",
+      TypecheckFails(
+          HasSubstr("Name 'send' is not defined by the impl for struct "
+                    "'Source'")));
+}
+
+// Returns the only canonical initializer of the proc named `proc_name`.
+absl::StatusOr<InterpValue> GetCanonicalInitializer(
+    const TypecheckedModule& tm, std::string_view proc_name) {
+  XLS_ASSIGN_OR_RETURN(ProcDef * proc,
+                       tm.module->GetMemberOrError<ProcDef>(proc_name));
+  XLS_ASSIGN_OR_RETURN(std::vector<ProcInitializerWithTypeInfo> initializers,
+                       tm.type_info->GetCanonicalProcInitializers(proc));
+  XLS_RET_CHECK_EQ(initializers.size(), 1);
+  return initializers[0].initializer;
+}
+
+// Returns the value of `member_name` in the proc initializer `proc`.
+absl::StatusOr<InterpValue> GetMemberValue(const InterpValue& proc,
+                                           std::string_view member_name) {
+  const InterpValue::ProcInitializer& initializer =
+      proc.GetProcInitializerOrDie();
+  std::optional<StructMemberNode*> member =
+      initializer.proc_def()->GetMemberByName(member_name);
+  XLS_RET_CHECK(member.has_value());
+  return initializer.GetMemberValue(*member);
+}
+
+// Returns the kind of node that defined the channel `value`.
+AstNodeKind GetChannelDefinerKind(const InterpValue& value) {
+  return (*value.GetChannelReferenceOrDie().GetDefiner())->kind();
+}
+
+TEST(TypecheckV2ProcTest, OmittedIoObjectMembersAreDefinedByMember) {
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(R"(
+#![feature(io_objects)]
+proc P { input: Source<u32>, output: Sink<u32> }
+impl P { fn new() -> Self { P {} } }
+)"));
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue p,
+                           GetCanonicalInitializer(result.tm, "P"));
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue input, GetMemberValue(p, "input"));
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue output, GetMemberValue(p, "output"));
+  EXPECT_EQ(GetChannelDefinerKind(input), AstNodeKind::kStructMember);
+  EXPECT_EQ(GetChannelDefinerKind(output), AstNodeKind::kStructMember);
+}
+
+TEST(TypecheckV2ProcTest, DefaultIoObjectMembersAreDistinctPerInstance) {
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(R"(
+#![feature(io_objects)]
+proc Child { input: Source<u32> }
+impl Child { fn new() -> Self { Child {} } }
+proc Parent { a: Child, b: Child }
+impl Parent { fn new() -> Self { Parent { a: Child::new(), b: Child::new() } } }
+)"));
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue parent,
+                           GetCanonicalInitializer(result.tm, "Parent"));
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue a, GetMemberValue(parent, "a"));
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue b, GetMemberValue(parent, "b"));
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue a_input, GetMemberValue(a, "input"));
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue b_input, GetMemberValue(b, "input"));
+  EXPECT_NE(a_input.GetChannelReferenceOrDie().GetChannelId(),
+            b_input.GetChannelReferenceOrDie().GetChannelId());
 }
 
 }  // namespace

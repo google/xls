@@ -369,7 +369,8 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
     std::optional<bool> callee_noted_requires_token =
         callee_ti->GetRequiresImplicitToken(*callee_fn);
     bool callee_requires_implicit_token =
-        (IsBuiltin(callee_fn) && GetBuiltinFnRequiresImplicitToken(callee)) ||
+        (IsBuiltin(callee_fn) && !callee_fn->IsMethod() &&
+         GetBuiltinFnRequiresImplicitToken(callee)) ||
         (callee_noted_requires_token.has_value() &&
          *callee_noted_requires_token);
     if (callee_requires_implicit_token) {

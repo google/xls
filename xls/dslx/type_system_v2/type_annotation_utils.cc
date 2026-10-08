@@ -528,13 +528,9 @@ std::vector<int> GetBindingIndicesWithGenericTvtasLast(
 
 bool IsIoObjectAnnotation(const TypeAnnotation* annotation) {
   if (auto* tr_type = dynamic_cast<const TypeRefTypeAnnotation*>(annotation)) {
-    TypeDefinition def = tr_type->type_ref()->type_definition();
+    const TypeDefinition& def = tr_type->type_ref()->type_definition();
     if (std::holds_alternative<StructDef*>(def)) {
-      const StructDef* struct_def = std::get<StructDef*>(def);
-      std::string_view name = struct_def->identifier();
-      return struct_def->owner()->name() == kBuiltinStubsModuleName &&
-             (name == kBuiltinSourceStructName ||
-              name == kBuiltinSinkStructName);
+      return IsBuiltinIoObjectDef(std::get<StructDef*>(def));
     }
   }
   if (annotation->IsAnnotation<ArrayTypeAnnotation>()) {
