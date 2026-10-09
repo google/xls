@@ -675,11 +675,19 @@ class InferenceTableImpl : public InferenceTable {
   absl::StatusOr<std::vector<const Invocation*>>
   GetInvocationsFeedingTypeVariable(const NameRef* ref) const override {
     XLS_ASSIGN_OR_RETURN(const InferenceVariable* variable, GetVariable(ref));
-    const auto it = invocations_feeding_type_variable_.find(variable);
-    if (it == invocations_feeding_type_variable_.end()) {
-      return std::vector<const Invocation*>{};
+    std::vector<const Invocation*> result;
+    const auto it = invocations_by_type_variable_.find(variable);
+    if (it != invocations_by_type_variable_.end()) {
+      // Population can associate a parent-assigned type variable with an
+      // invocation before that invocation is classified. Only current function
+      // calls are prerequisites; sum constructors must not be resolved as such.
+      absl::c_copy_if(it->second, std::back_inserter(result),
+                      [](const Invocation* invocation) {
+                        return invocation->callee_kind() ==
+                               Invocation::CalleeKind::kFunction;
+                      });
     }
-    return it->second;
+    return result;
   }
 
   void SetColonRefTarget(const ColonRef* colon_ref,
@@ -746,7 +754,8 @@ class InferenceTableImpl : public InferenceTable {
                 absl::down_cast<const TypeAnnotation*>(new_node), flag);
           }
         }
-        if (old_node->kind() == AstNodeKind::kColonRef) {
+        if (old_node->kind() == AstNodeKind::kColonRef &&
+            new_node->kind() == AstNodeKind::kColonRef) {
           const auto* old_node_as_colon_ref =
               absl::down_cast<const ColonRef*>(old_node);
           std::optional<const AstNode*> target =
@@ -990,9 +999,9 @@ class InferenceTableImpl : public InferenceTable {
                                 (*old_variable)->name_ref());
     }
     if (node_data.type_variable.has_value()) {
-      if (node->kind() == AstNodeKind::kInvocation) {
-        invocations_feeding_type_variable_[*node_data.type_variable].push_back(
-            absl::down_cast<const Invocation*>(node));
+      if (const auto* invocation = dynamic_cast<const Invocation*>(node)) {
+        invocations_by_type_variable_[*node_data.type_variable].push_back(
+            invocation);
       }
       cache_.InvalidateVariable(/*parametric_context=*/std::nullopt,
                                 (*node_data.type_variable)->name_ref());
@@ -1049,8 +1058,10 @@ class InferenceTableImpl : public InferenceTable {
   absl::flat_hash_map<const ParametricContext*,
                       absl::flat_hash_map<const NameDef*, ExprOrType>>
       parametric_value_exprs_;
+  // Includes invocations not yet classified or later identified as sum
+  // constructors. GetInvocationsFeedingTypeVariable selects function calls.
   absl::flat_hash_map<const InferenceVariable*, std::vector<const Invocation*>>
-      invocations_feeding_type_variable_;
+      invocations_by_type_variable_;
   absl::flat_hash_map<const Invocation*, const Function*>
       callees_with_no_caller_context_;
   UnificationCache cache_;

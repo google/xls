@@ -19,6 +19,7 @@
 #include <optional>
 #include <vector>
 
+#include "absl/functional/function_ref.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "xls/dslx/frontend/ast.h"
@@ -64,8 +65,9 @@ const TypeAnnotation* SignednessAndSizeToAnnotation(
 // annotations that have been associated with the given type variable. If the
 // information has unreconcilable conflicts, returns an error. The given
 // `parametric_context` argument is used as a context for the evaluation of any
-// expressions inside the type annotations. If a `filter` is  then annotations
-// not accepted by the filter are ignored.
+// expressions inside the type annotations. `resolve_type_annotation` resolves
+// annotations represented by type-reference values in the caller's context
+// before they are compared. The callback is borrowed for this synchronous call.
 absl::StatusOr<const TypeAnnotation*> UnifyTypeAnnotations(
     Module& module, InferenceTable& inference_table,
     const FileTable& file_table, UnificationErrorGenerator& error_generator,
@@ -73,7 +75,10 @@ absl::StatusOr<const TypeAnnotation*> UnifyTypeAnnotations(
     ParametricStructInstantiator& parametric_struct_instantiator,
     std::optional<const ParametricContext*> parametric_context,
     std::vector<const TypeAnnotation*> annotations, const Span& span,
-    const ImportData& import_data);
+    ImportData& import_data,
+    absl::FunctionRef<
+        absl::StatusOr<const TypeAnnotation*>(const TypeAnnotation*)>
+        resolve_type_annotation);
 
 }  // namespace xls::dslx
 

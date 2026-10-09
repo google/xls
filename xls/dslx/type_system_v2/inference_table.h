@@ -584,8 +584,8 @@ class InferenceTable {
       std::optional<const ParametricContext*> parametric_context,
       const NameDef* variable) const = 0;
 
-  // Returns the `Invocation` nodes that feed information into the given type
-  // variable.
+  // Returns the function-call `Invocation` nodes that feed information into
+  // the given type variable. Sum constructors are not function prerequisites.
   virtual absl::StatusOr<std::vector<const Invocation*>>
   GetInvocationsFeedingTypeVariable(const NameRef* variable) const = 0;
 

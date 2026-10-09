@@ -109,6 +109,7 @@ cc_library(
         "//xls/dslx/type_system:type_info",
         "//xls/dslx/type_system:type_zero_value",
         "//xls/dslx/type_system:unwrap_meta_type",
+        "//xls/dslx/type_system_v2:import_utils",
         "//xls/ir:bits",
         "//xls/ir:format_preference",
         "//xls/ir:format_strings",

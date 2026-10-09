@@ -29,12 +29,15 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/errors.h"
 #include "xls/dslx/frontend/ast.h"
+#include "xls/dslx/frontend/bindings.h"
 #include "xls/dslx/frontend/module.h"
 #include "xls/dslx/frontend/semantics_analysis.h"
 #include "xls/dslx/import_data.h"
+#include "xls/dslx/import_routines.h"
 #include "xls/dslx/type_system/type.h"
 #include "xls/dslx/type_system/type_info.h"
 #include "xls/dslx/type_system_v2/decorate_error.h"
+#include "xls/dslx/type_system_v2/import_utils.h"
 #include "xls/dslx/type_system_v2/inference_table.h"
 #include "xls/dslx/type_system_v2/inference_table_converter.h"
 #include "xls/dslx/type_system_v2/inference_table_converter_impl.h"
@@ -47,6 +50,33 @@
 #include "xls/tools/typecheck_flags.pb.h"
 
 namespace xls::dslx {
+namespace {
+
+// Constructor classification needs imported declarations before local type
+// inference begins.
+absl::Status LoadImports(Module& module, ImportData& import_data,
+                         const TypecheckModuleFn& typecheck_imported_module) {
+  for (const ModuleMember& member : module.top()) {
+    if (const auto* import = std::get_if<Import*>(&member)) {
+      XLS_RETURN_IF_ERROR(DoImport(typecheck_imported_module,
+                                   ImportTokens((*import)->subject()),
+                                   &import_data, (*import)->span(),
+                                   import_data.vfs())
+                              .status());
+    } else if (const auto* use = std::get_if<Use*>(&member)) {
+      for (UseSubject& subject : (*use)->LinearizeToSubjects()) {
+        XLS_RETURN_IF_ERROR(
+            DoImportViaUse(typecheck_imported_module, subject, &import_data,
+                           subject.name_def().span(), import_data.file_table(),
+                           import_data.vfs())
+                .status());
+      }
+    }
+  }
+  return absl::OkStatus();
+}
+
+}  // namespace
 
 absl::StatusOr<std::unique_ptr<ModuleInfo>> TypecheckModuleV2(
     std::unique_ptr<Module> module, std::filesystem::path path,
@@ -54,7 +84,6 @@ absl::StatusOr<std::unique_ptr<ModuleInfo>> TypecheckModuleV2(
     std::unique_ptr<SemanticsAnalysis> semantics_analysis,
     TypeInferenceErrorHandler error_handler,
     std::optional<TraitDeriver*> trait_deriver) {
-  std::string_view module_name = module->name();
   const bool top_module = !import_data->HasInferenceTable();
   if (top_module) {
     VLOG(3) << "Using type system v2 for type checking of " << path;
@@ -77,6 +106,10 @@ absl::StatusOr<std::unique_ptr<ModuleInfo>> TypecheckModuleV2(
                                  std::move(semantics_analysis), error_handler,
                                  trait_deriver);
       };
+  XLS_RETURN_IF_ERROR(
+      LoadImports(*module, *import_data, typecheck_imported_module));
+  XLS_RETURN_IF_ERROR(ClassifySumConstructors(module.get(), *import_data));
+  std::string_view module_name = module->name();
   if (semantics_analysis != nullptr) {
     XLS_RETURN_IF_ERROR(semantics_analysis->RunPreTypeCheckPass(
         *module, *warnings, *import_data, typecheck_imported_module));

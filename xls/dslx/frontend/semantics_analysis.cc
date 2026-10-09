@@ -230,8 +230,15 @@ class SideEffectExpressionFinder : public AstNodeVisitorWithDefault {
   SideEffectExpressionFinder() : has_side_effect_(false) {}
 
   absl::Status HandleInvocation(const Invocation* node) override {
-    has_side_effect_ = true;
-    return absl::OkStatus();
+    if (node->callee_kind() == Invocation::CalleeKind::kSumConstructor) {
+      for (const Expr* arg : node->args()) {
+        XLS_RETURN_IF_ERROR(arg->Accept(this));
+      }
+      return absl::OkStatus();
+    } else {
+      has_side_effect_ = true;
+      return absl::OkStatus();
+    }
   }
 
   absl::Status HandleSpawn(const Spawn* node) override {

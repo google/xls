@@ -49,7 +49,7 @@ const Y = all_ones!<E>();)",
 TEST(TypecheckV2Test, EnumBool) {
   EXPECT_THAT(
       R"(
-enum MyEnum {
+enum MyEnum : u1 {
   A = false,
   B = true,
 }
@@ -68,7 +68,7 @@ const_assert!(MyEnum::B as u1 == u1:1);
 TEST(TypecheckV2Test, EnumInt) {
   EXPECT_THAT(
       R"(
-enum MyEnum {
+enum MyEnum : s8 {
   A = s8:0,
   B = -128,
   C = 127,
@@ -103,7 +103,7 @@ TEST(TypecheckV2Test, EnumMixedConstLiterals) {
       R"(
 const X = u8:42;
 const Y = u8:10;
-enum MyEnum {
+enum MyEnum : u8 {
   A = 64,
   B = X,
   C = Y + Y,
@@ -140,10 +140,10 @@ enum MyEnum : u8 {
       TypecheckFails(HasTypeMismatch("u8[1]", "u8")));
 }
 
-TEST(TypecheckV2Test, EmptyEnumIsSemanticSum) {
+TEST(TypecheckV2Test, EmptySumTypeDefinition) {
   EXPECT_THAT(
       R"(
-enum Never {
+enum MyEnum {
 }
 )",
       TypecheckSucceeds(::testing::_));
@@ -285,7 +285,7 @@ const_assert!(!f<MyEnum::B>());
 
 TEST(TypecheckV2Test, ImportedEnum) {
   constexpr std::string_view kImported = R"(
-pub enum MyEnum {
+pub enum MyEnum : s8 {
   A = s8:0,
   B = -128,
   C = 127,
@@ -310,7 +310,7 @@ const_assert!(imported::MyEnum::C as s8 == 127);
 
 TEST(TypecheckV2Test, ImportedEnumAsType) {
   constexpr std::string_view kImported = R"(
-pub enum MyEnum {
+pub enum MyEnum : s8 {
   A = s8:0,
   B = -128,
   C = 127,
@@ -338,7 +338,7 @@ fn f(x: A) -> A {
 
 TEST(TypecheckV2Test, ImportedEnumAsTypeTwoLevel) {
   constexpr std::string_view kFirst = R"(
-pub enum MyEnum {
+pub enum MyEnum : s8 {
   A = s8:0,
   B = -128,
   C = 127,

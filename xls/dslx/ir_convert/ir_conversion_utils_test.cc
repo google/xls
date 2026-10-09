@@ -13,6 +13,7 @@
 // limitations under the License.
 #include "xls/dslx/ir_convert/ir_conversion_utils.h"
 
+#include <functional>
 #include <memory>
 #include <optional>
 #include <utility>
@@ -91,7 +92,9 @@ class IrConversionUtilsSemanticSumTest : public ::testing::Test {
 
     std::vector<SumTypeVariant> variants;
     variants.push_back(SumTypeVariant::MakeUnit(*variant));
-    sum_type_ = std::make_unique<SumType>(*sum_def, std::move(variants));
+    sum_type_ = std::make_unique<SumType>(
+        *sum_def, std::move(variants),
+        SumType::SelectedZeroVariant{std::cref(*variant)});
   }
 
   FileTable file_table_;

@@ -112,6 +112,19 @@ TypeAnnotation* CreateStructOrProcAnnotation(Module& module,
                                       ref.parametrics, std::nullopt);
 }
 
+TypeAnnotation* CreateSumAnnotation(
+    Module& module, SumDef* def, std::vector<ExprOrType> parametrics,
+    std::optional<SumConstructorExpr> instantiator) {
+  return module.Make<TypeRefTypeAnnotation>(
+      def->span(), module.Make<TypeRef>(def->span(), def),
+      std::move(parametrics), std::nullopt, instantiator);
+}
+
+TypeAnnotation* CreateSumAnnotation(Module& module, const SumRef& ref) {
+  return CreateSumAnnotation(module, const_cast<SumDef*>(ref.def),
+                             ref.parametrics, ref.instantiator);
+}
+
 ChannelTypeAnnotation* GetChannelArrayElementType(
     Module& module, const ChannelTypeAnnotation* channel_array_type) {
   std::optional<std::vector<Expr*>> rest_of_dims;
@@ -243,11 +256,11 @@ absl::StatusOr<TypeAnnotation*> CreateAnnotationSizedToFit(
   switch (number.number_kind()) {
     case NumberKind::kCharacter:
       return module.Make<BuiltinTypeAnnotation>(
-          Span::None(), BuiltinType::kU8,
+          number.span(), BuiltinType::kU8,
           module.GetOrCreateBuiltinNameDef("u8"));
     case NumberKind::kBool:
       return module.Make<BuiltinTypeAnnotation>(
-          Span::None(), BuiltinType::kBool,
+          number.span(), BuiltinType::kBool,
           module.GetOrCreateBuiltinNameDef("bool"));
     case NumberKind::kOther: {
       auto sign_and_mag = GetSignAndMagnitude(number.text());
@@ -263,7 +276,7 @@ absl::StatusOr<TypeAnnotation*> CreateAnnotationSizedToFit(
                                         file_table);
       }
       const bool is_negative = sign_and_mag->first == Sign::kNegative;
-      return CreateUnOrSnAnnotation(module, Span::None(), is_negative,
+      return CreateUnOrSnAnnotation(module, number.span(), is_negative,
                                     raw_bits->bit_count());
     }
   }
@@ -504,15 +517,15 @@ bool IsTvtaToGeneric(const TypeAnnotation* type_annotation) {
 }
 
 std::vector<int> GetBindingIndicesWithGenericTvtasLast(
-    const StructDefBase* def) {
+    const std::vector<ParametricBinding*>& bindings) {
   std::vector<int> results;
-  for (int i = 0; i < def->parametric_bindings().size(); i++) {
-    if (!IsTvtaToGeneric(def->parametric_bindings()[i]->type_annotation())) {
+  for (int i = 0; i < bindings.size(); i++) {
+    if (!IsTvtaToGeneric(bindings[i]->type_annotation())) {
       results.push_back(i);
     }
   }
-  for (int i = 0; i < def->parametric_bindings().size(); i++) {
-    if (IsTvtaToGeneric(def->parametric_bindings()[i]->type_annotation())) {
+  for (int i = 0; i < bindings.size(); i++) {
+    if (IsTvtaToGeneric(bindings[i]->type_annotation())) {
       results.push_back(i);
     }
   }

@@ -206,10 +206,18 @@ class InvocationVisitor : public ExprVisitor {
   }
 
   absl::Status HandleInvocation(const Invocation* node) override {
-    std::optional<CalleeInfo> callee_info;
     for (const Expr* arg : node->args()) {
       XLS_RETURN_IF_ERROR(arg->AcceptExpr(this));
     }
+    if (node->callee_kind() == Invocation::CalleeKind::kSumConstructor) {
+      return absl::OkStatus();
+    } else {
+      return HandleFunctionInvocation(node);
+    }
+  }
+
+  absl::Status HandleFunctionInvocation(const Invocation* node) {
+    std::optional<CalleeInfo> callee_info;
 
     std::optional<const InvocationData*> inv_data =
         type_info_->GetInvocationData(node);
