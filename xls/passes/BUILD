@@ -73,6 +73,7 @@ xls_pass_registry(
         ":basic_simplification_pass",
         ":bdd_cse_pass",
         ":bit_slice_simplification_pass",
+        ":bitwise_recombination_pass",
         ":bitwise_simplification_pass",
         ":boolean_simplification_pass",
         ":canonicalization_pass",
@@ -681,6 +682,52 @@ xls_pass(
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings:str_format",
         "@abseil-cpp//absl/types:span",
+    ],
+)
+
+xls_pass(
+    name = "bitwise_recombination_pass",
+    srcs = ["bitwise_recombination_pass.cc"],
+    hdrs = ["bitwise_recombination_pass.h"],
+    pass_class = "BitwiseRecombinationPass",
+    deps = [
+        ":optimization_pass",
+        ":pass_base",
+        "//xls/common:math_util",
+        "//xls/common/status:ret_check",
+        "//xls/common/status:status_macros",
+        "//xls/data_structures:inline_bitmap",
+        "//xls/ir",
+        "//xls/ir:bits",
+        "//xls/ir:op",
+        "//xls/ir:source_location",
+        "//xls/ir:value",
+        "@abseil-cpp//absl/algorithm:container",
+        "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/types:span",
+    ],
+)
+
+cc_test(
+    name = "bitwise_recombination_pass_test",
+    srcs = ["bitwise_recombination_pass_test.cc"],
+    deps = [
+        ":bitwise_recombination_pass",
+        ":dce_pass",
+        ":optimization_pass",
+        ":pass_base",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/common/status:status_macros",
+        "//xls/ir",
+        "//xls/ir:bits",
+        "//xls/ir:function_builder",
+        "//xls/ir:ir_matcher",
+        "//xls/ir:ir_test_base",
+        "//xls/solvers:ir_equivalence_testutils",
+        "@abseil-cpp//absl/status:statusor",
+        "@googletest//:gtest",
     ],
 )
 

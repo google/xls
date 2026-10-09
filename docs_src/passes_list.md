@@ -1067,6 +1067,48 @@ generation.
 
 
 
+## bitwise_recombine - bitwise recombination {#bitwise_recombine}
+
+
+Pass which recombines concats of contiguous bit slices & inverted bit slices
+from a single source node (and constants) into masked bitwise operations.
+
+The pass uses 1D dynamic programming optimal partitioning to balance
+readability:
+  - Identifies localized sub-runs that can be merged into clean 1-gate masks
+    (nibble-aligned or periodic, e.g. x ^ 0x5555).
+  - Naturally peels boundary constants (e.g. address alignment or padding)
+    to form clean hybrid concats like {x[31:8] ^ 24'h555555, 8'b0}.
+  - Preserves coarse struct/bus layouts where non-aligned hex masks would be
+    unreadable.
+  - Recombines dense bit-salad into 2-gate operations when the splinter count
+    is high.
+
+Recombined operations are composed in NOT -> AND -> XOR -> OR order:
+  - all inverted slices                 => not(x)
+  - raw and inverted slices             => (x ^ mask)
+  - raw slices and 0 literals           => (x & mask)
+  - raw slices and 1 literals           => (x | mask)
+  - raw slices, 0s, and 1s (no inv)     => ((x & mask_and) | mask_or)
+  - inverted and 1s (no raw)            => (not(x) | mask_or)
+  - raw, inverted, and 1s               => ((x ^ mask_xor) | mask_or)
+  - inverted and 0s (no raw)            => (not(x) & mask_and)
+  - raw, inverted, and 0s               => ((x & mask_and) ^ mask_xor)
+  - inverted, 0s, and 1s (no raw)       => ((not(x) & mask_and) | mask_or)
+  - all four (raw, inv, 0s, 1s)         => ((x & mask_and) ^ mask_xor)
+
+This is typically run late in the compiler pipeline (e.g. in codegen 1.5
+block cleanup and optimization) to fold un-cancelled bitwise splits back into
+clean, idiomatic hardware operations before Verilog emission.
+
+
+[Header](http://github.com/google/xls/tree/main/xls/passes/bitwise_recombination_pass.h)
+
+
+
+
+
+
 ## bitwise_simp - bitwise simplification {#bitwise_simp}
 
 
