@@ -8554,5 +8554,33 @@ pub fn main() -> u32 {
                HasSubstr("Warnings encountered and warnings-as-errors set")));
 }
 
+TEST_F(IrConverterTest, ConvertTraceFmtStringFormatting) {
+  constexpr std::string_view kModule = R"(
+proc TestProc {
+    message_r: chan<u8[16]> in
+}
+
+impl TestProc {
+  fn new(message_r: chan<u8[16]> in) -> Self {
+    TestProc { message_r }
+  }
+
+  fn next(self) {
+    let (tok, message) = recv(join(), self.message_r);
+    trace_fmt!("The message is {:s}", message);
+  }
+}
+)";
+
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(kModule, "test_module.x", "test_module", &import_data));
+  XLS_ASSERT_OK_AND_ASSIGN(PackageConversionData conv,
+                           ConvertModuleToPackage(tm.module, &import_data,
+                                                  kProcScopedChannelOptions));
+  ExpectIr(conv.DumpIr());
+}
+
 }  // namespace
 }  // namespace xls::dslx

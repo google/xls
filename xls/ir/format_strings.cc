@@ -110,6 +110,11 @@ absl::StatusOr<std::vector<FormatStep>> ParseFormatString(
       steps.push_back(FormatPreference::kBinary);
       continue;
     }
+    if (consume_substr("{:s}")) {
+      push_fragment();
+      steps.push_back(FormatPreference::kString);
+      continue;
+    }
     if (format_string[i] == '{') {
       size_t close_pos = format_string.find('}', i);
       if (close_pos != std::string_view::npos) {

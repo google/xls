@@ -337,6 +337,19 @@ TEST_P(VastTest, DataTypes) {
   EXPECT_FALSE(bv_max->width().has_value());
   ASSERT_TRUE(bv_max->max().has_value());
   EXPECT_EQ((*bv_max->max())->Emit(nullptr), "10 * 5");
+
+  Def* int_def = f.Make<Def>(SourceInfo(), "my_int", DataKind::kInteger,
+                             f.IntegerType(SourceInfo()));
+  int_def->automatic(true);
+  EXPECT_EQ(int_def->Emit(/*line_info=*/nullptr), "automatic integer my_int;");
+
+  if (f.use_system_verilog()) {
+    DataType* str = f.StringType(SourceInfo());
+    EXPECT_EQ(str->EmitWithIdentifier(/*dims=*/nullptr, "foo"), "string foo");
+
+    Def* str_def = f.Make<Def>(SourceInfo(), "my_str", DataKind::kString, str);
+    EXPECT_EQ(str_def->Emit(/*line_info=*/nullptr), "string my_str;");
+  }
 }
 
 TEST_P(VastTest, ModuleWithManyVariableDefinitions) {
@@ -806,6 +819,15 @@ TEST_P(VastTest, ReturnStatement) {
                           f.PlainLiteral(10, SourceInfo()), SourceInfo()));
   EXPECT_EQ(statement->Emit(nullptr), "return 2 * 10;");
   EXPECT_EQ(statement->expr()->Emit(nullptr), "2 * 10");
+}
+
+TEST_P(VastTest, BreakStatement) {
+  VerilogFile f(GetFileType());
+  if (!f.use_system_verilog()) {
+    GTEST_SKIP();
+  }
+  BreakStatement* statement = f.Make<BreakStatement>(SourceInfo());
+  EXPECT_EQ(statement->Emit(/*line_info=*/nullptr), "break;");
 }
 
 TEST_P(VastTest, Case) {
@@ -1871,6 +1893,27 @@ TEST_P(VastTest, SimpleConditional) {
       SourceInfo(), output, f.Literal(1, 1, SourceInfo()));
   EXPECT_EQ(if_statement->Emit(nullptr),
             R"(if (input) begin
+  output = 1'h1;
+end)");
+}
+
+TEST_P(VastTest, ConditionalWithLabel) {
+  VerilogFile f(GetFileType());
+  Module* m = f.AddModule("top", SourceInfo());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * input,
+      m->AddInput("input", f.BitVectorType(1, SourceInfo()), SourceInfo()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * output,
+      m->AddReg("output", f.BitVectorType(1, SourceInfo()), SourceInfo()));
+  AlwaysComb* ac = m->Add<AlwaysComb>(SourceInfo());
+  Conditional* if_statement =
+      ac->statements()->Add<Conditional>(SourceInfo(), input);
+  if_statement->consequent()->Add<BlockingAssignment>(
+      SourceInfo(), output, f.Literal(1, 1, SourceInfo()));
+  if_statement->consequent()->label("cond_blk");
+  EXPECT_EQ(if_statement->Emit(nullptr),
+            R"(if (input) begin : cond_blk
   output = 1'h1;
 end)");
 }
@@ -3040,6 +3083,32 @@ TEST_P(VastTest, SimpleGenerateLoop) {
     inline_verilog_statement;
   end
 endmodule)");
+}
+
+TEST_P(VastTest, ForLoop) {
+  VerilogFile f(GetFileType());
+  const SourceInfo si;
+
+  ForLoop* ascending_loop = f.Make<ForLoop>(
+      si, "i", f.PlainLiteral(0, si), f.PlainLiteral(32, si), "ascending_loop",
+      /*ascending_step=*/true, f.PlainLiteral(1, si));
+  ascending_loop->Add<InlineVerilogStatement>(si, "output[i] = input[i];");
+
+  EXPECT_EQ(ascending_loop->Emit(/*line_info=*/nullptr),
+            R"(for (integer i = 0; i < 32; i = i + 1) begin : ascending_loop
+  output[i] = input[i];
+end)");
+
+  ForLoop* descending_loop =
+      f.Make<ForLoop>(si, "j", f.PlainLiteral(31, si), f.PlainLiteral(0, si),
+                      /*label=*/std::nullopt, /*ascending_step=*/false,
+                      f.PlainLiteral(2, si));
+  descending_loop->Add<InlineVerilogStatement>(si, "output[j] = input[j];");
+
+  EXPECT_EQ(descending_loop->Emit(/*line_info=*/nullptr),
+            R"(for (integer j = 31; j >= 0; j = j - 2) begin
+  output[j] = input[j];
+end)");
 }
 
 TEST_P(VastTest, NestedGenerateLoop) {

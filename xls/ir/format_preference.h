@@ -36,7 +36,8 @@ enum class FormatPreference {
                  // %b
   kZeroPaddedBinary,  // No 0b prefix, with separators and Verilog %b
   kPlainHex,  // No 0x prefix and no separators as in Rust {:x} and Verilog %h
-  kZeroPaddedHex  // similar to kPlainHex, but with zero padding
+  kZeroPaddedHex,  // similar to kPlainHex, but with zero padding
+  kString  // Only allowed for u8 array. Will format value as a string.
 };
 
 std::string_view FormatPreferenceToString(FormatPreference preference);

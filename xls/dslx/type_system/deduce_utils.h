@@ -33,6 +33,7 @@
 #include "xls/dslx/type_system/type.h"
 #include "xls/dslx/type_system/type_info.h"
 #include "xls/dslx/warning_collector.h"
+#include "xls/ir/format_preference.h"
 
 namespace xls::dslx {
 
@@ -76,7 +77,8 @@ absl::Status ValidateNumber(const Number& number, const Type& type);
 // Checks that the given argument being formatted by a macro like `trace_fmt!`
 // or `vtrace_fmt!` is actually possible to format as a string.
 absl::Status ValidateFormatMacroArgument(const Type& type, const Span& span,
-                                         const FileTable& file_table);
+                                         const FileTable& file_table,
+                                         FormatPreference format_preference);
 
 // Finds the Proc identified by the given node (either NameRef or ColonRef),
 // using the associated ImportData for import Module lookup.

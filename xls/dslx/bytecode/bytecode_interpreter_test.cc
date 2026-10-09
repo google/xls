@@ -331,6 +331,149 @@ fn main() -> () {
   EXPECT_EQ(value, InterpValue::MakeUnit());
 }
 
+TEST_F(BytecodeInterpreterTest, TraceFmtCharArray) {
+  constexpr std::string_view kProgram = R"(
+fn main() -> () {
+  let arr = [u8:1, 2, 3, 4, 5];
+  trace_fmt!("{}", arr);
+}
+)";
+  DslxInterpreterEvents events;
+  XLS_ASSERT_OK_AND_ASSIGN(
+      InterpValue value,
+      Interpret(kProgram, "main", /*args=*/{}, BytecodeInterpreterOptions(),
+                nullptr, &events));
+  EXPECT_THAT(events.GetTraceMessageStrings(),
+              testing::ElementsAre(R"([
+    1,
+    2,
+    3,
+    4,
+    5
+])"));
+  EXPECT_EQ(value, InterpValue::MakeUnit());
+}
+
+TEST_F(BytecodeInterpreterTest, TraceFmtCharArrayAsString) {
+  constexpr std::string_view kProgram = R"(
+fn main() -> () {
+  let arr = [u8:72, 101, 108, 108, 111, 44, 32, 87, 111, 114, 108, 100, 33, 0];
+  trace_fmt!("{:s}", arr);
+}
+)";
+  DslxInterpreterEvents events;
+  XLS_ASSERT_OK_AND_ASSIGN(
+      InterpValue value,
+      Interpret(kProgram, "main", /*args=*/{}, BytecodeInterpreterOptions(),
+                nullptr, &events));
+  EXPECT_THAT(events.GetTraceMessageStrings(),
+              testing::ElementsAre("Hello, World!"));
+  EXPECT_EQ(value, InterpValue::MakeUnit());
+}
+
+TEST_F(BytecodeInterpreterTest, TraceFmtCharArrayAsStringWithoutNull) {
+  constexpr std::string_view kProgram = R"(
+fn main() -> () {
+  let arr = [u8:72, 101, 108, 108, 111, 44, 32, 87, 111, 114, 108, 100, 33];
+  trace_fmt!("{:s}", arr);
+}
+)";
+  DslxInterpreterEvents events;
+  XLS_ASSERT_OK_AND_ASSIGN(
+      InterpValue value,
+      Interpret(kProgram, "main", /*args=*/{}, BytecodeInterpreterOptions(),
+                nullptr, &events));
+  EXPECT_THAT(events.GetTraceMessageStrings(),
+              testing::ElementsAre("Hello, World!"));
+  EXPECT_EQ(value, InterpValue::MakeUnit());
+}
+
+TEST_F(BytecodeInterpreterTest, TraceFmtCharArrayAsStringWithDataAfterNull) {
+  constexpr std::string_view kProgram = R"(
+fn main() -> () {
+  let arr = [u8:72, 101, 108, 108, 111, 44, 32, 87, 111, 114, 108, 100, 33, 0, 1, 2, 3, 4];
+  trace_fmt!("{:s}", arr);
+}
+)";
+  DslxInterpreterEvents events;
+  XLS_ASSERT_OK_AND_ASSIGN(
+      InterpValue value,
+      Interpret(kProgram, "main", /*args=*/{}, BytecodeInterpreterOptions(),
+                nullptr, &events));
+  EXPECT_THAT(events.GetTraceMessageStrings(),
+              testing::ElementsAre("Hello, World!"));
+  EXPECT_EQ(value, InterpValue::MakeUnit());
+}
+
+TEST_F(BytecodeInterpreterTest, TraceFmtCharArrayAsStringMultiple) {
+  constexpr std::string_view kProgram = R"(
+fn main() -> () {
+  let first_arr = [u8:72, 101, 108, 108, 111, 44, 32, 87, 111, 114, 108, 100, 33, 0];
+  let second_arr = [u8:72, 101, 108, 108, 111, 0];
+  trace_fmt!("Messages are {:s} and {:s}", first_arr, second_arr);
+}
+)";
+  DslxInterpreterEvents events;
+  XLS_ASSERT_OK_AND_ASSIGN(
+      InterpValue value,
+      Interpret(kProgram, "main", /*args=*/{}, BytecodeInterpreterOptions(),
+                nullptr, &events));
+  EXPECT_THAT(events.GetTraceMessageStrings(),
+              testing::ElementsAre("Messages are Hello, World! and Hello"));
+  EXPECT_EQ(value, InterpValue::MakeUnit());
+}
+
+TEST_F(BytecodeInterpreterTest, TraceFmtLiteralCharArrayAsString) {
+  constexpr std::string_view kProgram = R"(
+fn main() -> () {
+  let arr = ['f', 'o', 'o'];
+  trace_fmt!("Message is {:s}", arr);
+}
+)";
+  DslxInterpreterEvents events;
+  XLS_ASSERT_OK_AND_ASSIGN(
+      InterpValue value,
+      Interpret(kProgram, "main", /*args=*/{}, BytecodeInterpreterOptions(),
+                nullptr, &events));
+  EXPECT_THAT(events.GetTraceMessageStrings(),
+              testing::ElementsAre("Message is foo"));
+  EXPECT_EQ(value, InterpValue::MakeUnit());
+}
+
+TEST_F(BytecodeInterpreterTest, TraceFmtNullTerminatedLiteralCharArrayAsString) {
+  constexpr std::string_view kProgram = R"(
+fn main() -> () {
+  let arr = ['f', 'o', 'o', '\0', 'b', 'a', 'z'];
+  trace_fmt!("Message is {:s}", arr);
+}
+)";
+  DslxInterpreterEvents events;
+  XLS_ASSERT_OK_AND_ASSIGN(
+      InterpValue value,
+      Interpret(kProgram, "main", /*args=*/{}, BytecodeInterpreterOptions(),
+                nullptr, &events));
+  EXPECT_THAT(events.GetTraceMessageStrings(),
+              testing::ElementsAre("Message is foo"));
+  EXPECT_EQ(value, InterpValue::MakeUnit());
+}
+
+TEST_F(BytecodeInterpreterTest, TraceFmtUTF8CharArrayAsString) {
+  constexpr std::string_view kProgram = R"(
+fn main() -> () {
+  let arr = [u8:72, 195, 169, 108, 108, 195, 182, 0];
+  trace_fmt!("Message is {:s}", arr);
+}
+)";
+  DslxInterpreterEvents events;
+  XLS_ASSERT_OK_AND_ASSIGN(
+      InterpValue value,
+      Interpret(kProgram, "main", /*args=*/{}, BytecodeInterpreterOptions(),
+                nullptr, &events));
+  EXPECT_THAT(events.GetTraceMessageStrings(),
+              testing::ElementsAre("Message is Héllö"));
+  EXPECT_EQ(value, InterpValue::MakeUnit());
+}
+
 TEST_F(BytecodeInterpreterTest, NestedTraceFmtStructValueDefaultFormat) {
   constexpr std::string_view kProgram = R"(
 struct Point {
