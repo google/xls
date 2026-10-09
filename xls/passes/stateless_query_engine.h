@@ -53,8 +53,7 @@ class StatelessQueryEngine : public QueryEngine {
   }
   std::optional<Value> KnownValue(Node* node) const override;
 
-  std::optional<SharedLeafTypeTree<TernaryVector>> GetTernary(
-      Node* node) const override;
+  std::optional<SharedTernaryTree> GetTernary(Node* node) const override;
 
   bool AtMostOneTrue(absl::Span<TreeBitLocation const> bits) const override;
   bool AtLeastOneTrue(absl::Span<TreeBitLocation const> bits) const override;
