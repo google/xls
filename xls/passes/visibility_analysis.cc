@@ -26,6 +26,7 @@
 #include "absl/algorithm/container.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
+#include "absl/container/linked_hash_set.h"
 #include "absl/functional/any_invocable.h"
 #include "absl/log/check.h"
 #include "absl/status/status.h"
@@ -651,10 +652,10 @@ BddNodeIndex VisibilityAnalysis::ConservativeVisibilityByPruningEdges(
   }
 
   // Edges to consider pruning
-  absl::flat_hash_set<OperandNode> edges_visited;
+  absl::linked_hash_set<OperandNode> edges_visited;
   // Nodes whose visibility will not be simplified; used to pre-populate the
   // cache of the analysis created w/exclusions, i.e pruned edges.
-  absl::flat_hash_set<Node*> frontier;
+  absl::linked_hash_set<Node*> frontier;
   std::queue<Node*> worklist;
   absl::flat_hash_set<Node*> visited;
   for (Node* user : node->users()) {
