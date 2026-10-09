@@ -797,7 +797,7 @@ Value     | Type
 
 | Keyword | Type      | Required | Default | Description                                                                                                       |
 | ------- | --------- | -------- | ------- | ----------------------------------------------------------------------------------------------------------------- |
-| `start` | `int64_t` | yes      |         | The starting bit of the slice. `start` is is zero-indexed where zero is the least-significant bit of the operand. |
+| `start` | `int64_t` | yes      |         | The starting bit of the slice. `start` is zero-indexed where zero is the least-significant bit of the operand. |
 | `width` | `int64_t` | yes      |         | The width of the slice.                                                                                           |
 
 <!-- mdformat on -->

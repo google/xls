@@ -1,6 +1,6 @@
 # XLS[cc]
 
-XLS[cc] is a a C++ HLS tool built on top of XLS. It generates XLS IR from a
+XLS[cc] is a C++ HLS tool built on top of XLS. It generates XLS IR from a
 subset of C++.
 
 Original author:
