@@ -15,44 +15,252 @@
 #include "xls/passes/stateless_query_engine.h"
 
 #include <algorithm>
+#include <cstddef>
 #include <cstdint>
 #include <limits>
 #include <optional>
 #include <utility>
+#include <variant>
 #include <vector>
 
 #include "absl/algorithm/container.h"
+#include "absl/base/nullability.h"
+#include "absl/base/optimization.h"
 #include "absl/container/flat_hash_map.h"
+#include "absl/functional/any_invocable.h"
+#include "absl/functional/overload.h"
 #include "absl/log/check.h"
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
 #include "cppitertools/reversed.hpp"
+#include "xls/common/status/status_macros.h"
 #include "xls/data_structures/leaf_type_tree.h"
+#include "xls/ir/bits.h"
 #include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
 #include "xls/ir/ternary.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
-#include "xls/ir/value_utils.h"
 #include "xls/passes/query_engine.h"
 
 namespace xls {
 
+namespace {
+
+// A Span - except that the underlying space might not have been allocated yet.
+//
+// Can be created from a Span, a non-null pointer to a single element, or a
+// Span-returning initializer which will be called on demand. (If an
+// initializer, the user must specify the size of the span that it will return.)
+template <typename T>
+class LazySpan {
+ private:
+  using SpanSource =
+      std::variant<absl::Span<T>, absl::AnyInvocable<absl::Span<T>() &&>,
+                   const LazySpan<T>*>;
+
+ public:
+  LazySpan(absl::Span<T> span)
+      : pos_(0), len_(span.size()), span_source_(span) {}
+
+  explicit LazySpan(T* absl_nonnull single_element)
+      : LazySpan(absl::MakeSpan(single_element, 1)) {
+    CHECK(single_element != nullptr);
+  }
+
+  LazySpan(absl::AnyInvocable<absl::Span<T>() &&> span_initializer, size_t size)
+      : pos_(0),
+        len_(size),
+        span_source_(size > 0 ? SpanSource(std::move(span_initializer))
+                              : SpanSource(absl::Span<T>())) {}
+
+  LazySpan(const LazySpan<T>& other) : LazySpan(&other, 0, other.len_) {}
+  LazySpan& operator=(const LazySpan<T>& other) {
+    span_source_ = &other;
+    pos_ = 0;
+    len_ = other.len_;
+    return *this;
+  }
+
+  LazySpan(LazySpan<T>&& other) = default;
+  LazySpan& operator=(LazySpan<T>&& other) = default;
+
+  // If `T` is not const-qualified, `LazySpan<T>` can be converted to
+  // `LazySpan<const T>`, but not the other way around.
+  operator LazySpan<const T>() const
+    requires(!std::is_same_v<T, const T>)
+  {
+    return LazySpan<const T>(this, 0, len_);
+  }
+
+  absl::Span<T> Get() const {
+    Populate();
+    return std::get<absl::Span<T>>(span_source_);
+  }
+
+  operator absl::Span<T>() const { return Get(); }
+  operator absl::Span<const T>() const
+    requires(!std::is_same_v<T, const T>)
+  {
+    return Get();
+  }
+
+  bool empty() const { return len_ == 0; }
+  int64_t size() const { return len_; }
+
+  LazySpan<T> subspan(size_t pos, size_t len) const {
+    CHECK_LT(pos, len_);
+    CHECK_LE(pos + len, len_);
+    return LazySpan<T>(this, pos, len);
+  }
+  LazySpan<T> subspan(size_t pos) const {
+    return LazySpan<T>(this, pos, len_ - pos);
+  }
+
+ private:
+  LazySpan(const LazySpan<T>* parent, size_t start, size_t size)
+      : pos_(start), len_(size), span_source_(parent) {}
+
+  void Populate() const {
+    std::visit(
+        absl::Overload(
+            [](absl::Span<T> span) {},
+            [this](absl::AnyInvocable<absl::Span<T>() &&>& span_initializer) {
+              span_source_ = std::move(span_initializer)();
+              CHECK_EQ(std::get<absl::Span<T>>(span_source_).size(), len_);
+            },
+            [this](const LazySpan<T>* parent) {
+              span_source_ = parent->Get().subspan(pos_, len_);
+              pos_ = 0;
+            }),
+        span_source_);
+  }
+
+  mutable size_t pos_;
+  size_t len_;
+  mutable SpanSource span_source_;
+};
+
+using LazyTernarySpan = LazySpan<TernaryValue>;
+
+// Populates `out` with the ternary values for bits
+// `[start_bit, start_bit + out.size())` of `node` (at `tree_index`).
+// Returns true if any ternary information is known for `node` in that slice.
+bool PopulateTernary(Node* node, absl::Span<const int64_t> tree_index,
+                     int64_t start_bit, LazyTernarySpan out) {
+  if (out.empty()) {
+    // There's no information in an empty span.
+    return false;
+  }
+  switch (node->op()) {
+    case Op::kLiteral: {
+      const Value* value = &node->As<Literal>()->value();
+      for (int64_t idx : tree_index) {
+        value = &value->element(idx);
+      }
+      CHECK(value->IsBits());
+      const Bits& bits = value->bits();
+      absl::Span<TernaryValue> span = out.Get();
+      for (int64_t i = 0; i < span.size(); ++i) {
+        span[i] = bits.Get(start_bit + i) ? TernaryValue::kKnownOne
+                                          : TernaryValue::kKnownZero;
+      }
+      return true;
+    }
+    case Op::kConcat: {
+      CHECK(tree_index.empty());
+      int64_t end_bit = start_bit + out.size();
+      int64_t op_lsb = 0;
+      bool any_known = false;
+      for (Node* operand : iter::reversed(node->operands())) {
+        int64_t op_bits = operand->BitCountOrDie();
+        int64_t op_msb = op_lsb + op_bits;
+        int64_t slice_start = std::max(start_bit, op_lsb);
+        int64_t slice_end = std::min(end_bit, op_msb);
+        if (slice_start < slice_end) {
+          any_known |= PopulateTernary(
+              operand, /*tree_index=*/{}, slice_start - op_lsb,
+              out.subspan(slice_start - start_bit, slice_end - slice_start));
+        }
+        op_lsb = op_msb;
+      }
+      return any_known;
+    }
+    case Op::kZeroExt: {
+      CHECK(tree_index.empty());
+      Node* operand = node->operand(0);
+      int64_t op_bits = operand->BitCountOrDie();
+      int64_t low_len = std::clamp<int64_t>(op_bits - start_bit, 0, out.size());
+      bool any_known = false;
+      if (low_len > 0) {
+        any_known = PopulateTernary(operand, /*tree_index=*/{}, start_bit,
+                                    out.subspan(0, low_len));
+      }
+      if (low_len < out.size()) {
+        absl::Span<TernaryValue> span = out.Get().subspan(low_len);
+        absl::c_fill(span, TernaryValue::kKnownZero);
+        any_known = true;
+      }
+      return any_known;
+    }
+    case Op::kSignExt: {
+      CHECK(tree_index.empty());
+      Node* operand = node->operand(0);
+      int64_t op_bits = operand->BitCountOrDie();
+      if (op_bits == 0) {
+        absl::Span<TernaryValue> span = out.Get();
+        absl::c_fill(span, TernaryValue::kKnownZero);
+        return true;
+      }
+      if (start_bit >= op_bits - 1) {
+        TernaryValue sign = TernaryValue::kUnknown;
+        if (!PopulateTernary(operand, /*tree_index=*/{}, op_bits - 1,
+                             absl::MakeSpan(&sign, 1)) ||
+            sign == TernaryValue::kUnknown) {
+          return false;
+        }
+        absl::Span<TernaryValue> span = out.Get();
+        absl::c_fill(span, sign);
+        return true;
+      }
+      int64_t low_len = std::min<int64_t>(out.size(), op_bits - start_bit);
+      if (!PopulateTernary(operand, /*tree_index=*/{}, start_bit,
+                           out.subspan(0, low_len))) {
+        return false;
+      }
+      if (out.size() > low_len) {
+        absl::Span<TernaryValue> span = out.Get();
+        TernaryValue sign = span[low_len - 1];
+        absl::Span<TernaryValue> ext_span = span.subspan(low_len);
+        absl::c_fill(ext_span, sign);
+      }
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+
+}  // namespace
+
 std::optional<bool> StatelessQueryEngine::KnownValue(
     const TreeBitLocation& bit) const {
-  if (!bit.node()->Is<Literal>()) {
-    return QueryEngine::KnownValue(bit);
-  }
-  auto value_tree = ValueToLeafTypeTree(bit.node()->As<Literal>()->value(),
-                                        bit.node()->GetType());
-  if (!value_tree.ok()) {
+  TernaryValue value = TernaryValue::kUnknown;
+  if (!PopulateTernary(bit.node(), bit.tree_index(), bit.bit_index(),
+                       LazyTernarySpan(&value))) {
     return std::nullopt;
   }
-  const Value& value = value_tree->Get(bit.tree_index());
-  CHECK(value.IsBits());
-  CHECK_GT(value.bits().bit_count(), bit.bit_index());
-  return value.bits().Get(bit.bit_index());
+  switch (value) {
+    case TernaryValue::kUnknown:
+      return std::nullopt;
+    case TernaryValue::kKnownZero:
+      return false;
+    case TernaryValue::kKnownOne:
+      return true;
+  }
+  ABSL_UNREACHABLE();
 }
 std::optional<Value> StatelessQueryEngine::KnownValue(Node* node) const {
   if (!node->Is<Literal>()) {
@@ -74,89 +282,55 @@ bool StatelessQueryEngine::IsAllOnes(Node* node) const {
   return false;
 }
 
-std::optional<SharedLeafTypeTree<TernaryVector>>
-StatelessQueryEngine::GetTernary(Node* node) const {
-  if (node->Is<Literal>()) {
-    const Value& value = node->As<Literal>()->value();
-
-    if (value.IsBits()) {
-      return LeafTypeTree<TernaryVector>::CreateSingleElementTree(
-                 node->GetType(), ternary_ops::BitsToTernary(value.bits()))
-          .AsShared();
-    }
-    if (value.IsToken()) {
-      return LeafTypeTree<TernaryVector>::CreateSingleElementTree(
-                 node->GetType(), TernaryVector())
-          .AsShared();
-    }
-
-    LeafTypeTree<Value> values =
-        ValueToLeafTypeTree(value, node->GetType()).value();
-    return leaf_type_tree::Map<TernaryVector, Value>(
-               values.AsView(),
-               [](const Value& v) -> TernaryVector {
-                 if (v.IsToken()) {
-                   return TernaryVector();
-                 }
-                 return ternary_ops::BitsToTernary(v.bits());
-               })
-        .AsShared();
-  }
-
-  if (node->op() == Op::kConcat) {
-    TernaryVector vec(node->BitCountOrDie(), TernaryValue::kUnknown);
-    auto it = vec.begin();
-    for (Node* operand : iter::reversed(node->operands())) {
-      std::optional<SharedLeafTypeTree<TernaryVector>> ternary =
-          GetTernary(operand);
-      if (!ternary.has_value()) {
-        it += operand->BitCountOrDie();
-        continue;
-      }
-      it = absl::c_copy(ternary->Get({}), it);
+std::optional<SharedTernaryTree> StatelessQueryEngine::GetTernary(
+    Node* node) const {
+  if (node->GetType()->IsBits()) {
+    TernaryVector vec;
+    if (!PopulateTernary(node, /*tree_index=*/{}, /*start_bit=*/0,
+                         LazyTernarySpan(
+                             [&vec, size = node->BitCountOrDie()]() {
+                               vec.resize(size, TernaryValue::kUnknown);
+                               return absl::MakeSpan(vec);
+                             },
+                             node->BitCountOrDie()))) {
+      return std::nullopt;
     }
     return LeafTypeTree<TernaryVector>::CreateSingleElementTree(node->GetType(),
                                                                 std::move(vec))
         .AsShared();
   }
 
-  if (node->op() == Op::kZeroExt) {
-    CHECK(node->GetType()->IsBits());
-    TernaryVector ternary;
-    if (auto ternary_tree = GetTernary(node->operand(0))) {
-      ternary = ternary_tree->Get({});
-    } else {
-      ternary = TernaryVector(node->operand(0)->BitCountOrDie(),
-                              TernaryValue::kUnknown);
-    }
-    ternary.resize(node->BitCountOrDie(), TernaryValue::kKnownZero);
-    return LeafTypeTree<TernaryVector>::CreateSingleElementTree(
-               node->GetType(), std::move(ternary))
-        .AsShared();
+  bool has_ternary_info = false;
+  XLS_ASSIGN_OR_RETURN(
+      auto ternary_tree,
+      LeafTypeTree<TernaryVector>::CreateFromFunction(
+          node->GetType(),
+          [&](Type* leaf_type, absl::Span<const int64_t> tree_index)
+              -> absl::StatusOr<TernaryVector> {
+            TernaryVector vec;
+            has_ternary_info |= PopulateTernary(
+                node, tree_index, /*start_bit=*/0,
+                LazyTernarySpan(
+                    [&vec, bit_count = leaf_type->GetFlatBitCount()]() {
+                      vec.resize(bit_count, TernaryValue::kUnknown);
+                      return absl::MakeSpan(vec);
+                    },
+                    leaf_type->GetFlatBitCount()));
+            return vec;
+          }),
+      /*error_expression=*/std::nullopt);
+  if (!has_ternary_info) {
+    return std::nullopt;
   }
-
-  if (node->op() == Op::kSignExt) {
-    if (node->operand(0)->BitCountOrDie() == 0) {
-      // Zero-len value has unset sign bit.
-      return LeafTypeTree<TernaryVector>::CreateSingleElementTree(
-                 node->GetType(),
-                 TernaryVector(node->BitCountOrDie(), TernaryValue::kKnownZero))
-          .AsShared();
-    }
-    TernaryVector ternary;
-    if (auto ternary_tree = GetTernary(node->operand(0))) {
-      ternary = ternary_tree->Get({});
-    } else {
-      return std::nullopt;
-    }
-    TernaryValue sign = ternary.back();
-    ternary.resize(node->BitCountOrDie(), sign);
-    return LeafTypeTree<TernaryVector>::CreateSingleElementTree(
-               node->GetType(), std::move(ternary))
-        .AsShared();
-  }
-
-  return std::nullopt;
+  CHECK_OK(leaf_type_tree::ForEachIndex(
+      ternary_tree.AsMutableView(),
+      [](Type* leaf_type, TernaryVector& leaf_data, absl::Span<const int64_t>) {
+        DCHECK(leaf_data.empty() ||
+               leaf_data.size() == leaf_type->GetFlatBitCount());
+        leaf_data.resize(leaf_type->GetFlatBitCount(), TernaryValue::kUnknown);
+        return absl::OkStatus();
+      }));
+  return std::move(ternary_tree).AsShared();
 }
 
 StatelessQueryEngine::BitCounts StatelessQueryEngine::KnownBitCounts(
@@ -232,12 +406,12 @@ bool StatelessQueryEngine::KnownEquals(const TreeBitLocation& a,
     return false;
   }
 
-  std::optional<bool> a_value = QueryEngine::KnownValue(a);
+  std::optional<bool> a_value = KnownValue(a);
   if (!a_value.has_value()) {
     return false;
   }
 
-  std::optional<bool> b_value = QueryEngine::KnownValue(b);
+  std::optional<bool> b_value = KnownValue(b);
   if (!b_value.has_value()) {
     return false;
   }
@@ -256,12 +430,12 @@ bool StatelessQueryEngine::KnownNotEquals(const TreeBitLocation& a,
     return true;
   }
 
-  std::optional<bool> a_value = QueryEngine::KnownValue(a);
+  std::optional<bool> a_value = KnownValue(a);
   if (!a_value.has_value()) {
     return false;
   }
 
-  std::optional<bool> b_value = QueryEngine::KnownValue(b);
+  std::optional<bool> b_value = KnownValue(b);
   if (!b_value.has_value()) {
     return false;
   }

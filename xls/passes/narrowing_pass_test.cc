@@ -696,6 +696,150 @@ TEST_P(NarrowingPassTest, NarrowableArrayIndexAllZeros) {
       m::ArrayIndex(m::Param("a"), /*indices=*/{m::Literal(UBits(0, 6))}));
 }
 
+TEST_P(NarrowingPassTest, NarrowableArrayUpdate) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  fb.ArrayUpdate(fb.Param("a", p->GetArrayType(42, p->GetBitsType(32))),
+                 fb.Param("v", p->GetBitsType(32)),
+                 {fb.ZeroExtend(fb.Param("idx", p->GetBitsType(8)),
+                                /*new_bit_count=*/123)});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  ScopedVerifyEquivalence stays_equivalent{f};
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(
+      f->return_value(),
+      m::ArrayUpdate(m::Param("a"), m::Param("v"),
+                     /*indices=*/{m::BitSlice(/*start=*/0, /*width=*/8)},
+                     m::NotAssumedInBounds()));
+}
+
+TEST_P(NarrowingPassTest, LiteralArrayUpdate) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue a = fb.Param("a", p->GetArrayType(4, p->GetBitsType(32)));
+  BValue v = fb.Param("v", p->GetBitsType(32));
+  fb.ArrayUpdate(a, v, {fb.Literal(Value(UBits(0, 32)))});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ScopedVerifyEquivalence sve(f);
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::ArrayUpdate(m::Param("a"), m::Param("v"),
+                             /*indices=*/{m::Literal(UBits(0, 2))},
+                             m::AssumedInBounds()));
+}
+
+TEST_P(NarrowingPassTest, LiteralArrayUpdate3d) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* array_type = p->GetArrayType(
+      42, p->GetArrayType(4, p->GetArrayType(3, p->GetBitsType(32))));
+  BValue a = fb.Param("a", array_type);
+  BValue v = fb.Param("v", p->GetBitsType(32));
+  fb.ArrayUpdate(
+      a, v,
+      {fb.Literal(Value(UBits(0, 32))), fb.Literal(Value(UBits(5, 16))),
+       fb.Literal(Value(UBits(1, 64)))});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ScopedVerifyEquivalence sve(f);
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::ArrayUpdate(m::Param("a"), m::Param("v"),
+                             /*indices=*/
+                             {m::Literal(UBits(0, 6)), m::Literal(UBits(4, 3)),
+                              m::Literal(UBits(1, 2))},
+                             m::NotAssumedInBounds()));
+}
+
+TEST_P(NarrowingPassTest, OutofBoundsLiteralArrayUpdate) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  fb.ArrayUpdate(fb.Param("a", p->GetArrayType(42, p->GetBitsType(32))),
+                 fb.Param("v", p->GetBitsType(32)),
+                 {fb.Literal(Value(UBits(123, 64)))});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ScopedVerifyEquivalence sve(f);
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::ArrayUpdate(m::Param("a"), m::Param("v"),
+                             /*indices=*/{m::Literal(UBits(42, 6))},
+                             m::NotAssumedInBounds()));
+}
+
+TEST_P(NarrowingPassTest, NarrowableArrayUpdateAllZeros) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  fb.ArrayUpdate(fb.Param("a", p->GetArrayType(42, p->GetBitsType(32))),
+                 fb.Param("v", p->GetBitsType(32)),
+                 {fb.And(fb.Param("idx", p->GetBitsType(8)),
+                         fb.Literal(Value(UBits(0, 8))))});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ScopedVerifyEquivalence sve(f);
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::ArrayUpdate(m::Param("a"), m::Param("v"),
+                             /*indices=*/{m::Literal(UBits(0, 6))},
+                             m::AssumedInBounds()));
+}
+
+TEST_P(NarrowingPassTest, NarrowableArraySlice) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  fb.ArraySlice(fb.Param("a", p->GetArrayType(42, p->GetBitsType(32))),
+                fb.ZeroExtend(fb.Param("start", p->GetBitsType(8)),
+                              /*new_bit_count=*/123),
+                /*width=*/4);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  ScopedVerifyEquivalence stays_equivalent{f};
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(
+      f->return_value(),
+      m::ArraySlice(m::Param("a"), m::BitSlice(/*start=*/0, /*width=*/8),
+                    /*width=*/4));
+}
+
+TEST_P(NarrowingPassTest, LiteralArraySlice) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue a = fb.Param("a", p->GetArrayType(42, p->GetBitsType(32)));
+  fb.ArraySlice(a, fb.Literal(Value(UBits(0x0f, 8))), /*width=*/4);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ScopedVerifyEquivalence sve(f);
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(
+      f->return_value(),
+      m::ArraySlice(m::Param("a"), m::Literal(UBits(0x0f, 6)), /*width=*/4));
+}
+
+TEST_P(NarrowingPassTest, OutofBoundsLiteralArraySlice) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  fb.ArraySlice(fb.Param("a", p->GetArrayType(42, p->GetBitsType(32))),
+                fb.Literal(Value(UBits(123, 64))), /*width=*/4);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ScopedVerifyEquivalence sve(f);
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(
+      f->return_value(),
+      m::ArraySlice(m::Param("a"), m::Literal(UBits(42, 6)), /*width=*/4));
+}
+
+TEST_P(NarrowingPassTest, NarrowableArraySliceAllZeros) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  fb.ArraySlice(fb.Param("a", p->GetArrayType(42, p->GetBitsType(32))),
+                fb.And(fb.Param("start", p->GetBitsType(8)),
+                       fb.Literal(Value(UBits(0, 8)))),
+                /*width=*/4);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ScopedVerifyEquivalence sve(f);
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(
+      f->return_value(),
+      m::ArraySlice(m::Param("a"), m::Literal(UBits(0, 6)), /*width=*/4));
+}
+
 TEST_P(NarrowingPassTest, MultiplyWiderThanSumOfOperands) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
@@ -1937,7 +2081,47 @@ TEST_P(NarrowingPassTest, ArrayBoundsProof) {
   ScopedVerifyEquivalence sve(f);
   ScopedRecordIr sri(p.get());
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
-  EXPECT_THAT(f->return_value(), m::ArrayIndex(_, {_}, m::AssumedInBounds()));
+  EXPECT_THAT(f->return_value(),
+              m::ArrayIndex(_, {m::BitSlice(/*start=*/0, /*width=*/5)},
+                            m::AssumedInBounds()));
+}
+
+TEST_P(NarrowingPassTest, ArrayUpdateBoundsContextual) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue idx = fb.Param("idx", p->GetBitsType(4));
+  fb.ArrayUpdate(fb.Param("arr", p->GetArrayType(10, p->GetBitsType(32))),
+                 fb.Param("val", p->GetBitsType(32)),
+                 {fb.Select(fb.ULt(idx, fb.Literal(UBits(10, 4))),
+                            {fb.Literal(UBits(0, 4)), idx})});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ScopedVerifyEquivalence sve(f);
+  ScopedRecordIr sri(p.get());
+  bool is_context_analysis =
+      analysis() == NarrowingPass::AnalysisType::kRangeWithContext;
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(is_context_analysis));
+  if (is_context_analysis) {
+    EXPECT_THAT(f->return_value(),
+                m::ArrayUpdate(_, _, {_}, m::AssumedInBounds()));
+  }
+}
+
+TEST_P(NarrowingPassTest, ArrayUpdateBoundsProof) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue idx = fb.Param("idx", p->GetBitsType(3));
+  // 5 bits
+  fb.ArrayUpdate(fb.Param("arr", p->GetArrayType(32, p->GetBitsType(32))),
+                 fb.Param("val", p->GetBitsType(32)),
+                 // Definitely less than 24 even with ternary.
+                 {fb.Add(fb.Literal(UBits(16, 32)), fb.ZeroExtend(idx, 32))});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ScopedVerifyEquivalence sve(f);
+  ScopedRecordIr sri(p.get());
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::ArrayUpdate(_, _, {m::BitSlice(/*start=*/0, /*width=*/5)},
+                             m::AssumedInBounds()));
 }
 
 TEST_P(NarrowingPassTest, NarrowingSliceDoesntOverflow) {
