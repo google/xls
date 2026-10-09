@@ -2388,6 +2388,7 @@ xls_pass(
         ":bdd_query_engine",
         ":optimization_pass",
         ":pass_base",
+        ":predicate_state",
         ":query_engine",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",

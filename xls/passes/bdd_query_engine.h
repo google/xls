@@ -174,6 +174,9 @@ class BddQueryEngine
   std::optional<TreeBitLocation> GetTreeBitLocation(
       BddNodeIndex bdd_node) const;
 
+  bool KnownEquals(const TreeBitLocation& a, const TreeBitLocation& b,
+                   std::optional<BddNodeIndex> assumption) const;
+
  protected:
   BddTree ComputeInfo(
       Node* node,
@@ -200,8 +203,6 @@ class BddQueryEngine
   std::optional<TernaryVector> ImpliedNodeTernary(
       absl::Span<const std::pair<TreeBitLocation, bool>> predicate_bit_values,
       Node* node, std::optional<BddNodeIndex> assumption) const;
-  bool KnownEquals(const TreeBitLocation& a, const TreeBitLocation& b,
-                   std::optional<BddNodeIndex> assumption) const;
   bool KnownNotEquals(const TreeBitLocation& a, const TreeBitLocation& b,
                       std::optional<BddNodeIndex> assumption) const;
 
