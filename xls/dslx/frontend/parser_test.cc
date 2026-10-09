@@ -5918,7 +5918,7 @@ TEST_F(ParserTest, LambdaInUserFnNoReturnImplicit) {
 }
 
 TEST_F(ParserTest, LambdaInUserFnWithParameterName) {
-  EXPECT_THAT(Parse(R"(fn foo(f: fn(u32: in), x: u32) -> u32 {
+  EXPECT_THAT(Parse(R"(fn foo(f: fn(y: u32), x: u32) -> u32 {
     f(x)
 })",
                     /*parse_fn_stubs=*/true),
