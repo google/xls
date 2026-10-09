@@ -64,6 +64,7 @@ namespace {
   M(OutputPort)              \
   M(Param)                   \
   M(PartialProductOp)        \
+  M(Peek)                    \
   M(PrioritySelect)          \
   M(Receive)                 \
   M(RecvChannelEnd)          \

@@ -55,6 +55,7 @@ absl::StatusOr<bool> OpShouldBeRewritten(Op op) {
     case Op::kTrace:
       return true;
 
+    case Op::kPeek:
     case Op::kReceive:
     case Op::kSend:
     case Op::kInputPort:

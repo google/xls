@@ -2041,5 +2041,189 @@ proc Foo {
                                               ParametricEnv(), members));
 }
 
+TEST(BytecodeEmitterTest, ProcWithPeek) {
+  constexpr std::string_view kProgram = R"(
+proc Foo {
+  req_r: chan<u32> in;
+  resp_s: chan<u32> out;
+  init { () }
+  config() {
+    let (_in_s, in_r) = chan<u32>("input");
+    let (out_s, _out_r) = chan<u32>("output");
+    (in_r, out_s)
+  }
+
+  next(state: ()) {
+    let tok = join();
+    let (tok, packet, valid) = peek(tok, req_r, u32:0);
+    let handle_packet = packet > u32:4;
+    let (tok, packet) = recv_if(tok, req_r, valid && handle_packet, u32:0);
+    send_if(tok, resp_s, valid, packet);
+    ()
+  }
+}
+)";
+
+  ImportData import_data(CreateImportDataForTest());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * p, tm.module->GetMemberOrError<Proc>("Foo"));
+  XLS_ASSERT_OK_AND_ASSIGN(TypeInfo * ti,
+                           tm.type_info->GetTopLevelProcTypeInfo(p));
+
+  std::vector<NameDef*> members;
+  for (const ProcMember* member : p->members()) {
+    members.push_back(member->name_def());
+  }
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<BytecodeFunction> next_func,
+      BytecodeEmitter::EmitProcNext(&import_data, ti, p->next(),
+                                    ParametricEnv(), members));
+
+  const std::vector<Bytecode>& next_bytecodes = next_func->bytecodes();
+  ASSERT_EQ(next_bytecodes.size(), 32);
+  std::vector<std::string> next_bytecode_strings;
+  absl::c_transform(next_bytecodes, std::back_inserter(next_bytecode_strings),
+                    [&import_data](const Bytecode& bc) {
+                      return bc.ToString(import_data.file_table());
+                    });
+  EXPECT_THAT(next_bytecode_strings,
+              ElementsAre(testing::MatchesRegex("literal token:0x[0-9a-f]+"),
+    "store 3",
+    "load 3",
+    "load 0",
+    "literal u1:1",
+    "literal u32:0",
+    "peek req_r",
+    "expand_tuple",
+    "store 4",
+    "store 5",
+    "store 6",
+    "load 5",
+    "literal u32:4",
+    "gt",
+    "store 7",
+    "load 4",
+    "load 0",
+    "load 6",
+    "load 7",
+    "logical_and",
+    "literal u32:0",
+    "recv req_r",
+    "expand_tuple",
+    "store 8",
+    "store 9",
+    "load 8",
+    "load 1",
+    "load 9",
+    "load 6",
+    "send resp_s",
+    "pop",
+    "create_tuple 0"));
+}
+
+TEST(BytecodeEmitterTest, ProcWithPeekIf) {
+  constexpr std::string_view kProgram = R"(
+proc Foo {
+  req_r: chan<u32> in;
+  resp_s: chan<u32> out;
+  enable_r: chan<bool> in;
+
+  init { false }
+
+  config(
+    req_r: chan<u32> in,
+    resp_s: chan<u32> out,
+    enable_r: chan<bool> in,
+  ) {
+    (req_r, resp_s, enable_r)
+  }
+
+  next(state: bool) {
+    let (tok, enabled, valid) = recv_non_blocking(join(), enable_r, state);
+    let (tok, packet, packet_valid) = peek_if(join(), req_r, enabled, u32:0);
+    let handle_packet = (packet > u32:4) && packet_valid;
+    let packet_cond = !enabled || handle_packet;
+    let (tok, packet) = recv_if(tok, req_r, packet_cond, u32:0);
+    send(tok, resp_s, packet);
+    enabled
+  }
+}
+)";
+
+  ImportData import_data(CreateImportDataForTest());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * p, tm.module->GetMemberOrError<Proc>("Foo"));
+  XLS_ASSERT_OK_AND_ASSIGN(TypeInfo * ti,
+                           tm.type_info->GetTopLevelProcTypeInfo(p));
+
+  std::vector<NameDef*> members;
+  for (const ProcMember* member : p->members()) {
+    members.push_back(member->name_def());
+  }
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<BytecodeFunction> next_func,
+      BytecodeEmitter::EmitProcNext(&import_data, ti, p->next(),
+                                    ParametricEnv(), members));
+
+  const std::vector<Bytecode>& next_bytecodes = next_func->bytecodes();
+  ASSERT_EQ(next_bytecodes.size(), 44);
+  std::vector<std::string> next_bytecode_strings;
+  absl::c_transform(next_bytecodes, std::back_inserter(next_bytecode_strings),
+                    [&import_data](const Bytecode& bc) {
+                      return bc.ToString(import_data.file_table());
+                    });
+  EXPECT_THAT(next_bytecode_strings,
+              ElementsAre(testing::MatchesRegex("literal token:0x[0-9a-f]+"),
+    "load 2",
+    "literal u1:1",
+    "load 3",
+    "recv_nonblocking enable_r",
+    "expand_tuple",
+    "store 4",
+    "store 5",
+    "store 6",
+    testing::MatchesRegex("literal token:0x[0-9a-f]+"),
+    "load 0",
+    "load 5",
+    "literal u32:0",
+    "peek req_r",
+    "expand_tuple",
+    "store 7",
+    "store 8",
+    "store 9",
+    "load 8",
+    "literal u32:4",
+    "gt",
+    "load 9",
+    "logical_and",
+    "store 10",
+    "load 5",
+    "invert",
+    "load 10",
+    "logical_or",
+    "store 11",
+    "load 7",
+    "load 0",
+    "load 11",
+    "literal u32:0",
+    "recv req_r",
+    "expand_tuple",
+    "store 12",
+    "store 13",
+    "load 12",
+    "load 1",
+    "load 13",
+    "literal u1:1",
+    "send resp_s",
+    "pop",
+    "load 5"));
+}
+
 }  // namespace
 }  // namespace xls::dslx

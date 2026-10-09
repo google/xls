@@ -900,6 +900,28 @@ boolean will be false.
 fn recv_if_non_blocking<T: type>(tok: token, c: chan<T> in, predicate: bool, default_value: T) -> (token, T, bool)
 ```
 
+### `peek`: non-blocking peek of a value from a channel
+
+Performs a non-blocking peek from channel `c` without dropping received value
+from the channel -- if the channel is empty the `default_value` is returned as
+the result, and the `bool` in the result indicates whether the value originated
+from the channel (i.e., `true` means the value came from the channel).
+
+```dslx-snippet
+fn peek<T: type>(tok: token, c: chan<T> in, default_value: T) -> (token, T, bool)
+```
+
+### `peek_if`: conditional non-blocking peek of a value from a channel
+
+As `peek` is above, but with an additional predicate that indicates
+whether we should attempt to do the peek from the channel. If
+this predicate is false, the default value will be provided and the returned
+boolean will be false.
+
+```dslx-snippet
+fn peek_if<T: type>(tok: token, c: chan<T> in, predicate: bool, default_value: T) -> (token, T, bool)
+```
+
 ## `import std`: DSLX standard library routines
 
 ### Bits Type Properties
