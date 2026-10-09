@@ -19,6 +19,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <variant>
 #include <vector>
 
 #include "gmock/gmock.h"
@@ -222,13 +223,11 @@ TEST_F(TypeInfoToProtoWithBothTypecheckVersionsTest,
   auto* u16_annotation = tm.module->Make<BuiltinTypeAnnotation>(
       span, BuiltinType::kU16,
       tm.module->GetOrCreateBuiltinNameDef(BuiltinType::kU16));
-  auto* none = tm.module->Make<SumVariant>(
-      span, none_name, SumVariant::PayloadShape::kUnit,
-      std::vector<TypeAnnotation*>{}, std::vector<StructMemberNode*>{});
+  auto* none = tm.module->Make<SumVariant>(span, none_name, std::monostate{});
   auto* some = tm.module->Make<SumVariant>(
-      span, some_name, SumVariant::PayloadShape::kTuple,
-      std::vector<TypeAnnotation*>{u8_annotation},
-      std::vector<StructMemberNode*>{});
+      span, some_name,
+      tm.module->Make<TupleTypeAnnotation>(
+          span, std::vector<TypeAnnotation*>{u8_annotation}));
   std::vector<StructMemberNode*> pair_fields = {
       tm.module->Make<StructMemberNode>(
           span, tm.module->Make<NameDef>(span, "first", nullptr), span,
@@ -237,9 +236,8 @@ TEST_F(TypeInfoToProtoWithBothTypecheckVersionsTest,
           span, tm.module->Make<NameDef>(span, "second", nullptr), span,
           u16_annotation),
   };
-  auto* pair = tm.module->Make<SumVariant>(
-      span, pair_name, SumVariant::PayloadShape::kStruct,
-      std::vector<TypeAnnotation*>{}, pair_fields);
+  auto* pair =
+      tm.module->Make<SumVariant>(span, pair_name, NamedFields(pair_fields));
   auto* sum_def = tm.module->Make<SumDef>(
       span, sum_name, std::vector<ParametricBinding*>{},
       std::vector<SumVariant*>{none, some, pair}, /*is_public=*/false);

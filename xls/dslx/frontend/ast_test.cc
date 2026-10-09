@@ -94,6 +94,38 @@ impl MyStruct {
   EXPECT_EQ(m.ToString(), kExpected);
 }
 
+TEST_F(AstTest, StructFieldsRetainCanonicalNodesAcrossAdditionsAndTypeChanges) {
+  auto* bool_type = m.Make<BuiltinTypeAnnotation>(
+      fake_span, BuiltinType::kBool,
+      m.GetOrCreateBuiltinNameDef(BuiltinType::kBool));
+  auto* u32_type = m.Make<BuiltinTypeAnnotation>(
+      fake_span, BuiltinType::kU32,
+      m.GetOrCreateBuiltinNameDef(BuiltinType::kU32));
+  auto* x = m.Make<StructMemberNode>(fake_span,
+                                     m.Make<NameDef>(fake_span, "x", nullptr),
+                                     fake_span, bool_type);
+  auto* s =
+      m.Make<StructDef>(fake_span, m.Make<NameDef>(fake_span, "S", nullptr),
+                        std::vector<ParametricBinding*>{},
+                        std::vector<StructMemberNode*>{x}, false);
+  auto* y = m.Make<StructMemberNode>(
+      fake_span, m.Make<NameDef>(fake_span, "y", nullptr), fake_span, u32_type);
+  s->AddMember(y);
+
+  EXPECT_EQ(s->GetMemberByName("x"), x);
+  EXPECT_EQ(s->GetMemberByName("y"), y);
+  EXPECT_EQ(s->named_fields().GetMemberIndex("y"), 1);
+  EXPECT_THAT(s->GetMemberNames(), testing::ElementsAre("x", "y"));
+  EXPECT_EQ(s->GetMemberByName("missing"), std::nullopt);
+
+  // Proc elaboration can wrap a member's type after declaration construction.
+  // Every field view must see that change without losing the original spelling.
+  x->set_type(u32_type);
+  EXPECT_EQ(s->members()[0], x);
+  EXPECT_EQ((*s->GetMemberByName("x"))->type(), u32_type);
+  EXPECT_EQ((*s->GetMemberByName("x"))->non_state_wrapped_type(), bool_type);
+}
+
 TEST_F(AstTest, GetNumberAsInt64) {
   struct Example {
     std::string text;

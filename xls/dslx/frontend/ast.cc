@@ -1591,38 +1591,79 @@ std::string EnumDef::ToString() const {
   return result;
 }
 
+// -- class NamedFields
+
+NamedFields::NamedFields(std::vector<StructMemberNode*> members)
+    : members_(std::move(members)) {
+  for (int64_t i = 0; i < members_.size(); ++i) {
+    member_indices_.try_emplace(members_[i]->name(), i);
+  }
+}
+
+void NamedFields::AddMember(StructMemberNode* member) {
+  member_indices_.insert_or_assign(member->name(), members_.size());
+  members_.push_back(member);
+}
+
+std::optional<int64_t> NamedFields::GetMemberIndex(
+    std::string_view name) const {
+  auto it = member_indices_.find(name);
+  if (it == member_indices_.end()) {
+    return std::nullopt;
+  } else {
+    return it->second;
+  }
+}
+
+std::optional<StructMemberNode*> NamedFields::GetMemberByName(
+    std::string_view name) const {
+  if (std::optional<int64_t> index = GetMemberIndex(name)) {
+    return members_[*index];
+  } else {
+    return std::nullopt;
+  }
+}
+
+std::vector<std::string> NamedFields::GetMemberNames() const {
+  std::vector<std::string> names;
+  names.reserve(members_.size());
+  for (const StructMemberNode* member : members_) {
+    names.push_back(member->name());
+  }
+  return names;
+}
+
 // -- class SumVariant
 
 SumVariant::SumVariant(Module* owner, Span span, NameDef* name_def,
-                       PayloadShape payload_shape,
-                       std::vector<TypeAnnotation*> tuple_members,
-                       std::vector<StructMemberNode*> struct_members,
-                       std::optional<Expr*> discriminant,
+                       Payload payload, std::optional<Expr*> discriminant,
                        std::optional<Span> payload_span,
                        std::optional<Span> discriminant_equals_span)
     : AstNode(owner),
       span_(std::move(span)),
       name_def_(name_def),
-      payload_shape_(payload_shape),
+      payload_(std::move(payload)),
       discriminant_(discriminant),
       payload_span_(std::move(payload_span)),
-      discriminant_equals_span_(std::move(discriminant_equals_span)),
-      tuple_members_(std::move(tuple_members)),
-      struct_members_(std::move(struct_members)) {
-  if (payload_shape_ == PayloadShape::kUnit) {
-    CHECK(tuple_members_.empty());
-    CHECK(struct_members_.empty());
-  } else if (payload_shape_ == PayloadShape::kTuple) {
-    CHECK(struct_members_.empty());
-  } else {
-    CHECK_EQ(payload_shape_, PayloadShape::kStruct);
-    CHECK(tuple_members_.empty());
+      discriminant_equals_span_(std::move(discriminant_equals_span)) {
+  if (is_tuple()) {
+    CHECK_NE(tuple_payload(), nullptr);
   }
   CHECK(!discriminant_.has_value() || *discriminant_ != nullptr);
   CHECK(!discriminant_equals_span_.has_value() || discriminant_.has_value());
 }
 
 SumVariant::~SumVariant() = default;
+
+SumVariant::PayloadShape SumVariant::payload_shape() const {
+  if (is_unit()) {
+    return PayloadShape::kUnit;
+  } else if (is_tuple()) {
+    return PayloadShape::kTuple;
+  } else {
+    return PayloadShape::kStruct;
+  }
+}
 
 std::vector<AstNode*> SumVariant::GetChildren(bool want_types) const {
   std::vector<AstNode*> results = {name_def_};
@@ -1633,11 +1674,9 @@ std::vector<AstNode*> SumVariant::GetChildren(bool want_types) const {
     return results;
   }
   if (is_tuple()) {
-    for (TypeAnnotation* member : tuple_members_) {
-      results.push_back(member);
-    }
+    results.push_back(tuple_payload());
   } else if (is_struct()) {
-    for (StructMemberNode* member : struct_members_) {
+    for (StructMemberNode* member : struct_members()) {
       results.push_back(member);
     }
   }
@@ -1653,7 +1692,7 @@ std::string SumVariant::ToString() const {
   if (is_tuple()) {
     std::string result = absl::StrCat(
         identifier(), "(",
-        absl::StrJoin(tuple_members_, ", ",
+        absl::StrJoin(tuple_members(), ", ",
                       [](std::string* out, TypeAnnotation* member) {
                         absl::StrAppend(out, member->ToString());
                       }),
@@ -1663,7 +1702,7 @@ std::string SumVariant::ToString() const {
     }
     return result;
   }
-  if (struct_members_.empty()) {
+  if (struct_members().empty()) {
     return discriminant_.has_value()
                ? absl::StrCat(identifier(),
                               " {} = ", (*discriminant_)->ToString())
@@ -1671,7 +1710,7 @@ std::string SumVariant::ToString() const {
   }
   std::string result = absl::StrCat(
       identifier(), " { ",
-      absl::StrJoin(struct_members_, ", ",
+      absl::StrJoin(struct_members(), ", ",
                     [](std::string* out, StructMemberNode* member) {
                       absl::StrAppend(out, member->ToString());
                     }),
@@ -2018,17 +2057,8 @@ StructDefBase::StructDefBase(
       span_(std::move(span)),
       name_def_(name_def),
       parametric_bindings_(std::move(parametric_bindings)),
-      members_(std::move(members)),
-      public_(is_public) {
-  for (StructMemberNode* member : members_) {
-    members_by_name_.emplace(member->name(), member);
-    struct_members_.push_back(StructMember{
-        .name_span = member->name_def()->span(),
-        .name = member->name(),
-        .type = member->type(),
-    });
-  }
-}
+      named_fields_(std::move(members)),
+      public_(is_public) {}
 
 StructDefBase::~StructDefBase() = default;
 
@@ -2038,7 +2068,7 @@ std::vector<AstNode*> StructDefBase::GetChildren(bool want_types) const {
     results.push_back(pb);
   }
   if (want_types) {
-    for (const auto* member : members_) {
+    for (const auto* member : members()) {
       results.push_back(member->type());
     }
   }
@@ -2059,7 +2089,7 @@ std::string StructDefBase::ToStringWithEntityKeywordAndAttribute(
   std::string result =
       absl::StrFormat("%s%s%s %s%s {\n", attribute, public_ ? "pub " : "",
                       keyword, identifier(), parametric_str);
-  for (const auto* item : members_) {
+  for (const auto* item : members()) {
     for (const auto& attr : item->attributes()) {
       absl::StrAppendFormat(&result, "%s%s\n", kRustOneIndent,
                             attr->ToString());
@@ -2069,15 +2099,6 @@ std::string StructDefBase::ToStringWithEntityKeywordAndAttribute(
   }
   absl::StrAppend(&result, "}");
   return result;
-}
-
-std::vector<std::string> StructDefBase::GetMemberNames() const {
-  std::vector<std::string> names;
-  names.reserve(members_.size());
-  for (const auto* item : members_) {
-    names.push_back(item->name());
-  }
-  return names;
 }
 
 std::optional<ConstantDef*> StructDefBase::GetImplConstant(

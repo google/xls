@@ -1529,11 +1529,10 @@ const struct xls_dslx_type* xls_dslx_type_info_get_type_struct_def(
 const struct xls_dslx_type* xls_dslx_type_info_get_type_struct_member(
     struct xls_dslx_type_info* type_info,
     struct xls_dslx_struct_member* struct_member) {
-  // Note: StructMember is not itself an AST node, it's just a POD struct, so
-  // we need to traverse to its type annotation.
+  // TypeInfo records the member's declared type on its annotation.
   auto* cpp_struct_member =
-      reinterpret_cast<xls::dslx::StructMember*>(struct_member);
-  xls::dslx::TypeAnnotation* node = cpp_struct_member->type;
+      reinterpret_cast<xls::dslx::StructMemberNode*>(struct_member);
+  xls::dslx::TypeAnnotation* node = cpp_struct_member->type();
   return GetMetaTypeHelper(type_info, node);
 }
 
@@ -1589,20 +1588,20 @@ bool xls_dslx_type_get_total_bit_count(const struct xls_dslx_type* type,
 struct xls_dslx_struct_member* xls_dslx_struct_def_get_member(
     struct xls_dslx_struct_def* struct_def, int64_t i) {
   auto* cpp_struct_def = reinterpret_cast<xls::dslx::StructDef*>(struct_def);
-  xls::dslx::StructMember& cpp_member = cpp_struct_def->mutable_members().at(i);
-  return reinterpret_cast<xls_dslx_struct_member*>(&cpp_member);
+  xls::dslx::StructMemberNode* cpp_member = cpp_struct_def->members().at(i);
+  return reinterpret_cast<xls_dslx_struct_member*>(cpp_member);
 }
 
 struct xls_dslx_type_annotation* xls_dslx_struct_member_get_type(
     struct xls_dslx_struct_member* member) {
-  auto* cpp_member = reinterpret_cast<xls::dslx::StructMember*>(member);
-  xls::dslx::TypeAnnotation* cpp_type_annotation = cpp_member->type;
+  auto* cpp_member = reinterpret_cast<xls::dslx::StructMemberNode*>(member);
+  xls::dslx::TypeAnnotation* cpp_type_annotation = cpp_member->type();
   return reinterpret_cast<xls_dslx_type_annotation*>(cpp_type_annotation);
 }
 
 char* xls_dslx_struct_member_get_name(struct xls_dslx_struct_member* member) {
-  auto* cpp_member = reinterpret_cast<xls::dslx::StructMember*>(member);
-  const std::string& name = cpp_member->name;
+  auto* cpp_member = reinterpret_cast<xls::dslx::StructMemberNode*>(member);
+  const std::string& name = cpp_member->name();
   return xls::ToOwnedCString(name);
 }
 

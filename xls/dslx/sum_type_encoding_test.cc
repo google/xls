@@ -17,6 +17,7 @@
 #include <cstdint>
 #include <memory>
 #include <optional>
+#include <variant>
 #include <vector>
 
 #include "gmock/gmock.h"
@@ -62,16 +63,15 @@ SumType MakeTuplePayloadSumType(Module& module) {
       kFakeSpan, BuiltinType::kU32,
       module.GetOrCreateBuiltinNameDef(dslx::BuiltinType::kU32));
 
-  auto* none = module.Make<SumVariant>(
-      kFakeSpan, none_name, SumVariant::PayloadShape::kUnit,
-      std::vector<TypeAnnotation*>{}, std::vector<StructMemberNode*>{});
+  auto* none = module.Make<SumVariant>(kFakeSpan, none_name, std::monostate{});
   auto* left = module.Make<SumVariant>(
-      kFakeSpan, left_name, SumVariant::PayloadShape::kTuple,
-      std::vector<TypeAnnotation*>{u8_type}, std::vector<StructMemberNode*>{});
+      kFakeSpan, left_name,
+      module.Make<TupleTypeAnnotation>(kFakeSpan,
+                                       std::vector<TypeAnnotation*>{u8_type}));
   auto* pair = module.Make<SumVariant>(
-      kFakeSpan, pair_name, SumVariant::PayloadShape::kTuple,
-      std::vector<TypeAnnotation*>{u16_type, u32_type},
-      std::vector<StructMemberNode*>{});
+      kFakeSpan, pair_name,
+      module.Make<TupleTypeAnnotation>(
+          kFakeSpan, std::vector<TypeAnnotation*>{u16_type, u32_type}));
   auto* sum_def = module.Make<SumDef>(
       kFakeSpan, sum_name, std::vector<ParametricBinding*>{},
       std::vector<SumVariant*>{none, left, pair}, /*is_public=*/false);

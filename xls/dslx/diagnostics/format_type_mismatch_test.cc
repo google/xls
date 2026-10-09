@@ -17,6 +17,7 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <variant>
 #include <vector>
 
 #include "gtest/gtest.h"
@@ -45,9 +46,8 @@ TEST(FormatTypeMismatchTest, DistinctSumDeclarationsProduceTypeMismatch) {
   auto make_sum_type = [&](const std::string& name) {
     auto* sum_name = module.Make<NameDef>(span, name, nullptr);
     auto* variant_name = module.Make<NameDef>(span, "X", nullptr);
-    auto* variant = module.Make<SumVariant>(
-        span, variant_name, SumVariant::PayloadShape::kUnit,
-        std::vector<TypeAnnotation*>{}, std::vector<StructMemberNode*>{});
+    auto* variant =
+        module.Make<SumVariant>(span, variant_name, std::monostate{});
     auto* sum_def = module.Make<SumDef>(
         span, sum_name, std::vector<ParametricBinding*>{},
         std::vector<SumVariant*>{variant}, /*is_public=*/false);
@@ -79,13 +79,11 @@ TEST(FormatTypeMismatchTest, SumPayloadMismatch) {
       kFakeSpan, BuiltinType::kU16,
       module.GetOrCreateBuiltinNameDef(dslx::BuiltinType::kU16));
 
-  auto* none = module.Make<SumVariant>(
-      kFakeSpan, none_name, SumVariant::PayloadShape::kUnit,
-      std::vector<TypeAnnotation*>{}, std::vector<StructMemberNode*>{});
+  auto* none = module.Make<SumVariant>(kFakeSpan, none_name, std::monostate{});
   auto* some = module.Make<SumVariant>(
-      kFakeSpan, some_name, SumVariant::PayloadShape::kTuple,
-      std::vector<TypeAnnotation*>{u8_type, u16_type},
-      std::vector<StructMemberNode*>{});
+      kFakeSpan, some_name,
+      module.Make<TupleTypeAnnotation>(
+          kFakeSpan, std::vector<TypeAnnotation*>{u8_type, u16_type}));
   auto* option = module.Make<SumDef>(
       kFakeSpan, option_name, std::vector<ParametricBinding*>{},
       std::vector<SumVariant*>{none, some}, /*is_public=*/false);
@@ -135,10 +133,10 @@ TEST(FormatTypeMismatchTest, NestedAggregateSumPayloadMismatch) {
   auto* annotation = module.Make<BuiltinTypeAnnotation>(
       span, BuiltinType::kU8,
       module.GetOrCreateBuiltinNameDef(BuiltinType::kU8));
-  auto* some =
-      module.Make<SumVariant>(span, some_name, SumVariant::PayloadShape::kTuple,
-                              std::vector<TypeAnnotation*>{annotation},
-                              std::vector<StructMemberNode*>{});
+  auto* some = module.Make<SumVariant>(
+      span, some_name,
+      module.Make<TupleTypeAnnotation>(
+          span, std::vector<TypeAnnotation*>{annotation}));
   auto* option =
       module.Make<SumDef>(span, option_name, std::vector<ParametricBinding*>{},
                           std::vector<SumVariant*>{some}, /*is_public=*/false);
@@ -189,18 +187,13 @@ TEST(FormatTypeMismatchTest,
       module.Make<StructMemberNode>(
           span, module.Make<NameDef>(span, "right", nullptr), span, u16),
   };
-  auto* pair = module.Make<SumVariant>(span, pair_name,
-                                       SumVariant::PayloadShape::kStruct,
-                                       std::vector<TypeAnnotation*>{}, fields);
+  auto* pair = module.Make<SumVariant>(span, pair_name, NamedFields(fields));
   auto* empty_tuple = module.Make<SumVariant>(
-      span, empty_tuple_name, SumVariant::PayloadShape::kTuple,
-      std::vector<TypeAnnotation*>{}, std::vector<StructMemberNode*>{});
+      span, empty_tuple_name,
+      module.Make<TupleTypeAnnotation>(span, std::vector<TypeAnnotation*>{}));
   auto* empty_struct = module.Make<SumVariant>(
-      span, empty_struct_name, SumVariant::PayloadShape::kStruct,
-      std::vector<TypeAnnotation*>{}, std::vector<StructMemberNode*>{});
-  auto* none = module.Make<SumVariant>(
-      span, none_name, SumVariant::PayloadShape::kUnit,
-      std::vector<TypeAnnotation*>{}, std::vector<StructMemberNode*>{});
+      span, empty_struct_name, NamedFields(std::vector<StructMemberNode*>{}));
+  auto* none = module.Make<SumVariant>(span, none_name, std::monostate{});
   auto* option = module.Make<SumDef>(
       span, option_name, std::vector<ParametricBinding*>{},
       std::vector<SumVariant*>{pair, empty_tuple, empty_struct, none},
