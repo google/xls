@@ -73,9 +73,10 @@ absl::Status RealMain(std::string_view ir_path) {
 
   XLS_ASSIGN_OR_RETURN(CodegenFlagsProto codegen_flags_proto,
                        GetCodegenFlags());
-  if (p->ChannelsAreProcScoped()) {
-    codegen_flags_proto.set_codegen_version(CODEGEN_VERSION_ONE_DOT_FIVE);
-  }
+  // Note: the codegen version is resolved in xls/tools/codegen.cc. Packages
+  // with proc-scoped channels use codegen 1.5 by default; an explicitly
+  // requested incompatible version is reported as an error there rather than
+  // being silently overridden (google/xls#4554).
   if (codegen_flags_proto.has_reference_residual_data()) {
     return absl::UnimplementedError(
         "Reference residual data is not supported in codegen_main; use "

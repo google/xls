@@ -197,7 +197,10 @@ ABSL_FLAG(
     std::string, codegen_version, "0",
     "Version of codegen to use. Can be 1 or 1.0 (original codegen), 1.5 "
     "(refactored codegen), or 2 or 2.0 (revised codegen with a new "
-    "architecture). If set to 0, will use the default codegen version (1.5).");
+    "architecture). If set to 0, will use the default codegen version (1.5). "
+    "Packages with proc-scoped channels currently require codegen 1.5; "
+    "explicitly requesting another version for such a package is an error "
+    "rather than being silently overridden.");
 ABSL_FLAG(std::string, output_scheduling_pass_metrics_path, "",
           "Output path for the pass pipeline metrics for scheduling passes as "
           "a PassPipelineMetricsProto.");
