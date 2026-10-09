@@ -1,0 +1,27 @@
+module __affine_shift__main(
+  input wire [7:0] data,
+  input wire [2:0] shift,
+  output wire [7:0] out
+);
+  wire data_unflattened[8];
+  assign data_unflattened[0] = data[0:0];
+  assign data_unflattened[1] = data[1:1];
+  assign data_unflattened[2] = data[2:2];
+  assign data_unflattened[3] = data[3:3];
+  assign data_unflattened[4] = data[4:4];
+  assign data_unflattened[5] = data[5:5];
+  assign data_unflattened[6] = data[6:6];
+  assign data_unflattened[7] = data[7:7];
+  wire [7:0] shll_88;
+  wire array_99[8];
+  assign shll_88 = {data_unflattened[3'h7], data_unflattened[3'h6], data_unflattened[3'h5], data_unflattened[3'h4], data_unflattened[3'h3], data_unflattened[3'h2], data_unflattened[3'h1], data_unflattened[3'h0]} << shift;
+  assign array_99[0] = shll_88[0];
+  assign array_99[1] = shll_88[1];
+  assign array_99[2] = shll_88[2];
+  assign array_99[3] = shll_88[3];
+  assign array_99[4] = shll_88[4];
+  assign array_99[5] = shll_88[5];
+  assign array_99[6] = shll_88[6];
+  assign array_99[7] = shll_88[7];
+  assign out = {array_99[7], array_99[6], array_99[5], array_99[4], array_99[3], array_99[2], array_99[1], array_99[0]};
+endmodule
