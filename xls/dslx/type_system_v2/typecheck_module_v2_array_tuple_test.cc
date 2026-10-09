@@ -1858,6 +1858,15 @@ const X = A..s8:3;
                                        "is greater than end value 3")));
 }
 
+TEST(TypecheckV2Test, TupleArityMismatchKeepsReturnContext) {
+  EXPECT_THAT(R"(
+fn f() -> (u4, u1) { (u4:0,) }
+)",
+              TypecheckFails(HasSubstr(
+                  "The body of function `f` does not actually return the "
+                  "function's declared return type")));
+}
+
 TEST(TypecheckV2Test, TooBigConstant) {
   EXPECT_THAT(
       R"(

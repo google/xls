@@ -463,6 +463,7 @@ cc_library(
         "//xls/dslx/frontend:pos",
         "//xls/dslx/type_system:type_info",
         "//xls/dslx/type_system_v2:builtin_trait_deriver",
+        "//xls/dslx/type_system_v2:declaration_resolution_cache",
         "//xls/dslx/type_system_v2:inference_table",
         "//xls/dslx/type_system_v2:inference_table_converter",
         "//xls/dslx/type_system_v2:trait_deriver",

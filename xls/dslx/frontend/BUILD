@@ -517,6 +517,18 @@ cc_library(
 )
 
 cc_library(
+    name = "aggregate_construction",
+    srcs = ["aggregate_construction.cc"],
+    hdrs = ["aggregate_construction.h"],
+    deps = [
+        ":ast",
+        "@abseil-cpp//absl/base",
+        "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/types:span",
+    ],
+)
+
+cc_library(
     name = "ast",
     srcs = ["ast.cc"],
     hdrs = ["ast.h"],

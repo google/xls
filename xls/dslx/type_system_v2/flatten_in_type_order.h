@@ -20,6 +20,7 @@
 #include "absl/status/statusor.h"
 #include "xls/dslx/frontend/ast_node.h"
 #include "xls/dslx/import_data.h"
+#include "xls/dslx/type_system_v2/inference_table.h"
 
 namespace xls::dslx {
 
@@ -29,8 +30,8 @@ namespace xls::dslx {
 // `include_parametric_entities` is false, then the flattening ignores any
 // encountered parametric functions/procs and does not include even their roots.
 absl::StatusOr<std::vector<const AstNode*>> FlattenInTypeOrder(
-    const ImportData& import_data, const AstNode* root,
-    bool include_parametric_entities);
+    const ImportData& import_data, const InferenceTable& table,
+    const AstNode* root, bool include_parametric_entities);
 
 }  // namespace xls::dslx
 

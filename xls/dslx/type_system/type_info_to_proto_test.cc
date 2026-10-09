@@ -360,6 +360,44 @@ fn f(x: (E[2],)) -> Box { Box { item: E::None } }
 }
 
 TEST_F(TypeInfoToProtoWithBothTypecheckVersionsTest,
+       ReadsLegacyConstructorMetadataUsingOriginalExpressionSpans) {
+  constexpr std::string_view kProgram = R"(
+enum E { Unit, Tuple(u8), Named { x: u8 } }
+fn unit() -> E { E::Unit }
+fn tuple() -> E { E::Tuple(u8:1) }
+fn named() -> E { E::Named { x: u8:2 } }
+)";
+  ImportData import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(kProgram, "fake.x", "fake", &import_data));
+  XLS_ASSERT_OK_AND_ASSIGN(TypeInfoProto proto,
+                           TypeInfoToProto(*tm.type_info, tm.module));
+  int constructors = 0;
+  for (const AstNodeTypeInfoProto& node : proto.nodes()) {
+    if (node.type().has_sum_type() &&
+        (node.kind() == AST_NODE_KIND_COLON_REF ||
+         node.kind() == AST_NODE_KIND_INVOCATION ||
+         node.kind() == AST_NODE_KIND_STRUCT_INSTANCE)) {
+      XLS_ASSERT_OK_AND_ASSIGN(
+          std::string current,
+          ToHumanString(node, import_data, import_data.file_table()));
+      AstNodeTypeInfoProto legacy = node;
+      legacy.set_kind(AST_NODE_KIND_SUM_INSTANCE);
+      XLS_ASSERT_OK_AND_ASSIGN(
+          std::string restored,
+          ToHumanString(legacy, import_data, import_data.file_table()));
+      // Only the serialized kind's name changes; source text and concrete
+      // payload types must still be recovered from the original expression.
+      EXPECT_EQ(current.substr(current.find(" :: `")),
+                restored.substr(restored.find(" :: `")));
+      ++constructors;
+    }
+  }
+  EXPECT_EQ(constructors, 3);
+}
+
+TEST_F(TypeInfoToProtoWithBothTypecheckVersionsTest,
        RejectsReorderedSumVariantsInProtoImport) {
   std::string program = R"(
 enum Option {

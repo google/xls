@@ -101,8 +101,6 @@ AstNodeKindProto ToProto(AstNodeKind kind) {
       return AST_NODE_KIND_STRING;
     case AstNodeKind::kStructInstance:
       return AST_NODE_KIND_STRUCT_INSTANCE;
-    case AstNodeKind::kSumInstance:
-      return AST_NODE_KIND_SUM_INSTANCE;
     case AstNodeKind::kStructMember:
       return AST_NODE_KIND_STRUCT_MEMBER;
     case AstNodeKind::kStructPattern:
@@ -955,8 +953,6 @@ absl::StatusOr<AstNodeKind> FromProto(AstNodeKindProto p) {
       return AstNodeKind::kString;
     case AST_NODE_KIND_STRUCT_INSTANCE:
       return AstNodeKind::kStructInstance;
-    case AST_NODE_KIND_SUM_INSTANCE:
-      return AstNodeKind::kSumInstance;
     case AST_NODE_KIND_STRUCT_MEMBER:
       return AstNodeKind::kStructMember;
     case AST_NODE_KIND_STRUCT_PATTERN:
@@ -1069,6 +1065,8 @@ absl::StatusOr<AstNodeKind> FromProto(AstNodeKindProto p) {
     // addition to the "real" above. Return an invalid argument error.
     case AST_NODE_KIND_INVALID:
     case AST_NODE_KIND_CONST_REF:  // Removed.
+    case AST_NODE_KIND_SUM_INSTANCE:  // Handled using the original source
+                                      // shape.
     case AstNodeKindProto_INT_MIN_SENTINEL_DO_NOT_USE_:
     case AstNodeKindProto_INT_MAX_SENTINEL_DO_NOT_USE_:
       return absl::InvalidArgumentError(
@@ -1084,16 +1082,38 @@ absl::StatusOr<std::string> ToHumanString(const AstNodeTypeInfoProto& antip,
                                           FileTable& file_table) {
   XLS_ASSIGN_OR_RETURN(std::string type_str,
                        ToHumanString(antip.type(), import_data, file_table));
-  XLS_ASSIGN_OR_RETURN(AstNodeKind kind, FromProto(antip.kind()));
+  const AstNode* n = nullptr;
+  if (antip.kind() == AST_NODE_KIND_SUM_INSTANCE) {
+    // Older metadata recorded a normalized constructor kind. The same source
+    // span now belongs to the original unit, positional or named expression.
+    const Span span = FromProto(antip.span(), file_table);
+    for (AstNodeKind kind : {AstNodeKind::kColonRef, AstNodeKind::kInvocation,
+                             AstNodeKind::kStructInstance}) {
+      absl::StatusOr<const AstNode*> candidate =
+          import_data.FindNode(kind, span);
+      if (candidate.ok()) {
+        n = *candidate;
+        break;
+      } else if (!absl::IsNotFound(candidate.status())) {
+        return candidate.status();
+      }
+    }
+    if (n == nullptr) {
+      return absl::NotFoundError(
+          absl::StrCat("Could not find the original sum constructor @ ",
+                       span.ToString(file_table)));
+    }
+  } else {
+    XLS_ASSIGN_OR_RETURN(AstNodeKind kind, FromProto(antip.kind()));
 
-  // TODO: https://github.com/google/xls/issues/3930 - This use of FindNode is
-  // brittle because there can be nodes fabricated in type inference mapped to
-  // the same span as the node from which the proto node was generated. We
-  // should either do it another way or fix TIv2 to strictly use `Span::None()`
-  // to avoid such collisions.
-  XLS_ASSIGN_OR_RETURN(
-      const AstNode* n,
-      import_data.FindNode(kind, FromProto(antip.span(), file_table)));
+    // TODO: https://github.com/google/xls/issues/3930 - This use of FindNode is
+    // brittle because there can be nodes fabricated in type inference mapped to
+    // the same span as the node from which the proto node was generated. We
+    // should either do it another way or fix TIv2 to strictly use
+    // `Span::None()` to avoid such collisions.
+    XLS_ASSIGN_OR_RETURN(
+        n, import_data.FindNode(kind, FromProto(antip.span(), file_table)));
+  }
   std::string node_str = n == nullptr ? std::string("") : n->ToString();
   return absl::StrFormat("%s: %s :: `%s` :: %s", ToHumanString(antip.span()),
                          ToHumanString(antip.kind()), node_str, type_str);

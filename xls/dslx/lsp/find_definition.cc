@@ -37,8 +37,7 @@ namespace xls::dslx {
 namespace {
 
 const NameDef* GetNameDef(
-    const std::variant<Module*, EnumDef*, BuiltinNameDef*, ArrayTypeAnnotation*,
-                       Impl*>& colon_ref_subject,
+    const TypeInfo::ResolvedColonRefSubject& colon_ref_subject,
     std::string_view attr) {
   return absl::visit(
       Visitor{
@@ -70,6 +69,10 @@ const NameDef* GetNameDef(
             return nullptr;
           },
           [&](EnumDef* e) -> const NameDef* { return e->GetNameDef(attr); },
+          [&](SumDef* sum) -> const NameDef* {
+            std::optional<SumVariant*> variant = sum->GetVariant(attr);
+            return variant.has_value() ? (*variant)->name_def() : nullptr;
+          },
           [](Impl* s) -> const NameDef* { return nullptr; },
           [](BuiltinNameDef*) -> const NameDef* { return nullptr; },
           [](ArrayTypeAnnotation*) -> const NameDef* { return nullptr; },

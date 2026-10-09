@@ -432,6 +432,7 @@ class FunctionConverterVisitor : public AstNodeVisitor {
   INVALID(ChannelTypeAnnotation)
   INVALID(ConstConditionalTypeAnnotation)
   INVALID(ConstMatchTypeAnnotation)
+  INVALID(DeclaredMemberTypeAnnotation)
   INVALID(ElementTypeAnnotation)
   INVALID(FunctionTypeAnnotation)
   INVALID(GenericTypeAnnotation)
@@ -461,7 +462,6 @@ class FunctionConverterVisitor : public AstNodeVisitor {
   INVALID(StructDef)
   INVALID(StructMemberNode)
   INVALID(SumDef)
-  INVALID(SumInstance)
   INVALID(SumVariant)
   INVALID(Trait)
   INVALID(TypeAlias)
@@ -2885,14 +2885,13 @@ absl::Status FunctionConverter::HandleBuiltinWrite(const Invocation* node) {
 
 absl::Status FunctionConverter::HandleInvocation(const Invocation* node) {
   VLOG(5) << "FunctionConverter::HandleInvocation: " << node->ToString();
-  switch (node->callee_kind()) {
-    case Invocation::CalleeKind::kSumConstructor:
-      return absl::UnimplementedError(
-          "Semantic sum construction is not supported by IR conversion.");
-    case Invocation::CalleeKind::kFunction:
-      break;
+  std::string called_name;
+  if (current_type_info_->IsSumConstructor(node)) {
+    return absl::UnimplementedError(
+        "Semantic sum construction is not supported by IR conversion.");
+  } else {
+    XLS_ASSIGN_OR_RETURN(called_name, GetCalleeIdentifier(node));
   }
-  XLS_ASSIGN_OR_RETURN(std::string called_name, GetCalleeIdentifier(node));
   auto accept_args = [&]() -> absl::StatusOr<std::vector<BValue>> {
     std::vector<BValue> values;
     if (auto* attr = dynamic_cast<Attr*>(node->callee())) {
@@ -4689,9 +4688,7 @@ absl::Status FunctionConverter::HandleProcNextFunction(
 }
 
 absl::Status FunctionConverter::HandleColonRef(const ColonRef* node) {
-  XLS_ASSIGN_OR_RETURN(std::optional<SumConstructorRef> constructor,
-                       ResolveSumConstructor(node, *import_data_));
-  if (constructor.has_value()) {
+  if (current_type_info_->IsSumConstructor(node)) {
     return absl::UnimplementedError(
         "Semantic sum construction is not supported by IR conversion.");
   } else {

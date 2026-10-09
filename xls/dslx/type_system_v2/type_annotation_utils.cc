@@ -99,30 +99,30 @@ absl::StatusOr<TypeAnnotation*> CreateBuiltinTypeAnnotation(
 
 TypeAnnotation* CreateStructOrProcAnnotation(
     Module& module, StructDefBase* def, std::vector<ExprOrType> parametrics,
-    std::optional<const StructInstanceBase*> instantiator) {
+    std::optional<const Expr*> construction_origin) {
   return module.Make<TypeRefTypeAnnotation>(
       def->span(), module.Make<TypeRef>(def->span(), def),
-      std::move(parametrics), instantiator);
+      std::move(parametrics), construction_origin);
 }
 
 TypeAnnotation* CreateStructOrProcAnnotation(Module& module,
                                              const StructOrProcRef& ref) {
   return CreateStructOrProcAnnotation(module,
                                       const_cast<StructDefBase*>(ref.def),
-                                      ref.parametrics, std::nullopt);
+                                      ref.parametrics, ref.construction_origin);
 }
 
 TypeAnnotation* CreateSumAnnotation(
     Module& module, SumDef* def, std::vector<ExprOrType> parametrics,
-    std::optional<SumConstructorExpr> instantiator) {
+    std::optional<const Expr*> construction_origin) {
   return module.Make<TypeRefTypeAnnotation>(
       def->span(), module.Make<TypeRef>(def->span(), def),
-      std::move(parametrics), std::nullopt, instantiator);
+      std::move(parametrics), construction_origin);
 }
 
 TypeAnnotation* CreateSumAnnotation(Module& module, const SumRef& ref) {
   return CreateSumAnnotation(module, const_cast<SumDef*>(ref.def),
-                             ref.parametrics, ref.instantiator);
+                             ref.parametrics, ref.construction_origin);
 }
 
 ChannelTypeAnnotation* GetChannelArrayElementType(

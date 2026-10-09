@@ -39,6 +39,7 @@
 #include "xls/dslx/interp_bindings.h"
 #include "xls/dslx/type_system/type_info.h"
 #include "xls/dslx/type_system_v2/builtin_trait_deriver.h"
+#include "xls/dslx/type_system_v2/declaration_resolution_cache.h"
 #include "xls/dslx/type_system_v2/inference_table.h"
 #include "xls/dslx/type_system_v2/inference_table_converter.h"
 #include "xls/dslx/type_system_v2/trait_deriver.h"
@@ -202,6 +203,12 @@ class ImportData {
 
   // Returns whether an `InferenceTable` for the corpus has been created yet.
   bool HasInferenceTable() const { return inference_table_ != nullptr; }
+
+  // Declaration resolution is independent of inferred types and can be reused
+  // even before population has created the inference table.
+  DeclarationResolutionCache& declaration_resolution_cache() const {
+    return declaration_resolution_cache_;
+  }
 
   // Sets the `InferenceTableConverter` for the given module. This is for use by
   // type inference v2 during the process of typechecking a corpus.
@@ -391,6 +398,7 @@ class ImportData {
   std::vector<ImportRecord> importer_stack_;
 
   // Cross-module state used by type inference v2.
+  mutable DeclarationResolutionCache declaration_resolution_cache_;
   std::unique_ptr<InferenceTable> inference_table_;
   absl::flat_hash_map<Module*, InferenceTableConverter*>
       module_to_inference_table_converter_;

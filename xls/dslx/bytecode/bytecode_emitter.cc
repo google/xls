@@ -883,9 +883,7 @@ absl::StatusOr<InterpValue> BytecodeEmitter::HandleColonRefToValue(
 }
 
 absl::Status BytecodeEmitter::HandleColonRef(const ColonRef* node) {
-  XLS_ASSIGN_OR_RETURN(std::optional<SumConstructorRef> constructor,
-                       ResolveSumConstructor(node, *import_data_));
-  if (constructor.has_value()) {
+  if (type_info_->IsSumConstructor(node)) {
     return absl::UnimplementedError(
         "Semantic sum execution is not supported by the bytecode runtime.");
   } else {
@@ -1184,15 +1182,11 @@ absl::Status BytecodeEmitter::PushResolvedCallee(const Invocation* invocation) {
 }
 
 absl::Status BytecodeEmitter::HandleInvocation(const Invocation* node) {
-  switch (node->callee_kind()) {
-    case Invocation::CalleeKind::kSumConstructor:
-      return absl::UnimplementedError(
-          "Semantic sum execution is not supported by the bytecode runtime.");
-    case Invocation::CalleeKind::kFunction:
-      break;
-  }
-  if (NameRef* name_ref = dynamic_cast<NameRef*>(node->callee());
-      name_ref != nullptr && name_ref->IsBuiltin()) {
+  if (type_info_->IsSumConstructor(node)) {
+    return absl::UnimplementedError(
+        "Semantic sum execution is not supported by the bytecode runtime.");
+  } else if (NameRef* name_ref = dynamic_cast<NameRef*>(node->callee());
+             name_ref != nullptr && name_ref->IsBuiltin()) {
     VLOG(10) << "HandleInvocation; builtin name_ref: " << name_ref->ToString();
 
     if (name_ref->identifier() == "array_size") {
@@ -1732,11 +1726,6 @@ absl::Status BytecodeEmitter::HandleStructInstance(const StructInstance* node) {
                                  Bytecode::NumElements(struct_def.size())));
     return absl::OkStatus();
   }
-}
-
-absl::Status BytecodeEmitter::HandleSumInstance(const SumInstance*) {
-  return absl::UnimplementedError(
-      "Semantic sum execution is not supported by the bytecode runtime.");
 }
 
 absl::Status BytecodeEmitter::HandleSplatStructInstance(

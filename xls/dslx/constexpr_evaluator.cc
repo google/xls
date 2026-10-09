@@ -297,9 +297,18 @@ absl::Status ConstexprEvaluator::HandleChannelDecl(const ChannelDecl* expr) {
 }
 
 absl::Status ConstexprEvaluator::HandleColonRef(const ColonRef* expr) {
-  XLS_ASSIGN_OR_RETURN(std::optional<SumConstructorRef> constructor,
-                       ResolveSumConstructor(expr, *import_data_));
-  if (constructor.has_value()) {
+  absl::StatusOr<TypeInfo::ResolvedColonRefSubject> subject =
+      type_info_->GetResolvedColonRefSubject(expr);
+  bool is_sum_constructor;
+  if (subject.ok()) {
+    is_sum_constructor = std::holds_alternative<SumDef*>(*subject);
+  } else {
+    // Typechecking can evaluate parametrics before conversion records subjects.
+    XLS_ASSIGN_OR_RETURN(std::optional<SumConstructorRef> constructor,
+                         ResolveSumConstructor(expr, *import_data_));
+    is_sum_constructor = constructor.has_value();
+  }
+  if (is_sum_constructor) {
     return absl::UnimplementedError(
         "Semantic sum constants are not supported.");
   } else {
@@ -338,16 +347,27 @@ absl::Status ConstexprEvaluator::HandleIndex(const Index* expr) {
 }
 
 absl::Status ConstexprEvaluator::HandleInvocation(const Invocation* expr) {
-  switch (expr->callee_kind()) {
-    case Invocation::CalleeKind::kSumConstructor:
-      return absl::UnimplementedError(
-          "Semantic sum constants are not supported.");
-    case Invocation::CalleeKind::kFunction:
-      break;
+  bool is_sum_constructor = false;
+  if (const auto* callee = dynamic_cast<const ColonRef*>(expr->callee());
+      callee != nullptr) {
+    absl::StatusOr<TypeInfo::ResolvedColonRefSubject> subject =
+        type_info_->GetResolvedColonRefSubject(callee);
+    if (subject.ok()) {
+      is_sum_constructor = std::holds_alternative<SumDef*>(*subject);
+    } else {
+      // Early constexpr evaluation must not mistake missing metadata for a
+      // function call. Shared declaration resolution is valid at this phase.
+      XLS_ASSIGN_OR_RETURN(std::optional<SumConstructorRef> constructor,
+                           ResolveSumConstructor(expr, *import_data_));
+      is_sum_constructor = constructor.has_value();
+    }
   }
   std::optional<std::string_view> called_name;
   auto* callee_name_ref = dynamic_cast<NameRef*>(expr->callee());
-  if (callee_name_ref != nullptr) {
+  if (is_sum_constructor) {
+    return absl::UnimplementedError(
+        "Semantic sum constants are not supported.");
+  } else if (callee_name_ref != nullptr) {
     called_name = callee_name_ref->identifier();
     if (called_name == "send" || called_name == "send_if" ||
         called_name == "recv" || called_name == "recv_if" ||
@@ -540,10 +560,6 @@ absl::Status ConstexprEvaluator::HandleStructInstance(
     }
     return InterpretExpr(expr);
   }
-}
-
-absl::Status ConstexprEvaluator::HandleSumInstance(const SumInstance*) {
-  return absl::UnimplementedError("Semantic sum constants are not supported.");
 }
 
 absl::Status ConstexprEvaluator::HandleConditional(const Conditional* expr) {

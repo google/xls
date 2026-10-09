@@ -67,7 +67,9 @@ const TypeAnnotation* SignednessAndSizeToAnnotation(
 // `parametric_context` argument is used as a context for the evaluation of any
 // expressions inside the type annotations. `resolve_type_annotation` resolves
 // annotations represented by type-reference values in the caller's context
-// before they are compared. The callback is borrowed for this synchronous call.
+// before they are compared. `resolve_group` resolves corresponding structural
+// slots together, before nominal types consume their constructor evidence.
+// Both callbacks are borrowed for this synchronous call.
 absl::StatusOr<const TypeAnnotation*> UnifyTypeAnnotations(
     Module& module, InferenceTable& inference_table,
     const FileTable& file_table, UnificationErrorGenerator& error_generator,
@@ -78,7 +80,10 @@ absl::StatusOr<const TypeAnnotation*> UnifyTypeAnnotations(
     ImportData& import_data,
     absl::FunctionRef<
         absl::StatusOr<const TypeAnnotation*>(const TypeAnnotation*)>
-        resolve_type_annotation);
+        resolve_type_annotation,
+    absl::FunctionRef<absl::StatusOr<const TypeAnnotation*>(
+        std::vector<const TypeAnnotation*>, const Span&)>
+        resolve_group);
 
 }  // namespace xls::dslx
 

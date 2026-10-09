@@ -209,7 +209,7 @@ class InvocationVisitor : public ExprVisitor {
     for (const Expr* arg : node->args()) {
       XLS_RETURN_IF_ERROR(arg->AcceptExpr(this));
     }
-    if (node->callee_kind() == Invocation::CalleeKind::kSumConstructor) {
+    if (type_info_->IsSumConstructor(node)) {
       return absl::OkStatus();
     } else {
       return HandleFunctionInvocation(node);
@@ -350,16 +350,6 @@ class InvocationVisitor : public ExprVisitor {
 
   absl::Status HandleStructInstance(const StructInstance* expr) override {
     for (const auto& member : expr->GetUnorderedMembers()) {
-      XLS_RETURN_IF_ERROR(member.second->AcceptExpr(this));
-    }
-    return absl::OkStatus();
-  }
-
-  absl::Status HandleSumInstance(const SumInstance* expr) override {
-    for (const Expr* arg : expr->tuple_payload_args()) {
-      XLS_RETURN_IF_ERROR(arg->AcceptExpr(this));
-    }
-    for (const auto& member : expr->struct_payload_field_args()) {
       XLS_RETURN_IF_ERROR(member.second->AcceptExpr(this));
     }
     return absl::OkStatus();

@@ -40,7 +40,7 @@ inline constexpr int64_t kMaxBitCount = 1000000;
 struct StructOrProcRef {
   const StructDefBase* def;
   std::vector<ExprOrType> parametrics;
-  std::optional<const StructInstanceBase*> instantiator;
+  std::optional<const Expr*> construction_origin;
   std::optional<const TypeRefTypeAnnotation*> type_ref_type_annotation;
   bool is_generic;
 };
@@ -48,7 +48,7 @@ struct StructOrProcRef {
 struct SumRef {
   const SumDef* def;
   std::vector<ExprOrType> parametrics;
-  std::optional<SumConstructorExpr> instantiator;
+  std::optional<const Expr*> construction_origin;
 };
 
 // The signedness and bit count extracted from a `TypeAnnotation`. The
@@ -112,7 +112,7 @@ absl::StatusOr<TypeAnnotation*> CreateBuiltinTypeAnnotation(
 // parametric arguments.
 TypeAnnotation* CreateStructOrProcAnnotation(
     Module& module, StructDefBase* def, std::vector<ExprOrType> parametrics,
-    std::optional<const StructInstanceBase*> instantiator);
+    std::optional<const Expr*> construction_origin);
 
 // Variant that converts a `StructOrProcRef` into an annotation.
 TypeAnnotation* CreateStructOrProcAnnotation(Module& module,
@@ -122,7 +122,7 @@ TypeAnnotation* CreateStructOrProcAnnotation(Module& module,
 // parametric arguments.
 TypeAnnotation* CreateSumAnnotation(
     Module& module, SumDef* def, std::vector<ExprOrType> parametrics,
-    std::optional<SumConstructorExpr> instantiator = std::nullopt);
+    std::optional<const Expr*> construction_origin = std::nullopt);
 
 // Variant that converts a `SumRef` into an annotation.
 TypeAnnotation* CreateSumAnnotation(Module& module, const SumRef& ref);

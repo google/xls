@@ -31,10 +31,14 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/match.h"
+#include "absl/strings/str_cat.h"
+#include "absl/strings/str_join.h"
 #include "absl/strings/substitute.h"
+#include "absl/types/span.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/errors.h"
+#include "xls/dslx/frontend/aggregate_construction.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/ast_cloner.h"
 #include "xls/dslx/frontend/ast_node_visitor_with_default.h"
@@ -84,6 +88,78 @@ absl::StatusOr<const TypeAnnotation*> GetTypeArgumentAnnotation(
 }
 
 }  // namespace
+
+absl::StatusOr<NamedFieldCorrespondence> ValidateAndBindNamedMembers(
+    const Span& span,
+    absl::Span<const std::pair<std::string, Expr*>> actual_members,
+    const NamedFields& formal_members, std::string_view aggregate_name,
+    bool is_struct, bool requires_all_members, const FileTable& file_table,
+    bool allow_default_io_members) {
+  std::vector<std::string_view> names;
+  names.reserve(actual_members.size());
+  for (const auto& [name, expr] : actual_members) {
+    names.push_back(name);
+  }
+  NamedFieldBindingResult result = BindNamedFields(formal_members, names);
+  if (const auto* unknown = std::get_if<UnknownNamedField>(&result)) {
+    const auto& [name, expr] = actual_members[unknown->source_index];
+    return TypeInferenceErrorStatus(
+        expr->span(), nullptr,
+        is_struct
+            ? absl::Substitute(
+                  "Struct `$0` has no member `$1`, but it was provided by "
+                  "this instance.",
+                  aggregate_name, name)
+            : absl::Substitute(
+                  "Constructor `$0` has no member `$1`, but it was "
+                  "provided by this instance.",
+                  aggregate_name, name),
+        file_table);
+  } else if (const auto* duplicate =
+                 std::get_if<DuplicateNamedField>(&result)) {
+    const auto& [name, expr] = actual_members[duplicate->source_index];
+    return TypeInferenceErrorStatus(
+        expr->span(), nullptr,
+        is_struct ? absl::Substitute(
+                        "Duplicate value seen for `$0` in this `$1` struct "
+                        "instance.",
+                        name, aggregate_name)
+                  : absl::Substitute(
+                        "Duplicate value seen for `$0` in constructor `$1`.",
+                        name, aggregate_name),
+        file_table);
+  } else {
+    NamedFieldCorrespondence& correspondence =
+        std::get<NamedFieldCorrespondence>(result);
+    std::vector<std::string_view> missing;
+    if (requires_all_members) {
+      for (int64_t i = 0; i < correspondence.size(); ++i) {
+        if (!correspondence[i].has_value() &&
+            !(allow_default_io_members &&
+              IsIoObjectAnnotation(formal_members.members()[i]->type()))) {
+          missing.push_back(formal_members.members()[i]->name());
+        }
+      }
+    }
+    if (!missing.empty()) {
+      absl::c_sort(missing);
+      return TypeInferenceErrorStatus(
+          span, nullptr,
+          absl::Substitute(
+              is_struct
+                  ? "Instance of struct `$0` is missing member(s): $1"
+                  : "Instance of constructor `$0` is missing member(s): $1",
+              aggregate_name,
+              absl::StrJoin(missing, ", ",
+                            [](std::string* out, std::string_view piece) {
+                              absl::StrAppend(out, "`", piece, "`");
+                            })),
+          file_table);
+    } else {
+      return std::move(correspondence);
+    }
+  }
+}
 
 absl::Status ValidatePhase1SumPayloadMemberType(
     const SumDef& sum_def, const SumVariant& variant,

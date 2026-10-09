@@ -108,7 +108,6 @@ absl::StatusOr<std::unique_ptr<ModuleInfo>> TypecheckModuleV2(
       };
   XLS_RETURN_IF_ERROR(
       LoadImports(*module, *import_data, typecheck_imported_module));
-  XLS_RETURN_IF_ERROR(ClassifySumConstructors(module.get(), *import_data));
   std::string_view module_name = module->name();
   if (semantics_analysis != nullptr) {
     XLS_RETURN_IF_ERROR(semantics_analysis->RunPreTypeCheckPass(

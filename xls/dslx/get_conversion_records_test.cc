@@ -84,6 +84,26 @@ fn main() -> u32 { f() }
   EXPECT_EQ(order[1].f()->identifier(), "f");
 }
 
+TEST_F(GetConversionRecordsTest, SumConstructorPreservesPayloadFunctionCalls) {
+  constexpr std::string_view kProgram = R"(
+enum E { Tuple(u32) }
+fn payload(x: u32) -> u32 { x + u32:1 }
+fn main(x: u32) -> u32 { let _ = E::Tuple(payload(x)); x }
+)";
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * main,
+                           tm.module->GetMemberOrError<Function>("main"));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::vector<ConversionRecord> order,
+      GetConversionRecordsForEntry(main, tm.type_info, std::nullopt));
+  ASSERT_EQ(order.size(), 2);
+  EXPECT_EQ(order[0].f()->identifier(), "payload");
+  EXPECT_EQ(order[1].f()->identifier(), "main");
+}
+
 TEST_F(GetConversionRecordsTest, MultipleCallsToSameFunction) {
   constexpr std::string_view kProgram = R"(
 fn g() -> u32 { u32:42 }

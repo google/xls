@@ -75,7 +75,6 @@
   X(StatementBlock)                \
   X(String)                        \
   X(StructInstance)                \
-  X(SumInstance)                   \
   X(TupleIndex)                    \
   X(Unop)                          \
   X(VerbatimNode)                  \
@@ -88,7 +87,7 @@
 // (Note that this includes all the Expr node leaf kinds listed in
 // XLS_DSLX_EXPR_NODE_EACH).
 #define XLS_DSLX_AST_NODE_EACH(X)   \
-  /* keep-sorted start */        \
+  /* keep-sorted start */           \
   X(Attribute)                      \
   X(BuiltinNameDef)                 \
   X(ConstAssert)                    \
@@ -128,15 +127,16 @@
   X(UseTreeEntry)                   \
   X(WidthSlice)                     \
   X(WildcardPattern)                \
-  /* keep-sorted end */          \
+  /* keep-sorted end */             \
   /* type annotations */            \
-  /* keep-sorted start */        \
+  /* keep-sorted start */           \
   X(AnyTypeAnnotation)              \
   X(ArrayTypeAnnotation)            \
   X(BuiltinTypeAnnotation)          \
   X(ChannelTypeAnnotation)          \
   X(ConstConditionalTypeAnnotation) \
   X(ConstMatchTypeAnnotation)       \
+  X(DeclaredMemberTypeAnnotation)   \
   X(ElementTypeAnnotation)          \
   X(FunctionTypeAnnotation)         \
   X(GenericTypeAnnotation)          \
@@ -148,7 +148,7 @@
   X(TupleTypeAnnotation)            \
   X(TypeRefTypeAnnotation)          \
   X(TypeVariableTypeAnnotation)     \
-  /* keep-sorted end */          \
+  /* keep-sorted end */             \
   XLS_DSLX_EXPR_NODE_EACH(X)
 
 namespace xls::dslx {
@@ -163,13 +163,13 @@ XLS_DSLX_AST_NODE_EACH(FORWARD_DECL)
 
 class StructDefBase;
 class StructInstanceBase;
+class Expr;
 
-// Borrowed constructor syntax used as evidence for sum parametric inference.
-// The owning module keeps these expressions alive; inferred parametrics belong
-// to the inference context rather than to these shared syntax nodes.
-using SumConstructorExpr =
-    std::variant<const ColonRef*, const Invocation*, const StructInstance*,
-                 const SumInstance*>;
+// Borrowed original constructor syntax. The owning module keeps it alive.
+using SumConstructorExpr = const Expr*;
+
+using AggregateDeclaration =
+    std::variant<const StructDefBase*, const SumVariant*>;
 
 // Helper type (abstract base) for double dispatch on AST nodes.
 class AstNodeVisitor {
@@ -343,6 +343,7 @@ enum class TypeAnnotationKind : uint8_t {
   kChannel,
   kConstConditional,
   kConstMatch,
+  kDeclaredMember,
   kElement,
   kFunction,
   kGeneric,
@@ -592,7 +593,7 @@ class TupleTypeAnnotation : public TypeAnnotation {
 // using this type.
 //
 // If a `TypeRefTypeAnnotation` originates as the type of an aggregate instance
-// node, then it may capture that node as an instantiator, indicating that the
+// node, then it may capture that node as its origin, indicating that the
 // types of the actual payload expressions should be used to infer any implicit
 // parametrics.
 class TypeRefTypeAnnotation : public TypeAnnotation {
@@ -603,9 +604,7 @@ class TypeRefTypeAnnotation : public TypeAnnotation {
   TypeRefTypeAnnotation(
       Module* owner, Span span, TypeRef* type_ref,
       std::vector<ExprOrType> parametrics,
-      std::optional<const StructInstanceBase*> struct_instantiator =
-          std::nullopt,
-      std::optional<SumConstructorExpr> sum_instantiator = std::nullopt);
+      std::optional<const Expr*> construction_origin = std::nullopt);
 
   ~TypeRefTypeAnnotation() override;
 
@@ -624,18 +623,18 @@ class TypeRefTypeAnnotation : public TypeAnnotation {
 
   const std::vector<ExprOrType>& parametrics() const { return parametrics_; }
 
-  std::optional<const StructInstanceBase*> struct_instantiator() const {
-    return struct_instantiator_;
+  std::optional<const Expr*> construction_origin() const {
+    return construction_origin_;
   }
-  std::optional<SumConstructorExpr> sum_instantiator() const {
-    return sum_instantiator_;
+  // Used after cloning to remap this borrowed reference with the complete map.
+  void set_construction_origin(std::optional<const Expr*> origin) {
+    construction_origin_ = origin;
   }
 
  private:
   TypeRef* type_ref_;
   std::vector<ExprOrType> parametrics_;
-  std::optional<const StructInstanceBase*> struct_instantiator_;
-  std::optional<SumConstructorExpr> sum_instantiator_;
+  std::optional<const Expr*> construction_origin_;
 };
 
 // A type annotation that is a reference to a type variable created either by
@@ -721,6 +720,43 @@ class MemberTypeAnnotation : public TypeAnnotation {
   const TypeAnnotation* struct_type_;
   const std::string member_name_;
   const bool use_wrapped_type_if_proc_state_;
+};
+
+// An internal projection of a resolved declaration slot. For a sum payload,
+// aggregate_type is the enclosing sum type, not a constructor function/type.
+// The declaration is borrowed and is not an AST child.
+class DeclaredMemberTypeAnnotation : public TypeAnnotation {
+ public:
+  static constexpr TypeAnnotationKind kAnnotationKind =
+      TypeAnnotationKind::kDeclaredMember;
+
+  DeclaredMemberTypeAnnotation(Module* owner, Span span,
+                               const TypeAnnotation* aggregate_type,
+                               AggregateDeclaration declaration,
+                               int64_t member_index);
+
+  absl::Status Accept(AstNodeVisitor* v) const override {
+    return v->HandleDeclaredMemberTypeAnnotation(this);
+  }
+  std::string_view GetNodeTypeName() const override {
+    return "DeclaredMemberTypeAnnotation";
+  }
+  const TypeAnnotation* aggregate_type() const { return aggregate_type_; }
+  AggregateDeclaration declaration() const { return declaration_; }
+  int64_t member_index() const { return member_index_; }
+  // Used after cloning to remap this borrowed reference with the complete map.
+  void set_declaration(AggregateDeclaration declaration) {
+    declaration_ = declaration;
+  }
+  std::vector<AstNode*> GetChildren(bool want_types) const override {
+    return {const_cast<TypeAnnotation*>(aggregate_type_)};
+  }
+  std::string ToString() const override;
+
+ private:
+  const TypeAnnotation* aggregate_type_;
+  AggregateDeclaration declaration_;
+  int64_t member_index_;
 };
 
 // Represents the type of an element of an array or tuple, expressed in terms of
@@ -2952,10 +2988,6 @@ class FunctionRef : public Instantiation {
 // invocation for the config & next members of a spawned Proc.
 class Invocation : public Instantiation {
  public:
-  // Resolved before semantic analysis and inference-table population. A sum
-  // constructor retains its original syntax and is not a function call.
-  enum class CalleeKind : uint8_t { kFunction, kSumConstructor };
-
   Invocation(
       Module* owner, Span span, Expr* callee, std::vector<Expr*> args,
       std::vector<ExprOrType> explicit_parametrics = {}, bool in_parens = false,
@@ -2978,9 +3010,6 @@ class Invocation : public Instantiation {
   std::string FormatArgs() const;
 
   absl::Span<Expr* const> args() const { return args_; }
-
-  CalleeKind callee_kind() const { return callee_kind_; }
-  void set_callee_kind(CalleeKind kind) { callee_kind_ = kind; }
 
   void set_arg(int i, Expr* arg) {
     CHECK(i >= 0 && i < args_.size());
@@ -3006,7 +3035,6 @@ class Invocation : public Instantiation {
   }
 
   std::vector<Expr*> args_;
-  CalleeKind callee_kind_ = CalleeKind::kFunction;
   // The invocation that caused this node to be generated, e.g., in the case of
   // `map(f, arr)`, an invocation is generated for `f(arr)` and the
   // `originating_invocation` will point to the `map` invocation.
@@ -3508,6 +3536,7 @@ class SumDef : public AstNode {
   }
 
   bool HasVariant(std::string_view target) const;
+  std::optional<int64_t> GetVariantIndex(std::string_view target) const;
   std::optional<SumVariant*> GetVariant(std::string_view target);
   std::optional<const SumVariant*> GetVariant(std::string_view target) const;
 
@@ -3524,6 +3553,7 @@ class SumDef : public AstNode {
   TypeAnnotation* tag_type_annotation_;
   std::vector<ParametricBinding*> parametric_bindings_;
   std::vector<SumVariant*> variants_;
+  absl::flat_hash_map<std::string, int64_t> variant_indices_;
   bool is_public_;
   std::optional<std::string> extern_type_name_;
 };
@@ -4002,75 +4032,6 @@ class StructInstance : public StructInstanceBase {
 
  private:
   std::string ToStringInternal() const final;
-};
-
-// Represents construction of a semantic sum value, such as:
-//
-//   Option::None
-//   Option::Some(value)
-//   Message::Point { x: px, y: py }
-//
-// The constructor itself is always spelled as a `ColonRef`.
-//
-// `payload_shape()` is the source of truth for unit-vs-tuple-vs-struct
-// spelling. Empty child vectors are valid for both `Case()` and `Case { }`, so
-// callers must not recover the shape from vector emptiness alone.
-class SumInstance : public Expr {
- public:
-  enum class PayloadShape : uint8_t {
-    kUnit,
-    kTuple,
-    kStruct,
-  };
-
-  using StructPayloadFieldArg = std::pair<std::string, Expr*>;
-
-  SumInstance(Module* owner, Span span, ColonRef* constructor_ref,
-              PayloadShape payload_shape, std::vector<Expr*> tuple_payload_args,
-              std::vector<StructPayloadFieldArg> struct_payload_field_args,
-              bool in_parens = false);
-
-  ~SumInstance() override;
-
-  AstNodeKind kind() const override { return AstNodeKind::kSumInstance; }
-
-  absl::Status Accept(AstNodeVisitor* v) const override {
-    return v->HandleSumInstance(this);
-  }
-
-  absl::Status AcceptExpr(ExprVisitor* v) const override {
-    return v->HandleSumInstance(this);
-  }
-
-  std::string_view GetNodeTypeName() const override { return "SumInstance"; }
-
-  std::vector<AstNode*> GetChildren(bool want_types) const override;
-
-  ColonRef* constructor_ref() const { return constructor_ref_; }
-  const std::vector<Expr*>& tuple_payload_args() const {
-    return tuple_payload_args_;
-  }
-  const std::vector<StructPayloadFieldArg>& struct_payload_field_args() const {
-    return struct_payload_field_args_;
-  }
-  PayloadShape payload_shape() const { return payload_shape_; }
-  bool is_unit() const { return payload_shape_ == PayloadShape::kUnit; }
-  bool is_tuple() const { return payload_shape_ == PayloadShape::kTuple; }
-  bool is_struct() const { return payload_shape_ == PayloadShape::kStruct; }
-
-  bool IsBlockedExprWithLeader() const override { return !is_unit(); }
-
-  Precedence GetPrecedenceWithoutParens() const final {
-    return Precedence::kStrongest;
-  }
-
- private:
-  std::string ToStringInternal() const final;
-
-  ColonRef* constructor_ref_;
-  PayloadShape payload_shape_;
-  std::vector<Expr*> tuple_payload_args_;
-  std::vector<StructPayloadFieldArg> struct_payload_field_args_;
 };
 
 // Represents a struct instantiation as a "delta" from a 'splatted' original;

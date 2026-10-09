@@ -30,6 +30,7 @@
 #include "xls/dslx/import_routines.h"
 #include "xls/dslx/type_system/type.h"
 #include "xls/dslx/type_system/type_info.h"
+#include "xls/dslx/type_system_v2/declaration_resolution_cache.h"
 #include "xls/dslx/type_system_v2/type_annotation_utils.h"
 
 namespace xls::dslx {
@@ -79,11 +80,6 @@ absl::StatusOr<std::optional<SumRef>> GetSumRef(
 absl::StatusOr<std::optional<SumRef>> GetSumRef(const ColonRef* colon_ref,
                                                 const ImportData& import_data);
 
-struct SumConstructorRef {
-  SumRef sum_ref;
-  const SumVariant* variant;
-};
-
 // Resolves a `ColonRef` that may refer to a sum constructor.
 absl::StatusOr<std::optional<SumConstructorRef>> ResolveSumConstructor(
     const ColonRef* colon_ref, const ImportData& import_data);
@@ -105,7 +101,7 @@ class SumConstructorView {
 
   const Expr* expression() const;
   const ColonRef* constructor_ref() const;
-  SumInstance::PayloadShape payload_shape() const;
+  SumVariant::PayloadShape payload_shape() const;
   absl::Span<Expr* const> tuple_args() const;
   absl::Span<const std::pair<std::string, Expr*>> struct_args() const;
 
@@ -113,21 +109,15 @@ class SumConstructorView {
   SumConstructorExpr expression_;
 };
 
-// Classifies and validates only this invocation, without visiting its children.
-// Records whether it is a sum constructor and returns its resolved variant, if
-// any. Imports must already be loaded.
-absl::StatusOr<std::optional<SumConstructorRef>> ClassifySumConstructor(
-    Invocation* invocation, const ImportData& import_data);
+// Resolves and validates only this invocation, without visiting its children or
+// changing the syntax tree. Imports must already be loaded.
+absl::StatusOr<std::optional<SumConstructorRef>> ResolveSumConstructor(
+    const Invocation* invocation, const ImportData& import_data);
 
 // Validates only this brace-style construction, without visiting its children,
 // and returns its resolved sum variant, if any. Imports must already be loaded.
-absl::StatusOr<std::optional<SumConstructorRef>> ClassifySumConstructor(
+absl::StatusOr<std::optional<SumConstructorRef>> ResolveSumConstructor(
     const StructInstanceBase* instance, const ImportData& import_data);
-
-// Classifies and validates constructors throughout the syntax tree before
-// semantic analysis. Imports must already be loaded.
-absl::Status ClassifySumConstructors(AstNode* root,
-                                     const ImportData& import_data);
 
 // Resolves the struct base definition for the struct or proc type referred to
 // by `annotation`.

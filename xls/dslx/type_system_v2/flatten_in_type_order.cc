@@ -33,9 +33,10 @@ namespace {
 
 class Flattener : public AstNodeVisitorWithDefault {
  public:
-  explicit Flattener(const ImportData& import_data, const AstNode* root,
-                     bool include_parametric_entities)
+  explicit Flattener(const ImportData& import_data, const InferenceTable& table,
+                     const AstNode* root, bool include_parametric_entities)
       : import_data_(import_data),
+        table_(table),
         root_(root),
         include_parametric_entities_(include_parametric_entities) {}
 
@@ -101,14 +102,6 @@ class Flattener : public AstNodeVisitorWithDefault {
     }
   }
 
-  absl::Status HandleSumInstance(const SumInstance* node) override {
-    XLS_ASSIGN_OR_RETURN(
-        std::optional<SumConstructorRef> constructor,
-        ResolveSumConstructor(node->constructor_ref(), import_data_));
-    XLS_RET_CHECK(constructor.has_value());
-    return HandleSumConstructor(node, *constructor);
-  }
-
   absl::Status HandleSumConstructor(SumConstructorExpr expression,
                                     const SumConstructorRef& constructor) {
     const SumConstructorView view(expression);
@@ -128,7 +121,7 @@ class Flattener : public AstNodeVisitorWithDefault {
   }
 
   absl::Status HandleInvocation(const Invocation* node) override {
-    if (node->callee_kind() == Invocation::CalleeKind::kSumConstructor) {
+    if (table_.IsSumConstructor(node)) {
       XLS_ASSIGN_OR_RETURN(
           std::optional<SumConstructorRef> constructor,
           ResolveSumConstructor(SumConstructorView(node).constructor_ref(),
@@ -336,8 +329,7 @@ class Flattener : public AstNodeVisitorWithDefault {
         continue;
       }
       if (const auto* invocation = dynamic_cast<const Invocation*>(child);
-          invocation != nullptr &&
-          invocation->callee_kind() == Invocation::CalleeKind::kFunction) {
+          invocation != nullptr && !table_.IsSumConstructor(invocation)) {
         invocations.push_back(child);
       } else {
         non_invocations.push_back(child);
@@ -384,6 +376,7 @@ class Flattener : public AstNodeVisitorWithDefault {
   }
 
   const ImportData& import_data_;
+  const InferenceTable& table_;
   const AstNode* const root_;
   const bool include_parametric_entities_;
   std::vector<const AstNode*> nodes_;
@@ -392,9 +385,9 @@ class Flattener : public AstNodeVisitorWithDefault {
 }  // namespace
 
 absl::StatusOr<std::vector<const AstNode*>> FlattenInTypeOrder(
-    const ImportData& import_data, const AstNode* root,
-    bool include_parametric_entities) {
-  Flattener flattener(import_data, root, include_parametric_entities);
+    const ImportData& import_data, const InferenceTable& table,
+    const AstNode* root, bool include_parametric_entities) {
+  Flattener flattener(import_data, table, root, include_parametric_entities);
   XLS_RETURN_IF_ERROR(root->Accept(&flattener));
   return flattener.nodes();
 }

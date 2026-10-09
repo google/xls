@@ -62,6 +62,24 @@ using ::testing::SizeIs;
 
 namespace m = ::xls::op_matchers;
 
+TEST_F(IrConverterTest, SemanticSumConstructorExpressionIsRejected) {
+  // The bits-only signature reaches expression conversion rather than failing
+  // earlier while lowering a sum parameter or return type.
+  for (std::string_view constructor :
+       {"E::Unit", "E::Tuple(x)", "E::Named { value: x }"}) {
+    SCOPED_TRACE(constructor);
+    std::string program =
+        "enum E { Unit, Tuple(u32), Named { value: u32 } }\n"
+        "fn main(x: u32) -> u32 { let _ = " +
+        std::string(constructor) + "; x }";
+    EXPECT_THAT(
+        ConvertOneFunctionForTest(program, "main"),
+        StatusIs(absl::StatusCode::kUnimplemented,
+                 HasSubstr("Semantic sum construction is not supported by "
+                           "IR conversion.")));
+  }
+}
+
 TEST_F(IrConverterTest, NamedConstant) {
   constexpr std::string_view program =
       R"(fn f() -> u32 {

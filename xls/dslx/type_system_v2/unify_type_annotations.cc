@@ -25,6 +25,7 @@
 
 #include "absl/base/casts.h"
 #include "absl/container/flat_hash_map.h"
+#include "absl/container/flat_hash_set.h"
 #include "absl/functional/function_ref.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
@@ -88,14 +89,14 @@ absl::StatusOr<const AstNode*> GetBareTypeConstructorDefinition(
   const AstNode* definition = nullptr;
   if (struct_or_proc_ref.has_value()) {
     if (struct_or_proc_ref->parametrics.empty() &&
-        !struct_or_proc_ref->instantiator.has_value()) {
+        !struct_or_proc_ref->construction_origin.has_value()) {
       definition = struct_or_proc_ref->def;
     }
   } else {
     XLS_ASSIGN_OR_RETURN(std::optional<SumRef> sum_ref,
                          GetSumRef(annotation, import_data));
     if (sum_ref.has_value() && sum_ref->parametrics.empty() &&
-        !sum_ref->instantiator.has_value()) {
+        !sum_ref->construction_origin.has_value()) {
       definition = sum_ref->def;
     }
   }
@@ -130,7 +131,10 @@ class Unifier {
           ImportData& import_data,
           absl::FunctionRef<
               absl::StatusOr<const TypeAnnotation*>(const TypeAnnotation*)>
-              resolve_type_annotation)
+              resolve_type_annotation,
+          absl::FunctionRef<absl::StatusOr<const TypeAnnotation*>(
+              std::vector<const TypeAnnotation*>, const Span&)>
+              resolve_group)
       : module_(module),
         table_(table),
         file_table_(file_table),
@@ -139,7 +143,8 @@ class Unifier {
         parametric_struct_instantiator_(parametric_struct_instantiator),
         parametric_context_(parametric_context),
         import_data_(import_data),
-        resolve_type_annotation_(resolve_type_annotation) {}
+        resolve_type_annotation_(resolve_type_annotation),
+        resolve_group_(resolve_group) {}
 
   // Overload that unifies specific type annotations.
   absl::StatusOr<const TypeAnnotation*> UnifyTypeAnnotations(
@@ -243,8 +248,7 @@ class Unifier {
                              GetStructOrProcRef(annotation, import_data_));
         if (!next_struct_or_proc.has_value() ||
             next_struct_or_proc->def != def) {
-          return error_generator_.TypeMismatchError(parametric_context_,
-                                                    annotations[0], annotation);
+          return TypeMismatchError(annotations[0], annotation);
         }
         if (def->IsParametric()) {
           annotations_to_unify.push_back(annotation);
@@ -268,8 +272,7 @@ class Unifier {
         XLS_ASSIGN_OR_RETURN(std::optional<SumRef> next_sum_ref,
                              GetSumRef(annotation, import_data_));
         if (!next_sum_ref.has_value() || next_sum_ref->def != sum_def) {
-          return error_generator_.TypeMismatchError(parametric_context_,
-                                                    annotations[0], annotation);
+          return TypeMismatchError(annotations[0], annotation);
         }
         if (sum_def->IsParametric()) {
           annotations_to_unify.push_back(annotation);
@@ -321,6 +324,11 @@ class Unifier {
             tuple_annotation->span(), expanded_members);
       }
       if (tuple_annotation->members().size() != max_static_member_count) {
+        // Preserve errors in declaration projections (for example an
+        // out-of-bounds destructuring slot) before reporting the outer arity.
+        for (const TupleTypeAnnotation* original : annotations) {
+          XLS_RETURN_IF_ERROR(resolve_type_annotation_(original).status());
+        }
         return TypeInferenceErrorStatus(
             tuple_annotation->span(), /*type=*/nullptr,
             absl::Substitute("Cannot match a $0-element tuple to $1 values.",
@@ -340,7 +348,7 @@ class Unifier {
         annotations_for_member.push_back(annotation->members()[i]);
       }
       XLS_ASSIGN_OR_RETURN(const TypeAnnotation* unified_member_annotation,
-                           UnifyTypeAnnotations(annotations_for_member, span));
+                           resolve_group_(annotations_for_member, span));
       unified_member_annotations[i] =
           const_cast<TypeAnnotation*>(unified_member_annotation);
     }
@@ -386,8 +394,7 @@ class Unifier {
               "Annotated array size is too small for explicit element count.",
               file_table_);
         }
-        return error_generator_.TypeMismatchError(
-            parametric_context_, annotations[i], annotations[i - 1]);
+        return TypeMismatchError(annotations[i], annotations[i - 1]);
       }
       unified_dim = *new_unified_dim;
     }
@@ -402,7 +409,7 @@ class Unifier {
     XLS_RETURN_IF_ERROR(
         CheckArrayDimTooLarge(span, unified_dim->size, file_table_));
     XLS_ASSIGN_OR_RETURN(const TypeAnnotation* unified_element_type,
-                         UnifyTypeAnnotations(element_type_annotations, span));
+                         resolve_group_(element_type_annotations, span));
     XLS_ASSIGN_OR_RETURN(
         Number * size_expr,
         MakeTypeCheckedNumber(module_, table_, span, unified_dim->size,
@@ -477,19 +484,16 @@ class Unifier {
         }
       } else {
         if (annotation->direction() != *unified_direction) {
-          return error_generator_.TypeMismatchError(parametric_context_,
-                                                    annotations[0], annotation);
+          return TypeMismatchError(annotations[0], annotation);
         }
         if (unified_dims.has_value() ^ annotation->dims().has_value()) {
-          return error_generator_.TypeMismatchError(parametric_context_,
-                                                    annotations[0], annotation);
+          return TypeMismatchError(annotations[0], annotation);
         }
         if (annotation->dims().has_value()) {
           XLS_ASSIGN_OR_RETURN(std::vector<uint32_t> current_dims,
                                EvaluateDimensions(*annotation->dims()));
           if (current_dims != *unified_dims) {
-            return error_generator_.TypeMismatchError(
-                parametric_context_, annotations[0], annotation);
+            return TypeMismatchError(annotations[0], annotation);
           }
         }
       }
@@ -534,7 +538,7 @@ class Unifier {
   // InterpValue if they are unifiable, or std::nullopt if they cannot be
   // unified.
   absl::StatusOr<std::optional<InterpValue>> UnifyTypeReference(
-      const InterpValue& v1, const InterpValue& v2, const Span& span) {
+      const InterpValue& v1, const InterpValue& v2) {
     XLS_RET_CHECK(v1.IsTypeReference());
     XLS_RET_CHECK(v2.IsTypeReference());
     // Type-reference values encode their spelling, which can be the same for
@@ -552,8 +556,11 @@ class Unifier {
     } else {
       XLS_ASSIGN_OR_RETURN(t1, resolve_type_annotation_(t1));
       XLS_ASSIGN_OR_RETURN(t2, resolve_type_annotation_(t2));
+      // The comparison result is internal. An aggregate's declaration span
+      // may belong to another module, so it cannot label nodes synthesized
+      // into this module (such as a unified array dimension).
       absl::StatusOr<const TypeAnnotation*> unified_annotation =
-          UnifyTypeAnnotations({t1, t2}, span);
+          UnifyTypeAnnotations({t1, t2}, Span::None());
       if (unified_annotation.ok()) {
         return InterpValue::MakeTypeReference(*unified_annotation);
       } else {
@@ -600,8 +607,7 @@ class Unifier {
             explicit_parametrics[i].IsTypeReference()) {
           XLS_ASSIGN_OR_RETURN(
               std::optional<InterpValue> unified,
-              UnifyTypeReference(*value, explicit_parametrics[i],
-                                 annotation->span()));
+              UnifyTypeReference(*value, explicit_parametrics[i]));
           if (unified.has_value()) {
             match = true;
             explicit_parametrics[i] = *unified;
@@ -637,8 +643,11 @@ class Unifier {
       XLS_ASSIGN_OR_RETURN(std::optional<StructOrProcRef> struct_or_proc_ref,
                            GetStructOrProcRef(annotation, import_data_));
       XLS_RET_CHECK(struct_or_proc_ref.has_value());
-      if (struct_or_proc_ref->instantiator.has_value()) {
-        instantiator = struct_or_proc_ref->instantiator;
+      if (struct_or_proc_ref->construction_origin.has_value()) {
+        const auto* origin = dynamic_cast<const StructInstanceBase*>(
+            *struct_or_proc_ref->construction_origin);
+        XLS_RET_CHECK(origin != nullptr);
+        instantiator = origin;
       }
       XLS_RETURN_IF_ERROR(UnifyAggregateParametrics(
           def.parametric_bindings(), struct_or_proc_ref->parametrics,
@@ -660,16 +669,20 @@ class Unifier {
             << sum_def.identifier();
     std::vector<InterpValue> explicit_parametrics;
     std::vector<SumConstructorExpr> instantiators;
+    absl::flat_hash_set<const Expr*> origins;
     for (const TypeAnnotation* annotation : annotations) {
       XLS_ASSIGN_OR_RETURN(std::optional<SumRef> sum_ref,
                            GetSumRef(annotation, import_data_));
       XLS_RET_CHECK(sum_ref.has_value());
-      if (sum_ref->instantiator.has_value()) {
-        instantiators.push_back(*sum_ref->instantiator);
-      }
       XLS_RETURN_IF_ERROR(UnifyAggregateParametrics(
           sum_def.parametric_bindings(), sum_ref->parametrics, "sum",
           sum_def.identifier(), annotation, explicit_parametrics));
+      // Effective arguments belong to each annotation, even when two
+      // annotations point to the same source construction.
+      if (sum_ref->construction_origin.has_value() &&
+          origins.insert(*sum_ref->construction_origin).second) {
+        instantiators.push_back(*sum_ref->construction_origin);
+      }
     }
     return parametric_struct_instantiator_.InstantiateParametricSum(
         module_,
@@ -699,8 +712,7 @@ class Unifier {
                           current_annotation->ToString()),
                       file_table_);
                 }
-                return error_generator_.TypeMismatchError(
-                    parametric_context_, current_annotation, annotations[0]);
+                return TypeMismatchError(current_annotation, annotations[0]);
               }));
 
       XLS_ASSIGN_OR_RETURN(
@@ -852,6 +864,16 @@ class Unifier {
     return *x;
   }
 
+  absl::Status TypeMismatchError(const TypeAnnotation* a,
+                                 const TypeAnnotation* b) {
+    // Successful structural unification resolves corresponding children
+    // together. Early category/dimension errors still need ordinary resolved
+    // spellings rather than exposing internal inference variables.
+    XLS_ASSIGN_OR_RETURN(a, resolve_type_annotation_(a));
+    XLS_ASSIGN_OR_RETURN(b, resolve_type_annotation_(b));
+    return error_generator_.TypeMismatchError(parametric_context_, a, b);
+  }
+
   // Casts all of `annotations` to type `T`, or returns a type mismatch error,
   // if any cannot be cast to T.
   template <typename T>
@@ -869,8 +891,7 @@ class Unifier {
       const TypeAnnotation* annotation = annotations[i];
       const T* casted = cast_fn(annotation);
       if (casted == nullptr) {
-        return error_generator_.TypeMismatchError(parametric_context_,
-                                                  annotations[0], annotation);
+        return TypeMismatchError(annotations[0], annotation);
       }
       result.push_back(casted);
     }
@@ -888,6 +909,9 @@ class Unifier {
   absl::FunctionRef<absl::StatusOr<const TypeAnnotation*>(
       const TypeAnnotation*)>
       resolve_type_annotation_;
+  absl::FunctionRef<absl::StatusOr<const TypeAnnotation*>(
+      std::vector<const TypeAnnotation*>, const Span&)>
+      resolve_group_;
 };
 
 }  // namespace
@@ -917,10 +941,13 @@ absl::StatusOr<const TypeAnnotation*> UnifyTypeAnnotations(
     ImportData& import_data,
     absl::FunctionRef<
         absl::StatusOr<const TypeAnnotation*>(const TypeAnnotation*)>
-        resolve_type_annotation) {
+        resolve_type_annotation,
+    absl::FunctionRef<absl::StatusOr<const TypeAnnotation*>(
+        std::vector<const TypeAnnotation*>, const Span&)>
+        resolve_group) {
   Unifier unifier(module, table, file_table, error_generator, evaluator,
                   parametric_struct_instantiator, parametric_context,
-                  import_data, resolve_type_annotation);
+                  import_data, resolve_type_annotation, resolve_group);
   return unifier.UnifyTypeAnnotations(annotations, span);
 }
 

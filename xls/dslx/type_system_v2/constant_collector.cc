@@ -658,8 +658,8 @@ class Visitor : public AstNodeVisitorWithDefault {
   }
 
   absl::Status HandleInvocation(const Invocation* invocation) override {
-    if (invocation->callee_kind() == Invocation::CalleeKind::kSumConstructor) {
-      // Sum construction does not have a function callee or a constexpr value.
+    if (ti_->IsSumConstructor(invocation)) {
+      // Sum constructors have no function body to collect constants from.
       return absl::OkStatus();
     } else if (!IsBuiltinFn(invocation->callee())) {
       std::optional<const Function*> f =

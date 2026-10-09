@@ -17,10 +17,15 @@
 
 #include <cstdint>
 #include <optional>
+#include <string>
+#include <string_view>
+#include <utility>
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/types/span.h"
+#include "xls/dslx/frontend/aggregate_construction.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/ast_cloner.h"
 #include "xls/dslx/frontend/pos.h"
@@ -30,6 +35,17 @@
 #include "xls/dslx/type_system_v2/inference_table.h"
 
 namespace xls::dslx {
+
+// Binds named operands once, preserving construction diagnostics: unknown and
+// duplicate names are reported in source order, and required missing members
+// are listed alphabetically. Splat/domain callers may allow missing slots;
+// procs may omit I/O members that are default-initialized.
+absl::StatusOr<NamedFieldCorrespondence> ValidateAndBindNamedMembers(
+    const Span& span,
+    absl::Span<const std::pair<std::string, Expr*>> actual_members,
+    const NamedFields& formal_members, std::string_view aggregate_name,
+    bool is_struct, bool requires_all_members, const FileTable& file_table,
+    bool allow_default_io_members = false);
 
 // Rejects payload member types not supported by phase-one semantic sums.
 absl::Status ValidatePhase1SumPayloadMemberType(
@@ -87,13 +103,13 @@ bool IsColonRefWithTypeTarget(const InferenceTable& table, const Expr* expr);
 // parametric variables with values. Each time the returned replacer uses a node
 // that is value in `map`, it clones it via `table.Clone()`.
 
-// A mapped Number retains its syntax type annotation, or materializes its
-// inference-table annotation when it has no syntax annotation. If neither is
-// present and `add_parametric_binding_type_annotation` is true, use the formal
-// parametric binding's type where needed to preserve the literal's width.
-// Otherwise subsequent inference can presume the minimum width that fits the
-// value. Existing concrete annotations take precedence over a formal type that
-// may still contain parametric references.
+// When `add_parametric_binding_type_annotation` is enabled outside direct
+// index/type-annotation references, a concrete nonzero-width builtin formal
+// type overrides a mapped Number's annotation. Otherwise, preserve its syntax
+// type or materialize its inference-table type. Use the enabled formal type
+// only when neither exists, so an unresolved formal type does not replace an
+// actual concrete type. Retaining a type prevents later inference from
+// narrowing the literal to the minimum width that fits its value.
 CloneReplacer NameRefMapper(
     InferenceTable& table,
     const absl::flat_hash_map<const NameDef*, ExprOrType>& map,

@@ -24,6 +24,7 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
+#include "absl/strings/str_cat.h"
 #include "absl/strings/substitute.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
@@ -162,19 +163,25 @@ const X = $0;
         TypecheckV2(absl::Substitute(kProgram, constructor)));
     XLS_ASSERT_OK_AND_ASSIGN(ConstantDef * constant,
                              result.tm.module->GetConstantDef("X"));
-    EXPECT_THAT(
-        ConstexprEvaluator::Evaluate(
-            result.import_data.get(), result.tm.type_info,
-            /*warning_collector=*/nullptr, /*bindings=*/{}, constant->value()),
-        StatusIs(absl::StatusCode::kUnimplemented,
-                 HasSubstr("Semantic sum constants are not supported.")));
-    EXPECT_THAT(
-        BytecodeEmitter::EmitExpression(
-            result.import_data.get(), result.tm.type_info, constant->value(),
-            /*env=*/{}, /*caller_bindings=*/std::nullopt),
-        StatusIs(absl::StatusCode::kUnimplemented,
-                 HasSubstr("Semantic sum execution is not supported by the "
-                           "bytecode runtime.")));
+    XLS_ASSERT_OK_AND_ASSIGN(
+        TypeInfo * derived,
+        result.import_data->type_info_owner().New(
+            result.import_data->file_table(), "derived", result.tm.type_info));
+    for (TypeInfo* type_info : {result.tm.type_info, derived}) {
+      EXPECT_THAT(
+          ConstexprEvaluator::Evaluate(result.import_data.get(), type_info,
+                                       /*warning_collector=*/nullptr,
+                                       /*bindings=*/{}, constant->value()),
+          StatusIs(absl::StatusCode::kUnimplemented,
+                   HasSubstr("Semantic sum constants are not supported.")));
+      EXPECT_THAT(
+          BytecodeEmitter::EmitExpression(
+              result.import_data.get(), type_info, constant->value(),
+              /*env=*/{}, /*caller_bindings=*/std::nullopt),
+          StatusIs(absl::StatusCode::kUnimplemented,
+                   HasSubstr("Semantic sum execution is not supported by the "
+                             "bytecode runtime.")));
+    }
   }
 }
 
@@ -234,6 +241,58 @@ const STRUCT = Option::Pair { lhs: u32:3, rhs: u32:4 };
     const auto* sum_type = dynamic_cast<const SumType*>(*type);
     ASSERT_NE(sum_type, nullptr);
     EXPECT_EQ(&sum_type->nominal_type(), parsed_sum);
+  }
+}
+
+TEST(TypecheckV2Test, SemanticSumExplicitParametricArgumentsKeepParents) {
+  struct Case {
+    std::string_view program;
+    std::string_view argument_text;
+  };
+  for (const Case& test : {
+           Case{R"(#![feature(type_inference_v2)]
+#![feature(generics)]
+enum E<N: u32> { V(uN[N]) }
+fn f() { let x = E<u32:8>::V(u8:0); }
+)",
+                "u32:8"},
+           Case{R"(#![feature(type_inference_v2)]
+#![feature(generics)]
+enum E<T: type> { V(T) }
+fn f() { let x = E<u8>::V(u8:0); }
+)",
+                "u8"},
+       }) {
+    SCOPED_TRACE(test.program);
+    ImportData import_data = CreateImportDataForTest();
+    XLS_ASSERT_OK_AND_ASSIGN(
+        auto module,
+        ParseModule(test.program, "main.x", "main", import_data.file_table()));
+    XLS_ASSERT_OK_AND_ASSIGN(Function * function,
+                             module->GetMemberOrError<Function>("f"));
+    const AstNode* argument = nullptr;
+    for (const AstNode* node : FlattenToSet(function)) {
+      if (node->ToString() == test.argument_text &&
+          dynamic_cast<const TypeRefTypeAnnotation*>(node->parent()) !=
+              nullptr) {
+        ASSERT_EQ(argument, nullptr);
+        argument = node;
+      }
+    }
+    ASSERT_NE(argument, nullptr);
+    const AstNode* parent = argument->parent();
+    ASSERT_NE(parent, nullptr);
+    const auto containing_function = GetContainingFunction(argument);
+    ASSERT_TRUE(containing_function.has_value());
+    ASSERT_EQ(*containing_function, function);
+    WarningCollector warnings(import_data.enabled_warnings());
+    XLS_ASSERT_OK_AND_ASSIGN(
+        auto module_info,
+        TypecheckModuleV2(std::move(module), "main.x", &import_data, &warnings,
+                          std::make_unique<SemanticsAnalysis>(), nullptr,
+                          std::nullopt));
+    EXPECT_EQ(argument->parent(), parent);
+    EXPECT_EQ(GetContainingFunction(argument), containing_function);
   }
 }
 
@@ -1775,6 +1834,64 @@ fn f(b: bool) {
                                       HasNodeWithType("named_first", kType))));
 }
 
+TEST(TypecheckV2Test, SemanticSumNestedTuplePayloadsJointlyInferParameters) {
+  constexpr std::string_view kType =
+      "E { Tuple(uN[8]) | Named { value: uN[16] } }";
+  EXPECT_THAT(R"(#![feature(generics)]
+enum E<N: u32, M: u32> { Tuple(uN[N]), Named { value: uN[M] } }
+fn f(b: bool) {
+  let result = if b { (E::Tuple(u8:0),) }
+               else { (E::Named { value: u16:0 },) };
+}
+)",
+              TypecheckSucceeds(AllOf(
+                  HasNodeWithType("result", absl::StrCat("(", kType, ")")),
+                  HasNodeWithType("E::Tuple(u8:0)", kType),
+                  HasNodeWithType("E::Named { value: u16:0 }", kType))));
+}
+
+TEST(TypecheckV2Test, SemanticSumNestedArrayPayloadsJointlyInferParameters) {
+  constexpr std::string_view kType =
+      "E { Tuple(uN[8]) | Named { value: uN[16] } }";
+  EXPECT_THAT(R"(#![feature(generics)]
+enum E<N: u32, M: u32> { Tuple(uN[N]), Named { value: uN[M] } }
+fn f(b: bool) {
+  let result = if b { [E::Named { value: u16:0 }] }
+               else { [E::Tuple(u8:0)] };
+}
+)",
+              TypecheckSucceeds(
+                  AllOf(HasNodeWithType("result", absl::StrCat(kType, "[1]")),
+                        HasNodeWithType("E::Tuple(u8:0)", kType),
+                        HasNodeWithType("E::Named { value: u16:0 }", kType))));
+}
+
+TEST(TypecheckV2Test, SemanticSumUnrelatedTuplePositionsKeepSeparateEvidence) {
+  EXPECT_THAT(R"(#![feature(generics)]
+enum E<N: u32, M: u32> { Tuple(uN[N]), Named { value: uN[M] } }
+fn f() { let result = (E::Tuple(u8:0), E::Named { value: u16:0 }); }
+)",
+              TypecheckFails(HasSubstr("Could not infer parametric(s)")));
+}
+
+TEST(TypecheckV2Test, SemanticSumChecksPayloadsAfterInferringLastParameter) {
+  for (std::string_view expression : {
+           "E::Tuple(u8:0, u16:0)",
+           "E::Named { first: u8:0, second: u16:0 }",
+       }) {
+    SCOPED_TRACE(expression);
+    EXPECT_THAT(absl::Substitute(R"(#![feature(generics)]
+enum E<N: u32> {
+  Tuple(uN[N], u32),
+  Named { first: uN[N], second: u32 },
+}
+fn f() { let result = $0; }
+)",
+                                 expression),
+                TypecheckFails(HasSubstr("size mismatch")));
+  }
+}
+
 TEST(TypecheckV2Test, SemanticSumSharedPayloadConstraintsStillRejectConflicts) {
   for (std::string_view expression : {
            "if b { E::Some(u8:0) } else { E::Some(u16:0) }",
@@ -1955,25 +2072,23 @@ fn f() -> E {
     if (const auto* invocation = dynamic_cast<const Invocation*>(node)) {
       if (invocation->callee()->ToString() == "identity") {
         ++function_calls;
-        EXPECT_EQ(invocation->callee_kind(), Invocation::CalleeKind::kFunction);
+        EXPECT_FALSE(result.tm.type_info->IsSumConstructor(invocation));
       } else {
         ++constructors;
         EXPECT_EQ(invocation->callee()->ToString(), "E::V");
-        EXPECT_EQ(invocation->callee_kind(),
-                  Invocation::CalleeKind::kSumConstructor);
+        EXPECT_TRUE(result.tm.type_info->IsSumConstructor(invocation));
       }
       EXPECT_EQ(invocation->callee()->parent(), invocation);
       ASSERT_EQ(invocation->args().size(), 1);
       EXPECT_EQ(invocation->args().front()->parent(), invocation);
     }
-    EXPECT_NE(node->kind(), AstNodeKind::kSumInstance);
   }
   EXPECT_EQ(constructors, 2);
   EXPECT_EQ(function_calls, 1);
 }
 
 TEST(TypecheckV2Test,
-     SemanticSumClassificationVisitsNamedConstructorTypeRefBeforeInference) {
+     SemanticSumPopulationVisitsNamedConstructorTypeRefBeforeInference) {
   constexpr std::string_view kProgram = R"(#![feature(type_inference_v2)]
 #![feature(generics)]
 enum Inner { Value(u32) }
@@ -2013,17 +2128,16 @@ const X = Outer<{if false {
   }
   ASSERT_NE(nested_constructor, nullptr);
   ASSERT_NE(function_call, nullptr);
-  EXPECT_EQ(nested_constructor->callee_kind(),
-            Invocation::CalleeKind::kFunction);
-
-  XLS_ASSERT_OK(ClassifySumConstructors(module.get(), import_data));
-  EXPECT_EQ(nested_constructor->callee_kind(),
-            Invocation::CalleeKind::kSumConstructor);
-  EXPECT_EQ(function_call->callee_kind(), Invocation::CalleeKind::kFunction);
+  InferenceTable* table = import_data.GetOrCreateInferenceTable();
+  auto visitor = CreatePopulateTableVisitor(
+      module.get(), table, &import_data, /*typecheck_imported_module=*/nullptr);
+  XLS_ASSERT_OK(visitor->PopulateFromModule(module.get()));
+  EXPECT_TRUE(table->IsSumConstructor(nested_constructor));
+  EXPECT_FALSE(table->IsSumConstructor(function_call));
 }
 
 TEST(TypecheckV2Test,
-     SemanticSumFunctionPopulationClassifiesUnmarkedTupleConstructor) {
+     SemanticSumFunctionPopulationResolvesTupleConstructorWithoutPrepass) {
   constexpr std::string_view kProgram = R"(#![feature(type_inference_v2)]
 enum E { Tuple(u32) }
 fn ordinary() -> E { E::Tuple(u32:0) }
@@ -2050,22 +2164,16 @@ fn f(flag: bool) -> E {
   const auto* function_call = dynamic_cast<const Invocation*>(
       ToAstNode(alternate->statements().back()->wrapped()));
   ASSERT_NE(function_call, nullptr);
-  XLS_ASSERT_OK(ClassifySumConstructors(module.get(), import_data));
-  ASSERT_EQ(invocation->callee_kind(), Invocation::CalleeKind::kSumConstructor);
-  ASSERT_EQ(function_call->callee_kind(), Invocation::CalleeKind::kFunction);
-
-  // A function body synthesized after the module pass reaches population with
-  // the invocation's default kind instead of a marker from that pass.
-  invocation->set_callee_kind(Invocation::CalleeKind::kFunction);
-  ASSERT_EQ(invocation->callee_kind(), Invocation::CalleeKind::kFunction);
+  // A synthesized function can go directly to population. The original
+  // constructor expression itself supplies the evidence, without a prepass.
   InferenceTable* table = import_data.GetOrCreateInferenceTable();
   std::unique_ptr<PopulateTableVisitor> visitor = CreatePopulateTableVisitor(
       module.get(), table, &import_data, /*typecheck_imported_module=*/nullptr);
   XLS_ASSERT_OK(visitor->PopulateFromFunction(ordinary));
   XLS_EXPECT_OK(visitor->PopulateFromFunction(function));
 
-  EXPECT_EQ(invocation->callee_kind(), Invocation::CalleeKind::kSumConstructor);
-  EXPECT_EQ(function_call->callee_kind(), Invocation::CalleeKind::kFunction);
+  EXPECT_TRUE(table->IsSumConstructor(invocation));
+  EXPECT_FALSE(table->IsSumConstructor(function_call));
   std::optional<const NameRef*> return_type_variable =
       table->GetTypeVariable(function->body());
   ASSERT_TRUE(return_type_variable.has_value());
@@ -2081,7 +2189,7 @@ fn f(flag: bool) -> E {
   const auto* sum_annotation =
       dynamic_cast<const TypeRefTypeAnnotation*>(*annotation);
   ASSERT_NE(sum_annotation, nullptr);
-  EXPECT_EQ(sum_annotation->sum_instantiator(), SumConstructorExpr{invocation});
+  EXPECT_EQ(sum_annotation->construction_origin(), invocation);
 }
 
 TEST(TypecheckV2Test, SemanticSumConstructorsInUnrolledLoopBody) {
@@ -2100,6 +2208,44 @@ fn f() -> E {
       TypecheckSucceeds(AllOf(
           HasRepeatedNodeWithType("E::Tuple(i)", kSumType, 2),
           HasRepeatedNodeWithType("E::Named { value: i }", kSumType, 2))));
+}
+
+TEST(TypecheckV2Test, UnrolledConstructorsKeepIndependentWidthEvidence) {
+  EXPECT_THAT(
+      R"(#![feature(generics)]
+enum E<N: u32> { V(uN[N]) }
+fn f() {
+  unroll_for! (i, _) in u32:1..u32:3 {
+    let value = E::V(uN[i]:0);
+    ()
+  }(())
+}
+)",
+      TypecheckSucceeds(AllOf(HasNodeWithType("value", "E { V(uN[1]) }"),
+                              HasNodeWithType("value", "E { V(uN[2]) }"))));
+}
+
+TEST(TypecheckV2Test, GenericStructConstructionBindsEachCallerDeclaration) {
+  EXPECT_THAT(R"(#![feature(generics)]
+struct A { x: u8, y: u16 }
+struct B { y: u16, x: u8 }
+fn construct<T: type>(x: u8, y: u16) -> T { T { y, x } }
+const FIRST = construct<A>(u8:1, u16:2);
+const SECOND = construct<B>(u8:3, u16:4);
+const_assert!(FIRST == A { x: u8:1, y: u16:2 });
+const_assert!(SECOND == B { y: u16:4, x: u8:3 });
+)",
+              TypecheckSucceeds(AllOf(
+                  HasNodeWithType("FIRST", "A { x: uN[8], y: uN[16] }"),
+                  HasNodeWithType("SECOND", "B { y: uN[16], x: uN[8] }"))));
+}
+TEST(TypecheckV2Test, OrdinaryStructDefaultsSurviveTupleAlignment) {
+  EXPECT_THAT(R"(#![feature(generics)]
+struct S<N: u32, T: type = uN[N]> {}
+fn f(s: (S<8, u16>,)) -> bool { true }
+const RESULT = f((S<8> {},));
+)",
+              TypecheckFails(HasTypeMismatch("u16", "uN[8]")));
 }
 
 TEST(TypecheckV2Test, ImportedSemanticSumShapesPreserveParens) {

@@ -159,6 +159,7 @@ cc_library(
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "//xls/dslx:interp_value",
+        "//xls/dslx/frontend:aggregate_construction",
         "//xls/dslx/frontend:ast",
         "//xls/dslx/frontend:ast_cloner",
         "//xls/dslx/frontend:ast_node",
@@ -233,6 +234,7 @@ cc_library(
         "//xls/dslx:interp_value",
         "//xls/dslx:status_payload_utils",
         "//xls/dslx:warning_collector",
+        "//xls/dslx/frontend:aggregate_construction",
         "//xls/dslx/frontend:ast",
         "//xls/dslx/frontend:ast_cloner",
         "//xls/dslx/frontend:ast_node",
@@ -275,6 +277,7 @@ cc_library(
         "//xls/dslx:errors",
         "//xls/dslx:import_data",
         "//xls/dslx:interp_value",
+        "//xls/dslx/frontend:aggregate_construction",
         "//xls/dslx/frontend:ast",
         "//xls/dslx/frontend:ast_cloner",
         "//xls/dslx/frontend:ast_node_visitor_with_default",
@@ -291,6 +294,7 @@ cc_library(
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/types:span",
     ],
 )
 
@@ -332,6 +336,7 @@ cc_test(
         "//xls/dslx:interp_value",
         "//xls/dslx:warning_collector",
         "//xls/dslx:warning_kind",
+        "//xls/dslx/frontend:aggregate_construction",
         "//xls/dslx/frontend:ast",
         "//xls/dslx/frontend:ast_cloner",
         "//xls/dslx/frontend:bindings",
@@ -544,6 +549,7 @@ cc_library(
         "//xls/dslx:import_data",
         "//xls/dslx:import_routines",
         "//xls/dslx:status_payload_utils",
+        "//xls/dslx/frontend:aggregate_construction",
         "//xls/dslx/frontend:ast",
         "//xls/dslx/frontend:ast_cloner",
         "//xls/dslx/frontend:ast_node",
@@ -816,6 +822,7 @@ cc_library(
     srcs = ["import_utils.cc"],
     hdrs = ["import_utils.h"],
     deps = [
+        ":declaration_resolution_cache",
         ":type_annotation_utils",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
@@ -839,6 +846,35 @@ cc_library(
         "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/strings:str_format",
         "@abseil-cpp//absl/types:span",
+    ],
+)
+
+cc_library(
+    name = "declaration_resolution_cache",
+    hdrs = ["declaration_resolution_cache.h"],
+    deps = [
+        ":type_annotation_utils",
+        "//xls/dslx/frontend:ast",
+        "@abseil-cpp//absl/container:flat_hash_map",
+    ],
+)
+
+cc_test(
+    name = "import_utils_test",
+    srcs = ["import_utils_test.cc"],
+    deps = [
+        ":import_utils",
+        ":type_annotation_utils",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/dslx:create_import_data",
+        "//xls/dslx:import_data",
+        "//xls/dslx:parse_and_typecheck",
+        "//xls/dslx/frontend:ast",
+        "//xls/dslx/frontend:ast_cloner",
+        "//xls/dslx/frontend:module",
+        "@abseil-cpp//absl/container:flat_hash_map",
+        "@googletest//:gtest",
     ],
 )
 
@@ -994,6 +1030,7 @@ cc_library(
         "//xls/dslx/type_system:deduce_utils",
         "@abseil-cpp//absl/base",
         "@abseil-cpp//absl/container:flat_hash_map",
+        "@abseil-cpp//absl/container:flat_hash_set",
         "@abseil-cpp//absl/functional:function_ref",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/log:check",
@@ -1219,6 +1256,7 @@ cc_test(
         "//xls/common/status:matchers",
         "//xls/dslx:create_import_data",
         "//xls/dslx:import_data",
+        "//xls/dslx/frontend:bindings",
         "//xls/dslx/type_system:typecheck_test_utils",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:status_matchers",
@@ -1308,6 +1346,7 @@ cc_library(
     hdrs = ["flatten_in_type_order.h"],
     deps = [
         ":import_utils",
+        ":inference_table",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "//xls/dslx:import_data",

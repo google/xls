@@ -210,6 +210,8 @@ std::string_view TypeAnnotationKindToString(TypeAnnotationKind kind) {
       return "const conditional";
     case TypeAnnotationKind::kConstMatch:
       return "const match";
+    case TypeAnnotationKind::kDeclaredMember:
+      return "declared member";
     case TypeAnnotationKind::kElement:
       return "element";
     case TypeAnnotationKind::kFunction:
@@ -287,8 +289,6 @@ std::string_view AstNodeKindToString(AstNodeKind kind) {
       return "string";
     case AstNodeKind::kStructInstance:
       return "struct instance";
-    case AstNodeKind::kSumInstance:
-      return "sum instance";
     case AstNodeKind::kSplatStructInstance:
       return "splat struct instance";
     case AstNodeKind::kTuplePattern:
@@ -1166,13 +1166,11 @@ TypeAnnotation::~TypeAnnotation() = default;
 TypeRefTypeAnnotation::TypeRefTypeAnnotation(
     Module* owner, Span span, TypeRef* type_ref,
     std::vector<ExprOrType> parametrics,
-    std::optional<const StructInstanceBase*> struct_instantiator,
-    std::optional<SumConstructorExpr> sum_instantiator)
+    std::optional<const Expr*> construction_origin)
     : TypeAnnotation(owner, std::move(span), kAnnotationKind),
       type_ref_(type_ref),
       parametrics_(std::move(parametrics)),
-      struct_instantiator_(struct_instantiator),
-      sum_instantiator_(sum_instantiator) {}
+      construction_origin_(construction_origin) {}
 
 TypeRefTypeAnnotation::~TypeRefTypeAnnotation() = default;
 
@@ -1246,6 +1244,25 @@ MemberTypeAnnotation::MemberTypeAnnotation(Module* owner, Span span,
 std::string MemberTypeAnnotation::ToString() const {
   return absl::Substitute("MemberTypeAnnotation: $0.$1",
                           struct_type_->ToString(), member_name_);
+}
+
+// -- class DeclaredMemberTypeAnnotation
+
+DeclaredMemberTypeAnnotation::DeclaredMemberTypeAnnotation(
+    Module* owner, Span span, const TypeAnnotation* aggregate_type,
+    AggregateDeclaration declaration, int64_t member_index)
+    : TypeAnnotation(owner, span, kAnnotationKind),
+      aggregate_type_(aggregate_type),
+      declaration_(declaration),
+      member_index_(member_index) {}
+
+std::string DeclaredMemberTypeAnnotation::ToString() const {
+  return absl::StrFormat(
+      "DeclaredMemberTypeAnnotation: %s[%s.%d]", aggregate_type_->ToString(),
+      std::visit(
+          [](const auto* declaration) { return declaration->identifier(); },
+          declaration_),
+      member_index_);
 }
 
 // -- class ElementTypeAnnotation
@@ -1735,7 +1752,11 @@ SumDef::SumDef(Module* owner, Span span, NameDef* name_def,
       tag_type_annotation_(tag_type_annotation),
       parametric_bindings_(std::move(parametric_bindings)),
       variants_(std::move(variants)),
-      is_public_(is_public) {}
+      is_public_(is_public) {
+  for (int64_t i = 0; i < variants_.size(); ++i) {
+    variant_indices_.try_emplace(variants_[i]->identifier(), i);
+  }
+}
 
 SumDef::~SumDef() = default;
 
@@ -1754,29 +1775,35 @@ std::vector<AstNode*> SumDef::GetChildren(bool want_types) const {
 }
 
 bool SumDef::HasVariant(std::string_view target) const {
-  return std::any_of(variants_.begin(), variants_.end(),
-                     [&](const SumVariant* variant) {
-                       return variant->identifier() == target;
-                     });
+  return variant_indices_.contains(target);
+}
+
+std::optional<int64_t> SumDef::GetVariantIndex(std::string_view target) const {
+  auto it = variant_indices_.find(target);
+  if (it == variant_indices_.end()) {
+    return std::nullopt;
+  } else {
+    return it->second;
+  }
 }
 
 std::optional<SumVariant*> SumDef::GetVariant(std::string_view target) {
-  for (SumVariant* variant : variants_) {
-    if (variant->identifier() == target) {
-      return variant;
-    }
+  if (std::optional<int64_t> index = GetVariantIndex(target);
+      index.has_value()) {
+    return variants_[*index];
+  } else {
+    return std::nullopt;
   }
-  return std::nullopt;
 }
 
 std::optional<const SumVariant*> SumDef::GetVariant(
     std::string_view target) const {
-  for (const SumVariant* variant : variants_) {
-    if (variant->identifier() == target) {
-      return variant;
-    }
+  if (std::optional<int64_t> index = GetVariantIndex(target);
+      index.has_value()) {
+    return variants_[*index];
+  } else {
+    return std::nullopt;
   }
-  return std::nullopt;
 }
 
 std::string SumDef::ToString() const {
@@ -2349,66 +2376,6 @@ std::string StructInstance::ToStringInternal() const {
                               member.second->ToString());
       });
   return absl::StrFormat("%s { %s }", type_name, members_str);
-}
-
-// -- class SumInstance
-
-SumInstance::SumInstance(
-    Module* owner, Span span, ColonRef* constructor_ref,
-    PayloadShape payload_shape, std::vector<Expr*> tuple_payload_args,
-    std::vector<StructPayloadFieldArg> struct_payload_field_args,
-    bool in_parens)
-    : Expr(owner, std::move(span), in_parens),
-      constructor_ref_(constructor_ref),
-      payload_shape_(payload_shape),
-      tuple_payload_args_(std::move(tuple_payload_args)),
-      struct_payload_field_args_(std::move(struct_payload_field_args)) {
-  if (payload_shape_ == PayloadShape::kUnit) {
-    CHECK(tuple_payload_args_.empty());
-    CHECK(struct_payload_field_args_.empty());
-  } else if (payload_shape_ == PayloadShape::kTuple) {
-    CHECK(struct_payload_field_args_.empty());
-  } else {
-    CHECK_EQ(payload_shape_, PayloadShape::kStruct);
-    CHECK(tuple_payload_args_.empty());
-  }
-}
-
-SumInstance::~SumInstance() = default;
-
-std::vector<AstNode*> SumInstance::GetChildren(bool want_types) const {
-  std::vector<AstNode*> results = {constructor_ref_};
-  for (Expr* arg : tuple_payload_args_) {
-    results.push_back(arg);
-  }
-  for (const auto& [_, arg] : struct_payload_field_args_) {
-    results.push_back(arg);
-  }
-  return results;
-}
-
-std::string SumInstance::ToStringInternal() const {
-  if (is_unit()) {
-    return constructor_ref_->ToString();
-  } else if (is_tuple()) {
-    return absl::StrCat(constructor_ref_->ToString(), "(",
-                        absl::StrJoin(tuple_payload_args_, ", ",
-                                      [](std::string* out, Expr* arg) {
-                                        absl::StrAppend(out, arg->ToString());
-                                      }),
-                        ")");
-  } else if (struct_payload_field_args_.empty()) {
-    return absl::StrCat(constructor_ref_->ToString(), " {}");
-  } else {
-    return absl::StrCat(
-        constructor_ref_->ToString(), " { ",
-        absl::StrJoin(struct_payload_field_args_, ", ",
-                      [](std::string* out, const StructPayloadFieldArg& arg) {
-                        absl::StrAppendFormat(out, "%s: %s", arg.first,
-                                              arg.second->ToString());
-                      }),
-        " }");
-  }
 }
 
 // -- class SplatStructInstance

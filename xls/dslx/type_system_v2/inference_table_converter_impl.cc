@@ -48,6 +48,7 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/constexpr_evaluator.h"
 #include "xls/dslx/errors.h"
+#include "xls/dslx/frontend/aggregate_construction.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/ast_cloner.h"
 #include "xls/dslx/frontend/ast_node.h"
@@ -258,7 +259,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
     XLS_ASSIGN_OR_RETURN(
         std::vector<const AstNode*> nodes,
         FlattenInTypeOrder(
-            import_data_, node,
+            import_data_, table_, node,
             /*include_parametric_entities=*/parametric_context.has_value() &&
                 (node == function ||
                  (node->parent() != nullptr &&
@@ -267,7 +268,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
       VLOG(5) << "Next node: " << node->ToString();
       if (const auto* invocation = dynamic_cast<const Invocation*>(node);
           invocation != nullptr &&
-          invocation->callee_kind() == Invocation::CalleeKind::kFunction) {
+          !HasSumConstructionBinding(invocation, parametric_context)) {
         XLS_RETURN_IF_ERROR(ConvertInvocation(
             invocation, parametric_context,
             /*short_circuit_if_duplicate=*/!filter_param_type_annotations));
@@ -1357,14 +1358,6 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
       VLOG(5) << "No type information for: " << node->ToString();
       return absl::OkStatus();
     }
-    XLS_ASSIGN_OR_RETURN(
-        bool is_sum_constructor_type,
-        IsSumConstructorTypeAnnotation(parametric_context, node, *annotation,
-                                       type_annotation_filter));
-    if (is_sum_constructor_type) {
-      return absl::OkStatus();
-    }
-
     absl::StatusOr<std::unique_ptr<Type>> type =
         Concretize(*annotation, parametric_context,
                    /*needs_conversion_before_eval=*/node->kind() !=
@@ -1381,6 +1374,29 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
         return absl::OkStatus();
       }
       return type.status();
+    }
+
+    // A generic `T { ... }` has no declaration to bind during population.
+    // Keep its correspondence in the caller context that resolved T.
+    if (const auto* instance = dynamic_cast<const StructInstanceBase*>(node);
+        instance != nullptr &&
+        !table_.GetBoundConstruction(instance, parametric_context)
+             .has_value()) {
+      const auto* struct_type =
+          dynamic_cast<const StructTypeBase*>(type->get());
+      if (struct_type == nullptr) {
+        return TypeInferenceErrorStatus(
+            instance->span(), type->get(),
+            absl::Substitute(
+                "Attempted to instantiate non-struct type `$0` as a struct.",
+                (*type)->ToString()),
+            file_table_);
+      } else {
+        XLS_RETURN_IF_ERROR(
+            GetOrCreateStructConstruction(
+                instance, struct_type->struct_def_base(), parametric_context)
+                .status());
+      }
     }
 
     if (node->kind() == AstNodeKind::kXlsTuple ||
@@ -1430,6 +1446,24 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
       ti->SetItem(node, meta_type);
     } else {
       ti->SetItem(node, **type);
+    }
+
+    if (const auto* expression = dynamic_cast<const Expr*>(node);
+        expression != nullptr) {
+      const std::optional<const BoundConstruction*> construction =
+          table_.GetBoundConstruction(expression, parametric_context);
+      if (construction.has_value()) {
+        ti->SetBoundConstruction(expression, *construction);
+        if (std::holds_alternative<const SumVariant*>(
+                (*construction)->declaration())) {
+          // Flattening skips the original callee reference. Publish its
+          // selected target here before constant collection uses that metadata.
+          XLS_RET_CHECK((*type)->IsSum());
+          ti->SetResolvedColonRefSubject(
+              SumConstructorView(expression).constructor_ref(),
+              const_cast<SumDef*>(&(*type)->AsSum().nominal_type()));
+        }
+      }
     }
 
     if (IsComparisonRequiringImplicitToken(node, *ti)) {
@@ -1576,8 +1610,8 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
     absl::flat_hash_map<const NameDef*, ExprOrType> value_exprs;
     std::vector<ExprOrType> canonical_parametrics;
     canonical_parametrics.resize(ref.def->parametric_bindings().size());
-    for (int i :
-         GetBindingIndicesWithGenericTvtasLast(ref.def->parametric_bindings())) {
+    for (int i : GetBindingIndicesWithGenericTvtasLast(
+             ref.def->parametric_bindings())) {
       ParametricBinding* binding = ref.def->parametric_bindings()[i];
       if (binding->type_annotation()->IsAnnotation<GenericTypeAnnotation>()) {
         const TypeAnnotation* cleansed_type = nullptr;
@@ -2008,41 +2042,31 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
       variants.reserve(sum_def->variants().size());
       for (const SumVariant* variant : sum_def->variants()) {
         std::vector<std::unique_ptr<Type>> payload_members;
+        payload_members.reserve(variant->payload_member_count());
+        auto concretize_member =
+            [&](const TypeAnnotation* member_type) -> absl::Status {
+          if (sum_def->IsParametric()) {
+            XLS_ASSIGN_OR_RETURN(
+                member_type,
+                GetParametricFreeType(member_type, resolved_parametrics,
+                                      /*real_self_type=*/std::nullopt,
+                                      /*clone_if_no_parametrics=*/false));
+          }
+          XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> concrete_member_type,
+                               Concretize(member_type, parametric_context));
+          XLS_RETURN_IF_ERROR(ValidatePhase1SumPayloadMemberType(
+              *sum_def, *variant, member_type, *concrete_member_type,
+              file_table_));
+          payload_members.push_back(std::move(concrete_member_type));
+          return absl::OkStatus();
+        };
         if (variant->is_tuple()) {
-          payload_members.reserve(variant->tuple_members().size());
           for (const TypeAnnotation* member : variant->tuple_members()) {
-            const TypeAnnotation* member_type = member;
-            if (sum_def->IsParametric()) {
-              XLS_ASSIGN_OR_RETURN(
-                  member_type,
-                  GetParametricFreeType(member, resolved_parametrics,
-                                        /*real_self_type=*/std::nullopt,
-                                        /*clone_if_no_parametrics=*/false));
-            }
-            XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> concrete_member_type,
-                                 Concretize(member_type, parametric_context));
-            XLS_RETURN_IF_ERROR(ValidatePhase1SumPayloadMemberType(
-                *sum_def, *variant, member_type, *concrete_member_type,
-                file_table_));
-            payload_members.push_back(std::move(concrete_member_type));
+            XLS_RETURN_IF_ERROR(concretize_member(member));
           }
         } else if (variant->is_struct()) {
-          payload_members.reserve(variant->struct_members().size());
           for (const StructMemberNode* member : variant->struct_members()) {
-            const TypeAnnotation* member_type = member->type();
-            if (sum_def->IsParametric()) {
-              XLS_ASSIGN_OR_RETURN(
-                  member_type,
-                  GetParametricFreeType(member->type(), resolved_parametrics,
-                                        /*real_self_type=*/std::nullopt,
-                                        /*clone_if_no_parametrics=*/false));
-            }
-            XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> concrete_member_type,
-                                 Concretize(member_type, parametric_context));
-            XLS_RETURN_IF_ERROR(ValidatePhase1SumPayloadMemberType(
-                *sum_def, *variant, member_type, *concrete_member_type,
-                file_table_));
-            payload_members.push_back(std::move(concrete_member_type));
+            XLS_RETURN_IF_ERROR(concretize_member(member->type()));
           }
         }
         if (variant->is_unit()) {
@@ -2229,19 +2253,14 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
                       /*needs_conversion_before_eval=*/false, std::nullopt);
   }
 
-  absl::StatusOr<bool> IsSumConstructorTypeAnnotation(
-      std::optional<const ParametricContext*> parametric_context,
-      const AstNode* context_node, const TypeAnnotation* annotation,
-      TypeAnnotationFilter filter) {
-    const TypeAnnotation* candidate = annotation;
-    if (candidate->IsAnnotation<MemberTypeAnnotation>()) {
-      XLS_ASSIGN_OR_RETURN(
-          candidate, resolver_->ResolveIndirectTypeAnnotations(
-                         parametric_context, context_node, candidate, filter));
-    }
-    XLS_ASSIGN_OR_RETURN(std::optional<SumConstructorRef> constructor_ref,
-                         ResolveSumConstructor(candidate, import_data_));
-    return constructor_ref.has_value();
+  bool HasSumConstructionBinding(
+      const Expr* expression,
+      std::optional<const ParametricContext*> parametric_context) const {
+    const std::optional<const BoundConstruction*> construction =
+        table_.GetBoundConstruction(expression, parametric_context);
+    return construction.has_value() &&
+           std::holds_alternative<const SumVariant*>(
+               (*construction)->declaration());
   }
 
   // Check the substitutions used by CloneParametricExprOrType, including type
@@ -3355,8 +3374,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
                   if (const auto* invocation =
                           dynamic_cast<const Invocation*>(actual_arg);
                       invocation != nullptr &&
-                      invocation->callee_kind() ==
-                          Invocation::CalleeKind::kFunction) {
+                      !HasSumConstructionBinding(invocation, parent_context)) {
                     return ConvertSubtree(actual_arg, std::nullopt,
                                           parent_context);
                   } else {
@@ -3461,6 +3479,33 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
     return result;
   }
 
+  absl::StatusOr<const BoundConstruction*> GetOrCreateStructConstruction(
+      const StructInstanceBase* instance, const StructDefBase& def,
+      std::optional<const ParametricContext*> parent_context) {
+    const std::optional<const BoundConstruction*> existing =
+        table_.GetBoundConstruction(instance, parent_context);
+    if (existing.has_value()) {
+      XLS_RET_CHECK((*existing)->declaration() == AggregateDeclaration(&def));
+      return *existing;
+    } else {
+      const auto* struct_def = dynamic_cast<const StructDef*>(&def);
+      const bool allows_missing_members =
+          struct_def != nullptr && struct_def->is_domain_struct();
+      XLS_ASSIGN_OR_RETURN(
+          NamedFieldCorrespondence correspondence,
+          ValidateAndBindNamedMembers(
+              instance->span(), instance->members(), def.named_fields(),
+              def.identifier(), /*is_struct=*/true,
+              instance->requires_all_members() && !allows_missing_members,
+              file_table_,
+              /*allow_default_io_members=*/def.kind() ==
+                  AstNodeKind::kProcDef));
+      return table_.RegisterBoundConstruction(
+          BoundConstruction(instance, &def, std::move(correspondence)),
+          parent_context);
+    }
+  }
+
   absl::StatusOr<const TypeAnnotation*> InstantiateParametricStruct(
       Module& module, const Span& span,
       std::optional<const ParametricContext*> parent_context,
@@ -3503,58 +3548,40 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
     std::vector<const TypeAnnotation*> formal_member_types;
     std::vector<Expr*> actual_member_exprs;
     if (instantiator_node.has_value()) {
-      absl::flat_hash_map<std::string, Expr*> actual_member_exprs_by_name;
-      for (const auto& [name, expr] :
-           (*instantiator_node)->GetUnorderedMembers()) {
-        actual_member_exprs_by_name.emplace(name, expr);
-      }
-
-      // If there are "splatted" members, i.e., implied copies from members of
-      // an existing struct, we need synthetic longhand member initializers for
-      // parametric inference.
-      if (actual_member_exprs_by_name.size() != def.members().size() &&
-          (*instantiator_node)->kind() == AstNodeKind::kSplatStructInstance) {
-        const auto* splat =
-            absl::down_cast<const SplatStructInstance*>(*instantiator_node);
-        for (const StructMemberNode* member : def.members()) {
-          if (!actual_member_exprs_by_name.contains(member->name())) {
-            XLS_ASSIGN_OR_RETURN(
-                Expr * initializer,
-                CreateInitializerForSplattedStructMember(*splat, *member));
-            actual_member_exprs_by_name.emplace(member->name(), initializer);
-          }
+      XLS_ASSIGN_OR_RETURN(const BoundConstruction* construction,
+                           GetOrCreateStructConstruction(*instantiator_node,
+                                                         def, parent_context));
+      for (int64_t i = 0; i < construction->member_count(); ++i) {
+        const StructMemberNode* member = def.members()[i];
+        const std::optional<const Expr*> actual = construction->GetMember(i);
+        if (actual.has_value()) {
+          formal_member_types.push_back(member->type());
+          actual_member_exprs.push_back(const_cast<Expr*>(*actual));
+        } else if (const auto* splat = dynamic_cast<const SplatStructInstance*>(
+                       *instantiator_node);
+                   splat != nullptr) {
+          // Omission remains explicit in the lexical binding. Synthetic
+          // initializers supply only the separate splat inference evidence.
+          XLS_ASSIGN_OR_RETURN(
+              Expr * initializer,
+              CreateInitializerForSplattedStructMember(*splat, *member));
+          formal_member_types.push_back(member->type());
+          actual_member_exprs.push_back(initializer);
         }
       }
-
-      // At this point we should have an `Expr` per formal member of the struct
-      // definition, except for io object members of a proc, which may be
-      // omitted because they are default-initialized. Omitted members do not
-      // take part in parametric inference.
-      for (const StructMemberNode* member : def.members()) {
-        const auto it = actual_member_exprs_by_name.find(member->name());
-        if (it == actual_member_exprs_by_name.end()) {
-          XLS_RET_CHECK(def.kind() == AstNodeKind::kProcDef &&
-                        IsIoObjectAnnotation(member->type()))
-              << "Missing initializer for member `" << member->name() << "`";
-          continue;
-        }
-        formal_member_types.push_back(member->type());
-        actual_member_exprs.push_back(it->second);
-      }
-
-      // Add formal and actual types for parametric values as well. They may be
-      // required for inference.
+      // Explicit value parameters can provide evidence for the generic types
+      // used in their annotations.
       XLS_ASSIGN_OR_RETURN(
           std::optional<StructOrProcRef> struct_or_proc_ref,
           GetStructOrProcRef((*instantiator_node)->struct_ref(), import_data_));
       XLS_RET_CHECK(struct_or_proc_ref.has_value());
-      for (int i = 0; i < (*struct_or_proc_ref).parametrics.size(); i++) {
-        ExprOrType parametric_val = (*struct_or_proc_ref).parametrics[i];
-        if (std::holds_alternative<Expr*>(parametric_val)) {
-          formal_member_types.push_back((*struct_or_proc_ref)
-                                            .def->parametric_bindings()[i]
-                                            ->type_annotation());
-          actual_member_exprs.push_back(std::get<Expr*>(parametric_val));
+      for (int i = 0; i < struct_or_proc_ref->parametrics.size(); ++i) {
+        ExprOrType parametric = struct_or_proc_ref->parametrics[i];
+        if (std::holds_alternative<Expr*>(parametric)) {
+          formal_member_types.push_back(
+              struct_or_proc_ref->def->parametric_bindings()[i]
+                  ->type_annotation());
+          actual_member_exprs.push_back(std::get<Expr*>(parametric));
         }
       }
     }
@@ -3608,31 +3635,21 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
     std::vector<const TypeAnnotation*> formal_member_types;
     std::vector<Expr*> actual_member_exprs;
     for (SumConstructorExpr expression : instantiator_nodes) {
-      const SumConstructorView constructor(expression);
-      std::optional<const SumVariant*> variant =
-          sum_def.GetVariant(constructor.constructor_ref()->attr());
-      XLS_RET_CHECK(variant.has_value());
-      if ((*variant)->is_tuple()) {
-        XLS_RET_CHECK_EQ((*variant)->tuple_members().size(),
-                         constructor.tuple_args().size());
-        formal_member_types.insert(formal_member_types.end(),
-                                   (*variant)->tuple_members().begin(),
-                                   (*variant)->tuple_members().end());
-        actual_member_exprs.insert(actual_member_exprs.end(),
-                                   constructor.tuple_args().begin(),
-                                   constructor.tuple_args().end());
-      } else if ((*variant)->is_struct()) {
-        absl::flat_hash_map<std::string, Expr*> actual_member_exprs_by_name;
-        for (const auto& [name, expr] : constructor.struct_args()) {
-          actual_member_exprs_by_name.emplace(name, expr);
-        }
-        XLS_RET_CHECK_EQ((*variant)->struct_members().size(),
-                         actual_member_exprs_by_name.size());
-        for (const StructMemberNode* member : (*variant)->struct_members()) {
-          formal_member_types.push_back(member->type());
-          actual_member_exprs.push_back(
-              actual_member_exprs_by_name.at(member->name()));
-        }
+      const std::optional<const BoundConstruction*> construction =
+          table_.GetBoundConstruction(expression, parent_context);
+      XLS_RET_CHECK(construction.has_value());
+      XLS_RET_CHECK(std::holds_alternative<const SumVariant*>(
+          (*construction)->declaration()));
+      const SumVariant* variant =
+          std::get<const SumVariant*>((*construction)->declaration());
+      XLS_RET_CHECK_EQ(variant->parent(), &sum_def);
+      for (int64_t i = 0; i < (*construction)->member_count(); ++i) {
+        const std::optional<const Expr*> actual = (*construction)->GetMember(i);
+        XLS_RET_CHECK(actual.has_value());
+        formal_member_types.push_back(
+            variant->is_tuple() ? variant->tuple_members()[i]
+                                : variant->struct_members()[i]->type());
+        actual_member_exprs.push_back(const_cast<Expr*>(*actual));
       }
     }
 

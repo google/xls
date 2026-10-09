@@ -36,6 +36,7 @@
 #include "absl/strings/substitute.h"
 #include "absl/types/variant.h"
 #include "xls/common/visitor.h"
+#include "xls/dslx/frontend/aggregate_construction.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/ast_cloner.h"
 #include "xls/dslx/frontend/ast_node.h"
@@ -503,6 +504,25 @@ class InferenceTable {
   virtual absl::Status SetTypeVariable(const AstNode* node,
                                        const NameRef* type) = 0;
 
+  // Registers a classified ordinary function call as a type-inference
+  // prerequisite. Safe before or after SetTypeVariable, and idempotent.
+  // Constructor invocations must not be registered here.
+  virtual void RegisterInvocation(const Invocation* invocation) = 0;
+
+  // Owns one immutable binding per source use and resolving context, with
+  // stable addresses for borrowers. A context-independent binding is for a
+  // statically known target; generic targets register only after resolution.
+  // Repeated registration returns the existing record.
+  virtual const BoundConstruction* RegisterBoundConstruction(
+      BoundConstruction construction,
+      std::optional<const ParametricContext*> context = std::nullopt) = 0;
+
+  // Consults this exact caller context, then a context-independent binding.
+  // An unsuccessful lookup does not cache an unresolved generic target.
+  virtual std::optional<const BoundConstruction*> GetBoundConstruction(
+      const Expr* expression,
+      std::optional<const ParametricContext*> context = std::nullopt) const = 0;
+
   // Sets the explicit type annotation associated with `node`. Not all nodes
   // have one. For example, a `Let` node like `let x:u32 = something;` has a
   // type annotation, but `let x = something;` does not.
@@ -549,6 +569,16 @@ class InferenceTable {
   // Returns the stored target of a `ColonRef`.
   virtual std::optional<const AstNode*> GetColonRefTarget(
       const ColonRef* colon_ref) const = 0;
+
+  // Queries the declaration recorded during population. Only use after the
+  // invocation has been populated; a parent can register its type variable
+  // before population reaches the callee.
+  bool IsSumConstructor(const Invocation* invocation) const {
+    const auto* ref = dynamic_cast<const ColonRef*>(invocation->callee());
+    const std::optional<const AstNode*> target =
+        ref == nullptr ? std::nullopt : GetColonRefTarget(ref);
+    return target.has_value() && (*target)->kind() == AstNodeKind::kSumVariant;
+  }
 
   // When the converter resolves the callee for an `Invocation` node, it uses
   // this to store the callee to avoid any need for redundant resolution later.

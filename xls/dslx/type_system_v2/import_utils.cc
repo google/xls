@@ -40,42 +40,35 @@
 #include "xls/dslx/import_routines.h"
 #include "xls/dslx/type_system/type.h"
 #include "xls/dslx/type_system/type_info.h"
+#include "xls/dslx/type_system_v2/declaration_resolution_cache.h"
 #include "xls/dslx/type_system_v2/type_annotation_utils.h"
 
 namespace xls::dslx {
 namespace {
 
-// A use leaf stores its name but not its full import path. Find its subject in
-// the owning use tree and resolve the member from the already-loaded module.
-absl::StatusOr<std::optional<ModuleMember*>> GetLoadedUseMember(
+// Resolve the indexed use path against already-loaded modules.
+absl::StatusOr<std::optional<ModuleMember>> GetLoadedUseMember(
     const UseTreeEntry* entry, const ImportData& import_data) {
-  for (const ModuleMember& member : entry->owner()->top()) {
-    if (const auto* use = std::get_if<Use*>(&member)) {
-      for (UseSubject& subject : (*use)->LinearizeToSubjects()) {
-        if (&subject.use_tree_entry() == entry) {
-          auto identifiers = subject.identifiers();
-          absl::StatusOr<ModuleInfo*> module =
-              import_data.Get(ImportTokens::FromSpan(identifiers));
-          if (module.ok()) {
-            return std::nullopt;
-          } else if (identifiers.size() > 1) {
-            XLS_ASSIGN_OR_RETURN(
-                ModuleInfo * imported_module,
-                import_data.Get(ImportTokens::FromSpan(
-                    identifiers.first(identifiers.size() - 1))));
-            std::optional<ModuleMember*> imported_member =
-                imported_module->module().FindMemberWithName(
-                    subject.name_def().identifier());
-            XLS_RET_CHECK(imported_member.has_value());
-            return imported_member;
-          } else {
-            return module.status();
-          }
-        }
-      }
-    }
+  const UseSubject* subject = entry->owner()->GetUseSubject(entry);
+  if (subject == nullptr) {
+    return std::nullopt;
   }
-  return std::nullopt;
+  auto identifiers = subject->identifiers();
+  absl::StatusOr<ModuleInfo*> module =
+      import_data.Get(ImportTokens::FromSpan(identifiers));
+  if (module.ok()) {
+    return std::nullopt;
+  } else if (identifiers.size() > 1) {
+    XLS_ASSIGN_OR_RETURN(ModuleInfo * imported_module,
+                         import_data.Get(ImportTokens::FromSpan(
+                             identifiers.first(identifiers.size() - 1))));
+    std::optional<ModuleMember> imported_member =
+        imported_module->module().GetMember(subject->name_def().identifier());
+    XLS_RET_CHECK(imported_member.has_value());
+    return imported_member;
+  } else {
+    return module.status();
+  }
 }
 
 // Recursive visitor that unwraps a possible chain of type aliasing leading to a
@@ -122,7 +115,62 @@ class TypeRefUnwrapper : public AstNodeVisitorWithDefault {
   }
 
   absl::Status HandleTypeAlias(const TypeAlias* alias) override {
-    return alias->type_annotation().Accept(this);
+    auto& aliases = import_data_.declaration_resolution_cache().aliases;
+    TypeRefUnwrapper suffix(import_data_, include_generic_);
+    absl::Status suffix_status;
+    auto it = aliases.find(alias);
+    if (it != aliases.end()) {
+      const ResolvedTypeAlias& resolved = it->second;
+      suffix.type_def_ = resolved.definition;
+      suffix.type_ref_type_annotation_ =
+          resolved.first_annotation == nullptr
+              ? std::nullopt
+              : std::make_optional(resolved.first_annotation);
+      suffix.parameter_annotation_ = resolved.parameter_annotation;
+      suffix.type_variable_type_annotation_ =
+          resolved.last_type_variable == nullptr
+              ? std::nullopt
+              : std::make_optional(resolved.last_type_variable);
+      suffix.construction_origin_ = resolved.construction_origin;
+    } else {
+      suffix.mutable_import_data_ = mutable_import_data_;
+      suffix.typecheck_imported_module_ = typecheck_imported_module_;
+      suffix_status = alias->type_annotation().Accept(&suffix);
+      if (suffix_status.ok() && suffix.type_def_.has_value() &&
+          !suffix.is_generic_) {
+        aliases.emplace(
+            alias,
+            ResolvedTypeAlias{
+                .definition = *suffix.type_def_,
+                .first_annotation =
+                    suffix.type_ref_type_annotation_.value_or(nullptr),
+                .parameter_annotation = suffix.parameter_annotation_,
+                .last_type_variable =
+                    suffix.type_variable_type_annotation_.value_or(nullptr),
+                .construction_origin = suffix.construction_origin_});
+      }
+    }
+    if (parameter_annotation_ != nullptr &&
+        suffix.parameter_annotation_ != nullptr) {
+      return MultipleParametricValuesError(suffix.parameter_annotation_);
+    }
+    if (!type_ref_type_annotation_.has_value()) {
+      type_ref_type_annotation_ = suffix.type_ref_type_annotation_;
+    }
+    if (suffix.parameter_annotation_ != nullptr) {
+      parameter_annotation_ = suffix.parameter_annotation_;
+    }
+    if (suffix.type_variable_type_annotation_.has_value()) {
+      type_variable_type_annotation_ = suffix.type_variable_type_annotation_;
+    }
+    if (!construction_origin_.has_value()) {
+      construction_origin_ = suffix.construction_origin_;
+    }
+    type_def_ = suffix.type_def_;
+    is_generic_ = suffix.is_generic_;
+    // Preserve the earliest duplicate-parameter diagnostic even if resolving
+    // the suffix in isolation failed at a later annotation.
+    return suffix_status;
   }
 
   absl::Status HandleTypeVariableTypeAnnotation(
@@ -133,26 +181,19 @@ class TypeRefUnwrapper : public AstNodeVisitorWithDefault {
 
   absl::Status HandleTypeRefTypeAnnotation(
       const TypeRefTypeAnnotation* annotation) override {
-    if (!annotation->parametrics().empty() && !parametrics_.empty()) {
-      return TypeInferenceErrorStatus(
-          annotation->span(), /* type= */ nullptr,
-          absl::StrFormat(
-              "Parametric values defined multiple times for annotation: `%s`",
-              annotation->ToString()),
-          import_data_.file_table());
+    if (!annotation->parametrics().empty() &&
+        parameter_annotation_ != nullptr) {
+      return MultipleParametricValuesError(annotation);
     }
 
     if (!type_ref_type_annotation_.has_value()) {
       type_ref_type_annotation_ = annotation;
     }
     if (!annotation->parametrics().empty()) {
-      parametrics_ = annotation->parametrics();
+      parameter_annotation_ = annotation;
     }
-    if (!struct_instantiator_.has_value()) {
-      struct_instantiator_ = annotation->struct_instantiator();
-    }
-    if (!sum_instantiator_.has_value()) {
-      sum_instantiator_ = annotation->sum_instantiator();
+    if (!construction_origin_.has_value()) {
+      construction_origin_ = annotation->construction_origin();
     }
     return ToAstNode(annotation->type_ref()->type_definition())->Accept(this);
   }
@@ -203,10 +244,10 @@ class TypeRefUnwrapper : public AstNodeVisitorWithDefault {
   }
 
   absl::Status HandleUseTreeEntry(const UseTreeEntry* entry) override {
-    XLS_ASSIGN_OR_RETURN(std::optional<ModuleMember*> member,
+    XLS_ASSIGN_OR_RETURN(std::optional<ModuleMember> member,
                          GetLoadedUseMember(entry, import_data_));
     if (member.has_value()) {
-      return ToAstNode(**member)->Accept(this);
+      return ToAstNode(*member)->Accept(this);
     } else {
       return absl::OkStatus();
     }
@@ -228,8 +269,8 @@ class TypeRefUnwrapper : public AstNodeVisitorWithDefault {
         .def = type_def_.has_value()
                    ? absl::down_cast<StructDefBase*>(ToAstNode(*type_def_))
                    : nullptr,
-        .parametrics = parametrics_,
-        .instantiator = struct_instantiator_,
+        .parametrics = GetParametrics(),
+        .construction_origin = construction_origin_,
         .type_ref_type_annotation = type_ref_type_annotation_,
         .is_generic = is_generic_,
     };
@@ -247,26 +288,41 @@ class TypeRefUnwrapper : public AstNodeVisitorWithDefault {
       return std::nullopt;
     }
     return SumRef{.def = std::get<SumDef*>(*type_def_),
-                  .parametrics = parametrics_,
-                  .instantiator = sum_instantiator_};
+                  .parametrics = GetParametrics(),
+                  .construction_origin = construction_origin_};
   }
 
  private:
+  absl::Status MultipleParametricValuesError(
+      const TypeRefTypeAnnotation* annotation) const {
+    return TypeInferenceErrorStatus(
+        annotation->span(), /*type=*/nullptr,
+        absl::StrFormat(
+            "Parametric values defined multiple times for annotation: `%s`",
+            annotation->ToString()),
+        import_data_.file_table());
+  }
+
+  std::vector<ExprOrType> GetParametrics() const {
+    return parameter_annotation_ == nullptr
+               ? std::vector<ExprOrType>{}
+               : parameter_annotation_->parametrics();
+  }
+
   ImportData* mutable_import_data_;
   const ImportData& import_data_;
   bool include_generic_;
   std::optional<TypecheckModuleFn> typecheck_imported_module_;
 
   // These fields get populated as we visit nodes.
-  std::vector<ExprOrType> parametrics_;
+  const TypeRefTypeAnnotation* parameter_annotation_ = nullptr;
   std::optional<TypeDefinition> type_def_;
   std::optional<const TypeRefTypeAnnotation*> type_ref_type_annotation_;
   std::optional<const TypeVariableTypeAnnotation*>
       type_variable_type_annotation_;
 
-  std::optional<const StructInstanceBase*> struct_instantiator_;
+  std::optional<const Expr*> construction_origin_;
   bool is_generic_ = false;
-  std::optional<SumConstructorExpr> sum_instantiator_;
 };
 
 absl::StatusOr<std::optional<SumRef>> GetSumRefForSubject(
@@ -332,6 +388,11 @@ GetTypeVariableTypeAnnotationForSubject(const ColonRef* ref,
 
 absl::StatusOr<std::optional<SumConstructorRef>> ResolveSumConstructor(
     const ColonRef* colon_ref, const ImportData& import_data) {
+  auto& constructors = import_data.declaration_resolution_cache().constructors;
+  auto cached = constructors.find(colon_ref);
+  if (cached != constructors.end()) {
+    return cached->second;
+  }
   XLS_ASSIGN_OR_RETURN(std::optional<SumRef> sum_ref,
                        GetSumRefForSubject(colon_ref, import_data));
   if (!sum_ref.has_value()) {
@@ -346,7 +407,9 @@ absl::StatusOr<std::optional<SumConstructorRef>> ResolveSumConstructor(
                         sum_ref->def->identifier(), colon_ref->attr()),
         import_data.file_table());
   }
-  return SumConstructorRef{.sum_ref = *sum_ref, .variant = *variant};
+  SumConstructorRef result{.sum_ref = *sum_ref, .variant = *variant};
+  constructors.emplace(colon_ref, result);
+  return result;
 }
 
 absl::StatusOr<std::optional<SumConstructorRef>> ResolveSumConstructor(
@@ -375,45 +438,36 @@ absl::Status UnsupportedGenericSumConstructorError(
       file_table);
 }
 
-const Expr* SumConstructorView::expression() const {
-  return std::visit([](const auto* node) -> const Expr* { return node; },
-                    expression_);
-}
+const Expr* SumConstructorView::expression() const { return expression_; }
 
 const ColonRef* SumConstructorView::constructor_ref() const {
-  if (const auto* ref = std::get_if<const ColonRef*>(&expression_)) {
-    return *ref;
+  if (const auto* ref = dynamic_cast<const ColonRef*>(expression_)) {
+    return ref;
   } else if (const auto* invocation =
-                 std::get_if<const Invocation*>(&expression_)) {
-    return absl::down_cast<const ColonRef*>((*invocation)->callee());
-  } else if (const auto* instance =
-                 std::get_if<const StructInstance*>(&expression_)) {
-    const auto* annotation =
-        (*instance)->struct_ref()->AsAnnotation<TypeRefTypeAnnotation>();
-    return std::get<ColonRef*>(annotation->type_ref()->type_definition());
+                 dynamic_cast<const Invocation*>(expression_)) {
+    return absl::down_cast<const ColonRef*>(invocation->callee());
   } else {
-    return std::get<const SumInstance*>(expression_)->constructor_ref();
+    const auto* instance =
+        absl::down_cast<const StructInstanceBase*>(expression_);
+    const auto* annotation =
+        instance->struct_ref()->AsAnnotation<TypeRefTypeAnnotation>();
+    return std::get<ColonRef*>(annotation->type_ref()->type_definition());
   }
 }
 
-SumInstance::PayloadShape SumConstructorView::payload_shape() const {
-  if (std::holds_alternative<const ColonRef*>(expression_)) {
-    return SumInstance::PayloadShape::kUnit;
-  } else if (std::holds_alternative<const Invocation*>(expression_)) {
-    return SumInstance::PayloadShape::kTuple;
-  } else if (std::holds_alternative<const StructInstance*>(expression_)) {
-    return SumInstance::PayloadShape::kStruct;
+SumVariant::PayloadShape SumConstructorView::payload_shape() const {
+  if (dynamic_cast<const ColonRef*>(expression_) != nullptr) {
+    return SumVariant::PayloadShape::kUnit;
+  } else if (dynamic_cast<const Invocation*>(expression_) != nullptr) {
+    return SumVariant::PayloadShape::kTuple;
   } else {
-    return std::get<const SumInstance*>(expression_)->payload_shape();
+    return SumVariant::PayloadShape::kStruct;
   }
 }
 
 absl::Span<Expr* const> SumConstructorView::tuple_args() const {
-  if (const auto* invocation = std::get_if<const Invocation*>(&expression_)) {
-    return (*invocation)->args();
-  } else if (const auto* instance =
-                 std::get_if<const SumInstance*>(&expression_)) {
-    return (*instance)->tuple_payload_args();
+  if (const auto* invocation = dynamic_cast<const Invocation*>(expression_)) {
+    return invocation->args();
   } else {
     return {};
   }
@@ -421,19 +475,16 @@ absl::Span<Expr* const> SumConstructorView::tuple_args() const {
 
 absl::Span<const std::pair<std::string, Expr*>>
 SumConstructorView::struct_args() const {
-  if (const auto* instance = std::get_if<const StructInstance*>(&expression_)) {
-    return (*instance)->GetUnorderedMembers();
-  } else if (const auto* instance =
-                 std::get_if<const SumInstance*>(&expression_)) {
-    return (*instance)->struct_payload_field_args();
+  if (const auto* instance =
+          dynamic_cast<const StructInstanceBase*>(expression_)) {
+    return instance->GetUnorderedMembers();
   } else {
     return {};
   }
 }
 
-absl::StatusOr<std::optional<SumConstructorRef>> ClassifySumConstructor(
-    Invocation* invocation, const ImportData& import_data) {
-  invocation->set_callee_kind(Invocation::CalleeKind::kFunction);
+absl::StatusOr<std::optional<SumConstructorRef>> ResolveSumConstructor(
+    const Invocation* invocation, const ImportData& import_data) {
   if (const auto* constructor =
           dynamic_cast<const ColonRef*>(invocation->callee())) {
     if (!invocation->explicit_parametrics().empty()) {
@@ -456,8 +507,6 @@ absl::StatusOr<std::optional<SumConstructorRef>> ClassifySumConstructor(
             absl::Substitute("Constructor `$0` is not callable here.",
                              constructor->ToString()),
             import_data.file_table());
-      } else {
-        invocation->set_callee_kind(Invocation::CalleeKind::kSumConstructor);
       }
     }
     return resolved;
@@ -466,7 +515,7 @@ absl::StatusOr<std::optional<SumConstructorRef>> ClassifySumConstructor(
   }
 }
 
-absl::StatusOr<std::optional<SumConstructorRef>> ClassifySumConstructor(
+absl::StatusOr<std::optional<SumConstructorRef>> ResolveSumConstructor(
     const StructInstanceBase* instance, const ImportData& import_data) {
   XLS_ASSIGN_OR_RETURN(
       std::optional<SumConstructorRef> resolved,
@@ -495,60 +544,6 @@ absl::StatusOr<std::optional<SumConstructorRef>> ClassifySumConstructor(
     }
   }
   return resolved;
-}
-
-namespace {
-
-class SumConstructorClassifier : public AstNodeRecursiveVisitor {
- public:
-  explicit SumConstructorClassifier(const ImportData& import_data)
-      : AstNodeRecursiveVisitor(/*want_types=*/true),
-        import_data_(import_data) {}
-
-  absl::Status HandleInvocation(const Invocation* node) override {
-    XLS_RETURN_IF_ERROR(
-        ClassifySumConstructor(const_cast<Invocation*>(node), import_data_)
-            .status());
-    return DefaultHandler(node);
-  }
-
-  absl::Status HandleStructInstance(const StructInstance* node) override {
-    return HandleStructInstanceBase(node);
-  }
-
-  absl::Status HandleSplatStructInstance(
-      const SplatStructInstance* node) override {
-    return HandleStructInstanceBase(node);
-  }
-
-  absl::Status HandleTypeRef(const TypeRef* node) override {
-    // A type reference can contain qualified syntax. Its other alternatives
-    // refer to declarations owned elsewhere and must not be traversed here.
-    if (const auto* colon_ref =
-            std::get_if<ColonRef*>(&node->type_definition())) {
-      return (*colon_ref)->Accept(this);
-    } else {
-      return absl::OkStatus();
-    }
-  }
-
- private:
-  absl::Status HandleStructInstanceBase(const StructInstanceBase* node) {
-    XLS_RETURN_IF_ERROR(ClassifySumConstructor(node, import_data_).status());
-    // The type reference is not among this node's ordinary children.
-    XLS_RETURN_IF_ERROR(node->struct_ref()->Accept(this));
-    return DefaultHandler(node);
-  }
-
-  const ImportData& import_data_;
-};
-
-}  // namespace
-
-absl::Status ClassifySumConstructors(AstNode* root,
-                                     const ImportData& import_data) {
-  SumConstructorClassifier visitor(import_data);
-  return root->Accept(&visitor);
 }
 
 absl::StatusOr<std::optional<ModuleInfo*>> GetImportedModuleInfo(
@@ -583,8 +578,7 @@ absl::StatusOr<std::optional<ModuleInfo*>> GetImportedModuleInfo(
 
 absl::StatusOr<ModuleMember> GetPublicModuleMember(
     const Module& module, const ColonRef* node, const FileTable& file_table) {
-  std::optional<const ModuleMember*> member =
-      module.FindMemberWithName(node->attr());
+  std::optional<ModuleMember> member = module.GetMember(node->attr());
   if (!member.has_value()) {
     return TypeInferenceErrorStatus(
         node->span(), nullptr,
@@ -593,7 +587,7 @@ absl::StatusOr<ModuleMember> GetPublicModuleMember(
                         node->ToString()),
         file_table);
   }
-  if (!IsPublic(**member)) {
+  if (!IsPublic(*member)) {
     return TypeInferenceErrorStatus(
         node->span(), nullptr,
         absl::StrFormat("Attempted to refer to a module member %s that "
@@ -601,7 +595,7 @@ absl::StatusOr<ModuleMember> GetPublicModuleMember(
                         node->ToString()),
         file_table);
   }
-  return **member;
+  return *member;
 }
 
 absl::StatusOr<std::optional<StructOrProcRef>> GetStructOrProcRef(
