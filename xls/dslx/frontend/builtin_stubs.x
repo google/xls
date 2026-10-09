@@ -126,6 +126,13 @@ trait Spawn {
   fn spawn(self);
 }
 
+// `#[derive(Default)]` uses nested struct defaults and zero for other fields.
+// Any nested struct, including one inside a composite type such as an array or tuple, must derive
+// `Default` or define this function.
+trait Default {
+  fn default() -> Self;
+}
+
 // Ordering rules for multiple channel operations on the same channel.
 enum ChannelStrictness : u3 {
   PROVEN_MUTUALLY_EXCLUSIVE = 0,

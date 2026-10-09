@@ -360,6 +360,10 @@ const TupleType& Type::AsTuple() const {
   return *s;
 }
 
+bool Type::HasStruct() const {
+  return IsStruct();
+}
+
 // -- TokenType
 
 TokenType::~TokenType() = default;
@@ -905,6 +909,11 @@ absl::StatusOr<TypeDim> TupleType::GetTotalBitCount() const {
   return sum;
 }
 
+bool TupleType::HasStruct() const {
+  return absl::c_any_of(members(),
+                        [](const auto& t) { return t->HasStruct(); });
+}
+
 // -- ArrayType
 
 ArrayType::ArrayType(std::unique_ptr<Type> element_type, const TypeDim& size)
@@ -994,6 +1003,10 @@ int ArrayType::ArrayDimensions() const {
     element_type = &child_type->element_type();
   }
   return size;
+}
+
+bool ArrayType::HasStruct() const {
+  return element_type().HasStruct();
 }
 
 // -- EnumType

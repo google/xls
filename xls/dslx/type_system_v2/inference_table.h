@@ -550,6 +550,18 @@ class InferenceTable {
   virtual std::optional<const AstNode*> GetColonRefTarget(
       const ColonRef* colon_ref) const = 0;
 
+  // Sets the target of a `ColonRef` whose resolution depends on a parametric
+  // struct context.
+  virtual void SetContextualColonRefTarget(
+      const ColonRef* colon_ref,
+      const ParametricContext* parametric_struct_context,
+      const AstNode* target) = 0;
+
+  // Returns the target of a `ColonRef` in the given parametric struct context.
+  virtual std::optional<const AstNode*> GetContextualColonRefTarget(
+      const ColonRef* colon_ref,
+      const ParametricContext* parametric_struct_context) const = 0;
+
   // When the converter resolves the callee for an `Invocation` node, it uses
   // this to store the callee to avoid any need for redundant resolution later.
   virtual void SetCalleeInCallerContext(
