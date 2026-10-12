@@ -535,26 +535,14 @@ class StatefulResolver : public TypeAnnotationResolver {
       std::optional<const AstNode*> context_node,
       const ConstConditionalTypeAnnotation* conditional_type,
       TypeAnnotationFilter filter) {
-    if (!context_node.has_value()) {
-      return TypeInferenceErrorStatus(
-          conditional_type->span(), /*type=*/nullptr,
-          "context_node is required for ResolveConstConditionalType()",
-          file_table_);
-    }
-
-    const Conditional* conditional =
-        absl::down_cast<const Conditional*>(*context_node);
     absl::StatusOr<bool> evaluated_value = evaluator_.EvaluateBoolOrExpr(
         parametric_context, conditional_type->test());
     if (evaluated_value.ok()) {
-      const AstNode* selected_branch =
-          *evaluated_value ? conditional->consequent()
-                           : ToExprNode(conditional->alternate());
-      XLS_ASSIGN_OR_RETURN(
-          std::optional<const TypeAnnotation*> selected_annotation,
-          ResolveAndUnifyTypeAnnotationsForNode(parametric_context,
-                                                selected_branch, filter));
-      return *selected_annotation;
+      return ResolveIndirectTypeAnnotations(
+          parametric_context, context_node,
+          *evaluated_value ? conditional_type->consequent_type()
+                           : conditional_type->alternate_type(),
+          filter.Chain(TypeAnnotationFilter::BlockRecursion(conditional_type)));
     }
 
     return TypeInferenceErrorStatus(conditional_type->span(), /*type=*/nullptr,
@@ -566,13 +554,16 @@ class StatefulResolver : public TypeAnnotationResolver {
       std::optional<const ParametricContext*> parametric_context,
       std::optional<const AstNode*> context_node,
       const ConstMatchTypeAnnotation* annotation, TypeAnnotationFilter filter) {
-    if (!context_node.has_value()) {
-      return TypeInferenceErrorStatus(
-          annotation->span(), /*type=*/nullptr,
-          "context_node is required for ResolveConstMatchType()", file_table_);
-    }
-
-    const Match* match = absl::down_cast<const Match*>(context_node.value());
+    XLS_RET_CHECK(!annotation->members().empty());
+    const auto* matched_tvta = annotation->members()
+                                   .back()
+                                   ->AsAnnotation<TypeVariableTypeAnnotation>();
+    XLS_RET_CHECK_NE(matched_tvta, nullptr);
+    const AstNode* matched_node =
+        std::get<const NameDef*>(matched_tvta->type_variable()->name_def())
+            ->definer();
+    XLS_RET_CHECK_NE(matched_node, nullptr);
+    const Match* match = absl::down_cast<const Match*>(matched_node->parent());
 
     TypeInfo* ti;
     if (parametric_context.has_value()) {
@@ -581,13 +572,26 @@ class StatefulResolver : public TypeAnnotationResolver {
       XLS_ASSIGN_OR_RETURN(ti, import_data_.GetRootTypeInfoForNode(match));
     }
 
-    XLS_ASSIGN_OR_RETURN(uint32_t arm_id, ti->GetArmSelectionResult(match));
+    absl::StatusOr<uint32_t> arm_id = ti->GetArmSelectionResult(match);
+    if (!arm_id.ok()) {
+      XLS_ASSIGN_OR_RETURN(
+          InferenceTableConverter * converter,
+          import_data_.GetInferenceTableConverter(match->owner()));
+      for (const MatchArm* arm : match->arms()) {
+        for (const PatternTree& pattern : arm->patterns()) {
+          XLS_RETURN_IF_ERROR(converter->ConvertSubtree(
+              ToAstNode(pattern), std::nullopt, parametric_context));
+        }
+      }
+      XLS_RETURN_IF_ERROR(converter->ConvertSubtree(
+          match->matched(), std::nullopt, parametric_context));
+      XLS_ASSIGN_OR_RETURN(arm_id, ti->GetArmSelectionResult(match));
+    }
 
-    XLS_ASSIGN_OR_RETURN(
-        std::optional<const TypeAnnotation*> final,
-        ResolveAndUnifyTypeAnnotationsForNode(
-            parametric_context, match->arms()[arm_id]->expr(), filter));
-    return *final;
+    XLS_RET_CHECK_LT(*arm_id, annotation->members().size() - 1);
+    return ResolveIndirectTypeAnnotations(
+        parametric_context, context_node, annotation->members()[*arm_id],
+        filter.Chain(TypeAnnotationFilter::BlockRecursion(annotation)));
   }
 
   // Converts `member_type` into a regular `TypeAnnotation` that expresses the

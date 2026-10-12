@@ -266,6 +266,36 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
         XLS_RETURN_IF_ERROR(
             converter->ConvertSubtree(node, std::nullopt, parametric_context));
       } else {
+        if (node->kind() == AstNodeKind::kConditional &&
+            absl::down_cast<const Conditional*>(node)->IsConst()) {
+          const auto* conditional = absl::down_cast<const Conditional*>(node);
+          absl::StatusOr<bool> evaluated_value = evaluator_->EvaluateBoolOrExpr(
+              parametric_context, conditional->test());
+          if (!evaluated_value.ok()) {
+            return TypeInferenceErrorStatus(
+                conditional->span(), /*type=*/nullptr,
+                "Unable to evaluate const conditional", file_table_);
+          }
+          XLS_ASSIGN_OR_RETURN(TypeInfo * ti, GetTypeInfo(parametric_context));
+          ti->NoteConstExpr(conditional->test(),
+                            InterpValue::MakeBool(*evaluated_value));
+          const AstNode* selected_branch =
+              *evaluated_value ? conditional->consequent()
+                               : ToExprNode(conditional->alternate());
+          XLS_RETURN_IF_ERROR(ConvertSubtree(selected_branch, function,
+                                             parametric_context,
+                                             filter_param_type_annotations));
+        } else if (node->kind() == AstNodeKind::kMatch &&
+                   absl::down_cast<const Match*>(node)->IsConst()) {
+          const auto* match = absl::down_cast<const Match*>(node);
+          XLS_ASSIGN_OR_RETURN(TypeInfo * ti, GetTypeInfo(parametric_context));
+          XLS_ASSIGN_OR_RETURN(uint32_t arm_id,
+                               ti->GetArmSelectionResult(match));
+          const Expr* selected_arm_expr = match->arms()[arm_id]->expr();
+          XLS_RETURN_IF_ERROR(ConvertSubtree(selected_arm_expr, function,
+                                             parametric_context,
+                                             filter_param_type_annotations));
+        }
         XLS_RETURN_IF_ERROR(
             GenerateTypeInfo(parametric_context, node,
                              /*pre_unified_type=*/
@@ -415,6 +445,30 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
     return ConvertInvocation(invocation, caller_context);
   }
 
+  // Returns true if `decl` is a descendant of `root` and is enclosed in a loop
+  // (`for`/`const for`) or compile-time branch (`const if`/`const match`) that
+  // is itself a descendant of `root`.
+  bool IsInDescendantLoopOrConstControlFlow(const AstNode* root,
+                                            const AstNode* decl) {
+    bool found_loop_or_const_cf = false;
+    const AstNode* current = decl->parent();
+    while (current != nullptr) {
+      if (current == root) {
+        return found_loop_or_const_cf;
+      }
+      if (current->kind() == AstNodeKind::kConstFor ||
+          current->kind() == AstNodeKind::kFor ||
+          (current->kind() == AstNodeKind::kConditional &&
+           absl::down_cast<const Conditional*>(current)->IsConst()) ||
+          (current->kind() == AstNodeKind::kMatch &&
+           absl::down_cast<const Match*>(current)->IsConst())) {
+        found_loop_or_const_cf = true;
+      }
+      current = current->parent();
+    }
+    return false;
+  }
+
   // Converts the constants that are referenced under `node`. This is done only
   // as part of `TryConvertInvocationForUnification`.
   //
@@ -435,7 +489,6 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
   absl::Status ConvertConstantsReferencedUnder(
       const AstNode* node,
       std::optional<const ParametricContext*> parametric_context) {
-    std::optional<const Expr*> loop_containing_node = GetContainingLoop(node);
     std::vector<std::pair<const NameRef*, const NameDef*>> references;
     XLS_ASSIGN_OR_RETURN(references,
                          CollectReferencedUnder(node, /*want_types=*/true));
@@ -468,16 +521,12 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
       }
 
       // Recursively convert that declaration's deps and itself, but exclude it
-      // if it is inside a `const for` that is a descendant of `node`.
-      // Converting such declarations is unnecessary, and in the case of a
-      // `const for`, can't even be done before unrolling is performed.
+      // if it is inside a `const for`, `const if`, or `const match` that is a
+      // descendant of `node`. Converting such declarations is unnecessary, and
+      // cannot be done before loop unrolling or compile-time branch selection.
       if (decl != nullptr && (decl->kind() == AstNodeKind::kConstantDef ||
                               decl->kind() == AstNodeKind::kLet)) {
-        std::optional<const Expr*> loop_containing_decl =
-            GetContainingLoop(name_def);
-        if (!loop_containing_decl.has_value() ||
-            (loop_containing_node.has_value() &&
-             *loop_containing_node == *loop_containing_decl)) {
+        if (!IsInDescendantLoopOrConstControlFlow(node, decl)) {
           XLS_RETURN_IF_ERROR(
               ConvertConstantsReferencedUnder(decl, parametric_context));
           XLS_RETURN_IF_ERROR(

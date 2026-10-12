@@ -111,7 +111,30 @@ class Flattener : public AstNodeVisitorWithDefault {
     return absl::OkStatus();
   }
 
+  absl::Status HandleConditional(const Conditional* node) override {
+    if (node->IsConst()) {
+      XLS_RETURN_IF_ERROR(node->test()->Accept(this));
+      nodes_.push_back(node);
+      return absl::OkStatus();
+    }
+    return DefaultHandler(node);
+  }
+
   absl::Status HandleMatch(const Match* node) override {
+    if (node->IsConst()) {
+      // For const matches, bypass the edge cases that are further down. This is
+      // because only the type of the taken arm matters in a const match, and
+      // type mismatches with/between untaken arms are acceptable.
+      for (const MatchArm* arm : node->arms()) {
+        for (const PatternTree& pattern : arm->patterns()) {
+          XLS_RETURN_IF_ERROR(ToAstNode(pattern)->Accept(this));
+        }
+      }
+      XLS_RETURN_IF_ERROR(node->matched()->Accept(this));
+      nodes_.push_back(node);
+      return absl::OkStatus();
+    }
+
     // For match arms with statement blocks, we need to deal with those blocks
     // up to the last statement before the return expr, then deal with the
     // return exprs across all the arms. This is because the final expression
