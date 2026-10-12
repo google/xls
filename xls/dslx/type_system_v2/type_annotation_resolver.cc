@@ -290,7 +290,13 @@ class StatefulResolver : public TypeAnnotationResolver {
     std::optional<const TypeAnnotation*> cached =
         table_.GetCachedUnifiedTypeForVariable(parametric_context,
                                                type_variable);
-    if (cached.has_value() && !(*cached)->IsAnnotation<AnyTypeAnnotation>()) {
+    // In some cases, the cache may not be used because we optionally include
+    // the `self` parameter.
+    bool check_for_self = cached.has_value() &&
+                          (*cached)->IsAnnotation<FunctionTypeAnnotation>() &&
+                          context_node.has_value();
+    if (cached.has_value() && !(*cached)->IsAnnotation<AnyTypeAnnotation>() &&
+        !check_for_self) {
       VLOG(6) << "Using cached type for " << type_variable->ToString();
       trace.SetUsedCache(true);
       trace.SetResult(*cached);
@@ -654,6 +660,26 @@ class StatefulResolver : public TypeAnnotationResolver {
           parametric_struct_instantiator_.GetOrCreateParametricStructContext(
               parametric_context, *struct_or_proc_ref, member_type));
     }
+    auto skip_self = [&](const Function* fn) -> bool {
+      // Skipping self only applies to methods.
+      if (!fn->IsMethod()) {
+        return false;
+      }
+      if (!context_node.has_value()) {
+        return false;
+      }
+      if ((*context_node)->parent() == nullptr) {
+        return false;
+      }
+      if ((*context_node)->parent()->kind() == AstNodeKind::kInvocation) {
+        const auto* inv =
+            absl::down_cast<const Invocation*>((*context_node)->parent());
+        if (inv->is_originator()) {
+          return !inv->IncludeSelfInOriginated(fn);
+        }
+      }
+      return false;
+    };
     std::optional<StructMemberNode*> member =
         struct_def->GetMemberByName(member_type->member_name());
     if (!member.has_value() && struct_def->impl().has_value()) {
@@ -673,11 +699,11 @@ class StatefulResolver : public TypeAnnotationResolver {
                   parametric_context, *struct_or_proc_ref, *member_type);
         }
         if (std::holds_alternative<Function*>(*impl_member)) {
+          Function* fn = std::get<Function*>(*impl_member);
           return parametric_struct_instantiator_
               .GetParametricFreeStructMemberType(
                   parametric_context, *struct_or_proc_ref,
-                  CreateFunctionTypeAnnotation(
-                      module_, *std::get<Function*>(*impl_member)));
+                  CreateFunctionTypeAnnotation(module_, *fn, skip_self(fn)));
         }
         if (std::holds_alternative<TypeAlias*>(*impl_member)) {
           return parametric_struct_instantiator_
@@ -702,11 +728,11 @@ class StatefulResolver : public TypeAnnotationResolver {
                                  colon_ref, parametric_context));
         if (resolved.has_value() &&
             (*resolved)->kind() == AstNodeKind::kFunction) {
+          const Function* fn = absl::down_cast<const Function*>(*resolved);
           return parametric_struct_instantiator_
               .GetParametricFreeStructMemberType(
                   parametric_context, *struct_or_proc_ref,
-                  CreateFunctionTypeAnnotation(
-                      module_, *absl::down_cast<const Function*>(*resolved)));
+                  CreateFunctionTypeAnnotation(module_, *fn, skip_self(fn)));
         }
         return TypeInferenceErrorStatus(
             member_type->span(), nullptr,

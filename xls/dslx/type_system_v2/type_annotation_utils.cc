@@ -275,11 +275,16 @@ TypeAnnotation* CreateUnitTupleAnnotation(Module& module, const Span& span) {
 }
 
 FunctionTypeAnnotation* CreateFunctionTypeAnnotation(Module& module,
-                                                     const Function& function) {
+                                                     const Function& function,
+                                                     bool skip_self) {
+  int params_start = 0;
+  if (function.IsMethod() && skip_self) {
+    params_start = 1;
+  }
   std::vector<const TypeAnnotation*> param_types;
-  param_types.reserve(function.params().size());
-  for (const Param* param : function.params()) {
-    param_types.push_back(param->type_annotation());
+  param_types.reserve(function.params().size() - params_start);
+  for (int i = params_start; i < function.params().size(); ++i) {
+    param_types.push_back(function.params()[i]->type_annotation());
   }
   return module.Make<FunctionTypeAnnotation>(
       function.span(), param_types,
