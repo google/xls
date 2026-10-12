@@ -248,6 +248,29 @@ TEST(AstGeneratorMultiTest, GeneratesZeroWidthValues) {
       "Generated %d samples and did not see a zero-width type", kNumSamples);
 }
 
+TEST(AstGeneratorMultiTest, GeneratesConstIf) {
+  FileTable file_table;
+  std::mt19937_64 rng{0};
+  AstGeneratorOptions options;
+  bool saw_const_if = false;
+  constexpr int64_t kNumSamples = 100;
+  for (int64_t i = 0; i < kNumSamples; ++i) {
+    AstGenerator g(options, rng, file_table);
+    VLOG(1) << "Generating sample: " << i;
+    std::string module_name = absl::StrFormat("sample_%d", i);
+    XLS_ASSERT_OK_AND_ASSIGN(AnnotatedModule module,
+                             g.Generate("main", module_name));
+    std::string text = module.module->ToString();
+    if (absl::StrContains(text, "const if")) {
+      VLOG(1) << absl::StrFormat("Saw const if after %d samples", i);
+      saw_const_if = true;
+      break;
+    }
+  }
+  EXPECT_TRUE(saw_const_if) << absl::StrFormat(
+      "Generated %d samples and did not see a const if", kNumSamples);
+}
+
 class AstGeneratorRepeatableTest : public testing::TestWithParam<uint64_t> {};
 
 TEST_P(AstGeneratorRepeatableTest, GenerationRepeatableAtSeed) {

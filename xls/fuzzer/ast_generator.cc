@@ -426,6 +426,146 @@ ChannelOpInfo GetChannelOpInfo(ChannelOpType chan_op) {
   LOG(FATAL) << "Invalid ChannelOpType: " << static_cast<int>(chan_op);
 }
 
+enum OpChoice : std::uint8_t {
+  kArray,
+  kArrayIndex,
+  kArrayUpdate,
+  kArraySlice,
+  kBinop,
+  kBitSlice,
+  kBitSliceUpdate,
+  kBitwiseReduction,
+  kCastToBitsArray,
+  kChannelOp,
+  kCompareOp,
+  kCompareArrayOp,
+  kCompareTupleOp,
+  kConstIf,
+  kMatchOp,
+  kConcat,
+  kCountedFor,
+  kGate,
+  kInvoke,
+  kJoinOp,
+  kLogical,
+  kMap,
+  kNumber,
+  kOneHotSelectBuiltin,
+  kPartialProduct,
+  kPrioritySelectBuiltin,
+  kSignExtendBuiltin,
+  kShiftOp,
+  kTupleOrIndex,
+  kUnop,
+  kUnopBuiltin,
+
+  // Sentinel denoting last element of enum.
+  kEndSentinel
+};
+
+// Returns the relative probability of the given op being generated.
+int OpProbability(OpChoice op) {
+  switch (op) {
+    case kArray:
+      return 2;
+    case kArrayIndex:
+      return 2;
+    case kArrayUpdate:
+      return 2;
+    case kArraySlice:
+      return 2;
+    case kBinop:
+      return 10;
+    case kBitSlice:
+      return 10;
+    case kBitSliceUpdate:
+      return 2;
+    case kBitwiseReduction:
+      return 3;
+    case kCastToBitsArray:
+      return 1;
+    case kChannelOp:
+      return 5;
+    case kCompareOp:
+      return 3;
+    case kCompareArrayOp:
+      return 2;
+    case kCompareTupleOp:
+      return 2;
+    case kConstIf:
+      return 2;
+    case kMatchOp:
+      return 2;
+    case kConcat:
+      return 5;
+    case kCountedFor:
+      return 1;
+    case kGate:
+      return 1;
+    case kInvoke:
+      return 1;
+    case kJoinOp:
+      return 5;
+    case kLogical:
+      return 3;
+    case kMap:
+      return 1;
+    case kNumber:
+      return 3;
+    case kOneHotSelectBuiltin:
+      return 1;
+    case kPartialProduct:
+      return 1;
+    case kPrioritySelectBuiltin:
+      return 1;
+    case kSignExtendBuiltin:
+      return 1;
+    case kShiftOp:
+      return 3;
+    case kTupleOrIndex:
+      return 3;
+    case kUnop:
+      return 10;
+    case kUnopBuiltin:
+      return 5;
+    case kEndSentinel:
+      return 0;
+  }
+  LOG(FATAL) << "Invalid op choice: " << static_cast<int64_t>(op);
+}
+
+absl::discrete_distribution<int>& GetOpDistribution(bool generate_proc,
+                                                    bool emit_loops) {
+  auto dist = [&](bool generate_proc) {
+    static const std::set<int> proc_ops = {int{kChannelOp}, int{kJoinOp}};
+    std::vector<int> tmp;
+    tmp.reserve(int{kEndSentinel});
+    for (int i = 0; i < int{kEndSentinel}; ++i) {
+      // If there are things we shouldn't generate, prevent generating them by
+      // setting their probability to zero.
+      if ((!emit_loops && (i == kCountedFor || i == kMap)) ||
+          (!generate_proc && proc_ops.find(i) != proc_ops.end())) {
+        tmp.push_back(0);
+        continue;
+      }
+      tmp.push_back(OpProbability(static_cast<OpChoice>(i)));
+    }
+    return new absl::discrete_distribution<int>(tmp.begin(), tmp.end());
+  };
+  static absl::discrete_distribution<int>& func_dist = *dist(false);
+  static absl::discrete_distribution<int>& proc_dist = *dist(true);
+  if (generate_proc) {
+    return proc_dist;
+  }
+  return func_dist;
+}
+
+OpChoice ChooseOp(absl::BitGenRef bit_gen, bool generate_proc,
+                  bool emit_loops) {
+  return static_cast<OpChoice>(
+      GetOpDistribution(generate_proc, emit_loops)(bit_gen));
+}
+
 }  // namespace
 
 absl::StatusOr<TypedExpr> AstGenerator::GenerateChannelOp(Context* ctx) {
@@ -861,8 +1001,69 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateCompareTuple(Context* ctx) {
                    .min_stage = std::max(lhs.min_stage, rhs.min_stage)};
 }
 
+Expr* AstGenerator::GenerateConstexprBool() {
+  int choice = absl::Uniform<int>(absl::IntervalClosed, bit_gen_, 0, 2);
+  switch (choice) {
+    case 0:
+      return MakeBool(RandomBool());
+    case 1:
+      return GetOrCreateConstNameRef(RandomBool() ? 1 : 0, /*want_width=*/1);
+    case 2: {
+      TypeAnnotation* type =
+          MakeTypeAnnotation(/*is_signed=*/false, 32, /*use_xn=*/false);
+      int64_t v1 =
+          absl::Uniform<int64_t>(absl::IntervalClosed, bit_gen_, 0, 10);
+      int64_t v2 =
+          absl::Uniform<int64_t>(absl::IntervalClosed, bit_gen_, 0, 10);
+      BinopKind op = RandomChoice(GetBinopComparisonKinds(), bit_gen_);
+      return module_->Make<Binop>(fake_span_, op, MakeNumber(v1, type),
+                                  MakeNumber(v2, type), fake_span_);
+    }
+  }
+  return MakeBool(true);
+}
+
+absl::StatusOr<TypedExpr> AstGenerator::GenerateConstIf(Context* ctx,
+                                                        TypeAnnotation* type) {
+  if (type == nullptr) {
+    type = GenerateType();
+  }
+  XLS_ASSIGN_OR_RETURN(TypedExpr consequent, GenerateExprOfType(ctx, type));
+  XLS_ASSIGN_OR_RETURN(TypedExpr alternate, GenerateExprOfType(ctx, type));
+  Expr* test = GenerateConstexprBool();
+
+  StatementBlock* consequent_block = module_->Make<StatementBlock>(
+      fake_span_,
+      std::vector<Statement*>{module_->Make<Statement>(consequent.expr)},
+      /*trailing_semi=*/false);
+  StatementBlock* alternate_block = module_->Make<StatementBlock>(
+      fake_span_,
+      std::vector<Statement*>{module_->Make<Statement>(alternate.expr)},
+      /*trailing_semi=*/false);
+  Conditional* conditional = module_->Make<Conditional>(
+      fake_span_, test, consequent_block, alternate_block,
+      /*in_parens=*/false, /*has_else=*/true, /*is_const=*/true);
+  for (StatementBlock* block : conditional->GatherBlocks()) {
+    block->SetEnclosing(conditional);
+  }
+  conditional->SetParentage();
+
+  return TypedExpr{
+      .expr = conditional,
+      .type = type,
+      .last_delaying_op = ComposeDelayingOps(consequent.last_delaying_op,
+                                             alternate.last_delaying_op),
+      .min_stage = std::max(consequent.min_stage, alternate.min_stage)};
+}
+
 absl::StatusOr<TypedExpr> AstGenerator::GenerateExprOfType(
     Context* ctx, TypeAnnotation* type) {
+  const double const_if_prob =
+      GetOpDistribution(ctx->is_generating_proc, options_.emit_loops)
+          .probabilities()[kConstIf];
+  if (RandomBool(const_if_prob)) {
+    return GenerateConstIf(ctx, type);
+  }
   if (IsTuple(type)) {
     auto tuple_type = dynamic_cast<TupleTypeAnnotation*>(type);
     std::vector<TypedExpr> candidates = GatherAllValues(&ctx->env, tuple_type);
@@ -2428,147 +2629,6 @@ absl::StatusOr<int64_t> AstGenerator::GenerateNaryOperandCount(
   return result;
 }
 
-namespace {
-
-enum OpChoice : std::uint8_t {
-  kArray,
-  kArrayIndex,
-  kArrayUpdate,
-  kArraySlice,
-  kBinop,
-  kBitSlice,
-  kBitSliceUpdate,
-  kBitwiseReduction,
-  kCastToBitsArray,
-  kChannelOp,
-  kCompareOp,
-  kCompareArrayOp,
-  kCompareTupleOp,
-  kMatchOp,
-  kConcat,
-  kCountedFor,
-  kGate,
-  kInvoke,
-  kJoinOp,
-  kLogical,
-  kMap,
-  kNumber,
-  kOneHotSelectBuiltin,
-  kPartialProduct,
-  kPrioritySelectBuiltin,
-  kSignExtendBuiltin,
-  kShiftOp,
-  kTupleOrIndex,
-  kUnop,
-  kUnopBuiltin,
-
-  // Sentinel denoting last element of enum.
-  kEndSentinel
-};
-
-// Returns the relative probability of the given op being generated.
-int OpProbability(OpChoice op) {
-  switch (op) {
-    case kArray:
-      return 2;
-    case kArrayIndex:
-      return 2;
-    case kArrayUpdate:
-      return 2;
-    case kArraySlice:
-      return 2;
-    case kBinop:
-      return 10;
-    case kBitSlice:
-      return 10;
-    case kBitSliceUpdate:
-      return 2;
-    case kBitwiseReduction:
-      return 3;
-    case kCastToBitsArray:
-      return 1;
-    case kChannelOp:
-      return 5;
-    case kCompareOp:
-      return 3;
-    case kCompareArrayOp:
-      return 2;
-    case kCompareTupleOp:
-      return 2;
-    case kMatchOp:
-      return 2;
-    case kConcat:
-      return 5;
-    case kCountedFor:
-      return 1;
-    case kGate:
-      return 1;
-    case kInvoke:
-      return 1;
-    case kJoinOp:
-      return 5;
-    case kLogical:
-      return 3;
-    case kMap:
-      return 1;
-    case kNumber:
-      return 3;
-    case kOneHotSelectBuiltin:
-      return 1;
-    case kPartialProduct:
-      return 1;
-    case kPrioritySelectBuiltin:
-      return 1;
-    case kSignExtendBuiltin:
-      return 1;
-    case kShiftOp:
-      return 3;
-    case kTupleOrIndex:
-      return 3;
-    case kUnop:
-      return 10;
-    case kUnopBuiltin:
-      return 5;
-    case kEndSentinel:
-      return 0;
-  }
-  LOG(FATAL) << "Invalid op choice: " << static_cast<int64_t>(op);
-}
-
-absl::discrete_distribution<int>& GetOpDistribution(bool generate_proc,
-                                                    bool emit_loops) {
-  auto dist = [&](bool generate_proc) {
-    static const std::set<int> proc_ops = {int{kChannelOp}, int{kJoinOp}};
-    std::vector<int> tmp;
-    tmp.reserve(int{kEndSentinel});
-    for (int i = 0; i < int{kEndSentinel}; ++i) {
-      // If there are things we shouldn't generate, prevent generating them by
-      // setting their probability to zero.
-      if ((!emit_loops && (i == kCountedFor || i == kMap)) ||
-          (!generate_proc && proc_ops.find(i) != proc_ops.end())) {
-        tmp.push_back(0);
-        continue;
-      }
-      tmp.push_back(OpProbability(static_cast<OpChoice>(i)));
-    }
-    return new absl::discrete_distribution<int>(tmp.begin(), tmp.end());
-  };
-  static absl::discrete_distribution<int>& func_dist = *dist(false);
-  static absl::discrete_distribution<int>& proc_dist = *dist(true);
-  if (generate_proc) {
-    return proc_dist;
-  }
-  return func_dist;
-}
-
-OpChoice ChooseOp(absl::BitGenRef bit_gen, bool generate_proc,
-                  bool emit_loops) {
-  return static_cast<OpChoice>(
-      GetOpDistribution(generate_proc, emit_loops)(bit_gen));
-}
-
-}  // namespace
-
 absl::StatusOr<TypedExpr> AstGenerator::GenerateExpr(int64_t call_depth,
                                                      Context* ctx) {
   absl::StatusOr<TypedExpr> generated = RecoverableError("Not yet generated.");
@@ -2606,6 +2666,9 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateExpr(int64_t call_depth,
         break;
       case kCompareTupleOp:
         generated = GenerateCompareTuple(ctx);
+        break;
+      case kConstIf:
+        generated = GenerateConstIf(ctx, /*type=*/nullptr);
         break;
       case kMatchOp:
         generated = GenerateMatch(ctx);
