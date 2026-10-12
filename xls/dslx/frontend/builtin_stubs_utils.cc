@@ -15,10 +15,12 @@
 
 #include <filesystem>
 #include <memory>
+#include <optional>
 #include <string>
 #include <string_view>
 
 #include "absl/status/statusor.h"
+#include "xls/dslx/channel_direction.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/builtin_stubs.h"  // generated
 #include "xls/dslx/frontend/module.h"
@@ -45,6 +47,25 @@ absl::StatusOr<std::unique_ptr<Module>> LoadBuiltinStubs(
 
 bool IsBuiltin(const Function* node) {
   return node->owner()->name() == kBuiltinStubsModuleName;
+}
+
+bool IsBuiltinIoObjectDef(const StructDefBase* def) {
+  if (def == nullptr || def->kind() != AstNodeKind::kStructDef ||
+      def->owner() == nullptr ||
+      def->owner()->name() != kBuiltinStubsModuleName) {
+    return false;
+  }
+  const std::string_view name = def->identifier();
+  return name == kBuiltinSourceStructName || name == kBuiltinSinkStructName;
+}
+
+std::optional<ChannelDirection> GetBuiltinIoObjectDirection(
+    const StructDefBase* def) {
+  if (!IsBuiltinIoObjectDef(def)) {
+    return std::nullopt;
+  }
+  return def->identifier() == kBuiltinSourceStructName ? ChannelDirection::kIn
+                                                       : ChannelDirection::kOut;
 }
 
 bool IsSpanInBuiltinStubs(const Span& span, const FileTable& file_table) {

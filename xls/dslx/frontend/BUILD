@@ -772,6 +772,7 @@ cc_library(
         ":parser",
         ":pos",
         ":scanner",
+        "//xls/dslx:channel_direction",
         "@abseil-cpp//absl/status:statusor",
     ],
 )

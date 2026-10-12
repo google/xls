@@ -1132,6 +1132,10 @@ class ChannelType : public Type {
   ChannelDirection direction_;
 };
 
+// Returns the channel direction of `type` if it is channel-like: a
+// `ChannelType`, a `Source`/`Sink` io object, or a (nested) array of either.
+std::optional<ChannelDirection> GetChannelLikeDirection(const Type& type);
+
 // Helper for the case where we have a derived (i.e. non-abstract) Type,
 // and want the clone to also be a unique_ptr of the derived type.
 //

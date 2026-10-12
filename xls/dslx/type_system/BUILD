@@ -41,6 +41,7 @@ cc_library(
         "//xls/dslx:channel_direction",
         "//xls/dslx:interp_value",
         "//xls/dslx/frontend:ast",
+        "//xls/dslx/frontend:builtin_stubs_utils",
         "//xls/dslx/frontend:module",
         "//xls/dslx/frontend:pos",
         "//xls/ir:bits_ops",

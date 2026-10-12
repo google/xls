@@ -17,9 +17,11 @@
 
 #include <filesystem>
 #include <memory>
+#include <optional>
 #include <string_view>
 
 #include "absl/status/statusor.h"
+#include "xls/dslx/channel_direction.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/pos.h"
 
@@ -40,6 +42,14 @@ absl::StatusOr<std::unique_ptr<Module>> LoadBuiltinStubs(FileTable& file_table);
 
 // Returns true if the given function is a builtin.
 bool IsBuiltin(const Function* node);
+
+// Returns whether `def` is the builtin `Source` or `Sink` definition.
+bool IsBuiltinIoObjectDef(const StructDefBase* def);
+
+// Returns the channel direction implied by `def` (`kIn` for `Source`, `kOut`
+// for `Sink`), or `std::nullopt` if `def` is not a builtin io object.
+std::optional<ChannelDirection> GetBuiltinIoObjectDirection(
+    const StructDefBase* def);
 
 // Returns whether the given span is the builtin stubs module.
 bool IsSpanInBuiltinStubs(const Span& span, const FileTable& file_table);

@@ -40,6 +40,7 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/channel_direction.h"
 #include "xls/dslx/frontend/ast.h"
+#include "xls/dslx/frontend/builtin_stubs_utils.h"
 #include "xls/dslx/frontend/module.h"
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/interp_value.h"
@@ -1108,6 +1109,23 @@ bool ChannelType::HasToken() const { return payload_type_->HasToken(); }
 std::unique_ptr<Type> ChannelType::CloneToUnique() const {
   return std::make_unique<ChannelType>(payload_type_->CloneToUnique(),
                                        direction_);
+}
+
+std::optional<ChannelDirection> GetChannelLikeDirection(const Type& type) {
+  if (std::optional<const ChannelType*> channel_type =
+          type.GetDirectOrElementChannelType();
+      channel_type.has_value()) {
+    return (*channel_type)->direction();
+  }
+  const Type* element = &type;
+  if (const auto* array_type = dynamic_cast<const ArrayType*>(&type)) {
+    element = &array_type->GetInnermostElementType().element_type;
+  }
+  const auto* struct_type = dynamic_cast<const StructType*>(element);
+  if (struct_type == nullptr) {
+    return std::nullopt;
+  }
+  return GetBuiltinIoObjectDirection(&struct_type->nominal_type());
 }
 
 absl::StatusOr<bool> IsSigned(const Type& c) {
