@@ -204,7 +204,7 @@ absl::StatusOr<Module*> WrapIO(std::string_view module_name,
     connections.push_back(Connection{"data_out_valid", flat_input_valid});
     connections.push_back(Connection{"data_out_ready", flat_input_ready});
     connections.push_back(
-        Connection{"rst_n_in", f->Literal(1, 1, SourceInfo())});
+        Connection{"rst_n_in", f->LiteralOrDie(1, 1, SourceInfo())});
     connections.push_back(Connection{"rst_n_out", rst_n});
     io_wrapper->Add<Instantiation>(
         SourceInfo(), input_controller_m->name(), "input_controller",
@@ -262,7 +262,7 @@ absl::StatusOr<Module*> WrapIO(std::string_view module_name,
 
 // Returns a hex-formatted byte-sized VAST literal of the given value.
 static Literal* Hex8Literal(uint8_t value, VerilogFile* f) {
-  return f->Literal(value, 8, SourceInfo(), FormatPreference::kHex);
+  return f->LiteralOrDie(value, 8, SourceInfo(), FormatPreference::kHex);
 }
 
 absl::StatusOr<Module*> InputResetModule(VerilogFile* f) {
@@ -562,7 +562,7 @@ absl::StatusOr<Module*> InputControllerModule(const ModuleSignature& signature,
   XLS_ASSIGN_OR_RETURN(
       LogicRef * shifter_clear,
       m->AddReg("shifter_clear", f->ScalarType(SourceInfo()), SourceInfo(),
-                /*init=*/f->Literal(UBits(1, 1), SourceInfo())));
+                /*init=*/f->LiteralOrDie(UBits(1, 1), SourceInfo())));
   XLS_ASSIGN_OR_RETURN(
       LogicRef * shifter_byte_in,
       m->AddWire("shifter_byte_in", f->BitVectorType(8, SourceInfo()),
@@ -570,7 +570,7 @@ absl::StatusOr<Module*> InputControllerModule(const ModuleSignature& signature,
   XLS_ASSIGN_OR_RETURN(
       LogicRef * shifter_write_en,
       m->AddReg("shifter_write_en", f->ScalarType(SourceInfo()), SourceInfo(),
-                f->Literal(UBits(0, 1), SourceInfo())));
+                f->LiteralOrDie(UBits(0, 1), SourceInfo())));
   XLS_ASSIGN_OR_RETURN(
       LogicRef * shifter_done,
       m->AddWire("shifter_done", f->ScalarType(SourceInfo()), SourceInfo()));
