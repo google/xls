@@ -53,12 +53,6 @@
 
 namespace xls {
 
-namespace {
-
-using OperandNode = OperandVisibilityAnalysis::OperandNode;
-
-}
-
 /* static */ absl::StatusOr<NodeImpactOnVisibilityAnalysis>
 NodeImpactOnVisibilityAnalysis::Create(FunctionBase* f) {
   NodeImpactOnVisibilityAnalysis node_impact;
