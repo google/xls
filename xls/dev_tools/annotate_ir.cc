@@ -36,6 +36,10 @@
 #include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/package.h"
+#include "xls/passes/bdd_query_engine.h"
+#include "xls/passes/node_dependency_analysis.h"
+#include "xls/passes/post_dominator_analysis.h"
+#include "xls/passes/visibility_analysis.h"
 
 namespace xls {
 namespace {
@@ -134,6 +138,51 @@ absl::StatusOr<std::unique_ptr<IrAnnotator>> AnnotateNone(
   return std::make_unique<IrAnnotator>();
 }
 
+class FunctionVisibilityAnnotator : public IrAnnotator {
+ public:
+  explicit FunctionVisibilityAnnotator() = default;
+  FunctionVisibilityAnnotator(const FunctionVisibilityAnnotator&) = delete;
+  FunctionVisibilityAnnotator& operator=(const FunctionVisibilityAnnotator&) =
+      delete;
+  FunctionVisibilityAnnotator(const FunctionVisibilityAnnotator&&) = default;
+  FunctionVisibilityAnnotator& operator=(const FunctionVisibilityAnnotator&&) =
+      default;
+
+  static absl::StatusOr<std::unique_ptr<IrAnnotator>> Create(FunctionBase* fb) {
+    auto annotator = std::make_unique<FunctionVisibilityAnnotator>();
+    XLS_RETURN_IF_ERROR(annotator->nda_.Attach(fb).status());
+    XLS_RETURN_IF_ERROR(annotator->post_dom_.Attach(fb).status());
+    annotator->bdd_engine_ = BddQueryEngine::MakeDefault();
+    XLS_RETURN_IF_ERROR(annotator->bdd_engine_->Populate(fb).status());
+    XLS_ASSIGN_OR_RETURN(OperandVisibilityAnalysis operand_visibility,
+                         OperandVisibilityAnalysis::Create(
+                             &annotator->nda_, annotator->bdd_engine_.get()));
+    annotator->operand_visibility_.emplace(std::move(operand_visibility));
+    XLS_ASSIGN_OR_RETURN(
+        annotator->visibility_,
+        VisibilityAnalysis::Create(&*annotator->operand_visibility_,
+                                   annotator->bdd_engine_.get(),
+                                   &annotator->post_dom_));
+    return annotator;
+  }
+
+  Annotation NodeAnnotation(Node* node) const override {
+    return visibility_->annotator().NodeAnnotation(node);
+  }
+
+ private:
+  NodeForwardDependencyAnalysis nda_;
+  LazyPostDominatorAnalysis post_dom_;
+  std::unique_ptr<BddQueryEngine> bdd_engine_;
+  std::optional<OperandVisibilityAnalysis> operand_visibility_;
+  std::unique_ptr<VisibilityAnalysis> visibility_;
+};
+
+absl::StatusOr<std::unique_ptr<IrAnnotator>> AnnotateVisibility(
+    FunctionBase* fb, std::string_view /*delay_model*/) {
+  return FunctionVisibilityAnnotator::Create(fb);
+}
+
 absl::StatusOr<std::unique_ptr<IrAnnotator>> AnnotateDelay(
     FunctionBase* fb, std::string_view delay_model) {
   XLS_ASSIGN_OR_RETURN(DelayEstimator * estimator,
@@ -162,6 +211,7 @@ GetAnnotatorDispatchMap() {
       absl::flat_hash_map<AnnotatorKind, AnnotatorFn>>
       kAnnotatorMap({
           {AnnotatorKind::kNone, &AnnotateNone},
+          {AnnotatorKind::kVisibility, &AnnotateVisibility},
           {AnnotatorKind::kDelay, &AnnotateDelay},
           {AnnotatorKind::kCriticalPath, &AnnotateCriticalPath},
       });

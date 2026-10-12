@@ -30,12 +30,14 @@ namespace xls {
 
 enum class AnnotatorKind {
   kNone,
+  kVisibility,
   kDelay,
   kCriticalPath,
 };
 
 inline constexpr std::array<AnnotatorKind, 4> kAllAnnotatorKinds = {
     AnnotatorKind::kNone,
+    AnnotatorKind::kVisibility,
     AnnotatorKind::kDelay,
     AnnotatorKind::kCriticalPath,
 };
@@ -46,6 +48,7 @@ void AbslStringify(Sink& sink, AnnotatorKind kind) {
       absl::flat_hash_map<AnnotatorKind, std::string_view>>
       annotators({
           {AnnotatorKind::kNone, "none"},
+          {AnnotatorKind::kVisibility, "visibility"},
           {AnnotatorKind::kDelay, "delay"},
           {AnnotatorKind::kCriticalPath, "critical_path"},
       });

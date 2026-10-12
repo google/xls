@@ -88,6 +88,34 @@ TEST_F(AnnotateIrTest, CustomAnnotatorEmitsValidParseableIr) {
   XLS_EXPECT_OK(VerifyPackage(reparsed.get()));
 }
 
+TEST_F(AnnotateIrTest, ConfiguredVisibilityAnnotatorEmitsValidParseableIr) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue sel = fb.Param("sel", p->GetBitsType(1));
+  BValue x = fb.Param("x", p->GetBitsType(32));
+  BValue y = fb.Param("y", p->GetBitsType(32));
+  BValue add = fb.Add(x, y, SourceInfo(), "sum");
+  BValue sub = fb.Subtract(x, y, SourceInfo(), "diff");
+  BValue result = fb.Select(sel, add, sub, SourceInfo(), "res");
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(result));
+  XLS_ASSERT_OK(p->SetTop(f));
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::string annotated_ir,
+                           AnnotateIr(AnnotatorKind::kVisibility, p.get()));
+
+  EXPECT_THAT(annotated_ir,
+              HasSubstr("// x: bits[32] = param(name=x, id=2) visible[1]"));
+  EXPECT_THAT(annotated_ir, HasSubstr("sum: bits[32] = add(x, y, id=4) // "
+                                      "visible[x0]"));
+  EXPECT_THAT(annotated_ir, HasSubstr("diff: bits[32] = sub(x, y, id=5) // "
+                                      "visible[!x0]"));
+
+  // Verify the output IR can be parsed back by the XLS IR parser.
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> reparsed,
+                           Parser::ParsePackage(annotated_ir));
+  XLS_EXPECT_OK(VerifyPackage(reparsed.get()));
+}
+
 TEST_F(AnnotateIrTest, ConfiguredDelayAnnotatorEmitsValidParseableIr) {
   std::unique_ptr<Package> p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
