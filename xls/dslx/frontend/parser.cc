@@ -4736,17 +4736,15 @@ absl::StatusOr<Param*> Parser::ParseParam(
         Pos type_start = GetPos();
         XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kOParen));
         auto parse_param_list = [&]() -> absl::StatusOr<const TypeAnnotation*> {
+          XLS_ASSIGN_OR_RETURN(const Token* peek_1, PeekToken(1));
+          if (peek_1->kind() == TokenKind::kColon) {
+            XLS_ASSIGN_OR_RETURN(const Token* peek_0, PeekToken());
+            return ParseErrorStatus(
+                peek_0->span(),
+                "Param list in function parameters must only contain types");
+          }
           XLS_ASSIGN_OR_RETURN(const TypeAnnotation* param_type,
                                ParseTypeAnnotation(bindings));
-          XLS_ASSIGN_OR_RETURN(bool peek_is_comma,
-                               PeekTokenIs(TokenKind::kComma));
-          XLS_ASSIGN_OR_RETURN(bool peek_is_paren,
-                               PeekTokenIs(TokenKind::kCParen));
-          if (!peek_is_comma && !peek_is_paren) {
-            return ParseErrorStatus(param_type->span(),
-                                    "Param list in function parameters "
-                                    "must only contain types");
-          }
           return param_type;
         };
         XLS_ASSIGN_OR_RETURN(std::vector<const TypeAnnotation*> param_types,
