@@ -15,14 +15,55 @@
 #ifndef XLS_PASSES_COLLAPSE_SELECT_CHAINS_PASS_H_
 #define XLS_PASSES_COLLAPSE_SELECT_CHAINS_PASS_H_
 
+#include <optional>
 #include <string_view>
+#include <vector>
 
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "xls/ir/function_base.h"
+#include "xls/ir/node.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/pass_base.h"
+#include "xls/passes/query_engine.h"
 
 namespace xls {
+
+struct SelectChainElement {
+  Node* node;
+
+  // Save the selector separately to minimize the need to convert between
+  // different select types when building the final one-hot-select.
+  Node* selector;
+  std::vector<Node*> cases;
+  std::vector<TreeBitLocation> bit_locations;
+};
+
+struct SelectNodeChain {
+  std::vector<SelectChainElement> chain_nodes;
+
+  // Indicates the presence of a default node that will be reached when all
+  // selectors in the chain are false.
+  std::optional<Node*> final_default;
+};
+
+// Obtains all select node chains in the given function, sorted by root node
+// ID in ascending order. Chains may not necessarily be fully one-hot.
+absl::StatusOr<std::vector<SelectNodeChain>> GetSelectNodeChains(
+    FunctionBase* fb, OptimizationContext& context,
+    const QueryEngine& query_engine);
+
+// Returns the best subchain of the given chain to collapse based on heuristic
+// profitability, or nullopt if no subchain is profitable to collapse.
+// Currently this is determined to be the largest connected sequence of cases,
+// breaking ties in favor of subchains closer to the root (first) node in the
+// chain.
+absl::StatusOr<std::optional<SelectNodeChain>> DetermineBestSelectSubchain(
+    const SelectNodeChain& chain, const QueryEngine& query_engine);
+
+// Performs the transform to collapse the given select node chain into a
+// single one_hot select.
+absl::Status CollapseSelectNodeChain(const SelectNodeChain& chain);
 
 // Pass which collapses chains of selects with disjoint selectors into a single
 // one-hot-select.

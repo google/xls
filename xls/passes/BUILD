@@ -1539,6 +1539,8 @@ xls_pass(
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings:str_format",
+        "@abseil-cpp//absl/types:span",
+        "@cppitertools",
     ],
 )
 
@@ -3835,9 +3837,13 @@ cc_test(
     name = "collapse_select_chains_pass_test",
     srcs = ["collapse_select_chains_pass_test.cc"],
     deps = [
+        ":bdd_query_engine",
         ":collapse_select_chains_pass",
         ":optimization_pass",
         ":pass_base",
+        ":query_engine",
+        ":stateless_query_engine",
+        ":union_query_engine",
         "//xls/common:xls_gunit_main",
         "//xls/common/fuzzing:fuzztest",
         "//xls/common/status:matchers",
@@ -3849,6 +3855,7 @@ cc_test(
         "//xls/ir:ir_matcher",
         "//xls/ir:ir_test_base",
         "//xls/solvers:ir_equivalence_testutils",
+        "@abseil-cpp//absl/status:status_matchers",
         "@abseil-cpp//absl/status:statusor",
         "@googletest//:gtest",
     ],
