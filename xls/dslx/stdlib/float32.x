@@ -361,12 +361,20 @@ fn from_uint32_test() {
     assert_eq(expected, actual);
 }
 
-pub fn add<USE_LZA: bool = {false}>(x: F32, y: F32) -> F32 {
-    apfloat::add<F32_EXP_SZ, F32_FRACTION_SZ, USE_LZA>(x, y)
+pub fn add
+    <USE_LZA: bool = {false}, COMPUTE_STICKY: bool = {true}, COMPUTE_ZERO_SIGN: bool = {true},
+     FLUSH_INPUT_DENORMALS: bool = {true}>(x: F32, y: F32) -> F32 {
+    apfloat::add<
+        F32_EXP_SZ, F32_FRACTION_SZ, USE_LZA, COMPUTE_STICKY, COMPUTE_ZERO_SIGN, FLUSH_INPUT_DENORMALS>(
+        x, y)
 }
 
-pub fn sub<USE_LZA: bool = {false}>(x: F32, y: F32) -> F32 {
-    apfloat::sub<F32_EXP_SZ, F32_FRACTION_SZ, USE_LZA>(x, y)
+pub fn sub
+    <USE_LZA: bool = {false}, COMPUTE_STICKY: bool = {true}, COMPUTE_ZERO_SIGN: bool = {true},
+     FLUSH_INPUT_DENORMALS: bool = {true}>(x: F32, y: F32) -> F32 {
+    apfloat::sub<
+        F32_EXP_SZ, F32_FRACTION_SZ, USE_LZA, COMPUTE_STICKY, COMPUTE_ZERO_SIGN, FLUSH_INPUT_DENORMALS>(
+        x, y)
 }
 
 pub fn mul(x: F32, y: F32) -> F32 { apfloat::mul(x, y) }
