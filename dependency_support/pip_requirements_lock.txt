@@ -751,9 +751,9 @@ six==1.17.0 \
 termcolor==1.1.0 \
     --hash=sha256:1d6d69ce66211143803fbc56652b41d73b4a400a2891d7bf7a1cdf4c02de613b
     # via -r dependency_support/pip_requirements.in
-werkzeug==3.1.6 \
-    --hash=sha256:210c6bede5a420a913956b4791a7f4d6843a43b6fcee4dfa08a65e93007d0d25 \
-    --hash=sha256:7ddf3357bb9564e407607f988f683d72038551200c704012bb9a4c523d42f131
+werkzeug==3.1.9 \
+    --hash=sha256:55ca7c70a75689be937aa27f8ff4b018f06ff4838fc73045560bf0f5a1291060 \
+    --hash=sha256:6392e50c78460ba618e5b21f08a71f59c99ce99cdc6cf6e3dd7e6ccca8754fab
     # via
     #   -r dependency_support/pip_requirements.in
     #   flask
