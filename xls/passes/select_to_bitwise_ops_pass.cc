@@ -308,8 +308,6 @@ absl::StatusOr<bool> MaybeConvertSelectToBitwiseOps(
   }
 
   FunctionBase* f = node->function_base();
-  XLS_ASSIGN_OR_RETURN(Node * delta_literal,
-                       f->MakeNode<Literal>(node->loc(), Value(*delta)));
 
   // The mask condition is the selector itself when the xor arm is selected on
   // p == 1, and its complement when the xor arm is the on-false case.
@@ -327,12 +325,18 @@ absl::StatusOr<bool> MaybeConvertSelectToBitwiseOps(
                                     Op::kSignExt));
   }
 
-  XLS_ASSIGN_OR_RETURN(
-      Node * masked_delta,
-      f->MakeNode<NaryOp>(node->loc(), std::vector<Node*>{mask, delta_literal},
-                          Op::kAnd));
+  // Only create an and-mask if the known delta is not all ones.
+  Node* masked_delta = mask;
+  if (!delta->IsAllOnes()) {
+    XLS_ASSIGN_OR_RETURN(Node * delta_literal,
+                         f->MakeNode<Literal>(node->loc(), Value(*delta)));
+    XLS_ASSIGN_OR_RETURN(
+        masked_delta,
+        f->MakeNode<NaryOp>(node->loc(),
+                            std::vector<Node*>{mask, delta_literal}, Op::kAnd));
+  }
   VLOG(2) << absl::StrFormat(
-      "Select with xor-with-constant case rewritten as masked xor: %s",
+      "Select with xor-with-constant case rewritten as xor: %s",
       node->ToString());
   XLS_RETURN_IF_ERROR(node->ReplaceUsesWithNew<NaryOp>(
                               std::vector<Node*>{base, masked_delta}, Op::kXor)

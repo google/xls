@@ -122,7 +122,7 @@ TEST_F(SelectToBitwiseOpsPassTest, SelectWithNonConstantXorCaseUnchanged) {
 
 TEST_F(SelectToBitwiseOpsPassTest, SelectWithConstantXorCaseOneBit) {
   // For a 1-bit result the masked xor uses the (complemented) selector directly
-  // as the mask, without sign-extension.
+  // as the mask, without sign-extension or an all-ones `and`.
   auto p = CreatePackage();
   FunctionBuilder fb("f", p.get());
   BValue selector = fb.Param("p", p->GetBitsType(1));
@@ -134,10 +134,26 @@ TEST_F(SelectToBitwiseOpsPassTest, SelectWithConstantXorCaseOneBit) {
   solvers::ScopedVerifyEquivalence stays_equivalent{f};
   EXPECT_THAT(Run(f), IsOkAndHolds(true));
   // The xor arm is the on-false case, so the mask is the complemented selector:
-  //   x ^ (~p & 1)
-  EXPECT_THAT(
-      f->return_value(),
-      m::Xor(m::Param("x"), m::And(m::Not(m::Param("p")), m::Literal(1))));
+  //   x ^ ~p
+  EXPECT_THAT(f->return_value(), m::Xor(m::Param("x"), m::Not(m::Param("p"))));
+}
+
+TEST_F(SelectToBitwiseOpsPassTest, SelectWithAllOnesXorDeltaUsesMaskDirectly) {
+  // When the two arms differ by an all-ones delta (e.g. `sel(p, [x, ~x])`),
+  // the rewrite uses `sign_ext(p)` directly without emitting a redundant
+  // `and(sign_ext(p), all_ones)`.
+  auto p = CreatePackage();
+  FunctionBuilder fb("f", p.get());
+  BValue selector = fb.Param("p", p->GetBitsType(1));
+  BValue x = fb.Param("x", p->GetBitsType(8));
+  BValue inverted = fb.Not(x);
+  BValue result = fb.Select(selector, {x, inverted});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(result));
+
+  solvers::ScopedVerifyEquivalence stays_equivalent{f};
+  EXPECT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::Xor(m::Param("x"), m::SignExt(m::Param("p"))));
 }
 
 TEST_F(SelectToBitwiseOpsPassTest, SelectWithSplitXorCase) {
