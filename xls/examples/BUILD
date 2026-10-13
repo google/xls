@@ -596,13 +596,13 @@ xls_dslx_ir(
 xls_ir_opt_ir(
     name = "proc_iota_consumer_opt_ir",
     src = "proc_iota.ir",
-    top = "__proc_iota__consumer_0__2_next",
+    top = "__proc_iota__consumer__2_next",
 )
 
 xls_ir_opt_ir(
     name = "proc_iota_producer_opt_ir",
     src = "proc_iota.ir",
-    top = "__proc_iota__producer_0_next",
+    top = "__proc_iota__producer_next",
 )
 
 [
@@ -1239,7 +1239,7 @@ xls_dslx_ir(
 xls_ir_opt_ir(
     name = "serialized_decomposer_opt_ir",
     src = "serialized_decomposer.ir",
-    top = "__serialized_decomposer__serialized_decomposer_0_next",
+    top = "__serialized_decomposer__serialized_decomposer_next",
 )
 
 xls_benchmark_ir(

@@ -12,36 +12,34 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#![feature(explicit_state_access)]
+#![feature(generics)]
 
 fn const_match_literal_bool(a: u32, b: u32) -> u32 {
     const match false {
         true => a,
-        false => b
+        false => b,
     }
 }
 
 #[test]
-fn test_const_match_literal_bool() {
-    assert_eq(const_match_literal_bool(u32:1, u32:2), u32:2);
-}
+fn test_const_match_literal_bool() { assert_eq(const_match_literal_bool(u32:1, u32:2), u32:2); }
 
 fn const_match_const_bool(a: u32, b: u32) -> u32 {
     const A = true;
     const match A {
         true => a,
-        false => b
+        false => b,
     }
 }
 
 #[test]
-fn test_const_match_const_bool() {
-    assert_eq(const_match_const_bool(u32:1, u32:2), u32:1);
-}
+fn test_const_match_const_bool() { assert_eq(const_match_const_bool(u32:1, u32:2), u32:1); }
 
 fn const_match_param_bool_case1<A: bool>(a: u32, b: u32) -> u32 {
     const match A {
         true => a,
-        false => b
+        false => b,
     }
 }
 
@@ -50,7 +48,7 @@ fn const_match_param_bool_case2<A: u32>(a: u32, b: u32) -> u32 {
     const COND = true;
     const match COND {
         true => a,
-        false => b
+        false => b,
     }
 }
 
@@ -61,6 +59,7 @@ fn test_const_match_param_bool() {
 }
 
 type ComplexType = (u32, (u32, u32, u32));
+
 fn const_match_tuple<A: ComplexType>() -> u32 {
     match A {
         (u32:1, (u32:3, ..)) => u32:0,
@@ -88,7 +87,7 @@ fn test_const_match_tuple() {
 fn const_match_typecheck<A: bool>(a: u32, b: u16) -> u32 {
     let result = const match A {
         true => a,
-        _ => b
+        _ => b,
     };
     result as u32
 }
@@ -112,77 +111,76 @@ fn const_match_types<A: u32>() -> u32 {
 }
 
 #[test]
-fn test_const_match_types() {
-    assert_eq(const_match_types<u32:8>(), u32::MAX);
-}
+fn test_const_match_types() { assert_eq(const_match_types<u32:8>(), u32::MAX); }
 
 proc Falsy {
-    req_r: chan<()> in;
-    resp_s: chan<bool> out;
+    req_r: chan<()> in,
+    resp_s: chan<bool> out,
+}
 
-    config(req_r: chan<()> in, resp_s: chan<bool> out) { (req_r, resp_s) }
+impl Falsy {
+    fn new(req_r: chan<()> in, resp_s: chan<bool> out) -> Self {
+        Self { req_r, resp_s }
+    }
 
-    init {  }
-
-    next(_: ()) {
-        let (tok, _d) = recv(join(), req_r);
-        let tok = send(tok, resp_s, false);
+    fn next(self) {
+        let (tok, _d) = recv(join(), self.req_r);
+        let tok = send(tok, self.resp_s, false);
     }
 }
 
 proc Truthy {
-    req_r: chan<()> in;
-    resp_s: chan<bool> out;
+    req_r: chan<()> in,
+    resp_s: chan<bool> out,
+}
 
-    config(req_r: chan<()> in, resp_s: chan<bool> out) { (req_r, resp_s) }
+impl Truthy {
+    fn new(req_r: chan<()> in, resp_s: chan<bool> out) -> Self {
+        Self { req_r, resp_s }
+    }
 
-    init {  }
-
-    next(_: ()) {
-        let (tok, _d) = recv(join(), req_r);
-        let tok = send(tok, resp_s, true);
+    fn next(self) {
+        let (tok, _d) = recv(join(), self.req_r);
+        let tok = send(tok, self.resp_s, true);
     }
 }
 
-proc Foo<CONFIG: bool> {
-    config(req_r: chan<()> in, resp_s: chan<bool> out) {
+proc Foo<CONFIG: bool> {}
+
+impl Foo<CONFIG> {
+    fn new(req_r: chan<()> in, resp_s: chan<bool> out) -> Self {
         const match CONFIG {
-            true => spawn Truthy(req_r, resp_s),
-            false => spawn Falsy(req_r, resp_s),
+            true => Truthy::new(req_r, resp_s).spawn(),
+            false => Falsy::new(req_r, resp_s).spawn(),
         };
-        ()
+        Self {}
     }
-
-    init {  }
-
-    next(_: ()) {  }
 }
 
-#[test_proc]
+#[test]
 proc test_const_match_in_config {
-    req_s: chan<()>[2] out;
-    resp_r: chan<bool>[2] in;
-    terminator: chan<bool> out;
+    req_s: chan<()>[2] out,
+    resp_r: chan<bool>[2] in,
+    terminator: chan<bool> out,
+}
 
-    config(terminator: chan<bool> out) {
+impl test_const_match_in_config {
+    fn new(terminator: chan<bool> out) -> Self {
         let (req_s, req_r) = chan<()>[2]("req");
         let (resp_s, resp_r) = chan<bool>[2]("resp");
-        spawn Foo<true>(req_r[0], resp_s[0]);
-        spawn Foo<false>(req_r[1], resp_s[1]);
-
-        (req_s, resp_r, terminator)
+        Foo<true>::new(req_r[0], resp_s[0]).spawn();
+        Foo<false>::new(req_r[1], resp_s[1]).spawn();
+        Self { req_s, resp_r, terminator }
     }
 
-    init {  }
-
-    next(_: ()) {
-        let tok = send(join(), req_s[0], ());
-        let (tok, resp) = recv(tok, resp_r[0]);
+    fn next(self) {
+        let tok = send(join(), self.req_s[0], ());
+        let (tok, resp) = recv(tok, self.resp_r[0]);
         assert_eq(resp, true);
-        let tok = send(join(), req_s[1], ());
-        let (tok, resp) = recv(tok, resp_r[1]);
+        let tok = send(join(), self.req_s[1], ());
+        let (tok, resp) = recv(tok, self.resp_r[1]);
         assert_eq(resp, false);
-        let tok = send(tok, terminator, true);
+        let tok = send(tok, self.terminator, true);
     }
 }
 
@@ -193,31 +191,24 @@ fn main() -> (u32, u32, u32, u32, u32, u32, u32, u32, u32, u32, u32) {
     const TUPLE4 = (u32:3, (u32:3, u32:1, u32:1));
     const TUPLE5 = (u32:5, (u32:2, u32:3, u32:4));
     (
-        const_match_literal_bool(u32:1, u32:2),
-        const_match_const_bool(u32:1, u32:2),
+        const_match_literal_bool(u32:1, u32:2), const_match_const_bool(u32:1, u32:2),
         const_match_param_bool_case1<false>(u32:1, u32:2),
-        const_match_param_bool_case2<u32:6>(u32:1, u32:2),
-        const_match_tuple<TUPLE1>(),
-        const_match_tuple<TUPLE2>(),
-        const_match_tuple<TUPLE3>(),
-        const_match_tuple<TUPLE4>(),
-        const_match_tuple<TUPLE5>(),
-        const_match_typecheck<true>(u32:1, u16:2),
+        const_match_param_bool_case2<u32:6>(u32:1, u32:2), const_match_tuple<TUPLE1>(),
+        const_match_tuple<TUPLE2>(), const_match_tuple<TUPLE3>(), const_match_tuple<TUPLE4>(),
+        const_match_tuple<TUPLE5>(), const_match_typecheck<true>(u32:1, u16:2),
         const_match_typecheck<false>(u32:1, u16:2),
     )
 }
 
-proc ConstMatchInst {
-    config(req_r: chan<()> in, resp_s: chan<bool> out) {
+proc ConstMatchInst {}
+
+impl ConstMatchInst {
+    fn new(req_r: chan<()> in, resp_s: chan<bool> out) -> Self {
         const CONFIG = true;
         const match CONFIG {
-            true => spawn Truthy(req_r, resp_s),
-            false => spawn Falsy(req_r, resp_s),
+            true => Truthy::new(req_r, resp_s).spawn(),
+            false => Falsy::new(req_r, resp_s).spawn(),
         };
-        ()
+        Self {}
     }
-
-    init {  }
-
-    next(_: ()) {  }
 }
