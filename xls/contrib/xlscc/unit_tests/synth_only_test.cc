@@ -144,6 +144,27 @@ TEST_F(SynthOnlyTest, StdArraySupport) {
   RunAcDatatypeTest({{"a", 5}}, 23, content);
 }
 
+TEST_F(SynthOnlyTest, ConstStdArrayAnd2DStdArraySupport) {
+  const std::string content = R"(
+    #include <array>
+
+    int sum_1d(const std::array<int, 3>& arr) {
+      const auto& first = arr[0];
+      return first + arr.at(1) + arr.back();
+    }
+
+    int sum_2d(const std::array<std::array<int, 3>, 2>& mat) {
+      return mat[0][0] + mat[0][2] + mat[1][1] + mat.front().back();
+    }
+
+    int my_package(int a) {
+      std::array<int, 3> arr = {a, 2, 3};
+      std::array<std::array<int, 3>, 2> mat = {{{a, 10, 20}, {30, 40, 50}}};
+      return sum_1d(arr) + sum_2d(mat);
+    })";
+  RunAcDatatypeTest({{"a", 5}}, (5 + 2 + 3) + (5 + 20 + 40 + 20), content);
+}
+
 }  // namespace
 
 }  // namespace xlscc
