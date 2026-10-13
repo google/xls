@@ -45,7 +45,7 @@ xls_ir_opt_ir = genrule(
     ],
 )
 
-cc_xls_ir_jit_wrapper = cc_library(
+cc_xls_ir_wrapper = cc_library(
     name = name,
     srcs = [name + ".cc"],
     hdrs = [name + ".h"],
