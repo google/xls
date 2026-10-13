@@ -1,0 +1,220 @@
+// Copyright 2026 The XLS Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+#ifndef XLS_CONTRIB_XLSCC_SYNTH_ONLY_OPTIONAL_
+#define XLS_CONTRIB_XLSCC_SYNTH_ONLY_OPTIONAL_
+
+#include <cstddef>
+#include <type_traits>
+#include <utility>
+
+namespace std {
+
+struct nullopt_t {
+  constexpr explicit nullopt_t() {}
+};
+
+inline constexpr nullopt_t nullopt;
+
+struct in_place_t {
+  explicit in_place_t() = default;
+};
+
+inline constexpr in_place_t in_place{};
+
+class bad_optional_access {
+ public:
+  const char* what() const noexcept { return "bad optional access"; }
+};
+
+template <typename T>
+class optional {
+ public:
+  typedef T value_type;
+
+  constexpr optional() noexcept : has_value_(false), value_() {}
+  constexpr optional(nullopt_t) noexcept : has_value_(false), value_() {}
+
+  constexpr optional(const T& value) : has_value_(true), value_(value) {}
+  constexpr optional(T&& value)
+      : has_value_(true), value_(static_cast<T&&>(value)) {}
+
+  template <typename U>
+  constexpr optional(const optional<U>& other)
+      : has_value_(other.has_value()),
+        value_(other.has_value() ? other.value() : T()) {}
+
+  constexpr optional(const optional& other) = default;
+  constexpr optional(optional&& other) = default;
+
+  template <typename... Args>
+  constexpr explicit optional(in_place_t, Args&&... args)
+      : has_value_(true), value_(static_cast<Args&&>(args)...) {}
+
+  optional& operator=(nullopt_t) noexcept {
+    has_value_ = false;
+    value_ = T();
+    return *this;
+  }
+
+  optional& operator=(const optional& other) = default;
+  optional& operator=(optional&& other) = default;
+
+  optional& operator=(const T& value) {
+    has_value_ = true;
+    value_ = value;
+    return *this;
+  }
+
+  optional& operator=(T&& value) {
+    has_value_ = true;
+    value_ = static_cast<T&&>(value);
+    return *this;
+  }
+
+  template <typename U>
+  optional& operator=(const optional<U>& other) {
+    has_value_ = other.has_value();
+    if (has_value_) {
+      value_ = other.value();
+    } else {
+      value_ = T();
+    }
+    return *this;
+  }
+
+  constexpr const T& operator*() const& { return value_; }
+  constexpr T& operator*() & { return value_; }
+  constexpr const T&& operator*() const&& {
+    return static_cast<const T&&>(value_);
+  }
+  constexpr T&& operator*() && { return static_cast<T&&>(value_); }
+
+  constexpr explicit operator bool() const noexcept { return has_value_; }
+  constexpr bool has_value() const noexcept { return has_value_; }
+
+  constexpr const T value() const& { return value_; }
+  constexpr T value() & { return value_; }
+
+  template <typename U>
+  constexpr T value_or(U&& default_value) const& {
+    return has_value_ ? value_
+                      : static_cast<T>(static_cast<U&&>(default_value));
+  }
+
+  template <typename U>
+  constexpr T value_or(U&& default_value) && {
+    return has_value_ ? static_cast<T&&>(value_)
+                      : static_cast<T>(static_cast<U&&>(default_value));
+  }
+
+  void swap(optional& other) noexcept {
+    bool tmp_has_value = has_value_;
+    T tmp_value = value_;
+    has_value_ = other.has_value_;
+    value_ = other.value_;
+    other.has_value_ = tmp_has_value;
+    other.value_ = tmp_value;
+  }
+
+  void reset() noexcept {
+    has_value_ = false;
+    value_ = T();
+  }
+
+  template <typename... Args>
+  T& emplace(Args&&... args) {
+    has_value_ = true;
+    value_ = T(static_cast<Args&&>(args)...);
+    return value_;
+  }
+
+ private:
+  bool has_value_;
+  T value_;
+};
+
+// Comparisons between optional and optional
+template <typename T, typename U>
+constexpr bool operator==(const optional<T>& lhs, const optional<U>& rhs) {
+  if (lhs.has_value() != rhs.has_value()) return false;
+  if (!lhs.has_value()) return true;
+  return *lhs == *rhs;
+}
+
+template <typename T, typename U>
+constexpr bool operator!=(const optional<T>& lhs, const optional<U>& rhs) {
+  return !(lhs == rhs);
+}
+
+// Comparisons with nullopt_t
+template <typename T>
+constexpr bool operator==(const optional<T>& opt, nullopt_t) noexcept {
+  return !opt.has_value();
+}
+
+template <typename T>
+constexpr bool operator==(nullopt_t, const optional<T>& opt) noexcept {
+  return !opt.has_value();
+}
+
+template <typename T>
+constexpr bool operator!=(const optional<T>& opt, nullopt_t) noexcept {
+  return opt.has_value();
+}
+
+template <typename T>
+constexpr bool operator!=(nullopt_t, const optional<T>& opt) noexcept {
+  return opt.has_value();
+}
+
+// Comparisons with T / U
+template <typename T, typename U>
+constexpr bool operator==(const optional<T>& opt, const U& value) {
+  return opt.has_value() ? *opt == value : false;
+}
+
+template <typename T, typename U>
+constexpr bool operator==(const T& value, const optional<U>& opt) {
+  return opt.has_value() ? value == *opt : false;
+}
+
+template <typename T, typename U>
+constexpr bool operator!=(const optional<T>& opt, const U& value) {
+  return opt.has_value() ? *opt != value : true;
+}
+
+template <typename T, typename U>
+constexpr bool operator!=(const T& value, const optional<U>& opt) {
+  return opt.has_value() ? value != *opt : true;
+}
+
+template <typename T>
+constexpr optional<T> make_optional(const T& value) {
+  return optional<T>(value);
+}
+
+template <typename T>
+constexpr optional<T> make_optional(T&& value) {
+  return optional<T>(static_cast<T&&>(value));
+}
+
+template <typename T, typename... Args>
+constexpr optional<T> make_optional(Args&&... args) {
+  return optional<T>(in_place, static_cast<Args&&>(args)...);
+}
+
+}  // namespace std
+
+#endif  // XLS_CONTRIB_XLSCC_SYNTH_ONLY_OPTIONAL_

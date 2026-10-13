@@ -357,6 +357,7 @@ filegroup(
         "synth_only/istream",
         "synth_only/limits",
         "synth_only/math.h",
+        "synth_only/optional",
         "synth_only/ostream",
         "synth_only/sstream",
         "synth_only/stdarg.h",
