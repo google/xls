@@ -224,7 +224,8 @@ class Unifier {
         return annotations[0];
       }
 
-      return UnifyParametricStructOrProcAnnotations(*def, annotations_to_unify);
+      return UnifyParametricStructOrProcAnnotations(*def, annotations_to_unify,
+                                                    span);
     }
     return UnifyBitsLikeTypeAnnotations(annotations, span);
   }
@@ -346,16 +347,20 @@ class Unifier {
           "Array has ellipsis (`...`) but does not have a type annotation.",
           file_table_);
     }
+    const Span local_span =
+        ValidateSpanModule(span, module_) ? span : module_.span();
     XLS_RETURN_IF_ERROR(
-        CheckArrayDimTooLarge(span, unified_dim->size, file_table_));
-    XLS_ASSIGN_OR_RETURN(const TypeAnnotation* unified_element_type,
-                         UnifyTypeAnnotations(element_type_annotations, span));
+        CheckArrayDimTooLarge(local_span, unified_dim->size, file_table_));
+    XLS_ASSIGN_OR_RETURN(
+        const TypeAnnotation* unified_element_type,
+        UnifyTypeAnnotations(element_type_annotations, local_span));
     XLS_ASSIGN_OR_RETURN(
         Number * size_expr,
-        MakeTypeCheckedNumber(module_, table_, span, unified_dim->size,
-                              CreateU32Annotation(module_, span)));
+        MakeTypeCheckedNumber(module_, table_, local_span, unified_dim->size,
+                              CreateU32Annotation(module_, local_span)));
     return module_.Make<ArrayTypeAnnotation>(
-        span, const_cast<TypeAnnotation*>(unified_element_type), size_expr);
+        local_span, const_cast<TypeAnnotation*>(unified_element_type),
+        size_expr);
   }
 
   // Unifies multiple annotations for a function type. This assumes the
@@ -468,11 +473,14 @@ class Unifier {
     if (!dims.has_value()) {
       return std::nullopt;
     }
+    const Span local_span =
+        ValidateSpanModule(span, module_) ? span : module_.span();
     std::vector<Expr*> result(dims->size());
     for (int i = 0; i < dims->size(); i++) {
       XLS_ASSIGN_OR_RETURN(
-          result[i], MakeTypeCheckedNumber(module_, table_, span, (*dims)[i],
-                                           CreateU32Annotation(module_, span)));
+          result[i],
+          MakeTypeCheckedNumber(module_, table_, local_span, (*dims)[i],
+                                CreateU32Annotation(module_, local_span)));
     }
     return result;
   }
@@ -500,8 +508,8 @@ class Unifier {
   // Unifies multiple annotations for a parametric struct, and produces an
   // annotation with agreeing explicit parametric values.
   absl::StatusOr<const TypeAnnotation*> UnifyParametricStructOrProcAnnotations(
-      const StructDefBase& def,
-      std::vector<const TypeAnnotation*> annotations) {
+      const StructDefBase& def, std::vector<const TypeAnnotation*> annotations,
+      const Span& span) {
     VLOG(6) << "Unifying parametric struct/proc annotations; def: "
             << def.identifier();
     std::vector<InterpValue> explicit_parametrics;
@@ -540,10 +548,14 @@ class Unifier {
           bool match = false;
           if (value->IsTypeReference() &&
               explicit_parametrics[i].IsTypeReference()) {
+            const Span unify_span =
+                ValidateSpanModule(annotation->span(), module_)
+                    ? annotation->span()
+                    : span;
             XLS_ASSIGN_OR_RETURN(
                 std::optional<InterpValue> unified,
                 UnifyTypeReference(*value, explicit_parametrics[i],
-                                   annotation->span()));
+                                   unify_span));
             if (unified.has_value()) {
               match = true;
               explicit_parametrics[i] = *unified;
