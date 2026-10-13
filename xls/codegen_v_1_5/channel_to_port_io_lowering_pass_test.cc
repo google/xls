@@ -22,6 +22,7 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
 #include "cppitertools/reversed.hpp"
@@ -53,6 +54,7 @@ namespace m = ::xls::op_matchers;
 
 using ::absl_testing::IsOk;
 using ::absl_testing::IsOkAndHolds;
+using ::absl_testing::StatusIs;
 using ::testing::_;
 using ::testing::Contains;
 using ::testing::FieldsAre;
@@ -63,8 +65,10 @@ using ::testing::UnorderedElementsAre;
 
 class ChannelToPortIoLoweringPassTest : public IrTestBase {
  protected:
-  absl::StatusOr<bool> Run(Package* p, BlockConversionPassOptions options =
-                                           BlockConversionPassOptions()) {
+  absl::StatusOr<bool> Run(
+      Package* p,
+      BlockConversionPassOptions options = BlockConversionPassOptions(),
+      bool add_default_reset = true) {
     PassResults results;
     BlockConversionContext context;
 
@@ -72,7 +76,7 @@ class ChannelToPortIoLoweringPassTest : public IrTestBase {
     if (!options.codegen_options.clock_name().has_value()) {
       options.codegen_options.clock_name("clk");
     }
-    if (!options.codegen_options.reset().has_value()) {
+    if (add_default_reset && !options.codegen_options.reset().has_value()) {
       options.codegen_options.reset("rst", false, false, false);
     }
 
@@ -279,6 +283,73 @@ TEST_F(ChannelToPortIoLoweringPassTest,
   // Check for registers named something like "*already_done_reg"
   EXPECT_THAT(block->nodes(),
               Not(Contains(m::RegisterRead(HasSubstr("already_done_reg")))));
+}
+
+TEST_F(ChannelToPortIoLoweringPassTest,
+       OneShotLogicForSendBeforeStallingStage) {
+  // A single send, followed by a blocking receive in the next stage. While the
+  // receive is stalled, the send's stage can't advance, even if the send has
+  // completed; the send needs one-shot logic so it doesn't fire again.
+  auto p = std::make_unique<Package>("test");
+  ScheduledProcBuilder pb(NewStyleProc(), "test_main", p.get());
+  BSendChannel ch_out = pb.AddOutputChannel("ch_out", p->GetBitsType(32));
+  BReceiveChannel ch_in = pb.AddInputChannel("ch_in", p->GetBitsType(32));
+
+  BValue tkn = pb.Literal(Value::Token());
+  BValue send = pb.Send(ch_out, tkn, pb.Literal(Value(UBits(123, 32))));
+  pb.EndStage();
+  pb.Receive(ch_in, send);
+  XLS_ASSERT_OK(pb.Build());
+
+  EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block, p->GetBlock("test_main"));
+  EXPECT_THAT(block->nodes(),
+              Contains(m::RegisterRead(HasSubstr("ch_out_already_done_reg"))));
+}
+
+TEST_F(ChannelToPortIoLoweringPassTest,
+       NoOneShotLogicForSendBeforeNonStallingStage) {
+  // A single send, followed by a stage that can't stall; once the send
+  // completes, its stage can always advance, so the send doesn't need one-shot
+  // logic.
+  auto p = std::make_unique<Package>("test");
+  ScheduledProcBuilder pb(NewStyleProc(), "test_main", p.get());
+  BSendChannel ch_out = pb.AddOutputChannel("ch_out", p->GetBitsType(32));
+
+  BValue tkn = pb.Literal(Value::Token());
+  pb.Send(ch_out, tkn, pb.Literal(Value(UBits(123, 32))));
+  pb.EndStage();
+  pb.Literal(Value(UBits(456, 32)));
+  XLS_ASSERT_OK(pb.Build());
+
+  EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block, p->GetBlock("test_main"));
+  EXPECT_THAT(block->nodes(),
+              Not(Contains(m::RegisterRead(HasSubstr("already_done_reg")))));
+}
+
+TEST_F(ChannelToPortIoLoweringPassTest, OneShotLogicRequiresReset) {
+  // Two output channels, not mutually exclusive, in a block without a reset.
+  // Without a reset, one-shot logic could silently drop a send after power-up,
+  // so this is an error.
+  auto p = std::make_unique<Package>("test");
+  ScheduledProcBuilder pb(NewStyleProc(), "test_main", p.get());
+  BSendChannel ch_a = pb.AddOutputChannel("ch_a", p->GetBitsType(32));
+  BSendChannel ch_b = pb.AddOutputChannel("ch_b", p->GetBitsType(32));
+
+  BValue tkn = pb.Literal(Value::Token());
+  BValue lit = pb.Literal(Value(UBits(123, 32)));
+  pb.Send(ch_a, tkn, lit);
+  pb.Send(ch_b, tkn, lit);
+  XLS_ASSERT_OK(pb.Build());
+
+  EXPECT_THAT(
+      Run(p.get(), BlockConversionPassOptions(),
+          /*add_default_reset=*/false),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("must have a reset signal for send one-shot logic")));
 }
 
 TEST_F(ChannelToPortIoLoweringPassTest, LowerSingleValueInputChannel) {

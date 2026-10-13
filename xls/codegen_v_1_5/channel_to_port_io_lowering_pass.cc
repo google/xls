@@ -1097,10 +1097,12 @@ absl::StatusOr<bool> AreStreamingOutputsMutuallyExclusive(
 
 // Adds logic to ensure that an output is not transferred more than once.
 //
-// For multiple-output blocks, even if all outputs are valid at the same time,
-// it may not be the case that their destinations are ready.  In this case, for
-// N output sends, M<N sends may be completed. In subsequent cycles, more sends
-// may yet be completed.
+// A send can complete in a cycle where its stage is unable to advance; for
+// example, in multiple-output blocks, even if all outputs are valid at the same
+// time, it may not be the case that their destinations are ready. In this
+// case, for N output sends, M<N sends may be completed. In subsequent cycles,
+// more sends may yet be completed. Similarly, a later stage may stall, keeping
+// the stage from advancing even after all of its sends complete.
 //
 // This logic is to ensure that in those subsequent cycles, sends that are
 // already completed have valid set to zero to prevent sending an output twice.
@@ -1109,6 +1111,15 @@ absl::Status AddOneShotLogic(Connector& connector, ScheduledBlock* block,
                              std::string_view channel_name = "") {
   XLS_RET_CHECK_EQ(connector.direction, ChannelDirection::kSend);
   XLS_RET_CHECK(connector.valid.has_value());
+
+  // Without a reset, the "already_done" register below could power up set,
+  // which would silently drop the next send on this channel.
+  if (!block->GetResetPort().has_value()) {
+    return absl::InvalidArgumentError(absl::StrFormat(
+        "Block `%s` must have a reset signal for send one-shot logic, which is "
+        "needed for channel `%s`.",
+        block->name(), channel_name));
+  }
 
   std::string channel_prefix =
       channel_name.empty() ? "__" : absl::StrCat("__", channel_name, "_");
@@ -1676,6 +1687,51 @@ absl::Status AddIOFlopsForConnector(Connector& connector, ChannelRef channel,
       absl::StrFormat("Unknown channel direction %d", connector.direction));
 }
 
+// Returns the index of the last stage that can stall, i.e., that might be
+// unable to complete in a cycle where it holds a valid activation; returns
+// std::nullopt if no stage can stall. A stage can stall if it has a blocking
+// receive on a channel with a valid signal, a send on a channel with a ready
+// signal, or some other condition already folded into its
+// `active_inputs_valid` or `active_outputs_ready` signal (e.g., waiting for a
+// previous activation to write a state element).
+absl::StatusOr<std::optional<int64_t>> LastStageThatCanStall(
+    ScheduledBlock* block,
+    const absl::btree_map<DirectedChannelRef, std::vector<Node*>,
+                          DirectedNameLessThan>& io_ops,
+    const absl::flat_hash_map<DirectedChannelRef, Connector>& connections) {
+  std::optional<int64_t> last_stage;
+  auto note_stage_can_stall = [&](int64_t stage_index) {
+    if (!last_stage.has_value() || stage_index > *last_stage) {
+      last_stage = stage_index;
+    }
+  };
+
+  for (int64_t stage_index = 0; stage_index < block->stages().size();
+       ++stage_index) {
+    const Stage& stage = block->stages()[stage_index];
+    if (!IsLiteralUnsignedOne(stage.active_inputs_valid()) ||
+        !IsLiteralUnsignedOne(stage.active_outputs_ready())) {
+      note_stage_can_stall(stage_index);
+    }
+  }
+  for (const auto& [directed_channel, io_ops_for_channel] : io_ops) {
+    auto it = connections.find(directed_channel);
+    XLS_RET_CHECK(it != connections.end());
+    const Connector& connector = it->second;
+    for (Node* io_op : io_ops_for_channel) {
+      const bool can_stall = io_op->Is<Send>()
+                                 ? connector.ready.has_value()
+                                 : io_op->As<Receive>()->is_blocking() &&
+                                       connector.valid.has_value();
+      if (can_stall) {
+        XLS_ASSIGN_OR_RETURN(int64_t stage_index, block->GetStageIndex(io_op));
+        note_stage_can_stall(stage_index);
+      }
+    }
+  }
+  return last_stage;
+}
+
 absl::StatusOr<bool> LowerIoToPorts(
     ScheduledBlock* block,
     absl::flat_hash_map<DirectedChannelRef, Connector>& connections,
@@ -1697,7 +1753,18 @@ absl::StatusOr<bool> LowerIoToPorts(
 
   bool changed = false;
 
-  // TODO: do this analysis on a per-stage basis, and apply it per-channel.
+  // A send's valid signal doesn't depend on whether its stage can advance; if
+  // the send completes in a cycle where its stage doesn't advance, it would
+  // fire again in a later cycle. To prevent this, we add "one-shot" logic that
+  // suppresses the send until its stage advances. A send needs this if:
+  //
+  // 1. another send in the same stage might not be ready yet. We add one-shot
+  //    logic to every streaming send unless all streaming sends are provably
+  //    mutually exclusive.
+  // 2. a later stage can stall, which keeps the send's stage from advancing.
+  //
+  // TODO: do the analysis for (1) on a per-stage basis, and apply it
+  // per-channel.
   bool needs_one_shot_logic = false;
   const int64_t outgoing_channel_count =
       absl::c_count_if(io_ops, [](const auto& channel_and_io_ops) {
@@ -1708,26 +1775,40 @@ absl::StatusOr<bool> LowerIoToPorts(
                          AreStreamingOutputsMutuallyExclusive(block));
     needs_one_shot_logic = !outputs_mutually_exclusive;
   }
-  if (needs_one_shot_logic) {
-    if (options.codegen_options.generate_combinational()) {
-      return absl::UnimplementedError(absl::StrFormat(
-          "Proc combinational generator only supports streaming output "
-          "channels which can be determined to be mutually exclusive, got %d "
-          "output channels which were not proven to be mutually exclusive",
-          outgoing_channel_count));
+  if (needs_one_shot_logic &&
+      options.codegen_options.generate_combinational()) {
+    return absl::UnimplementedError(absl::StrFormat(
+        "Proc combinational generator only supports streaming output "
+        "channels which can be determined to be mutually exclusive, got %d "
+        "output channels which were not proven to be mutually exclusive",
+        outgoing_channel_count));
+  }
+  XLS_ASSIGN_OR_RETURN(std::optional<int64_t> last_stage_that_can_stall,
+                       LastStageThatCanStall(block, io_ops, connections));
+  for (const auto& [directed_channel, io_ops_for_channel] : io_ops) {
+    if (directed_channel.second != ChannelDirection::kSend ||
+        ChannelRefKind(directed_channel.first) != ChannelKind::kStreaming) {
+      continue;
     }
-    for (const auto& [directed_channel, _] : io_ops) {
-      if (directed_channel.second != ChannelDirection::kSend ||
-          ChannelRefKind(directed_channel.first) != ChannelKind::kStreaming) {
-        continue;
+    auto it = connections.find(directed_channel);
+    XLS_RET_CHECK(it != connections.end());
+    Connector& connector = it->second;
+
+    bool later_stage_can_stall = false;
+    if (last_stage_that_can_stall.has_value() && connector.valid.has_value()) {
+      for (Node* send : io_ops_for_channel) {
+        XLS_ASSIGN_OR_RETURN(int64_t stage_index, block->GetStageIndex(send));
+        if (stage_index < *last_stage_that_can_stall) {
+          later_stage_can_stall = true;
+        }
       }
-      auto it = connections.find(directed_channel);
-      XLS_RET_CHECK(it != connections.end());
-      Connector& connector = it->second;
-      XLS_RETURN_IF_ERROR(AddOneShotLogic(
-          connector, block, options, ChannelRefName(directed_channel.first)));
-      changed = true;
     }
+    if (!needs_one_shot_logic && !later_stage_can_stall) {
+      continue;
+    }
+    XLS_RETURN_IF_ERROR(AddOneShotLogic(
+        connector, block, options, ChannelRefName(directed_channel.first)));
+    changed = true;
   }
 
   for (const auto& [directed_channel, io_ops_for_channel] : io_ops) {

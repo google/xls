@@ -393,6 +393,7 @@ cc_test(
         "//xls/ir:op",
         "//xls/ir:value",
         "//xls/passes:pass_base",
+        "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/types:span",
         "@cppitertools",

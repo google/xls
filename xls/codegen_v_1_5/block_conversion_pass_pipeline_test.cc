@@ -910,6 +910,140 @@ TEST_F(BlockConversionTest, ProcWithNextStateNodeBeforeParam) {
               IsOkAndHolds(ElementsAre(10, 20, 30)));
 }
 
+TEST_F(BlockConversionTest, SendBeforeStalledReceiveIsNotRepeated) {
+  // Each activation sends its index, then receives an input in the next stage.
+  // While that receive is stalled, the next activation's send can complete,
+  // but its stage can't advance; the send must not fire again.
+  auto p = CreatePackage();
+  Type* u32 = p->GetBitsType(32);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * in,
+      p->CreateStreamingChannel("in", ChannelOps::kReceiveOnly, u32));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * out,
+      p->CreateStreamingChannel("out", ChannelOps::kSendOnly, u32));
+
+  ProcBuilder b(TestName(), p.get());
+  BValue index = b.ReadStateElement("index", Value(UBits(0, 32)));
+  BValue send = b.Send(out, b.Literal(Value::Token()), index);
+  b.Receive(in, b.MinDelay(send, /*delay=*/1));
+  b.Next(index, b.Add(index, b.Literal(UBits(1, 32))));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, b.Build());
+
+  CodegenOptions options = codegen_options();
+  options.flop_inputs(false).flop_outputs(false);
+  options.reset("rst", false, false, false);
+  options.streaming_channel_data_suffix("_data");
+  options.streaming_channel_valid_suffix("_valid");
+  options.streaming_channel_ready_suffix("_ready");
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Block * block,
+      ConvertToBlock(proc, options, SchedulingOptions().pipeline_stages(2)));
+
+  constexpr int64_t kInputCount = 100;
+  std::vector<ChannelSource> sources{
+      ChannelSource("in_data", "in_valid", "in_ready", 0.5, block),
+  };
+  XLS_ASSERT_OK(
+      sources.front().SetDataSequence(std::vector<uint64_t>(kInputCount, 0)));
+  std::vector<ChannelSink> sinks{
+      ChannelSink("out_data", "out_valid", "out_ready", 0.5, block),
+  };
+  std::vector<absl::flat_hash_map<std::string, uint64_t>> inputs(1000,
+                                                                 {{"rst", 0}});
+  XLS_ASSERT_OK(
+      InterpretChannelizedSequentialBlockWithUint64(
+          block, absl::MakeSpan(sources), absl::MakeSpan(sinks), inputs)
+          .status());
+
+  // Sends can run ahead of the receives, so the exact number of outputs depends
+  // on timing; but each activation must send its index exactly once.
+  XLS_ASSERT_OK_AND_ASSIGN(std::vector<uint64_t> outputs,
+                           sinks.front().GetOutputSequenceAsUint64());
+  ASSERT_GE(outputs.size(), kInputCount);
+  for (int64_t i = 0; i < outputs.size(); ++i) {
+    EXPECT_EQ(outputs[i], i) << "at index " << i;
+  }
+}
+
+TEST_F(BlockConversionTest, SendBeforeStateStallIsNotRepeated) {
+  // Each activation sends its index in stage 0. A state element read in stage 1
+  // & written in stage 2 makes stage 1 wait for the previous activation's
+  // write; while it waits, the next activation's send can complete, but its
+  // stage can't advance, so the send must not fire again.
+  auto p = CreatePackage();
+  Type* u32 = p->GetBitsType(32);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * out,
+      p->CreateStreamingChannel("out", ChannelOps::kSendOnly, u32));
+
+  ProcBuilder b(TestName(), p.get());
+  BValue tkn = b.Literal(Value::Token());
+  BValue index = b.ReadStateElement("index", Value(UBits(0, 32)));
+  BValue send = b.Send(out, tkn, index);
+  BValue index_increment = b.Literal(UBits(1, 32));
+  BValue next_index_value = b.Add(index, index_increment);
+  BValue next_index = b.Next(index, next_index_value);
+  BValue count = b.ReadStateElement("count", Value(UBits(0, 32)));
+  BValue count_increment = b.Literal(UBits(1, 32));
+  BValue next_count_value = b.Add(count, count_increment);
+  BValue next_count = b.Next(count, next_count_value);
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, b.Build());
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PipelineSchedule schedule,
+      PipelineSchedule::Create(proc,
+                               ScheduleCycleMap({{tkn.node(), 0},
+                                                 {index.node(), 0},
+                                                 {send.node(), 0},
+                                                 {index_increment.node(), 0},
+                                                 {next_index_value.node(), 0},
+                                                 {next_index.node(), 0},
+                                                 {count.node(), 1},
+                                                 {count_increment.node(), 1},
+                                                 {next_count_value.node(), 1},
+                                                 {next_count.node(), 2}}),
+                               {.length = 3}));
+  PackageScheduleProto schedule_proto;
+  TestDelayEstimator delay_estimator;
+  XLS_ASSERT_OK_AND_ASSIGN(PipelineScheduleProto pipeline_schedule_proto,
+                           schedule.ToProto(delay_estimator));
+  schedule_proto.mutable_schedules()->emplace(TestName(),
+                                              pipeline_schedule_proto);
+
+  CodegenOptions options = codegen_options();
+  options.flop_inputs(false).flop_outputs(false);
+  options.reset("rst", false, false, false);
+  options.streaming_channel_data_suffix("_data");
+  options.streaming_channel_valid_suffix("_valid");
+  options.streaming_channel_ready_suffix("_ready");
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Block * block,
+      ConvertToBlock(proc, options, SchedulingOptions().pipeline_stages(3),
+                     schedule_proto));
+
+  std::vector<ChannelSource> sources;
+  std::vector<ChannelSink> sinks{
+      ChannelSink(
+          "out_data", "out_valid", "out_ready", 0.5, block,
+          /*reset_behavior=*/ChannelSink::BehaviorDuringReset::kIgnoreValid),
+  };
+  std::vector<absl::flat_hash_map<std::string, uint64_t>> inputs(1000,
+                                                                 {{"rst", 0}});
+  XLS_ASSERT_OK(SetSignalsOverCycles(0, 9, {{"rst", 1}}, inputs));
+  XLS_ASSERT_OK(InterpretChannelizedSequentialBlockWithUint64(
+                    block, absl::MakeSpan(sources), absl::MakeSpan(sinks),
+                    inputs, options.reset())
+                    .status());
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::vector<uint64_t> outputs,
+                           sinks.front().GetOutputSequenceAsUint64());
+  ASSERT_GE(outputs.size(), 100);
+  for (int64_t i = 0; i < outputs.size(); ++i) {
+    EXPECT_EQ(outputs[i], i) << "at index " << i;
+  }
+}
+
 TEST_F(BlockConversionTest, ChannelDefaultSuffixName) {
   const std::string ir_text = R"(package test
 
