@@ -457,6 +457,7 @@ class FunctionConverter {
   absl::Status HandleInvocation(const Invocation* node);
   absl::Status HandleLet(const Let* node);
   absl::Status HandleLetChannelDecl(const Let* node);
+  absl::Status DestructureTuplePattern(const PatternTree& pattern, BValue rhs);
   absl::Status HandleMatch(const Match* node);
   absl::Status HandleConstMatch(const Match* node);
   absl::Status HandleRange(const Range* node);
