@@ -119,7 +119,6 @@ cc_library(
         "//xls/ir:bits",
         "//xls/ir:format_preference",
         "//xls/ir:format_strings",
-        "@abseil-cpp//absl/algorithm:container",
         "@abseil-cpp//absl/base",
         "@abseil-cpp//absl/cleanup",
         "@abseil-cpp//absl/container:flat_hash_map",
