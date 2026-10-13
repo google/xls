@@ -1227,8 +1227,9 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
       element_annotation =
           module_.Make<ElementTypeAnnotation>(*array_annotation);
     }
-    XLS_ASSIGN_OR_RETURN(const NameRef* element_type_variable,
-                         DefineTypeVariable(node, "element"));
+    XLS_ASSIGN_OR_RETURN(
+        const NameRef* element_type_variable,
+        DefineTypeVariable(node, "element", element_annotation));
     for (Expr* member : node->members()) {
       XLS_RETURN_IF_ERROR(
           table_.SetTypeVariable(member, element_type_variable));

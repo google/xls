@@ -1605,6 +1605,51 @@ const Z:s17[1] = -1..0;
           HasNodeWithType("Z", "sN[17][1]"))));
 }
 
+TEST(TypecheckV2Test, RangeExprInArray) {
+  EXPECT_THAT(
+      R"(
+const X: u32[8][2] = [0..8, 8..16];
+const_assert!(X[0][1] ++ X[0][0] == u64:0x0000_0001_0000_0000);
+)",
+      TypecheckSucceeds(AllOf(HasNodeWithType("X", "uN[32][8][2]"),
+                              HasNodeWithType("0..8", "uN[32][8]"),
+                              HasNodeWithType("8..16", "uN[32][8]"),
+                              HasNodeWithType("16", "uN[32]"))));
+}
+
+TEST(TypecheckV2Test, RangeExprInArrayWithTypeAlias) {
+  EXPECT_THAT(
+      R"(
+type Word = u32;
+const X: Word[8][2] = [0..8, 8..16];
+const_assert!(X[0][1] ++ X[0][0] == u64:0x0000_0001_0000_0000);
+)",
+      TypecheckSucceeds(AllOf(HasNodeWithType("X", "uN[32][8][2]"),
+                              HasNodeWithType("0..8", "uN[32][8]"),
+                              HasNodeWithType("8..16", "uN[32][8]"),
+                              HasNodeWithType("16", "uN[32]"))));
+}
+
+TEST(TypecheckV2Test, RangeExprInArrayWithImportedTypeAlias) {
+  constexpr std::string_view kImported = R"(
+pub type Word = u32;
+)";
+  constexpr std::string_view kProgram = R"(
+import imported;
+
+const X: imported::Word[8][2] = [0..8, 8..16];
+const_assert!(X[0][1] ++ X[0][0] == u64:0x0000_0001_0000_0000);
+)";
+  ImportData import_data = CreateImportDataForTest();
+  XLS_EXPECT_OK(TypecheckV2(kImported, "imported", &import_data));
+  EXPECT_THAT(
+      TypecheckV2(kProgram, "main", &import_data),
+      IsOkAndHolds(HasTypeInfo(AllOf(HasNodeWithType("X", "uN[32][8][2]"),
+                                     HasNodeWithType("0..8", "uN[32][8]"),
+                                     HasNodeWithType("8..16", "uN[32][8]"),
+                                     HasNodeWithType("16", "uN[32]")))));
+}
+
 TEST(TypecheckV2Test, RangeExprConstExpr) {
   EXPECT_THAT(R"(
 fn foo() -> s16 {
