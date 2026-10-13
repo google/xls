@@ -4467,7 +4467,6 @@ xls_pass(
         "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/strings:str_format",
         "@abseil-cpp//absl/types:span",
-        "@cppitertools",
     ],
 )
 

@@ -178,13 +178,10 @@ cc_test(
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/dslx:create_import_data",
-        "//xls/dslx:interp_value",
         "//xls/dslx:parse_and_typecheck",
         "//xls/dslx/frontend:ast",
         "//xls/dslx/frontend:module",
         "//xls/dslx/frontend:pos",
-        "@abseil-cpp//absl/status",
-        "@abseil-cpp//absl/status:status_matchers",
         "@googletest//:gtest",
     ],
 )
