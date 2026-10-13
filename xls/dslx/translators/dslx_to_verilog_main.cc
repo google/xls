@@ -141,10 +141,11 @@ absl::Status RealMain(absl::Span<const std::string_view> paths) {
         ParseAndTypecheck(text, path, module_name, &import_data, {}));
 
     for (const auto& def : tm.module->GetTypeDefinitions()) {
-      // Ignore private type definitions.
+      // Ignore private type definitions and proc definitions.
       XLS_ASSIGN_OR_RETURN(const TypeInfo::TypeSource type_definition_source,
                            tm.type_info->ResolveTypeDefinition(def));
-      if (!TypeDefinitionSourceIsPublic(type_definition_source)) {
+      if (!TypeDefinitionSourceIsPublic(type_definition_source) ||
+          std::holds_alternative<ProcDef*>(type_definition_source.definition)) {
         continue;
       }
       AstNode* def_node = TypeDefinitionToAstNode(def);
