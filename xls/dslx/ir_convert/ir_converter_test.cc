@@ -8651,5 +8651,98 @@ impl Top {
       /*package_name=*/"test_package", &printed_error));
 }
 
+TEST_F(IrConverterTest, ForOverArrayDestructuringTupleIterator) {
+  constexpr std::string_view kProgram = R"(
+fn sum_pairs(pairs: (u32, u32)[2]) -> u32 {
+  for ((a, b), acc) in pairs {
+    acc + a + b
+  }(u32:0)
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
+                           ConvertOneFunctionForTest(kProgram, "sum_pairs"));
+  ExpectIr(converted);
+}
+
+TEST_F(IrConverterTest, ForOverArrayDestructuringNestedTupleIterator) {
+  constexpr std::string_view kProgram = R"(
+fn sum_nested(items: (u32, (u32, (u32,), u32))[2]) -> u32 {
+  for ((x, (y, (z,), w)), acc) in items {
+    acc + x + y + z + w
+  }(u32:0)
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
+                           ConvertOneFunctionForTest(kProgram, "sum_nested"));
+  ExpectIr(converted);
+}
+
+TEST_F(IrConverterTest, ForOverArrayDestructuringWildcardTupleIterator) {
+  constexpr std::string_view kProgram = R"(
+fn sum_non_wildcard(items: (u32, u32, (u32, u32, (u32, u32), u32))[2]) -> u32 {
+  for ((x, _, (y, _, (z, _), w)), acc) in items {
+    acc + x + y + z + w
+  }(u32:0)
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertOneFunctionForTest(kProgram, "sum_non_wildcard"));
+  ExpectIr(converted);
+}
+
+TEST_F(IrConverterTest, ForOverArrayDestructuringRestOfTupleBeginning) {
+  constexpr std::string_view kProgram = R"(
+fn sum_tail(items: (u32, u32, u32, u32)[2]) -> u32 {
+  for ((.., c, d), acc) in items {
+    acc + c + d
+  }(u32:0)
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
+                           ConvertOneFunctionForTest(kProgram, "sum_tail"));
+  ExpectIr(converted);
+}
+
+TEST_F(IrConverterTest, ForOverArrayDestructuringRestOfTupleMiddle) {
+  constexpr std::string_view kProgram = R"(
+fn sum_outer(items: (u32, u32, u32, u32)[2]) -> u32 {
+  for ((a, .., d), acc) in items {
+    acc + a + d
+  }(u32:0)
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
+                           ConvertOneFunctionForTest(kProgram, "sum_outer"));
+  ExpectIr(converted);
+}
+
+TEST_F(IrConverterTest, ForOverArrayDestructuringRestOfTupleEnd) {
+  constexpr std::string_view kProgram = R"(
+fn sum_head(items: (u32, u32, u32, u32)[2]) -> u32 {
+  for ((a, b, ..), acc) in items {
+    acc + a + b
+  }(u32:0)
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
+                           ConvertOneFunctionForTest(kProgram, "sum_head"));
+  ExpectIr(converted);
+}
+
+TEST_F(IrConverterTest, ForOverEnumerateDestructuringTupleIterator) {
+  constexpr std::string_view kProgram = R"(
+import std;
+fn sum_enumerated(values: u8[3]) -> u32 {
+  for ((i, x), acc) in std::enumerate(values) {
+    acc + i * (x as u32)
+  }(u32:0)
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertOneFunctionForTest(kProgram, "sum_enumerated"));
+  ExpectIr(converted);
+}
 }  // namespace
 }  // namespace xls::dslx

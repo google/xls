@@ -1255,6 +1255,44 @@ fn foo() {
                     "irrefutable 2-element tuple; got: `(i)`")));
 }
 
+TEST(TypecheckV2Test, ForTopLevelRestOfTupleFails) {
+  EXPECT_THAT(
+      R"(
+fn foo() {
+  let _ = for (i, ..) in u32:0..u32:5 {
+    ()
+  }(());
+}
+)",
+      TypecheckFails(
+          HasSubstr("For-loop iterator and accumulator pattern must be an "
+                    "irrefutable 2-element tuple; got: `(i, ..)`")));
+  EXPECT_THAT(
+      R"(
+fn foo() {
+  let _ = for (.., acc) in u32:0..u32:5 {
+    acc
+  }(u32:0);
+}
+)",
+      TypecheckFails(
+          HasSubstr("For-loop iterator and accumulator pattern must be an "
+                    "irrefutable 2-element tuple; got: `(.., acc)`")));
+}
+
+TEST(TypecheckV2Test, ForRestOfTupleInIteratorAndAccumulator) {
+  EXPECT_THAT(
+      R"(
+fn foo(items: (u8, u16, u32)[2]) -> (u32, u64) {
+  for ((.., x), (acc, ..)) in items {
+    (acc + x, u64:0)
+  }((u32:0, u64:0))
+}
+)",
+      TypecheckSucceeds(AllOf(HasNodeWithType("x", "uN[32]"),
+                              HasNodeWithType("acc", "uN[32]"))));
+}
+
 TEST(TypecheckV2Test, ProcWithChannelArray) {
   EXPECT_THAT(
       R"(
