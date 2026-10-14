@@ -286,30 +286,25 @@ void ScopedVerifyProcEquivalence::RunProcVerification() {
   absl::StatusOr<ProverResult> equiv =
       TryProveEquivalence(original_f, f, ignore_asserts_, kind_, limit_);
   EXPECT_THAT(equiv, IsOkAndHolds(IsProvenTrue()));
-  if (testing::Test::HasFailure()) {
-    std::string original_dumped;
-    std::string final_dumped;
-    if (equiv.ok() && std::holds_alternative<ProvenFalse>(*equiv)) {
-      const ProvenFalse& fail = std::get<ProvenFalse>(*equiv);
-      auto original_inputs =
-          ExtractProcInputsSeq(original_p_, original_f, fail);
-      auto final_inputs = ExtractProcInputsSeq(final_p_cloned, f, fail);
+  if (equiv.ok() && std::holds_alternative<ProvenFalse>(*equiv)) {
+    const ProvenFalse& fail = std::get<ProvenFalse>(*equiv);
+    auto original_inputs = ExtractProcInputsSeq(original_p_, original_f, fail);
+    auto final_inputs = ExtractProcInputsSeq(final_p_cloned, f, fail);
 
-      xls::ProcResultsAnnotatorOrNothing original_annotator(
-          original_p_, activation_count_,
-          /*output_value_count=*/activation_count_, original_inputs);
-      original_dumped = original_p_->DumpIr(original_annotator);
+    xls::ProcResultsAnnotatorOrNothing original_annotator(
+        original_p_, activation_count_,
+        /*output_value_count=*/activation_count_, original_inputs);
+    testing::Test::RecordProperty("original",
+                                  original_p_->DumpIr(original_annotator));
 
-      xls::ProcResultsAnnotatorOrNothing final_annotator(
-          final_p_cloned, activation_count_,
-          /*output_value_count=*/activation_count_, final_inputs);
-      final_dumped = final_p_cloned->DumpIr(final_annotator);
-    } else {
-      original_dumped = original_p_->DumpIr();
-      final_dumped = final_p_cloned->DumpIr();
-    }
-    testing::Test::RecordProperty("original", original_dumped);
-    testing::Test::RecordProperty("final", final_dumped);
+    xls::ProcResultsAnnotatorOrNothing final_annotator(
+        final_p_cloned, activation_count_,
+        /*output_value_count=*/activation_count_, final_inputs);
+    testing::Test::RecordProperty("final",
+                                  final_p_cloned->DumpIr(final_annotator));
+  } else if (testing::Test::HasFailure()) {
+    testing::Test::RecordProperty("original", original_p_->DumpIr());
+    testing::Test::RecordProperty("final", final_p_cloned->DumpIr());
   }
 }
 
@@ -414,30 +409,28 @@ void ScopedVerifyProcOutputEquivalence::RunProcVerification() {
   auto equiv = TryProveEquivalence(original_f, f,
                                    /*ignore_asserts=*/true, kind_, limit_);
   EXPECT_THAT(equiv, IsOkAndHolds(IsProvenTrue()));
-  if (testing::Test::HasFailure()) {
-    std::string original_dumped;
-    std::string final_dumped;
-    if (equiv.ok() && std::holds_alternative<ProvenFalse>(*equiv)) {
-      const ProvenFalse& fail = std::get<ProvenFalse>(*equiv);
-      auto original_inputs = ExtractProcInputs(original_p_, original_f, fail);
-      auto final_inputs = ExtractProcInputs(final_p_cloned, f, fail);
+  if (equiv.ok() && std::holds_alternative<ProvenFalse>(*equiv)) {
+    const ProvenFalse& fail = std::get<ProvenFalse>(*equiv);
+    auto original_inputs = ExtractProcInputs(original_p_, original_f, fail);
+    // NB Need to use original_f here, not f, because the failure map is keyed
+    // on the nodes in the original function.
+    auto final_inputs = ExtractProcInputs(final_p_cloned, original_f, fail);
 
-      xls::ProcResultsAnnotatorOrNothing original_annotator(
-          original_p_, options_.activation_count, options_.output_value_count,
-          original_inputs);
-      original_dumped = original_p_->DumpIr(original_annotator);
+    xls::ProcResultsAnnotatorOrNothing original_annotator(
+        original_p_, options_.activation_count, options_.output_value_count,
+        original_inputs);
+    testing::Test::RecordProperty("original",
+                                  original_p_->DumpIr(original_annotator));
 
-      xls::ProcResultsAnnotatorOrNothing final_annotator(
-          final_p_cloned,
-          options_.final_activation_count.value_or(options_.activation_count),
-          options_.output_value_count, final_inputs);
-      final_dumped = final_p_cloned->DumpIr(final_annotator);
-    } else {
-      original_dumped = original_p_->DumpIr();
-      final_dumped = final_p_cloned->DumpIr();
-    }
-    testing::Test::RecordProperty("original", original_dumped);
-    testing::Test::RecordProperty("final", final_dumped);
+    xls::ProcResultsAnnotatorOrNothing final_annotator(
+        final_p_cloned,
+        options_.final_activation_count.value_or(options_.activation_count),
+        options_.output_value_count, final_inputs);
+    testing::Test::RecordProperty("final",
+                                  final_p_cloned->DumpIr(final_annotator));
+  } else if (testing::Test::HasFailure()) {
+    testing::Test::RecordProperty("original", original_p_->DumpIr());
+    testing::Test::RecordProperty("final", final_p_cloned->DumpIr());
   }
 }
 

@@ -15,7 +15,9 @@
 #include "xls/solvers/ir_equivalence_testutils.h"
 
 #include <cstdint>
+#include <string>
 
+#include "gmock/gmock.h"
 #include "gtest/gtest-spi.h"
 #include "gtest/gtest.h"
 #include "absl/container/flat_hash_map.h"
@@ -35,6 +37,22 @@
 
 namespace xls::solvers {
 namespace {
+
+using ::testing::AllOf;
+using ::testing::ContainsRegex;
+using ::testing::HasSubstr;
+using ::testing::Not;
+
+absl::flat_hash_map<std::string, std::string> GetTestProperties() {
+  absl::flat_hash_map<std::string, std::string> properties;
+  const testing::TestResult* result =
+      testing::UnitTest::GetInstance()->current_test_info()->result();
+  for (int i = 0; i < result->test_property_count(); ++i) {
+    const testing::TestProperty& prop = result->GetTestProperty(i);
+    properties[prop.key()] = prop.value();
+  }
+  return properties;
+}
 
 class Z3IrEquivalenceTestutilsTest : public IrTestBase {};
 
@@ -126,6 +144,21 @@ TEST_F(Z3IrEquivalenceTestutilsTest, ProcOutputEquivalenceFailure) {
         XLS_ASSERT_OK(nxt_val.node()->ReplaceOperandNumber(1, new_lit));
       }(),
       "ScopedVerifyProcOutputEquivalence failed to prove");
+
+  absl::flat_hash_map<std::string, std::string> props = GetTestProperties();
+  EXPECT_THAT(
+      props["original"],
+      AllOf(ContainsRegex(R"(chan_interface chan_in.*\| \[[0-9]+@0)"),
+            ContainsRegex(R"(chan_interface chan_out.*\| \[[0-9]+@0)"),
+            ContainsRegex(R"(add\.[0-9]+: bits\[8\] = add.*\| \[[0-9]+,)"),
+            ContainsRegex(R"(send_8: token = send.*\| \[token)")));
+  EXPECT_THAT(
+      props["final"],
+      AllOf(ContainsRegex(R"(chan_interface chan_in.*\| \[[0-9]+@0)"),
+            ContainsRegex(R"(chan_interface chan_out.*\| \[[0-9]+@0)"),
+            ContainsRegex(R"(add\.[0-9]+: bits\[8\] = add.*\| \[[0-9]+,)"),
+            ContainsRegex(R"(send_8: token = send.*\| \[token)"),
+            Not(HasSubstr("| []"))));
 }
 
 TEST_F(Z3IrEquivalenceTestutilsTest, ProcEquivalenceFailure) {
@@ -155,6 +188,21 @@ TEST_F(Z3IrEquivalenceTestutilsTest, ProcEquivalenceFailure) {
         XLS_ASSERT_OK(nxt_val.node()->ReplaceOperandNumber(1, new_lit));
       }(),
       "ScopedVerifyProcEquivalence failed to prove");
+
+  absl::flat_hash_map<std::string, std::string> props = GetTestProperties();
+  EXPECT_THAT(
+      props["original"],
+      AllOf(ContainsRegex(R"(chan_interface chan_in.*\| \[[0-9]+@0)"),
+            ContainsRegex(R"(chan_interface chan_out.*\| \[[0-9]+@0)"),
+            ContainsRegex(R"(add\.[0-9]+: bits\[8\] = add.*\| \[[0-9]+,)"),
+            ContainsRegex(R"(send_8: token = send.*\| \[token)")));
+  EXPECT_THAT(
+      props["final"],
+      AllOf(ContainsRegex(R"(chan_interface chan_in.*\| \[[0-9]+@0)"),
+            ContainsRegex(R"(chan_interface chan_out.*\| \[[0-9]+@0)"),
+            ContainsRegex(R"(add\.[0-9]+: bits\[8\] = add.*\| \[[0-9]+,)"),
+            ContainsRegex(R"(send_8: token = send.*\| \[token)"),
+            Not(HasSubstr("| []"))));
 }
 
 }  // namespace
