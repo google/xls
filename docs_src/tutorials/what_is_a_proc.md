@@ -93,25 +93,26 @@ Using these, we can implement our first example, which reads from two channels
 and writes the sum to a third:
 
 ```dslx
-pub proc adder {
-    A: chan<u32> in;
-    B: chan<u32> in;
-    C: chan<u32> out;
+pub proc Adder {
+    a: chan<u32> in,
+    b: chan<u32> in,
+    c: chan<u32> out,
+}
 
+impl Adder {
     // The interface used by anything that spawns this proc, which will need to
-    // configure its inputs & outputs.
-    config(A: chan<u32> in, B: chan<u32> in, C: chan<u32> out) { (A, B, C) }
-
-    // The initial value of the proc's state (empty in this case).
-    init { () }
+    // configure its inputs & outputs and initialize its state (empty in this case).
+    fn new(a: chan<u32> in, b: chan<u32> in, c: chan<u32> out) -> Self {
+        Self { a, b, c }
+    }
 
     // The description of how this proc actually acts when running.
-    next(st: ()) {
-        let (tok_A, data_A) = recv(join(), A);
-        let (tok_B, data_B) = recv(join(), B);
-        let sum = data_A + data_B;
-        let tok = join(tok_A, tok_B);
-        send(tok, C, sum);
+    fn next(self) {
+        let (tok_a, data_a) = recv(join(), self.a);
+        let (tok_b, data_b) = recv(join(), self.b);
+        let sum = data_a + data_b;
+        let tok = join(tok_a, tok_b);
+        send(tok, self.c, sum);
     }
 }
 ```
@@ -143,42 +144,46 @@ zero values from channel B, and writes one value to channel C. We can implement
 this as follows:
 
 ```dslx
-pub proc fallback {
-    A: chan<u32> in;
-    B: chan<u32> in;
-    C: chan<u32> out;
+pub proc Fallback {
+    a: chan<u32> in,
+    b: chan<u32> in,
+    c: chan<u32> out,
+}
 
-    config(A: chan<u32> in, B: chan<u32> in, C: chan<u32> out) { (A, B, C) }
+impl Fallback {
+    fn new(a: chan<u32> in, b: chan<u32> in, c: chan<u32> out) -> Self {
+        Self { a, b, c }
+    }
 
-    init { () }
-
-    next(st: ()) {
-        let (tok, x) = recv(join(), A);
-        let (tok, y) = recv_if(tok, B, x == u32:0, u32:0);
+    fn next(self) {
+        let (tok, x) = recv(join(), self.a);
+        let (tok, y) = recv_if(tok, self.b, x == u32:0, u32:0);
         let val = if x != u32:0 { x } else { y };
-        send(tok, C, val);
+        send(tok, self.c, val);
     }
 }
 ```
 
-We could also write this a bit more naturally by putting the channel-`B` receive
+We could also write this a bit more naturally by putting the channel B receive
 inside the correct branch of our `if` expression. As you might expect, the
 receive will only trigger if that branch is taken.
 
 ```dslx
-pub proc fallback {
-    A: chan<u32> in;
-    B: chan<u32> in;
-    C: chan<u32> out;
+pub proc Fallback {
+    a: chan<u32> in,
+    b: chan<u32> in,
+    c: chan<u32> out,
+}
 
-    config(A: chan<u32> in, B: chan<u32> in, C: chan<u32> out) { (A, B, C) }
+impl Fallback {
+    fn new(a: chan<u32> in, b: chan<u32> in, c: chan<u32> out) -> Self {
+        Self { a, b, c }
+    }
 
-    init { () }
-
-    next(st: ()) {
-        let (tok, x) = recv(join(), A);
-        let (tok, val) = if x != u32:0 { (tok, x) } else { recv(tok, B) };
-        send(tok, C, val);
+    fn next(self) {
+        let (tok, x) = recv(join(), self.a);
+        let (tok, val) = if x != u32:0 { (tok, x) } else { recv(tok, self.b) };
+        send(tok, self.c, val);
     }
 }
 ```
@@ -204,23 +209,27 @@ reads a value, adds the result to an accumulator (storing the maximum value if
 the result would overflow), and returns the updated accumulator value:
 
 ```dslx
-pub proc saturating_accumulator {
-    ch_in: chan<u32> in;
-    result: chan<u32> out;
+#![feature(explicit_state_access)]
 
-    config(ch_in: chan<u32> in, result: chan<u32> out) { (ch_in, result) }
+pub proc SaturatingAccumulator {
+    ch_in: chan<u32> in,
+    result: chan<u32> out,
+    accumulated: u32,
+}
 
-    init { u32:0 }
+impl SaturatingAccumulator {
+    fn new(ch_in: chan<u32> in, result: chan<u32> out) -> Self {
+        Self { ch_in, result, accumulated: u32:0 }
+    }
 
-    next(accumulated: u32) {
-        let (tok, data) = recv(join(), ch_in);
+    fn next(self) {
+        let accumulated = read(self.accumulated);
+        let (tok, data) = recv(join(), self.ch_in);
         let sum = (data as u33) + (accumulated as u33);
         let new_val = if sum > all_ones!<u32>() as u33 { all_ones!<u32>() } else { sum as u32 };
-        send(tok, result, new_val);
-
-        // The last expression is the value the next activation will receive as its
-        // state.
-        new_val
+        send(tok, self.result, new_val);
+        // Update the state with the value the next activation will read.
+        write(self.accumulated, new_val);
     }
 }
 ```
@@ -258,16 +267,22 @@ value to the previous value, clamps the difference to the range [-5, 5], and
 sends the clamped difference:
 
 ```dslx
-pub proc clamped_diff {
-    ch_in: chan<s32> in;
-    result: chan<s32> out;
+#![feature(explicit_state_access)]
 
-    config(ch_in: chan<s32> in, result: chan<s32> out) { (ch_in, result) }
+pub proc ClampedDiff {
+    ch_in: chan<s32> in,
+    result: chan<s32> out,
+    prev: s32,
+}
 
-    init { s32:0 }
+impl ClampedDiff {
+    fn new(ch_in: chan<s32> in, result: chan<s32> out) -> Self {
+        Self { ch_in, result, prev: s32:0 }
+    }
 
-    next(prev: s32) {
-        let (tok, val) = recv(join(), ch_in);
+    fn next(self) {
+        let prev = read(self.prev);
+        let (tok, val) = recv(join(), self.ch_in);
         let diff = (val as s33) - (prev as s33);
         let clamped_diff = if diff > s33:5 {
             s32:5
@@ -276,8 +291,8 @@ pub proc clamped_diff {
         } else {
             diff as s32
         };
-        send(tok, result, clamped_diff);
-        val
+        send(tok, self.result, clamped_diff);
+        write(self.prev, val);
     }
 }
 ```
@@ -363,27 +378,30 @@ to pass it to the *next* activation to make sure it doesn't start serializing
     operations per channel per activation.
 
 ```dslx-snippet
-pub proc serialize {
-  ch_in: chan<complex_struct> in;
-  result: chan<u32> out;
+pub proc Serialize {
+    ch_in: chan<complex_struct> in,
+    result: chan<u32> out,
+    tok: token,
+}
 
-  init { join() }
+impl Serialize {
+    fn new(ch_in: chan<complex_struct> in, result: chan<u32> out) -> Self {
+        Self { ch_in, result, tok: join() }
+    }
 
-  config(ch_in: chan<complex_struct> in, result: chan<u32> out) {
-    (ch_in, result)
-  }
-
-  next (tok: token) {
-    let (input_tok, val) = recv(join(), ch_in);
-    // ... (calculate val1)
-    let tok = send(tok, result, val1);
-    // ... (calculate val2)
-    let tok = send(tok, result, val2);
-    // ... (calculate val3)
-    let tok = send(tok, result, val3);
-    // ... (calculate val4)
-    send(tok, result, val4)
-  }
+    fn next(self) {
+        let tok = read(self.tok);
+        let (input_tok, val) = recv(join(), self.ch_in);
+        // ... (calculate val1)
+        let tok = send(tok, self.result, val1);
+        // ... (calculate val2)
+        let tok = send(tok, self.result, val2);
+        // ... (calculate val3)
+        let tok = send(tok, self.result, val3);
+        // ... (calculate val4)
+        let tok = send(tok, self.result, val4);
+        write(self.tok, tok);
+    }
 }
 ```
 
@@ -428,23 +446,26 @@ message to send:
 ```dslx
 struct Message { value1: u32, value2: u64, value3: bool }
 
-pub proc priority_arbiter {
-    data0_in: chan<Message> in;
-    data1_in: chan<Message> in;
-    result: chan<(u1, Message)> out;
+pub proc PriorityArbiter {
+    data0_in: chan<Message> in,
+    data1_in: chan<Message> in,
+    result: chan<(u1, Message)> out,
+}
 
-    config(data0_in: chan<Message> in, data1_in: chan<Message> in, result: chan<(u1, Message)> out) {
-        (data0_in, data1_in, result)
+impl PriorityArbiter {
+    fn new
+        (data0_in: chan<Message> in, data1_in: chan<Message> in, result: chan<(u1, Message)> out)
+        -> Self {
+        Self { data0_in, data1_in, result }
     }
 
-    init { () }
-
-    next(st: ()) {
-        let (tok, data0_msg, data0_valid) = recv_non_blocking(join(), data0_in, zero!<Message>());
+    fn next(self) {
+        let (tok, data0_msg, data0_valid) =
+            recv_non_blocking(join(), self.data0_in, zero!<Message>());
         let (tok, data1_msg, data1_valid) =
-            recv_if_non_blocking(tok, data1_in, !data0_valid, zero!<Message>());
+            recv_if_non_blocking(tok, self.data1_in, !data0_valid, zero!<Message>());
         let (source, to_send) = if data0_valid { (u1:0, data0_msg) } else { (u1:1, data1_msg) };
-        send_if(tok, result, data0_valid || data1_valid, (source, to_send));
+        send_if(tok, self.result, data0_valid || data1_valid, (source, to_send));
     }
 }
 ```

@@ -908,6 +908,24 @@ boolean will be false.
 fn recv_if_non_blocking<T: type>(tok: token, c: chan<T> in, predicate: bool, default_value: T) -> (token, T, bool)
 ```
 
+### `read`: read the current value of a proc state element {#read}
+
+Reads the current value of a proc state element (`State<T>`) within a proc's
+`next` method.
+
+```
+fn read<T: type>(state: State<T>) -> T
+```
+
+### `write`: update the value of a proc state element {#write}
+
+Updates the value of a proc state element (`State<T>`) for the next activation
+within a proc's `next` method.
+
+```
+fn write<T: type>(state: State<T>, value: T)
+```
+
 ## `import std`: DSLX standard library routines
 
 ### Bits Type Properties

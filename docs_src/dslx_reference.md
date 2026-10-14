@@ -1140,9 +1140,9 @@ fn test_main() { assert_eq(main(0b001), 0b1) }
 
 ### Module attributes
 
-A limited number of attributes may be applied at module scope (currently just
-one), using the following syntax, which is conventionally placed at the top of
-the module (`.x` file):
+A limited number of attributes may be applied at module scope, using the
+following syntax, which is conventionally placed at the top of the module (`.x`
+file):
 
 ```dslx-snippet
 #![allow(nonstandard_constant_naming)]
@@ -1150,11 +1150,12 @@ the module (`.x` file):
 // .. rest of the module ..
 ```
 
-This disables the warning that is usually produced for non-standard constant
-names -- typically DSLX warns if they are not `SCREAMING_SNAKE_CASE` as per the
-Rust style guide. (This is useful for things like automatically generated files
-where perhaps we'd prefer not to rewrite names vs. leaving them in some other,
-nonstandard, identifier form.)
+-   `#![allow(nonstandard_constant_naming)]` disables the warning that is
+    usually produced for non-standard constant names -- typically DSLX warns if
+    they are not `SCREAMING_SNAKE_CASE` as per the Rust style guide. (This is
+    useful for things like automatically generated files where perhaps we'd
+    prefer not to rewrite names vs. leaving them in some other, nonstandard,
+    identifier form.)
 
 ### Const
 
@@ -2043,6 +2044,9 @@ toolchain's LLVM JIT. The resulting values from the DSLX interpreter and the
 LLVM JIT are compared against each other to assert equality. This is to ensure
 that DSLX implementations are IR-convertible and that IR translation is correct.
 
+Procs can also be unit-tested using the `#[test]` attribute on a test proc; see
+[Testing Procs](#testing-procs) for details.
+
 #### Test Filtering
 
 The DSLX main (runner) binary can also filter what tests are run from a file via
@@ -2395,25 +2399,27 @@ environments.
 This is a simple `proc`:
 
 ```dslx
+#![feature(explicit_state_access)]
+
 proc CountUp {
-    output_channel: chan<u32> out;
+    output_channel: chan<u32> out,
+    state: u32,
+}
 
-    // Configuration -- we get the output channel when we're configured by an external `spawn`.
-    // The last statement in a `config` should be a tuple that is used to initialize the proc
-    // members; e.g. we give a single value in a tuple that initializes the `output_channel`
-    // declared above.
-    config(output_channel: chan<u32> out) { (output_channel,) }
+impl CountUp {
+    // Configuration -- we get the output channel when we're instantiated and initialize the proc
+    // members, including the initial value for `state`.
+    fn new(output_channel: chan<u32> out) -> Self {
+        Self { output_channel, state: u32:0 }
+    }
 
-    // Initial value for the state.
-    init { u32:0 }
-
-    // "Iterate in time" -- takes a state, does some work, and produces a new state.
-    next(state: u32) {
+    // "Iterate in time" -- reads our state, does some work, and updates the state.
+    fn next(self) {
+        let state = read(self.state);
         // Send our state to the outside world via the channel.
-        send(join(), output_channel, state);
-
-        // Calculate our new state.
-        state + 1
+        send(join(), self.output_channel, state);
+        // Calculate and write our new state.
+        write(self.state, state + 1);
     }
 }
 ```
@@ -2423,42 +2429,56 @@ things in time, beyond what functions do, you need some connections that work
 for sending and receiving messages over time (`chan`) and some state that you
 can carry over the course of time (`state`).
 
+A `proc` definition consists of two parts:
+
+1.  A `proc` declaration listing the proc's members: its channel interfaces
+    (`chan<T> in` and `chan<T> out`) and its state elements (which are
+    implicitly wrapped as `State<T>`).
+2.  An `impl` block defining the proc's constructor (conventionally `fn new(...)
+    -> Self`, or `pub fn new` when spawned across modules) and its recurrent
+    activation method `fn next(self)`. Inside `next(self)`, channel members are
+    accessed via `self.<channel>`, while state members are read via
+    `read(self.<state>)` and updated for the next activation via
+    `write(self.<state>, new_value)`.
+
 ### Proc Syntax Template
 
 `proc`s are shaped as follows, generalizing what we saw in `CountUp` above:
 
 ```
 proc $NAME [$PARAMETRICS] {
-    [MEMBER | CONST_ASSERT | TYPE_ALIAS]*
+    [$MEMBER: $TYPE,]*
+}
 
-    init { $INIT_VALUE }
+impl $NAME [$PARAMETRIC_ARGS] {
+    [CONST_DEF | TYPE_ALIAS | HELPER_FN]*
 
-    // Note: config can contain `spawn`s of other `proc`s.
-    config($CHAN_OR_ARG, ...) {
+    // Note: `new` (or helper functions called from it) can contain `.spawn()`s of other `proc`s.
+    fn new($CHAN_OR_ARG, ...) -> Self {
         $CONFIG_BODY
-        ($MEMBER, ...)
+        Self { $MEMBER: $INITIAL_VALUE, ... }
     }
 
-    next(state: $STATE_TYPE) {
+    fn next(self) {
         $NEXT_BODY
-        $NEW_STATE
     }
 }
 ```
 
 Note that `proc`s can be parameterized, similar to
-[functions](#parametric-functions), and that the `proc` scope can contain
-`const_assert!`s and type aliases, which can be convenient to define within the
-parameterized scope for all of the `init`/`config`/`next` function definitions.
+[parametric structs](#parametric-structs) and
+[functions](#parametric-functions), and that the `impl` block can contain
+`const` definitions, `type` aliases, and helper functions, which can be
+convenient to define within the parameterized scope.
 
-Note that the `config` function is evaluated completely at compile time (i.e.,
-it is all "constexpr" evaluated) -- this "configuration time" is a form of
-elaboration where channels are connected and the communicating process hierarchy
-is created.
+Note that the `new` function (and `.spawn()` calls) is evaluated completely at
+compile time (i.e., it is all "constexpr" evaluated) -- this "configuration
+time" is a form of elaboration where channels are connected and the
+communicating process hierarchy is created.
 
-A `proc` can create a sub-`proc` via the `spawn` keyword, and this "spawning"
-happens at configuration time, whereas `next` reflects the "runtime" execution;
-e.g.,
+A `proc` can create a sub-`proc` by constructing it and calling `.spawn()`, and
+this "spawning" happens at configuration time, whereas `next` reflects the
+"runtime" execution; e.g.,
 
 !!! WARNING
     Though DSLX organizes procs into a tree based on `spawn`s the
@@ -2476,7 +2496,7 @@ e.g.,
 
 !!! NOTE
     If one wishes to spawn `proc`s one may use an empty `proc` with only
-    `spawn`s in the `config`, however one must manually set the `dslx_top` to the
+    `.spawn()` calls in `new`, however one must manually set the `dslx_top` to the
     mangled name of the spawned `proc` and have a separate `xls_ir_opt_ir` target
     for each spawned proc-independent group of procs. This can be used to
     instantiate a `proc` with template parameters. For example see the
@@ -2492,26 +2512,87 @@ e.g.,
 ```dslx-snippet
 proc Top {
     // Channel where we'll receive values from `CountUp`.
-    from_count_up: chan<u32> in;
+    from_count_up: chan<u32> in,
+}
 
-    init { () }
-    config() {
+impl Top {
+    fn new() -> Self {
         // The "chan" constructor provides send (`out`) and receive (`in`)
         // port halves.
         let (s, r) = chan<u32>("my_chan");
         // Instantiate the `CountUp` proc which will talk to us using this channel half.
-        spawn CountUp(s);
+        CountUp::new(s).spawn();
         // Initialize our member using the receive half of the channel we created.
-        (r,)
+        Self { from_count_up: r }
     }
+
     // Receive the values sent from the `CountUp` proc we instantiated in
-    // `config` and trace them out to logging.
-    next(state: ()) {
-        let (tok, got) = recv(join(), r);
+    // `new` and trace them out to logging.
+    fn next(self) {
+        let (tok, got) = recv(join(), self.from_count_up);
         trace_fmt!("CountUp gave: {}", got);
     }
 }
 ```
+
+### Testing Procs
+
+A `proc` can be unit-tested in the DSLX interpreter by annotating a test `proc`
+with the `#[test]` attribute. A test proc's `new` constructor must accept a
+single `terminator: chan<bool> out` argument, spawn the proc(s) under test, and
+send `true` (on success) or `false` (on failure) on `terminator` in `next` when
+the test completes:
+
+```dslx
+#![feature(explicit_state_access)]
+
+proc CountUp {
+    output_channel: chan<u32> out,
+    state: u32,
+}
+
+impl CountUp {
+    fn new(output_channel: chan<u32> out) -> Self {
+        Self { output_channel, state: u32:0 }
+    }
+
+    fn next(self) {
+        let state = read(self.state);
+        send(join(), self.output_channel, state);
+        write(self.state, state + 1);
+    }
+}
+
+#[test]
+proc CountUpTest {
+    terminator: chan<bool> out,
+    from_count_up: chan<u32> in,
+}
+
+impl CountUpTest {
+    fn new(terminator: chan<bool> out) -> Self {
+        let (s, r) = chan<u32>("my_chan");
+        CountUp::new(s).spawn();
+        Self { terminator, from_count_up: r }
+    }
+
+    fn next(self) {
+        let (tok, got) = recv(join(), self.from_count_up);
+        assert_eq(got, u32:0);
+        let (tok, got) = recv(tok, self.from_count_up);
+        assert_eq(got, u32:1);
+        send(tok, self.terminator, true);
+    }
+}
+```
+
+The `#[test]` attribute on a `proc` also supports an optional
+`expected_fail_label` parameter (e.g.
+`#[test(expected_fail_label="my_label")]`). This allows writing proc tests that
+are expected to fail due to a specific `assert!` or `fail!` condition. The
+parameter value must match the label on the failing assertion; if a failure with
+the matching label occurs, the test is treated as successful, and if no such
+failure occurs, the test is treated as failed.
 
 [^usebeforedef]: Otherwise there'd be a use-before-definition error.
 [hughes-paper]: https://www.cs.tufts.edu/~nr/cs257/archive/john-hughes/quick.pdf
