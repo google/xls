@@ -27,6 +27,8 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
+#include "absl/types/span.h"
+#include "cppitertools/reversed.hpp"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/function_base.h"
@@ -45,31 +47,13 @@ namespace xls {
 
 namespace {
 
-struct SelectChainElement {
-  Node* node;
-
-  // Save the selector separately to minimize the need to convert between
-  // different select types when building the final one-hot-select.
-  Node* selector;
-  std::vector<Node*> cases;
-  std::vector<TreeBitLocation> bit_locations;
-};
-
-struct SelectNodeChain {
-  std::vector<SelectChainElement> chain_nodes;
-
-  // Indicates the presence of a default node that will be reached when all
-  // selectors in the chain are false.
-  std::optional<Node*> final_default;
-
-  int64_t total_cases() const {
-    int64_t total = 0;
-    for (const SelectChainElement& element : chain_nodes) {
-      total += element.cases.size();
-    }
-    return total;
+int64_t TotalCases(const SelectNodeChain& chain) {
+  int64_t total = 0;
+  for (const SelectChainElement& element : chain.chain_nodes) {
+    total += element.cases.size();
   }
-};
+  return total;
+}
 
 bool IsChainableSelect(Node* node) {
   if (!node->GetType()->IsBits()) {
@@ -95,6 +79,91 @@ bool IsChainableSelect(Node* node) {
   return false;
 }
 
+}  // namespace
+
+// TODO(joshuata): Expand to return multiple potential subchains.
+absl::StatusOr<std::optional<SelectNodeChain>> DetermineBestSelectSubchain(
+    const SelectNodeChain& chain, const QueryEngine& query_engine) {
+  std::vector<TreeBitLocation> all_bit_locations;
+  for (const SelectChainElement& el : chain.chain_nodes) {
+    all_bit_locations.insert(all_bit_locations.end(), el.bit_locations.begin(),
+                             el.bit_locations.end());
+  }
+  absl::Span<const TreeBitLocation> all_bits_span =
+      absl::MakeConstSpan(all_bit_locations);
+
+  std::vector<SelectChainElement> best_subchain;
+  absl::Span<const TreeBitLocation> best_bit_locations;
+  int64_t best_total_cases = 0;
+  int64_t best_end = 0;
+
+  // Search from the root of the chain toward the leaf to find the contiguous
+  // compatible subchain with the most cases.
+  for (int64_t start = 0, start_bit_idx = 0; start < chain.chain_nodes.size();
+       start_bit_idx += chain.chain_nodes[start].bit_locations.size(),
+               ++start) {
+    std::vector<SelectChainElement> current_subchain;
+    current_subchain.reserve(chain.chain_nodes.size() - start);
+    int64_t bit_loc_size = 0;
+    int64_t current_cases = 0;
+    bool reached_leaf = true;
+
+    for (int64_t end = start; end < chain.chain_nodes.size(); ++end) {
+      const SelectChainElement& el = chain.chain_nodes[end];
+      absl::Span<const TreeBitLocation> candidate_bit_locations =
+          all_bits_span.subspan(start_bit_idx,
+                                bit_loc_size + el.bit_locations.size());
+
+      // We have reached a point where selectors are no longer disjoint.
+      if (!query_engine.AtMostOneTrue(candidate_bit_locations)) {
+        reached_leaf = false;
+        break;
+      }
+      bit_loc_size += el.bit_locations.size();
+      current_subchain.push_back(el);
+      current_cases += el.cases.size();
+    }
+
+    // Don't collapse a single one-hot select.
+    if (current_subchain.size() == 1 &&
+        current_subchain.front().node->Is<OneHotSelect>()) {
+      continue;
+    }
+
+    if (current_cases > best_total_cases) {
+      best_end = start + current_subchain.size();
+      best_subchain = std::move(current_subchain);
+      best_bit_locations = all_bits_span.subspan(start_bit_idx, bit_loc_size);
+      best_total_cases = current_cases;
+    }
+
+    // If this subchain extended all the way to the leaf, no later `start` can
+    // produce a subchain with more cases.
+    if (reached_leaf) {
+      break;
+    }
+  }
+
+  // Only transform if the select chain is sufficiently long to avoid
+  // interfering with select optimizations as plain selects are generally
+  // easier to analyse/transform.
+  // TODO(meheff): 2021/12/23 Consider tuning this value.
+  if (best_total_cases <= 4) {
+    return std::nullopt;
+  }
+
+  std::optional<Node*> final_default = best_end == chain.chain_nodes.size()
+                                           ? chain.final_default
+                                           : chain.chain_nodes[best_end].node;
+  if (final_default.has_value() &&
+      query_engine.AtLeastOneTrue(best_bit_locations)) {
+    final_default = std::nullopt;
+  }
+
+  return SelectNodeChain{.chain_nodes = std::move(best_subchain),
+                         .final_default = final_default};
+}
+
 absl::StatusOr<std::vector<SelectNodeChain>> GetSelectNodeChains(
     FunctionBase* fb, OptimizationContext& context,
     const QueryEngine& query_engine) {
@@ -104,12 +173,11 @@ absl::StatusOr<std::vector<SelectNodeChain>> GetSelectNodeChains(
 
   std::vector<SelectNodeChain> chains;
 
-  // Walk the graph in reverse order looking for chains of selects (Select,
-  // PrioritySelect, OneHotSelect) where the default of one select
-  // is another select.
-  XLS_ASSIGN_OR_RETURN(std::vector<Node*> reverse_topo_sort_nodes,
-                       context.ReverseTopoSort(fb));
-  for (Node* node : reverse_topo_sort_nodes) {
+  // Walk the graph looking for chains of selects (Select, PrioritySelect,
+  // OneHotSelect) where the default of one select is another select.
+  XLS_ASSIGN_OR_RETURN(std::vector<Node*> topo_sort_nodes,
+                       context.TopoSort(fb));
+  for (Node* node : iter::reversed(topo_sort_nodes)) {
     if (!IsChainableSelect(node) || visited_selects.contains(node)) {
       continue;
     }
@@ -200,81 +268,11 @@ absl::StatusOr<std::vector<SelectNodeChain>> GetSelectNodeChains(
     visited_selects.insert(chain_nodes.begin(), chain_nodes.end());
   }
 
+  absl::c_sort(chains, [](const SelectNodeChain& a, const SelectNodeChain& b) {
+    return a.chain_nodes[0].node->id() < b.chain_nodes[0].node->id();
+  });
+
   return chains;
-}
-
-// Looks for the best subchain of the given chain to collapse.
-// Currently this is calculated as the longest chain of nodes starting from the
-// earliest (last) node in the chain.
-// TODO(joshuata): Expand to return multiple potential subchains.
-absl::StatusOr<std::optional<SelectNodeChain>> DetermineBestSelectSubchain(
-    const SelectNodeChain& chain, const QueryEngine& query_engine) {
-  std::vector<SelectChainElement> best_subchain;
-  best_subchain.reserve(chain.chain_nodes.size());
-
-  std::vector<TreeBitLocation> bit_locations;
-
-  // Walk backwards from the end of the chain to find the longest compatible
-  // subchain.
-  for (auto it = chain.chain_nodes.rbegin(); it != chain.chain_nodes.rend();
-       ++it) {
-    const SelectChainElement& el = *it;
-    std::vector<TreeBitLocation> candidate_bit_locations = bit_locations;
-    candidate_bit_locations.insert(candidate_bit_locations.end(),
-                                   el.bit_locations.begin(),
-                                   el.bit_locations.end());
-
-    // We have reached a point where selectors are no longer disjoint
-    if (!query_engine.AtMostOneTrue(candidate_bit_locations)) {
-      break;
-    }
-    bit_locations = std::move(candidate_bit_locations);
-    best_subchain.push_back(el);
-  }
-
-  // Reverse best_subchain so it is in root-to-leaf order.
-  absl::c_reverse(best_subchain);
-
-  int64_t total_cases = 0;
-  for (const SelectChainElement& el : best_subchain) {
-    total_cases += el.cases.size();
-  }
-
-  // Only transform if the select chain is sufficiently long to avoid
-  // interfering with select optimizations as plain selects are generally
-  // easier to analyse/transform.
-  // TODO(meheff): 2021/12/23 Consider tuning this value.
-  if (total_cases <= 4) {
-    return std::nullopt;
-  }
-
-  if (best_subchain.size() == 1 &&
-      best_subchain.front().node->Is<OneHotSelect>()) {
-    return std::nullopt;
-  }
-
-  std::optional<Node*> final_default = chain.final_default;
-  if (final_default.has_value() && query_engine.AtLeastOneTrue(bit_locations)) {
-    final_default = std::nullopt;
-  }
-
-  return SelectNodeChain{.chain_nodes = std::move(best_subchain),
-                         .final_default = final_default};
-}
-
-absl::StatusOr<std::vector<SelectNodeChain>> GetProfitableSelectNodeChains(
-    std::vector<SelectNodeChain> chains, const QueryEngine& query_engine) {
-  std::vector<SelectNodeChain> profitable_chains;
-  profitable_chains.reserve(chains.size());
-
-  for (const SelectNodeChain& chain : chains) {
-    XLS_ASSIGN_OR_RETURN(std::optional<SelectNodeChain> subchain,
-                         DetermineBestSelectSubchain(chain, query_engine));
-    if (subchain.has_value()) {
-      profitable_chains.push_back(*std::move(subchain));
-    }
-  }
-  return profitable_chains;
 }
 
 absl::Status CollapseSelectNodeChain(const SelectNodeChain& chain) {
@@ -289,7 +287,7 @@ absl::Status CollapseSelectNodeChain(const SelectNodeChain& chain) {
   }
 
   std::vector<Node*> cases;
-  cases.reserve(chain.total_cases() + 1);
+  cases.reserve(TotalCases(chain) + 1);
 
   Node* default_selector = nullptr;
   if (chain.final_default.has_value()) {
@@ -353,12 +351,10 @@ absl::Status CollapseSelectNodeChain(const SelectNodeChain& chain) {
   return absl::OkStatus();
 }
 
-}  // namespace
-
 absl::StatusOr<bool> CollapseSelectChainsPass::RunOnFunctionBaseInternal(
     FunctionBase* f, const OptimizationPassOptions& options,
     PassResults* results, OptimizationContext& context) const {
-  auto query_engine =
+  UnionQueryEngine query_engine =
       UnionQueryEngine::Of(StatelessQueryEngine(),
                            context.GetForwardingQueryEngine<BddQueryEngine>(f));
   XLS_RETURN_IF_ERROR(query_engine.Populate(f).status());
@@ -367,9 +363,19 @@ absl::StatusOr<bool> CollapseSelectChainsPass::RunOnFunctionBaseInternal(
   XLS_ASSIGN_OR_RETURN(std::vector<SelectNodeChain> chains,
                        GetSelectNodeChains(f, context, query_engine));
 
-  // Determine the best subchain to collapse for each chain and transform.
-  XLS_ASSIGN_OR_RETURN(std::vector<SelectNodeChain> profitable_chains,
-                       GetProfitableSelectNodeChains(chains, query_engine));
+  // Determine the best subchain to collapse for each chain.
+  std::vector<SelectNodeChain> profitable_chains;
+  profitable_chains.reserve(chains.size());
+
+  for (const SelectNodeChain& chain : chains) {
+    XLS_ASSIGN_OR_RETURN(std::optional<SelectNodeChain> subchain,
+                         DetermineBestSelectSubchain(chain, query_engine));
+    if (subchain.has_value()) {
+      profitable_chains.push_back(*std::move(subchain));
+    }
+  }
+
+  // Perform transforms.
   bool modified = false;
   for (const SelectNodeChain& chain : profitable_chains) {
     XLS_RETURN_IF_ERROR(CollapseSelectNodeChain(chain));
