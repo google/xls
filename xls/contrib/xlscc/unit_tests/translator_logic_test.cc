@@ -5603,6 +5603,20 @@ TEST_F(TranslatorLogicTest, ReferenceArrayToPointerDecay) {
   Run({{"val", 2}}, 30, content);
 }
 
+TEST_F(TranslatorLogicTest, CopyAssignStructWithBoolArray) {
+  std::string_view content = R"(
+      struct Flags {
+        bool bits[2];
+      };
+      int my_package(int val) {
+        Flags x = {{val > 1, true}};
+        Flags y;
+        y = x;
+        return y.bits[0] + 2 * y.bits[1];
+      })";
+  Run({{"val", 2}}, 3, content);
+}
+
 }  // namespace
 
 }  // namespace xlscc
