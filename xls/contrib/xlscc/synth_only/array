@@ -16,6 +16,7 @@
 #define XLS_CONTRIB_XLSCC_SYNTH_ONLY_ARRAY_
 
 #include <cstddef>
+#include <type_traits>
 
 namespace std {
 
@@ -32,12 +33,43 @@ struct array {
 
   // ReferenceProxy is used to intercept assignment to std::array elements.
   // Leveraged by Translator::ApplyArrayAssignHack() in translator.cc.
+  // Reads behave like reads of T: the explicit constructor keeps conditional
+  // expressions unambiguous, and the operators below forward to the element
+  // value because templated operators such as XlsInt's skip user conversions.
   struct ReferenceProxy {
     T val;
-    ReferenceProxy(T v) : val(v) {}
+    explicit ReferenceProxy(T v) : val(v) {}
     void operator=(const T& new_val) {}
     void operator=(const ReferenceProxy& other) {}
     operator T() const { return val; }
+
+#define XLSCC_ARRAY_PROXY_BINARY_OP(OP)                                    \
+  template <typename U>                                                    \
+  friend auto operator OP(const ReferenceProxy& lhs, const U& rhs) {       \
+    return lhs.val OP rhs;                                                 \
+  }                                                                        \
+  template <typename U, typename = typename enable_if<                     \
+                            !is_same<U, ReferenceProxy>::value>::type>     \
+  friend auto operator OP(const U& lhs, const ReferenceProxy& rhs) {       \
+    return lhs OP rhs.val;                                                 \
+  }
+    XLSCC_ARRAY_PROXY_BINARY_OP(+)
+    XLSCC_ARRAY_PROXY_BINARY_OP(-)
+    XLSCC_ARRAY_PROXY_BINARY_OP(*)
+    XLSCC_ARRAY_PROXY_BINARY_OP(/)
+    XLSCC_ARRAY_PROXY_BINARY_OP(%)
+    XLSCC_ARRAY_PROXY_BINARY_OP(&)
+    XLSCC_ARRAY_PROXY_BINARY_OP(|)
+    XLSCC_ARRAY_PROXY_BINARY_OP(^)
+    XLSCC_ARRAY_PROXY_BINARY_OP(<<)
+    XLSCC_ARRAY_PROXY_BINARY_OP(>>)
+    XLSCC_ARRAY_PROXY_BINARY_OP(==)
+    XLSCC_ARRAY_PROXY_BINARY_OP(!=)
+    XLSCC_ARRAY_PROXY_BINARY_OP(<)
+    XLSCC_ARRAY_PROXY_BINARY_OP(>)
+    XLSCC_ARRAY_PROXY_BINARY_OP(<=)
+    XLSCC_ARRAY_PROXY_BINARY_OP(>=)
+#undef XLSCC_ARRAY_PROXY_BINARY_OP
   };
 
   ReferenceProxy operator[](size_t index) {

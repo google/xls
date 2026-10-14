@@ -165,6 +165,27 @@ TEST_F(SynthOnlyTest, ConstStdArrayAnd2DStdArraySupport) {
   RunAcDatatypeTest({{"a", 5}}, (5 + 2 + 3) + (5 + 20 + 40 + 20), content);
 }
 
+// Mirrors image-processing code that reads samples of a mutable tile packet
+// in arithmetic and conditional expressions.
+TEST_F(SynthOnlyTest, MutableStdArrayElementReadsInExpressions) {
+  const std::string content = R"(
+    #include <array>
+    #include "xls_int.h"
+
+    struct TilePacket {
+      std::array<XlsInt<10, false>, 4> samples;
+    };
+
+    long long my_package(long long a, long long b) {
+      TilePacket data = {{{a, 7, 3, 3}}};
+      const XlsInt<10, false> chroma_bias = b;
+      const XlsInt<11, true> pix = data.samples[0] - chroma_bias;
+      const XlsInt<10, false> alpha = a > b ? data.samples[1] : chroma_bias;
+      return pix + alpha + (data.samples[2] == data.samples[3]);
+    })";
+  RunAcDatatypeTest({{"a", 9}, {"b", 4}}, (9 - 4) + 7 + 1, content);
+}
+
 }  // namespace
 
 }  // namespace xlscc
