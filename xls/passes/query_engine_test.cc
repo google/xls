@@ -36,6 +36,7 @@
 #include "xls/ir/format_preference.h"
 #include "xls/ir/function.h"
 #include "xls/ir/function_builder.h"
+#include "xls/ir/ir_annotator.h"
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/lsb_or_msb.h"
 #include "xls/ir/nodes.h"
@@ -958,6 +959,75 @@ TEST_P(QueryEngineTest, SpecializeOnNodes) {
       forwarding.SpecializeOnNodes({x.node(), y.node()}, *info_source));
   EXPECT_EQ(fwd_specialized->GetTernary(result.node()),
             specialized->GetTernary(result.node()));
+}
+
+TEST_P(QueryEngineTest, TernaryAnnotator) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+     fn f(x: bits[2]) -> (bits[4], bits[2]) {
+        literal.1: bits[2] = literal(value=0b10, id=1)
+        concat.2: bits[4] = concat(literal.1, x, id=2)
+        ret tuple.3: (bits[4], bits[2]) = tuple(concat.2, literal.1, id=3)
+     }
+  )",
+                                                       p.get()));
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<QueryEngine> engine, GetEngine(f));
+  TernaryAnnotator annotator(engine.get());
+  EXPECT_EQ(annotator.NodeAnnotation(FindNode("x", f)).suffix,
+            "LeafTypeTree(type=bits[2], elements={0bXX})");
+  EXPECT_EQ(annotator.NodeAnnotation(FindNode("literal.1", f)).suffix,
+            "LeafTypeTree(type=bits[2], elements={0b10})");
+  EXPECT_EQ(annotator.NodeAnnotation(FindNode("concat.2", f)).suffix,
+            "LeafTypeTree(type=bits[4], elements={0b10XX})");
+  if (GetParam() == QueryEngineType::kTernary) {
+    EXPECT_EQ(annotator.NodeAnnotation(FindNode("tuple.3", f)).suffix,
+              "LeafTypeTree(type=(bits[4], bits[2]), elements={0b10XX, 0b10})");
+  } else {
+    EXPECT_EQ(annotator.NodeAnnotation(FindNode("tuple.3", f)).suffix,
+              "LeafTypeTree(type=(bits[4], bits[2]), elements={0bXXXX, 0bXX})");
+  }
+  EXPECT_THAT(
+      f->DumpIr(annotator),
+      testing::HasSubstr("concat.2: bits[4] = concat(literal.1, x, id=2) "
+                         "LeafTypeTree(type=bits[4], elements={0b10XX})"));
+
+  BddQueryEngine empty_engine;
+  TernaryAnnotator empty_annotator(&empty_engine);
+  EXPECT_FALSE(
+      empty_annotator.NodeAnnotation(FindNode("x", f)).suffix.has_value());
+}
+
+TEST_P(QueryEngineTest, IntervalAnnotator) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+     fn f(x: bits[2]) -> (bits[4], bits[2]) {
+        literal.1: bits[2] = literal(value=0b10, id=1)
+        concat.2: bits[4] = concat(literal.1, x, id=2)
+        ret tuple.3: (bits[4], bits[2]) = tuple(concat.2, literal.1, id=3)
+     }
+  )",
+                                                       p.get()));
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<QueryEngine> engine, GetEngine(f));
+  IntervalAnnotator annotator(engine.get());
+  EXPECT_EQ(annotator.NodeAnnotation(FindNode("x", f)).suffix,
+            "LeafTypeTree(type=bits[2], elements={[[0, 3]]})");
+  EXPECT_EQ(annotator.NodeAnnotation(FindNode("literal.1", f)).suffix,
+            "LeafTypeTree(type=bits[2], elements={[[2, 2]]})");
+  EXPECT_EQ(annotator.NodeAnnotation(FindNode("concat.2", f)).suffix,
+            "LeafTypeTree(type=bits[4], elements={[[8, 11]]})");
+  if (GetParam() == QueryEngineType::kTernary) {
+    EXPECT_EQ(annotator.NodeAnnotation(FindNode("tuple.3", f)).suffix,
+              "LeafTypeTree(type=(bits[4], bits[2]), "
+              "elements={[[8, 11]], [[2, 2]]})");
+  } else {
+    EXPECT_EQ(annotator.NodeAnnotation(FindNode("tuple.3", f)).suffix,
+              "LeafTypeTree(type=(bits[4], bits[2]), "
+              "elements={[[0, 15]], [[0, 3]]})");
+  }
+  EXPECT_THAT(
+      f->DumpIr(annotator),
+      testing::HasSubstr("concat.2: bits[4] = concat(literal.1, x, id=2) "
+                         "LeafTypeTree(type=bits[4], elements={[[8, 11]]})"));
 }
 
 INSTANTIATE_TEST_SUITE_P(

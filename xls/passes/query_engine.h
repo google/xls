@@ -32,6 +32,7 @@
 #include "xls/data_structures/leaf_type_tree.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/interval_set.h"
+#include "xls/ir/ir_annotator.h"
 #include "xls/ir/node.h"
 #include "xls/ir/ternary.h"
 #include "xls/ir/value.h"
@@ -304,6 +305,26 @@ class QueryEngine {
   std::string ToString(Node* node) const;
 
   virtual absl::Status CheckConsistency() const { return absl::OkStatus(); }
+};
+
+class TernaryAnnotator : public IrAnnotator {
+ public:
+  explicit TernaryAnnotator(const QueryEngine* query_engine)
+      : query_engine_(query_engine) {}
+  Annotation NodeAnnotation(Node* node) const override;
+
+ private:
+  const QueryEngine* query_engine_;
+};
+
+class IntervalAnnotator : public IrAnnotator {
+ public:
+  explicit IntervalAnnotator(const QueryEngine* query_engine)
+      : query_engine_(query_engine) {}
+  Annotation NodeAnnotation(Node* node) const override;
+
+ private:
+  const QueryEngine* query_engine_;
 };
 
 }  // namespace xls

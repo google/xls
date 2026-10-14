@@ -30,6 +30,7 @@
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_cat.h"
 #include "absl/types/span.h"
 #include "cppitertools/reversed.hpp"
 #include "xls/data_structures/leaf_type_tree.h"
@@ -37,6 +38,7 @@
 #include "xls/ir/bits_ops.h"
 #include "xls/ir/interval_ops.h"
 #include "xls/ir/interval_set.h"
+#include "xls/ir/ir_annotator.h"
 #include "xls/ir/node.h"
 #include "xls/ir/ternary.h"
 #include "xls/ir/type.h"
@@ -517,6 +519,24 @@ bool QueryEngine::IsPredicatePossible(PredicateState state) const {
   return !IntervalSet::Intersect(range, GetIntervals(selector).Get({}))
               .IsEmpty() &&
          (!my_tern || ternary_ops::IsCompatible(tern, my_tern->Get({})));
+}
+
+Annotation TernaryAnnotator::NodeAnnotation(Node* node) const {
+  std::optional<SharedLeafTypeTree<TernaryVector>> tern =
+      query_engine_->GetTernary(node);
+  if (!tern.has_value()) {
+    return {};
+  }
+  return {.suffix = absl::StrCat(tern.value())};
+}
+
+Annotation IntervalAnnotator::NodeAnnotation(Node* node) const {
+  std::optional<LeafTypeTree<IntervalSet>> intervals =
+      query_engine_->GetIntervals(node);
+  if (!intervals.has_value()) {
+    return {};
+  }
+  return {.suffix = absl::StrCat(intervals.value())};
 }
 
 }  // namespace xls
