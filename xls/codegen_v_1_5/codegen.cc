@@ -69,9 +69,12 @@ std::unique_ptr<verilog::CodegenCompoundPass> CreatePostBlockConversionPipeline(
 
   // Rewrite channels that codegen options have labeled as to/from a RAM. This
   // removes ready+valid ports, instead AND-ing the request valid signal with
-  // the read- and write-enable signals, as well as adding a skid buffer on the
-  // response channel.
-  top->Add<verilog::RamRewritePass>();
+  // the read- and write-enable signals, as well as adding a buffer on the
+  // response channel. In codegen 1.5, a stage's sends can complete while the
+  // stage is stalled, so the next activation's read can be issued before the
+  // previous one's response has been consumed; at most two read responses can
+  // be outstanding at a time.
+  top->Add<verilog::RamRewritePass>(/*max_outstanding_reads=*/2);
 
   // Remove zero-width input/output ports.
   // TODO(meheff): 2021/04/29 Also flatten ports with types here.

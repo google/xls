@@ -568,9 +568,13 @@ following ports:
 -   `{ram_name}_re`
 -   `{ram_name}_rd_data`
 
-Note that there are no ready/valid signals as RAMs have fixed latency. There is
-an internal buffer to catch the response and apply backpressure on requests if
-needed.
+Note that there are no ready/valid signals, as RAMs have fixed latency and can't
+be stalled. Instead, an internal buffer catches each read response until the
+receive on the response channel consumes it; the buffer can hold every response
+that can be outstanding at once, so the RAM is always ready to accept a request.
+With codegen 1.5, this buffer is emitted as a separate module named
+`{module_name}__{ram_name}_read_response_buffer` (in the same output file as the
+module that instantiates it).
 
 When using `--ram_configurations`, you should generally add a scheduling
 constraint via `--io_constraints` to ensure the request-send and

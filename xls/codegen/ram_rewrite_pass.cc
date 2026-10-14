@@ -34,16 +34,19 @@
 #include "xls/codegen/module_signature.h"
 #include "xls/codegen/module_signature.pb.h"
 #include "xls/codegen/ram_configuration.h"
+#include "xls/codegen/valid_data_buffer.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/common/visitor.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/block.h"
 #include "xls/ir/channel.h"
+#include "xls/ir/name_uniquer.h"
 #include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
 #include "xls/ir/package.h"
+#include "xls/ir/register.h"
 #include "xls/ir/source_location.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
@@ -279,6 +282,96 @@ absl::Status WriteCompletionRewrite(
   return absl::OkStatus();
 }
 
+// Instantiates a valid-data buffer (see `CreateValidDataBuffer`) with room for
+// `depth` responses, to catch a RAM's responses (`rd_data` & `rd_valid`):
+// all existing users of the response are rewired to the buffer's outputs, and
+// the buffer pops a response whenever its output is valid & `consumer_ready` is
+// asserted.
+//
+// A RAM can't be stalled, so a response that arrives while the buffer is full
+// (and the consumer isn't popping) would be lost; the caller must ensure that
+// at most `depth` responses can be outstanding at once. If
+// `add_overflow_assert` is true, the buffer also asserts this.
+absl::Status InstantiateReadResponseBuffer(Block* block, Node* rd_data,
+                                           Node* rd_valid, Node* consumer_ready,
+                                           int64_t depth,
+                                           std::string_view ram_name,
+                                           bool add_overflow_assert) {
+  XLS_RET_CHECK(block->GetClockPort().has_value())
+      << absl::StreamFormat("Block `%s` has a RAM but no clock", block->name());
+  ValidDataBufferOptions buffer_options{
+      .clock_name = block->GetClockPort()->name,
+      .add_overflow_assert = add_overflow_assert,
+  };
+  if (block->GetResetPort().has_value()) {
+    buffer_options.reset = ValidDataBufferOptions::Reset{
+        .name = (*block->GetResetPort())->GetName(),
+        .behavior = *block->GetResetBehavior(),
+    };
+  }
+  // The buffer becomes a module of its own, so prefix its name with the name of
+  // the block (i.e., module) that instantiates it, to keep it distinct from the
+  // buffers of other modules.
+  Package* package = block->package();
+  XLS_ASSIGN_OR_RETURN(
+      Block * buffer,
+      CreateValidDataBuffer(
+          package,
+          package->NameUniquerForPackage().GetSanitizedUniqueName(absl::StrCat(
+              block->name(), "__", ram_name, "_read_response_buffer")),
+          rd_data->GetType(), depth, buffer_options));
+
+  // Record the current users of the response, which should see the buffer's
+  // outputs instead; the buffer's inputs will add more users below.
+  const absl::flat_hash_set<Node*> rd_data_users(rd_data->users().begin(),
+                                                 rd_data->users().end());
+  const absl::flat_hash_set<Node*> rd_valid_users(rd_valid->users().begin(),
+                                                  rd_valid->users().end());
+  XLS_ASSIGN_OR_RETURN(
+      Block::BlockInstantiationAndConnections instantiation,
+      block->AddAndConnectBlockInstantiation(
+          absl::StrCat(ram_name, "_read_response_buffer_inst"), buffer,
+          {
+              {std::string(kValidDataBufferPushDataPort), rd_data},
+              {std::string(kValidDataBufferPushValidPort), rd_valid},
+              {std::string(kValidDataBufferPopReadyPort), consumer_ready},
+          }));
+  XLS_RETURN_IF_ERROR(rd_data->ReplaceUsesWith(
+      instantiation.outputs.at(kValidDataBufferPopDataPort),
+      [&](Node* user) { return rd_data_users.contains(user); }));
+  return rd_valid->ReplaceUsesWith(
+      instantiation.outputs.at(kValidDataBufferPopValidPort),
+      [&](Node* user) { return rd_valid_users.contains(user); });
+}
+
+// Adds a zero-latency buffer to catch a RAM's read responses (`rd_data` &
+// `rd_valid`), sized to hold up to `max_outstanding_reads` responses; all
+// existing users of the response are rewired to the buffer's outputs.
+// `consumer_ready` must be a single-operand identity node driven by the
+// consumer's ready signal. (It may be rewired.)
+absl::Status AddReadResponseBuffer(Block* block, Node* rd_data, Node* rd_valid,
+                                   Node* consumer_ready,
+                                   int64_t max_outstanding_reads,
+                                   std::string_view ram_name,
+                                   const CodegenPassOptions& options) {
+  XLS_RET_CHECK_GE(max_outstanding_reads, 1);
+  if (max_outstanding_reads == 1) {
+    // Codegen 1.0 keeps its existing single-entry buffer, built in place.
+    std::vector<std::optional<Node*>> valid_nodes;
+    return AddZeroLatencyBufferToRDVNodes(
+               rd_data, rd_valid, consumer_ready,
+               absl::StrCat(ram_name, "_ram_zero_latency0"), block, valid_nodes)
+        .status();
+  }
+  // NB: We only add the overflow assertion here; codegen 1.0 (which only needs
+  // a single-entry buffer) requires all side-effecting ops to be assigned to a
+  // pipeline stage.
+  return InstantiateReadResponseBuffer(
+      block, rd_data, rd_valid, consumer_ready,
+      /*depth=*/max_outstanding_reads, ram_name,
+      /*add_overflow_assert=*/options.AddInvariantAssertions());
+}
+
 absl::Status Ram1RWUpdateSignature(
     ModuleSignature& signature, const Ram1RWConfiguration& ram_config,
     std::string_view ram_name, Package* package, OutputPort* req_addr_port,
@@ -352,6 +445,7 @@ absl::Status Ram1RWUpdateSignature(
 absl::StatusOr<bool> Ram1RWRewrite(Package* package,
                                    const CodegenPassOptions& pass_options,
                                    const Ram1RWConfiguration& ram_config,
+                                   int64_t max_outstanding_reads,
                                    CodegenContext& context) {
   Block* block = context.top_block();
 
@@ -489,18 +583,18 @@ absl::StatusOr<bool> Ram1RWRewrite(Package* package,
           0, resp_ready_port_buf));
   XLS_RETURN_IF_ERROR(
       rw_block_ports.resp_ports.resp_valid->ReplaceUsesWith(ram_resp_valid));
-  XLS_RETURN_IF_ERROR(
-      rw_block_ports.req_ports.req_ready->ReplaceUsesWith(resp_ready_port_buf));
 
-  // Add zero-latency buffer at output of ram
-  std::vector<std::optional<Node*>> valid_nodes;
-  std::string zero_latency_buffer_name =
-      absl::StrCat(ram_name, "_ram_zero_latency0");
-  XLS_RETURN_IF_ERROR(AddZeroLatencyBufferToRDVNodes(
-                          resp_rd_data_port, ram_resp_valid,
-                          resp_ready_port_buf, zero_latency_buffer_name, block,
-                          valid_nodes)
-                          .status());
+  // The RAM is always ready for a request. Once issued, the request can't be
+  // stalled, so a buffer at the output of the RAM must be able to catch every
+  // outstanding response.
+  XLS_ASSIGN_OR_RETURN(
+      xls::Literal * req_ready,
+      block->MakeNode<xls::Literal>(/*loc=*/SourceInfo(), Value(UBits(1, 1))));
+  XLS_RETURN_IF_ERROR(
+      rw_block_ports.req_ports.req_ready->ReplaceUsesWith(req_ready));
+  XLS_RETURN_IF_ERROR(AddReadResponseBuffer(
+      block, resp_rd_data_port, ram_resp_valid, resp_ready_port_buf,
+      max_outstanding_reads, ram_name, pass_options));
 
   // Add output ports for expanded req.data.
   XLS_ASSIGN_OR_RETURN(auto* req_addr_port,
@@ -559,6 +653,7 @@ absl::StatusOr<bool> Ram1RWRewrite(Package* package,
 absl::StatusOr<bool> Ram1R1WRewrite(Package* package,
                                     const CodegenPassOptions& pass_options,
                                     const Ram1R1WConfiguration& ram_config,
+                                    int64_t max_outstanding_reads,
                                     CodegenContext& context) {
   Block* block = context.top_block();
 
@@ -670,17 +765,19 @@ absl::StatusOr<bool> Ram1R1WRewrite(Package* package,
       0, resp_ready_port_buf));
   XLS_RETURN_IF_ERROR(
       r_block_ports.resp_ports.resp_valid->ReplaceUsesWith(rd_resp_valid));
-  XLS_RETURN_IF_ERROR(
-      r_block_ports.req_ports.req_ready->ReplaceUsesWith(resp_ready_port_buf));
 
-  // Add zero-latency buffer at output of ram
-  std::vector<std::optional<Node*>> valid_nodes;
-  std::string zero_latency_buffer_name =
-      absl::StrCat(ram_name, "_ram_zero_latency0");
-  XLS_RETURN_IF_ERROR(AddZeroLatencyBufferToRDVNodes(
-                          rd_data_port, rd_resp_valid, resp_ready_port_buf,
-                          zero_latency_buffer_name, block, valid_nodes)
-                          .status());
+  // The RAM is always ready for a read request. Once issued, the request can't
+  // be stalled, so a buffer at the output of the RAM must be able to catch
+  // every outstanding response.
+  XLS_ASSIGN_OR_RETURN(
+      xls::Literal * rd_req_ready,
+      block->MakeNode<xls::Literal>(/*loc=*/SourceInfo(), Value(UBits(1, 1))));
+  XLS_RETURN_IF_ERROR(
+      r_block_ports.req_ports.req_ready->ReplaceUsesWith(rd_req_ready));
+  XLS_RETURN_IF_ERROR(AddReadResponseBuffer(
+      block, rd_data_port, rd_resp_valid, resp_ready_port_buf,
+      max_outstanding_reads, ram_name, pass_options));
+
   // Replace write ready with literal 1 (RAM is always ready for write).
   // TODO(rigge): should this signal check for hazards?
   XLS_ASSIGN_OR_RETURN(
@@ -811,13 +908,16 @@ absl::StatusOr<bool> Ram1R1WRewrite(Package* package,
 absl::StatusOr<bool> RamRewrite(Package* package,
                                 const CodegenPassOptions& pass_options,
                                 const RamConfiguration& ram_configuration,
+                                int64_t max_outstanding_reads,
                                 CodegenContext& context) {
   return absl::visit(
       Visitor{[&](const Ram1RWConfiguration& config) {
-                return Ram1RWRewrite(package, pass_options, config, context);
+                return Ram1RWRewrite(package, pass_options, config,
+                                     max_outstanding_reads, context);
               },
               [&](const Ram1R1WConfiguration& config) {
-                return Ram1R1WRewrite(package, pass_options, config, context);
+                return Ram1R1WRewrite(package, pass_options, config,
+                                      max_outstanding_reads, context);
               }},
       ram_configuration);
 }
@@ -851,9 +951,9 @@ absl::StatusOr<bool> RamRewritePass::RunInternal(
     }
     VLOG(2) << "Rewriting channels for ram "
             << RamConfigurationRamName(ram_configuration) << ".";
-    XLS_ASSIGN_OR_RETURN(
-        bool this_one_changed,
-        RamRewrite(package, options, ram_configuration, context));
+    XLS_ASSIGN_OR_RETURN(bool this_one_changed,
+                         RamRewrite(package, options, ram_configuration,
+                                    max_outstanding_reads_, context));
     changed = changed || this_one_changed;
   }
 

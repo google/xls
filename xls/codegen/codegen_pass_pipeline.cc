@@ -64,9 +64,10 @@ std::unique_ptr<CodegenCompoundPass> CreateCodegenPassPipeline(
 
   // Rewrite channels that codegen options have labeled as to/from a RAM. This
   // removes ready+valid ports, instead AND-ing the request valid signal with
-  // the read- and write-enable signals, as well as adding a skid buffer on the
-  // response channel.
-  top->Add<RamRewritePass>();
+  // the read- and write-enable signals, as well as adding a buffer on the
+  // response channel. Codegen 1.0 only issues a RAM request when the requesting
+  // stage advances, so at most one read response can be outstanding at a time.
+  top->Add<RamRewritePass>(/*max_outstanding_reads=*/1);
 
   // TODO(meheff): 2021/04/29. Add the following passes:
   // * pass to optionally generate pipeline.

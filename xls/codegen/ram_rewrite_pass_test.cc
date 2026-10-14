@@ -172,7 +172,7 @@ std::unique_ptr<CodegenPass> GetCodegenPass(CodegenPassType type,
     case CodegenPassType::kDefault:
       return CreateCodegenPassPipeline(context);
     case CodegenPassType::kRamRewritePassOnly:
-      return std::make_unique<RamRewritePass>();
+      return std::make_unique<RamRewritePass>(/*max_outstanding_reads=*/1);
   }
 }
 
