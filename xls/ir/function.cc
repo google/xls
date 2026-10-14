@@ -31,6 +31,7 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
+#include "absl/strings/strip.h"
 #include "absl/types/span.h"
 #include "absl/types/variant.h"
 #include "xls/common/attribute_data.h"
@@ -95,6 +96,10 @@ std::string Function::DumpIrWithAnnotations(
 
 std::string Function::DumpIr(const IrAnnotator& annotate) const {
   std::string res = DumpAttributes();
+  Annotation fn_annotation = annotate.FunctionAnnotation(this);
+  if (fn_annotation.prefix.has_value()) {
+    absl::StrAppend(&res, absl::StripSuffix(*fn_annotation.prefix, "\n"), "\n");
+  }
   absl::StrAppendFormat(&res, "%s%sfn %s(", IsTop() ? "top " : "",
                         IsScheduled() ? "scheduled_" : "", name());
   absl::StrAppend(
@@ -150,6 +155,9 @@ std::string Function::DumpIr(const IrAnnotator& annotate) const {
   }
 
   absl::StrAppend(&res, "}\n");
+  if (fn_annotation.suffix.has_value()) {
+    absl::StrAppend(&res, absl::StripSuffix(*fn_annotation.suffix, "\n"), "\n");
+  }
   return res;
 }
 

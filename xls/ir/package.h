@@ -31,6 +31,7 @@
 #include "xls/ir/channel.h"
 #include "xls/ir/channel_ops.h"
 #include "xls/ir/fileno.h"
+#include "xls/ir/ir_annotator.h"
 #include "xls/ir/name_uniquer.h"
 #include "xls/ir/source_location.h"
 #include "xls/ir/transform_metrics.pb.h"
@@ -291,7 +292,8 @@ class Package {
   bool IsDefinitelyEqualTo(const Package* other) const;
 
   // Dumps the IR in a parsable text format.
-  std::string DumpIr() const;
+  std::string DumpIr(const IrAnnotator& annotate) const;
+  std::string DumpIr() const { return DumpIr(IrAnnotator{}); }
 
   std::vector<std::string> GetFunctionNames() const;
 

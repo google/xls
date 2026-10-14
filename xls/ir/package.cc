@@ -44,6 +44,7 @@
 #include "xls/ir/fileno.h"
 #include "xls/ir/function.h"
 #include "xls/ir/function_base.h"
+#include "xls/ir/ir_annotator.h"
 #include "xls/ir/name_uniquer.h"
 #include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
@@ -578,7 +579,7 @@ bool Package::IsDefinitelyEqualTo(const Package* other) const {
   return entry->IsDefinitelyEqualTo(other_entry);
 }
 
-std::string Package::DumpIr() const {
+std::string Package::DumpIr(const IrAnnotator& annotate) const {
   std::string out;
   absl::StrAppend(&out, "package ", name(), "\n\n");
 
@@ -599,12 +600,15 @@ std::string Package::DumpIr() const {
 
   if (!channels().empty()) {
     for (Channel* channel : channels()) {
-      absl::StrAppend(&out, channel->ToString(), "\n");
+      Annotation chan_note = annotate.ChannelAnnotation(channel);
+      if (!chan_note.filter) {
+        absl::StrAppend(&out, chan_note.Decorate(channel->ToString()), "\n");
+      }
     }
     absl::StrAppend(&out, "\n");
   }
-  auto append_ir_with_attributes = [&out](FunctionBase* fb) {
-    absl::StrAppend(&out, fb->DumpIr(), "\n");
+  auto append_ir_with_attributes = [&out, &annotate](FunctionBase* fb) {
+    absl::StrAppend(&out, fb->DumpIr(annotate), "\n");
   };
   // Our parser relies on everything being in post-order. Ensure that here.
   for (FunctionBase* fb : FunctionsInPostOrder(this)) {

@@ -78,6 +78,7 @@ struct Annotation {
     return res;
   }
 };
+
 // Helper to allow users to emit custom annotations in the IR. By default,
 // no annotations are emitted.
 class IrAnnotator {
@@ -85,21 +86,25 @@ class IrAnnotator {
   IrAnnotator() = default;
   virtual ~IrAnnotator() = default;
 
-  // If returned, the nodes will be considered to occur in the given order.
-  // Defaults to the order of the nodes in the function base.
+  // Returns the order that nodes should be evaluated. If nullopt, evaluation
+  // defaults to the order of the nodes in the function base.
   virtual std::optional<std::vector<Node*>> NodeOrder(FunctionBase* fb) const {
     return std::nullopt;
   }
-  // Additional information to associate with 'node' in the IR.
+  // Outputs annotation (e.g. about params) to associate with 'function'.
+  virtual Annotation FunctionAnnotation(const FunctionBase* fb) const {
+    return {};
+  }
+  // Outputs annotation to associate with 'node' in the IR.
   virtual Annotation NodeAnnotation(Node* node) const { return {}; }
-  // Additional information to associate with 'channel' in the IR.
+  // Outputs annotation to associate with 'channel' in the IR.
   virtual Annotation ChannelAnnotation(Channel* channel) const { return {}; }
-  // Additional information to associate with 'channel' in the IR.
+  // Outputs annotation to associate with 'channel' in the IR.
   virtual Annotation ChannelInterfaceAnnotation(
       const ChannelInterface* channel) const {
     return {};
   }
-  // Additional information to associate with 'state_element' in the IR.
+  // Outputs annotation to associate with 'state_element' in the IR.
   virtual Annotation StateElementAnnotation(
       const StateElement* state_element) const {
     return {};
@@ -139,6 +144,13 @@ class IrAnnotatorJoiner : public IrAnnotator {
           return ReduceNodeOrder(fb, annotators...);
         },
         annotators_);
+  }
+  Annotation FunctionAnnotation(const FunctionBase* fb) const override {
+    return RunAnnotate(
+        [](const IrAnnotator& annotator, const FunctionBase* fb) {
+          return annotator.FunctionAnnotation(fb);
+        },
+        fb);
   }
   Annotation NodeAnnotation(Node* node) const override {
     return RunAnnotate(
@@ -260,6 +272,9 @@ class IrAnnotatorRef : public IrAnnotator {
   explicit IrAnnotatorRef(const Base& base) : base_(base) {}
   std::optional<std::vector<Node*>> NodeOrder(FunctionBase* fb) const override {
     return base_.NodeOrder(fb);
+  }
+  Annotation FunctionAnnotation(const FunctionBase* fb) const override {
+    return base_.FunctionAnnotation(fb);
   }
   Annotation NodeAnnotation(Node* node) const override {
     return base_.NodeAnnotation(node);
