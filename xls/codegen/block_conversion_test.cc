@@ -144,6 +144,85 @@ class BlockConversionTest : public BlockConversionTestFixture {
   }
 };
 
+TEST_F(BlockConversionTest, ZeroLatencyBufferReservesNextCycleRamResponse) {
+  Package package(TestName());
+  BlockBuilder bb("fixed_latency_response_buffer", &package);
+  bb.AddClockPort("clk");
+  bb.ResetPort("rst",
+               ResetBehavior{.asynchronous = false, .active_low = false});
+  BValue response_data = bb.InputPort("response_data", package.GetBitsType(8));
+  BValue response_valid =
+      bb.InputPort("response_valid", package.GetBitsType(1));
+  BValue consumer_ready =
+      bb.InputPort("consumer_ready", package.GetBitsType(1));
+  bb.OutputPort("consumer_data", response_data);
+  bb.OutputPort("consumer_valid", response_valid);
+  BValue request_ready = bb.OutputPort("request_ready", consumer_ready);
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block, bb.Build());
+
+  std::vector<std::optional<Node*>> valid_nodes;
+  XLS_ASSERT_OK(AddZeroLatencyBufferToRDVNodes(
+                    response_data.node(), response_valid.node(),
+                    request_ready.node(), "ram_response", block, valid_nodes,
+                    ZeroLatencyBufferReadyMode::kNextCycle)
+                    .status());
+
+  // Each response follows a cycle that advertised request capacity.
+  std::vector<absl::flat_hash_map<std::string, uint64_t>> inputs = {
+      {{"rst", 1},
+       {"response_data", 0},
+       {"response_valid", 0},
+       {"consumer_ready", 0}},
+      {{"rst", 0},
+       {"response_data", 0},
+       {"response_valid", 0},
+       {"consumer_ready", 1}},
+      {{"rst", 0},
+       {"response_data", 10},
+       {"response_valid", 1},
+       {"consumer_ready", 1}},
+      {{"rst", 0},
+       {"response_data", 20},
+       {"response_valid", 1},
+       {"consumer_ready", 0}},
+      {{"rst", 0},
+       {"response_data", 0},
+       {"response_valid", 0},
+       {"consumer_ready", 0}},
+      {{"rst", 0},
+       {"response_data", 0},
+       {"response_valid", 0},
+       {"consumer_ready", 1}},
+      {{"rst", 0},
+       {"response_data", 30},
+       {"response_valid", 1},
+       {"consumer_ready", 1}},
+      {{"rst", 0},
+       {"response_data", 0},
+       {"response_valid", 0},
+       {"consumer_ready", 1}},
+  };
+  XLS_ASSERT_OK_AND_ASSIGN(auto outputs,
+                           InterpretSequentialBlock(block, inputs));
+
+  EXPECT_EQ(outputs[1].at("request_ready"), 1);
+  EXPECT_EQ(outputs[2].at("request_ready"), 1);
+  EXPECT_EQ(outputs[2].at("consumer_data"), 10);
+  // The second response is retained throughout the stall, and request
+  // readiness is suppressed because the next-cycle slot is full.
+  EXPECT_EQ(outputs[3].at("request_ready"), 0);
+  EXPECT_EQ(outputs[4].at("request_ready"), 0);
+  EXPECT_EQ(outputs[4].at("consumer_valid"), 1);
+  EXPECT_EQ(outputs[4].at("consumer_data"), 20);
+  // Draining the buffered response makes room for a request whose response
+  // arrives on the following cycle.
+  EXPECT_EQ(outputs[5].at("request_ready"), 1);
+  EXPECT_EQ(outputs[5].at("consumer_data"), 20);
+  EXPECT_EQ(outputs[6].at("consumer_valid"), 1);
+  EXPECT_EQ(outputs[6].at("consumer_data"), 30);
+  EXPECT_EQ(outputs[7].at("consumer_valid"), 0);
+}
+
 // Unit delay delay estimator.
 class TestDelayEstimator : public DelayEstimator {
  public:
