@@ -267,11 +267,15 @@ absl::StatusOr<ProverResult> TryProveEquivalence(Function* a, Function* b,
                 if (node_map.contains(param)) {
                   // from 'b'
                   mapped_counterexample[node_map[param]] = value;
+                  XLS_ASSIGN_OR_RETURN(int64_t idx,
+                                       b->GetParamIndex(param->As<Param>()));
+                  mapped_counterexample[a->param(idx)] = value;
                 } else {
                   // from 'a'
                   XLS_ASSIGN_OR_RETURN(int64_t idx, to_test_func->GetParamIndex(
                                                         param->As<Param>()));
                   mapped_counterexample[a->param(idx)] = value;
+                  mapped_counterexample[b->param(idx)] = value;
                 }
               }
               f.counterexample = mapped_counterexample;

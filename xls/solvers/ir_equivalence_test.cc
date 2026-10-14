@@ -49,6 +49,7 @@ namespace {
 using ::absl_testing::IsOk;
 using ::absl_testing::IsOkAndHolds;
 
+using ::testing::AllOf;
 using ::testing::AnyOf;
 using ::testing::Not;
 using ::testing::Pair;
@@ -323,19 +324,21 @@ TEST_F(EquivalenceTest, CounterexampleIsValidPointers) {
   Function* f1;
   Function* f2;
   BValue f1_x1;
+  BValue f1_x2;
   BValue f2_x1;
+  BValue f2_x2;
   {
     FunctionBuilder fb(absl::StrCat(TestName(), "_1"), p.get());
     f1_x1 = fb.Param("x1", p->GetBitsType(1));
-    BValue x2 = fb.Param("x2", p->GetBitsType(1));
-    fb.Concat({f1_x1, x2});
+    f1_x2 = fb.Param("x2", p->GetBitsType(1));
+    fb.Concat({f1_x1, f1_x2});
     XLS_ASSERT_OK_AND_ASSIGN(f1, fb.Build());
   }
   {
     FunctionBuilder fb(absl::StrCat(TestName(), "_2"), p.get());
     f2_x1 = fb.Param("x1", p->GetBitsType(1));
-    BValue x2 = fb.Param("x2", p->GetBitsType(1));
-    fb.Concat({fb.Literal(UBits(0, 1)), x2});
+    f2_x2 = fb.Param("x2", p->GetBitsType(1));
+    fb.Concat({fb.Literal(UBits(0, 1)), f2_x2});
 
     XLS_ASSERT_OK_AND_ASSIGN(f2, fb.Build());
   }
@@ -344,9 +347,17 @@ TEST_F(EquivalenceTest, CounterexampleIsValidPointers) {
   ProvenFalse f = std::get<ProvenFalse>(r);
   EXPECT_THAT(
       f.counterexample,
-      IsOkAndHolds(UnorderedElementsAre(
-          Pair(m::Param("x1"), Value(UBits(1, 1))),
-          Pair(testing::_, AnyOf(Value(UBits(1, 1)), Value(UBits(0, 1)))))));
+      IsOkAndHolds(AnyOf(
+          UnorderedElementsAre(
+              Pair(AllOf(f1_x1.node(), m::Param("x1")), Value(UBits(1, 1))),
+              Pair(AllOf(f2_x1.node(), m::Param("x1")), Value(UBits(1, 1))),
+              Pair(AllOf(f1_x2.node(), m::Param("x2")), Value(UBits(0, 1))),
+              Pair(AllOf(f2_x2.node(), m::Param("x2")), Value(UBits(0, 1)))),
+          UnorderedElementsAre(
+              Pair(AllOf(f1_x1.node(), m::Param("x1")), Value(UBits(1, 1))),
+              Pair(AllOf(f2_x1.node(), m::Param("x1")), Value(UBits(1, 1))),
+              Pair(AllOf(f1_x2.node(), m::Param("x2")), Value(UBits(1, 1))),
+              Pair(AllOf(f2_x2.node(), m::Param("x2")), Value(UBits(1, 1)))))));
 }
 
 TEST_F(EquivalenceTest, DetectsParamShift) {
