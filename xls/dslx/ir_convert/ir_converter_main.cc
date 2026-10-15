@@ -23,6 +23,7 @@
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
+#include "absl/strings/str_cat.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_split.h"
 #include "absl/types/span.h"
@@ -43,6 +44,15 @@
 
 namespace xls::dslx {
 namespace {
+
+// Maps a proto AutoCoverKind to the corresponding ConvertOptions kind.
+absl::StatusOr<AutoCoverKind> ToAutoCoverKind(const ::xls::AutoCoverKind kind) {
+  if (kind == ::xls::AutoCoverKind::AUTO_COVER_KIND_BRANCH) {
+    return AutoCoverKind::kBranch;
+  }
+  return absl::InvalidArgumentError(absl::StrCat(
+      "Unhandled AutoCoverKind: ", ::xls::AutoCoverKind_Name(kind)));
+}
 
 static constexpr std::string_view kUsage = R"(
 Converts a DSLX input file (and optional entry point) to XLS IR.
@@ -108,6 +118,13 @@ absl::Status RealMain(absl::Span<const std::string_view> paths) {
       ir_converter_options.force_implicit_token_calling_convention();
   bool emit_trace = ir_converter_options.emit_trace();
   bool emit_cover = ir_converter_options.emit_cover();
+  AutoCoverKindSet emit_auto_cover;
+  for (int i = 0; i < ir_converter_options.emit_auto_cover_size(); ++i) {
+    ::xls::AutoCoverKind kind = static_cast<::xls::AutoCoverKind>(
+        ir_converter_options.emit_auto_cover(i));
+    XLS_ASSIGN_OR_RETURN(AutoCoverKind dslx_kind, ToAutoCoverKind(kind));
+    emit_auto_cover.Insert(dslx_kind);
+  }
 
   // Start with the default set, then enable the to-enable and then disable the
   // to-disable.
@@ -126,6 +143,7 @@ absl::Status RealMain(absl::Span<const std::string_view> paths) {
       .emit_assert = emit_assert,
       .emit_trace = emit_trace,
       .emit_cover = emit_cover,
+      .emit_auto_cover = emit_auto_cover,
       .verify_ir = verify_ir,
       .warnings_as_errors = warnings_as_errors,
       .warnings = warnings,

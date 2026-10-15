@@ -48,4 +48,15 @@ message IrConverterOptionsFlagsProto {
   optional bool emit_cover = 21;
   // If true will emit assert operations.
   optional bool emit_assert = 22;
+  // If non-empty, synthesizes cover ops for the listed auto-coverage kinds.
+  // E.g. "branch" synthesizes a cover op for each if/else branch and match arm.
+  repeated AutoCoverKind emit_auto_cover = 23;
+}
+
+// Kinds of automatically generated cover ops that can be synthesized during
+// IR conversion. New coverage functionality should add a new kind here.
+enum AutoCoverKind {
+  AUTO_COVER_KIND_INVALID = 0;
+  // Synthesize a cover op for each if/else branch and match arm.
+  AUTO_COVER_KIND_BRANCH = 1;
 }
