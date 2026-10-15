@@ -1077,93 +1077,97 @@ absl::Status FunctionConverter::HandleLet(const Let* node) {
           "config methods.");
     }
 
-    // TODO: https://github.com/google/xls/issues/1459 - Rewrite this to be
-    // actually recursive (instead of "effectively recursive" via the `levels`
-    // and `delta_at_level` vectors).
-
-    // Walk the pattern members, performing tuple_index operations on the RHS
-    // to get to the corresponding values.
-    std::vector<BValue> levels = {rhs};
-    // Invoked at each level of the pattern: maps the current pattern member
-    // to the corresponding value. Only NameDef leaves bind names; wildcard and
-    // rest members are visited without binding.
-    //
-    // Args:
-    //  pattern: Current subtree of the pattern.
-    //  level: Level (depth) in the pattern, root is 0.
-    //  index: Index of node in the current tree level (e.g. leftmost is 0).
-
-    // We need to add the delta to every tuple index *at this level*. E.g.,:
-    // if have a pattern like: (a,..,b,(c,..,d),e), then b, (c,..,d) and
-    // e's indexes need to be adjusted at level 1; d's needs to be adjusted at
-    // level 2, etc.
-    std::vector<int64_t> delta_at_level;
-
-    auto walk = [&](const PatternTree& pattern, int64_t level,
-                    int64_t index) -> absl::Status {
-      AstNode* pattern_node = ToAstNode(pattern);
-      XLS_RET_CHECK_NE(pattern_node, nullptr);
-      VLOG(6) << absl::StreamFormat("Walking level %d index %d: `%s`", level,
-                                    index, PatternToString(pattern));
-
-      while (level > delta_at_level.size()) {
-        // Make sure we have enough entries at this level
-        delta_at_level.push_back(0);
-      }
-      // Levels start at 1, so we subtract one.
-      index += delta_at_level[level - 1];
-
-      levels.resize(level);
-      BValue tuple = levels.back();
-      CHECK(tuple.valid());
-
-      xls::TupleType* tuple_type = tuple.GetType()->AsTupleOrDie();
-
-      if (IsRestOfTupleLeaf(pattern)) {
-        // If we're at a "rest of tuple" operator, we may need to "skip"
-        // tuple elements at this level. We can tell how many tuple *entries*
-        // there are via tuple_type, and how many pattern members there are at
-        // this level (including the "rest of tuple") via the parent tuple
-        // pattern.
-        const TuplePattern* parent =
-            absl::down_cast<const TuplePattern*>(pattern_node->parent());
-        int64_t pattern_member_count = parent->members().size();
-        int64_t number_of_tuple_elements = tuple_type->size();
-
-        int64_t delta = number_of_tuple_elements - pattern_member_count;
-        delta_at_level[level - 1] = delta;
-
-        // Don't need to bind anything to the ..
-        return absl::OkStatus();
-      }
-
-      CHECK_LT(index, tuple_type->size())
-          << "index: " << index << " type: " << tuple_type->ToString();
-
-      BValue bound_value =
-          Def(pattern_node, [this, pattern_node, index, tuple](SourceInfo loc) {
-            if (!loc.Empty()) {
-              loc = ToSourceInfo(pattern_node->GetSpan());
-            }
-
-            CHECK(tuple.GetType()->IsTuple());
-            BValue tuple_index =
-                function_builder_->TupleIndex(tuple, index, loc);
-            CHECK_OK(function_builder_->GetError());
-
-            return tuple_index;
-          });
-      if (std::holds_alternative<NameDef*>(pattern)) {
-        bound_value.SetName(std::get<NameDef*>(pattern)->identifier());
-      }
-      levels.push_back(bound_value);
-      return absl::OkStatus();
-    };
-
-    XLS_RETURN_IF_ERROR(DoPatternPreorder(node->pattern(), walk));
+    XLS_RETURN_IF_ERROR(DestructureTuplePattern(node->pattern(), rhs));
   }
 
   return absl::OkStatus();
+}
+
+absl::Status FunctionConverter::DestructureTuplePattern(
+    const PatternTree& pattern, BValue rhs) {
+  // TODO: https://github.com/google/xls/issues/1459 - Rewrite this to be
+  // actually recursive (instead of "effectively recursive" via the `levels`
+  // and `delta_at_level` vectors).
+
+  // Walk the pattern members, performing tuple_index operations on the RHS
+  // to get to the corresponding values.
+  std::vector<BValue> levels = {rhs};
+  // Invoked at each level of the pattern: maps the current pattern member
+  // to the corresponding value. Only NameDef leaves bind names; wildcard and
+  // rest members are visited without binding.
+  //
+  // Args:
+  //  pattern: Current subtree of the pattern.
+  //  level: Level (depth) in the pattern, root is 0.
+  //  index: Index of node in the current tree level (e.g. leftmost is 0).
+
+  // We need to add the delta to every tuple index *at this level*. E.g.,:
+  // if have a pattern like: (a,..,b,(c,..,d),e), then b, (c,..,d) and
+  // e's indexes need to be adjusted at level 1; d's needs to be adjusted at
+  // level 2, etc.
+  std::vector<int64_t> delta_at_level;
+
+  auto walk = [&](const PatternTree& pattern, int64_t level,
+                  int64_t index) -> absl::Status {
+    AstNode* pattern_node = ToAstNode(pattern);
+    XLS_RET_CHECK_NE(pattern_node, nullptr);
+    VLOG(6) << absl::StreamFormat("Walking level %d index %d: `%s`", level,
+                                  index, PatternToString(pattern));
+
+    while (level > delta_at_level.size()) {
+      // Make sure we have enough entries at this level
+      delta_at_level.push_back(0);
+    }
+    // Levels start at 1, so we subtract one.
+    index += delta_at_level[level - 1];
+
+    levels.resize(level);
+    BValue tuple = levels.back();
+    CHECK(tuple.valid());
+
+    xls::TupleType* tuple_type = tuple.GetType()->AsTupleOrDie();
+
+    if (IsRestOfTupleLeaf(pattern)) {
+      // If we're at a "rest of tuple" operator, we may need to "skip"
+      // tuple elements at this level. We can tell how many tuple *entries*
+      // there are via tuple_type, and how many pattern members there are at
+      // this level (including the "rest of tuple") via the parent tuple
+      // pattern.
+      const TuplePattern* parent =
+          absl::down_cast<const TuplePattern*>(pattern_node->parent());
+      int64_t pattern_member_count = parent->members().size();
+      int64_t number_of_tuple_elements = tuple_type->size();
+
+      int64_t delta = number_of_tuple_elements - pattern_member_count;
+      delta_at_level[level - 1] = delta;
+
+      // Don't need to bind anything to the ..
+      return absl::OkStatus();
+    }
+
+    CHECK_LT(index, tuple_type->size())
+        << "index: " << index << " type: " << tuple_type->ToString();
+
+    BValue bound_value =
+        Def(pattern_node, [this, pattern_node, index, tuple](SourceInfo loc) {
+          if (!loc.Empty()) {
+            loc = ToSourceInfo(pattern_node->GetSpan());
+          }
+
+          CHECK(tuple.GetType()->IsTuple());
+          BValue tuple_index = function_builder_->TupleIndex(tuple, index, loc);
+          CHECK_OK(function_builder_->GetError());
+
+          return tuple_index;
+        });
+    if (std::holds_alternative<NameDef*>(pattern)) {
+      bound_value.SetName(std::get<NameDef*>(pattern)->identifier());
+    }
+    levels.push_back(bound_value);
+    return absl::OkStatus();
+  };
+
+  return DoPatternPreorder(pattern, walk);
 }
 
 absl::Status FunctionConverter::HandleCast(const Cast* node) {
@@ -1885,6 +1889,10 @@ absl::Status FunctionConverter::HandleFor(const For* node) {
     ivar_value =
         body_converter.function_builder_->ArrayIndex(iterable, {index});
     body_converter.SetNodeToIr(ToAstNode(ivar_node), ivar_value);
+    if (std::holds_alternative<TuplePattern*>(ivar_node)) {
+      XLS_RETURN_IF_ERROR(
+          body_converter.DestructureTuplePattern(ivar_node, ivar_value));
+    }
     invariant_args.push_back(indexable.value());
   }
 

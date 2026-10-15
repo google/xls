@@ -8597,5 +8597,18 @@ impl Top {
   ExpectIr(converted);
 }
 
+TEST_F(IrConverterTest, ForOverArrayDestructuringTupleIterator) {
+  constexpr std::string_view kProgram = R"(
+fn sum_pairs(pairs: (u32, u32)[2]) -> u32 {
+  for ((a, b), acc): ((u32, u32), u32) in pairs {
+    acc + a + b
+  }(u32:0)
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
+                           ConvertOneFunctionForTest(kProgram, "sum_pairs"));
+  ExpectIr(converted);
+}
+
 }  // namespace
 }  // namespace xls::dslx
