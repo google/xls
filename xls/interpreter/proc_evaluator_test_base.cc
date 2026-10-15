@@ -811,6 +811,33 @@ TEST_P(ProcEvaluatorTestBase, DecoupledNextProc) {
                               .progress_made = true}));
   EXPECT_THAT(continuation->GetState(), ElementsAre(Value(UBits(56, 32))));
 }
+
+TEST_P(ProcEvaluatorTestBase, DecoupledNextProcLiteralPredicate) {
+  Package package(TestName());
+  ProcBuilder pb("dec_next_lit_pred", &package);
+  BStateElement se = pb.StateElement("state_element", Value(UBits(42, 32)),
+                                     /*non_synthesizable=*/false);
+  pb.StateRead(se, pb.Literal(UBits(1, 1)));
+  pb.Next(se, pb.Literal(UBits(56, 32)), pb.Literal(UBits(1, 1)));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
+  XLS_ASSERT_OK(package.SetTop(proc));
+
+  std::unique_ptr<ChannelQueueManager> queue_manager =
+      GetParam().CreateQueueManager(&package);
+  std::unique_ptr<ProcEvaluator> evaluator =
+      GetParam().CreateEvaluator(proc, queue_manager.get());
+
+  std::unique_ptr<ProcContinuation> continuation = evaluator->NewContinuation(
+      queue_manager->elaboration().GetUniqueInstance(proc).value());
+
+  EXPECT_THAT(continuation->GetState(), ElementsAre(Value(UBits(42, 32))));
+  EXPECT_THAT(
+      evaluator->Tick(*continuation),
+      IsOkAndHolds(TickResult{.execution_state = TickExecutionState::kCompleted,
+                              .channel_instance = std::nullopt,
+                              .progress_made = true}));
+  EXPECT_THAT(continuation->GetState(), ElementsAre(Value(UBits(56, 32))));
+}
 TEST_P(ProcEvaluatorTestBase, DecoupledReadProc) {
   Package package(TestName());
   ProcBuilder pb("dec_read", &package);

@@ -1075,7 +1075,8 @@ absl::StatusOr<NodeIrContext> NodeIrContext::CreateForInputNode(
   int64_t param_count = 1;
   nc.operand_args_.push_back(node);
   nc.operand_to_arg_[node] = 0;
-  if (node->Is<StateRead>() && node->As<StateRead>()->predicate()) {
+  if (node->Is<StateRead>() && node->As<StateRead>()->predicate() &&
+      !ShouldMaterializeAtUse(*node->As<StateRead>()->predicate())) {
     nc.operand_args_.push_back(*node->As<StateRead>()->predicate());
     nc.operand_to_arg_[*node->As<StateRead>()->predicate()] = 1;
     param_count += 1;
@@ -1111,7 +1112,8 @@ absl::StatusOr<NodeIrContext> NodeIrContext::CreateForInputNode(
       absl::StrCat(OpToString(node->op()), "_ptr"));
   int64_t arg_no = 1;
 
-  if (node->Is<StateRead>() && node->As<StateRead>()->predicate()) {
+  if (node->Is<StateRead>() && node->As<StateRead>()->predicate() &&
+      !ShouldMaterializeAtUse(*node->As<StateRead>()->predicate())) {
     std::string name = NodeNameFormat(
         "predicate_%s_of_%s_ptr", *node->As<StateRead>()->predicate(), node);
     nc.llvm_function_->getArg(arg_no++)->setName(name.empty() ? "predicate_ptr"

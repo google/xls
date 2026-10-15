@@ -404,7 +404,7 @@ MULTI_BLOCK_INPUT_CHANNEL_VALUES = (
     proc_channel_values_pb2.ProcChannelValuesProto(
         channels=[
             proc_channel_values_pb2.ProcChannelValuesProto.Channel(
-                name="some_caps_streaming_configured__external_input_wire",
+                name="_external_input_wire",
                 entry=[
                     _eight_chars(b"abcdabcd"),
                     _eight_chars(b"abcdabcd"),
@@ -421,7 +421,7 @@ MULTI_BLOCK_OUTPUT_CHANNEL_VALUES = (
     proc_channel_values_pb2.ProcChannelValuesProto(
         channels=[
             proc_channel_values_pb2.ProcChannelValuesProto.Channel(
-                name="some_caps_streaming_configured__external_output_wire",
+                name="_external_output_wire",
                 entry=[
                     _eight_chars(b"ABCDABCD"),
                     _eight_chars(b"abcdabcd"),
