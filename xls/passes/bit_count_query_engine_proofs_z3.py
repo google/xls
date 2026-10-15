@@ -50,9 +50,9 @@ class Context:
   """Context for the z3 solver, including functions and the solver itself."""
 
   s: z3.Solver
-  max_fn: z3.Function
-  min_fn: z3.Function
-  leading_ones: z3.Function
+  max_fn: z3.FuncDeclRef
+  min_fn: z3.FuncDeclRef
+  leading_ones: z3.FuncDeclRef
 
   def eval(self, v):
     """Evaluates a z3 value in the current model."""
