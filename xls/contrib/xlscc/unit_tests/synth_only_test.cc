@@ -165,6 +165,22 @@ TEST_F(SynthOnlyTest, ConstStdArrayAnd2DStdArraySupport) {
   RunAcDatatypeTest({{"a", 5}}, (5 + 2 + 3) + (5 + 20 + 40 + 20), content);
 }
 
+TEST_F(SynthOnlyTest, XlsIntAndReduce) {
+  const std::string content = R"(
+    #include "xls_int.h"
+
+    int my_package(int a) {
+      XlsInt<4, false> all_ones = 0b1111;
+      XlsInt<4, false> not_all_ones = 0b1101;
+      XlsInt<12, false> dynamic_val = a;
+      return (all_ones.and_reduce() ? 10 : 0) +
+             (not_all_ones.and_reduce() ? 20 : 0) +
+             (dynamic_val.and_reduce() ? 100 : 0);
+    })";
+  RunAcDatatypeTest({{"a", 0xFFF}}, 110, content);
+  RunAcDatatypeTest({{"a", 0xFFE}}, 10, content);
+}
+
 }  // namespace
 
 }  // namespace xlscc

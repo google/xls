@@ -750,6 +750,15 @@ class [[hls_synthetic_int]] XlsInt : public XlsIntBase<Width, Signed> {
     return ret;
   }
 
+  inline bool and_reduce() const {
+    bool ret;
+    asm("fn (gensym and_reduce)(a: bits[i]) -> bits[1] { "
+        "  ret (aid): bits[1] = and_reduce(a, pos=(loc)) }"
+        : "=r"(ret)
+        : "i"(Width), "a"(this->storage));
+    return ret;
+  }
+
   inline XlsInt operator++() {
     (*this) = (*this) + 1;
     return (*this);
