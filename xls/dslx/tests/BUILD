@@ -735,6 +735,16 @@ dslx_lang_test(
     dslx_deps = [":mod_imported_parameterized_type_alias_dslx"],
 )
 
+xls_dslx_library(
+    name = "mod_use_members_lib_dslx",
+    srcs = ["mod_use_members_lib.x"],
+)
+
+dslx_lang_test(
+    name = "mod_use_members",
+    dslx_deps = [":mod_use_members_lib_dslx"],
+)
+
 dslx_lang_test(
     name = "mod_importer",
     dslx_deps = [":mod_imported_dslx"],
