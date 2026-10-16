@@ -2520,6 +2520,15 @@ absl::Status Translator::MarkDirectIns(GeneratedFunction& func,
                                        const xls::SourceInfo& loc) {
   XLSCC_CHECK(!func.slices.empty(), loc);
 
+  if (func.is_shared_function_impl) {
+    for (GeneratedFunctionSlice& slice : func.slices) {
+      for (ContinuationValue& continuation_out : slice.continuations_out) {
+        continuation_out.direct_in = false;
+      }
+    }
+    return absl::OkStatus();
+  }
+
   absl::flat_hash_set<const xls::Param*> direct_in_sources;
 
   absl::flat_hash_set<const ContinuationValue*> outputs_to_upstream;

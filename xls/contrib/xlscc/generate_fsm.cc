@@ -766,7 +766,7 @@ absl::Status NewFSMGenerator::LayoutValuesToSaveForNewFSMStates(
       if (count == 0) {
         continue;
       }
-      if (key.value->direct_in && !is_sub_fsm) {
+      if (key.value->direct_in) {
         continue;
       }
       if (key.value->literal.has_value()) {
