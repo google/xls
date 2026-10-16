@@ -136,33 +136,32 @@ class Visitor : public AstNodeVisitorWithDefault {
   }
 
   absl::Status HandleNameRef(const NameRef* name_ref) override {
-    if (std::holds_alternative<const NameDef*>(name_ref->name_def())) {
-      const NameDef* name_def = std::get<const NameDef*>(name_ref->name_def());
-      if (ti_->IsKnownConstExpr(name_def)) {
-        InterpValue value = *ti_->GetConstExprOption(name_def);
-        trace_.SetResult(value);
-        ti_->NoteConstExpr(name_ref, value);
-        return absl::OkStatus();
-      }
+    if (!std::holds_alternative<const NameDef*>(name_ref->name_def())) {
+      return absl::OkStatus();
+    }
+    const NameDef* name_def = std::get<const NameDef*>(name_ref->name_def());
+    if (ti_->IsKnownConstExpr(name_def)) {
+      InterpValue value = *ti_->GetConstExprOption(name_def);
+      trace_.SetResult(value);
+      ti_->NoteConstExpr(name_ref, value);
+      return absl::OkStatus();
+    }
 
-      if (std::optional<const AstNode*> resolved =
-              import_data_.ResolveUseImportedTarget(name_def->definer())) {
-        if ((*resolved)->kind() == AstNodeKind::kConstantDef) {
-          const auto* constant_def =
-              absl::down_cast<const ConstantDef*>(*resolved);
-          XLS_ASSIGN_OR_RETURN(
-              TypeInfo * evaluation_ti,
-              import_data_.GetRootTypeInfoForNode(constant_def));
-          absl::StatusOr<InterpValue> value =
-              ConstexprEvaluator::EvaluateToValue(
-                  &import_data_, evaluation_ti, &warning_collector_,
-                  table_.GetParametricEnv(parametric_context_),
-                  constant_def->value());
-          if (value.ok()) {
-            trace_.SetResult(*value);
-            ti_->NoteConstExpr(name_ref, *value);
-            ti_->NoteConstExpr(name_def, *value);
-          }
+    if (std::optional<const AstNode*> resolved =
+            import_data_.ResolveUseImportedTarget(name_def->definer())) {
+      if ((*resolved)->kind() == AstNodeKind::kConstantDef) {
+        const auto* constant_def =
+            absl::down_cast<const ConstantDef*>(*resolved);
+        XLS_ASSIGN_OR_RETURN(TypeInfo * evaluation_ti,
+                             import_data_.GetRootTypeInfoForNode(constant_def));
+        absl::StatusOr<InterpValue> value = ConstexprEvaluator::EvaluateToValue(
+            &import_data_, evaluation_ti, &warning_collector_,
+            table_.GetParametricEnv(parametric_context_),
+            constant_def->value());
+        if (value.ok()) {
+          trace_.SetResult(*value);
+          ti_->NoteConstExpr(name_ref, *value);
+          ti_->NoteConstExpr(name_def, *value);
         }
       }
     }
