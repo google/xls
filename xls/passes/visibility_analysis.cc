@@ -242,9 +242,12 @@ Node* TerminalPredicate(Node* node) {
 
 BddNodeIndex OperandVisibilityAnalysis::GetNodeBit(Node* node,
                                                    uint32_t bit_index) const {
-  return bdd_query_engine_
-      ->GetBddNodeOrVariable(TreeBitLocation(node, bit_index))
-      .value_or(bdd_query_engine_->bdd().NewVariable());
+  std::optional<BddNodeIndex> bit =
+      bdd_query_engine_->GetBddNodeOrVariable(TreeBitLocation(node, bit_index));
+  if (bit.has_value()) {
+    return *bit;
+  }
+  return bdd_query_engine_->bdd().NewVariable();
 }
 
 std::vector<BddNodeIndex> OperandVisibilityAnalysis::GetNodeBits(
