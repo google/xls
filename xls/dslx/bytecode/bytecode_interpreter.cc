@@ -1062,6 +1062,15 @@ absl::Status BytecodeInterpreter::EvalTupleIndex(const Bytecode& bytecode) {
   XLS_ASSIGN_OR_RETURN(InterpValue index, Pop());
   XLS_ASSIGN_OR_RETURN(InterpValue basis, Pop());
 
+  if (basis.IsProcInitializer()) {
+    XLS_ASSIGN_OR_RETURN(uint64_t member_index, index.GetBitValueUnsigned());
+    const std::vector<InterpValue>& members =
+        basis.GetProcInitializerOrDie().members();
+    XLS_RET_CHECK_LT(member_index, members.size());
+    stack_.Push(members[member_index]);
+    return absl::OkStatus();
+  }
+
   if (!basis.IsTuple()) {
     return absl::InternalError(
         absl::StrCat("BytecodeInterpreter type error: tuple_index bytecode can "

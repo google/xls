@@ -14,6 +14,7 @@
 
 #include "xls/dslx/ir_convert/channel_scope.h"
 
+#include <algorithm>
 #include <cstdint>
 #include <optional>
 #include <string>
@@ -37,6 +38,8 @@
 #include "xls/dslx/channel_direction.h"
 #include "xls/dslx/constexpr_evaluator.h"
 #include "xls/dslx/frontend/ast.h"
+#include "xls/dslx/frontend/builtin_stubs_utils.h"
+#include "xls/dslx/frontend/module.h"
 #include "xls/dslx/frontend/proc_id.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/interp_value.h"
@@ -58,6 +61,36 @@ namespace {
 
 constexpr std::string_view kNameAndDimsSeparator = "__";
 constexpr std::string_view kBetweenDimsSeparator = "_";
+
+// Converts the annotation of a proc member declared as an io object, e.g.
+// `Source<u32>` or `Sink<u32>[4]`, into an equivalent `ChannelTypeAnnotation`.
+ChannelTypeAnnotation* IoObjectToChannelTypeAnnotation(TypeAnnotation* annot) {
+  // Unlike `chan<T>[N]`, which keeps its dims inside the channel annotation,
+  // an io object array is spelled as enclosing array annotations, which gives
+  // the dims in indexing order.
+  std::vector<Expr*> dims;
+  TypeAnnotation* element = annot;
+  while (auto* array_annot = dynamic_cast<ArrayTypeAnnotation*>(element)) {
+    dims.push_back(array_annot->dim());
+    element = array_annot->element_type();
+  }
+  std::reverse(dims.begin(), dims.end());
+
+  auto* type_ref_annot = dynamic_cast<TypeRefTypeAnnotation*>(element);
+  std::optional<ChannelDirection> direction;
+  if (type_ref_annot != nullptr) {
+    TypeDefinition def = type_ref_annot->type_ref()->type_definition();
+    if (std::holds_alternative<StructDef*>(def)) {
+      direction = GetBuiltinIoObjectDirection(std::get<StructDef*>(def));
+    }
+  }
+  CHECK(direction.has_value())
+      << "Type is not usable as a boundary channel: " << annot->ToString();
+  return annot->owner()->Make<ChannelTypeAnnotation>(
+      annot->span(), *direction,
+      std::get<TypeAnnotation*>(type_ref_annot->parametrics()[0]),
+      dims.empty() ? std::nullopt : std::make_optional(std::move(dims)));
+}
 
 }  // namespace
 
@@ -160,16 +193,28 @@ absl::StatusOr<ChannelOrArray> ChannelScope::DefineChannelOrArrayInternal(
 }
 
 absl::StatusOr<ChannelOrArray> ChannelScope::DefineBoundaryChannelOrArray(
-    const Param* param, TypeInfo* type_info,
-    std::optional<ChannelConfig> channel_config,
+    std::variant<const Param*, const StructMemberNode*> param_or_member,
+    TypeInfo* type_info, std::optional<ChannelConfig> channel_config,
     std::optional<ChannelStrictness> strictness,
     std::optional<FlowControl> flow_control) {
   XLS_RET_CHECK(function_context_.has_value());
-  VLOG(4) << "ChannelScope::DefineBoundaryChannelOrArray: "
-          << param->ToString();
-  auto* type_annot =
-      dynamic_cast<ChannelTypeAnnotation*>(param->type_annotation());
-  XLS_RET_CHECK(type_annot != nullptr);
+  std::string_view short_name;
+  ChannelTypeAnnotation* type_annot = nullptr;
+  if (std::holds_alternative<const Param*>(param_or_member)) {
+    const Param* param = std::get<const Param*>(param_or_member);
+    VLOG(4) << "ChannelScope::DefineBoundaryChannelOrArray: "
+            << param->ToString();
+    type_annot = dynamic_cast<ChannelTypeAnnotation*>(param->type_annotation());
+    XLS_RET_CHECK(type_annot != nullptr);
+    short_name = param->identifier();
+  } else {
+    const StructMemberNode* member =
+        std::get<const StructMemberNode*>(param_or_member);
+    VLOG(4) << "ChannelScope::DefineBoundaryChannelOrArray: "
+            << member->ToString();
+    short_name = member->name();
+    type_annot = IoObjectToChannelTypeAnnotation(member->type());
+  }
   std::optional<Type*> type = type_info->GetItem(type_annot->payload());
   XLS_RET_CHECK(type.has_value());
   XLS_ASSIGN_OR_RETURN(xls::Type * ir_type,
@@ -178,10 +223,11 @@ absl::StatusOr<ChannelOrArray> ChannelScope::DefineBoundaryChannelOrArray(
   ChannelOps op = type_annot->direction() == ChannelDirection::kIn
                       ? ChannelOps::kReceiveOnly
                       : ChannelOps::kSendOnly;
-  XLS_ASSIGN_OR_RETURN(ChannelOrArray channel_or_array,
-                       DefineChannelOrArrayInternal(
-                           param->identifier(), op, ir_type, channel_config,
-                           type_annot->dims(), true, strictness, flow_control));
+  XLS_ASSIGN_OR_RETURN(
+      ChannelOrArray channel_or_array,
+      DefineChannelOrArrayInternal(
+          short_name, op, ir_type, channel_config, type_annot->dims(),
+          /*interface_channel=*/true, strictness, flow_control));
   XLS_RETURN_IF_ERROR(DefineProtoChannelOrArray(channel_or_array, type_annot,
                                                 ir_type, type_info));
   return channel_or_array;
