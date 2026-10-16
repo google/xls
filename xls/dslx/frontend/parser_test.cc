@@ -4719,6 +4719,17 @@ const x)";
                "shadowing an existing definition from <no-file>:1:1-1:10"));
 }
 
+TEST_F(ParserTest, ConstShadowsUse) {
+  constexpr std::string_view kProgram = R"(#![feature(use_syntax)]
+use foo::C;
+const C = u32:5;
+)";
+  EXPECT_THAT(Parse(kProgram),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Constant definition is shadowing an existing "
+                                 "definition")));
+}
+
 TEST_F(ParserTest, ConstParseErrorIncludesContext) {
   constexpr std::string_view kProgram = R"(const x = 1)";
   Scanner s{file_table_, Fileno(0), std::string(kProgram)};
