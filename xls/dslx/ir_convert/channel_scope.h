@@ -147,10 +147,11 @@ class ChannelScope {
   absl::StatusOr<ChannelOrArray> DefineChannelOrArray(const ChannelDecl* decl);
 
   // Creates the channel object, or array of channel objects, indicated by the
-  // given parameter at the overall DSLX->IR conversion boundary. Channels at
-  // the boundary have only a send or receive side.
+  // given parameter or proc member at the overall DSLX->IR conversion
+  // boundary. Channels at the boundary have only a send or receive side.
   absl::StatusOr<ChannelOrArray> DefineBoundaryChannelOrArray(
-      const Param* param, TypeInfo* type_info,
+      std::variant<const Param*, const StructMemberNode*> param_or_member,
+      TypeInfo* type_info,
       std::optional<ChannelConfig> channel_config = std::nullopt,
       std::optional<ChannelStrictness> strictness = std::nullopt,
       std::optional<FlowControl> flow_control = std::nullopt);

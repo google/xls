@@ -1,0 +1,19 @@
+package test_module
+
+file_number 0 "test_module.x"
+
+proc __test_module__Top_next<_input: bits[32] in, _output: bits[32] out, _arr_in__0: bits[32] in, _arr_in__1: bits[32] in, _grid_out__0_0: bits[32] out, _grid_out__1_0: bits[32] out, _grid_out__2_0: bits[32] out, _grid_out__0_1: bits[32] out, _grid_out__1_1: bits[32] out, _grid_out__2_1: bits[32] out>() {
+  chan_interface _input(direction=receive, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
+  chan_interface _output(direction=send, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
+  chan_interface _arr_in__0(direction=receive, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
+  chan_interface _arr_in__1(direction=receive, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
+  chan_interface _grid_out__0_0(direction=send, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
+  chan_interface _grid_out__1_0(direction=send, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
+  chan_interface _grid_out__2_0(direction=send, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
+  chan_interface _grid_out__0_1(direction=send, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
+  chan_interface _grid_out__1_1(direction=send, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
+  chan_interface _grid_out__2_1(direction=send, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
+  __token: token = literal(value=token, id=1)
+  literal.2: bits[1] = literal(value=1, id=2)
+  tuple.3: () = tuple(id=3)
+}
