@@ -1154,9 +1154,7 @@ proc Loopback<N: u32> {
     c_out: Sink<u32>,
 }
 impl Loopback<N> {
-    fn new(c_in: Source<u32>, c_out: Sink<u32>) -> Self {
-        Loopback { c_in: c_in, c_out: c_out }
-    }
+    fn new() -> Self { Loopback {} }
     fn next(self) {}
 }
 )",
@@ -1171,9 +1169,7 @@ pub proc Loopback<N: u32> {
   c_out: Sink<u32>,
 }
 impl Loopback<N> {
-  pub fn new(c_in: Source<u32>, c_out: Sink<u32>) -> Self {
-    Loopback { c_in: c_in, c_out: c_out }
-  }
+  pub fn new() -> Self { Loopback {} }
   fn next(self) {}
 }
 )";
@@ -1297,6 +1293,57 @@ impl P { fn new() -> Self { P {} } }
   XLS_ASSERT_OK_AND_ASSIGN(InterpValue output, GetMemberValue(p, "output"));
   EXPECT_EQ(GetChannelDefinerKind(input), AstNodeKind::kStructMember);
   EXPECT_EQ(GetChannelDefinerKind(output), AstNodeKind::kStructMember);
+}
+
+TEST(TypecheckV2ProcTest, IoObjectConstructorParamIsRejected) {
+  EXPECT_THAT(R"(
+#![feature(io_objects)]
+proc P { input: Source<u32> }
+impl P { fn new(c: Source<u32>) -> Self { P { input: c } } }
+)",
+              TypecheckFails(HasSubstr(
+                  "Proc constructor parameter `c: Source<u32>` contains a "
+                  "Source or Sink, which are default-initialized and cannot "
+                  "be passed to a proc constructor.")));
+}
+
+TEST(TypecheckV2ProcTest, IoObjectArrayConstructorParamIsRejected) {
+  EXPECT_THAT(R"(
+#![feature(io_objects)]
+proc P { outputs: Sink<u32>[2] }
+impl P { fn new(c: Sink<u32>[2]) -> Self { P { outputs: c } } }
+)",
+              TypecheckFails(HasSubstr(
+                  "Proc constructor parameter `c: Sink<u32>[2]` contains a "
+                  "Source or Sink")));
+}
+
+TEST(TypecheckV2ProcTest, IoObjectInTupleConstructorParamIsRejected) {
+  EXPECT_THAT(R"(
+#![feature(io_objects)]
+proc P { input: Source<u32> }
+impl P { fn new(t: (Source<u32>, u32)) -> Self { P {} } }
+)",
+              TypecheckFails(HasSubstr(
+                  "Proc constructor parameter `t: (Source<u32>, u32)` contains "
+                  "a Source or Sink")));
+}
+
+TEST(TypecheckV2ProcTest, LegacyChannelConstructorParamIsAllowed) {
+  EXPECT_THAT(R"(
+#![feature(io_objects)]
+proc P { input: chan<u32> in, output: Sink<u32> }
+impl P { fn new(c: chan<u32> in) -> Self { P { input: c } } }
+)",
+              TypecheckSucceeds(::testing::_));
+}
+
+TEST(TypecheckV2ProcTest, IoObjectHelperFunctionParamIsAllowed) {
+  EXPECT_THAT(R"(
+#![feature(io_objects)]
+fn helper(s: Sink<u32>, t: (Source<u32>, u32)) {}
+)",
+              TypecheckSucceeds(::testing::_));
 }
 
 TEST(TypecheckV2ProcTest, DefaultIoObjectMembersAreDistinctPerInstance) {
