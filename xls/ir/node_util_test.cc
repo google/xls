@@ -62,6 +62,8 @@
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/pass_base.h"
 #include "xls/solvers/ir_equivalence_testutils.h"
+#include "xls/solvers/prover_matchers.h"
+#include "xls/solvers/solver.h"
 
 namespace m = ::xls::op_matchers;
 
@@ -1572,6 +1574,42 @@ TEST_F(NodeUtilTest, ResolveLocMergesAndDedups) {
   ASSERT_EQ(resolved.locations.size(), 2);
   EXPECT_EQ(resolved.locations[0].ToString(), loc_a.ToString());
   EXPECT_EQ(resolved.locations[1].ToString(), loc_b.ToString());
+}
+
+TEST_F(NodeUtilTest, PrioritySelectOfConcatIfNeeded) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue a = fb.Param("a", p->GetBitsType(1));
+  BValue b = fb.Param("b", p->GetBitsType(1));
+  BValue c = fb.Param("c", p->GetBitsType(1));
+  BValue d = fb.Param("d", p->GetBitsType(1));
+  BValue e = fb.Param("e", p->GetBitsType(1));
+  BValue r1 = fb.Param("r1", p->GetBitsType(3));
+  BValue r2 = fb.Param("r2", p->GetBitsType(3));
+  BValue r3 = fb.Param("r3", p->GetBitsType(3));
+  BValue r4 = fb.Param("r4", p->GetBitsType(3));
+  BValue r5 = fb.Param("r5", p->GetBitsType(3));
+  BValue r6 = fb.Param("r6", p->GetBitsType(3));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Node * priority_sel,
+      PrioritySelectOfConcatIfNeeded(
+          fb.function(), {a.node(), b.node(), c.node(), d.node(), e.node()},
+          {r1.node(), r2.node(), r3.node(), r4.node(), r5.node()}, r6.node()));
+  BValue ps(priority_sel, &fb);
+  fb.Eq(ps, fb.Select(
+                a, r1,
+                fb.Select(
+                    b, r2,
+                    fb.Select(c, r3, fb.Select(d, r4, fb.Select(e, r5, r6))))));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto solver_result,
+      solvers::TryProve(f, f->return_value(),
+                        solvers::Predicate::NotEqualToZero(),
+                        solvers::SolverLimit{}));
+  EXPECT_THAT(solver_result, solvers::IsProvenTrue())
+      << f->DumpIr(solvers::CounterExampleAnnotator(
+             std::get<solvers::ProvenFalse>(solver_result)));
 }
 
 }  // namespace

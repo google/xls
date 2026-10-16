@@ -443,6 +443,26 @@ absl::StatusOr<Node*> NorReduceLeading(
   return f->MakeNode<UnOp>(loc, reduced, Op::kNot);
 }
 
+absl::StatusOr<Node*> PrioritySelectOfConcatIfNeeded(
+    FunctionBase* f, absl::Span<Node* const> selectors,
+    absl::Span<Node* const> operands, Node* default_value,
+    std::string_view name, const SourceInfo& source_info) {
+  XLS_RET_CHECK_EQ(selectors.size(), operands.size());
+  XLS_RET_CHECK(absl::c_all_of(selectors, [](Node* selector) {
+    return selector->GetType()->IsBits() && selector->BitCountOrDie() == 1;
+  }));
+  if (selectors.empty()) {
+    return default_value;
+  }
+
+  std::vector<Node*> selectors_rev(selectors.rbegin(), selectors.rend());
+  XLS_ASSIGN_OR_RETURN(Node * selector_node,
+                       ConcatIfNeeded(f, selectors_rev, name, source_info));
+  XLS_ASSIGN_OR_RETURN(Node * sel, f->MakeNodeWithName<PrioritySelect>(
+                                       source_info, selector_node, operands,
+                                       default_value, name));
+  return sel;
+}
 absl::StatusOr<Node*> ConcatIfNeeded(FunctionBase* f,
                                      absl::Span<Node* const> operands,
                                      std::string_view name,

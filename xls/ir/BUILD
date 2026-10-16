@@ -1074,6 +1074,8 @@ cc_test(
         "//xls/passes:optimization_pass",
         "//xls/passes:pass_base",
         "//xls/solvers:ir_equivalence_testutils",
+        "//xls/solvers:prover_matchers",
+        "//xls/solvers:solver",
         "@abseil-cpp//absl/container:flat_hash_map",
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/status",

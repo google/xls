@@ -261,6 +261,19 @@ absl::StatusOr<Node*> NorReduceLeading(
     Node* node, int64_t bit_count,
     const std::optional<SourceInfo>& source_info = std::nullopt);
 
+// Generate a priority select with the given selectors and operands.
+// If the first selector is true, the first operand is chosen, etc.
+// If none of the selectors are true, the default value is chosen.
+//
+// selectors and operands must be the same size and all selectors must be a
+// single bit.
+//
+// If selectors and operands are empty then the default value is returned.
+absl::StatusOr<Node*> PrioritySelectOfConcatIfNeeded(
+    FunctionBase* f, absl::Span<Node* const> selectors,
+    absl::Span<Node* const> operands, Node* default_value,
+    std::string_view name = "", const SourceInfo& source_info = {});
+
 // Concatenate the given operands if needed (in MSB-first order). If there are
 // 2+ operands, returns a concat of them; if there is 1 operand, returns that
 // operand; and if there are no operands, fails.
