@@ -1351,6 +1351,46 @@ TEST_F(ArithSimplificationPassTest, UDivOfSelect) {
   EXPECT_THAT(f->nodes(), testing::Not(testing::Contains(m::UDiv())));
 }
 
+TEST_F(ArithSimplificationPassTest, SDivOfSelect) {
+  auto p = CreatePackage();
+  FunctionBuilder fb("SDivOfSelect", p.get());
+  fb.SDiv(
+      fb.Param("foo", p->GetBitsType(8)),
+      fb.Select(
+          fb.Param("c", p->GetBitsType(2)),
+          {fb.Literal(Value(SBits(-128, 8))), fb.Literal(Value(SBits(-4, 8))),
+           fb.Literal(Value(SBits(-1, 8))), fb.Literal(Value(SBits(6, 8)))}));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ScopedVerifyEquivalence sve(f);
+  ScopedRecordIr sri(p.get());
+  ASSERT_THAT(Run(p.get(), /*with_dce=*/true), IsOkAndHolds(true));
+  EXPECT_THAT(f->nodes(), testing::Not(testing::Contains(m::SDiv())));
+  EXPECT_THAT(
+      f->return_value(),
+      m::PrioritySelect(
+          m::Concat(m::Eq(), m::Eq(), m::Eq(), m::Eq()),
+          {m::Sub(), m::Neg(), m::Neg(), m::Neg(m::Param("foo"))},
+          m::Select(m::BitSlice(m::Param("foo"), /*start=*/7, /*width=*/1),
+                    {m::Literal(SBits(127, 8)), m::Literal(SBits(-128, 8))})));
+}
+
+TEST_F(ArithSimplificationPassTest, SDivOfSelectNonPowersOfTwo) {
+  auto p = CreatePackage();
+  FunctionBuilder fb("SDivOfSelectNonPowersOfTwo", p.get());
+  fb.SDiv(fb.Param("foo", p->GetBitsType(8)),
+          fb.Select(fb.Param("c", p->GetBitsType(1)),
+                    {fb.Literal(Value(SBits(-3, 8))),
+                     fb.Literal(Value(SBits(5, 8)))}));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ScopedVerifyEquivalence sve(f);
+  ScopedRecordIr sri(p.get());
+  ASSERT_THAT(Run(p.get(), /*with_dce=*/true), IsOkAndHolds(true));
+  EXPECT_THAT(f->nodes(), testing::Not(testing::Contains(m::SDiv())));
+  EXPECT_THAT(f->return_value(),
+              m::PrioritySelect(m::Eq(), {m::Sub()},
+                                /*default_value=*/m::Neg(m::Sub())));
+}
+
 TEST_F(ArithSimplificationPassTest, UDivOf64) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
@@ -1851,6 +1891,23 @@ fn func(x: bits[8], k: bits[3]) -> bits[8] {
   ScopedVerifyEquivalence sve(f);
   EXPECT_THAT(Run(p.get(), /*with_dce=*/true), IsOkAndHolds(true));
   EXPECT_THAT(f->return_value(), m::PrioritySelect());
+}
+
+TEST_F(ArithSimplificationPassTest, SDivByShiftedValueShiftOverflow) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetBitsType(8));
+  BValue k = fb.Param("k", p->GetBitsType(3));
+  fb.SDiv(x, fb.Shll(fb.Literal(UBits(96, 8)), k));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ScopedVerifyEquivalence sve(f);
+  EXPECT_THAT(Run(p.get(), /*with_dce=*/true), IsOkAndHolds(true));
+  EXPECT_THAT(
+      f->return_value(),
+      m::PrioritySelect(
+          m::Concat(m::Eq(), m::Eq(), m::Eq()), {m::Sub(), m::Neg(), m::Neg()},
+          m::Select(m::BitSlice(m::Param("x"), /*start=*/7, /*width=*/1),
+                    {m::Literal(SBits(127, 8)), m::Literal(SBits(-128, 8))})));
 }
 
 TEST_F(ArithSimplificationPassTest, MulBy1) {
@@ -2615,6 +2672,7 @@ TEST_F(ArithSimplificationPassTest, UDivByShiftedVariablePowerOfTwoWideShift) {
 
   ScopedVerifyEquivalence sve(f);
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(), m::Literal(UBits(255, 8)));
 }
 
 TEST_F(ArithSimplificationPassTest, SDivByShiftedVariablePowerOfTwoWideShift) {
@@ -2628,7 +2686,11 @@ TEST_F(ArithSimplificationPassTest, SDivByShiftedVariablePowerOfTwoWideShift) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
 
   ScopedVerifyEquivalence sve(f);
-  ASSERT_THAT(Run(p.get()), IsOkAndHolds(false));
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(
+      f->return_value(),
+      m::Select(m::BitSlice(m::Param("x"), /*start=*/7, /*width=*/1),
+                {m::Literal(SBits(127, 8)), m::Literal(SBits(-128, 8))}));
 }
 
 TEST_F(ArithSimplificationPassTest, FuzzTestInvalidSDivTransform) {
@@ -2658,6 +2720,43 @@ TEST_F(ArithSimplificationPassTest, SmallNumberUDiv) {
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
 }
 
+TEST_F(ArithSimplificationPassTest, SmallNumberSDiv) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetBitsType(8));
+  BValue y = fb.Param("y", p->GetBitsType(1));
+  fb.SDiv(x, fb.ZeroExtend(y, 8));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ScopedVerifyEquivalence sve(f);
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(
+      f->return_value(),
+      m::PrioritySelect(
+          m::Eq(m::ZeroExt(m::Param("y")), m::Literal(1)), {m::Param("x")},
+          m::Select(m::BitSlice(m::Param("x"), /*start=*/7, /*width=*/1),
+                    {m::Literal(SBits(127, 8)), m::Literal(SBits(-128, 8))})));
+}
+
+TEST_F(ArithSimplificationPassTest, SmallSignedNumberSDiv) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetBitsType(8));
+  BValue y = fb.Param("y", p->GetBitsType(3));
+  fb.SDiv(x, fb.SignExtend(y, 8));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ScopedVerifyEquivalence sve(f);
+  ASSERT_THAT(Run(p.get(), /*with_dce=*/true), IsOkAndHolds(true));
+  EXPECT_THAT(f->nodes(), testing::Not(testing::Contains(m::SDiv())));
+  EXPECT_THAT(
+      f->return_value(),
+      m::PrioritySelect(
+          m::Concat(),
+          {m::Sub(), m::Neg(), m::Param("x"), m::SignExt(), m::Neg(), m::Neg(),
+           m::Neg()},
+          m::Select(m::BitSlice(m::Param("x"), /*start=*/7, /*width=*/1),
+                    {m::Literal(SBits(127, 8)), m::Literal(SBits(-128, 8))})));
+}
+
 TEST_F(ArithSimplificationPassTest, StateElementUDivOperation) {
   auto p = CreatePackage();
   TokenlessProcBuilder pb(NewStyleProc{}, TestName(), "tkn", p.get());
@@ -2683,6 +2782,32 @@ TEST_F(ArithSimplificationPassTest, StateElementUDivOperation) {
   ASSERT_THAT(passes.Run(p.get(), {}, &results, context), IsOkAndHolds(true));
 }
 
+TEST_F(ArithSimplificationPassTest, StateElementSDivOperation) {
+  auto p = CreatePackage();
+  TokenlessProcBuilder pb(NewStyleProc{}, TestName(), "tkn", p.get());
+  auto st = pb.StateElement("st", Value(SBits(-3, 6)));
+  auto div = pb.StateRead(st);
+  auto div_lt_3 = pb.SLt(div, pb.Literal(SBits(3, 6)));
+  pb.Next(st, pb.Add(div, pb.Literal(UBits(1, 6))), div_lt_3);
+  pb.Next(st, pb.Literal(SBits(-3, 6)), pb.Not(div_lt_3));
+  auto chan = pb.AddInputChannel("quot", p->GetBitsType(6));
+  auto quot = pb.Receive(chan);
+  auto out = pb.AddOutputChannel("res", p->GetBitsType(6));
+  pb.Send(out, pb.SDiv(quot, div));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
+  ScopedVerifyProcEquivalence svpe(proc, 8);
+  ScopedRecordIr sri(p.get(), "sri_ir");
+
+  OptimizationCompoundPass passes("passes", "test passes");
+  passes.Add<RepopulateCachedProcStateInfoPass>();
+  passes.Add<ArithSimplificationPass>();
+  passes.Add<DeadCodeEliminationPass>();
+  OptimizationContext context;
+  PassResults results;
+  ASSERT_THAT(passes.Run(p.get(), {}, &results, context), IsOkAndHolds(true));
+  EXPECT_THAT(proc->nodes(), testing::Not(testing::Contains(m::SDiv())));
+}
+
 TEST_F(ArithSimplificationPassTest, UDivByEnormousPowerOfTwo) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
@@ -2700,6 +2825,39 @@ TEST_F(ArithSimplificationPassTest, UDivByEnormousPowerOfTwo) {
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
   EXPECT_THAT(f->return_value(),
               m::Select(m::UGe(), {m::Shrl(), m::Literal()}));
+}
+
+TEST_F(ArithSimplificationPassTest, SDivByEnormousPowerOfTwo) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetBitsType(4));
+  BValue x_ext = fb.Concat({x, fb.Literal(UBits(0, 124))});
+  BValue k = fb.Param("k", p->GetBitsType(7));
+  BValue one = fb.Literal(UBits(1, 128));
+  fb.SDiv(x_ext, fb.Shll(one, k));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  ScopedRecordIr sri(p.get(), "sri_");
+  // NB Intentionally not doing a VerifyEquivalence here because it takes z3
+  // minutes to verify even when I reduce the input set as much as possible.
+  // ScopedVerifyEquivalence sve(f);
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::PrioritySelect(m::Concat(), {m::Select(), m::Select()},
+                                m::Shra(m::Select(), m::Param("k"))));
+}
+
+TEST_F(ArithSimplificationPassTest, ZeroBitSDiv) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetBitsType(0));
+  BValue y = fb.Param("y", p->GetBitsType(0));
+  fb.SDiv(x, y);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  ScopedVerifyEquivalence sve(f);
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(), m::Literal(UBits(0, 0)));
 }
 
 void IrFuzzArithSimplification(FuzzPackageWithArgs fuzz_package_with_args) {
