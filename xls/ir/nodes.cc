@@ -750,34 +750,6 @@ bool CountedFor::IsDefinitelyEqualTo(const Node* other) const {
          body_->IsDefinitelyEqualTo(other->As<CountedFor>()->body_);
 }
 
-DynamicCountedFor::DynamicCountedFor(const SourceInfo& loc, Node* initial_value,
-                                     Node* trip_count, Node* stride,
-                                     absl::Span<Node* const> invariant_args,
-                                     Function* body, std::string_view name,
-                                     FunctionBase* function)
-    : Node(Op::kDynamicCountedFor, initial_value->GetType(), loc, name,
-           function),
-      body_(body) {
-  CHECK(IsOpClass<DynamicCountedFor>(op_))
-      << "Op `" << op_
-      << "` is not a valid op for Node class `DynamicCountedFor`.";
-  AddOperand(initial_value);
-  AddOperand(trip_count);
-  AddOperand(stride);
-  AddOperands(invariant_args);
-}
-
-bool DynamicCountedFor::IsDefinitelyEqualTo(const Node* other) const {
-  if (this == other) {
-    return true;
-  }
-  if (!Node::IsDefinitelyEqualTo(other)) {
-    return false;
-  }
-
-  return body_->IsDefinitelyEqualTo(other->As<DynamicCountedFor>()->body_);
-}
-
 ExtendOp::ExtendOp(const SourceInfo& loc, Node* arg, int64_t new_bit_count,
                    Op op, std::string_view name, FunctionBase* function)
     : Node(op, function->package()->GetBitsType(new_bit_count), loc, name,
@@ -1365,15 +1337,6 @@ absl::StatusOr<Node*> CountedFor::CloneInNewFunction(
   return new_function->MakeNodeWithName<CountedFor>(
       loc(), new_operands[0], new_operands.subspan(1), trip_count(), stride(),
       body(), GetNameView());
-}
-
-absl::StatusOr<Node*> DynamicCountedFor::CloneInNewFunction(
-    absl::Span<Node* const> new_operands, FunctionBase* new_function) const {
-  XLS_RET_CHECK_EQ(operand_count(), new_operands.size());
-  // TODO(meheff): Choose an appropriate name for the cloned node.
-  return new_function->MakeNodeWithName<DynamicCountedFor>(
-      loc(), new_operands[0], new_operands[1], new_operands[2],
-      new_operands.subspan(3), body(), GetNameView());
 }
 
 absl::StatusOr<Node*> Select::CloneInNewFunction(

@@ -281,14 +281,6 @@ class CseNodeArena {
                                          std::move(data), stage_index);
       }
       // function
-      case Op::kDynamicCountedFor: {
-        return std::make_unique<CseNode>(
-            n, std::move(operands),
-            bytes_data(static_cast<int64_t>(
-                std::bit_cast<intptr_t>(n->As<DynamicCountedFor>()->body()))),
-            stage_index);
-      }
-      // function
       case Op::kInvoke: {
         return std::make_unique<CseNode>(
             n, std::move(operands),

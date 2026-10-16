@@ -449,39 +449,6 @@ class DynamicBitSlice final : public Node {
   int64_t width_;
 };
 
-class DynamicCountedFor final : public Node {
- public:
-  static constexpr std::array<Op, 1> kOps = {Op::kDynamicCountedFor};
-  static constexpr int64_t kInitialValueOperand = 0;
-  static constexpr int64_t kTripCountOperand = 1;
-  static constexpr int64_t kStrideOperand = 2;
-
-  DynamicCountedFor(const SourceInfo& loc, Node* initial_value,
-                    Node* trip_count, Node* stride,
-                    absl::Span<Node* const> invariant_args, Function* body,
-                    std::string_view name, FunctionBase* function);
-
-  absl::StatusOr<Node*> CloneInNewFunction(
-      absl::Span<Node* const> new_operands,
-      FunctionBase* new_function) const final;
-  Function* body() const { return body_; }
-
-  Node* initial_value() const { return operand(0); }
-
-  Node* trip_count() const { return operand(1); }
-
-  Node* stride() const { return operand(2); }
-
-  absl::Span<Node* const> invariant_args() const {
-    return operands().subspan(3);
-  }
-
-  bool IsDefinitelyEqualTo(const Node* other) const final;
-
- private:
-  Function* body_;
-};
-
 class Encode final : public Node {
  public:
   static constexpr std::array<Op, 1> kOps = {Op::kEncode};

@@ -45,7 +45,6 @@ namespace {
   M(Cover)                   \
   M(Decode)                  \
   M(DynamicBitSlice)         \
-  M(DynamicCountedFor)       \
   M(Encode)                  \
   M(ExtendOp)                \
   M(Gate)                    \

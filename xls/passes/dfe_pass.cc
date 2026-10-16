@@ -54,9 +54,6 @@ void MarkReachedFunctions(FunctionBase* func,
       case Op::kCountedFor:
         MarkReachedFunctions(node->As<CountedFor>()->body(), reached);
         break;
-      case Op::kDynamicCountedFor:
-        MarkReachedFunctions(node->As<DynamicCountedFor>()->body(), reached);
-        break;
       case Op::kInvoke:
         MarkReachedFunctions(node->As<Invoke>()->to_apply(), reached);
         break;

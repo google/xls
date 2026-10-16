@@ -16,10 +16,9 @@
 # proto-message: xls.estimator_model.EstimatorModel
 
 # Dummy "unit" model for testing. All operations have unit latency (1ps),
-# except those with a nested body (i.e. `kInvoke`, `kCountedFor`,
-# `kDynamicCountedFor`). For those operations we rely on the area estimator's
-# default behavior that estimates the area of an operation by recursing into the
-# body.
+# except those with a nested body (i.e. `kInvoke`, `kCountedFor`). For those
+# operations we rely on the area estimator's default behavior that estimates the
+# area of an operation by recursing into the body.
 op_models { op: "kAdd" estimator { fixed: 1 } }
 op_models { op: "kAnd" estimator { fixed: 1 } }
 op_models { op: "kAndReduce" estimator { fixed: 1 } }

@@ -1037,10 +1037,7 @@ interconnect is used for reconfiguration purposes.
 Towards this eager-evaluation-capable model, operations used within a function
 are generally not Turing-complete: operations such as `counted_for` require a
 finite bound so that they could be implemented using a finite amount of pipeline
-area. Operations such as `dynamic_counted_for` are an exception, where that
-operation will only be possible to use in a time-multiplexed code generation
-mode, such as the XLS sequential emitter, where arbitrary iteration to some
-dynamic bound is likely to be possible.
+area.
 
 #### **`param`**
 
@@ -1213,65 +1210,6 @@ Value     | Type
 | `to_apply` | `string` | yes      |         | Name of the function to apply to each element of the operand |
 
 <!-- mdformat on -->
-
-#### **`dynamic_counted_for`**
-
-Invokes a dynamic-trip count loop.
-
-**Syntax**
-
-```
-result = counted_for(init, trip_count, stride, body=<body>, invariant_args=<inv_args>)
-```
-
-**Types**
-
-Value        | Type
------------- | ------------------------------
-`init`       | `T`
-`trip_count` | `bits[N], treated as unsigned`
-`stride`     | `bits[M], treated as signed`,
-`result`     | `T`
-
-**Keyword arguments**
-
-<!-- mdformat off(multiline table cells not supported in mkdocs) -->
-
-| Keyword          | Type     | Required | Default | Description                                      |
-| ---------------- | -------- | -------- | ------- | ------------------------------------------------ |
-| `invariant_args` | array of | yes      |         | Names of the invariant operands as the loop body |
-| `body`           | `string` | yes      |         | Name of the function to use as the loop body     |
-
-<!-- mdformat on -->
-
-`dynamic_counted_for` invokes the function `body` `trip_count` times, passing
-loop-carried data that starts with value `init`. The induction variable is
-incremented by `stride` after each iteration.
-
--   The first argument passed to `body` is the induction variable -- presently,
-    the induction variable always starts at zero and increments by `stride`
-    after every trip.
--   The second argument passed to `body` is the loop-carry data. The return type
-    of `body` must be the same as the type of the `init` loop carry data. The
-    value returned from the last trip is the result of the `counted_for`
-    expression.
--   All subsequent arguments passed to `body` are passed from `invariant_args`;
-    e.g. if there are two members in `invariant_args` those values are passed as
-    the third and fourth arguments.
-
-Therefore `body` should have a signature that matches the following:
-
-```
-body(i, loop_carry_data, [invariant_arg0, invariant_arg1, ...])
-```
-
-Note that we currently inspect the `body` function to see what type of induction
-variable (`i` above) it accepts in order to pass an `i` value of that type.
-`trip_count` must have fewer bits than `i` and `stride` should have fewer than
-or equal number of bits to `i`.
-
-Code generation support for `dynamic_counted_for` is limited because the
-pipeline generator cannot handle an unknown trip count.
 
 #### **`counted_for`**
 

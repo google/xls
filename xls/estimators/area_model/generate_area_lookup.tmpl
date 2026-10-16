@@ -53,18 +53,6 @@ class AreaEstimatorModel{{camel_case_name}} : public AreaEstimator {
         break;
       }
   {% endif %}
-  {% if "kDynamicCountedFor" not in area_model.ops() %}
-      case Op::kDynamicCountedFor: {
-        DynamicCountedFor* dynamic_counted_for = node->As<DynamicCountedFor>();
-        Function* body = dynamic_counted_for->body();
-        XLS_ASSIGN_OR_RETURN(double body_area,
-                             GetFunctionBaseAreaInSquareMicrons(body));
-        // Trip count is dynamic. As a best effort, we estimate the area as the
-        // body area (corresponding to a trip count of 1).
-        area_status = body_area;
-        break;
-      }
-  {% endif %}
       default:
         return absl::UnimplementedError(
           "Unhandled node for area estimation in area model '{{name}}': "

@@ -236,36 +236,6 @@ TEST_F(DeadFunctionEliminationPassTest, MapAndCountedFor) {
   EXPECT_EQ(p->functions().size(), 3);
 }
 
-TEST_F(DeadFunctionEliminationPassTest, MapAndDynamicCountedFor) {
-  // If no entry function is specified, then DFS cannot happen as all functions
-  // are live.
-  auto p = std::make_unique<Package>(TestName());
-  XLS_ASSERT_OK_AND_ASSIGN(Function * a, MakeFunction("a", p.get()));
-  Function* body;
-  {
-    FunctionBuilder fb("jesse_the_loop_body", p.get());
-    fb.Param("i", p->GetBitsType(32));
-    fb.Param("arg", p->GetBitsType(32));
-    fb.Literal(UBits(123, 32));
-    XLS_ASSERT_OK_AND_ASSIGN(body, fb.Build());
-  }
-  FunctionBuilder fb("the_entry", p.get());
-  BValue x = fb.Param("x", p->GetBitsType(32));
-  BValue ar = fb.Param("ar", p->GetArrayType(42, p->GetBitsType(32)));
-  BValue mapped_ar = fb.Map(ar, a);
-  BValue for_loop =
-      fb.DynamicCountedFor(x, /*trip_count=*/fb.Literal(UBits(42, 10)),
-                           /*stride=*/fb.Literal(UBits(1, 10)), body);
-  fb.Tuple({mapped_ar, for_loop});
-
-  XLS_ASSERT_OK(fb.Build().status());
-  XLS_ASSERT_OK(p->SetTopByName("the_entry"));
-
-  EXPECT_EQ(p->functions().size(), 3);
-  EXPECT_THAT(Run(p.get()), IsOkAndHolds(false));
-  EXPECT_EQ(p->functions().size(), 3);
-}
-
 TEST_F(DeadFunctionEliminationPassTest, BlockWithInstantiation) {
   auto p = CreatePackage();
   Type* u32 = p->GetBitsType(32);

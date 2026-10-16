@@ -291,7 +291,6 @@ BomKindProto OpToBomKind(Op op) {
     }
 
     case Op::kCountedFor:
-    case Op::kDynamicCountedFor:
     case Op::kInputPort:
     case Op::kInstantiationInput:
     case Op::kInstantiationOutput:

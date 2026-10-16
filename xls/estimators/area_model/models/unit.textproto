@@ -30,7 +30,6 @@ op_models { op: "kConcat" estimator { fixed: 1 } }
 op_models { op: "kCountedFor" estimator { fixed: 1 } }
 op_models { op: "kDecode" estimator { fixed: 1 } }
 op_models { op: "kDynamicBitSlice" estimator { fixed: 1 } }
-op_models { op: "kDynamicCountedFor" estimator { fixed: 1 } }
 op_models { op: "kEncode" estimator { fixed: 1 } }
 op_models { op: "kEq" estimator { fixed: 1 } }
 op_models { op: "kGate" estimator { fixed: 1 } }

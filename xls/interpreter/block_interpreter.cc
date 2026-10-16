@@ -653,11 +653,6 @@ class ElaboratedBlockInterpreter final : public ElaboratedBlockDfsVisitor {
     XLS_RETURN_IF_ERROR(SetInstance(instance));
     return current_interpreter_->HandleDynamicBitSlice(dynamic_bit_slice);
   }
-  absl::Status HandleDynamicCountedFor(DynamicCountedFor* dynamic_counted_for,
-                                       BlockInstance* instance) override {
-    XLS_RETURN_IF_ERROR(SetInstance(instance));
-    return current_interpreter_->HandleDynamicCountedFor(dynamic_counted_for);
-  }
   absl::Status HandleEncode(Encode* encode, BlockInstance* instance) override {
     XLS_RETURN_IF_ERROR(SetInstance(instance));
     return current_interpreter_->HandleEncode(encode);

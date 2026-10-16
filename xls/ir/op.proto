@@ -41,7 +41,8 @@ enum OpProto {
   OP_CONCAT = 19;
   OP_COUNTED_FOR = 20;
   OP_DECODE = 21;
-  OP_DYNAMIC_COUNTED_FOR = 22;
+  reserved 22;
+  reserved OP_DYNAMIC_COUNTED_FOR;
   OP_ENCODE = 23;
   OP_EQ = 24;
   OP_IDENTITY = 25;

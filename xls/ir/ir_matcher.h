@@ -497,49 +497,6 @@ inline ::testing::Matcher<const ::xls::Node*> DynamicBitSlice(
                                                     std::move(start), width);
 }
 
-// DynamicCountedFor mather. Supported forms:
-//   EXPECT_THAT(foo,
-//               m::DynamicCountedForMatcher(
-//                   m::Param(), m::Param(),
-//                   m::Param(), {m::Xor(), bar}));
-//
-// Where bar is a FunctionBase*.
-class DynamicCountedForMatcher : public NodeMatcher {
- public:
-  explicit DynamicCountedForMatcher(
-      ::testing::Matcher<const Node*> init,
-      ::testing::Matcher<const Node*> trip_count,
-      ::testing::Matcher<const Node*> stride, FunctionBase* body,
-      std::vector<::testing::Matcher<const Node*>> invariant_args)
-      : NodeMatcher(Op::kDynamicCountedFor,
-                    [&]() {
-                      std::vector<::testing::Matcher<const Node*>> operands;
-                      operands.push_back(init);
-                      operands.push_back(trip_count);
-                      operands.push_back(stride);
-                      operands.insert(operands.end(), invariant_args.begin(),
-                                      invariant_args.end());
-                      return operands;
-                    }()),
-        body_(body) {}
-
-  bool MatchAndExplain(const Node* node,
-                       ::testing::MatchResultListener* listener) const override;
-
- private:
-  FunctionBase* body_;
-};
-
-inline ::testing::Matcher<const ::xls::Node*> DynamicCountedFor(
-    ::testing::Matcher<const Node*> init,
-    ::testing::Matcher<const Node*> trip_count,
-    ::testing::Matcher<const Node*> stride, FunctionBase* body,
-    std::vector<::testing::Matcher<const Node*>> invariant_args) {
-  return ::xls::op_matchers::DynamicCountedForMatcher(
-      std::move(init), std::move(trip_count), std::move(stride), body,
-      std::move(invariant_args));
-}
-
 // Literal matcher. Supported forms:
 //
 //   EXPECT_THAT(foo, m::Literal());

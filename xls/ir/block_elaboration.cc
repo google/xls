@@ -809,10 +809,6 @@ absl::Status ElaboratedNode::VisitSingleNode(
       return visitor.HandleCountedFor(absl::down_cast<CountedFor*>(node),
                                       instance);
 
-    case Op::kDynamicCountedFor:
-      return visitor.HandleDynamicCountedFor(
-          absl::down_cast<DynamicCountedFor*>(node), instance);
-
     case Op::kLiteral:
       return visitor.HandleLiteral(absl::down_cast<Literal*>(node), instance);
 

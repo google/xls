@@ -251,10 +251,6 @@ absl::Status Node::VisitSingleNode(DfsVisitor* visitor) {
       XLS_RETURN_IF_ERROR(
           visitor->HandleCountedFor(absl::down_cast<CountedFor*>(this)));
       break;
-    case Op::kDynamicCountedFor:
-      XLS_RETURN_IF_ERROR(visitor->HandleDynamicCountedFor(
-          absl::down_cast<DynamicCountedFor*>(this)));
-      break;
     case Op::kLiteral:
       XLS_RETURN_IF_ERROR(
           visitor->HandleLiteral(absl::down_cast<Literal*>(this)));
@@ -680,19 +676,6 @@ std::string Node::ToStringInternal(bool include_operand_types) const {
         args.push_back(absl::StrFormat(
             "invariant_args=[%s]",
             absl::StrJoin(As<CountedFor>()->invariant_args(), ", ")));
-      }
-      break;
-    case Op::kDynamicCountedFor:
-      for (int64_t i = 0; i < As<DynamicCountedFor>()->invariant_args().size();
-           ++i) {
-        args.pop_back();
-      }
-      args.push_back(
-          absl::StrFormat("body=%s", As<DynamicCountedFor>()->body()->name()));
-      if (!As<DynamicCountedFor>()->invariant_args().empty()) {
-        args.push_back(absl::StrFormat(
-            "invariant_args=[%s]",
-            absl::StrJoin(As<DynamicCountedFor>()->invariant_args(), ", ")));
       }
       break;
     case Op::kMap:

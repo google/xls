@@ -238,7 +238,6 @@ class FuzzCoverageTest(test_base.TestCase):
         ir_op_pb2.OP_AFTER_ALL,
         ir_op_pb2.OP_ASSERT,
         ir_op_pb2.OP_COVER,
-        ir_op_pb2.OP_DYNAMIC_COUNTED_FOR,
         ir_op_pb2.OP_IDENTITY,
         ir_op_pb2.OP_INPUT_PORT,
         ir_op_pb2.OP_INSTANTIATION_INPUT,
@@ -390,7 +389,6 @@ class FuzzCoverageTest(test_base.TestCase):
         # keep-sorted start
         ir_op_pb2.OP_ASSERT,
         ir_op_pb2.OP_COVER,
-        ir_op_pb2.OP_DYNAMIC_COUNTED_FOR,
         ir_op_pb2.OP_IDENTITY,
         ir_op_pb2.OP_INPUT_PORT,
         ir_op_pb2.OP_INSTANTIATION_INPUT,

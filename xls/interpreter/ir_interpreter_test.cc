@@ -166,7 +166,7 @@ TEST_F(IrInterpreterOnlyTest, SideEffectingNodes) {
 // common IR evaluator tests and make them more comprehensive once the JIT
 // supports the full range of trace operations.
 
-// Test collecting traces across static and dynamic counted for loops.
+// Test collecting traces across counted for loops.
 TEST_F(IrInterpreterOnlyTest, TraceCountedFor) {
   const std::string pkg_text = R"(
 package trace_counted_for_test
@@ -182,12 +182,6 @@ fn accum_fixed() -> bits[32] {
   literal.4: bits[32] = literal(value=0)
   ret counted_for.5: bits[32] = counted_for(literal.4, trip_count=5, stride=1, body=accum_body)
 }
-
-fn accum_dynamic(trips: bits[8]) -> bits[32] {
-    literal.6: bits[32] = literal(value=0)
-    literal.7: bits[32] = literal(value=1)
-    ret dynamic_counted_for.8: bits[32] = dynamic_counted_for(literal.6, trips, literal.7, body=accum_body)
-}
 )";
 
   XLS_ASSERT_OK_AND_ASSIGN(auto package, ParsePackage(pkg_text));
@@ -202,37 +196,6 @@ fn accum_dynamic(trips: bits[8]) -> bits[32] {
   EXPECT_EQ(accum_fixed_result.value, accum_5_value);
   EXPECT_THAT(accum_fixed_result.events.GetTraceMessageStrings(),
               ElementsAreArray(accum_5_traces));
-
-  Function* accum_dynamic = FindFunction("accum_dynamic", package.get());
-
-  XLS_ASSERT_OK_AND_ASSIGN(
-      InterpreterResult<Value> accum_dynamic_5,
-      InterpretFunction(accum_dynamic, {Value(UBits(5, 8))}));
-  EXPECT_EQ(accum_dynamic_5.value, accum_5_value);
-  EXPECT_THAT(accum_dynamic_5.events.GetTraceMessageStrings(),
-              ElementsAreArray(accum_5_traces));
-
-  XLS_ASSERT_OK_AND_ASSIGN(
-      InterpreterResult<Value> accum_dynamic_0,
-      InterpretFunction(accum_dynamic, {Value(UBits(0, 8))}));
-  EXPECT_EQ(accum_dynamic_0.value, Value(UBits(0, 32)));
-  EXPECT_THAT(accum_dynamic_0.events.GetTraceMessageStrings(), ElementsAre());
-
-  XLS_ASSERT_OK_AND_ASSIGN(
-      InterpreterResult<Value> accum_dynamic_1,
-      InterpretFunction(accum_dynamic, {Value(UBits(1, 8))}));
-  EXPECT_EQ(accum_dynamic_1.value, Value(UBits(0, 32)));
-  EXPECT_THAT(accum_dynamic_1.events.GetTraceMessageStrings(),
-              ElementsAre("accum is 0"));
-
-  XLS_ASSERT_OK_AND_ASSIGN(
-      InterpreterResult<Value> accum_dynamic_7,
-      InterpretFunction(accum_dynamic, {Value(UBits(7, 8))}));
-  EXPECT_EQ(accum_dynamic_7.value, Value(UBits(21, 32)));
-  EXPECT_THAT(
-      accum_dynamic_7.events.GetTraceMessageStrings(),
-      ElementsAre("accum is 0", "accum is 0", "accum is 1", "accum is 3",
-                  "accum is 6", "accum is 10", "accum is 15"));
 }
 
 // Test collecting traces across a map.

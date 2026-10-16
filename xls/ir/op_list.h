@@ -51,8 +51,6 @@ inline constexpr uint8_t kSideEffecting = 0b00010000;
   F(kDecode, OP_DECODE, "decode", op_types::kStandard)                         \
   F(kDynamicBitSlice, OP_DYNAMIC_BIT_SLICE, "dynamic_bit_slice",               \
     op_types::kStandard)                                                       \
-  F(kDynamicCountedFor, OP_DYNAMIC_COUNTED_FOR, "dynamic_counted_for",         \
-    op_types::kStandard)                                                       \
   F(kEncode, OP_ENCODE, "encode", op_types::kStandard)                         \
   F(kEq, OP_EQ, "eq", op_types::kComparison | op_types::kCommutative)          \
   F(kGate, OP_GATE, "gate", op_types::kSideEffecting)                          \

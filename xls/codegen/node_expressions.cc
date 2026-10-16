@@ -563,8 +563,6 @@ absl::StatusOr<Expression*> NodeToExpression(
       return unimplemented();
     case Op::kCountedFor:
       return unimplemented();
-    case Op::kDynamicCountedFor:
-      return unimplemented();
     case Op::kLiteral:
       if (!node->GetType()->IsBits()) {
         return unimplemented();

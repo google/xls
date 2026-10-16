@@ -1346,9 +1346,6 @@ def Xls_MapOp : Xls_Op<"map", []> {
   );
 }
 
-// TODO(jmolloy): DynamicCountedFor (but the XLS code generator cannot handle
-// it).
-
 def Xls_YieldOp : Xls_Op<"yield", [
   Pure,
   ReturnLike,

@@ -165,12 +165,6 @@ absl::Status ElaboratedBlockDfsVisitorWithDefault::HandleDecode(
   return DefaultHandler(ElaboratedNode{.node = decode, .instance = instance});
 }
 
-absl::Status ElaboratedBlockDfsVisitorWithDefault::HandleDynamicCountedFor(
-    DynamicCountedFor* dynamic_counted_for, BlockInstance* instance) {
-  return DefaultHandler(
-      ElaboratedNode{.node = dynamic_counted_for, .instance = instance});
-}
-
 absl::Status ElaboratedBlockDfsVisitorWithDefault::HandleEncode(
     Encode* encode, BlockInstance* instance) {
   return DefaultHandler(ElaboratedNode{.node = encode, .instance = instance});

@@ -135,35 +135,6 @@ TEST_F(DelayEstimatorsTest, RecurseCountedFor) {
               IsOkAndHolds(10));
 }
 
-TEST_F(DelayEstimatorsTest, RecurseDynamicCountedFor) {
-  XLS_ASSERT_OK_AND_ASSIGN(
-      AreaEstimator * estimator,
-      GetAreaEstimator("unit_with_default_recursive_op_handling"));
-  auto p = CreatePackage();
-
-  Function* g;
-  {
-    FunctionBuilder fb("g", p.get());
-    fb.Param("i", p->GetBitsType(32));
-    BValue arg = fb.Param("arg", p->GetBitsType(32));
-    fb.Add(arg, arg);
-    fb.Negate(arg);
-    XLS_ASSERT_OK_AND_ASSIGN(g, fb.Build());
-  }
-
-  FunctionBuilder fb(TestName(), p.get());
-  BValue x = fb.Param("x", p->GetBitsType(32));
-  BValue trip_count = fb.Param("trip_count", p->GetBitsType(16));
-  BValue stride = fb.Param("stride", p->GetBitsType(16));
-  BValue dynamic_counted_for = fb.DynamicCountedFor(x, trip_count, stride, g);
-
-  // DynamicCountedFor estimated area is body area (regardless of trip count).
-  // Body "g" has one add and one negate which cost 2.
-  EXPECT_THAT(
-      estimator->GetOperationAreaInSquareMicrons(dynamic_counted_for.node()),
-      IsOkAndHolds(2));
-}
-
 TEST_F(DelayEstimatorsTest, RecurseDeeplyNested) {
   XLS_ASSERT_OK_AND_ASSIGN(
       AreaEstimator * estimator,

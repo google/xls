@@ -130,8 +130,7 @@ absl::Status ExtractSegmentInto(ProcBuilder& pb, Proc* original,
   absl::flat_hash_map<StateElement*, Node*> unextracted_state_elements;
   for (Node* n : topo_sort_nodes) {
     // Specific node types to handle specially.
-    if (n->Is<Invoke>() || n->Is<Map>() || n->Is<CountedFor>() ||
-        n->Is<DynamicCountedFor>()) {
+    if (n->Is<Invoke>() || n->Is<Map>() || n->Is<CountedFor>()) {
       return absl::UnimplementedError("Subroutine calls not supported");
     }
     if (n->OpIn({Op::kRegisterRead, Op::kRegisterWrite, Op::kInputPort,

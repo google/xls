@@ -48,8 +48,6 @@ std::optional<Function*> CalledFunction(Node* node) {
   switch (node->op()) {
     case Op::kCountedFor:
       return node->As<CountedFor>()->body();
-    case Op::kDynamicCountedFor:
-      return node->As<DynamicCountedFor>()->body();
     case Op::kMap:
       return node->As<Map>()->to_apply();
     case Op::kInvoke:

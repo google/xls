@@ -220,8 +220,6 @@ class RangeQueryVisitor : public DfsVisitor {
   absl::Status HandleDecode(Decode* decode) override;
   absl::Status HandleDynamicBitSlice(
       DynamicBitSlice* dynamic_bit_slice) override;
-  absl::Status HandleDynamicCountedFor(
-      DynamicCountedFor* dynamic_counted_for) override;
   absl::Status HandleEncode(Encode* encode) override;
   absl::Status HandleEq(CompareOp* eq) override;
   absl::Status HandleGate(Gate* gate) override;
@@ -516,12 +514,6 @@ absl::Status RangeQueryVisitor::HandleDecode(Decode* decode) {
 absl::Status RangeQueryVisitor::HandleDynamicBitSlice(
     DynamicBitSlice* dynamic_bit_slice) {
   INITIALIZE_OR_SKIP(dynamic_bit_slice);
-  return absl::OkStatus();  // TODO(taktoa): implement
-}
-
-absl::Status RangeQueryVisitor::HandleDynamicCountedFor(
-    DynamicCountedFor* dynamic_counted_for) {
-  INITIALIZE_OR_SKIP(dynamic_counted_for);
   return absl::OkStatus();  // TODO(taktoa): implement
 }
 

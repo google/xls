@@ -40,7 +40,6 @@ class AttributeVisitor : public DfsVisitorWithDefault {
   absl::Status HandleCover(Cover* cover) override;
   absl::Status HandleDecode(Decode* decode) override;
   absl::Status HandleDynamicBitSlice(DynamicBitSlice* bit_slice) override;
-  absl::Status HandleDynamicCountedFor(DynamicCountedFor* counted_for) override;
   absl::Status HandleInputPort(InputPort* input_port) override;
   absl::Status HandleInstantiationInput(
       InstantiationInput* instantiation_input) override;

@@ -94,7 +94,6 @@ constexpr auto kNonAnalyzableOps = std::to_array<Op>({
     Op::kAssert,
     Op::kCountedFor,
     Op::kCover,
-    Op::kDynamicCountedFor,
     Op::kGate,
     Op::kInputPort,
     Op::kInstantiationInput,

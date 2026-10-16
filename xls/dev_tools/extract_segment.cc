@@ -106,8 +106,7 @@ absl::StatusOr<BValue> ExtractSegmentInto(
       continue;
     }
     // Specific node types to handle specially.
-    if (n->Is<Invoke>() || n->Is<Map>() || n->Is<CountedFor>() ||
-        n->Is<DynamicCountedFor>()) {
+    if (n->Is<Invoke>() || n->Is<Map>() || n->Is<CountedFor>()) {
       return absl::UnimplementedError("Subrountine calls not supported");
     }
     if (n->Is<Receive>()) {

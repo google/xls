@@ -70,12 +70,6 @@ absl::Status AttributeVisitor::HandleDynamicBitSlice(
   return absl::OkStatus();
 }
 
-absl::Status AttributeVisitor::HandleDynamicCountedFor(
-    DynamicCountedFor* counted_for) {
-  attributes_.set_body(counted_for->body()->name());
-  return absl::OkStatus();
-}
-
 absl::Status AttributeVisitor::HandleInputPort(InputPort* input_port) {
   attributes_.set_name(input_port->name());
   return absl::OkStatus();

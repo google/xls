@@ -55,8 +55,6 @@ class ElaboratedBlockDfsVisitor {
                                     BlockInstance* instance) = 0;
   virtual absl::Status HandleDynamicBitSlice(DynamicBitSlice* dynamic_bit_slice,
                                              BlockInstance* instance) = 0;
-  virtual absl::Status HandleDynamicCountedFor(
-      DynamicCountedFor* dynamic_counted_for, BlockInstance* instance) = 0;
   virtual absl::Status HandleEncode(Encode* encode,
                                     BlockInstance* instance) = 0;
   virtual absl::Status HandleEq(CompareOp* eq, BlockInstance* instance) = 0;
@@ -220,8 +218,6 @@ class ElaboratedBlockDfsVisitorWithDefault : public ElaboratedBlockDfsVisitor {
   absl::Status HandleDecode(Decode* decode, BlockInstance* instance) override;
   absl::Status HandleDynamicBitSlice(DynamicBitSlice* dynamic_bit_slice,
                                      BlockInstance* instance) override;
-  absl::Status HandleDynamicCountedFor(DynamicCountedFor* dynamic_counted_for,
-                                       BlockInstance* instance) override;
   absl::Status HandleEncode(Encode* encode, BlockInstance* instance) override;
   absl::Status HandleEq(CompareOp* eq, BlockInstance* instance) override;
   absl::Status HandleGate(Gate* gate, BlockInstance* instance) override;

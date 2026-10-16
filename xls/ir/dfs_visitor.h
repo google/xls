@@ -51,8 +51,6 @@ class DfsVisitor {
   virtual absl::Status HandleDecode(Decode* decode) = 0;
   virtual absl::Status HandleDynamicBitSlice(
       DynamicBitSlice* dynamic_bit_slice) = 0;
-  virtual absl::Status HandleDynamicCountedFor(
-      DynamicCountedFor* dynamic_counted_for) = 0;
   virtual absl::Status HandleEncode(Encode* encode) = 0;
   virtual absl::Status HandleEq(CompareOp* eq) = 0;
   virtual absl::Status HandleGate(Gate* gate) = 0;
@@ -178,8 +176,6 @@ class DfsVisitorWithDefault : public DfsVisitor {
   absl::Status HandleDecode(Decode* decode) override;
   absl::Status HandleDynamicBitSlice(
       DynamicBitSlice* dynamic_bit_slice) override;
-  absl::Status HandleDynamicCountedFor(
-      DynamicCountedFor* dynamic_counted_for) override;
   absl::Status HandleEncode(Encode* encode) override;
   absl::Status HandleEq(CompareOp* eq) override;
   absl::Status HandleGate(Gate* gate) override;
