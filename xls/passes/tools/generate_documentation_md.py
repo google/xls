@@ -73,8 +73,8 @@ _OUTPUT = flags.DEFINE_string(
 
 def _strip_prefix(s: str) -> str:
   if s.startswith(_STRIP_PREFIX.value):
-    return s[len(_STRIP_PREFIX.value) :]
-  return s
+    s = s[len(_STRIP_PREFIX.value) :]
+  return "/" + s.lstrip("/")
 
 
 @dataclasses.dataclass

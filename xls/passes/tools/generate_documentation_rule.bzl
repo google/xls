@@ -23,7 +23,7 @@ load(
     "XlsOptimizationPassRegistryInfo",
 )
 
-def _cflags_for_info(comp_ctx, cc_toolchain, cc_feature):
+def _cflags_for_info(ctx, comp_ctx, cc_toolchain, cc_feature):
     """Returns the copts and environment variables for compiling the given compilation context."""
     MARKER_SRC_FILE = "marker-src-file"
     comp_variables = cc_common.create_compile_variables(
@@ -33,6 +33,7 @@ def _cflags_for_info(comp_ctx, cc_toolchain, cc_feature):
         source_file = MARKER_SRC_FILE,
         # We don't actually care about the output.
         output_file = "/dev/null",
+        user_compile_flags = ctx.fragments.cpp.copts + ctx.fragments.cpp.cxxopts,
         include_directories = comp_ctx.includes,
         quote_include_directories = comp_ctx.quote_includes,
         system_include_directories = comp_ctx.system_includes,
@@ -55,6 +56,8 @@ def _cflags_for_info(comp_ctx, cc_toolchain, cc_feature):
     copts.pop(o_idx)
     copts.pop(o_idx)
     copts.pop(copts.index(MARKER_SRC_FILE))
+    if "-c" in copts:
+        copts.pop(copts.index("-c"))
 
     return copts, cenv
 
@@ -80,7 +83,7 @@ def _generate_documentation_impl(ctx):
             ccinfo.compilation_context.direct_public_headers[0].basename,
         ))
 
-        copts, cenv = _cflags_for_info(ccinfo.compilation_context, cc_toolchain, cc_feature)
+        copts, cenv = _cflags_for_info(ctx, ccinfo.compilation_context, cc_toolchain, cc_feature)
 
         args = ctx.actions.args()
 
