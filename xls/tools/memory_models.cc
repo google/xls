@@ -327,10 +327,10 @@ absl::Status BlockMemoryModel::Read(int64_t addr) {
     return absl::FailedPreconditionError(
         absl::StrFormat("Memory %s double read in tick at %i", name_, addr));
   }
-  read_this_tick_ = elements_[addr];
+  read_this_tick_ = {addr, elements_[addr]};
   if (show_trace_) {
     LOG(INFO) << "Memory Model: Initiated read " << name_ << "[" << addr
-              << "] = " << read_this_tick_.value();
+              << "] = " << read_this_tick_.value().second;
   }
   return absl::OkStatus();
 }
@@ -338,13 +338,13 @@ Value BlockMemoryModel::GetValueReadLastTick() const {
   if (show_trace_) {
     if (read_last_tick_.has_value()) {
       LOG(INFO) << "Memory Model: Got read last value " << name_ << " = "
-                << read_last_tick_.value();
+                << read_last_tick_.value().second;
     } else {
       LOG(INFO) << "Memory Model: Got read last default " << name_ << " = "
                 << read_disabled_value_;
     }
   }
-  return read_last_tick_.has_value() ? read_last_tick_.value()
+  return read_last_tick_.has_value() ? read_last_tick_.value().second
                                      : read_disabled_value_;
 }
 bool BlockMemoryModel::DidReadLastTick() const {
@@ -375,6 +375,18 @@ absl::Status BlockMemoryModel::Write(int64_t addr, const Value& value) {
   return absl::OkStatus();
 }
 absl::Status BlockMemoryModel::Tick() {
+  if (read_this_tick_.has_value() && write_this_tick_.has_value()) {
+    const int64_t read_addr = read_this_tick_.value().first;
+    const int64_t write_addr = write_this_tick_.value().first;
+
+    if (read_addr == write_addr) {
+      return absl::ResourceExhaustedError(
+          absl::StrFormat("Read/write collision, read and write to the same "
+                          "address in the same cycle: %li",
+                          read_addr));
+    }
+  }
+
   if (write_this_tick_.has_value()) {
     if (show_trace_) {
       LOG(INFO) << "Memory Model: Committed write " << name_ << "["

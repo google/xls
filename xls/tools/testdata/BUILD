@@ -394,3 +394,36 @@ xls_ir_verilog(
     },
     verilog_file = "eval_proc_main_test_memory.sv",
 )
+
+xls_dslx_library(
+    name = "eval_proc_main_test_memory_collision_lib",
+    srcs = ["eval_proc_main_test_memory_collision.x"],
+)
+
+xls_dslx_ir(
+    name = "eval_proc_main_test_memory_collision",
+    dslx_top = "test_proc",
+    ir_conv_args = {"lower_to_proc_scoped_channels": "false"},
+    library = ":eval_proc_main_test_memory_collision_lib",
+)
+
+xls_ir_opt_ir(
+    name = "eval_proc_main_test_memory_collision_opt_ir",
+    src = ":eval_proc_main_test_memory_collision",
+    opt_ir_file = "eval_proc_main_test_memory_collision.opt.ir",
+    ram_rewrites = [
+        "//xls/tools/testdata:eval_proc_main_test_memory_collision.ram_rewrites.textproto",
+    ],
+)
+
+xls_ir_verilog(
+    name = "eval_proc_main_test_memory_collision_block_ir",
+    src = ":eval_proc_main_test_memory_collision_opt_ir",
+    block_ir_file = "eval_proc_main_test_memory_collision.block.ir",
+    codegen_args = {
+        "pipeline_stages": "2",
+        "reset": "rst",
+        "ram_configurations": "mem:1R1W:mem_read_req:mem_read_resp:mem_write_req:mem_write_completion",
+    },
+    verilog_file = "eval_proc_main_test_memory_collision.sv",
+)

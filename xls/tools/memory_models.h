@@ -96,8 +96,8 @@ class BlockMemoryModel {
   std::vector<Value> elements_;
   std::optional<std::pair<int64_t, Value>> write_this_tick_;
   bool write_valid_last_tick_ = false;
-  std::optional<Value> read_this_tick_;
-  std::optional<Value> read_last_tick_;
+  std::optional<std::pair<int64_t, Value>> read_this_tick_;
+  std::optional<std::pair<int64_t, Value>> read_last_tick_;
   const bool show_trace_;
 };
 

@@ -68,6 +68,15 @@ BLOCK_MEMORY_SIGNATURE_PATH = runfiles.get_path(
 BLOCK_MEMORY_REWRITES_PATH = runfiles.get_path(
     "xls/tools/testdata/eval_proc_main_test_memory.ram_rewrites.textproto"
 )
+BLOCK_MEMORY_COLLISION_IR_PATH = runfiles.get_path(
+    "xls/tools/testdata/eval_proc_main_test_memory_collision.block.ir"
+)
+BLOCK_MEMORY_COLLISION_SIGNATURE_PATH = runfiles.get_path(
+    "xls/tools/testdata/eval_proc_main_test_memory_collision.sig.textproto"
+)
+BLOCK_MEMORY_COLLISION_REWRITES_PATH = runfiles.get_path(
+    "xls/tools/testdata/eval_proc_main_test_memory_collision.ram_rewrites.textproto"
+)
 PROC_ABSTRACT_MEMORY_IR_PATH = runfiles.get_path(
     "xls/tools/testdata/eval_proc_main_test_memory.ir"
 )
@@ -1110,6 +1119,75 @@ class EvalProcTest(parameterized.TestCase):
 
     output = run_command(shared_args)
     self.assertIn("Memory Model", output.stderr)
+
+  @parameterized_block_backends
+  def test_block_memory_read_write_collision(self, backend):
+    ir_file = BLOCK_MEMORY_COLLISION_IR_PATH
+    ram_rewrites_file = BLOCK_MEMORY_COLLISION_REWRITES_PATH
+    signature_file = BLOCK_MEMORY_COLLISION_SIGNATURE_PATH
+    input_file = self.create_tempfile(content=textwrap.dedent("""
+          eval_proc_main_test_memory_collision__in_ch : {
+            bits[32]:10
+            bits[32]:20
+            bits[32]:30
+            bits[32]:40
+            bits[32]:50
+            bits[32]:60
+            bits[32]:70
+            bits[32]:80
+            bits[32]:90
+            bits[32]:100
+          }
+        """))
+    output_file = self.create_tempfile(content=textwrap.dedent("""
+          eval_proc_main_test_memory_collision__out_ch : {
+            bits[32]:4294967295
+            bits[32]:10
+            bits[32]:20
+            bits[32]:30
+            bits[32]:40
+            bits[32]:50
+            bits[32]:60
+            bits[32]:70
+            bits[32]:80
+            bits[32]:90
+          }
+        """))
+
+    shared_args = [
+        EVAL_PROC_MAIN_PATH,
+        ir_file,
+        "--ticks",
+        "-1",
+        "-v=1",
+        "--show_trace",
+        "--logtostderr",
+        "--inputs_for_all_channels",
+        input_file.full_path,
+        "--expected_outputs_for_all_channels",
+        output_file.full_path,
+        "--block_signature_proto",
+        signature_file,
+        "--ram_rewrites_textproto",
+        ram_rewrites_file,
+    ] + backend
+
+    result = subprocess.run(
+        shared_args,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        encoding="utf-8",
+        check=False,
+    )
+    self.assertNotEqual(result.returncode, 0)
+    self.assertEqual(
+        result.stderr.count("Memory Model: Committed write mem["), 9
+    )
+    self.assertIn(
+        "RESOURCE_EXHAUSTED: Read/write collision, read and write to the same"
+        " address in the same cycle: 1",
+        result.stderr,
+    )
 
   @parameterized_block_backends
   def test_multi_block_memory(self, backend):
