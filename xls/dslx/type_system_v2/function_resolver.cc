@@ -129,6 +129,13 @@ class FunctionResolverImpl : public FunctionResolver {
 
       if (target.has_value()) {
         function_node = *target;
+        // Derived parametric functions need `Self`.
+        if (struct_or_proc_ref.has_value() && !target_object_type.has_value() &&
+            (*target)->kind() == AstNodeKind::kFunction &&
+            absl::down_cast<const Function*>(*target)->IsCompilerDerived()) {
+          target_object_type =
+              CreateStructOrProcAnnotation(module_, *struct_or_proc_ref);
+        }
       }
     } else if (callee->kind() == AstNodeKind::kNameRef) {
       // Either a local function or a built-in function call.
