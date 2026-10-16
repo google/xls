@@ -244,6 +244,10 @@ std::vector<int> GetBindingIndicesWithGenericTvtasLast(
 // `Sink`).
 bool IsIoObjectAnnotation(const TypeAnnotation* annotation);
 
+// Unwraps nested `ArrayTypeAnnotations` to return the underlying element
+// type annotation.
+const TypeAnnotation* GetInnermostElementType(const TypeAnnotation* annotation);
+
 }  // namespace xls::dslx
 
 #endif  // XLS_DSLX_TYPE_SYSTEM_V2_TYPE_ANNOTATION_UTILS_H_

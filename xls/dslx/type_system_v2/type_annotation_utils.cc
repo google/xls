@@ -493,15 +493,8 @@ std::string GetParametricBindingOwnerDescription(
 }
 
 bool IsChannelOrChannelArrayAnnotation(const TypeAnnotation* annotation) {
-  if (annotation->IsAnnotation<ChannelTypeAnnotation>()) {
-    return true;
-  }
-  if (annotation->IsAnnotation<ArrayTypeAnnotation>()) {
-    return IsChannelOrChannelArrayAnnotation(
-        absl::down_cast<const ArrayTypeAnnotation*>(annotation)
-            ->element_type());
-  }
-  return false;
+  return GetInnermostElementType(annotation)
+      ->IsAnnotation<ChannelTypeAnnotation>();
 }
 
 bool IsTvtaToGeneric(const TypeAnnotation* type_annotation) {
@@ -527,17 +520,23 @@ std::vector<int> GetBindingIndicesWithGenericTvtasLast(
 }
 
 bool IsIoObjectAnnotation(const TypeAnnotation* annotation) {
-  if (auto* tr_type = dynamic_cast<const TypeRefTypeAnnotation*>(annotation)) {
+  if (const auto* tr_type = dynamic_cast<const TypeRefTypeAnnotation*>(
+          GetInnermostElementType(annotation))) {
     const TypeDefinition& def = tr_type->type_ref()->type_definition();
     if (std::holds_alternative<StructDef*>(def)) {
       return IsBuiltinIoObjectDef(std::get<StructDef*>(def));
     }
   }
-  if (annotation->IsAnnotation<ArrayTypeAnnotation>()) {
-    return IsIoObjectAnnotation(
-        absl::down_cast<const ArrayTypeAnnotation*>(annotation)
-            ->element_type());
-  }
   return false;
 }
+
+const TypeAnnotation* GetInnermostElementType(
+    const TypeAnnotation* annotation) {
+  while (auto* array_annotation =
+             CastToNonBitsArrayTypeAnnotation(annotation)) {
+    annotation = array_annotation->element_type();
+  }
+  return annotation;
+}
+
 }  // namespace xls::dslx

@@ -665,6 +665,7 @@ cc_test(
     srcs = ["typecheck_module_v2_proc_test.cc"],
     deps = [
         ":matchers",
+        ":type_system_test_utils",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/common/status:ret_check",
@@ -678,6 +679,7 @@ cc_test(
         "//xls/dslx:warning_kind",
         "//xls/dslx/frontend:ast",
         "//xls/dslx/frontend:module",
+        "//xls/dslx/frontend:pos",
         "//xls/dslx/type_system:type_info",
         "//xls/dslx/type_system:typecheck_test_utils",
         "@abseil-cpp//absl/container:flat_hash_map",

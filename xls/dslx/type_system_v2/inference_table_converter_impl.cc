@@ -1094,6 +1094,20 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
       dest_type_info->SetItem(
           member->type(),
           std::make_unique<MetaType>(std::move(concrete_member_type)));
+      if (IsIoObjectAnnotation(member->type())) {
+        const TypeAnnotation* orig_payload = std::get<TypeAnnotation*>(
+            GetInnermostElementType(member->type())
+                ->AsAnnotation<TypeRefTypeAnnotation>()
+                ->parametrics()[0]);
+        XLS_ASSIGN_OR_RETURN(const TypeAnnotation* resolved_payload,
+                             GetParametricFreeType(orig_payload, value_exprs,
+                                                   *dest_context->self_type()));
+        XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> concrete_payload_type,
+                             Concretize(resolved_payload, dest_context));
+        dest_type_info->SetItem(
+            orig_payload,
+            std::make_unique<MetaType>(std::move(concrete_payload_type)));
+      }
     }
 
     return absl::OkStatus();
@@ -2873,20 +2887,17 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
     absl::flat_hash_set<const ParametricBinding*> implicit_parametrics;
     std::vector<const TypeAnnotation*> formal_member_types;
     std::vector<Expr*> actual_member_exprs;
-    for (const StructMemberNode* member : def.members()) {
-      formal_member_types.push_back(member->type());
-    }
     if (instantiator_node.has_value()) {
       absl::flat_hash_map<std::string, Expr*> actual_member_exprs_by_name;
       for (const auto& [name, expr] :
-           (*instantiator_node)->GetOrderedMembers(&def)) {
+           (*instantiator_node)->GetUnorderedMembers()) {
         actual_member_exprs_by_name.emplace(name, expr);
       }
 
       // If there are "splatted" members, i.e., implied copies from members of
       // an existing struct, we need synthetic longhand member initializers for
       // parametric inference.
-      if (actual_member_exprs_by_name.size() != formal_member_types.size() &&
+      if (actual_member_exprs_by_name.size() != def.members().size() &&
           (*instantiator_node)->kind() == AstNodeKind::kSplatStructInstance) {
         const auto* splat =
             absl::down_cast<const SplatStructInstance*>(*instantiator_node);
@@ -2901,11 +2912,19 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
       }
 
       // At this point we should have an `Expr` per formal member of the struct
-      // definition.
-      CHECK_EQ(actual_member_exprs_by_name.size(), formal_member_types.size());
+      // definition, except for io object members of a proc, which may be
+      // omitted because they are default-initialized. Omitted members do not
+      // take part in parametric inference.
       for (const StructMemberNode* member : def.members()) {
-        actual_member_exprs.push_back(
-            actual_member_exprs_by_name.at(member->name()));
+        const auto it = actual_member_exprs_by_name.find(member->name());
+        if (it == actual_member_exprs_by_name.end()) {
+          XLS_RET_CHECK(def.kind() == AstNodeKind::kProcDef &&
+                        IsIoObjectAnnotation(member->type()))
+              << "Missing initializer for member `" << member->name() << "`";
+          continue;
+        }
+        formal_member_types.push_back(member->type());
+        actual_member_exprs.push_back(it->second);
       }
 
       // Add formal and actual types for parametric values as well. They may be

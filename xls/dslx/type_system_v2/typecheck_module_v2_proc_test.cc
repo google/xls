@@ -33,12 +33,14 @@
 #include "xls/dslx/default_dslx_stdlib_path.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/module.h"
+#include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/interp_value.h"
 #include "xls/dslx/parse_and_typecheck.h"
 #include "xls/dslx/type_system/type_info.h"
 #include "xls/dslx/type_system/typecheck_test_utils.h"
 #include "xls/dslx/type_system_v2/matchers.h"
+#include "xls/dslx/type_system_v2/type_system_test_utils.h"
 #include "xls/dslx/virtualizable_file_system.h"
 #include "xls/dslx/warning_kind.h"
 
@@ -1252,6 +1254,42 @@ impl Parent { fn new() -> Self { Parent { a: Child::new(), b: Child::new() } } }
   XLS_ASSERT_OK_AND_ASSIGN(InterpValue b_input, GetMemberValue(b, "input"));
   EXPECT_NE(a_input.GetChannelReferenceOrDie().GetChannelId(),
             b_input.GetChannelReferenceOrDie().GetChannelId());
+}
+
+TEST(TypecheckV2ProcTest, ParametricProcWithOmittedIoObjectMembers) {
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(R"(
+#![feature(io_objects)]
+proc P<N: u32> { input: Source<uN[N]>, output: Sink<uN[N]> }
+impl P<N> { fn new() -> Self { P<N> {} } fn next(self) {} }
+proc Parent {}
+impl Parent {
+  fn new() -> Self {
+    P<8>::new().spawn();
+    P<16>::new().spawn();
+    Parent {}
+  }
+  fn next(self) {}
+}
+)"));
+  XLS_ASSERT_OK_AND_ASSIGN(ProcDef * p,
+                           result.tm.module->GetMemberOrError<ProcDef>("P"));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::vector<ProcInitializerWithTypeInfo> inits,
+      result.tm.type_info->GetCanonicalProcInitializers(p));
+  ASSERT_EQ(inits.size(), 2);
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue input_1,
+                           GetMemberValue(inits[0].initializer, "input"));
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue input_2,
+                           GetMemberValue(inits[1].initializer, "input"));
+  EXPECT_EQ(GetChannelDefinerKind(input_1), AstNodeKind::kStructMember);
+  EXPECT_NE(input_1.GetChannelReferenceOrDie().GetChannelId(),
+            input_2.GetChannelReferenceOrDie().GetChannelId());
+
+  const FileTable& file_table = *result.tm.module->file_table();
+  EXPECT_THAT(TypeInfoToString(*inits[0].constructor_type_info, file_table),
+              IsOkAndHolds(HasNodeWithType("uN[N]", "typeof(uN[8])")));
+  EXPECT_THAT(TypeInfoToString(*inits[1].constructor_type_info, file_table),
+              IsOkAndHolds(HasNodeWithType("uN[N]", "typeof(uN[16])")));
 }
 
 }  // namespace
