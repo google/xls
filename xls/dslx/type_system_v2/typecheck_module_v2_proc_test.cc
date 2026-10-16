@@ -1197,6 +1197,67 @@ fn f() -> u32 { u32:0 }
   XLS_EXPECT_OK(TypecheckV2(kProgram, "main", &import_data));
 }
 
+TEST(TypecheckV2ProcTest, SourceImplMethodIsCallableOnProcMember) {
+  EXPECT_THAT(R"(
+#![feature(io_objects)]
+proc P {
+    input: Source<u32>,
+}
+impl P {
+    fn new() -> Self { P {} }
+    fn next(self) { self.input.recv(); }
+}
+)",
+              TypecheckSucceeds(::testing::_));
+}
+
+TEST(TypecheckV2ProcTest, SinkImplMethodIsCallableOnProcMember) {
+  EXPECT_THAT(R"(
+#![feature(io_objects)]
+proc P {
+    output: Sink<u32>,
+}
+impl P {
+    fn new() -> Self { P {} }
+    fn next(self) { self.output.send(u32:0); }
+}
+)",
+              TypecheckSucceeds(::testing::_));
+}
+
+TEST(TypecheckV2ProcTest, UndefinedImplMethodOnProcMemberIsRejected) {
+  EXPECT_THAT(
+      R"(
+#![feature(io_objects)]
+proc P {
+    input: Source<u32>,
+}
+impl P {
+    fn new() -> Self { P {} }
+    fn next(self) { self.input.no_such_method(); }
+}
+)",
+      TypecheckFails(HasSubstr("Name 'no_such_method' is not defined by the "
+                               "impl for struct 'Source'")));
+}
+
+TEST(TypecheckV2ProcTest, SinkMethodOnSourceMemberIsRejected) {
+  EXPECT_THAT(
+      R"(
+#![feature(io_objects)]
+proc P {
+    input: Source<u32>,
+}
+impl P {
+    fn new() -> Self { P {} }
+    fn next(self) { self.input.send(u32:0); }
+}
+)",
+      TypecheckFails(
+          HasSubstr("Name 'send' is not defined by the impl for struct "
+                    "'Source'")));
+}
+
 // Returns the only canonical initializer of the proc named `proc_name`.
 absl::StatusOr<InterpValue> GetCanonicalInitializer(
     const TypecheckedModule& tm, std::string_view proc_name) {
