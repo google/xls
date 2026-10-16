@@ -289,6 +289,31 @@ const_assert!(!f<MyEnum::B>());
 )"));
 }
 
+TEST(TypecheckV2Test, UseImportedEnumParametric) {
+  constexpr std::string_view kImported = R"(
+pub enum MyEnum : u2 {
+  A = 0,
+  B = 1,
+}
+)";
+  constexpr std::string_view kProgram = R"(#![feature(use_syntax)]
+use imported::MyEnum;
+
+fn selected<E: MyEnum>() -> MyEnum { E }
+
+const X = selected<MyEnum::B>();
+const_assert!(X == MyEnum::B);
+)";
+
+  absl::flat_hash_map<std::filesystem::path, std::string> files = {
+      {std::filesystem::path("/imported.x"), std::string(kImported)},
+      {std::filesystem::path("/fake_main_path.x"), std::string(kProgram)},
+  };
+  ImportData import_data = CreateImportDataForTest(
+      std::make_unique<FakeFilesystem>(std::move(files), "/"));
+  XLS_EXPECT_OK(TypecheckV2(kProgram, "fake_main_path", &import_data).status());
+}
+
 TEST(TypecheckV2Test, ImportedEnum) {
   constexpr std::string_view kImported = R"(
 pub enum MyEnum {

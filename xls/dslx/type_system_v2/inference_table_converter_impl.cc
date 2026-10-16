@@ -1245,6 +1245,18 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
             const_cast<UseTreeEntry*>(use_tree_entry),
             &use_import_result->imported_module->module(),
             use_import_result->imported_module->type_info());
+        // Like a `ColonRef` to a type, a `use` of a type is a `TypeDefinition`
+        // that tools like `dslx_to_verilog` want a type for.
+        if (use_import_result->imported_member != nullptr) {
+          AstNode* member = ToAstNode(*use_import_result->imported_member);
+          if (ToTypeDefinition(member).ok()) {
+            XLS_ASSIGN_OR_RETURN(TypeInfo * member_ti,
+                                 import_data_.GetRootTypeInfoForNode(member));
+            if (std::optional<Type*> type = member_ti->GetItem(member)) {
+              base_type_info_->SetItem(use_tree_entry, **type);
+            }
+          }
+        }
       }
       return absl::OkStatus();
     }
