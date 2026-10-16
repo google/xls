@@ -386,6 +386,12 @@ bool AreAllFunctionParametricsSpecified(const TypeInfo& ti,
   return true;
 }
 
+bool IsLiteralWithTypeAlias(const Expr* expr) {
+  const auto* num = dynamic_cast<const Number*>(expr);
+  return num != nullptr && num->type_annotation() != nullptr &&
+         num->type_annotation()->IsAnnotation<TypeRefTypeAnnotation>();
+}
+
 class TypeAnnotationSimplifier : public Formatter {
  public:
   TypeAnnotationSimplifier(Comments& comments, DocArena& arena,
@@ -642,12 +648,14 @@ class TypeAnnotationSimplifier : public Formatter {
   DocRef FormatInvocation(const Invocation& n) override {
     // Drop type annotations on call arguments if and only if all parametric
     // bindings of the callee (and of the target struct, for static method
-    // calls on parametric structs) are explicitly specified at the call site.
+    // calls on parametric structs) are explicitly specified at the call site,
+    // except leave type aliases intact on literals directly used as arguments.
     ScopedExprOverrides overrides(*this);
     const Invocation* orig = OriginalNode(&n);
     bool args_inferred = AreAllFunctionParametricsSpecified(type_info_, *orig);
     for (const Expr* arg : n.args()) {
-      overrides.Set(arg, {.type_inferred = args_inferred});
+      overrides.Set(arg, {.type_inferred =
+                              args_inferred && !IsLiteralWithTypeAlias(arg)});
     }
     return Formatter::FormatInvocation(n);
   }

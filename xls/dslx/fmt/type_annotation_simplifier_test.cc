@@ -260,6 +260,9 @@ const_assert!((u32:1 << (ADDR_W / 2)) <= 32);
 TEST_F(TypeAnnotationSimplifierTest, FunctionInvocations) {
   constexpr std::string_view kOriginal = R"(import std;
 
+type MyU32 = u32;
+const WIDTH = u32:32;
+
 const MEBIBYTES_IN_BYTES = std::upow(u32:2, u32:20);
 const LOG2_VAL = std::clog2(MEBIBYTES_IN_BYTES);
 const EXTENDED = signex(u8:0xff, s32:0);
@@ -277,6 +280,7 @@ fn concat_parametric<M: u32, N: u32>(a: uN[M], b: uN[N]) -> uN[M + N] {
 }
 
 const CALL_CONCRETE = add_u32(u32:10, u32:20);
+const CALL_WITH_ALIAS = add_u32(MyU32:10, uN[WIDTH]:20);
 const CALL_PARAMETRIC_LITS = add_parametric(u32:10, u32:20);
 const CALL_PARAMETRIC_VAR = add_parametric(CALL_CONCRETE, u32:20);
 const CALL_PARAMETRIC_EXPLICIT = add_parametric<u32:32>(u32:10, u32:20);
@@ -284,6 +288,10 @@ const CALL_PARTIAL_EXPLICIT = concat_parametric<u32:8>(u8:1, u16:2);
 const CALL_ALL_EXPLICIT = concat_parametric<u32:8, u32:16>(u8:1, u16:2);
 )";
   constexpr std::string_view kWant = R"(import std;
+
+type MyU32 = u32;
+
+const WIDTH = u32:32;
 
 const MEBIBYTES_IN_BYTES = std::upow(u32:2, u32:20);
 const LOG2_VAL = std::clog2(MEBIBYTES_IN_BYTES);
@@ -296,6 +304,7 @@ fn add_parametric<N: u32>(a: uN[N], b: uN[N]) -> uN[N] { a + b }
 fn concat_parametric<M: u32, N: u32>(a: uN[M], b: uN[N]) -> uN[M + N] { a ++ b }
 
 const CALL_CONCRETE = add_u32(10, 20);
+const CALL_WITH_ALIAS = add_u32(MyU32:10, 20);
 const CALL_PARAMETRIC_LITS = add_parametric(u32:10, u32:20);
 const CALL_PARAMETRIC_VAR = add_parametric(CALL_CONCRETE, u32:20);
 const CALL_PARAMETRIC_EXPLICIT = add_parametric<32>(10, 20);
@@ -307,10 +316,13 @@ const CALL_ALL_EXPLICIT = concat_parametric<8, 16>(1, 2);
 
 TEST_F(TypeAnnotationSimplifierTest, ArrayLiterals) {
   constexpr std::string_view kOriginal =
-      R"(type WordArray = u32[3];
+      R"(type MyU32 = u32;
+type WordArray = u32[3];
 
 const ARR_WHOLE_TYPE = u32[3]:[1, 2, 3];
 const ARR_ELEM_TYPES = [u32:1, u32:2, u32:3];
+const ARR_ELEM_ALIAS = [MyU32:0, 1, 2];
+const ARR_ELEM_ALIASES = [MyU32:0, MyU32:1, MyU32:2];
 const ARR_BOTH_TYPES = u32[3]:[u32:1, u32:2, u32:3];
 const ARR_TYPED_LHS: u32[3] = u32[3]:[u32:1, u32:2, u32:3];
 const ARR_ALIAS = WordArray:[u32:1, u32:2, u32:3];
@@ -320,10 +332,13 @@ const ARR_2D_TYPED: u32[2][2] = u32[2][2]:[u32[2]:[u32:1, u32:2], u32[2]:[u32:3,
 const ARR_ELLIPSIS = u32[3]:[u32:0, ...];
 const ARR_ELLIPSIS_TYPED: u32[3] = u32[3]:[u32:0, ...];
 )";
-  constexpr std::string_view kWant = R"(type WordArray = u32[3];
+  constexpr std::string_view kWant = R"(type MyU32 = u32;
+type WordArray = u32[3];
 
 const ARR_WHOLE_TYPE = [u32:1, 2, 3];
 const ARR_ELEM_TYPES = [u32:1, 2, 3];
+const ARR_ELEM_ALIAS = [MyU32:0, 1, 2];
+const ARR_ELEM_ALIASES = [MyU32:0, 1, 2];
 const ARR_BOTH_TYPES = [u32:1, 2, 3];
 const ARR_TYPED_LHS: u32[3] = [1, 2, 3];
 const ARR_ALIAS = WordArray:[1, 2, 3];
@@ -543,7 +558,7 @@ pub fn uninstantiated_imported_caller<K: u32>(x: uN[K]) -> other_mod::ConcretePa
 pub fn use_imported_entities() -> other_mod::ConcretePair {
     let cfg = other_mod::EntryConfig { enable: false, tag: 0, address: 0 };
     let cfg2 = other_mod::EntryConfig { tag: 1, ..cfg };
-    let cfg3 = other_mod::EntryConfig::with_tag(2);
+    let cfg3 = other_mod::EntryConfig::with_tag(other_mod::TagId:2);
 
     let sum1 = other_mod::add_u32(10, 20);
     let sum2 = other_mod::add_parametric(u32:10, u32:20);
