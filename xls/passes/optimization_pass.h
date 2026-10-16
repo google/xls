@@ -65,6 +65,7 @@
 namespace xls {
 
 inline constexpr int64_t kMaxOptLevel = 3;
+inline constexpr int64_t kDefaultSplitNextValueSelects = 4;
 
 // Metadata for RAMs.
 // TODO(google/xls#873): Ideally this metadata should live in the IR.
@@ -165,7 +166,8 @@ struct OptimizationPassOptions : public PassOptionsBase {
   // If this is not `std::nullopt`, split `next_value`s that assign `sel`s to
   // state params if they have fewer than the given number of cases. Otherwise,
   // this optimization is skipped, since it can sometimes reduce output quality.
-  std::optional<int64_t> split_next_value_selects = std::nullopt;
+  std::optional<int64_t> split_next_value_selects =
+      kDefaultSplitNextValueSelects;
 
   // List of RAM rewrites, generally lowering abstract RAMs into concrete
   // variants.

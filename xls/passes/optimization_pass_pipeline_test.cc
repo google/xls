@@ -366,6 +366,25 @@ TEST_F(OptimizationPipelineTest, ProcScopedChannels) {
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
 }
 
+TEST_F(OptimizationPipelineTest, SplitNextValueSelectByDefault) {
+  auto p = CreatePackage();
+  TokenlessProcBuilder pb(NewStyleProc(), "myproc", "tkn", p.get());
+  BReceiveChannel in = pb.AddInputChannel("in", p->GetBitsType(2));
+  BSendChannel out = pb.AddOutputChannel("out", p->GetBitsType(8));
+  BValue state = pb.ReadStateElement("st", Value(UBits(0, 8)));
+  BValue sel_idx = pb.Receive(in);
+  BValue next_st =
+      pb.Select(sel_idx, {pb.Add(state, pb.Literal(UBits(1, 8))),
+                          pb.Add(state, pb.Literal(UBits(2, 8))),
+                          pb.Add(state, pb.Literal(UBits(3, 8))), state});
+  pb.Send(out, state);
+  XLS_ASSERT_OK(pb.SetAsTop());
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({next_st}));
+
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_EQ(proc->next_values().size(), 3);
+}
+
 TEST_F(OptimizationPipelineTest, HackersDelightBitReversal) {
   auto p = CreatePackage();
   FunctionBuilder fb("rev32", p.get());

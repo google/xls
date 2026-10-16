@@ -56,7 +56,8 @@ struct OptOptions {
   std::optional<std::string> ir_path = std::nullopt;
   std::vector<std::string> skip_passes;
   std::optional<int64_t> convert_array_index_to_select = std::nullopt;
-  std::optional<int64_t> split_next_value_selects = std::nullopt;
+  std::optional<int64_t> split_next_value_selects =
+      xls::kDefaultSplitNextValueSelects;
   std::vector<RamRewrite> ram_rewrites = {};
   bool use_context_narrowing_analysis = false;
   bool optimize_for_best_case_throughput = false;

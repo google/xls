@@ -49,9 +49,9 @@ class ProcStateBitsShatteringPassTest : public IrTestBase {
  protected:
   ProcStateBitsShatteringPassTest() = default;
 
-  absl::StatusOr<bool> Run(
-      Package* p,
-      std::optional<int64_t> split_next_value_selects = std::nullopt) {
+  absl::StatusOr<bool> Run(Package* p,
+                           std::optional<int64_t> split_next_value_selects =
+                               kDefaultSplitNextValueSelects) {
     PassResults results;
     OptimizationPassOptions options;
     options.split_next_value_selects = split_next_value_selects;
@@ -83,6 +83,10 @@ TEST_F(ProcStateBitsShatteringPassTest, SimpleSplitStateElement) {
   pb.Next(y, x);
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
 
+  EXPECT_THAT(Run(p.get(), /*split_next_value_selects=*/std::nullopt),
+              IsOkAndHolds(false));
+  EXPECT_THAT(Run(p.get(), /*split_next_value_selects=*/0),
+              IsOkAndHolds(false));
   EXPECT_THAT(Run(p.get(), /*split_next_value_selects=*/2), IsOkAndHolds(true));
   XLS_ASSERT_OK_AND_ASSIGN(StateElement * new_x,
                            proc->GetStateElementByName("x"));

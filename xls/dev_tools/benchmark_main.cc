@@ -118,7 +118,7 @@ ABSL_FLAG(int64_t, convert_array_index_to_select, -1,
           "into chains of selects. Otherwise, this optimization is skipped, "
           "since it can sometimes reduce output quality.");
 ABSL_FLAG(
-    int64_t, split_next_value_selects, 4,
+    int64_t, split_next_value_selects, xls::kDefaultSplitNextValueSelects,
     "If specified, split `next_value`s that assign `sel`s to state params if "
     "they have fewer than the given number of cases. Otherwise, this "
     "optimization is skipped, since it can sometimes reduce output quality.");

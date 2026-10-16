@@ -58,7 +58,8 @@ class NextValueOptimizationPassTest : public IrTestBase {
 
   absl::StatusOr<bool> Run(
       Package* p,
-      std::optional<int64_t> split_next_value_selects = std::nullopt,
+      std::optional<int64_t> split_next_value_selects =
+          kDefaultSplitNextValueSelects,
       std::optional<int64_t> split_depth_limit = std::nullopt) {
     OptimizationCompoundPass passes("test", TestName());
     bool changed = false;
@@ -280,7 +281,7 @@ TEST_F(NextValueOptimizationPassTest, SmallSelectNextValue) {
   solvers::ScopedVerifyProcEquivalence svpe(proc, /*activation_count=*/3,
                                             /*include_state=*/true);
 
-  EXPECT_THAT(Run(p.get(), /*split_next_value_selects=*/4), IsOkAndHolds(true));
+  EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
   EXPECT_THAT(
       proc->next_values(),
       UnorderedElementsAre(m::Next(m::StateElement(), m::Literal(2),
@@ -307,7 +308,7 @@ TEST_F(NextValueOptimizationPassTest, SmallSelectNextValueWithDefault) {
   solvers::ScopedVerifyProcEquivalence svpe(proc, /*activation_count=*/3,
                                             /*include_state=*/true);
 
-  EXPECT_THAT(Run(p.get(), /*split_next_value_selects=*/4), IsOkAndHolds(true));
+  EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
   EXPECT_THAT(
       proc->next_values(),
       UnorderedElementsAre(m::Next(m::StateElement(), m::Literal(2),
@@ -336,7 +337,7 @@ TEST_F(NextValueOptimizationPassTest,
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
   solvers::ScopedVerifyProcEquivalence svpe(proc, /*activation_count=*/3,
                                             /*include_state=*/true);
-  EXPECT_THAT(Run(p.get(), /*split_next_value_selects=*/4), IsOkAndHolds(true));
+  EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
   EXPECT_THAT(
       proc->next_values(),
       UnorderedElementsAre(m::Next(x_element.state_element(), m::Literal(2),
@@ -493,6 +494,21 @@ TEST_F(NextValueOptimizationPassTest, BigSelectNextValue) {
   XLS_ASSERT_OK(pb.Build().status());
 
   EXPECT_THAT(Run(p.get(), /*split_next_value_selects=*/3),
+              IsOkAndHolds(false));
+}
+
+TEST_F(NextValueOptimizationPassTest, DisabledSelectNextValue) {
+  auto p = CreatePackage();
+  ProcBuilder pb("p", p.get());
+  BValue x = pb.ReadStateElement("x", Value(UBits(0, 1)));
+  BValue select = pb.Select(
+      x, std::vector{pb.Literal(UBits(1, 1)), pb.Literal(UBits(0, 1))});
+  pb.Next(/*state_read=*/x, /*value=*/select);
+  XLS_ASSERT_OK(pb.Build().status());
+
+  EXPECT_THAT(Run(p.get(), /*split_next_value_selects=*/std::nullopt),
+              IsOkAndHolds(false));
+  EXPECT_THAT(Run(p.get(), /*split_next_value_selects=*/0),
               IsOkAndHolds(false));
 }
 
