@@ -142,6 +142,68 @@ TEST_F(StatelessQueryEngineTest, ExactlyOneBitTrueConcatEqXZeroAndX) {
   EXPECT_TRUE(query_engine.ExactlyOneBitTrue(f->return_value()));
 }
 
+TEST_F(StatelessQueryEngineTest, AtMostOneBitTrueLogicalShifts) {
+  Package p("test_package");
+  FunctionBuilder fb("f", &p);
+  BValue x = fb.Param("x", p.GetBitsType(4));
+  BValue amt = fb.Param("amt", p.GetBitsType(4));
+  BValue shll_one = fb.Shll(fb.Literal(UBits(1, 8)), amt);
+  BValue shrl_one_hot = fb.Shrl(fb.OneHot(x, LsbOrMsb::kLsb), amt);
+  BValue chained_shift = fb.Shrl(shll_one, amt);
+  BValue shll_unknown = fb.Shll(x, amt);
+  BValue shll_two_bits = fb.Shll(fb.Literal(UBits(0b11, 8)), amt);
+  XLS_ASSERT_OK(fb.Build().status());
+
+  StatelessQueryEngine query_engine;
+  EXPECT_TRUE(query_engine.AtMostOneBitTrue(shll_one.node()));
+  EXPECT_FALSE(query_engine.AtLeastOneBitTrue(shll_one.node()));
+  EXPECT_FALSE(query_engine.ExactlyOneBitTrue(shll_one.node()));
+
+  EXPECT_TRUE(query_engine.AtMostOneBitTrue(shrl_one_hot.node()));
+  EXPECT_FALSE(query_engine.AtLeastOneBitTrue(shrl_one_hot.node()));
+  EXPECT_FALSE(query_engine.ExactlyOneBitTrue(shrl_one_hot.node()));
+
+  EXPECT_TRUE(query_engine.AtMostOneBitTrue(chained_shift.node()));
+  EXPECT_FALSE(query_engine.AtMostOneBitTrue(shll_unknown.node()));
+  EXPECT_FALSE(query_engine.AtMostOneBitTrue(shll_two_bits.node()));
+}
+
+TEST_F(StatelessQueryEngineTest, AtMostOneBitTrueArithmeticShiftRight) {
+  Package p("test_package");
+  FunctionBuilder fb("f", &p);
+  BValue x = fb.Param("x", p.GetBitsType(4));
+  BValue one_bit = fb.Param("one_bit", p.GetBitsType(1));
+  BValue amt = fb.Param("amt", p.GetBitsType(4));
+  BValue one_hot = fb.OneHot(x, LsbOrMsb::kLsb);
+  BValue shra_positive_lit = fb.Shra(fb.Literal(UBits(0b0100, 4)), amt);
+  BValue shra_zext_one_bit = fb.Shra(fb.ZeroExtend(one_bit, 4), amt);
+  BValue shra_negative_lit = fb.Shra(fb.Literal(UBits(0b1000, 4)), amt);
+  BValue shra_msb_one_bit =
+      fb.Shra(fb.Concat({one_bit, fb.Literal(UBits(0, 3))}), amt);
+  BValue shra_unknown_sign = fb.Shra(one_hot, amt);
+  XLS_ASSERT_OK(fb.Build().status());
+
+  StatelessQueryEngine query_engine;
+  EXPECT_TRUE(query_engine.AtMostOneBitTrue(shra_positive_lit.node()));
+  EXPECT_TRUE(query_engine.AtMostOneBitTrue(shra_zext_one_bit.node()));
+  EXPECT_FALSE(query_engine.AtMostOneBitTrue(shra_negative_lit.node()));
+  EXPECT_FALSE(query_engine.AtMostOneBitTrue(shra_msb_one_bit.node()));
+  EXPECT_FALSE(query_engine.AtMostOneBitTrue(shra_unknown_sign.node()));
+}
+
+TEST_F(StatelessQueryEngineTest, ExactlyOneBitTrueConcatEqShiftedOneZero) {
+  Package p("test_package");
+  FunctionBuilder fb("f", &p);
+  BValue amt = fb.Param("amt", p.GetBitsType(3));
+  BValue shifted = fb.Shll(fb.Literal(UBits(1, 8)), amt);
+  BValue shifted_eq_zero = fb.Eq(shifted, fb.Literal(UBits(0, 8)));
+  BValue selector = fb.Concat({shifted_eq_zero, shifted});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(selector));
+
+  StatelessQueryEngine query_engine;
+  EXPECT_TRUE(query_engine.ExactlyOneBitTrue(f->return_value()));
+}
+
 TEST_F(StatelessQueryEngineTest, ZeroExtend) {
   Package p("test_package");
   FunctionBuilder fb("f", &p);

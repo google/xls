@@ -443,12 +443,39 @@ bool StatelessQueryEngine::KnownNotEquals(const TreeBitLocation& a,
   return a_value != b_value;
 }
 
+namespace {
+bool IsShiftWithOneBitMax(const StatelessQueryEngine& qe, Node* node) {
+  if (!node->OpIn({Op::kShll, Op::kShrl, Op::kShra})) {
+    return false;
+  }
+  Node* shift_input = node->operand(0);
+  if (!qe.AtMostOneBitTrue(shift_input)) {
+    return false;
+  }
+  if (node->op() == Op::kShra &&
+      !qe.IsZero(
+          TreeBitLocation(shift_input, shift_input->BitCountOrDie() - 1))) {
+    // Right shift duplicates the set top bit.
+    return false;
+  }
+  // Shift by any amount of a one-hot value is at most one-hot.
+  return true;
+}
+}  // namespace
+
 bool StatelessQueryEngine::AtMostOneBitTrue(Node* node) const {
   if (node->Is<OneHot>()) {
     return true;
   }
   // A <=1-bit value can never have more than one bit set.
   if (node->GetType()->IsBits() && node->BitCountOrDie() <= 1) {
+    return true;
+  }
+
+  // An at-most-1 bit true value logically shifted (or arithmetically shifted if
+  // the value is known to be non-negative) in either direction by any amount is
+  // at most 1 bit true.
+  if (IsShiftWithOneBitMax(*this, node)) {
     return true;
   }
 
