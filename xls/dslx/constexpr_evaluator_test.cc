@@ -672,5 +672,36 @@ fn main() -> u32 {
   EXPECT_EQ(value.GetBitValueViaSign().value(), 8);
 }
 
+TEST(ConstexprEvaluatorTest, MemberOfChildProcValue) {
+  constexpr std::string_view kProgram = R"(#![feature(io_objects)]
+proc Child { input: Source<u32> }
+impl Child { fn new() -> Self { Child {} } fn next(self) {} }
+proc Top {}
+impl Top {
+  fn new() -> Self {
+    let c = Child::new();
+    c.input;
+    Top {}
+  }
+  fn next(self) {}
+}
+)";
+  ImportData import_data(CreateImportDataForTest());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
+  XLS_ASSERT_OK_AND_ASSIGN(ProcDef * top,
+                           tm.module->GetMemberOrError<ProcDef>("Top"));
+  Function* f = (*top->impl())->GetFunction("new").value();
+  WarningCollector warnings(kAllWarningsSet);
+  XLS_ASSERT_OK(ConstexprEvaluator::Evaluate(&import_data, tm.type_info,
+                                             &warnings, ParametricEnv(),
+                                             f->body(), nullptr));
+  Expr* c_input = std::get<Expr*>(f->body()->statements().at(1)->wrapped());
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
+                           tm.type_info->GetConstExpr(c_input));
+  EXPECT_TRUE(value.IsChannelReference());
+}
+
 }  // namespace
 }  // namespace xls::dslx
