@@ -60,9 +60,7 @@ xls_generate_documentation(
     codelink_format = "http://github.com/google/xls/tree/main%s",
     # Specifically generate for the dev passes regardless of what the default passes are.
     passes = ":dev_passes",
-    # Requirements on libcxx being explicit in include path.
     tags = [
-        "manual",
         "noasan",
         "nomsan",
     ],
@@ -77,10 +75,7 @@ xls_diff_test(
 Please update it using dev_tools/rebuild_golden_files.sh.""",
     file = ":rebuild_documentation",
     golden = "//docs_src:dev_passes_list.md",
-    # Requirements on libcxx being explicit in include path.
     tags = [
-        "manual",
-        "no_update_golden",
         "noasan",
         "nomsan",
     ],

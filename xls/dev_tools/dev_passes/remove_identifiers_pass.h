@@ -32,12 +32,12 @@ namespace xls {
 // This should only be used while investigating optimizer behavior using the
 // ir-visualizer or other tools.
 //
-// WARNING: This pass does not preserve externally visible names. Once run on a
+// Warning: This pass does not preserve externally visible names. Once run on a
 // design the various io-constraint and other configs which rely on naming
 // pieces of the design will not work. This pass is only for dev/ investigatory
 // purposes.
 //
-// NOTE: This pass **does not** preserve the id number of nodes.
+// Note: This pass **does not** preserve the id number of nodes.
 class RemoveIdentifiersPass : public OptimizationPass {
  public:
   static constexpr std::string_view kName = "remove_identifiers_unsafe";

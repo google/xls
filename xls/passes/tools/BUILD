@@ -51,19 +51,12 @@ exports_files([
 ])
 
 # This generates the passes_list.md file.
-#
-# TODO(https://github.com/google/xls/issues/2556) This has complicated
-# requirements on libcxx being from the same version of llvm as the clang
-# depenedencies. Internally at google this works automatically but in OSS this
-# doesn't work.
 xls_generate_documentation(
     name = "rebuild_documentation",
     codelink_format = "http://github.com/google/xls/tree/main%s",
     # Specifically generate for the oss passes regardless of what the default passes are.
     passes = "//xls/passes:oss_optimization_passes",
-    # Requirements on libcxx being explicit in include path.
     tags = [
-        "manual",
         "noasan",
         "nomsan",
     ],
@@ -78,10 +71,7 @@ xls_diff_test(
 Please update it using dev_tools/rebuild_golden_files.sh.""",
     file = ":rebuild_documentation",
     golden = "//docs_src:passes_list.md",
-    # Requirements on libcxx being explicit in include path.
     tags = [
-        "manual",
-        "no_update_golden",
         "noasan",
         "nomsan",
     ],
@@ -127,11 +117,6 @@ cc_library(
     alwayslink = True,
 )
 
-# TODO(https://github.com/google/xls/issues/2556) This has complicated
-# requirements on libcxx being from the same version of llvm as the clang
-# depenedencies. Internally at google this works automatically but in OSS this
-# doesn't work. If we could add libcxx headers to data like the clang
-# builtin_headers this would be simple enough to implement.
 cc_library(
     name = "generate_documentation_proto",
     srcs = ["generate_documentation_proto.cc"],

@@ -111,21 +111,25 @@ absl::StatusOr<std::string> ParseCppComments(
     absl::Span<std::string const> copts) {
   std::vector<std::string> argv = {
       "generate_documentation_proto",
-      // Force c++ mode.
-      "-x",
-      "c++",
-      // Actual header to compile.
-      std::string(h_file),
-      // This flag makes documentation-like comments be linked directly to the
-      // ast element they are nearest.
-      // "-w",
-      "-std=gnu++20",
-      // Actually parse the comments.
-      "-fparse-all-comments",
-      "-fsyntax-only",
-      "-o",
-      "/dev/null",
   };
+  absl::c_copy(copts, std::back_inserter(argv));
+  argv.insert(argv.end(),
+              {
+                  // Force c++ mode.
+                  "-x",
+                  "c++",
+                  // Actual header to compile.
+                  std::string(h_file),
+                  // Suppress warnings.
+                  "-w",
+                  "-std=gnu++20",
+                  // This flag makes documentation-like comments be linked
+                  // directly to the ast element they are nearest.
+                  "-fparse-all-comments",
+                  "-fsyntax-only",
+                  "-o",
+                  "/dev/null",
+              });
   // Allow a fallback of any base-class.
   auto matcher_base =
       m::cxxRecordDecl(m::isDerivedFrom(m::hasName("xls::OptimizationPass")),
@@ -135,7 +139,6 @@ absl::StatusOr<std::string> ParseCppComments(
       m::cxxRecordDecl(m::isDerivedFrom(m::hasName("xls::OptimizationPass")),
                        m::hasName(class_name), m::isExpansionInMainFile())
           .bind("exact_opt_pass");
-  absl::c_copy(copts, std::back_inserter(argv));
   // At the very end of the include search list we need to put the llvm base
   // headers. Normally these would be auto-populated so the cmdline doesn't
   // include them but because we aren't actually clang we need to supply them

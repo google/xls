@@ -23,7 +23,7 @@ load(
     "XlsOptimizationPassRegistryInfo",
 )
 
-def _cflags_for_info(comp_ctx, cc_toolchain, cc_feature):
+def _cflags_for_info(ctx, comp_ctx, cc_toolchain, cc_feature):
     """Returns the copts and environment variables for compiling the given compilation context."""
     MARKER_SRC_FILE = "marker-src-file"
     comp_variables = cc_common.create_compile_variables(
@@ -33,6 +33,7 @@ def _cflags_for_info(comp_ctx, cc_toolchain, cc_feature):
         source_file = MARKER_SRC_FILE,
         # We don't actually care about the output.
         output_file = "/dev/null",
+        user_compile_flags = ctx.fragments.cpp.copts + ctx.fragments.cpp.cxxopts,
         include_directories = comp_ctx.includes,
         quote_include_directories = comp_ctx.quote_includes,
         system_include_directories = comp_ctx.system_includes,
@@ -55,6 +56,8 @@ def _cflags_for_info(comp_ctx, cc_toolchain, cc_feature):
     copts.pop(o_idx)
     copts.pop(o_idx)
     copts.pop(copts.index(MARKER_SRC_FILE))
+    if "-c" in copts:
+        copts.pop(copts.index("-c"))
 
     return copts, cenv
 
@@ -80,7 +83,7 @@ def _generate_documentation_impl(ctx):
             ccinfo.compilation_context.direct_public_headers[0].basename,
         ))
 
-        copts, cenv = _cflags_for_info(ccinfo.compilation_context, cc_toolchain, cc_feature)
+        copts, cenv = _cflags_for_info(ctx, ccinfo.compilation_context, cc_toolchain, cc_feature)
 
         args = ctx.actions.args()
 
@@ -113,6 +116,7 @@ def _generate_documentation_impl(ctx):
         args.add("-pipeline_txtpb_file", ctx.attr.passes[XlsOptimizationPassRegistryInfo].pipeline_src.path)
         pipeline = [ctx.attr.passes[XlsOptimizationPassRegistryInfo].pipeline_binpb]
     args.add("-output", mdfile.path)
+    args.add("--github_callouts" if ctx.attr.github_style else "--nogithub_callouts")
     if ctx.attr.strip_prefix:
         args.add("-strip_prefix", ctx.attr.strip_prefix)
     args.add("-link_format", ctx.attr.codelink_format)
@@ -160,6 +164,11 @@ _internal_xls_generate_documentation = rule(
         ),
         "codelink_format": attr.string(
             doc = "String with '%s' where the (stripped) filename should be inserted to create a link to that file's source code.",
+            mandatory = True,
+        ),
+        "github_style": attr.bool(
+            doc = "Whether to use github-style callouts.",
+            default = True,
             mandatory = True,
         ),
         "template": attr.label(
@@ -223,6 +232,7 @@ def xls_generate_documentation(
         codelink_format,
         template,
         strip_prefix = "",
+        github_style = True,
         tags = [],
         **kwargs):
     """Generates documentation for the given passes.
@@ -233,6 +243,7 @@ def xls_generate_documentation(
       codelink_format: String with '%s' where the (stripped) filename should be inserted to create a link to that file's source code.
       template: The file to use as the jinja template for the generated list.
       strip_prefix: String to strip from the beginning of file names.
+      github_style: Whether to use github-style callouts.
       tags: Tags to apply to the rule.
       **kwargs: Additional arguments to pass to the underlying rule.
     """
@@ -251,6 +262,7 @@ def xls_generate_documentation(
         strip_prefix = strip_prefix,
         generate_documentation_proto = ":generate_documentation_proto_bin_for_%s" % name,
         template = template,
+        github_style = github_style,
         tags = tags,
         **kwargs
     )

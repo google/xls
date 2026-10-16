@@ -16,6 +16,8 @@
 
 from collections.abc import Sequence
 import dataclasses
+import re
+import textwrap
 
 from absl import app
 from absl import flags
@@ -69,12 +71,17 @@ _LINK_FORMAT = flags.DEFINE_string(
 _OUTPUT = flags.DEFINE_string(
     "output", default=None, required=True, help="result markdown file."
 )
+_GITHUB_CALLOUTS = flags.DEFINE_bool(
+    "github_callouts",
+    default=False,
+    help="Whether to use github-style callouts.",
+)
 
 
 def _strip_prefix(s: str) -> str:
   if s.startswith(_STRIP_PREFIX.value):
-    return s[len(_STRIP_PREFIX.value) :]
-  return s
+    s = s[len(_STRIP_PREFIX.value) :]
+  return "/" + s.lstrip("/")
 
 
 @dataclasses.dataclass
@@ -94,6 +101,62 @@ class PassInfo:
 
 def _header_linkify(name):
   return "".join(n for n in name if n.isalnum() or n == "_" or n == "-")
+
+
+def maybe_translate_callouts(text: str) -> str:
+  """Translate 'Warning:' and 'Note:' callouts to github markdown style.
+
+  Internally at google we use a callout style like 'Warning: Something important
+  here' but this differs from the standard markdown callout
+  syntax. This function translates that syntax into the standard markdown
+  callout syntax.
+
+  This handles cases like:
+
+  ```
+  Warning: Something important here
+  that flows onto multiple lines and
+  unfortunately requires reflow.
+  ```
+
+  turning it into
+
+  ```
+  !!! WARNING
+      Something important here
+      that flows onto multiple
+      lines and unfortunately
+      requires reflow.
+  ```
+
+
+  Args:
+    text: The text to translate.
+
+  Returns:
+    The text with the callouts translated.
+  """
+  if not _GITHUB_CALLOUTS.value:
+    return text
+
+  def _replace_callout(match: re.Match[str]) -> str:
+    kind = match.group("kind").upper()
+    body = textwrap.fill(
+        match.group("body"),
+        width=80,
+        initial_indent="    ",
+        subsequent_indent="    ",
+        break_long_words=False,
+        break_on_hyphens=False,
+    )
+    return f"!!! {kind}\n{body}"
+
+  return re.sub(
+      r"(?:\A|(?<=\n\n))(?P<kind>Warning|Note):\s+(?P<body>.+?)(?=\n\n|\Z)",
+      _replace_callout,
+      text,
+      flags=re.IGNORECASE | re.DOTALL,
+  )
 
 
 def main(argv: Sequence[str]) -> None:
@@ -131,7 +194,7 @@ def main(argv: Sequence[str]) -> None:
             max_opt_level=0,
             compound=None,
             fixedpoint=False,
-            description=p.notes.strip(),
+            description=maybe_translate_callouts(p.notes.strip()),
         )
     )
   for comp in pipeline.compound_passes:
@@ -150,7 +213,7 @@ def main(argv: Sequence[str]) -> None:
             max_opt_level=comp.options.cap_opt_level,
             compound=comp.passes,
             fixedpoint=comp.fixedpoint,
-            description=comp.comment.strip(),
+            description=maybe_translate_callouts(comp.comment.strip()),
         )
     )
   infos.sort(key=lambda v: v.short_name)
