@@ -28,6 +28,8 @@ class string {
 
 string operator + (const std::string& lhs, char rhs) {return lhs;}
 
+string to_string(long long val) {(void)__xlscc_unimplemented();return "";}
+
 }  // namespace std
 
 #endif//__STRING_H__
