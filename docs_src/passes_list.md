@@ -87,6 +87,12 @@ Key optimizations performed by this pass include:
         This is particularly effective for small constant dividends where a
         full division circuit is overkill.
 
+    *   **Unsigned Divide by small range of values**: If the *divisor* is
+        known to be one of a small number of values, (by default 16) the
+        division is replaced by a select keyed by the divisor resolving to
+        the possible constant division operations.
+        TODO(allight): We should support this for signed division as well.
+
 2.  **Shift Operations**:
 
     *   **Logical Shift by Constant**: `shll(x, K)` or `shrl(x, K)` where `K`

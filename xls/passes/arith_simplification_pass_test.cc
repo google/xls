@@ -51,6 +51,7 @@
 #include "xls/passes/dce_pass.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/pass_base.h"
+#include "xls/passes/repopulate_cached_proc_state_info_pass.h"
 #include "xls/solvers/ir_equivalence_testutils.h"
 
 namespace m = ::xls::op_matchers;
@@ -63,6 +64,7 @@ constexpr absl::Duration kProverTimeout = absl::Seconds(10);
 using ::absl_testing::IsOk;
 using ::absl_testing::IsOkAndHolds;
 using ::xls::solvers::ScopedVerifyEquivalence;
+using ::xls::solvers::ScopedVerifyProcEquivalence;
 
 using ::testing::_;
 using ::testing::AllOf;
@@ -71,12 +73,16 @@ class ArithSimplificationPassTest : public IrTestBase {
  protected:
   ArithSimplificationPassTest() = default;
 
-  absl::StatusOr<bool> Run(Package* p) {
+  absl::StatusOr<bool> Run(Package* p, bool with_dce = false) {
     PassResults results;
     OptimizationContext context;
-    return ArithSimplificationPass().Run(
-        p, OptimizationPassOptions().WithOptLevel(kMaxOptLevel), &results,
-        context);
+    OptimizationCompoundPass passes("passes", "test passes");
+    passes.Add<ArithSimplificationPass>();
+    if (with_dce) {
+      passes.Add<DeadCodeEliminationPass>();
+    }
+    return passes.Run(p, OptimizationPassOptions().WithOptLevel(kMaxOptLevel),
+                      &results, context);
   }
 
   void CheckUnsignedDivideBy(int divisor, int bit_count);
@@ -1331,6 +1337,20 @@ TEST_F(ArithSimplificationPassTest, SDivWrongIssue736) {
   interp_and_check(x, div_rt0(x));
 }
 
+TEST_F(ArithSimplificationPassTest, UDivOfSelect) {
+  auto p = CreatePackage();
+  FunctionBuilder fb("UDivOfSelect", p.get());
+  fb.UDiv(fb.Param("foo", p->GetBitsType(12)),
+          fb.Select(fb.Param("c", p->GetBitsType(1)),
+                    {fb.Literal(Value(UBits(4, 12))),
+                     fb.Literal(Value(UBits(8, 12)))}));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ASSERT_THAT(Run(p.get(), /*with_dce=*/true), IsOkAndHolds(true));
+  ScopedVerifyEquivalence sve(f);
+  ScopedRecordIr sri(p.get());
+  EXPECT_THAT(f->nodes(), testing::Not(testing::Contains(m::UDiv())));
+}
+
 TEST_F(ArithSimplificationPassTest, UDivOf64) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
@@ -1829,7 +1849,8 @@ fn func(x: bits[8], k: bits[3]) -> bits[8] {
 )",
                                                        p.get()));
   ScopedVerifyEquivalence sve(f);
-  EXPECT_THAT(Run(p.get()), IsOkAndHolds(false));
+  EXPECT_THAT(Run(p.get(), /*with_dce=*/true), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(), m::PrioritySelect());
 }
 
 TEST_F(ArithSimplificationPassTest, MulBy1) {
@@ -1855,6 +1876,7 @@ TEST_F(ArithSimplificationPassTest, OverlargeShiftAfterSimp) {
      }
   )",
                                                        p.get()));
+  ScopedVerifyEquivalence sve(f);
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
   EXPECT_THAT(f->return_value(), m::Literal(0));
 }
@@ -1868,6 +1890,7 @@ TEST_F(ArithSimplificationPassTest, ShiftRightArithmeticByLiteral) {
      }
   )",
                                                        p.get()));
+  ScopedVerifyEquivalence sve(f);
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
   EXPECT_THAT(
       f->return_value(),
@@ -2622,6 +2645,61 @@ TEST_F(ArithSimplificationPassTest, FuzzTestInvalidSDivTransform) {
 
   ScopedVerifyEquivalence sve(f);
   ASSERT_THAT(Run(p.get()), IsOk());
+}
+
+TEST_F(ArithSimplificationPassTest, SmallNumberUDiv) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetBitsType(8));
+  BValue y = fb.Param("y", p->GetBitsType(1));
+  fb.UDiv(x, fb.ZeroExtend(y, 8));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ScopedVerifyEquivalence sve(f);
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+}
+
+TEST_F(ArithSimplificationPassTest, StateElementUDivOperation) {
+  auto p = CreatePackage();
+  TokenlessProcBuilder pb(NewStyleProc{}, TestName(), "tkn", p.get());
+  auto st = pb.StateElement("st", Value(UBits(1, 6)));
+  auto div = pb.StateRead(st);
+  auto div_lt_4 = pb.ULt(div, pb.Literal(UBits(4, 6)));
+  pb.Next(st, pb.Add(div, pb.Literal(UBits(1, 6))), div_lt_4);
+  pb.Next(st, pb.Literal(UBits(1, 6)), pb.Not(div_lt_4));
+  auto chan = pb.AddInputChannel("quot", p->GetBitsType(6));
+  auto quot = pb.Receive(chan);
+  auto out = pb.AddOutputChannel("res", p->GetBitsType(6));
+  pb.Send(out, pb.UDiv(quot, div));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
+  ScopedVerifyProcEquivalence svpe(proc, 6);
+  ScopedRecordIr sri(p.get(), "sri_ir");
+
+  OptimizationCompoundPass passes("passes", "test passes");
+  passes.Add<RepopulateCachedProcStateInfoPass>();
+  passes.Add<ArithSimplificationPass>();
+  passes.Add<DeadCodeEliminationPass>();
+  OptimizationContext context;
+  PassResults results;
+  ASSERT_THAT(passes.Run(p.get(), {}, &results, context), IsOkAndHolds(true));
+}
+
+TEST_F(ArithSimplificationPassTest, UDivByEnormousPowerOfTwo) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetBitsType(4));
+  BValue x_ext = fb.Concat({x, fb.Literal(UBits(0, 124))});
+  BValue k = fb.Param("k", p->GetBitsType(7));
+  BValue one = fb.Literal(UBits(1, 128));
+  fb.UDiv(x_ext, fb.Shll(one, k));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  ScopedRecordIr sri(p.get(), "sri_");
+  // NB Intentionally not doing a VerifyEquivalence here because it takes z3
+  // minutes to verify even when I reduce the input set as much as possible.
+  // ScopedVerifyEquivalence sve(f);
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::Select(m::UGe(), {m::Shrl(), m::Literal()}));
 }
 
 void IrFuzzArithSimplification(FuzzPackageWithArgs fuzz_package_with_args) {

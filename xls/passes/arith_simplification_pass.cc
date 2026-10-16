@@ -18,26 +18,31 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
+#include <iterator>
 #include <limits>
 #include <optional>
 #include <tuple>
 #include <utility>
+#include <variant>
 #include <vector>
 
 #include "absl/algorithm/container.h"
 #include "absl/container/fixed_array.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/common/visitor.h"
 #include "xls/data_structures/inline_bitmap.h"
 #include "xls/data_structures/leaf_type_tree.h"
 #include "xls/ir/big_int.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/bits_ops.h"
+#include "xls/ir/interval_set.h"
 #include "xls/ir/node.h"
 #include "xls/ir/node_util.h"
 #include "xls/ir/nodes.h"
@@ -46,10 +51,13 @@
 #include "xls/ir/ternary.h"
 #include "xls/ir/value.h"
 #include "xls/ir/value_utils.h"
+#include "xls/passes/cached_state_element_query_engine.h"
 #include "xls/passes/optimization_pass.h"
+#include "xls/passes/partial_info_query_engine.h"
 #include "xls/passes/pass_base.h"
 #include "xls/passes/query_engine.h"
 #include "xls/passes/stateless_query_engine.h"
+#include "xls/passes/union_query_engine.h"
 
 namespace xls {
 namespace {
@@ -58,6 +66,13 @@ namespace {
 // into a pure (uncompressed) lookup table. This is not backed by any particular
 // data, but seems a reasonable size limit for a LUT.
 constexpr int64_t kMaxConstantDividendLUTSize = 64;
+// The largest size of lookup table we will use when transforming a division
+// into a lookup table on constant divisors.
+//
+// TODO(allight): Currently is exactly the same as the max number of arbitrary
+// constant values range analysis can give us which makes this more likely to
+// hit.
+constexpr int64_t kMaxArbitraryDivisorLUTSize = 16;
 
 // The largest constant dividend K for which we will transform a division K/x
 // into a lookup table. The priority-select portion of the lookup table has size
@@ -158,16 +173,21 @@ std::optional<ClampExpr> MatchClampUpperLimit(Node* n,
 // The values required to emulate division by a specific divisor.
 struct UnsignedDivisionConstants {
   // dividend and divisor must be < 2^N
-  const int64_t N;
+  int64_t N;
 
   // multiplies the dividend
-  const BigInt m;
+  BigInt m;
 
   // right shift amount before the multiply
-  const int64_t pre_shift;
+  int64_t pre_shift;
 
   // right shift amount after the multiply
-  const int64_t post_shift;
+  int64_t post_shift;
+};
+
+struct UnsignedDivisionByPowerOfTwo {
+  // The exponent we are dividing by.
+  int64_t exponent;
 };
 
 // Returns (m, post_shift, l). Used in optimizing division by
@@ -557,9 +577,376 @@ absl::StatusOr<Node*> GenerateLUT(CompressedLUT lut, Node* index,
                                       /*default_value=*/past_the_end);
 }
 
+namespace unsigned_div {
+
+struct Pow2Lut {};
+struct Pow2Shift {
+  Node* shift_amount;
+  int64_t literal_shift;
+};
+
+// Pull out a node representing the power of 2 the divisor node is if it exists.
+// TODO(allight): This is very fragile and doesn't handle many cases. (eg
+// `bitslice(k << X, 1, 12)` etc). We should try to do better than this.
+//
+// TODO(allight): Should we also generate shifts where 'shift_amount' is a
+// decode node?
+std::optional<Pow2Shift> GetPow2ShiftUDiv(Node* divisor,
+                                          const QueryEngine& qe) {
+  if (divisor->op() == Op::kDecode) {
+    VLOG(2) << "FOUND: Div by variable power of two (decode(K))";
+    return Pow2Shift{.shift_amount = divisor->operand(0), .literal_shift = 0};
+  }
+  if (divisor->op() == Op::kShll) {
+    std::optional<Bits> shifted_value =
+        qe.KnownValueAsBits(divisor->operand(0));
+    if (!shifted_value.has_value() || !shifted_value->IsPowerOfTwo()) {
+      return std::nullopt;
+    }
+    int64_t literal_shift = shifted_value->CountTrailingZeros();
+    VLOG(2) << absl::StreamFormat(
+        "FOUND: Div by variable power of two (2^%d << K)", literal_shift);
+    return Pow2Shift{.shift_amount = divisor->operand(1),
+                     .literal_shift = literal_shift};
+  }
+  return std::nullopt;
+}
+
+absl::StatusOr<Node*> MakePow2ShiftNodeUDiv(Node* original_divide_op,
+                                            Node* dividend, Pow2Shift shift) {
+  FunctionBase* fb = dividend->function_base();
+  Node* shift_amount = shift.shift_amount;
+  int64_t literal_shift = shift.literal_shift;
+  if (literal_shift != 0) {
+    XLS_ASSIGN_OR_RETURN(
+        Node * literal_shift_lit,
+        fb->MakeNode<Literal>(
+            dividend->loc(),
+            Value(UBits(literal_shift,
+                        Bits::MinBitCountUnsigned(literal_shift)))));
+    XLS_ASSIGN_OR_RETURN(
+        dividend, fb->MakeNodeWithName<BinOp>(
+                      dividend->loc(), dividend, literal_shift_lit, Op::kShrl,
+                      NodeNameFormat("%s_literal_shift", dividend)));
+  }
+  XLS_ASSIGN_OR_RETURN(
+      Node * shift_result,
+      fb->MakeNodeWithName<BinOp>(
+          dividend->loc(), dividend, shift_amount, Op::kShrl,
+          NodeNameFormat("%s_divide_using_shift", original_divide_op)));
+  XLS_ASSIGN_OR_RETURN(
+      Node * div_by_zero_res,
+      fb->MakeNode<Literal>(
+          original_divide_op->loc(),
+          Value(Bits::AllOnes(original_divide_op->BitCountOrDie()))));
+  XLS_ASSIGN_OR_RETURN(
+      Node * is_div_by_zero,
+      CompareLiteral(shift_amount, dividend->BitCountOrDie() - literal_shift,
+                     Op::kUGe));
+  return fb->MakeNodeWithName<Select>(
+      original_divide_op->loc(), is_div_by_zero,
+      absl::Span<Node* const>{shift_result, div_by_zero_res}, std::nullopt,
+      NodeNameFormat("%s_select_div_by_zero", original_divide_op));
+}
+
+absl::StatusOr<Node*> MakeUDivByConstantValues(
+    Node* original_div_op,
+    const UnsignedDivisionConstants& division_constants) {
+  FunctionBase* fb = original_div_op->function_base();
+  Node* dividend = original_div_op->operand(0);
+  int64_t bit_count = dividend->BitCountOrDie();
+  const SourceInfo loc = original_div_op->loc();
+
+  // In the paper, there is a case for m >= 2^N.
+  // Comparing the "large m" case to the m < 2^N case (AKA "small m case"),
+  // the "large m" case has:
+  //  * 2 more subs
+  //  * 1 more add
+  //  * a narrower multiply (one operand is 1 bit narrower - details below)
+  //
+  // I believe the large m case only exists because the paper assumes that
+  // the computer's widest multiplier is N bits. Obviously we can synthesize
+  // a wider multiplier. I'm not sure what's more optimal (in terms of
+  // latency, area, power):
+  // * have a separate large m case
+  // * fold the large m case into the small m case
+  //
+  // Careful reading reveals that in the large m case, m is just 1 bit wider
+  // than in the small m case. That means that the penalty for reusing the
+  // small m algorithm for the large m case is small: one multiplier operand
+  // is 1 bit wider. I also verified this empirically for all divisors in
+  // [1, 2^24].
+  //
+  // It's less work to reuse the small m case, so that's what we do.
+  //
+  // If you want to add the large m case, the condition is:
+  // if (division_constants.m >= Exp2<uint64_t>(division_constants.N))
+  // the expression to implement is:
+  // t1 = mulhi(m-Exp2<uint64_t>(N), numerator)
+  // return SRL(t1 + SRL(numerator-t1,1), post_shift-1)
+
+  // The operations below implement the small m case. The expression is:
+  // SRL(mulhi(m, SRL(numerator, pre_shift)), post_shift)
+
+  // The dividend after pre_shift.
+  Node* shift_dividend;
+  if (division_constants.pre_shift > 0) {
+    // SRL(dividend, pre_shift)
+    //
+    // We use BitSlice instead of SRL, because BitSlice produces a
+    // narrower result (and the extra bits returned by SRL are zeros).
+    XLS_ASSIGN_OR_RETURN(
+        shift_dividend,
+        fb->MakeNode<BitSlice>(
+            loc, dividend,
+            /*start=*/division_constants.pre_shift,
+            /*width=*/
+            dividend->BitCountOrDie() - division_constants.pre_shift));
+  } else {
+    shift_dividend = dividend;
+  }
+
+  // Mul(m, ...)
+  XLS_ASSIGN_OR_RETURN(
+      Node * multiplicand_literal,
+      fb->MakeNode<Literal>(loc, Value(division_constants.m.ToUnsignedBits())));
+  XLS_ASSIGN_OR_RETURN(
+      Node * multiply,
+      fb->MakeNode<ArithOp>(loc, multiplicand_literal, shift_dividend,
+                            multiplicand_literal->BitCountOrDie() +
+                                shift_dividend->BitCountOrDie(),
+                            Op::kUMul));
+
+  // Notes on how this works:
+  // m / 2^post_shift ~= 1/divisor
+  // m is effectively a fixed point value with N fractional bits (and
+  // frequently 0 but sometimes more than 0 integer bits).
+  // We're only interested in the integer part of dividend/divisor, thus
+  // we're only interested in the integer part of (dividend * m). So we
+  // discard the fractional bits of (m * dividend), via BitSlice.
+  XLS_ASSIGN_OR_RETURN(
+      Node * integer_part_of_product,
+      fb->MakeNode<BitSlice>(loc, multiply,
+                             /*start=*/division_constants.N,
+                             /*width=*/
+                             multiply->BitCountOrDie() - division_constants.N));
+
+  // SRL(..., post_shift)
+  Node* post_shift_node = integer_part_of_product;
+  if (division_constants.post_shift > 0) {
+    XLS_ASSIGN_OR_RETURN(
+        Node * shift_amount_literal,
+        fb->MakeNode<Literal>(
+            loc, Value(UBits(division_constants.post_shift,
+                             Bits::MinBitCountUnsigned(
+                                 division_constants.post_shift)))));
+    XLS_ASSIGN_OR_RETURN(post_shift_node,
+                         fb->MakeNode<BinOp>(loc, integer_part_of_product,
+                                             shift_amount_literal, Op::kShrl));
+  }
+
+  XLS_ASSIGN_OR_RETURN(Node * resize_post_shift,
+                       NarrowOrExtend(post_shift_node, false, bit_count));
+  return resize_post_shift;
+}
+
+using Pow2DivStrategy = std::variant<Pow2Lut, Pow2Shift>;
+
+absl::StatusOr<Node*> MakeUDivLutNode(
+    Node* original_divide_op,
+    absl::Span<std::pair<Bits, UnsignedDivisionConstants> const> operations,
+    absl::Span<std::pair<Bits, UnsignedDivisionByPowerOfTwo> const>
+        pow_2_operations,
+    bool has_div_by_zero) {
+  XLS_RET_CHECK(!operations.empty() || !pow_2_operations.empty() ||
+                has_div_by_zero)
+      << "Some operation must be present.";
+  Node* dividend = original_divide_op->operand(0);
+  Node* divisor = original_divide_op->operand(1);
+  FunctionBase* fb = original_divide_op->function_base();
+  Node* default_value;
+  std::vector<Node*> cases;
+  std::vector<Node*> predicates;
+  auto make_predicate_for = [&](const Bits& b) -> absl::Status {
+    XLS_ASSIGN_OR_RETURN(
+        Node * lit_divisor,
+        fb->MakeNode<Literal>(original_divide_op->loc(), Value(b)));
+    XLS_ASSIGN_OR_RETURN(
+        std::back_inserter(predicates),
+        fb->MakeNodeWithName<CompareOp>(
+            original_divide_op->loc(), divisor, lit_divisor, Op::kEq,
+            NodeNameFormat("%s_is_%s", divisor, b.ToDebugString())));
+    return absl::OkStatus();
+  };
+  auto make_div_by_const =
+      [&](const UnsignedDivisionConstants& constants) -> absl::StatusOr<Node*> {
+    return MakeUDivByConstantValues(original_divide_op, constants);
+  };
+  auto make_shift_by_const = [&](int64_t shift) -> absl::StatusOr<Node*> {
+    if (shift == 0) {
+      return dividend;
+    }
+    XLS_ASSIGN_OR_RETURN(
+        Node * shift_lit,
+        fb->MakeNode<Literal>(
+            divisor->loc(),
+            Value(UBits(shift, Bits::MinBitCountUnsigned(shift)))));
+    return fb->MakeNodeWithName<BinOp>(
+        original_divide_op->loc(), dividend, shift_lit, Op::kShrl,
+        NodeNameFormat("%s_as_shift_by_%d", original_divide_op, shift));
+  };
+  if (has_div_by_zero) {
+    XLS_ASSIGN_OR_RETURN(
+        default_value,
+        fb->MakeNode<Literal>(
+            original_divide_op->loc(),
+            Value(Bits::AllOnes(original_divide_op->BitCountOrDie()))));
+  } else if (pow_2_operations.empty()) {
+    auto op = operations.back().second;
+    operations = operations.subspan(0, operations.size() - 1);
+    XLS_ASSIGN_OR_RETURN(default_value, make_div_by_const(op));
+  } else {
+    auto op = pow_2_operations.back().second;
+    pow_2_operations = pow_2_operations.subspan(0, pow_2_operations.size() - 1);
+    XLS_ASSIGN_OR_RETURN(default_value, make_shift_by_const(op.exponent));
+  }
+  for (const auto& [bits, constants] : operations) {
+    XLS_RETURN_IF_ERROR(make_predicate_for(bits));
+    XLS_ASSIGN_OR_RETURN(std::back_inserter(cases),
+                         make_div_by_const(constants));
+  }
+  for (const auto& [bits, pow_2_op] : pow_2_operations) {
+    XLS_RETURN_IF_ERROR(make_predicate_for(bits));
+    XLS_ASSIGN_OR_RETURN(std::back_inserter(cases),
+                         make_shift_by_const(pow_2_op.exponent));
+  }
+  XLS_ASSIGN_OR_RETURN(Node * res,
+                       PrioritySelectOfConcatIfNeeded(
+                           fb, predicates, cases, default_value,
+                           NodeNameFormat("%s_pow2_lut", original_divide_op),
+                           original_divide_op->loc()));
+  return res;
+}
+
+// We need to decide based on the number of pow_2_operations and operations
+// whether to implement the pow-2 operations as a shift or put it into the
+// same lut as the arbitrary constants.
+// TODO(allight): We need to move this to the APT schema. This is a combination
+// applicability and profitability guard.
+//
+// TODO(allight): It would be good to take into account the size of the LUT we'd
+// need too.
+absl::StatusOr<Pow2DivStrategy> GetPow2DivStrategy(Node* divisor,
+                                                   const QueryEngine& qe) {
+  // Need to see if we can even extract the shift amount at all before anything.
+  // If we can't than we're forced to use a LUT.
+  // Applicability Guard.
+  std::optional<Pow2Shift> pow2_shift = GetPow2ShiftUDiv(divisor, qe);
+  if (!pow2_shift.has_value()) {
+    // No choice.
+    return Pow2Lut{};
+  }
+  // No other LUT elements so we can just shift (maybe with a 'is zero')
+  // TODO(allight): Probably not always the best actually if we know the actual
+  // divisor is a limited number of values. Admittedly this can be picked up and
+  // fixed up later so NBD.
+  if (qe.AtMostOneBitTrue(divisor)) {
+    return *pow2_shift;
+  }
+  // For now if we need to have a LUT anyway always use it.
+  // TODO(allight): This is probably a suboptimal app-guard. We should try to
+  // improve this.
+  return Pow2Lut{};
+}
+
+absl::StatusOr<bool> MatchWithLimitedDivisorSpace(Node* original_div_op,
+                                                  const QueryEngine& qe) {
+  XLS_RET_CHECK_EQ(original_div_op->op(), Op::kUDiv);
+  Node* dividend = original_div_op->operand(0);
+  Node* divisor = original_div_op->operand(1);
+  IntervalSet divisor_intervals = qe.GetIntervals(divisor).Get({});
+  // NB There is some complex logic to ensure that if we have a power of 2 that
+  // is large enough to cause intervals to pessimize we still recognize it.
+  std::optional<int64_t> divisor_space_size = divisor_intervals.Size();
+  bool divisor_is_pow_2 = qe.AtMostOneBitTrue(divisor);
+  bool has_div_by_zero = qe.Covers(divisor, UBits(0, divisor->BitCountOrDie()));
+  // We want to always handle cases where every divisor is a power of two and
+  // also create a LUT when the divisor has a small number of values.
+  if (!divisor_is_pow_2 && *divisor_space_size > kMaxArbitraryDivisorLUTSize) {
+    // We've not been able to reduce the divisor to a small number of constants.
+    return false;
+  }
+  if (qe.IsFullyKnown(dividend) && divisor_intervals.Size() != 1) {
+    // Instead we can create a LUT directly on the divisor which is preferable
+    // since has less critical path for anything other than a single constant.
+    // TODO(Allight): Probably want an actual profitability guard to evaluate
+    // and balance this
+    return false;
+  }
+
+  // Now we need to decide how to implement the division (if we can).
+  // We need to decide based on the number of pow_2_operations and operations
+  // whether to implement the pow-2 operations as a shift or put it into the
+  // same lut as the arbitrary constants.
+  // TODO(allight): We need to move this to the APT schema.
+  XLS_ASSIGN_OR_RETURN(auto pow_2_strategy, GetPow2DivStrategy(divisor, qe));
+
+  // NB We could in the future have a strategy where we do a LUT but some of the
+  // divisors can share a shift. This would require a significant rework in how
+  // we do stuff unfortunately. Right now we assume that LUT is the only way to
+  // handle cases where there isn't a shift variable we can extract.
+  return std::visit(
+      Visitor{
+          [&](Pow2Lut) -> absl::StatusOr<bool> {
+            if (!divisor_space_size ||
+                *divisor_space_size > kMaxArbitraryDivisorLUTSize) {
+              return false;
+            }
+            // Too many values to be able to use a LUT.
+            std::vector<std::pair<Bits, UnsignedDivisionConstants>> operations;
+            std::vector<std::pair<Bits, UnsignedDivisionByPowerOfTwo>>
+                pow_2_operations;
+            operations.reserve(*divisor_space_size);
+            pow_2_operations.reserve(*divisor_space_size);
+            for (const Bits& divisor_bits : divisor_intervals.Values()) {
+              if (divisor_bits.IsZero()) {
+                XLS_RET_CHECK(has_div_by_zero);
+                continue;
+              } else if (divisor_bits.PopCount() == 1) {
+                pow_2_operations.emplace_back(
+                    divisor_bits,
+                    UnsignedDivisionByPowerOfTwo{
+                        .exponent = divisor_bits.CountTrailingZeros()});
+              } else {
+                operations.emplace_back(
+                    divisor_bits, ComputeUnsignedDivisionConstants(
+                                      dividend->BitCountOrDie(),
+                                      BigInt::MakeUnsigned(divisor_bits)));
+              }
+            }
+            XLS_ASSIGN_OR_RETURN(
+                Node * n, MakeUDivLutNode(original_div_op, operations,
+                                          pow_2_operations, has_div_by_zero));
+            XLS_RETURN_IF_ERROR(original_div_op->ReplaceUsesWith(n));
+            return true;
+          },
+          [&](const Pow2Shift& shift) -> absl::StatusOr<bool> {
+            XLS_ASSIGN_OR_RETURN(
+                Node * n,
+                MakePow2ShiftNodeUDiv(original_div_op, dividend, shift));
+            XLS_RETURN_IF_ERROR(original_div_op->ReplaceUsesWith(n));
+            return true;
+          }},
+      pow_2_strategy);
+}
+}  // namespace unsigned_div
+
 // Matches unsigned integer division with one operand constant.
 //
 // If the divisor is constant, replaces with a multiply and shift(s).
+//
+// If the divisor has a small number of values, replace with a multiply, shifts
+// and muxes.
 //
 // If the dividend is constant and reasonably small, replaces with a lookup
 // table.
@@ -573,124 +960,20 @@ absl::StatusOr<Node*> GenerateLUT(CompressedLUT lut, Node* index,
 // Note: the source for the algorithms used to optimize division by constant is
 // "Division by Invariant Integers using Multiplication"
 // https://gmplib.org/~tege/divcnst-pldi94.pdf
-absl::StatusOr<bool> MatchUnsignedDivideByConstant(
-    Node* original_div_op, const QueryEngine& query_engine) {
+absl::StatusOr<bool> MatchUnsignedDivide(Node* original_div_op,
+                                         const QueryEngine& query_engine) {
   if (original_div_op->op() != Op::kUDiv) {
     return false;
   }
-  FunctionBase* fb = original_div_op->function_base();
   Node* dividend = original_div_op->operand(0);
   Node* divisor = original_div_op->operand(1);
   int64_t bit_count = original_div_op->BitCountOrDie();
 
-  if (query_engine.IsFullyKnown(divisor)) {
-    Bits rhs = *query_engine.KnownValueAsBits(divisor);
-    if (!rhs.IsPowerOfTwo()  // power of two is handled elsewhere.
-        && !rhs.IsZero()     // div by 0 is handled elsewhere
-    ) {
-      const SourceInfo loc = original_div_op->loc();
-
-      UnsignedDivisionConstants division_constants =
-          ComputeUnsignedDivisionConstants(dividend->BitCountOrDie(),
-                                           BigInt::MakeUnsigned(rhs));
-
-      // In the paper, there is a case for m >= 2^N.
-      // Comparing the "large m" case to the m < 2^N case (AKA "small m case"),
-      // the "large m" case has:
-      //  * 2 more subs
-      //  * 1 more add
-      //  * a narrower multiply (one operand is 1 bit narrower - details below)
-      //
-      // I believe the large m case only exists because the paper assumes that
-      // the computer's widest multiplier is N bits. Obviously we can synthesize
-      // a wider multiplier. I'm not sure what's more optimal (in terms of
-      // latency, area, power):
-      // * have a separate large m case
-      // * fold the large m case into the small m case
-      //
-      // Careful reading reveals that in the large m case, m is just 1 bit wider
-      // than in the small m case. That means that the penalty for reusing the
-      // small m algorithm for the large m case is small: one multiplier operand
-      // is 1 bit wider. I also verified this empirically for all divisors in
-      // [1, 2^24].
-      //
-      // It's less work to reuse the small m case, so that's what we do.
-      //
-      // If you want to add the large m case, the condition is:
-      // if (division_constants.m >= Exp2<uint64_t>(division_constants.N))
-      // the expression to implement is:
-      // t1 = mulhi(m-Exp2<uint64_t>(N), numerator)
-      // return SRL(t1 + SRL(numerator-t1,1), post_shift-1)
-
-      // The operations below implement the small m case. The expression is:
-      // SRL(mulhi(m, SRL(numerator, pre_shift)), post_shift)
-
-      // The dividend after pre_shift.
-      Node* shift_dividend;
-      if (division_constants.pre_shift > 0) {
-        // SRL(dividend, pre_shift)
-        //
-        // We use BitSlice instead of SRL, because BitSlice produces a
-        // narrower result (and the extra bits returned by SRL are zeros).
-        XLS_ASSIGN_OR_RETURN(
-            shift_dividend,
-            fb->MakeNode<BitSlice>(
-                loc, dividend,
-                /*start=*/division_constants.pre_shift,
-                /*width=*/
-                dividend->BitCountOrDie() - division_constants.pre_shift));
-      } else {
-        shift_dividend = dividend;
-      }
-
-      // Mul(m, ...)
-      XLS_ASSIGN_OR_RETURN(
-          Node * multiplicand_literal,
-          fb->MakeNode<Literal>(loc,
-                                Value(division_constants.m.ToUnsignedBits())));
-      XLS_ASSIGN_OR_RETURN(
-          Node * multiply,
-          fb->MakeNode<ArithOp>(loc, multiplicand_literal, shift_dividend,
-                                multiplicand_literal->BitCountOrDie() +
-                                    shift_dividend->BitCountOrDie(),
-                                Op::kUMul));
-
-      // Notes on how this works:
-      // m / 2^post_shift ~= 1/divisor
-      // m is effectively a fixed point value with N fractional bits (and
-      // frequently 0 but sometimes more than 0 integer bits).
-      // We're only interested in the integer part of dividend/divisor, thus
-      // we're only interested in the integer part of (dividend * m). So we
-      // discard the fractional bits of (m * dividend), via BitSlice.
-      XLS_ASSIGN_OR_RETURN(
-          Node * integer_part_of_product,
-          fb->MakeNode<BitSlice>(
-              loc, multiply,
-              /*start=*/division_constants.N,
-              /*width=*/
-              multiply->BitCountOrDie() - division_constants.N));
-
-      // SRL(..., post_shift)
-      Node* post_shift_node = integer_part_of_product;
-      if (division_constants.post_shift > 0) {
-        XLS_ASSIGN_OR_RETURN(
-            Node * shift_amount_literal,
-            fb->MakeNode<Literal>(
-                loc, Value(UBits(division_constants.post_shift,
-                                 Bits::MinBitCountUnsigned(
-                                     division_constants.post_shift)))));
-        XLS_ASSIGN_OR_RETURN(
-            post_shift_node,
-            fb->MakeNode<BinOp>(loc, integer_part_of_product,
-                                shift_amount_literal, Op::kShrl));
-      }
-
-      XLS_ASSIGN_OR_RETURN(Node * resize_post_shift,
-                           NarrowOrExtend(post_shift_node, false, bit_count));
-
-      XLS_RETURN_IF_ERROR(original_div_op->ReplaceUsesWith(resize_post_shift));
-      return true;
-    }
+  XLS_ASSIGN_OR_RETURN(bool divisor_lut_or_shift,
+                       unsigned_div::MatchWithLimitedDivisorSpace(
+                           original_div_op, query_engine));
+  if (divisor_lut_or_shift) {
+    return true;
   }
 
   if (!query_engine.IsFullyKnown(dividend)) {
@@ -730,7 +1013,9 @@ absl::StatusOr<bool> MatchUnsignedDivideByConstant(
 
 // Matches signed integer division with one operand constant.
 //
-// If the divisor is constant, replaces with a multiply and shift(s).
+// Vocabulary reminder: division operation is: dividend/divisor.
+//
+// If the divisor is a constantS, replaces with a multiply and shift(s)
 //
 // If the dividend is constant and reasonably small, replaces with a lookup
 // table.
@@ -741,11 +1026,14 @@ absl::StatusOr<bool> MatchUnsignedDivideByConstant(
 // In accordance with XLS semantics
 // (https://google.github.io/xls/ir_semantics/), quotient is rounded towards 0.
 //
-// Note: the source for the algorithms used to optimize divison by constant is
+// Note: the source for the algorithms used to optimize division by constant is
 // "Division by Invariant Integers using Multiplication"
 // https://gmplib.org/~tege/divcnst-pldi94.pdf
-absl::StatusOr<bool> MatchSignedDivideByConstant(
-    Node* original_div_op, const QueryEngine& query_engine) {
+//
+// TODO(allight): Update like with unsigned divide to select over a small number
+// of divisor values.
+absl::StatusOr<bool> MatchSignedDivide(Node* original_div_op,
+                                       const QueryEngine& query_engine) {
   if (original_div_op->op() != Op::kSDiv) {
     return false;
   }
@@ -983,9 +1271,9 @@ absl::StatusOr<bool> MatchSignedDivideByConstant(
   return true;
 }
 
-absl::StatusOr<bool> MatchDivByVariablePowerOfTwo(
+absl::StatusOr<bool> MatchSDivByVariablePowerOfTwo(
     Node* n, const QueryEngine& query_engine) {
-  if (!n->OpIn({Op::kUDiv, Op::kSDiv})) {
+  if (!n->OpIn({Op::kSDiv})) {
     return false;
   }
   Node* dividend = n->operand(0);
@@ -1399,21 +1687,19 @@ absl::StatusOr<bool> MatchArithPatterns(int64_t opt_level, Node* n,
     }
   }
 
-  XLS_ASSIGN_OR_RETURN(bool udiv_matched,
-                       MatchUnsignedDivideByConstant(n, query_engine));
+  XLS_ASSIGN_OR_RETURN(bool udiv_matched, MatchUnsignedDivide(n, query_engine));
   if (udiv_matched) {
     return true;
   }
 
-  XLS_ASSIGN_OR_RETURN(bool sdiv_matched,
-                       MatchSignedDivideByConstant(n, query_engine));
+  XLS_ASSIGN_OR_RETURN(bool sdiv_matched, MatchSignedDivide(n, query_engine));
   if (sdiv_matched) {
     return true;
   }
 
-  // Pattern: UDiv/SDiv by a variable power of two (2^L << K).
+  // Pattern: SDiv by a variable power of two (2^L << K).
   XLS_ASSIGN_OR_RETURN(bool div_by_variable_power_of_two_matched,
-                       MatchDivByVariablePowerOfTwo(n, query_engine));
+                       MatchSDivByVariablePowerOfTwo(n, query_engine));
   if (div_by_variable_power_of_two_matched) {
     return true;
   }
@@ -2377,7 +2663,10 @@ absl::StatusOr<bool> ArithSimplificationPass::RunOnFunctionBaseInternal(
     PassResults* results, OptimizationContext& context) const {
   bool changed = false;
   bool pass_changed = false;
-  StatelessQueryEngine query_engine;
+  auto query_engine = UnionQueryEngine::Of(
+      StatelessQueryEngine(),
+      CachedStateElementQueryEngine::FromContext<PartialInfoQueryEngine>(
+          context, f));
   do {
     pass_changed = false;
     XLS_ASSIGN_OR_RETURN(std::vector<Node*> reverse_topo_sort_nodes,
