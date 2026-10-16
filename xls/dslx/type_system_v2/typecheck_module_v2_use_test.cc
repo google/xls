@@ -48,6 +48,22 @@ const X = D;
   EXPECT_THAT(result, HasTypeInfo(HasNodeWithType("X", "uN[32]")));
 }
 
+TEST(TypecheckV2UseTest, ParamShadowsUsedConstant) {
+  absl::flat_hash_map<std::filesystem::path, std::string> files = {
+      {std::filesystem::path("/foo.x"), "pub const D = u32:5;"},
+  };
+  auto vfs = std::make_unique<FakeFilesystem>(
+      files, /*cwd=*/std::filesystem::path("/"));
+  ImportData import_data = CreateImportDataForTest(std::move(vfs));
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result,
+                           TypecheckV2(R"(#![feature(use_syntax)]
+use foo::D;
+fn f(D: u8) -> u8 { D }
+)",
+                                       "fake", &import_data));
+  EXPECT_THAT(result, HasTypeInfo(HasNodeWithType("f", "(uN[8]) -> uN[8]")));
+}
+
 TEST(TypecheckV2UseTest, UseFunctionDirectly) {
   absl::flat_hash_map<std::filesystem::path, std::string> files = {
       {std::filesystem::path("/foo.x"),
