@@ -80,6 +80,36 @@ absl::Status MaybeSetTop(Package* p,
   return absl::OkStatus();
 }
 
+// Returns the codegen version to use for package `p` given the version
+// `requested` by the user. `kDefault` means the user did not choose a specific
+// version (the flag was left at its default, or explicitly set to 0) and XLS
+// is free to pick one.
+//
+// Packages with proc-scoped channels currently require codegen 1.5 (see
+// google/xls#3679). If the user did not choose a version, the default (1.5) is
+// used. If the user explicitly chose a version that this flow cannot use for
+// the package, an error is returned rather than silently substituting a
+// different version (see google/xls#4554). This is the single place where the
+// version is decided; CodegenMetadata::Create() calls it exactly once.
+absl::StatusOr<verilog::CodegenOptions::Version> ResolveCodegenVersion(
+    const Package* p, verilog::CodegenOptions::Version requested) {
+  if (requested == verilog::CodegenOptions::Version::kDefault) {
+    return verilog::CodegenOptions::Version::kOneDotFive;
+  }
+  if (p->ChannelsAreProcScoped() &&
+      requested != verilog::CodegenOptions::Version::kOneDotFive) {
+    return absl::InvalidArgumentError(absl::StrFormat(
+        "Codegen version %s was explicitly requested, but package `%s` uses "
+        "proc-scoped channels, which currently require codegen version 1.5 "
+        "(the version selected by default). Either request codegen version "
+        "1.5 (or leave the codegen version unset), or generate the IR without "
+        "proc-scoped channels (e.g. `--lower_to_proc_scoped_channels=false` "
+        "when converting DSLX to IR).",
+        verilog::CodegenOptions::VersionToString(requested), p->name()));
+  }
+  return requested;
+}
+
 // Data structure holding all the options and metadata for codegen and
 // scheduling. This is complicated because codegen options depend on scheduling
 // flags and scheduling options depend on codegen flags, plus multiple delay
@@ -100,6 +130,14 @@ struct CodegenMetadata {
     CodegenMetadata metadata;
     XLS_ASSIGN_OR_RETURN(metadata.codegen_options,
                          CodegenOptionsFromProto(codegen_flags_proto));
+    // Decide the codegen version once, up front (so that an incompatible
+    // explicit request fails before scheduling). From here on
+    // `metadata.codegen_options.codegen_version()` is never `kDefault`.
+    XLS_ASSIGN_OR_RETURN(
+        verilog::CodegenOptions::Version codegen_version,
+        ResolveCodegenVersion(package,
+                              metadata.codegen_options.codegen_version()));
+    metadata.codegen_options.codegen_version(codegen_version);
 
     if (codegen_flags_proto.generator() == GENERATOR_KIND_COMBINATIONAL) {
       if (with_delay_model) {
@@ -205,14 +243,11 @@ absl::StatusOr<verilog::CodegenResult> CodegenCombinational(
 absl::StatusOr<verilog::CodegenResult> CodegenFromMetadata(
     Package* p, GeneratorKind generator_kind, const CodegenMetadata& metadata,
     const PackageSchedule* package_schedule) {
-  verilog::CodegenOptions::Version codegen_version =
+  // Already resolved by CodegenMetadata::Create().
+  const verilog::CodegenOptions::Version codegen_version =
       metadata.codegen_options.codegen_version();
-  if (codegen_version == verilog::CodegenOptions::Version::kDefault) {
-    codegen_version = verilog::CodegenOptions::Version::kOneDotFive;
-  }
-  if (p->ChannelsAreProcScoped()) {
-    codegen_version = verilog::CodegenOptions::Version::kOneDotFive;
-  }
+  XLS_RET_CHECK(codegen_version != verilog::CodegenOptions::Version::kDefault)
+      << "Codegen version must be resolved by CodegenMetadata::Create().";
 
   if (codegen_version == verilog::CodegenOptions::Version::kOneDotZero) {
     if (generator_kind == GENERATOR_KIND_COMBINATIONAL) {
@@ -548,12 +583,11 @@ absl::StatusOr<SchedulingResult> ScheduleAndConvertToBlock(
       PackageSchedule schedules,
       PackageSchedule::FromProto(p, scheduling_result.package_schedule));
 
-  verilog::CodegenOptions::Version codegen_version =
+  // Already resolved by CodegenMetadata::Create().
+  const verilog::CodegenOptions::Version codegen_version =
       metadata.codegen_options.codegen_version();
-  if (codegen_version == verilog::CodegenOptions::Version::kDefault ||
-      p->ChannelsAreProcScoped()) {
-    codegen_version = verilog::CodegenOptions::Version::kOneDotFive;
-  }
+  XLS_RET_CHECK(codegen_version != verilog::CodegenOptions::Version::kDefault)
+      << "Codegen version must be resolved by CodegenMetadata::Create().";
   if (codegen_version == verilog::CodegenOptions::Version::kOneDotZero) {
     if (codegen_flags_proto.generator() == GENERATOR_KIND_COMBINATIONAL) {
       XLS_RET_CHECK(p->GetTop().has_value());
