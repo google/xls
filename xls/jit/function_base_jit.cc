@@ -267,12 +267,8 @@ class LlvmFunctionWrapper final : public JitCompilationMetadata {
   // `temp_buffer` argument to the jitted function.
   llvm::Value* GetOffsetIntoTempBuffer(int64_t offset,
                                        llvm::IRBuilder<>& builder) {
-    llvm::Type* i64 = llvm::Type::getInt64Ty(function()->getContext());
-    llvm::Value* start_buffer = builder.CreatePtrToInt(GetTempBufferArg(), i64);
-    llvm::Value* start_plus_offset =
-        builder.CreateAdd(start_buffer, llvm::ConstantInt::get(i64, offset));
-    return builder.CreateIntToPtr(
-        start_plus_offset, llvm::PointerType::get(function()->getContext(), 0));
+    return builder.CreateInBoundsGEP(builder.getInt8Ty(), GetTempBufferArg(),
+                                     {builder.getInt64(offset)});
   }
 
  private:
@@ -378,7 +374,7 @@ class BufferAllocator {
   absl::flat_hash_map<Node*, AllocationKind> allocation_kinds_;
 };
 
-// The maximum number of xls::Nodes in a partition.
+// The maximum number of non-materialized xls::Nodes in a partition.
 static constexpr int64_t kMaxPartitionSize = 100;
 
 // Abstraction representing a point (partition function) at which an early exit
@@ -464,10 +460,12 @@ absl::StatusOr<std::vector<Partition>> PartitionFunctionBase(FunctionBase* f) {
       continue;
     }
     partition_map[node] = current_partition;
-    ++partition_size;
-    if (partition_size > kMaxPartitionSize) {
-      ++current_partition;
-      partition_size = 0;
+    if (!ShouldMaterializeAtUse(node)) {
+      ++partition_size;
+      if (partition_size > kMaxPartitionSize) {
+        ++current_partition;
+        partition_size = 0;
+      }
     }
   }
 
@@ -491,7 +489,6 @@ absl::StatusOr<std::vector<Partition>> PartitionFunctionBase(FunctionBase* f) {
   // Assemble nodes into partitions. `current_partition` is the maximum number
   // of any partition.
   std::vector<Partition> partitions(current_partition + 1);
-  XLS_ASSIGN_OR_RETURN(topo_sort_nodes, TopoSort(f));
   for (Node* node : topo_sort_nodes) {
     int64_t partition = partition_map.at(node);
     partitions.at(partition).nodes.push_back(node);
@@ -587,6 +584,9 @@ absl::StatusOr<llvm::Function*> BuildPartitionFunction(
   LlvmFunctionWrapper wrapper = LlvmFunctionWrapper::Create(
       name, global_input_nodes, global_output_nodes,
       llvm::Type::getInt1Ty(jit_context.context()), jit_context);
+  // Mark partition functions private so LLVM can discard them after inlining
+  // into the top-level function.
+  wrapper.function()->setLinkage(llvm::GlobalValue::PrivateLinkage);
   llvm::IRBuilder<>& b = wrapper.entry_builder();
 
   // Whether to interrupt execution of the FunctionBase. Only used for
@@ -925,11 +925,34 @@ absl::StatusOr<PartitionedFunction> BuildFunctionInternal(
     partition_functions.push_back(partition_function);
   }
 
+  // When execution cannot exit early (i.e. no blocking receives/sends that
+  // require state in `temp_buffer` to persist across calls) and the temporary
+  // buffer fits comfortably on the stack, allocate it locally with `alloca`
+  // instead of using the external `temp_buffer` pointer. Once partition
+  // functions are inlined, LLVM's SROA and dead-store elimination promote
+  // cross-partition temporaries to SSA registers and eliminate dead stores.
+  static constexpr int64_t kMaxLocalTempBufferBytes = 32 * 1024;
+  bool has_early_exit = absl::c_any_of(partitions, [](const Partition& p) {
+    return p.early_exit_point.has_value() || p.resume_point.has_value();
+  });
+  llvm::Value* temp_buffer_arg = wrapper.GetTempBufferArg();
+  if (!has_early_exit && allocator.size() > 0 &&
+      allocator.size() <= kMaxLocalTempBufferBytes) {
+    llvm::AllocaInst* local_temp = wrapper.entry_builder().CreateAlloca(
+        llvm::ArrayType::get(llvm::Type::getInt8Ty(jit_context.context()),
+                             allocator.size()),
+        nullptr, "local_temp_buffer");
+    local_temp->setAlignment(llvm::Align(allocator.alignment()));
+    temp_buffer_arg = local_temp;
+  }
+
   // Args passed to each partition function.
-  std::vector<llvm::Value*> args = {
-      wrapper.GetInputsArg(),          wrapper.GetOutputsArg(),
-      wrapper.GetTempBufferArg(),      wrapper.GetInterpreterEventsArg(),
-      wrapper.GetInstanceContextArg(), wrapper.GetJitRuntimeArg()};
+  std::vector<llvm::Value*> args = {wrapper.GetInputsArg(),
+                                    wrapper.GetOutputsArg(),
+                                    temp_buffer_arg,
+                                    wrapper.GetInterpreterEventsArg(),
+                                    wrapper.GetInstanceContextArg(),
+                                    wrapper.GetJitRuntimeArg()};
 
   // To handle continuation points, sequential basic blocks are created in the
   // body.

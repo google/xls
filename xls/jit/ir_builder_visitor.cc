@@ -81,11 +81,11 @@
 namespace xls {
 
 bool ShouldMaterializeAtUse(Node* node) {
-  // Only materialize Bits typed literals at their use. Array and tuple typed
-  // literals are typically manipulated via pointer in the JITted code so these
-  // values would have to be put in an alloca'd buffer anyway so there is no
-  // advantage to doing this at their uses vs in HandleLiteral.
-  return node->Is<Literal>() && node->GetType()->IsBits();
+  // Materialize all literals at their uses: Bits-typed literals are emitted as
+  // inline LLVM constants in LoadOperand, and aggregate (array/tuple) or
+  // pointer-addressed literals are emitted as read-only module-level global
+  // constants in GetOperandPtr.
+  return node->Is<Literal>();
 }
 
 namespace {
@@ -580,9 +580,10 @@ llvm::Value* ClampIndexInBounds(llvm::Value* index, ArrayType* array_type,
 }
 
 template <int64_t kFunctionOffset>
-llvm::Value* InvokeCallback(llvm::IRBuilder<>* builder, llvm::Type* return_type,
-                            llvm::Value* instance_ptr,
-                            absl::Span<llvm::Value* const> args) {
+llvm::CallInst* InvokeCallback(llvm::IRBuilder<>* builder,
+                               llvm::Type* return_type,
+                               llvm::Value* instance_ptr,
+                               absl::Span<llvm::Value* const> args) {
   std::vector<llvm::Value*> all_args{instance_ptr};
   all_args.reserve(args.size() + 1);
   absl::c_copy(args, std::back_inserter(all_args));
@@ -603,12 +604,38 @@ llvm::Value* InvokeCallback(llvm::IRBuilder<>* builder, llvm::Type* return_type,
   return builder->CreateCall(fn_type, fn_ptr, all_args);
 }
 
+// Reduces `values` using a balanced binary tree of `op` operations rather than
+// a linear chain, keeping expression tree depth O(log N) so LLVM's bounded-
+// depth analyses (such as SimplifyDemandedBits) can see all operands.
+template <typename Op>
+llvm::Value* TreeReduce(absl::Span<llvm::Value* const> values,
+                        llvm::Value* identity, Op op) {
+  if (values.empty()) {
+    return identity;
+  }
+  std::vector<llvm::Value*> current(values.begin(), values.end());
+  while (current.size() > 1) {
+    std::vector<llvm::Value*> next;
+    next.reserve((current.size() + 1) / 2);
+    for (size_t i = 0; i + 1 < current.size(); i += 2) {
+      next.push_back(op(current[i], current[i + 1]));
+    }
+    if (current.size() % 2 == 1) {
+      next.push_back(current.back());
+    }
+    current = std::move(next);
+  }
+  return current.front();
+}
+
 // Build the LLVM IR that handles string fragment format steps.
 absl::Status InvokeStringStepCallback(llvm::IRBuilder<>* builder,
                                       const std::string& step_string,
                                       llvm::Value* buffer_ptr,
                                       llvm::Value* instance_ctx) {
-  llvm::Constant* step_constant = builder->CreateGlobalString(step_string);
+  llvm::GlobalVariable* step_constant =
+      builder->CreateGlobalString(step_string);
+  step_constant->setCodeModel(llvm::CodeModel::Small);
   InvokeCallback<InstanceContext::kPerformStringStepOffset>(
       builder, llvm::Type::getVoidTy(builder->getContext()), instance_ctx,
       {step_constant, buffer_ptr});
@@ -632,7 +659,8 @@ absl::Status InvokeFormatStepCallback(
   auto proto_str = operand_type->ToProto().SerializeAsString();
   llvm::ConstantInt* proto_len =
       llvm::ConstantInt::get(i64_type, proto_str.size());
-  llvm::Constant* proto_llvm_str = builder->CreateGlobalString(proto_str);
+  llvm::GlobalVariable* proto_llvm_str = builder->CreateGlobalString(proto_str);
+  proto_llvm_str->setCodeModel(llvm::CodeModel::Small);
   InvokeCallback<InstanceContext::kPerformFormatStepOffset>(
       builder, void_type, instance_ctx,
       {jit_runtime_ptr, proto_llvm_str, proto_len, operand, llvm_format,
@@ -671,11 +699,15 @@ absl::Status InvokeAssertCallback(llvm::IRBuilder<>* builder,
                                   const std::string& message,
                                   llvm::Value* interpreter_events_ptr,
                                   llvm::Value* instance_ctx) {
-  llvm::Constant* msg_constant = builder->CreateGlobalString(message);
+  llvm::GlobalVariable* msg_constant = builder->CreateGlobalString(message);
+  msg_constant->setCodeModel(llvm::CodeModel::Small);
   llvm::Type* void_type = llvm::Type::getVoidTy(builder->getContext());
 
-  InvokeCallback<InstanceContext::kRecordAssertionOffset>(
-      builder, void_type, instance_ctx, {msg_constant, interpreter_events_ptr});
+  llvm::CallInst* call =
+      InvokeCallback<InstanceContext::kRecordAssertionOffset>(
+          builder, void_type, instance_ctx,
+          {msg_constant, interpreter_events_ptr});
+  call->addFnAttr(llvm::Attribute::Cold);
   return absl::OkStatus();
 }
 
@@ -935,10 +967,6 @@ class NodeIrContext {
   // Vector of nodes which should be passed in as the operand values of
   // `node_`. This is a deduplicated list of the operands of `node_`.
   std::vector<Node*> operand_args_;
-
-  // Cache of calls to GetOperandPtr for values which are materialized at their
-  // use. Indexed by node.
-  absl::flat_hash_map<Node*, AllocaBuffer> materialized_cache_;
 };
 
 AllocaBuffer NodeIrContext::CreateAlloca(llvm::IRBuilder<>& builder,
@@ -1190,56 +1218,24 @@ llvm::Value* NodeIrContext::GetInputNodePtr(Node* node) {
   return llvm_function_->getArg(operand_to_arg_.at(node));
 }
 
-namespace {
-// This adjusts the insert location for the given builder to the instruction
-// before the 'terminal' instruction (ie a br or other jump). On destruction it
-// resets the insert location to the end of the block. If the insert point is
-// not at the end of the block and after a terminal instruction this does
-// nothing.
-struct ScopedAdjustBuilderLocation {
- public:
-  explicit ScopedAdjustBuilderLocation(llvm::IRBuilder<>& b) : b_(b) {
-    llvm::BasicBlock* block = b.GetInsertBlock();
-    if (block->empty() || !block->back().isTerminator() ||
-        b.GetInsertPoint() != block->end()) {
-      return;
-    }
-    is_changed_ = true;
-    b_.SetInsertPoint(&block->back());
-  }
-  ~ScopedAdjustBuilderLocation() {
-    if (is_changed_) {
-      b_.SetInsertPoint(b_.GetInsertBlock());
-    }
-  }
-
- private:
-  llvm::IRBuilder<>& b_;
-  bool is_changed_ = false;
-};
-
-}  // namespace
 llvm::Value* NodeIrContext::GetOperandPtr(int64_t i) {
   Node* operand = node()->operand(i);
   if (ShouldMaterializeAtUse(operand)) {
-    if (materialized_cache_.contains(operand)) {
-      return materialized_cache_.at(operand).value();
-    }
-    // Force entry_builder to add before the terminator instruction if there is
-    // one.
-    ScopedAdjustBuilderLocation adj_loc(entry_builder());
-    AllocaBuffer buf =
-        CreateAlloca(entry_builder(),
-                     type_converter().ConvertToLlvmType(operand->GetType()));
-    buf.value()->setName(operand->GetName());
-    entry_builder().CreateStore(
+    // Emit a read-only module-level global constant instead of populating a
+    // stack alloca at runtime on every call; `UnnamedAddr::Global` allows LLVM
+    // to deduplicate identical constant literals across the module.
+    llvm::Constant* initializer =
         type_converter()
             .ToLlvmConstant(operand->GetType(), operand->As<Literal>()->value())
-            .value(),
-        buf.value());
-    llvm::Value* alloca = buf.value();
-    materialized_cache_[operand] = std::move(buf);
-    return alloca;
+            .value();
+    auto* global = new llvm::GlobalVariable(
+        *jit_context_.module(),
+        type_converter().ConvertToLlvmType(operand->GetType()),
+        /*isConstant=*/true, llvm::GlobalValue::PrivateLinkage, initializer,
+        operand->GetName());
+    global->setUnnamedAddr(llvm::GlobalValue::UnnamedAddr::Global);
+    global->setCodeModel(llvm::CodeModel::Small);
+    return global;
   }
   return llvm_function_->getArg(operand_to_arg_.at(operand));
 }
@@ -1314,11 +1310,6 @@ void NodeIrContext::FinalizeWithPointerToValue(
                  *final_exit_block);
     }
   }
-  // Clear all alloca's that are actually heap.
-  for (auto& [_, buf] : materialized_cache_) {
-    buf.CleanUp(*final_exit_block);
-  }
-  materialized_cache_.clear();
   result_cleanup(*final_exit_block);
   final_exit_block->CreateRet(return_value.has_value() ? *return_value
                                                        : b->getFalse());
@@ -2095,10 +2086,15 @@ absl::Status IrBuilderVisitor::HandleBitSlice(BitSlice* bit_slice) {
       llvm::Constant * start,
       type_converter()->ToLlvmConstant(value->getType(), shift_amount));
 
-  // Then shift and "mask" (by casting) the input value.
+  // Then shift and "mask" (by casting) the input value. For 1-bit slices,
+  // truncate directly to `i1` (`FinalizeWithValue` zero-extends `i1` to `i8`)
+  // so the upper 7 bits are known to be zero without an explicit mask.
   llvm::Value* shifted_value = b.CreateLShr(value, start);
-  llvm::Value* truncated_value = b.CreateTrunc(
-      shifted_value, type_converter()->ConvertToLlvmType(bit_slice->GetType()));
+  llvm::Type* return_type =
+      bit_slice->BitCountOrDie() == 1
+          ? b.getInt1Ty()
+          : type_converter()->ConvertToLlvmType(bit_slice->GetType());
+  llvm::Value* truncated_value = b.CreateTrunc(shifted_value, return_type);
 
   return FinalizeNodeIrContextWithValue(std::move(node_context),
                                         truncated_value);
@@ -2224,7 +2220,8 @@ absl::Status IrBuilderVisitor::HandleConcat(Concat* concat) {
 
   llvm::Type* dest_type =
       type_converter()->ConvertToLlvmType(concat->GetType());
-  llvm::Value* base = llvm::ConstantInt::get(dest_type, 0);
+  std::vector<llvm::Value*> terms;
+  terms.reserve(concat->operand_count());
 
   int current_shift = concat->BitCountOrDie();
   for (int64_t i = 0; i < concat->operand_count(); ++i) {
@@ -2237,14 +2234,18 @@ absl::Status IrBuilderVisitor::HandleConcat(Concat* concat) {
     if (operand_width == 0) {
       continue;
     }
+    if (operand_width == 1) {
+      operand = b.CreateTrunc(operand, b.getInt1Ty());
+    }
     operand = b.CreateZExt(operand, dest_type);
-    llvm::Value* shifted_operand =
-        b.CreateShl(operand, current_shift - operand_width);
-    base = b.CreateOr(base, shifted_operand);
+    terms.push_back(b.CreateShl(operand, current_shift - operand_width));
 
     current_shift -= operand_width;
   }
 
+  llvm::Value* base = TreeReduce(
+      terms, llvm::ConstantInt::get(dest_type, 0),
+      [&](llvm::Value* lhs, llvm::Value* rhs) { return b.CreateOr(lhs, rhs); });
   return FinalizeNodeIrContextWithValue(std::move(node_context), base);
 }
 
@@ -2647,55 +2648,50 @@ absl::Status IrBuilderVisitor::HandleUMulp(PartialProductOp* mul) {
 absl::Status IrBuilderVisitor::HandleNaryAnd(NaryOp* and_op) {
   return HandleNaryOp(and_op, [](absl::Span<llvm::Value* const> operands,
                                  llvm::IRBuilder<>& b) {
-    llvm::Value* result = operands.front();
-    for (int i = 1; i < operands.size(); ++i) {
-      result = b.CreateAnd(result, operands[i]);
-    }
-    return result;
+    return TreeReduce(operands, operands.front(),
+                      [&](llvm::Value* lhs, llvm::Value* rhs) {
+                        return b.CreateAnd(lhs, rhs);
+                      });
   });
 }
 
 absl::Status IrBuilderVisitor::HandleNaryNand(NaryOp* nand_op) {
   return HandleNaryOp(nand_op, [](absl::Span<llvm::Value* const> operands,
                                   llvm::IRBuilder<>& b) {
-    llvm::Value* result = operands.front();
-    for (int i = 1; i < operands.size(); ++i) {
-      result = b.CreateAnd(result, operands[i]);
-    }
-    return b.CreateNot(result);
+    return b.CreateNot(TreeReduce(operands, operands.front(),
+                                  [&](llvm::Value* lhs, llvm::Value* rhs) {
+                                    return b.CreateAnd(lhs, rhs);
+                                  }));
   });
 }
 
 absl::Status IrBuilderVisitor::HandleNaryNor(NaryOp* nor_op) {
   return HandleNaryOp(nor_op, [](absl::Span<llvm::Value* const> operands,
                                  llvm::IRBuilder<>& b) {
-    llvm::Value* result = operands.front();
-    for (int i = 1; i < operands.size(); ++i) {
-      result = b.CreateOr(result, operands[i]);
-    }
-    return b.CreateNot(result);
+    return b.CreateNot(TreeReduce(operands, operands.front(),
+                                  [&](llvm::Value* lhs, llvm::Value* rhs) {
+                                    return b.CreateOr(lhs, rhs);
+                                  }));
   });
 }
 
 absl::Status IrBuilderVisitor::HandleNaryOr(NaryOp* or_op) {
   return HandleNaryOp(
       or_op, [](absl::Span<llvm::Value* const> operands, llvm::IRBuilder<>& b) {
-        llvm::Value* result = operands.front();
-        for (int i = 1; i < operands.size(); ++i) {
-          result = b.CreateOr(result, operands[i]);
-        }
-        return result;
+        return TreeReduce(operands, operands.front(),
+                          [&](llvm::Value* lhs, llvm::Value* rhs) {
+                            return b.CreateOr(lhs, rhs);
+                          });
       });
 }
 
 absl::Status IrBuilderVisitor::HandleNaryXor(NaryOp* xor_op) {
   return HandleNaryOp(xor_op, [](absl::Span<llvm::Value* const> operands,
                                  llvm::IRBuilder<>& b) {
-    llvm::Value* result = operands.front();
-    for (int i = 1; i < operands.size(); ++i) {
-      result = b.CreateXor(result, operands[i]);
-    }
-    return result;
+    return TreeReduce(operands, operands.front(),
+                      [&](llvm::Value* lhs, llvm::Value* rhs) {
+                        return b.CreateXor(lhs, rhs);
+                      });
   });
 }
 
@@ -2775,7 +2771,10 @@ absl::Status IrBuilderVisitor::HandleNext(Next* next) {
 }
 
 absl::Status IrBuilderVisitor::HandleNot(UnOp* not_op) {
-  return HandleUnaryOp(not_op, [](llvm::Value* operand, llvm::IRBuilder<>& b) {
+  return HandleUnaryOp(not_op, [&](llvm::Value* operand, llvm::IRBuilder<>& b) {
+    if (not_op->GetType()->GetFlatBitCount() == 1) {
+      operand = b.CreateTrunc(operand, b.getInt1Ty());
+    }
     return b.CreateNot(operand);
   });
 }
@@ -2902,8 +2901,35 @@ absl::Status IrBuilderVisitor::HandleOneHotSel(OneHotSelect* sel) {
           sel, ConcatVectors({"selector"},
                              NumberedStrings("case", sel->cases().size()))));
 
-  llvm::Value* output_buffer = node_context.GetOutputPtr(0);
   llvm::Value* selector = node_context.LoadOperand(0);
+  if (sel->GetType()->IsBits()) {
+    // Lower Bits-typed one-hot selects directly in SSA registers using a
+    // balanced OR tree instead of creating basic-block branches per case.
+    llvm::IRBuilder<>& b = node_context.entry_builder();
+    bool is_one_bit = sel->GetType()->GetFlatBitCount() == 1;
+    llvm::Type* llvm_type =
+        is_one_bit ? b.getInt1Ty()
+                   : type_converter()->ConvertToLlvmType(sel->GetType());
+    llvm::Value* zero = llvm::ConstantInt::get(llvm_type, 0);
+    std::vector<llvm::Value*> terms;
+    terms.reserve(sel->cases().size());
+    for (int64_t i = 0; i < sel->cases().size(); ++i) {
+      llvm::Value* select_bit = b.CreateTrunc(b.CreateLShr(selector, i),
+                                              llvm::Type::getInt1Ty(ctx()));
+      llvm::Value* case_operand = node_context.LoadOperand(i + 1);
+      terms.push_back(
+          is_one_bit
+              ? b.CreateAnd(select_bit, b.CreateTrunc(case_operand, llvm_type))
+              : b.CreateSelect(select_bit, case_operand, zero));
+    }
+    llvm::Value* result =
+        TreeReduce(terms, zero, [&](llvm::Value* lhs, llvm::Value* rhs) {
+          return b.CreateOr(lhs, rhs);
+        });
+    return FinalizeNodeIrContextWithValue(std::move(node_context), result);
+  }
+
+  llvm::Value* output_buffer = node_context.GetOutputPtr(0);
 
   // To make management of the builders easier, create a new block with a
   // std::unique_ptr builder. This builder variable will be updated as the IR
@@ -2954,6 +2980,24 @@ absl::Status IrBuilderVisitor::HandlePrioritySel(PrioritySelect* sel) {
   llvm::IRBuilder<>& b = node_context.entry_builder();
   llvm::Value* selector = node_context.LoadOperand(0);
 
+  llvm::Value* llvm_false = b.getFalse();
+
+  // Get index to select by counting trailing zeros
+  llvm::Function* cttz = llvm::Intrinsic::getOrInsertDeclaration(
+      module(), llvm::Intrinsic::cttz, {selector->getType()});
+  llvm::Value* selected_index = b.CreateCall(cttz, {selector, llvm_false});
+
+  if (sel->GetType()->IsBits()) {
+    llvm::Value* llvm_sel = node_context.LoadOperand(sel->operand_count() - 1);
+    for (int i = sel->cases().size() - 1; i >= 0; i--) {
+      llvm::Value* current_index =
+          llvm::ConstantInt::get(selected_index->getType(), i);
+      llvm::Value* cmp = b.CreateICmpEQ(selected_index, current_index);
+      llvm_sel = b.CreateSelect(cmp, node_context.LoadOperand(1 + i), llvm_sel);
+    }
+    return FinalizeNodeIrContextWithValue(std::move(node_context), llvm_sel);
+  }
+
   std::vector<llvm::Value*> cases;
   for (int64_t i = 0; i < sel->cases().size(); ++i) {
     cases.push_back(node_context.GetOperandPtr(1 + i));
@@ -2961,13 +3005,6 @@ absl::Status IrBuilderVisitor::HandlePrioritySel(PrioritySelect* sel) {
 
   llvm::Value* default_value =
       node_context.GetOperandPtr(sel->operand_count() - 1);
-
-  llvm::Value* llvm_false = b.getFalse();
-
-  // Get index to select by counting trailing zeros
-  llvm::Function* cttz = llvm::Intrinsic::getOrInsertDeclaration(
-      module(), llvm::Intrinsic::cttz, {selector->getType()});
-  llvm::Value* selected_index = b.CreateCall(cttz, {selector, llvm_false});
 
   // Sel is implemented by a cascading series of select ops, e.g.,
   // selector == 0 ? cases[0] : selector == 1 ? cases[1] : selector == 2 ? ...
@@ -3042,6 +3079,23 @@ absl::Status IrBuilderVisitor::HandleSel(Select* sel) {
   // Sel is implemented by a cascading series of select ops, e.g.,
   // selector == 0 ? cases[0] : selector == 1 ? cases[1] : selector == 2 ? ...
   llvm::Value* selector = node_context.LoadOperand(0);
+  if (sel->GetType()->IsBits()) {
+    llvm::Value* llvm_sel =
+        sel->default_value()
+            ? node_context.LoadOperand(sel->operand_count() - 1)
+            : nullptr;
+    for (int i = sel->cases().size() - 1; i >= 0; i--) {
+      llvm::Value* llvm_case = node_context.LoadOperand(i + 1);
+      if (llvm_sel == nullptr) {
+        llvm_sel = llvm_case;
+      } else {
+        llvm::Value* index = llvm::ConstantInt::get(selector->getType(), i);
+        llvm::Value* cmp = b.CreateICmpEQ(selector, index);
+        llvm_sel = b.CreateSelect(cmp, llvm_case, llvm_sel);
+      }
+    }
+    return FinalizeNodeIrContextWithValue(std::move(node_context), llvm_sel);
+  }
   llvm::Value* llvm_sel =
       sel->default_value()
           ? node_context.GetOperandPtr(sel->operand_count() - 1)
@@ -3324,10 +3378,17 @@ absl::Status IrBuilderVisitor::HandleNaryOp(
       NodeIrContext node_context,
       NewNodeIrContext(node,
                        NumberedStrings("operand", node->operand_count())));
+  bool is_one_bit =
+      node->GetType()->IsBits() && node->GetType()->GetFlatBitCount() == 1;
   std::vector<llvm::Value*> args;
   args.reserve(node->operand_count());
   for (int64_t i = 0; i < node->operand_count(); ++i) {
-    args.push_back(node_context.LoadOperand(i));
+    llvm::Value* arg = node_context.LoadOperand(i);
+    if (is_one_bit) {
+      arg = node_context.entry_builder().CreateTrunc(
+          arg, node_context.entry_builder().getInt1Ty());
+    }
+    args.push_back(arg);
   }
   return FinalizeNodeIrContextWithValue(
       std::move(node_context),
