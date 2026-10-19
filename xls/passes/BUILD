@@ -1979,6 +1979,27 @@ cc_library(
     ],
 )
 
+cc_library(
+    name = "visibility_analysis_pairwise",
+    srcs = ["visibility_analysis_pairwise.cc"],
+    hdrs = ["visibility_analysis_pairwise.h"],
+    deps = [
+        ":visibility_analysis",
+        "//xls/data_structures:binary_decision_diagram",
+        "//xls/data_structures:inline_bitmap",
+        "//xls/ir",
+        "//xls/ir:change_listener",
+        "@abseil-cpp//absl/algorithm:container",
+        "@abseil-cpp//absl/container:flat_hash_map",
+        "@abseil-cpp//absl/container:flat_hash_set",
+        "@abseil-cpp//absl/container:inlined_vector",
+        "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/types:span",
+    ],
+)
+
 cc_test(
     name = "visibility_analysis_test",
     srcs = ["visibility_analysis_test.cc"],
@@ -2007,6 +2028,30 @@ cc_test(
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/types:span",
+        "@googletest//:gtest",
+    ],
+)
+
+cc_test(
+    name = "visibility_analysis_pairwise_test",
+    srcs = ["visibility_analysis_pairwise_test.cc"],
+    deps = [
+        ":bdd_query_engine",
+        ":node_dependency_analysis",
+        ":post_dominator_analysis",
+        ":visibility_analysis",
+        ":visibility_analysis_pairwise",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/common/status:status_macros",
+        "//xls/data_structures:binary_decision_diagram",
+        "//xls/ir",
+        "//xls/ir:bits",
+        "//xls/ir:function_builder",
+        "//xls/ir:ir_test_base",
+        "//xls/ir:op",
+        "@abseil-cpp//absl/container:flat_hash_set",
+        "@abseil-cpp//absl/status:statusor",
         "@googletest//:gtest",
     ],
 )

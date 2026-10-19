@@ -245,14 +245,6 @@ class VisibilityAnalysis : public LazyNodeData<NodeVisibility> {
   void PopulateContractedVisibility(Node* node,
                                     const NodeVisibility& info) const;
 
- protected:
-  NodeVisibility ComputeInfo(
-      Node* node,
-      absl::Span<const NodeVisibility* const> user_infos) const override;
-
-  absl::Status MergeWithGiven(NodeVisibility& info,
-                              const NodeVisibility& given) const override;
-
   // Produces a conservative visibility expression where if `node` is visible,
   // then the result is true, while retaining as many constraints as possible.
   // Does so by pruning expensive operand->node edges on the contracted DAG,
@@ -260,6 +252,14 @@ class VisibilityAnalysis : public LazyNodeData<NodeVisibility> {
   BddNodeIndex ConservativeVisibilityByPruningEdges(
       Node* node, const NodeVisibility& info,
       absl::flat_hash_set<OperandNode> exclusions = {}) const;
+
+ protected:
+  NodeVisibility ComputeInfo(
+      Node* node,
+      absl::Span<const NodeVisibility* const> user_infos) const override;
+
+  absl::Status MergeWithGiven(NodeVisibility& info,
+                              const NodeVisibility& given) const override;
 
   // Propagate from users to operands.
   absl::Span<Node* const> GetInputs(Node* const& node) const override {
