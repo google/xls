@@ -148,6 +148,11 @@ using LazyTernarySpan = LazySpan<TernaryValue>;
 // Populates `out` with the ternary values for bits
 // `[start_bit, start_bit + out.size())` of `node` (at `tree_index`).
 // Returns true if any ternary information is known for `node` in that slice.
+//
+// NOTE: For non-empty `tree_index` (i.e. compound types like arrays or
+// tuples), this function currently only supports `Op::kLiteral`. If support
+// for other ops is added here for compound types, the fast-path check in
+// `StatelessQueryEngine::GetTernary` must be updated as well.
 bool PopulateTernary(Node* node, absl::Span<const int64_t> tree_index,
                      int64_t start_bit, LazyTernarySpan out) {
   if (out.empty()) {
@@ -298,6 +303,14 @@ std::optional<SharedTernaryTree> StatelessQueryEngine::GetTernary(
     return LeafTypeTree<TernaryVector>::CreateSingleElementTree(node->GetType(),
                                                                 std::move(vec))
         .AsShared();
+  }
+  if (!node->Is<Literal>()) {
+    // For non-Bits types, PopulateTernary only has information for literals.
+    // This is true for now but could be loosened in the future (e.g., handling
+    // array-update in some cases, etc.). If `PopulateTernary` is updated to
+    // support more ops for compound types (non-empty `tree_index`), this check
+    // should be revisited.
+    return std::nullopt;
   }
 
   bool has_ternary_info = false;
