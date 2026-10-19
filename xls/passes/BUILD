@@ -2187,6 +2187,7 @@ cc_library(
 cc_test(
     name = "partial_info_query_engine_test",
     srcs = ["partial_info_query_engine_test.cc"],
+    shard_count = 3,
     deps = [
         ":partial_info_query_engine",
         ":query_engine",
@@ -5194,6 +5195,7 @@ cc_library(
 cc_test(
     name = "bit_count_query_engine_test",
     srcs = ["bit_count_query_engine_test.cc"],
+    shard_count = 5,
     deps = [
         ":bit_count_query_engine",
         ":query_engine",
