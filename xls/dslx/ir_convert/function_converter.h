@@ -46,6 +46,7 @@
 #include "xls/dslx/ir_convert/convert_options.h"
 #include "xls/dslx/ir_convert/proc_config_ir_converter.h"
 #include "xls/dslx/mangle.h"
+#include "xls/dslx/type_system/channel_manager.h"
 #include "xls/dslx/type_system/parametric_env.h"
 #include "xls/dslx/type_system/type.h"
 #include "xls/dslx/type_system/type_info.h"
@@ -575,9 +576,17 @@ class FunctionConverter {
 
   template <typename NodeType>
   absl::Status DefineProcDefChannelOrArray(
-      const NodeType* node, std::optional<const NameDef*> name_def,
-      const InterpValue& value, const Type* type,
+      const ProcDef* proc_def, const NodeType* node,
+      std::optional<const NameDef*> name_def, const InterpValue& value,
+      const Type* type,
       absl::flat_hash_map<const ChannelDecl*, ChannelOrArray>& channel_decls);
+
+  // Returns the channel for a `Source` or `Sink` member that the proc binds,
+  // or `std::nullopt` if the member is unbound and should be an interface.
+  // Binding arrays is not supported yet.
+  absl::StatusOr<std::optional<ChannelOrArray>> DefineBoundProcDefMember(
+      const ProcDef* proc_def, const StructMemberNode* member,
+      const InterpValue& value);
 
   absl::Status InitProcDefChannels(
       const ProcDef* proc_def,
@@ -593,13 +602,30 @@ class FunctionConverter {
                                                   const TypeInfo* ti);
   void PopulateChannelOrArrayIdToObject(const InterpValue& value,
                                         const ChannelOrArray& channel_or_array);
+  // Returns the channel for a `bind`, creating it on first use so both ends
+  // share it. The payload type comes from `member`'s own proc.
+  absl::StatusOr<Channel*> GetOrDefineImplicitChannel(
+      const ImplicitChannelDecl& decl, const StructMemberNode* member,
+      const TypeInfo* type_info);
   absl::Status ExpandProcDefChannelReference(
       const InterpValue& channel_or_array_value,
       std::vector<ChannelInterface*>& out);
+  // Adds the parent's channels for a spawned child's `Source` or `Sink` member
+  // to `channel_args`. Endpoints the child binds itself are skipped; the rest
+  // must be bound by the parent.
+  absl::Status AddProcDefIoObjectArgs(
+      const ProcDef* proc_def, const ProcDef* callee,
+      const StructMemberNode* member, const InterpValue& external_arg,
+      const InterpValue& canonical_arg, const TypeInfo* constructor_ti,
+      const TypeInfo* callee_constructor_ti,
+      std::vector<ChannelInterface*>& channel_args);
+  // Adds a `proc_instantiation` of a spawned child, passing in the channels it
+  // takes from the parent.
   absl::Status AddProcDefInstantiation(const ProcDef* proc_def,
                                        const InterpValue& external_initializer,
                                        const InterpValue& canonical_initializer,
-                                       const TypeInfo* constructor_ti);
+                                       const TypeInfo* constructor_ti,
+                                       const TypeInfo* callee_constructor_ti);
   absl::StatusOr<ChannelArray*> GetChannelArrayForAttr(const Attr* attr);
 
   absl::Status HandleProcDefSpawn(ProcDefInstance* instance);

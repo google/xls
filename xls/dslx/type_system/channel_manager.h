@@ -33,8 +33,14 @@ namespace xls::dslx {
 struct ImplicitChannelDecl {
   InterpValue out_end;
   InterpValue in_end;
-  // The call that declared the channel, e.g. the `bind` invocation.
+  // The proc that bound these endpoints and owns this channel.
+  const ProcDef* caller;
+  // The `bind` call that created this channel.
   const Invocation* origin;
+
+  // Returns the endpoint member used to name this channel, preferring the
+  // owning proc's member and defaulting to the sink.
+  const StructMemberNode* GetNamedMember() const;
 };
 
 class ChannelManager {
