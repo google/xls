@@ -14,6 +14,7 @@
 
 #include <cstdint>
 #include <list>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -115,6 +116,108 @@ TEST_F(TranslatorIOTest, NonblockingReadInSubroutine) {
   IOTest(content,
          /*inputs=*/{IOOpTest("in", value_not_ready, true)},
          /*outputs=*/{IOOpTest("out", 1, true)});
+}
+
+TEST_F(TranslatorIOTest, NonblockingReadUnderConstantFalseCondition) {
+  const std::string content = R"(
+    #include "/xls_builtin.h"
+    #pragma hls_top
+    void my_package(__xls_channel<int>& in,
+                    __xls_channel<int>& out) {
+      const bool enable = false;
+      int v = 0;
+      bool ok = false;
+      if (enable) {
+        ok = in.nb_read(v);
+      }
+      out.write(ok ? v : -1);
+    })";
+
+  // The read's condition is a compile-time false, so it is dropped: no IO op
+  // is generated and `ok` keeps its initial value.
+  IOTest(content, /*inputs=*/{},
+         /*outputs=*/{IOOpTest("out", -1, /*expected_to_be_present=*/true)});
+}
+
+TEST_F(TranslatorIOTest, NonblockingReadUnderRuntimeConditionInMaskedContext) {
+  // A partially unrolled loop body is first translated in a trial run with IO
+  // masked, so the non-blocking read under the runtime `i < n` condition is
+  // translated as a masked op before the real loop is generated.
+  const std::string content = R"(
+       class Block {
+        public:
+         __xls_channel<int, __xls_channel_dir_In>& count;
+         __xls_channel<int, __xls_channel_dir_In>& in;
+         __xls_channel<int, __xls_channel_dir_Out>& out;
+
+         #pragma hls_top
+         void Run() {
+           const int n = count.read();
+           int sum = 0;
+           #pragma hls_unroll 2
+           for (int i = 0; i < 2; ++i) {
+             if (i < n) {
+               int v = 0;
+               const bool ok = in.nb_read(v);
+               if (ok) {
+                 sum += v;
+               }
+             }
+           }
+           out.write(sum);
+         }
+      };)";
+
+  absl::flat_hash_map<std::string, std::list<xls::Value>> inputs;
+  inputs["count"] = {xls::Value(xls::SBits(2, 32))};
+  inputs["in"] = {xls::Value(xls::SBits(5, 32)), xls::Value(xls::SBits(7, 32))};
+  absl::flat_hash_map<std::string, std::list<xls::Value>> outputs;
+  outputs["out"] = {xls::Value(xls::SBits(5 + 7, 32))};
+  ProcTest(content, /*block_spec=*/std::nullopt, inputs, outputs);
+}
+
+TEST_F(TranslatorIOTest, SharedCallInMaskedTrialUnrolledLoop) {
+  // Verifies that a [[hls_shared_function]] call inside a partially unrolled
+  // loop (whose trial run masks IO) has its masked callee ops skipped by
+  // AddIOOpForSliceForCall rather than hitting AddOpToChannel's
+  // UnimplementedError path for OpType::kSharedCall.
+  generate_new_fsm_ = true;
+  const std::string content = R"(
+       [[hls_shared_function]]
+       int SharedAdd(int x, int y) {
+         return x + y;
+       }
+
+       class Block {
+        public:
+         __xls_channel<int, __xls_channel_dir_In>& count;
+         __xls_channel<int, __xls_channel_dir_In>& in;
+         __xls_channel<int, __xls_channel_dir_Out>& out;
+
+         #pragma hls_top
+         void Run() {
+           const int n = count.read();
+           int sum = 0;
+           #pragma hls_unroll 2
+           for (int i = 0; i < 2; ++i) {
+             if (i < n) {
+               int v = 0;
+               if (in.nb_read(v)) {
+                 sum = SharedAdd(sum, v);
+               }
+             }
+             __xlscc_activation_barrier</*conditional=*/false>();
+           }
+           out.write(sum);
+         }
+      };)";
+
+  absl::flat_hash_map<std::string, std::list<xls::Value>> inputs;
+  inputs["count"] = {xls::Value(xls::SBits(2, 32))};
+  inputs["in"] = {xls::Value(xls::SBits(5, 32)), xls::Value(xls::SBits(7, 32))};
+  absl::flat_hash_map<std::string, std::list<xls::Value>> outputs;
+  outputs["out"] = {xls::Value(xls::SBits(5 + 7, 32))};
+  ProcTest(content, /*block_spec=*/std::nullopt, inputs, outputs);
 }
 
 TEST_F(TranslatorIOTest, ProcNonblockingRead) {
