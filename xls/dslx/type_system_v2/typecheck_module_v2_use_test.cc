@@ -66,15 +66,14 @@ fn f(D: u8) -> u8 { D }
 
 TEST(TypecheckV2UseTest, UseFunctionDirectly) {
   absl::flat_hash_map<std::filesystem::path, std::string> files = {
-      {std::filesystem::path("/foo.x"),
-       "pub fn bar(x: u32) -> u32 { x + u32:1 }"},
+      {std::filesystem::path("/foo.x"), "pub fn bar(x: u32) -> u32 { x + 1 }"},
   };
   auto vfs = std::make_unique<FakeFilesystem>(
       files, /*cwd=*/std::filesystem::path("/"));
   ImportData import_data = CreateImportDataForTest(std::move(vfs));
   XLS_ASSERT_OK(TypecheckV2(R"(#![feature(use_syntax)]
 use foo::bar;
-fn main() -> u32 { bar(u32:1) }
+fn main() -> u32 { bar(1) }
 )",
                             "fake", &import_data));
 }
@@ -129,8 +128,7 @@ const X = foo::D;
 
 TEST(TypecheckV2UseTest, UseModuleThenColonRefToFunction) {
   absl::flat_hash_map<std::filesystem::path, std::string> files = {
-      {std::filesystem::path("/foo.x"),
-       "pub fn bar(x: u32) -> u32 { x + u32:1 }"},
+      {std::filesystem::path("/foo.x"), "pub fn bar(x: u32) -> u32 { x + 1 }"},
   };
   auto vfs = std::make_unique<FakeFilesystem>(
       files, /*cwd=*/std::filesystem::path("/"));
@@ -138,7 +136,7 @@ TEST(TypecheckV2UseTest, UseModuleThenColonRefToFunction) {
   XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result,
                            TypecheckV2(R"(#![feature(use_syntax)]
 use foo;
-fn main() -> u32 { foo::bar(u32:1) }
+fn main() -> u32 { foo::bar(1) }
 )",
                                        "fake", &import_data));
   EXPECT_THAT(result, HasTypeInfo(HasNodeWithType("main", "() -> uN[32]")));
@@ -218,7 +216,7 @@ TEST(TypecheckV2UseTest, UseStructLiteralFromSpeculativeTypeGuess) {
   XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result,
                            TypecheckV2(R"(#![feature(use_syntax)]
 use foo::Point;
-fn main() -> u32 { (Point { x: u32:1, y: u32:2 }).x }
+fn main() -> u32 { (Point { x: 1, y: 2 }).x }
 )",
                                        "fake", &import_data));
   EXPECT_THAT(result, HasTypeInfo(HasNodeWithType("main", "() -> uN[32]")));
