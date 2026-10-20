@@ -3587,12 +3587,20 @@ absl::StatusOr<CValue> Translator::GenerateIR_BuiltInMemcpy(
                      "unimplemented: %s vs %s",
                      dst_type->debug_string(), src_type->debug_string()));
   }
-  if (dst_xls_type->GetFlatBitCount() != size * 8) {
-    return absl::UnimplementedError(
-        ErrorMessage(loc,
-                     "__builtin_memcpy with size different from XLS type is "
-                     "unimplemented: XLS %li vs argument %li (bits)",
-                     dst_xls_type->GetFlatBitCount(), size * 8));
+  // Clang's synthesized copy-assignment operator copies types containing array
+  // members (such as structs with bool arrays) using a memcpy sized to the
+  // whole C++ object. Compare against the C++ size rather than the XLS flat bit
+  // width, since XLS represents types like bool as single bits.
+  const int64_t dst_size_bytes =
+      context()
+          .ast_context->getTypeSizeInChars(dst_expr->getType())
+          .getQuantity();
+  if (dst_size_bytes != size) {
+    return absl::UnimplementedError(ErrorMessage(
+        loc,
+        "__builtin_memcpy of part of an object is unimplemented: object %li "
+        "vs argument %li (bytes)",
+        dst_size_bytes, size));
   }
 
   XLS_ASSIGN_OR_RETURN(CValue src_cval, GenerateIR_Expr(src_expr, loc));
