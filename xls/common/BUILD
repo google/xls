@@ -237,6 +237,7 @@ cc_library(
 cc_test(
     name = "math_util_test",
     srcs = ["math_util_test.cc"],
+    shard_count = 3,
     deps = [
         ":math_util",
         ":xls_gunit_main",

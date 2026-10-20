@@ -3812,6 +3812,7 @@ cc_test(
 cc_test(
     name = "narrowing_pass_test",
     srcs = ["narrowing_pass_test.cc"],
+    shard_count = 3,
     deps = [
         ":narrowing_pass",
         ":optimization_pass",

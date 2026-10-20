@@ -704,6 +704,7 @@ cc_library(
 cc_test(
     name = "conversion_utils_test",
     srcs = ["util/conversion_utils_test.cc"],
+    shard_count = 4,
     deps = [
         ":conversion_utils",
         "//xls/common:xls_gunit_main",

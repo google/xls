@@ -251,6 +251,7 @@ cc_library(
 cc_test(
     name = "inline_bitmap_test",
     srcs = ["inline_bitmap_test.cc"],
+    shard_count = 3,
     deps = [
         ":inline_bitmap",
         "//xls/common:xls_gunit_main",
