@@ -1087,35 +1087,6 @@ proc Foo<N: u32> {
 proc Bar = Foo<16>;)"));
 }
 
-TEST(TypecheckV2FunctionTest, UseProcAlias) {
-  constexpr std::string_view kImported = R"(
-pub proc Foo {
-    c: chan<u32> out;
-    config(output_c: chan<u32> out) {
-        (output_c,)
-    }
-    init {
-        u32:0
-    }
-    next(i: u32) {
-        i
-    }
-}
-)";
-  constexpr std::string_view kProgram = R"(#![feature(use_syntax)]
-use imported::Foo;
-
-proc Bar = Foo;)";
-  absl::flat_hash_map<std::filesystem::path, std::string> files = {
-      {std::filesystem::path("/imported.x"), std::string(kImported)},
-      {std::filesystem::path("/fake_main_path.x"), std::string(kProgram)},
-  };
-  auto vfs = std::make_unique<FakeFilesystem>(
-      files, /*cwd=*/std::filesystem::path("/"));
-  ImportData import_data = CreateImportDataForTest(std::move(vfs));
-  XLS_EXPECT_OK(TypecheckV2(kProgram, "fake_main_path", &import_data).status());
-}
-
 TEST(TypecheckV2FunctionTest, UseProcSpawned) {
   constexpr std::string_view kImported = R"(
 pub proc Doubler {
@@ -1136,14 +1107,14 @@ impl Doubler {
   constexpr std::string_view kProgram = R"(#![feature(use_syntax)]
 use imported::Doubler;
 
-proc Main {
-    init { }
-    config() {
+proc Main {}
+impl Main {
+    fn new() -> Self {
         let (in_s, in_r) = chan<u32>("in");
         let (out_s, out_r) = chan<u32>("out");
         Doubler::new(in_r, out_s).spawn();
+        Main {}
     }
-    next(state: ()) { () }
 })";
   absl::flat_hash_map<std::filesystem::path, std::string> files = {
       {std::filesystem::path("/imported.x"), std::string(kImported)},

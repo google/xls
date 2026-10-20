@@ -3327,10 +3327,6 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
       if (std::holds_alternative<const NameDef*>(name_ref->name_def())) {
         const NameDef* def = std::get<const NameDef*>(name_ref->name_def());
         target_node = def->definer();
-        if (std::optional<const AstNode*> resolved =
-                import_data_.ResolveUseImportedTarget(target_node)) {
-          target_node = const_cast<AstNode*>(*resolved);
-        }
       } else if (std::holds_alternative<BuiltinNameDef*>(
                      name_ref->name_def())) {
         target_node = const_cast<BuiltinNameDef*>(
