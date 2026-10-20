@@ -1486,7 +1486,10 @@ class __xls_channel {
   }
 };
 
-template<typename T, unsigned long long Size>
+// Size is an int so that templates declaring `int N` and aliases such as
+// `template <typename T, int N> using Memory = __xls_memory<T, N>;` can deduce
+// N from __xls_memory arguments.
+template<typename T, int Size>
 class __xls_memory {
  public:
   using value_type = T;

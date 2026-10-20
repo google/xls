@@ -1612,6 +1612,35 @@ TEST_F(TranslatorMemoryTest, PassMemoryTypedef) {
        IOOpTest("out", 30, true)});
 }
 
+TEST_F(TranslatorMemoryTest, PassMemoryDeducedIntSize) {
+  const std::string content = R"(
+      template <typename T, int N>
+      using StoreType = __xls_memory<T, N>;
+
+      template <int N>
+      void sub(const StoreType<int, N>& memory,
+               __xls_channel<int>& out,
+               int addr) {
+         const int val = memory[addr];
+         out.write(3*val);
+      }
+
+      #pragma hls_top
+      void my_package(__xls_channel<int>& in,
+                      StoreType<int, 32>& memory,
+                      __xls_channel<int>& out) {
+         const int addr = in.read();
+         sub(memory, out, addr);
+      })";
+
+  IOTest(
+      content,
+      /*inputs=*/{IOOpTest("in", 7, true), IOOpTest("memory__read", 10, true)},
+      /*outputs=*/
+      {IOOpTest("memory__read", xls::Value(xls::UBits(7, 5)), true),
+       IOOpTest("out", 30, true)});
+}
+
 TEST_F(TranslatorMemoryTest, PassChannelAliased) {
   const std::string content = R"(
       using ChannelType =  __xls_channel<int>;
