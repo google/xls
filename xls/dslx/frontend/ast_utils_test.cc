@@ -362,5 +362,48 @@ enum MyEnum : u2 {
   EXPECT_EQ(GetIdentifier(ed), "MyEnum");
 }
 
+TEST(AstUtilsTest, AreAnyNameDefsReferencedInTypes) {
+  const std::string kProgram = R"(
+#![feature(generics)]
+const W = u32:8;
+const DERIVED = W + u32:1;
+type AliasToConst = uN[DERIVED];
+type FixedAlias = u32;
+
+fn f<N: u32, T: type, UNUSED: u32>(
+    a: uN[N],
+    b: T,
+    c: AliasToConst,
+    d: FixedAlias) {}
+)";
+  FileTable file_table;
+  XLS_ASSERT_OK_AND_ASSIGN(auto module, ParseModule(kProgram, "fake_path.x",
+                                                    "the_module", file_table));
+
+  XLS_ASSERT_OK_AND_ASSIGN(const ConstantDef* w_def,
+                           module->GetMemberOrError<ConstantDef>("W"));
+  Function* f = module->GetFunctionByName().at("f");
+  const NameDef* n_def = f->parametric_bindings()[0]->name_def();
+  const NameDef* t_def = f->parametric_bindings()[1]->name_def();
+  const NameDef* unused_def = f->parametric_bindings()[2]->name_def();
+
+  const TypeAnnotation* a_type = f->params()[0]->type_annotation();
+  const TypeAnnotation* b_type = f->params()[1]->type_annotation();
+  const TypeAnnotation* c_type = f->params()[2]->type_annotation();
+  const TypeAnnotation* d_type = f->params()[3]->type_annotation();
+
+  EXPECT_TRUE(AreAnyNameDefsReferencedInTypes({n_def}, {a_type}));
+  EXPECT_FALSE(
+      AreAnyNameDefsReferencedInTypes({n_def}, {b_type, c_type, d_type}));
+  EXPECT_TRUE(AreAnyNameDefsReferencedInTypes({t_def}, {b_type}));
+  EXPECT_FALSE(
+      AreAnyNameDefsReferencedInTypes({t_def}, {a_type, c_type, d_type}));
+  EXPECT_TRUE(AreAnyNameDefsReferencedInTypes({w_def->name_def()}, {c_type}));
+  EXPECT_FALSE(AreAnyNameDefsReferencedInTypes({w_def->name_def()},
+                                               {a_type, b_type, d_type}));
+  EXPECT_FALSE(AreAnyNameDefsReferencedInTypes(
+      {unused_def}, {a_type, b_type, c_type, d_type}));
+}
+
 }  // namespace
 }  // namespace xls::dslx

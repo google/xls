@@ -111,6 +111,88 @@ class NameRefFinder : public AstNodeRecursiveVisitor {
   std::vector<const NameRef*> name_refs_;
   const NameDef* to_;
 };
+
+// A visitor that determines if any visited type annotations depend on any of a
+// set of name defs which are supplied to its constructor.
+class TypeAnnotationDependencyChecker : public AstNodeRecursiveVisitor {
+ public:
+  explicit TypeAnnotationDependencyChecker(
+      const absl::flat_hash_set<const NameDef*>& target_defs)
+      : AstNodeRecursiveVisitor(/*want_types=*/true),
+        target_defs_(target_defs) {}
+
+  absl::Status HandleNameRef(const NameRef* n) override {
+    CheckNameRef(n);
+    return AstNodeRecursiveVisitor::HandleNameRef(n);
+  }
+
+  absl::Status HandleTypeVariableTypeAnnotation(
+      const TypeVariableTypeAnnotation* n) override {
+    CheckNameRef(n->type_variable());
+    return AstNodeRecursiveVisitor::HandleTypeVariableTypeAnnotation(n);
+  }
+
+  absl::Status HandleTypeRef(const TypeRef* n) override {
+    if (std::holds_alternative<ColonRef*>(n->type_definition())) {
+      XLS_RETURN_IF_ERROR(
+          std::get<ColonRef*>(n->type_definition())->Accept(this));
+    } else if (std::holds_alternative<TypeAlias*>(n->type_definition())) {
+      TypeAlias* alias = std::get<TypeAlias*>(n->type_definition());
+      if (visited_.insert(alias).second) {
+        XLS_RETURN_IF_ERROR(alias->type_annotation().Accept(this));
+      }
+    }
+    return AstNodeRecursiveVisitor::HandleTypeRef(n);
+  }
+
+  absl::Status HandleSelfTypeAnnotation(const SelfTypeAnnotation* n) override {
+    if (n->struct_ref() != nullptr &&
+        n->struct_ref()->IsAnnotation<TypeRefTypeAnnotation>()) {
+      const auto* tr = n->struct_ref()->AsAnnotation<TypeRefTypeAnnotation>();
+      if (tr->type_ref() != nullptr) {
+        if (std::optional<StructDefBase*> struct_def =
+                TypeDefinitionToStructDefBase(
+                    tr->type_ref()->type_definition());
+            struct_def.has_value()) {
+          for (const ParametricBinding* binding :
+               (*struct_def)->parametric_bindings()) {
+            if (target_defs_.contains(binding->name_def())) {
+              found_ = true;
+              return absl::OkStatus();
+            }
+          }
+        }
+      }
+    }
+    return AstNodeRecursiveVisitor::HandleSelfTypeAnnotation(n);
+  }
+
+  bool found() const { return found_; }
+
+ private:
+  void CheckNameRef(const NameRef* ref) {
+    if (ref == nullptr ||
+        !std::holds_alternative<const NameDef*>(ref->name_def())) {
+      return;
+    }
+    const NameDef* def = std::get<const NameDef*>(ref->name_def());
+    if (target_defs_.contains(def)) {
+      found_ = true;
+      return;
+    }
+    if (def->definer() != nullptr &&
+        def->definer()->kind() == AstNodeKind::kConstantDef) {
+      const auto* cd = absl::down_cast<const ConstantDef*>(def->definer());
+      if (cd->value() != nullptr && visited_.insert(cd).second) {
+        (void)cd->value()->Accept(this);
+      }
+    }
+  }
+
+  const absl::flat_hash_set<const NameDef*>& target_defs_;
+  absl::flat_hash_set<const AstNode*> visited_;
+  bool found_ = false;
+};
 }  // namespace
 
 bool IsParametricFunction(const AstNode* n) {
@@ -813,6 +895,34 @@ std::optional<const ParametricBinding*> GetProcParametricBinding(
     return std::nullopt;
   }
   return binding;
+}
+
+bool AreAnyNameDefsReferencedInTypes(
+    const std::vector<const NameDef*>& defs,
+    const std::vector<const TypeAnnotation*>& type_annotations) {
+  if (defs.empty() || type_annotations.empty()) {
+    return false;
+  }
+  absl::flat_hash_set<const NameDef*> target_defs;
+  for (const NameDef* def : defs) {
+    if (def != nullptr) {
+      target_defs.insert(def);
+    }
+  }
+  if (target_defs.empty()) {
+    return false;
+  }
+
+  TypeAnnotationDependencyChecker checker(target_defs);
+  for (const TypeAnnotation* ta : type_annotations) {
+    if (ta != nullptr) {
+      (void)ta->Accept(&checker);
+      if (checker.found()) {
+        return true;
+      }
+    }
+  }
+  return false;
 }
 
 }  // namespace xls::dslx

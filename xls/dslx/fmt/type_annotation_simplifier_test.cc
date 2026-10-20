@@ -171,6 +171,16 @@ pub struct SizedPair<A: u32, B: u32 = {u32:16}> {
 
 pub type ConcretePair = SizedPair<u32:8, u32:16>;
 
+pub struct FlaggedPair<HAS_EXTRA: bool = {true}, MODE: u32 = {u32:0}> {
+    first: u8,
+    second: u16,
+}
+
+pub struct SizedWithFlag<A: u32, HAS_EXTRA: bool = {true}> {
+    first: uN[A],
+    second: u16,
+}
+
 pub fn make_pairs() -> ConcretePair {
     let inferred_all = SizedPair { first: u8:1, second: u16:2 };
     let inferred_partial = SizedPair<u32:8> { first: u8:1, second: u16:2 };
@@ -178,8 +188,15 @@ pub fn make_pairs() -> ConcretePair {
     let via_alias = ConcretePair { first: u8:1, second: u16:2 };
     let splat_inferred = SizedPair { first: u8:3, ..inferred_all };
     let splat_explicit = SizedPair<u32:8, u32:16> { first: u8:4, ..explicit_all };
+    let flagged_default = FlaggedPair { first: u8:5, second: u16:6 };
+    let flagged_partial = FlaggedPair<false> { first: u8:7, second: u16:8 };
+    let flagged_splat = FlaggedPair { first: u8:9, ..flagged_default };
+    let sized_flag_inferred = SizedWithFlag { first: u8:10, second: u16:11 };
+    let sized_flag_explicit = SizedWithFlag<u32:8> { first: u8:12, second: u16:13 };
     SizedPair<u32:8, u32:16> {
-        first: splat_inferred.first + splat_explicit.first + via_alias.first,
+        first: splat_inferred.first + splat_explicit.first + via_alias.first +
+               flagged_partial.first + flagged_splat.first + sized_flag_inferred.first +
+               sized_flag_explicit.first,
         ..inferred_partial
     }
 }
@@ -203,6 +220,10 @@ pub struct SizedPair<A: u32, B: u32 = {16}> { first: uN[A], second: uN[B] }
 
 pub type ConcretePair = SizedPair<8, 16>;
 
+pub struct FlaggedPair<HAS_EXTRA: bool = {true}, MODE: u32 = {0}> { first: u8, second: u16 }
+
+pub struct SizedWithFlag<A: u32, HAS_EXTRA: bool = {true}> { first: uN[A], second: u16 }
+
 pub fn make_pairs() -> ConcretePair {
     let inferred_all = SizedPair { first: u8:1, second: u16:2 };
     let inferred_partial = SizedPair<8> { first: u8:1, second: u16:2 };
@@ -210,8 +231,15 @@ pub fn make_pairs() -> ConcretePair {
     let via_alias = ConcretePair { first: 1, second: 2 };
     let splat_inferred = SizedPair { first: u8:3, ..inferred_all };
     let splat_explicit = SizedPair<8, 16> { first: 4, ..explicit_all };
+    let flagged_default = FlaggedPair { first: 5, second: 6 };
+    let flagged_partial = FlaggedPair<false> { first: 7, second: 8 };
+    let flagged_splat = FlaggedPair { first: 9, ..flagged_default };
+    let sized_flag_inferred = SizedWithFlag { first: u8:10, second: u16:11 };
+    let sized_flag_explicit = SizedWithFlag<8> { first: 12, second: 13 };
     SizedPair<8, 16> {
-        first: splat_inferred.first + splat_explicit.first + via_alias.first,
+        first:
+            splat_inferred.first + splat_explicit.first + via_alias.first + flagged_partial.first +
+            flagged_splat.first + sized_flag_inferred.first + sized_flag_explicit.first,
         ..inferred_partial
     }
 }
@@ -279,6 +307,16 @@ fn concat_parametric<M: u32, N: u32>(a: uN[M], b: uN[N]) -> uN[M + N] {
     a ++ b
 }
 
+fn add_with_flags<FAST_MODE: bool = {true}, EXTRA: u32 = {u32:0}>(
+    a: u32, b: u32, lane: MyU32
+) -> u32 {
+    if FAST_MODE { a + b + lane + EXTRA } else { a - b }
+}
+
+fn add_sized_with_flag<N: u32, CLAMP: bool = {false}>(a: uN[N], b: u32) -> uN[N] {
+    if CLAMP { a } else { a + (b as uN[N]) }
+}
+
 const CALL_CONCRETE = add_u32(u32:10, u32:20);
 const CALL_WITH_ALIAS = add_u32(MyU32:10, uN[WIDTH]:20);
 const CALL_PARAMETRIC_LITS = add_parametric(u32:10, u32:20);
@@ -286,6 +324,10 @@ const CALL_PARAMETRIC_VAR = add_parametric(CALL_CONCRETE, u32:20);
 const CALL_PARAMETRIC_EXPLICIT = add_parametric<u32:32>(u32:10, u32:20);
 const CALL_PARTIAL_EXPLICIT = concat_parametric<u32:8>(u8:1, u16:2);
 const CALL_ALL_EXPLICIT = concat_parametric<u32:8, u32:16>(u8:1, u16:2);
+const CALL_INDEPENDENT_DEFAULT = add_with_flags(u32:10, u32:20, MyU32:30);
+const CALL_INDEPENDENT_PARTIAL = add_with_flags<false>(u32:10, u32:20, u32:30);
+const CALL_SIZED_FLAG_INFERRED = add_sized_with_flag(u8:1, u32:2);
+const CALL_SIZED_FLAG_EXPLICIT = add_sized_with_flag<u32:8>(u8:1, u32:2);
 )";
   constexpr std::string_view kWant = R"(import std;
 
@@ -303,6 +345,14 @@ fn add_parametric<N: u32>(a: uN[N], b: uN[N]) -> uN[N] { a + b }
 
 fn concat_parametric<M: u32, N: u32>(a: uN[M], b: uN[N]) -> uN[M + N] { a ++ b }
 
+fn add_with_flags<FAST_MODE: bool = {true}, EXTRA: u32 = {0}>(a: u32, b: u32, lane: MyU32) -> u32 {
+    if FAST_MODE { a + b + lane + EXTRA } else { a - b }
+}
+
+fn add_sized_with_flag<N: u32, CLAMP: bool = {false}>(a: uN[N], b: u32) -> uN[N] {
+    if CLAMP { a } else { a + (b as uN[N]) }
+}
+
 const CALL_CONCRETE = add_u32(10, 20);
 const CALL_WITH_ALIAS = add_u32(MyU32:10, 20);
 const CALL_PARAMETRIC_LITS = add_parametric(u32:10, u32:20);
@@ -310,6 +360,10 @@ const CALL_PARAMETRIC_VAR = add_parametric(CALL_CONCRETE, u32:20);
 const CALL_PARAMETRIC_EXPLICIT = add_parametric<32>(10, 20);
 const CALL_PARTIAL_EXPLICIT = concat_parametric<8>(u8:1, u16:2);
 const CALL_ALL_EXPLICIT = concat_parametric<8, 16>(1, 2);
+const CALL_INDEPENDENT_DEFAULT = add_with_flags(10, 20, MyU32:30);
+const CALL_INDEPENDENT_PARTIAL = add_with_flags<false>(10, 20, 30);
+const CALL_SIZED_FLAG_INFERRED = add_sized_with_flag(u8:1, u32:2);
+const CALL_SIZED_FLAG_EXPLICIT = add_sized_with_flag<8>(1, 2);
 )";
   SimplifyAndExpectEq(kOriginal, kWant);
 }

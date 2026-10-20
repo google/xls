@@ -312,6 +312,12 @@ std::optional<Function*> GetProcNextFunction(const ProcDef* proc);
 std::optional<const ParametricBinding*> GetProcParametricBinding(
     const NameRef* ref);
 
+// Returns true if any `NameDef` in `defs` is referenced (directly or
+// transitively via type aliases, constants, or `Self`) in `type_annotations`.
+bool AreAnyNameDefsReferencedInTypes(
+    const std::vector<const NameDef*>& defs,
+    const std::vector<const TypeAnnotation*>& type_annotations);
+
 }  // namespace xls::dslx
 
 #endif  // XLS_DSLX_FRONTEND_AST_UTILS_H_

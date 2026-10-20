@@ -23,8 +23,10 @@
 #include <variant>
 #include <vector>
 
+#include "absl/base/casts.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
+#include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
@@ -36,6 +38,7 @@
 #include "xls/dslx/fmt/pretty_print.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/ast_node_visitor_with_default.h"
+#include "xls/dslx/frontend/ast_utils.h"
 #include "xls/dslx/frontend/builtins_metadata.h"
 #include "xls/dslx/frontend/module.h"
 #include "xls/dslx/frontend/pos.h"
@@ -162,22 +165,48 @@ bool HasNonLiteralType(const Expr* expr) {
   return true;
 }
 
+// Appends the subset of `bindings` that are not explicitly specified given
+// `explicit_count` explicit parametric arguments to `out`.
+void AppendUnspecifiedParametrics(
+    const std::vector<ParametricBinding*>& bindings, size_t explicit_count,
+    std::vector<const ParametricBinding*>& out) {
+  for (size_t i = explicit_count; i < bindings.size(); ++i) {
+    out.push_back(bindings[i]);
+  }
+}
+
+bool AreParametricsIndependentOfTypes(
+    const std::vector<const ParametricBinding*>& unspecified_bindings,
+    const std::vector<const TypeAnnotation*>& types) {
+  if (unspecified_bindings.empty()) {
+    return true;
+  }
+  std::vector<const NameDef*> unspecified_defs;
+  unspecified_defs.reserve(unspecified_bindings.size());
+  for (const ParametricBinding* binding : unspecified_bindings) {
+    if (binding != nullptr && binding->name_def() != nullptr) {
+      unspecified_defs.push_back(binding->name_def());
+    }
+  }
+  return !AreAnyNameDefsReferencedInTypes(unspecified_defs, types);
+}
+
 std::optional<const StructDefBase*> ResolveStructDef(
     const TypeInfo& ti, const TypeAnnotation* type,
-    bool* all_parametrics_specified);
+    std::vector<const ParametricBinding*>& unspecified_parametrics);
 
 std::optional<const StructDefBase*> ResolveTypeDefToStruct(
     const TypeInfo& ti, const TypeDefinition& td,
-    size_t explicit_parametrics_count, bool* all_parametrics_specified) {
+    size_t explicit_parametrics_count,
+    std::vector<const ParametricBinding*>& unspecified_parametrics) {
+  unspecified_parametrics.clear();
   if (std::holds_alternative<ColonRef*>(td) &&
       !std::get<ColonRef*>(td)->ResolveImportSubject().has_value()) {
-    *all_parametrics_specified = false;
     return std::nullopt;
   }
   absl::StatusOr<TypeInfo::TypeSource> source =
       const_cast<TypeInfo&>(ti).ResolveTypeDefinition(td);
   if (!source.ok()) {
-    *all_parametrics_specified = false;
     return std::nullopt;
   }
   return std::visit(
@@ -185,22 +214,24 @@ std::optional<const StructDefBase*> ResolveTypeDefToStruct(
           [&](TypeAlias* alias) -> std::optional<const StructDefBase*> {
             return ResolveStructDef(*source->type_info,
                                     &alias->type_annotation(),
-                                    all_parametrics_specified);
+                                    unspecified_parametrics);
           },
           [&](StructDef* struct_def) -> std::optional<const StructDefBase*> {
-            *all_parametrics_specified =
-                !struct_def->is_domain_struct() &&
-                explicit_parametrics_count ==
-                    struct_def->parametric_bindings().size();
+            if (struct_def->is_domain_struct()) {
+              return std::nullopt;
+            }
+            AppendUnspecifiedParametrics(struct_def->parametric_bindings(),
+                                         explicit_parametrics_count,
+                                         unspecified_parametrics);
             return struct_def;
           },
           [&](ProcDef* proc_def) -> std::optional<const StructDefBase*> {
-            *all_parametrics_specified = explicit_parametrics_count ==
-                                         proc_def->parametric_bindings().size();
+            AppendUnspecifiedParametrics(proc_def->parametric_bindings(),
+                                         explicit_parametrics_count,
+                                         unspecified_parametrics);
             return proc_def;
           },
           [&](auto*) -> std::optional<const StructDefBase*> {
-            *all_parametrics_specified = true;
             return std::nullopt;
           },
       },
@@ -209,60 +240,65 @@ std::optional<const StructDefBase*> ResolveTypeDefToStruct(
 
 std::optional<const StructDefBase*> ResolveStructDef(
     const TypeInfo& ti, const TypeAnnotation* type,
-    bool* all_parametrics_specified) {
+    std::vector<const ParametricBinding*>& unspecified_parametrics) {
+  unspecified_parametrics.clear();
   if (type == nullptr) {
-    *all_parametrics_specified = true;
     return std::nullopt;
   }
   if (const auto* self_type = dynamic_cast<const SelfTypeAnnotation*>(type)) {
-    std::optional<const StructDefBase*> def = ResolveStructDef(
-        ti, self_type->struct_ref(), all_parametrics_specified);
-    *all_parametrics_specified = true;
+    std::optional<const StructDefBase*> def =
+        ResolveStructDef(ti, self_type->struct_ref(), unspecified_parametrics);
+    unspecified_parametrics.clear();
     return def;
-  }
-  if (dynamic_cast<const TypeVariableTypeAnnotation*>(type) != nullptr) {
-    *all_parametrics_specified = true;
-    return std::nullopt;
   }
   const auto* tr = dynamic_cast<const TypeRefTypeAnnotation*>(type);
   if (tr == nullptr || tr->type_ref() == nullptr) {
-    *all_parametrics_specified = true;
     return std::nullopt;
   }
   return ResolveTypeDefToStruct(ti, tr->type_ref()->type_definition(),
                                 tr->parametrics().size(),
-                                all_parametrics_specified);
+                                unspecified_parametrics);
 }
 
 bool AreAllStructParametricsSpecified(const TypeInfo& ti,
                                       const TypeAnnotation* type) {
-  bool all_specified = true;
-  ResolveStructDef(ti, type, &all_specified);
-  return all_specified;
+  if (type != nullptr && type->IsAnnotation<TypeVariableTypeAnnotation>()) {
+    return true;
+  }
+  std::vector<const ParametricBinding*> unspecified_parametrics;
+  std::optional<const StructDefBase*> struct_def =
+      ResolveStructDef(ti, type, unspecified_parametrics);
+  if (!struct_def.has_value()) {
+    return false;
+  }
+  std::vector<const TypeAnnotation*> member_types;
+  member_types.reserve((*struct_def)->members().size());
+  for (const StructMemberNode* member : (*struct_def)->members()) {
+    member_types.push_back(member->type());
+  }
+  return AreParametricsIndependentOfTypes(unspecified_parametrics,
+                                          member_types);
 }
 
 std::optional<const StructDefBase*> ResolveColonRefSubjectToStruct(
     const TypeInfo& ti, const ColonRef::Subject& subject,
-    bool* all_parametrics_specified) {
+    std::vector<const ParametricBinding*>& unspecified_parametrics) {
+  unspecified_parametrics.clear();
   return std::visit(
       Visitor{
           [&](TypeRefTypeAnnotation* tr)
               -> std::optional<const StructDefBase*> {
-            return ResolveStructDef(ti, tr, all_parametrics_specified);
+            return ResolveStructDef(ti, tr, unspecified_parametrics);
           },
           [&](SelfTypeAnnotation* self_type)
               -> std::optional<const StructDefBase*> {
-            return ResolveStructDef(ti, self_type, all_parametrics_specified);
+            return ResolveStructDef(ti, self_type, unspecified_parametrics);
           },
           [&](TypeVariableTypeAnnotation*)
-              -> std::optional<const StructDefBase*> {
-            *all_parametrics_specified = true;
-            return std::nullopt;
-          },
+              -> std::optional<const StructDefBase*> { return std::nullopt; },
           [&](NameRef* subj_name) -> std::optional<const StructDefBase*> {
             if (!std::holds_alternative<const NameDef*>(
                     subj_name->name_def())) {
-              *all_parametrics_specified = false;
               return std::nullopt;
             }
             const NameDef* name_def =
@@ -270,35 +306,29 @@ std::optional<const StructDefBase*> ResolveColonRefSubjectToStruct(
             if (auto* alias = dynamic_cast<TypeAlias*>(name_def->definer())) {
               return ResolveTypeDefToStruct(ti, alias,
                                             /*explicit_parametrics_count=*/0,
-                                            all_parametrics_specified);
+                                            unspecified_parametrics);
             }
             if (auto* sd = dynamic_cast<StructDef*>(name_def->definer())) {
               return ResolveTypeDefToStruct(ti, sd,
                                             /*explicit_parametrics_count=*/0,
-                                            all_parametrics_specified);
+                                            unspecified_parametrics);
             }
             if (auto* pd = dynamic_cast<ProcDef*>(name_def->definer())) {
               return ResolveTypeDefToStruct(ti, pd,
                                             /*explicit_parametrics_count=*/0,
-                                            all_parametrics_specified);
-            }
-            if (dynamic_cast<GenericTypeAnnotation*>(name_def->definer()) !=
-                nullptr) {
-              *all_parametrics_specified = true;
-              return std::nullopt;
+                                            unspecified_parametrics);
             }
             if (auto* ute = dynamic_cast<UseTreeEntry*>(name_def->parent())) {
               return ResolveTypeDefToStruct(ti, ute,
                                             /*explicit_parametrics_count=*/0,
-                                            all_parametrics_specified);
+                                            unspecified_parametrics);
             }
-            *all_parametrics_specified = false;
             return std::nullopt;
           },
           [&](ColonRef* subj_colon_ref) -> std::optional<const StructDefBase*> {
             return ResolveTypeDefToStruct(ti, subj_colon_ref,
                                           /*explicit_parametrics_count=*/0,
-                                          all_parametrics_specified);
+                                          unspecified_parametrics);
           },
       },
       subject);
@@ -315,8 +345,8 @@ std::optional<const Function*> ResolveImportedFunction(
 
 std::optional<const Function*> ResolveStaticCalleeFunction(
     const TypeInfo& ti, const Expr* callee,
-    bool* struct_parametrics_specified) {
-  *struct_parametrics_specified = true;
+    std::vector<const ParametricBinding*>& unspecified_struct_parametrics) {
+  unspecified_struct_parametrics.clear();
   if (const auto* name_ref = dynamic_cast<const NameRef*>(callee)) {
     if (!std::holds_alternative<const NameDef*>(name_ref->name_def())) {
       return std::nullopt;
@@ -342,7 +372,7 @@ std::optional<const Function*> ResolveStaticCalleeFunction(
   }
   std::optional<const StructDefBase*> struct_def =
       ResolveColonRefSubjectToStruct(ti, colon_ref->subject(),
-                                     struct_parametrics_specified);
+                                     unspecified_struct_parametrics);
   if (!struct_def.has_value()) {
     return std::nullopt;
   }
@@ -354,33 +384,46 @@ bool AreAllFunctionParametricsSpecified(const TypeInfo& ti,
   if (IsParametricBuiltinWithInferrableType(n.callee())) {
     return true;
   }
+  std::vector<const ParametricBinding*> unspecified_struct_parametrics;
+  std::vector<const Function*> callees;
   std::vector<InvocationCalleeData> callee_data =
       ti.GetUniqueInvocationCalleeData(&n);
   if (callee_data.empty()) {
     // Fallback for invocations inside uninstantiated parametric functions,
     // which are not populated in `TypeInfo::GetUniqueInvocationCalleeData`.
-    bool struct_parametrics_specified = true;
     std::optional<const Function*> target_fn = ResolveStaticCalleeFunction(
-        ti, n.callee(), &struct_parametrics_specified);
-    return target_fn.has_value() && struct_parametrics_specified &&
-           n.explicit_parametrics().size() ==
-               (*target_fn)->parametric_bindings().size();
-  }
-
-  for (const InvocationCalleeData& data : callee_data) {
-    if (data.callee == nullptr ||
-        n.explicit_parametrics().size() !=
-            data.callee->parametric_bindings().size()) {
+        ti, n.callee(), unspecified_struct_parametrics);
+    if (!target_fn.has_value()) {
       return false;
     }
-    const auto* colon_ref = dynamic_cast<const ColonRef*>(n.callee());
-    if (data.callee->IsFunctionOnParametricStruct() && colon_ref != nullptr) {
-      bool struct_parametrics_specified = true;
-      ResolveColonRefSubjectToStruct(ti, colon_ref->subject(),
-                                     &struct_parametrics_specified);
-      if (!struct_parametrics_specified) {
-        return false;
+    callees.push_back(*target_fn);
+  } else {
+    for (const InvocationCalleeData& data : callee_data) {
+      CHECK_NE(data.callee, nullptr);
+      if (data.callee->IsFunctionOnParametricStruct() &&
+          n.callee()->kind() == AstNodeKind::kColonRef) {
+        const auto* colon_ref = absl::down_cast<const ColonRef*>(n.callee());
+        ResolveColonRefSubjectToStruct(ti, colon_ref->subject(),
+                                       unspecified_struct_parametrics);
       }
+      callees.push_back(data.callee);
+    }
+  }
+
+  for (const Function* callee : callees) {
+    std::vector<const ParametricBinding*> unspecified_parametrics =
+        unspecified_struct_parametrics;
+    AppendUnspecifiedParametrics(callee->parametric_bindings(),
+                                 n.explicit_parametrics().size(),
+                                 unspecified_parametrics);
+    std::vector<const TypeAnnotation*> param_types;
+    param_types.reserve(callee->params().size());
+    for (const Param* param : callee->params()) {
+      param_types.push_back(param->type_annotation());
+    }
+    if (!AreParametricsIndependentOfTypes(unspecified_parametrics,
+                                          param_types)) {
+      return false;
     }
   }
   return true;
@@ -534,9 +577,10 @@ class TypeAnnotationSimplifier : public Formatter {
 
   DocRef FormatStructInstance(const StructInstance& n) override {
     // Drop type annotations on struct field initializers if and only if all
-    // parametric bindings of the struct are explicitly specified at the
-    // instantiation site (otherwise field types may be needed to infer omitted
-    // struct parametrics).
+    // parametric bindings of the struct are either explicitly specified at the
+    // instantiation site or formally independent of the struct's fields
+    // (otherwise field types may be needed to infer omitted struct
+    // parametrics).
     const StructInstance* orig = OriginalNode(&n);
     ScopedContext scoped(*this,
                          /*type_inferred=*/AreAllStructParametricsSpecified(
@@ -546,7 +590,8 @@ class TypeAnnotationSimplifier : public Formatter {
 
   DocRef FormatSplatStructInstance(const SplatStructInstance& n) override {
     // Same as `FormatStructInstance`: drop type annotations on field
-    // initializers only when all struct parametrics are explicitly specified.
+    // initializers only when all struct parametrics are explicitly specified or
+    // formally independent of the struct's fields.
     const SplatStructInstance* orig = OriginalNode(&n);
     ScopedContext scoped(*this,
                          /*type_inferred=*/AreAllStructParametricsSpecified(
@@ -648,8 +693,9 @@ class TypeAnnotationSimplifier : public Formatter {
   DocRef FormatInvocation(const Invocation& n) override {
     // Drop type annotations on call arguments if and only if all parametric
     // bindings of the callee (and of the target struct, for static method
-    // calls on parametric structs) are explicitly specified at the call site,
-    // except leave type aliases intact on literals directly used as arguments.
+    // calls on parametric structs) are either explicitly specified at the call
+    // site or formally independent of the parameters, except leave type aliases
+    // intact on literals directly used as arguments.
     ScopedExprOverrides overrides(*this);
     const Invocation* orig = OriginalNode(&n);
     bool args_inferred = AreAllFunctionParametricsSpecified(type_info_, *orig);
