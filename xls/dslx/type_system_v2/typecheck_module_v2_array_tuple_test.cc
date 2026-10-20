@@ -1148,6 +1148,22 @@ fn foo() {
               TypecheckFails(HasSizeMismatch("u32", "uN[2]")));
 }
 
+TEST(TypecheckV2Test, TupleBitCountDoesNotCrashEvaluator) {
+  EXPECT_THAT(R"(
+const W = (1, 2);
+const A = sN[W][1]:[0];
+)",
+              TypecheckFails(HasTypeMismatch("(uN[1], uN[2])", "u32")));
+}
+
+TEST(TypecheckV2Test, RangeBitCountDoesNotCrashEvaluator) {
+  EXPECT_THAT(R"(
+const W = 20..137;
+const A = sN[W][1]:[0];
+)",
+              TypecheckFails(HasSubstr("TypeInferenceError: type mismatch")));
+}
+
 TEST(TypecheckV2Test, CastToXbitsBasedBoolArray) {
   EXPECT_THAT(R"(
 const ARRAY_SIZE = u32:44;
