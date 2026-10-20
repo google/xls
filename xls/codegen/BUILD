@@ -87,6 +87,7 @@ cc_test(
     ]),
     shard_count = 50,
     deps = [
+        ":codegen_result",
         ":combinational_generator",
         "//xls/codegen/vast",
         "//xls/common:xls_gunit_main",

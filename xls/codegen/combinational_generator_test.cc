@@ -27,6 +27,7 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
+#include "xls/codegen/codegen_result.h"
 #include "xls/codegen/vast/vast.h"
 #include "xls/common/status/matchers.h"
 #include "xls/examples/sample_packages.h"
@@ -967,6 +968,24 @@ TEST_P(CombinationalGeneratorTest, ArrayIndexWithoutBoundsCheck) {
   seq.Set("index", UBits(3, 8));
   seq.AtEndOfCycle().ExpectX("out");
   XLS_EXPECT_OK(tb->Run());
+}
+
+TEST_P(CombinationalGeneratorTest, ArrayIndexAssumedInBounds) {
+  Package package(TestBaseName());
+  FunctionBuilder fb(TestBaseName(), &package);
+  Type* array_u32 = package.GetArrayType(1, package.GetBitsType(32));
+  fb.ArrayIndex(fb.Param("a", array_u32), {fb.Literal(UBits(0, 64))},
+                /*assumed_in_bounds=*/true);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  XLS_ASSERT_OK_AND_ASSIGN(CodegenResult result,
+                           GenerateCombinationalModule(f, codegen_options()));
+
+  ModuleSimulator simulator =
+      NewModuleSimulator(result.verilog_text, result.signature);
+  EXPECT_THAT(
+      simulator.RunFunction({{"a", Value::UBitsArray({42}, 32).value()}}),
+      IsOkAndHolds(Value(UBits(42, 32))));
 }
 
 TEST_P(CombinationalGeneratorTest, TwoDArray) {

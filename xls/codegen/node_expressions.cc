@@ -760,29 +760,31 @@ absl::StatusOr<IndexableExpression*> ArrayIndexExpression(
     // index, or other analyses have already proven the access is good).
     // TODO(meheff) 2021-03-25 Simplify this when we have a better way of
     // handling OOB accesses.
-    if (array_index->assumed_in_bounds() ||
-        !options.array_index_bounds_checking() ||
-        Bits::MinBitCountUnsigned(array_type->size()) >
-            index_type->bit_count()) {
+    const bool in_bounds = array_index->assumed_in_bounds() ||
+                           !options.array_index_bounds_checking() ||
+                           Bits::MinBitCountUnsigned(array_type->size()) >
+                               index_type->bit_count() ||
+                           (index->IsLiteral() &&
+                            bits_ops::ULessThan(index->AsLiteralOrDie()->bits(),
+                                                array_type->size()));
+    if (in_bounds) {
       // Index has been proven/assumed to be in bounds.
       if (index_type->bit_count() <= short_index_width) {
         clamped_index = index;
-      } else {
-        clamped_index =
-            file->Slice(index->AsIndexableExpressionOrDie(),
-                        short_index_width - 1, 0, array_index->loc());
-      }
-    } else if (index->IsLiteral() &&
-               bits_ops::ULessThan(index->AsLiteralOrDie()->bits(),
-                                   array_type->size())) {
-      // Index is an in-bounds literal.
-      if (index_type->bit_count() <= short_index_width) {
-        clamped_index = index;
-      } else {
+      } else if (index->IsLiteral()) {
         XLS_RET_CHECK(index->AsLiteralOrDie()->bits().FitsInUint64());
         clamped_index =
             file->Literal(*index->AsLiteralOrDie()->bits().ToUint64(),
                           short_index_width, array_index->loc());
+      } else if (!index->IsIndexableExpression()) {
+        return absl::InvalidArgumentError(absl::StrFormat(
+            "Index %d of array_index %s of array %s is not indexable: %s", i,
+            array_index->GetName(), array_index->array()->GetName(),
+            array_index->indices()[i]->GetType()->ToString()));
+      } else {
+        clamped_index =
+            file->Slice(index->AsIndexableExpressionOrDie(),
+                        short_index_width - 1, 0, array_index->loc());
       }
     } else {
       Expression* max_index =
