@@ -358,18 +358,15 @@ std::optional<BinaryOpWithConstant> MatchBinaryOpWithConstant(
 // Operations handled are `kAdd` and `kSub`.
 absl::StatusOr<bool> MatchComparisonOfInjectiveOp(
     Node* node, const QueryEngine& query_engine) {
-  if (!node->GetType()->IsBits()) {
+  // TODO(allight): Support other comparisons when possible.
+  // NB This is required for the subtraction simplifications to be accurate
+  // because otherwise the direction of the comparison might need to change.
+  if (node->op() != Op::kEq && node->op() != Op::kNe) {
     return false;
   }
   std::optional<BinaryOpWithConstant> compare =
       MatchBinaryOpWithConstant(node, query_engine);
   if (!compare.has_value()) {
-    return false;
-  }
-  // TODO(allight): Support other comparisons when possible.
-  // NB This is required for the subtraction simplifications to be accurate
-  // because otherwise the direction of the comparison might need to change.
-  if (compare->op != Op::kEq && compare->op != Op::kNe) {
     return false;
   }
   std::optional<BinaryOpWithConstant> binary_op =
