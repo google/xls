@@ -1014,7 +1014,7 @@ fn main() -> u32 {
 TEST(TypecheckV2FunctionTest, UseFunction) {
   constexpr std::string_view kImported = R"(
 pub fn get_val() -> u5[3] {
-  u5[3]:[1, 2, 3]
+  [1, 2, 3]
 }
 )";
   constexpr std::string_view kProgram = R"(#![feature(use_syntax)]
@@ -1049,11 +1049,11 @@ type LocalAlias = uN[WIDTH];
 
 fn with_default<N: u32 = {WIDTH}>() -> u32 { N }
 
-fn use_as_type_alias_bitwidth() -> LocalAlias { uN[WIDTH]:1 }
+fn use_as_type_alias_bitwidth() -> LocalAlias { 1 }
 
 fn use_as_parametric_default() -> u32 { with_default() }
 
-fn use_as_explicit_parametric() -> u16 { double_n<WIDTH>(u16:21) }
+fn use_as_explicit_parametric() -> u16 { double_n<WIDTH>(21) }
 )";
   absl::flat_hash_map<std::filesystem::path, std::string> files = {
       {std::filesystem::path("/imported.x"), std::string(kImported)},
@@ -1129,7 +1129,7 @@ impl Doubler {
     }
     fn next(self) {
         let (tok, v) = recv(join(), self.in_r);
-        send(tok, self.out_s, v * u32:2);
+        send(tok, self.out_s, v * 2);
     }
 }
 )";
