@@ -218,6 +218,7 @@ cc_test(
     srcs = [
         "interval_test.cc",
     ],
+    shard_count = 5,
     deps = [
         ":bits",
         ":bits_ops",
@@ -265,7 +266,7 @@ cc_test(
     srcs = [
         "interval_ops_test.cc",
     ],
-    shard_count = 5,
+    shard_count = 16,
     deps = [
         ":bits",
         ":function_builder",
@@ -348,6 +349,7 @@ cc_test(
     srcs = [
         "interval_set_test.cc",
     ],
+    shard_count = 6,
     deps = [
         ":bits",
         ":interval",
@@ -437,6 +439,7 @@ cc_test(
     srcs = [
         "bits_test.cc",
     ],
+    shard_count = 6,
     deps = [
         ":bit_push_buffer",
         ":bits",
@@ -1206,6 +1209,7 @@ cc_library(
 cc_test(
     name = "value_test",
     srcs = ["value_test.cc"],
+    shard_count = 2,
     deps = [
         ":bit_push_buffer",
         ":bits",
@@ -1521,6 +1525,7 @@ cc_test(
     srcs = [
         "bits_ops_test.cc",
     ],
+    shard_count = 2,
     deps = [
         ":bits",
         ":bits_ops",
@@ -1853,7 +1858,7 @@ cc_test(
 cc_test(
     name = "abstract_evaluator_test",
     srcs = ["abstract_evaluator_test.cc"],
-    shard_count = 10,
+    shard_count = 16,
     deps = [
         ":abstract_evaluator",
         ":big_int",
@@ -2518,6 +2523,7 @@ cc_library(
 cc_test(
     name = "partial_information_test",
     srcs = ["partial_information_test.cc"],
+    shard_count = 7,
     deps = [
         ":bits",
         ":bits_ops",
@@ -2561,7 +2567,7 @@ cc_library(
 cc_test(
     name = "partial_ops_test",
     srcs = ["partial_ops_test.cc"],
-    shard_count = 5,
+    shard_count = 16,
     deps = [
         ":bits",
         ":bits_ops",
