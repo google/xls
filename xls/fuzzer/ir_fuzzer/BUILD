@@ -55,6 +55,7 @@ cc_library(
 cc_test(
     name = "ir_fuzz_test",
     srcs = ["ir_fuzz_test.cc"],
+    shard_count = 3,
     deps = [
         ":ir_fuzz_domain",
         ":ir_fuzz_test_library",
