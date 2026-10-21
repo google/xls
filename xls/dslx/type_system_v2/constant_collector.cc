@@ -658,7 +658,10 @@ class Visitor : public AstNodeVisitorWithDefault {
   }
 
   absl::Status HandleInvocation(const Invocation* invocation) override {
-    if (!IsBuiltinFn(invocation->callee())) {
+    if (ti_->IsSumConstructor(invocation)) {
+      // Sum constructors have no function body to collect constants from.
+      return absl::OkStatus();
+    } else if (!IsBuiltinFn(invocation->callee())) {
       std::optional<const Function*> f =
           table_.GetCalleeInCallerContext(invocation, parametric_context_);
       XLS_RET_CHECK(f.has_value());

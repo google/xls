@@ -19,10 +19,13 @@
 #include <cstdint>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <variant>
 #include <vector>
 
 #include "absl/base/casts.h"
+#include "absl/container/flat_hash_map.h"
+#include "absl/container/flat_hash_set.h"
 #include "absl/functional/function_ref.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
@@ -43,6 +46,7 @@
 #include "xls/dslx/type_system_v2/inference_table.h"
 #include "xls/dslx/type_system_v2/inference_table_utils.h"
 #include "xls/dslx/type_system_v2/parametric_struct_instantiator.h"
+#include "xls/dslx/type_system_v2/parametric_type_annotation_utils.h"
 #include "xls/dslx/type_system_v2/type_annotation_filter.h"
 #include "xls/dslx/type_system_v2/type_annotation_utils.h"
 
@@ -76,6 +80,29 @@ bool IsArrayTypeWithMinSize(const TypeAnnotation* annotation) {
          absl::down_cast<const ArrayTypeAnnotation*>(annotation)->dim_is_min();
 }
 
+// Returns the declaration of a nominal type constructor that has neither
+// supplied arguments nor an instance from which arguments could be inferred.
+absl::StatusOr<const AstNode*> GetBareTypeConstructorDefinition(
+    const TypeAnnotation* annotation, const ImportData& import_data) {
+  XLS_ASSIGN_OR_RETURN(std::optional<StructOrProcRef> struct_or_proc_ref,
+                       GetStructOrProcRef(annotation, import_data));
+  const AstNode* definition = nullptr;
+  if (struct_or_proc_ref.has_value()) {
+    if (struct_or_proc_ref->parametrics.empty() &&
+        !struct_or_proc_ref->construction_origin.has_value()) {
+      definition = struct_or_proc_ref->def;
+    }
+  } else {
+    XLS_ASSIGN_OR_RETURN(std::optional<SumRef> sum_ref,
+                         GetSumRef(annotation, import_data));
+    if (sum_ref.has_value() && sum_ref->parametrics.empty() &&
+        !sum_ref->construction_origin.has_value()) {
+      definition = sum_ref->def;
+    }
+  }
+  return definition;
+}
+
 absl::Status MinSizeLargerThanStandardSizeError(
     const TypeAnnotation* min_annotation, const SignednessAndSize& min,
     const SignednessAndSize& standard, const FileTable& file_table) {
@@ -101,7 +128,13 @@ class Unifier {
           UnificationErrorGenerator& error_generator, Evaluator& evaluator,
           ParametricStructInstantiator& parametric_struct_instantiator,
           std::optional<const ParametricContext*> parametric_context,
-          const ImportData& import_data)
+          ImportData& import_data,
+          absl::FunctionRef<
+              absl::StatusOr<const TypeAnnotation*>(const TypeAnnotation*)>
+              resolve_type_annotation,
+          absl::FunctionRef<absl::StatusOr<const TypeAnnotation*>(
+              std::vector<const TypeAnnotation*>, const Span&)>
+              resolve_group)
       : module_(module),
         table_(table),
         file_table_(file_table),
@@ -109,7 +142,9 @@ class Unifier {
         evaluator_(evaluator),
         parametric_struct_instantiator_(parametric_struct_instantiator),
         parametric_context_(parametric_context),
-        import_data_(import_data) {}
+        import_data_(import_data),
+        resolve_type_annotation_(resolve_type_annotation),
+        resolve_group_(resolve_group) {}
 
   // Overload that unifies specific type annotations.
   absl::StatusOr<const TypeAnnotation*> UnifyTypeAnnotations(
@@ -131,7 +166,10 @@ class Unifier {
              .HasFlag(TypeInferenceFlag::kFormalMemberType)) {
       XLS_ASSIGN_OR_RETURN(std::optional<StructOrProcRef> struct_or_proc_ref,
                            GetStructOrProcRef(annotations[0], import_data_));
+      XLS_ASSIGN_OR_RETURN(std::optional<SumRef> sum_ref,
+                           GetSumRef(annotations[0], import_data_));
       if (!struct_or_proc_ref.has_value() &&
+          (!sum_ref.has_value() || !sum_ref->def->IsParametric()) &&
           annotations[0]->owner() == &module_) {
         // This is here mainly for preservation of shorthand annotations
         // appearing in the source code, in case they get put in subsequent
@@ -210,8 +248,7 @@ class Unifier {
                              GetStructOrProcRef(annotation, import_data_));
         if (!next_struct_or_proc.has_value() ||
             next_struct_or_proc->def != def) {
-          return error_generator_.TypeMismatchError(parametric_context_,
-                                                    annotations[0], annotation);
+          return TypeMismatchError(annotations[0], annotation);
         }
         if (def->IsParametric()) {
           annotations_to_unify.push_back(annotation);
@@ -225,6 +262,25 @@ class Unifier {
       }
 
       return UnifyParametricStructOrProcAnnotations(*def, annotations_to_unify);
+    }
+    XLS_ASSIGN_OR_RETURN(std::optional<SumRef> first_sum_ref,
+                         GetSumRef(annotations[0], import_data_));
+    if (first_sum_ref.has_value()) {
+      const SumDef* sum_def = first_sum_ref->def;
+      std::vector<const TypeAnnotation*> annotations_to_unify;
+      for (const TypeAnnotation* annotation : annotations) {
+        XLS_ASSIGN_OR_RETURN(std::optional<SumRef> next_sum_ref,
+                             GetSumRef(annotation, import_data_));
+        if (!next_sum_ref.has_value() || next_sum_ref->def != sum_def) {
+          return TypeMismatchError(annotations[0], annotation);
+        }
+        if (sum_def->IsParametric()) {
+          annotations_to_unify.push_back(annotation);
+        }
+      }
+      return annotations_to_unify.empty() ? annotations[0]
+                                          : UnifyParametricSumAnnotations(
+                                                *sum_def, annotations_to_unify);
     }
     return UnifyBitsLikeTypeAnnotations(annotations, span);
   }
@@ -268,6 +324,11 @@ class Unifier {
             tuple_annotation->span(), expanded_members);
       }
       if (tuple_annotation->members().size() != max_static_member_count) {
+        // Preserve errors in declaration projections (for example an
+        // out-of-bounds destructuring slot) before reporting the outer arity.
+        for (const TupleTypeAnnotation* original : annotations) {
+          XLS_RETURN_IF_ERROR(resolve_type_annotation_(original).status());
+        }
         return TypeInferenceErrorStatus(
             tuple_annotation->span(), /*type=*/nullptr,
             absl::Substitute("Cannot match a $0-element tuple to $1 values.",
@@ -287,7 +348,7 @@ class Unifier {
         annotations_for_member.push_back(annotation->members()[i]);
       }
       XLS_ASSIGN_OR_RETURN(const TypeAnnotation* unified_member_annotation,
-                           UnifyTypeAnnotations(annotations_for_member, span));
+                           resolve_group_(annotations_for_member, span));
       unified_member_annotations[i] =
           const_cast<TypeAnnotation*>(unified_member_annotation);
     }
@@ -333,8 +394,7 @@ class Unifier {
               "Annotated array size is too small for explicit element count.",
               file_table_);
         }
-        return error_generator_.TypeMismatchError(
-            parametric_context_, annotations[i], annotations[i - 1]);
+        return TypeMismatchError(annotations[i], annotations[i - 1]);
       }
       unified_dim = *new_unified_dim;
     }
@@ -349,7 +409,7 @@ class Unifier {
     XLS_RETURN_IF_ERROR(
         CheckArrayDimTooLarge(span, unified_dim->size, file_table_));
     XLS_ASSIGN_OR_RETURN(const TypeAnnotation* unified_element_type,
-                         UnifyTypeAnnotations(element_type_annotations, span));
+                         resolve_group_(element_type_annotations, span));
     XLS_ASSIGN_OR_RETURN(
         Number * size_expr,
         MakeTypeCheckedNumber(module_, table_, span, unified_dim->size,
@@ -424,19 +484,16 @@ class Unifier {
         }
       } else {
         if (annotation->direction() != *unified_direction) {
-          return error_generator_.TypeMismatchError(parametric_context_,
-                                                    annotations[0], annotation);
+          return TypeMismatchError(annotations[0], annotation);
         }
         if (unified_dims.has_value() ^ annotation->dims().has_value()) {
-          return error_generator_.TypeMismatchError(parametric_context_,
-                                                    annotations[0], annotation);
+          return TypeMismatchError(annotations[0], annotation);
         }
         if (annotation->dims().has_value()) {
           XLS_ASSIGN_OR_RETURN(std::vector<uint32_t> current_dims,
                                EvaluateDimensions(*annotation->dims()));
           if (current_dims != *unified_dims) {
-            return error_generator_.TypeMismatchError(
-                parametric_context_, annotations[0], annotation);
+            return TypeMismatchError(annotations[0], annotation);
           }
         }
       }
@@ -481,20 +538,96 @@ class Unifier {
   // InterpValue if they are unifiable, or std::nullopt if they cannot be
   // unified.
   absl::StatusOr<std::optional<InterpValue>> UnifyTypeReference(
-      const InterpValue& v1, const InterpValue& v2, const Span& span) {
+      const InterpValue& v1, const InterpValue& v2) {
     XLS_RET_CHECK(v1.IsTypeReference());
     XLS_RET_CHECK(v2.IsTypeReference());
-    if (v1 == v2) {
-      return v1;
-    }
+    // Type-reference values encode their spelling, which can be the same for
+    // different local aliases. Compare the represented types instead.
     XLS_ASSIGN_OR_RETURN(const TypeAnnotation* t1, v1.GetTypeReference());
     XLS_ASSIGN_OR_RETURN(const TypeAnnotation* t2, v2.GetTypeReference());
-    absl::StatusOr<const TypeAnnotation*> unified_annotation =
-        UnifyTypeAnnotations({t1, t2}, span);
-    if (unified_annotation.ok()) {
-      return InterpValue::MakeTypeReference(*unified_annotation);
+    XLS_ASSIGN_OR_RETURN(const AstNode* definition1,
+                         GetBareTypeConstructorDefinition(t1, import_data_));
+    XLS_ASSIGN_OR_RETURN(const AstNode* definition2,
+                         GetBareTypeConstructorDefinition(t2, import_data_));
+    if (definition1 != nullptr && definition1 == definition2) {
+      // A captured constructor such as `type A = S` must remain abstract until
+      // applied as `A<N>`. Agreement on its declaration needs no instantiation.
+      return v1;
+    } else {
+      XLS_ASSIGN_OR_RETURN(t1, resolve_type_annotation_(t1));
+      XLS_ASSIGN_OR_RETURN(t2, resolve_type_annotation_(t2));
+      // The comparison result is internal. An aggregate's declaration span
+      // may belong to another module, so it cannot label nodes synthesized
+      // into this module (such as a unified array dimension).
+      absl::StatusOr<const TypeAnnotation*> unified_annotation =
+          UnifyTypeAnnotations({t1, t2}, Span::None());
+      if (unified_annotation.ok()) {
+        return InterpValue::MakeTypeReference(*unified_annotation);
+      } else {
+        return std::nullopt;
+      }
     }
-    return std::nullopt;
+  }
+
+  // Merges one aggregate annotation's explicit arguments with prior
+  // annotations, comparing values by evaluation and types by unification.
+  absl::Status UnifyAggregateParametrics(
+      const std::vector<ParametricBinding*>& bindings,
+      const std::vector<ExprOrType>& parametrics, std::string_view kind,
+      std::string_view identifier, const TypeAnnotation* annotation,
+      std::vector<InterpValue>& explicit_parametrics) {
+    absl::flat_hash_map<const NameDef*, ExprOrType> prior_arguments;
+    for (int i = 0; i < parametrics.size(); ++i) {
+      const ParametricBinding* binding = bindings[i];
+      XLS_ASSIGN_OR_RETURN(ExprOrType parametric,
+                           NormalizeParametricArgument(*binding, parametrics[i],
+                                                       table_, file_table_));
+      std::optional<InterpValue> value;
+      if (std::holds_alternative<TypeAnnotation*>(parametric)) {
+        value = InterpValue::MakeTypeReference(
+            std::get<TypeAnnotation*>(parametric));
+      } else {
+        XLS_ASSIGN_OR_RETURN(
+            const TypeAnnotation* binding_type,
+            GetParametricFreeType(binding->type_annotation(), prior_arguments,
+                                  table_, import_data_,
+                                  /*real_self_type=*/std::nullopt,
+                                  /*clone_if_no_parametrics=*/false));
+        XLS_ASSIGN_OR_RETURN(value,
+                             evaluator_.Evaluate(ParametricContextScopedExpr(
+                                 parametric_context_, binding_type,
+                                 std::get<Expr*>(parametric))));
+      }
+
+      if (i == explicit_parametrics.size()) {
+        explicit_parametrics.push_back(*value);
+      } else {
+        bool match = false;
+        if (value->IsTypeReference() &&
+            explicit_parametrics[i].IsTypeReference()) {
+          XLS_ASSIGN_OR_RETURN(
+              std::optional<InterpValue> unified,
+              UnifyTypeReference(*value, explicit_parametrics[i]));
+          if (unified.has_value()) {
+            match = true;
+            explicit_parametrics[i] = *unified;
+          }
+        } else {
+          match = (*value == explicit_parametrics[i]);
+        }
+        if (!match) {
+          return TypeInferenceErrorStatusForAnnotation(
+              annotation->span(), annotation,
+              absl::Substitute(
+                  "Value mismatch for parametric `$0` of $1 `$2`: $3 vs. $4",
+                  binding->identifier(), kind, identifier, value->ToString(),
+                  explicit_parametrics[i].ToString()),
+              file_table_);
+        }
+      }
+      prior_arguments.emplace(binding->name_def(), parametric);
+    }
+    return absl::OkStatus();
   }
 
   // Unifies multiple annotations for a parametric struct, and produces an
@@ -506,70 +639,57 @@ class Unifier {
             << def.identifier();
     std::vector<InterpValue> explicit_parametrics;
     std::optional<const StructInstanceBase*> instantiator;
-
-    // Go through the annotations, and check that they have no disagreement in
-    // their explicit parametric values. For example, one annotation may be
-    // `SomeStruct<32>` and one may be `SomeStruct<N>` where `N` is a parametric
-    // of the enclosing function. We are in a position now to decide if `N` is
-    // 32 or not.
     for (const TypeAnnotation* annotation : annotations) {
       XLS_ASSIGN_OR_RETURN(std::optional<StructOrProcRef> struct_or_proc_ref,
                            GetStructOrProcRef(annotation, import_data_));
       XLS_RET_CHECK(struct_or_proc_ref.has_value());
-      if (struct_or_proc_ref->instantiator.has_value()) {
-        instantiator = struct_or_proc_ref->instantiator;
+      if (struct_or_proc_ref->construction_origin.has_value()) {
+        const auto* origin = dynamic_cast<const StructInstanceBase*>(
+            *struct_or_proc_ref->construction_origin);
+        XLS_RET_CHECK(origin != nullptr);
+        instantiator = origin;
       }
-      for (int i = 0; i < struct_or_proc_ref->parametrics.size(); i++) {
-        ExprOrType parametric = struct_or_proc_ref->parametrics[i];
-        std::optional<InterpValue> value;
-        const ParametricBinding* binding = def.parametric_bindings()[i];
-        if (std::holds_alternative<TypeAnnotation*>(parametric)) {
-          value = InterpValue::MakeTypeReference(
-              std::get<TypeAnnotation*>(parametric));
-        } else {
-          auto* expr = std::get<Expr*>(parametric);
-          XLS_ASSIGN_OR_RETURN(
-              value,
-              evaluator_.Evaluate(ParametricContextScopedExpr(
-                  parametric_context_, binding->type_annotation(), expr)));
-        }
-
-        if (i == explicit_parametrics.size()) {
-          explicit_parametrics.push_back(*value);
-        } else {
-          bool match = false;
-          if (value->IsTypeReference() &&
-              explicit_parametrics[i].IsTypeReference()) {
-            XLS_ASSIGN_OR_RETURN(
-                std::optional<InterpValue> unified,
-                UnifyTypeReference(*value, explicit_parametrics[i],
-                                   annotation->span()));
-            if (unified.has_value()) {
-              match = true;
-              explicit_parametrics[i] = *unified;
-            }
-          } else {
-            match = (*value == explicit_parametrics[i]);
-          }
-          if (!match) {
-            return TypeInferenceErrorStatusForAnnotation(
-                annotation->span(), annotation,
-                absl::Substitute(
-                    "Value mismatch for parametric `$0` of $1 `$2`: $3 vs. $4",
-                    binding->identifier(),
-                    def.kind() == AstNodeKind::kStructDef ? "struct" : "proc",
-                    def.identifier(), value->ToString(),
-                    explicit_parametrics[i].ToString()),
-                file_table_);
-          }
-        }
-      }
+      XLS_RETURN_IF_ERROR(UnifyAggregateParametrics(
+          def.parametric_bindings(), struct_or_proc_ref->parametrics,
+          def.kind() == AstNodeKind::kStructDef ? "struct" : "proc",
+          def.identifier(), annotation, explicit_parametrics));
     }
     return parametric_struct_instantiator_.InstantiateParametricStruct(
         module_,
         instantiator.has_value() ? (*instantiator)->span()
                                  : annotations[0]->span(),
         parametric_context_, def, explicit_parametrics, instantiator);
+  }
+
+  // Unifies multiple annotations for a parametric sum, then instantiates the
+  // sum using explicit values and any constructor payload provenance.
+  absl::StatusOr<const TypeAnnotation*> UnifyParametricSumAnnotations(
+      const SumDef& sum_def, std::vector<const TypeAnnotation*> annotations) {
+    VLOG(6) << "Unifying parametric sum annotations; sum def: "
+            << sum_def.identifier();
+    std::vector<InterpValue> explicit_parametrics;
+    std::vector<SumConstructorExpr> instantiators;
+    absl::flat_hash_set<const Expr*> origins;
+    for (const TypeAnnotation* annotation : annotations) {
+      XLS_ASSIGN_OR_RETURN(std::optional<SumRef> sum_ref,
+                           GetSumRef(annotation, import_data_));
+      XLS_RET_CHECK(sum_ref.has_value());
+      XLS_RETURN_IF_ERROR(UnifyAggregateParametrics(
+          sum_def.parametric_bindings(), sum_ref->parametrics, "sum",
+          sum_def.identifier(), annotation, explicit_parametrics));
+      // Effective arguments belong to each annotation, even when two
+      // annotations point to the same source construction.
+      if (sum_ref->construction_origin.has_value() &&
+          origins.insert(*sum_ref->construction_origin).second) {
+        instantiators.push_back(*sum_ref->construction_origin);
+      }
+    }
+    return parametric_struct_instantiator_.InstantiateParametricSum(
+        module_,
+        instantiators.empty()
+            ? annotations[0]->span()
+            : SumConstructorView(instantiators.back()).expression()->span(),
+        parametric_context_, sum_def, explicit_parametrics, instantiators);
   }
 
   absl::StatusOr<const TypeAnnotation*> UnifyBitsLikeTypeAnnotations(
@@ -592,8 +712,7 @@ class Unifier {
                           current_annotation->ToString()),
                       file_table_);
                 }
-                return error_generator_.TypeMismatchError(
-                    parametric_context_, current_annotation, annotations[0]);
+                return TypeMismatchError(current_annotation, annotations[0]);
               }));
 
       XLS_ASSIGN_OR_RETURN(
@@ -745,6 +864,16 @@ class Unifier {
     return *x;
   }
 
+  absl::Status TypeMismatchError(const TypeAnnotation* a,
+                                 const TypeAnnotation* b) {
+    // Successful structural unification resolves corresponding children
+    // together. Early category/dimension errors still need ordinary resolved
+    // spellings rather than exposing internal inference variables.
+    XLS_ASSIGN_OR_RETURN(a, resolve_type_annotation_(a));
+    XLS_ASSIGN_OR_RETURN(b, resolve_type_annotation_(b));
+    return error_generator_.TypeMismatchError(parametric_context_, a, b);
+  }
+
   // Casts all of `annotations` to type `T`, or returns a type mismatch error,
   // if any cannot be cast to T.
   template <typename T>
@@ -762,8 +891,7 @@ class Unifier {
       const TypeAnnotation* annotation = annotations[i];
       const T* casted = cast_fn(annotation);
       if (casted == nullptr) {
-        return error_generator_.TypeMismatchError(parametric_context_,
-                                                  annotations[0], annotation);
+        return TypeMismatchError(annotations[0], annotation);
       }
       result.push_back(casted);
     }
@@ -777,7 +905,13 @@ class Unifier {
   Evaluator& evaluator_;
   ParametricStructInstantiator& parametric_struct_instantiator_;
   std::optional<const ParametricContext*> parametric_context_;
-  const ImportData& import_data_;
+  ImportData& import_data_;
+  absl::FunctionRef<absl::StatusOr<const TypeAnnotation*>(
+      const TypeAnnotation*)>
+      resolve_type_annotation_;
+  absl::FunctionRef<absl::StatusOr<const TypeAnnotation*>(
+      std::vector<const TypeAnnotation*>, const Span&)>
+      resolve_group_;
 };
 
 }  // namespace
@@ -804,10 +938,16 @@ absl::StatusOr<const TypeAnnotation*> UnifyTypeAnnotations(
     ParametricStructInstantiator& parametric_struct_instantiator,
     std::optional<const ParametricContext*> parametric_context,
     std::vector<const TypeAnnotation*> annotations, const Span& span,
-    const ImportData& import_data) {
+    ImportData& import_data,
+    absl::FunctionRef<
+        absl::StatusOr<const TypeAnnotation*>(const TypeAnnotation*)>
+        resolve_type_annotation,
+    absl::FunctionRef<absl::StatusOr<const TypeAnnotation*>(
+        std::vector<const TypeAnnotation*>, const Span&)>
+        resolve_group) {
   Unifier unifier(module, table, file_table, error_generator, evaluator,
                   parametric_struct_instantiator, parametric_context,
-                  import_data);
+                  import_data, resolve_type_annotation, resolve_group);
   return unifier.UnifyTypeAnnotations(annotations, span);
 }
 

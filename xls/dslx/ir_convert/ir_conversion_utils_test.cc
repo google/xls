@@ -13,9 +13,11 @@
 // limitations under the License.
 #include "xls/dslx/ir_convert/ir_conversion_utils.h"
 
+#include <functional>
 #include <memory>
 #include <optional>
 #include <utility>
+#include <variant>
 #include <vector>
 
 #include "gmock/gmock.h"
@@ -81,9 +83,8 @@ class IrConversionUtilsSemanticSumTest : public ::testing::Test {
     const Span span = Span::Fake();
     auto* sum_name = module_.Make<NameDef>(span, "Example", nullptr);
     auto* variant_name = module_.Make<NameDef>(span, "X", nullptr);
-    auto* variant = module_.Make<SumVariant>(
-        span, variant_name, SumVariant::PayloadShape::kUnit,
-        std::vector<TypeAnnotation*>{}, std::vector<StructMemberNode*>{});
+    auto* variant =
+        module_.Make<SumVariant>(span, variant_name, std::monostate{});
     auto* sum_def = module_.Make<SumDef>(
         span, sum_name, std::vector<ParametricBinding*>{},
         std::vector<SumVariant*>{variant}, /*is_public=*/false);
@@ -91,7 +92,9 @@ class IrConversionUtilsSemanticSumTest : public ::testing::Test {
 
     std::vector<SumTypeVariant> variants;
     variants.push_back(SumTypeVariant::MakeUnit(*variant));
-    sum_type_ = std::make_unique<SumType>(*sum_def, std::move(variants));
+    sum_type_ = std::make_unique<SumType>(
+        *sum_def, std::move(variants),
+        SumType::SelectedZeroVariant{std::cref(*variant)});
   }
 
   FileTable file_table_;

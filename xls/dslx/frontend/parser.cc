@@ -1356,6 +1356,12 @@ absl::Status Parser::ApplyProcDefAttributes(
 
 absl::StatusOr<Expr*> Parser::ParseExpression(Bindings& bindings,
                                               ExprRestrictions restrictions) {
+  ++active_expression_parses_;
+  absl::Cleanup clear_match_trials = [this] {
+    if (--active_expression_parses_ == 0) {
+      failed_match_subject_trials_.clear();
+    }
+  };
   XLS_ASSIGN_OR_RETURN(std::optional<Token> hash,
                        TryPopToken(TokenKind::kHash));
   std::optional<ChannelConfig> channel_config;
@@ -1789,6 +1795,25 @@ absl::StatusOr<ColonRef*> Parser::ParseColonRef(Bindings& bindings,
   }
 }
 
+absl::StatusOr<Expr*> Parser::ParseColonRefOrStructInstance(
+    Bindings& bindings, ColonRef::Subject subject, const Span& subject_span,
+    ExprRestrictions restrictions) {
+  XLS_ASSIGN_OR_RETURN(ColonRef * colon_ref,
+                       ParseColonRef(bindings, subject, subject_span));
+  XLS_ASSIGN_OR_RETURN(bool peek_is_obrace, PeekTokenIs(TokenKind::kOBrace));
+  if (peek_is_obrace && !IsExprRestrictionEnabled(
+                            restrictions, ExprRestriction::kNoStructLiteral)) {
+    auto* type_ref = module_->Make<TypeRef>(colon_ref->span(), colon_ref);
+    XLS_ASSIGN_OR_RETURN(
+        TypeAnnotation * type,
+        MakeTypeRefTypeAnnotation(colon_ref->span(), type_ref,
+                                  /*dims=*/{}, /*parametrics=*/{}));
+    return ParseStructInstance(bindings, type);
+  } else {
+    return colon_ref;
+  }
+}
+
 absl::StatusOr<Expr*> Parser::ParseCastOrEnumRefOrStructInstanceOrToken(
     Bindings& bindings, ExprRestrictions restrictions) {
   VLOG(5) << "ParseCastOrEnumRefOrStructInstanceOrToken @ " << GetPos()
@@ -1800,28 +1825,16 @@ absl::StatusOr<Expr*> Parser::ParseCastOrEnumRefOrStructInstanceOrToken(
   // Handle cases like `my_mod::some_val`, where the LHS is a module name.
   if (peek_is_double_colon && !tok.IsKeyword(Keyword::kSelfType)) {
     XLS_ASSIGN_OR_RETURN(NameRef * subject, ParseNameRef(bindings, &tok));
-    XLS_ASSIGN_OR_RETURN(ColonRef * colon_ref,
-                         ParseColonRef(bindings, subject, subject->span()));
-    XLS_ASSIGN_OR_RETURN(bool peek_is_obrace, PeekTokenIs(TokenKind::kOBrace));
-    if (peek_is_obrace &&
-        !IsExprRestrictionEnabled(restrictions,
-                                  ExprRestriction::kNoStructLiteral)) {
-      auto* type_ref = module_->Make<TypeRef>(colon_ref->span(), colon_ref);
-      XLS_ASSIGN_OR_RETURN(
-          TypeAnnotation * type,
-          MakeTypeRefTypeAnnotation(colon_ref->span(), type_ref,
-                                    /*dims=*/{}, /*parametrics=*/{}));
-      return ParseStructInstance(bindings, type);
-    }
-    return colon_ref;
+    return ParseColonRefOrStructInstance(bindings, subject, subject->span(),
+                                         restrictions);
   }
 
   XLS_ASSIGN_OR_RETURN(TypeAnnotation * type,
                        ParseTypeAnnotation(bindings, tok));
 
   // After parsing the type, check again for `peek_is_double_colon` to catch
-  // accessing impl members of parametric structs (e.g.,
-  // `MyStruct<u32:5>::SOME_CONSTANT`).
+  // accessing impl members of parametric structs or sum constructors (e.g.,
+  // `MyStruct<u32:5>::SOME_CONSTANT` or `MySum<u32:5>::Variant`).
   XLS_ASSIGN_OR_RETURN(peek_is_double_colon,
                        PeekTokenIs(TokenKind::kDoubleColon));
   // Note that `type_ref` may be a number of possibilities, one of which is
@@ -1832,8 +1845,10 @@ absl::StatusOr<Expr*> Parser::ParseCastOrEnumRefOrStructInstanceOrToken(
   // or `Self::LIMIT` (via self_ref).
   if ((type_ref != nullptr || self_ref != nullptr) && peek_is_double_colon) {
     return type_ref != nullptr
-               ? ParseColonRef(bindings, type_ref, type->span())
-               : ParseColonRef(bindings, self_ref, type->span());
+               ? ParseColonRefOrStructInstance(bindings, type_ref, type->span(),
+                                               restrictions)
+               : ParseColonRefOrStructInstance(bindings, self_ref, type->span(),
+                                               restrictions);
   }
   // Handle cases like `Self::LIMIT` as a value expression (e.g. inside array
   // dimensions like `uN[Self::LIMIT]`). This initially parses as a
@@ -2416,12 +2431,41 @@ absl::StatusOr<PatternTree> Parser::ParsePattern(Bindings& bindings,
 }
 
 absl::StatusOr<Match*> Parser::ParseMatch(Bindings& bindings, bool is_const) {
+  const auto trial_key =
+      std::make_pair(SaveScannerCheckpoint(), approximate_expression_depth_);
   if (is_const) {
     XLS_RETURN_IF_ERROR(DropKeywordOrError(Keyword::kConst));
   }
   XLS_ASSIGN_OR_RETURN(Token match, PopKeywordOrError(Keyword::kMatch));
-  XLS_ASSIGN_OR_RETURN(Expr * matched, ParseExpression(bindings));
-  XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kOBrace));
+  // Match subjects may be aggregate literals. Include the opening match brace
+  // in the trial so an empty arm block is not mistaken for a named payload.
+  auto parse_subject =
+      [this](Bindings& subject_bindings,
+             ExprRestrictions restrictions) -> absl::StatusOr<Expr*> {
+    XLS_ASSIGN_OR_RETURN(Expr * subject,
+                         ParseExpression(subject_bindings, restrictions));
+    XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kOBrace));
+    return subject;
+  };
+  absl::StatusOr<Expr*> matched;
+  if (failed_match_subject_trials_.contains(trial_key)) {
+    matched = parse_subject(
+        bindings, MakeRestrictions({ExprRestriction::kNoStructLiteral}));
+  } else {
+    Transaction parse_subject_txn(this, &bindings);
+    matched = parse_subject(*parse_subject_txn.bindings(), kNoRestrictions);
+    if (matched.ok()) {
+      parse_subject_txn.Commit();
+    } else {
+      // Enclosing retries can revisit this match even when its fallback also
+      // fails. Remember the failed choice, but rebuild syntax and bindings.
+      failed_match_subject_trials_.insert(trial_key);
+      parse_subject_txn.Rollback();
+      matched = parse_subject(
+          bindings, MakeRestrictions({ExprRestriction::kNoStructLiteral}));
+    }
+  }
+  XLS_RETURN_IF_ERROR(matched.status());
 
   std::vector<MatchArm*> arms;
   bool must_end = false;
@@ -2505,7 +2549,7 @@ absl::StatusOr<Match*> Parser::ParseMatch(Bindings& bindings, bool is_const) {
     must_end = !dropped_comma;
   }
   Span span(match.span().start(), GetPos());
-  return module_->Make<Match>(span, matched, std::move(arms),
+  return module_->Make<Match>(span, *matched, std::move(arms),
                               /*in_parens=*/false, is_const);
 }
 
@@ -2791,9 +2835,7 @@ absl::StatusOr<Expr*> Parser::ParseTermLhs(Bindings& outer_bindings,
     VLOG(5) << "ParseTerm, kind is identifier but not a known type";
     XLS_ASSIGN_OR_RETURN(auto name_or_colon_ref,
                          ParseNameOrColonRef(outer_bindings));
-    if (std::holds_alternative<ColonRef*>(name_or_colon_ref) &&
-        !IsExprRestrictionEnabled(restrictions,
-                                  ExprRestriction::kNoStructLiteral)) {
+    if (std::holds_alternative<ColonRef*>(name_or_colon_ref)) {
       ColonRef* colon_ref = std::get<ColonRef*>(name_or_colon_ref);
       TypeAnnotation* type = nullptr;
       TypeRef* type_ref = nullptr;
@@ -2813,11 +2855,10 @@ absl::StatusOr<Expr*> Parser::ParseTermLhs(Bindings& outer_bindings,
         VLOG(5) << "ParseTerm, kind is ColonRef then oAngle; trying parametric";
         type_ref = module_->Make<TypeRef>(colon_ref->span(), colon_ref);
 
-        // We're looking either at an imported parametric struct, an imported
-        // parametric enum comparison, or an imported parametric function call.
-        // This block only deals with parametric struct instantiation; the other
-        // possibilities are handled in different places, so we will rollback
-        // if it's not actually an imported parametric struct instantiation.
+        // An imported parametric type may be followed by an aggregate payload,
+        // a type-qualified member, or a cast. Otherwise roll back so
+        // comparisons and parametric function references/calls can be parsed
+        // normally.
         auto type_and_dims = ParseTypeRefParametricsAndDims(
             outer_bindings, colon_ref->span(), type_ref);
         if (!type_and_dims.ok()) {
@@ -2836,7 +2877,9 @@ absl::StatusOr<Expr*> Parser::ParseTermLhs(Bindings& outer_bindings,
       }
 
       XLS_ASSIGN_OR_RETURN(bool found_obrace, PeekTokenIs(TokenKind::kOBrace));
-      if (found_obrace) {
+      if (found_obrace &&
+          !IsExprRestrictionEnabled(restrictions,
+                                    ExprRestriction::kNoStructLiteral)) {
         VLOG(5) << "ParseTerm, kind is ColonRef then oBrace";
         parse_oangle_txn.Commit();
 
@@ -2857,8 +2900,9 @@ absl::StatusOr<Expr*> Parser::ParseTermLhs(Bindings& outer_bindings,
       auto* type_ref_annotation = dynamic_cast<TypeRefTypeAnnotation*>(type);
       if (type_ref_annotation != nullptr && found_double_colon) {
         parse_oangle_txn.Commit();
-        return ParseColonRef(outer_bindings, type_ref_annotation,
-                             type_ref_annotation->span());
+        return ParseColonRefOrStructInstance(
+            outer_bindings, type_ref_annotation, type_ref_annotation->span(),
+            restrictions);
       } else if (type != nullptr && found_colon) {
         VLOG(5) << "ParseTerm, kind is ColonRef then oColon";
         // Probably a literal array. Commit the parsing of the LHS so far, and
@@ -4443,9 +4487,7 @@ absl::StatusOr<std::variant<EnumDef*, SumDef*>> Parser::ParseEnumDef(
   struct ParsedEntry {
     Span span;
     NameDef* name_def;
-    SumVariant::PayloadShape payload_shape;
-    std::vector<TypeAnnotation*> tuple_members;
-    std::vector<StructMemberNode*> struct_members;
+    SumVariant::Payload payload;
     Expr* discriminant;
     std::optional<Span> payload_span;
     std::optional<Span> discriminant_equals_span;
@@ -4495,9 +4537,8 @@ absl::StatusOr<std::variant<EnumDef*, SumDef*>> Parser::ParseEnumDef(
       return ParsedEntry{
           .span = Span(variant_start, GetPos()),
           .name_def = variant_name,
-          .payload_shape = SumVariant::PayloadShape::kTuple,
-          .tuple_members = std::move(tuple_members),
-          .struct_members = {},
+          .payload = module_->Make<TupleTypeAnnotation>(
+              payload_span, std::move(tuple_members)),
           .discriminant = discriminant,
           .payload_span = payload_span,
           .discriminant_equals_span = discriminant_equals_span,
@@ -4535,9 +4576,7 @@ absl::StatusOr<std::variant<EnumDef*, SumDef*>> Parser::ParseEnumDef(
       return ParsedEntry{
           .span = Span(variant_start, GetPos()),
           .name_def = variant_name,
-          .payload_shape = SumVariant::PayloadShape::kStruct,
-          .tuple_members = {},
-          .struct_members = std::move(struct_members),
+          .payload = NamedFields(std::move(struct_members)),
           .discriminant = discriminant,
           .payload_span = payload_span,
           .discriminant_equals_span = discriminant_equals_span,
@@ -4555,9 +4594,7 @@ absl::StatusOr<std::variant<EnumDef*, SumDef*>> Parser::ParseEnumDef(
     return ParsedEntry{
         .span = Span(variant_start, GetPos()),
         .name_def = variant_name,
-        .payload_shape = SumVariant::PayloadShape::kUnit,
-        .tuple_members = {},
-        .struct_members = {},
+        .payload = std::monostate{},
         .discriminant = discriminant,
         .payload_span = std::nullopt,
         .discriminant_equals_span = discriminant_equals_span,
@@ -4570,7 +4607,7 @@ absl::StatusOr<std::variant<EnumDef*, SumDef*>> Parser::ParseEnumDef(
 
   const bool has_payload_syntax =
       absl::c_any_of(entries, [](const ParsedEntry& entry) {
-        return entry.payload_shape != SumVariant::PayloadShape::kUnit;
+        return !std::holds_alternative<std::monostate>(entry.payload);
       });
   const bool is_semantic_sum =
       has_payload_syntax || (entries.empty() && type_annotation == nullptr);
@@ -4631,8 +4668,7 @@ absl::StatusOr<std::variant<EnumDef*, SumDef*>> Parser::ParseEnumDef(
   variants.reserve(entries.size());
   for (ParsedEntry& entry : entries) {
     variants.push_back(module_->Make<SumVariant>(
-        entry.span, entry.name_def, entry.payload_shape,
-        std::move(entry.tuple_members), std::move(entry.struct_members),
+        entry.span, entry.name_def, std::move(entry.payload),
         entry.discriminant == nullptr
             ? std::nullopt
             : std::optional<Expr*>(entry.discriminant),

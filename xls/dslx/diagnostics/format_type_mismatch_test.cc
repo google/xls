@@ -14,9 +14,11 @@
 
 #include "xls/dslx/diagnostics/format_type_mismatch.h"
 
+#include <functional>
 #include <memory>
 #include <optional>
 #include <string>
+#include <variant>
 #include <vector>
 
 #include "gtest/gtest.h"
@@ -45,9 +47,8 @@ TEST(FormatTypeMismatchTest, DistinctSumDeclarationsProduceTypeMismatch) {
   auto make_sum_type = [&](const std::string& name) {
     auto* sum_name = module.Make<NameDef>(span, name, nullptr);
     auto* variant_name = module.Make<NameDef>(span, "X", nullptr);
-    auto* variant = module.Make<SumVariant>(
-        span, variant_name, SumVariant::PayloadShape::kUnit,
-        std::vector<TypeAnnotation*>{}, std::vector<StructMemberNode*>{});
+    auto* variant =
+        module.Make<SumVariant>(span, variant_name, std::monostate{});
     auto* sum_def = module.Make<SumDef>(
         span, sum_name, std::vector<ParametricBinding*>{},
         std::vector<SumVariant*>{variant}, /*is_public=*/false);
@@ -55,7 +56,9 @@ TEST(FormatTypeMismatchTest, DistinctSumDeclarationsProduceTypeMismatch) {
 
     std::vector<SumTypeVariant> variants;
     variants.push_back(SumTypeVariant::MakeUnit(*variant));
-    return std::make_unique<SumType>(*sum_def, std::move(variants));
+    return std::make_unique<SumType>(
+        *sum_def, std::move(variants),
+        SumType::SelectedZeroVariant{std::cref(*variant)});
   };
 
   std::unique_ptr<SumType> lhs = make_sum_type("A");
@@ -79,13 +82,11 @@ TEST(FormatTypeMismatchTest, SumPayloadMismatch) {
       kFakeSpan, BuiltinType::kU16,
       module.GetOrCreateBuiltinNameDef(dslx::BuiltinType::kU16));
 
-  auto* none = module.Make<SumVariant>(
-      kFakeSpan, none_name, SumVariant::PayloadShape::kUnit,
-      std::vector<TypeAnnotation*>{}, std::vector<StructMemberNode*>{});
+  auto* none = module.Make<SumVariant>(kFakeSpan, none_name, std::monostate{});
   auto* some = module.Make<SumVariant>(
-      kFakeSpan, some_name, SumVariant::PayloadShape::kTuple,
-      std::vector<TypeAnnotation*>{u8_type, u16_type},
-      std::vector<StructMemberNode*>{});
+      kFakeSpan, some_name,
+      module.Make<TupleTypeAnnotation>(
+          kFakeSpan, std::vector<TypeAnnotation*>{u8_type, u16_type}));
   auto* option = module.Make<SumDef>(
       kFakeSpan, option_name, std::vector<ParametricBinding*>{},
       std::vector<SumVariant*>{none, some}, /*is_public=*/false);
@@ -108,8 +109,10 @@ TEST(FormatTypeMismatchTest, SumPayloadMismatch) {
   rhs_variants.push_back(
       SumTypeVariant::MakeTuple(*some, std::move(rhs_some_members)));
 
-  SumType lhs(*option, std::move(lhs_variants));
-  SumType rhs(*option, std::move(rhs_variants));
+  SumType lhs(*option, std::move(lhs_variants),
+              SumType::SelectedZeroVariant{std::cref(*none)});
+  SumType rhs(*option, std::move(rhs_variants),
+              SumType::SelectedZeroVariant{std::cref(*none)});
   XLS_ASSERT_OK_AND_ASSIGN(std::string got,
                            FormatTypeMismatch(lhs, rhs, file_table));
 
@@ -135,10 +138,10 @@ TEST(FormatTypeMismatchTest, NestedAggregateSumPayloadMismatch) {
   auto* annotation = module.Make<BuiltinTypeAnnotation>(
       span, BuiltinType::kU8,
       module.GetOrCreateBuiltinNameDef(BuiltinType::kU8));
-  auto* some =
-      module.Make<SumVariant>(span, some_name, SumVariant::PayloadShape::kTuple,
-                              std::vector<TypeAnnotation*>{annotation},
-                              std::vector<StructMemberNode*>{});
+  auto* some = module.Make<SumVariant>(
+      span, some_name,
+      module.Make<TupleTypeAnnotation>(
+          span, std::vector<TypeAnnotation*>{annotation}));
   auto* option =
       module.Make<SumDef>(span, option_name, std::vector<ParametricBinding*>{},
                           std::vector<SumVariant*>{some}, /*is_public=*/false);
@@ -150,7 +153,8 @@ TEST(FormatTypeMismatchTest, NestedAggregateSumPayloadMismatch) {
   std::vector<SumTypeVariant> lhs_variants;
   lhs_variants.push_back(
       SumTypeVariant::MakeTuple(*some, std::move(lhs_members)));
-  SumType lhs(*option, std::move(lhs_variants));
+  SumType lhs(*option, std::move(lhs_variants),
+              SumType::SelectedZeroVariant{std::cref(*some)});
 
   std::vector<std::unique_ptr<Type>> rhs_members;
   rhs_members.push_back(
@@ -158,7 +162,8 @@ TEST(FormatTypeMismatchTest, NestedAggregateSumPayloadMismatch) {
   std::vector<SumTypeVariant> rhs_variants;
   rhs_variants.push_back(
       SumTypeVariant::MakeTuple(*some, std::move(rhs_members)));
-  SumType rhs(*option, std::move(rhs_variants));
+  SumType rhs(*option, std::move(rhs_variants),
+              SumType::SelectedZeroVariant{std::cref(*some)});
 
   XLS_ASSERT_OK_AND_ASSIGN(std::string got,
                            FormatTypeMismatch(lhs, rhs, file_table));
@@ -189,18 +194,13 @@ TEST(FormatTypeMismatchTest,
       module.Make<StructMemberNode>(
           span, module.Make<NameDef>(span, "right", nullptr), span, u16),
   };
-  auto* pair = module.Make<SumVariant>(span, pair_name,
-                                       SumVariant::PayloadShape::kStruct,
-                                       std::vector<TypeAnnotation*>{}, fields);
+  auto* pair = module.Make<SumVariant>(span, pair_name, NamedFields(fields));
   auto* empty_tuple = module.Make<SumVariant>(
-      span, empty_tuple_name, SumVariant::PayloadShape::kTuple,
-      std::vector<TypeAnnotation*>{}, std::vector<StructMemberNode*>{});
+      span, empty_tuple_name,
+      module.Make<TupleTypeAnnotation>(span, std::vector<TypeAnnotation*>{}));
   auto* empty_struct = module.Make<SumVariant>(
-      span, empty_struct_name, SumVariant::PayloadShape::kStruct,
-      std::vector<TypeAnnotation*>{}, std::vector<StructMemberNode*>{});
-  auto* none = module.Make<SumVariant>(
-      span, none_name, SumVariant::PayloadShape::kUnit,
-      std::vector<TypeAnnotation*>{}, std::vector<StructMemberNode*>{});
+      span, empty_struct_name, NamedFields(std::vector<StructMemberNode*>{}));
+  auto* none = module.Make<SumVariant>(span, none_name, std::monostate{});
   auto* option = module.Make<SumDef>(
       span, option_name, std::vector<ParametricBinding*>{},
       std::vector<SumVariant*>{pair, empty_tuple, empty_struct, none},
@@ -219,7 +219,8 @@ TEST(FormatTypeMismatchTest,
     variants.push_back(SumTypeVariant::MakeStruct(
         *empty_struct, std::vector<std::unique_ptr<Type>>{}));
     variants.push_back(SumTypeVariant::MakeUnit(*none));
-    return SumType(*option, std::move(variants));
+    return SumType(*option, std::move(variants),
+                   SumType::SelectedZeroVariant{std::cref(*pair)});
   };
   SumType lhs = make_type(std::make_unique<BitsType>(false, 16));
   SumType rhs = make_type(BitsType::MakeU32());

@@ -180,7 +180,6 @@ class Formatter {
   virtual DocRef FormatStructInstance(const StructInstance& n);
   virtual DocRef FormatStructPattern(const StructPattern& n);
   virtual DocRef FormatSumDef(const SumDef& n);
-  virtual DocRef FormatSumInstance(const SumInstance& n);
   virtual DocRef FormatSumVariantPayloadPattern(
       const SumVariantPayloadPattern& n);
   virtual DocRef FormatTestFunction(const TestFunction& n);
@@ -241,7 +240,7 @@ class Formatter {
                               const Span& body_span,
                               std::vector<DocRef>& pieces,
                               bool place_internal_comments = false);
-  void FormatSumTuplePayloadMembers(const SumVariant& variant,
+  void FormatSumTuplePayloadMembers(const TupleTypeAnnotation& payload,
                                     const Span& payload_span,
                                     std::vector<DocRef>& pieces);
   DocRef FormatStructMembersBreak(

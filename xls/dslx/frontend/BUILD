@@ -118,6 +118,7 @@ cc_test(
         ":ast_utils",
         ":module",
         ":pos",
+        "//xls/common:attribute_data",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/common/status:ret_check",
@@ -512,6 +513,18 @@ cc_library(
         ":pos",
         "//xls/common/status:status_macros",
         "@abseil-cpp//absl/status",
+    ],
+)
+
+cc_library(
+    name = "aggregate_construction",
+    srcs = ["aggregate_construction.cc"],
+    hdrs = ["aggregate_construction.h"],
+    deps = [
+        ":ast",
+        "@abseil-cpp//absl/base",
+        "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/types:span",
     ],
 )
 

@@ -98,6 +98,9 @@ CloneReplacer NameRefReplacer(
 // cloning proceeds as normal. If it returns an `AstNode*`, then that pointer is
 // used as a wholesale replacement subtree, and cloning does not delve into the
 // children of the original node.
+// Borrowed construction origins and declared-member declarations are remapped
+// after the complete subtree is cloned, if their targets occur in that subtree.
+// Annotations returned by the replacer are never modified by this fixup.
 //
 // Accepts nullptr, returning nullptr.
 absl::StatusOr<AstNode*> CloneAst(const AstNode* root,
@@ -112,6 +115,7 @@ CloneAstAndGetAllPairs(const AstNode* root,
                        std::optional<Module*> target_module,
                        CloneReplacer replacer = &NoopCloneReplacer);
 
+// Clones the module with one shared node mapping.
 absl::StatusOr<std::unique_ptr<Module>> CloneModule(
     const Module& module, CloneReplacer replacer = &NoopCloneReplacer);
 

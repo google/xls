@@ -209,7 +209,7 @@ class CollectNameRefs : public AstNodeVisitorWithDefault {
 class LambdaStructBindings {
  public:
   void AddBinding(ParametricBinding* struct_definition_parametric,
-                  ExprOrType struct_type_parametric,
+                  NameRef* struct_type_parametric,
                   ExprOrType struct_instance_parametric) {
     if (ToAstNode(struct_instance_parametric) == nullptr) {
       return AddBinding(struct_definition_parametric, struct_type_parametric);
@@ -219,7 +219,7 @@ class LambdaStructBindings {
                                        struct_instance_parametric});
   }
   void AddBinding(ParametricBinding* struct_definition_parametric,
-                  ExprOrType struct_type_parametric) {
+                  NameRef* struct_type_parametric) {
     bindings_without_instance_.push_back(
         {struct_definition_parametric, struct_type_parametric, std::nullopt});
   }
@@ -237,7 +237,15 @@ class LambdaStructBindings {
     std::vector<ExprOrType> bindings;
     bindings.reserve(TotalSize());
     for (const auto& binding : OrderedBindings()) {
-      bindings.push_back(binding.struct_type_parametric);
+      if (binding.struct_definition_parametric->type_annotation()
+              ->IsAnnotation<GenericTypeAnnotation>()) {
+        bindings.push_back(
+            binding.struct_type_parametric->owner()
+                ->Make<TypeVariableTypeAnnotation>(
+                    binding.struct_type_parametric, /*internal=*/true));
+      } else {
+        bindings.push_back(binding.struct_type_parametric);
+      }
     }
     return bindings;
   }
@@ -256,8 +264,8 @@ class LambdaStructBindings {
     // The parametric binding for the struct definition.
     ParametricBinding* struct_definition_parametric;
 
-    // The corresponding expression in the struct type annotation.
-    ExprOrType struct_type_parametric;
+    // The corresponding name in the struct type annotation.
+    NameRef* struct_type_parametric;
 
     // The expr or type used in the struct instance.
     std::optional<ExprOrType> struct_instance_parametric;

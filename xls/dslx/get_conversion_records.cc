@@ -274,49 +274,54 @@ class ConversionRecordVisitor : public AstNodeRecursiveVisitor {
   }
 
   absl::Status HandleInvocation(const Invocation* invocation) override {
+    TypeInfo* invocation_owner_ti = GetTypeInfo(invocation);
     if (!processed_invocations_.insert(invocation).second) {
       return absl::OkStatus();
-    }
+    } else if (invocation_owner_ti->IsSumConstructor(invocation)) {
+      // Constructors have no function call record, but calls inside their
+      // payloads still contribute conversion dependencies.
+      return DefaultHandler(invocation);
+    } else {
+      VLOG(5) << "HandleInvocation " << invocation->ToString();
+      std::vector<InvocationCalleeData> calls =
+          invocation_owner_ti->GetUniqueInvocationCalleeData(invocation);
+      XLS_RET_CHECK(!calls.empty())
+          << " no root invocation data for " << invocation->ToString() << " in "
+          << module_->name();
 
-    VLOG(5) << "HandleInvocation " << invocation->ToString();
-    TypeInfo* invocation_owner_ti = GetTypeInfo(invocation);
-    std::vector<InvocationCalleeData> calls =
-        invocation_owner_ti->GetUniqueInvocationCalleeData(invocation);
-    XLS_RET_CHECK(!calls.empty())
-        << " no root invocation data for " << invocation->ToString() << " in "
-        << module_->name();
+      for (const InvocationCalleeData& call : calls) {
+        VLOG(5) << "Processing call to " << call.callee->identifier()
+                << " with bindings: " << call.callee_bindings.ToString();
+        if (call.callee == nullptr || IsBuiltin(call.callee)) {
+          return DefaultHandler(invocation);
+        }
 
-    for (const InvocationCalleeData& call : calls) {
-      VLOG(5) << "Processing call to " << call.callee->identifier()
-              << " with bindings: " << call.callee_bindings.ToString();
-      if (call.callee == nullptr || IsBuiltin(call.callee)) {
-        return DefaultHandler(invocation);
+        // Use a visitor for the callee's module and with the specific TypeInfo
+        // for the call. Even if the function is in the same module, the
+        // TypeInfo may be different than the one the current visitor has.
+        ConversionRecordVisitor visitor(
+            call.callee->owner(), call.derived_type_info, include_tests_,
+            proc_id_factory_, top_, resolved_proc_alias_, records_,
+            processed_invocations_);
+
+        XLS_RETURN_IF_ERROR(visitor.HandleFunctionInternal(
+            call.callee, call.callee_bindings, /*handle_for_invocation=*/true));
+
+        VLOG(5) << "Processing invocation " << invocation->ToString();
+        XLS_ASSIGN_OR_RETURN(
+            ConversionRecord cr,
+            MakeConversionRecord(const_cast<Function*>(call.callee),
+                                 call.callee->owner(), call.derived_type_info,
+                                 call.callee_bindings,
+                                 /*proc_id=*/std::nullopt,
+                                 // Parametric functions can never be top.
+                                 /*is_top=*/!call.callee->IsParametric() &&
+                                     call.callee == top_));
+        records_.push_back(std::move(cr));
       }
-
-      // Use a visitor for the callee's module and with the specific TypeInfo
-      // for the call. Even if the function is in the same module, the TypeInfo
-      // may be different than the one the current visitor has.
-      ConversionRecordVisitor visitor(
-          call.callee->owner(), call.derived_type_info, include_tests_,
-          proc_id_factory_, top_, resolved_proc_alias_, records_,
-          processed_invocations_);
-
-      XLS_RETURN_IF_ERROR(visitor.HandleFunctionInternal(
-          call.callee, call.callee_bindings, /*handle_for_invocation=*/true));
-
-      VLOG(5) << "Processing invocation " << invocation->ToString();
-      XLS_ASSIGN_OR_RETURN(
-          ConversionRecord cr,
-          MakeConversionRecord(
-              const_cast<Function*>(call.callee), call.callee->owner(),
-              call.derived_type_info, call.callee_bindings,
-              /*proc_id=*/std::nullopt,
-              // Parametric functions can never be top.
-              /*is_top=*/!call.callee->IsParametric() && call.callee == top_));
-      records_.push_back(std::move(cr));
+      // Process the children, specifically, to find invocations in parameters.
+      return DefaultHandler(invocation);
     }
-    // Process the children, specifically, to find invocations in parameters.
-    return DefaultHandler(invocation);
   }
 
   absl::Status HandleMatch(const Match* expr) override {

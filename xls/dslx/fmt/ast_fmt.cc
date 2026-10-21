@@ -1791,40 +1791,6 @@ DocRef Formatter::FormatStructInstance(const StructInstance& n) {
       leader, arena_.MakeGroup(arena_.MakeFlatChoice(on_flat, on_break)));
 }
 
-DocRef Formatter::FormatSumInstance(const SumInstance& n) {
-  if (n.is_unit()) {
-    return FormatColonRef(*n.constructor_ref());
-  } else if (n.is_tuple()) {
-    DocRef args = FormatJoin<Expr*>(
-        n.tuple_payload_args(), Joiner::kCommaBreak1AsGroupNoTrailingComma,
-        [this](Expr* arg) { return FormatExpr(*arg); });
-    return ConcatNGroup(arena_, {FormatColonRef(*n.constructor_ref()),
-                                 arena_.oparen(), args, arena_.cparen()});
-  } else {
-    std::vector<DocRef> pieces = {FormatColonRef(*n.constructor_ref()),
-                                  arena_.space(), arena_.ocurl()};
-    if (n.struct_payload_field_args().empty()) {
-      pieces.push_back(arena_.space());
-    } else {
-      pieces.push_back(arena_.space());
-      for (int64_t i = 0; i < n.struct_payload_field_args().size(); ++i) {
-        const auto& [name, arg] = n.struct_payload_field_args()[i];
-        pieces.push_back(arena_.MakeText(name));
-        pieces.push_back(arena_.colon());
-        pieces.push_back(arena_.space());
-        pieces.push_back(FormatExpr(*arg));
-        if (i != n.struct_payload_field_args().size() - 1) {
-          pieces.push_back(arena_.comma());
-          pieces.push_back(arena_.break1());
-        }
-      }
-      pieces.push_back(arena_.space());
-    }
-    pieces.push_back(arena_.ccurl());
-    return ConcatNGroup(arena_, pieces);
-  }
-}
-
 DocRef Formatter::FormatSplatStructInstance(const SplatStructInstance& n) {
   DocRef leader = FormatStructLeader(n.struct_ref());
   DocRef splatted = Format(n.splatted());
@@ -2142,16 +2108,6 @@ DocRef Formatter::FormatBlockedExprLeader(const Expr& e) {
       const StructInstance& n = static_cast<const StructInstance&>(e);
       return ConcatN(arena_, {FormatStructLeader(n.struct_ref()),
                               arena_.space(), arena_.ocurl()});
-    }
-    case AstNodeKind::kSumInstance: {
-      const SumInstance& n = static_cast<const SumInstance&>(e);
-      if (n.is_tuple()) {
-        return arena_.MakeConcat(FormatColonRef(*n.constructor_ref()),
-                                 arena_.oparen());
-      } else {
-        return ConcatN(arena_, {FormatColonRef(*n.constructor_ref()),
-                                arena_.space(), arena_.ocurl()});
-      }
     }
     case AstNodeKind::kSplatStructInstance: {
       const SplatStructInstance& n = static_cast<const SplatStructInstance&>(e);
@@ -3260,21 +3216,20 @@ void Formatter::FormatSumStructMembers(
   }
 }
 
-void Formatter::FormatSumTuplePayloadMembers(const SumVariant& variant,
+void Formatter::FormatSumTuplePayloadMembers(const TupleTypeAnnotation& payload,
                                              const Span& payload_span,
                                              std::vector<DocRef>& pieces) {
   if (!comments_.HasComments(payload_span)) {
     pieces.push_back(FormatJoin<TypeAnnotation*>(
-        variant.tuple_members(),
-        Joiner::kCommaBreak1AsGroupTrailingCommaOnBreak,
+        payload.members(), Joiner::kCommaBreak1AsGroupTrailingCommaOnBreak,
         [this](TypeAnnotation* member) {
           return FormatTypeAnnotation(*member);
         }));
   } else {
     std::vector<DocRef> body_pieces;
     Pos last_member_pos = payload_span.start();
-    for (size_t i = 0; i < variant.tuple_members().size(); ++i) {
-      const TypeAnnotation* member = variant.tuple_members()[i];
+    for (size_t i = 0; i < payload.size(); ++i) {
+      const TypeAnnotation* member = payload.members()[i];
       const bool first_member = i == 0;
       const Span comments_span(last_member_pos, member->span().start());
       const std::vector<const CommentData*> comment_items =
@@ -3305,7 +3260,7 @@ void Formatter::FormatSumTuplePayloadMembers(const SumVariant& variant,
     if (std::optional<DocRef> comments_doc =
             FormatCommentsBetween(last_member_pos, payload_span.limit(),
                                   /*last_comment_span=*/nullptr)) {
-      if (!variant.tuple_members().empty()) {
+      if (!payload.empty()) {
         body_pieces.push_back(arena_.comma());
         body_pieces.push_back(comment_items.front()->span.start().lineno() ==
                                       last_member_pos.lineno()
@@ -3380,7 +3335,8 @@ DocRef Formatter::FormatSumDef(const SumDef& n) {
       FormatAppendSumCommentsBetween(last_piece_limit, payload_span.start(),
                                      variant_pieces);
       variant_pieces.push_back(arena_.oparen());
-      FormatSumTuplePayloadMembers(*variant, payload_span, variant_pieces);
+      FormatSumTuplePayloadMembers(*variant->tuple_payload(), payload_span,
+                                   variant_pieces);
       variant_pieces.push_back(arena_.cparen());
       last_piece_limit = payload_span.limit();
     } else if (variant->is_struct()) {

@@ -40,9 +40,15 @@ inline constexpr int64_t kMaxBitCount = 1000000;
 struct StructOrProcRef {
   const StructDefBase* def;
   std::vector<ExprOrType> parametrics;
-  std::optional<const StructInstanceBase*> instantiator;
+  std::optional<const Expr*> construction_origin;
   std::optional<const TypeRefTypeAnnotation*> type_ref_type_annotation;
   bool is_generic;
+};
+
+struct SumRef {
+  const SumDef* def;
+  std::vector<ExprOrType> parametrics;
+  std::optional<const Expr*> construction_origin;
 };
 
 // The signedness and bit count extracted from a `TypeAnnotation`. The
@@ -106,11 +112,20 @@ absl::StatusOr<TypeAnnotation*> CreateBuiltinTypeAnnotation(
 // parametric arguments.
 TypeAnnotation* CreateStructOrProcAnnotation(
     Module& module, StructDefBase* def, std::vector<ExprOrType> parametrics,
-    std::optional<const StructInstanceBase*> instantiator);
+    std::optional<const Expr*> construction_origin);
 
 // Variant that converts a `StructOrProcRef` into an annotation.
 TypeAnnotation* CreateStructOrProcAnnotation(Module& module,
                                              const StructOrProcRef& ref);
+
+// Creates an annotation referring to the given sum definition with the given
+// parametric arguments.
+TypeAnnotation* CreateSumAnnotation(
+    Module& module, SumDef* def, std::vector<ExprOrType> parametrics,
+    std::optional<const Expr*> construction_origin = std::nullopt);
+
+// Variant that converts a `SumRef` into an annotation.
+TypeAnnotation* CreateSumAnnotation(Module& module, const SumRef& ref);
 
 // Returns the element channel type of the given channel array type.
 ChannelTypeAnnotation* GetChannelArrayElementType(
@@ -238,7 +253,7 @@ bool IsTvtaToGeneric(const TypeAnnotation* type_annotation);
 // try to infer parametrics, we will infer the relevant types before we try to
 // resolve the bindings that depend on them.
 std::vector<int> GetBindingIndicesWithGenericTvtasLast(
-    const StructDefBase* def);
+    const std::vector<ParametricBinding*>& bindings);
 
 // Returns true if `annotation` indicates an IoObject (e.g. `Source`,
 // `Sink`).

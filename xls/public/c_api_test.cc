@@ -1612,6 +1612,7 @@ enum MyEnum : u5 {
         xls_dslx_struct_def_get_member(struct_def, 0);
     xls_dslx_struct_member* member1 =
         xls_dslx_struct_def_get_member(struct_def, 1);
+    EXPECT_EQ(member0, xls_dslx_struct_def_get_member(struct_def, 0));
 
     char* member0_name = xls_dslx_struct_member_get_name(member0);
     absl::Cleanup free_member0_name([=] { xls_c_str_free(member0_name); });
@@ -1629,6 +1630,10 @@ enum MyEnum : u5 {
     const xls_dslx_type* member1_type =
         xls_dslx_type_info_get_type_type_annotation(type_info,
                                                     member1_type_annotation);
+    EXPECT_EQ(member0_type,
+              xls_dslx_type_info_get_type_struct_member(type_info, member0));
+    EXPECT_EQ(member1_type,
+              xls_dslx_type_info_get_type_struct_member(type_info, member1));
 
     bool is_signed;
     ASSERT_TRUE(xls_dslx_type_is_signed_bits(member0_type, &error, &is_signed));

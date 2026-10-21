@@ -15,8 +15,10 @@
 #include "xls/dslx/sum_type_encoding.h"
 
 #include <cstdint>
+#include <functional>
 #include <memory>
 #include <optional>
+#include <variant>
 #include <vector>
 
 #include "gmock/gmock.h"
@@ -62,16 +64,15 @@ SumType MakeTuplePayloadSumType(Module& module) {
       kFakeSpan, BuiltinType::kU32,
       module.GetOrCreateBuiltinNameDef(dslx::BuiltinType::kU32));
 
-  auto* none = module.Make<SumVariant>(
-      kFakeSpan, none_name, SumVariant::PayloadShape::kUnit,
-      std::vector<TypeAnnotation*>{}, std::vector<StructMemberNode*>{});
+  auto* none = module.Make<SumVariant>(kFakeSpan, none_name, std::monostate{});
   auto* left = module.Make<SumVariant>(
-      kFakeSpan, left_name, SumVariant::PayloadShape::kTuple,
-      std::vector<TypeAnnotation*>{u8_type}, std::vector<StructMemberNode*>{});
+      kFakeSpan, left_name,
+      module.Make<TupleTypeAnnotation>(kFakeSpan,
+                                       std::vector<TypeAnnotation*>{u8_type}));
   auto* pair = module.Make<SumVariant>(
-      kFakeSpan, pair_name, SumVariant::PayloadShape::kTuple,
-      std::vector<TypeAnnotation*>{u16_type, u32_type},
-      std::vector<StructMemberNode*>{});
+      kFakeSpan, pair_name,
+      module.Make<TupleTypeAnnotation>(
+          kFakeSpan, std::vector<TypeAnnotation*>{u16_type, u32_type}));
   auto* sum_def = module.Make<SumDef>(
       kFakeSpan, sum_name, std::vector<ParametricBinding*>{},
       std::vector<SumVariant*>{none, left, pair}, /*is_public=*/false);
@@ -86,7 +87,8 @@ SumType MakeTuplePayloadSumType(Module& module) {
   pair_members.push_back(std::make_unique<BitsType>(false, 16));
   pair_members.push_back(BitsType::MakeU32());
   variants.push_back(SumTypeVariant::MakeTuple(*pair, std::move(pair_members)));
-  return SumType(*sum_def, std::move(variants));
+  return SumType(*sum_def, std::move(variants),
+                 SumType::SelectedZeroVariant{std::cref(*none)});
 }
 
 TEST(Phase1SumTypeEncodingTest, VisitsPayloadSlotsInDeclarationOrder) {
@@ -202,7 +204,8 @@ TEST(Phase1SumTypeEncodingTest, RejectsSumVariantsOutsideDeclarationOrder) {
         invalid_variants.push_back(valid_type.variants().at(0).Clone());
         invalid_variants.push_back(valid_type.variants().at(2).Clone());
         SumType invalid_type(valid_type.nominal_type(),
-                             std::move(invalid_variants));
+                             std::move(invalid_variants),
+                             valid_type.zero_selection());
       },
       "Check failed");
 }

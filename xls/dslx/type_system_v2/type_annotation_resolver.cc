@@ -14,10 +14,13 @@
 
 #include "xls/dslx/type_system_v2/type_annotation_resolver.h"
 
+#include <algorithm>
 #include <cstdint>
 #include <functional>
 #include <memory>
 #include <optional>
+#include <string>
+#include <string_view>
 #include <utility>
 #include <variant>
 #include <vector>
@@ -51,6 +54,7 @@
 #include "xls/dslx/type_system_v2/inference_table_converter.h"
 #include "xls/dslx/type_system_v2/inference_table_utils.h"
 #include "xls/dslx/type_system_v2/parametric_struct_instantiator.h"
+#include "xls/dslx/type_system_v2/parametric_type_annotation_utils.h"
 #include "xls/dslx/type_system_v2/simplified_type_annotation_cache.h"
 #include "xls/dslx/type_system_v2/type_annotation_filter.h"
 #include "xls/dslx/type_system_v2/type_annotation_utils.h"
@@ -61,6 +65,32 @@
 
 namespace xls::dslx {
 namespace {
+
+// Substitutes explicit sum parametrics into a payload member type using the
+// sum definition's binding order. Returns the original `member_type` for a
+// non-parametric sum or a reference with no parametric arguments.
+absl::StatusOr<const TypeAnnotation*> GetParametricFreeSumMemberType(
+    const TypeAnnotation* member_type, const SumRef& sum_ref,
+    InferenceTable& table, ImportData& import_data) {
+  if (!sum_ref.def->IsParametric() || sum_ref.parametrics.empty()) {
+    return member_type;
+  } else {
+    CHECK_GE(sum_ref.def->parametric_bindings().size(),
+             sum_ref.parametrics.size());
+    absl::flat_hash_map<const NameDef*, ExprOrType> actual_values;
+    for (int i = 0; i < sum_ref.parametrics.size(); ++i) {
+      const ParametricBinding* binding = sum_ref.def->parametric_bindings()[i];
+      XLS_ASSIGN_OR_RETURN(
+          ExprOrType argument,
+          NormalizeParametricArgument(*binding, sum_ref.parametrics[i], table,
+                                      import_data.file_table()));
+      actual_values.emplace(binding->name_def(), argument);
+    }
+    return GetParametricFreeType(member_type, actual_values, table, import_data,
+                                 /*real_self_type=*/std::nullopt,
+                                 /*clone_if_no_parametrics=*/false);
+  }
+}
 
 // A visitor that traverses a `TypeAnnotation` recursively until an annotation
 // is found of a kind which needs resolution (e.g. member or element type). If
@@ -82,6 +112,10 @@ class NeedsResolutionDetector : public AstNodeVisitorWithDefault {
   }
   absl::Status HandleMemberTypeAnnotation(
       const MemberTypeAnnotation*) override {
+    return MarkNeedsResolution();
+  }
+  absl::Status HandleDeclaredMemberTypeAnnotation(
+      const DeclaredMemberTypeAnnotation*) override {
     return MarkNeedsResolution();
   }
   absl::Status HandleElementTypeAnnotation(
@@ -320,7 +354,7 @@ class StatefulResolver : public TypeAnnotationResolver {
     absl::flat_hash_set<const NameRef*> variables_traversed;
     XLS_ASSIGN_OR_RETURN(
         const TypeAnnotation* result,
-        ResolveAndUnifyTypeAnnotations(
+        ResolveAnnotationGroup(
             parametric_context, context_node, annotations, span,
             TypeAnnotationFilter::CaptureRejectCount(&reject_count)
                 .Chain(TypeAnnotationFilter::CaptureVariables(
@@ -358,8 +392,147 @@ class StatefulResolver : public TypeAnnotationResolver {
       std::vector<const TypeAnnotation*> annotations, const Span& span,
       TypeAnnotationFilter filter, bool require_bits_like,
       bool* used_error_handler) override {
-    XLS_RETURN_IF_ERROR(ResolveIndirectTypeAnnotations(
-        parametric_context, context_node, annotations, filter));
+    return ResolveAnnotationGroup(parametric_context, context_node,
+                                  std::move(annotations), span, filter,
+                                  require_bits_like, used_error_handler);
+  }
+
+  // Only failures from comparing resolved types are eligible for contextual
+  // mismatch decoration. Resolution failures already identify their source.
+  enum class AnnotationErrorPhase { kResolution, kUnification };
+
+  // Expand only the current structural position. Unification recursively
+  // aligns tuple members and array elements before their
+  // nominal types consume constructor evidence.
+  absl::StatusOr<const TypeAnnotation*> ResolveAnnotationGroup(
+      std::optional<const ParametricContext*> parametric_context,
+      std::optional<const AstNode*> context_node,
+      std::vector<const TypeAnnotation*> annotations, const Span& span,
+      TypeAnnotationFilter filter, bool require_bits_like,
+      bool* used_error_handler, AnnotationErrorPhase* error_phase = nullptr) {
+    if (error_phase != nullptr) {
+      *error_phase = AnnotationErrorPhase::kResolution;
+    }
+    absl::flat_hash_set<const NameRef*> seen_variables;
+    std::vector<const TypeAnnotation*> expanded;
+    std::reverse(annotations.begin(), annotations.end());
+    while (!annotations.empty()) {
+      const TypeAnnotation* annotation = annotations.back();
+      annotations.pop_back();
+      if (filter.Filter(annotation)) {
+        continue;
+      } else if (annotation->IsAnnotation<TypeVariableTypeAnnotation>()) {
+        const auto* variable_annotation =
+            annotation->AsAnnotation<TypeVariableTypeAnnotation>();
+        const NameRef* variable = variable_annotation->type_variable();
+        if (!seen_variables.insert(variable).second) {
+          continue;
+        }
+        if (std::optional<const TypeAnnotation*> cached =
+                table_.GetCachedUnifiedTypeForVariable(parametric_context,
+                                                       variable);
+            cached.has_value() &&
+            !(*cached)->IsAnnotation<AnyTypeAnnotation>()) {
+          expanded.push_back(*cached);
+        } else {
+          XLS_ASSIGN_OR_RETURN(std::vector<const TypeAnnotation*> alternatives,
+                               table_.GetTypeAnnotationsForTypeVariable(
+                                   parametric_context, variable));
+          bool needs_grouping = false;
+          if (!variable_annotation->IsGeneric()) {
+            for (const TypeAnnotation* alternative : alternatives) {
+              if (alternative->IsAnnotation<TupleTypeAnnotation>() ||
+                  CastToNonBitsArrayTypeAnnotation(alternative) != nullptr) {
+                needs_grouping = true;
+              } else if (alternative->IsAnnotation<TypeRefTypeAnnotation>()) {
+                XLS_ASSIGN_OR_RETURN(std::optional<SumRef> sum,
+                                     GetSumRef(alternative, import_data_));
+                needs_grouping |= sum.has_value();
+              }
+            }
+          }
+          if (needs_grouping) {
+            XLS_ASSIGN_OR_RETURN(
+                std::vector<const Invocation*> prerequisites,
+                table_.GetInvocationsFeedingTypeVariable(variable));
+            for (const Invocation* invocation : prerequisites) {
+              XLS_RETURN_IF_ERROR(
+                  invocation_converter_(parametric_context, invocation));
+            }
+            // Ordinary calls may have added constraints while converting.
+            XLS_ASSIGN_OR_RETURN(alternatives,
+                                 table_.GetTypeAnnotationsForTypeVariable(
+                                     parametric_context, variable));
+            annotations.insert(annotations.end(), alternatives.rbegin(),
+                               alternatives.rend());
+          } else {
+            // Resolve ordinary defaults and generic arguments in their own
+            // caller scope before comparing them with peer evidence.
+            XLS_ASSIGN_OR_RETURN(
+                const TypeAnnotation* resolved,
+                ResolveAndUnifyTypeAnnotations(
+                    parametric_context, context_node, variable,
+                    annotation->span(), filter,
+                    table_.GetAnnotationFlag(annotation)
+                        .HasFlag(TypeInferenceFlag::kBitsLikeType)));
+            expanded.push_back(resolved);
+          }
+        }
+      } else if (annotation->IsAnnotation<TupleTypeAnnotation>() ||
+                 CastToNonBitsArrayTypeAnnotation(annotation) != nullptr) {
+        // Concatenation uses array syntax for either bits or an array. Its
+        // element projection must establish that shape before unification.
+        if (const auto* array =
+                dynamic_cast<const ArrayTypeAnnotation*>(annotation);
+            array != nullptr &&
+            array->element_type()->IsAnnotation<ElementTypeAnnotation>() &&
+            array->element_type()
+                ->AsAnnotation<ElementTypeAnnotation>()
+                ->allow_bit_vector_destructuring()) {
+          XLS_ASSIGN_OR_RETURN(annotation, ResolveIndirectTypeAnnotations(
+                                               parametric_context, context_node,
+                                               annotation, filter));
+        }
+        expanded.push_back(annotation);
+      } else if (annotation->IsAnnotation<FunctionTypeAnnotation>() ||
+                 annotation->IsAnnotation<ChannelTypeAnnotation>()) {
+        XLS_ASSIGN_OR_RETURN(annotation, ResolveIndirectTypeAnnotations(
+                                             parametric_context, context_node,
+                                             annotation, filter));
+        expanded.push_back(annotation);
+      } else {
+        XLS_ASSIGN_OR_RETURN(
+            std::optional<AstNode*> replacement,
+            ReplaceIndirectTypeAnnotations(annotation, parametric_context,
+                                           context_node, annotation, filter));
+        if (!replacement.has_value()) {
+          XLS_ASSIGN_OR_RETURN(replacement,
+                               ReplaceTypeAliasWithTarget(
+                                   annotation, parametric_context, filter));
+        }
+        if (replacement.has_value() && *replacement != annotation) {
+          annotations.push_back(
+              absl::down_cast<const TypeAnnotation*>(*replacement));
+        } else {
+          XLS_ASSIGN_OR_RETURN(annotation,
+                               ReplaceForeignConstantRefs(annotation));
+          expanded.push_back(annotation);
+        }
+      }
+    }
+    // Container propagation can reapply the same immutable constraint.
+    // Repeating it adds no evidence and would discard its source spelling
+    // through otherwise unnecessary scalar unification.
+    absl::flat_hash_set<const TypeAnnotation*> seen_annotations;
+    std::erase_if(expanded, [&](const TypeAnnotation* annotation) {
+      return !seen_annotations.insert(annotation).second;
+    });
+    annotations = std::move(expanded);
+    if (annotations.size() == 1) {
+      XLS_ASSIGN_OR_RETURN(annotations[0], ResolveIndirectTypeAnnotations(
+                                               parametric_context, context_node,
+                                               annotations[0], filter));
+    }
 
     if (require_bits_like) {
       for (const TypeAnnotation* annotation : annotations) {
@@ -371,11 +544,41 @@ class StatefulResolver : public TypeAnnotationResolver {
 
     TypeSystemTrace trace = tracer_.TraceUnify(annotations, parametric_context);
     bool result_is_from_error_handler = false;
+    bool used_nested_error_handler = false;
+    AnnotationErrorPhase nested_error_phase =
+        AnnotationErrorPhase::kUnification;
+    if (error_phase != nullptr) {
+      *error_phase = AnnotationErrorPhase::kUnification;
+    }
     absl::StatusOr<const TypeAnnotation*> result = UnifyTypeAnnotations(
         module_, table_, file_table_, error_generator_, evaluator_,
         parametric_struct_instantiator_, parametric_context, annotations, span,
-        import_data_);
-    if (!result.ok() && error_handler_ && context_node.has_value()) {
+        import_data_,
+        [&](const TypeAnnotation* annotation) {
+          auto resolved = ResolveIndirectTypeAnnotations(
+              parametric_context, context_node, annotation, filter);
+          if (!resolved.ok()) {
+            nested_error_phase = AnnotationErrorPhase::kResolution;
+          }
+          return resolved;
+        },
+        [&](std::vector<const TypeAnnotation*> members,
+            const Span& member_span) {
+          return ResolveAnnotationGroup(parametric_context, context_node,
+                                        std::move(members), member_span, filter,
+                                        /*require_bits_like=*/false,
+                                        &used_nested_error_handler,
+                                        &nested_error_phase);
+        });
+    if (!result.ok() &&
+        nested_error_phase == AnnotationErrorPhase::kResolution) {
+      // A member failed to resolve, rather than disagreeing with another type.
+      // Preserve its diagnostic and span through every enclosing aggregate.
+      if (error_phase != nullptr) {
+        *error_phase = AnnotationErrorPhase::kResolution;
+      }
+      return result;
+    } else if (!result.ok() && error_handler_ && context_node.has_value()) {
       absl::StatusOr<const TypeAnnotation*> handler_result =
           error_handler_(parametric_context, result.status(), *context_node,
                          absl::MakeSpan(annotations));
@@ -405,6 +608,9 @@ class StatefulResolver : public TypeAnnotationResolver {
       return status;
     }
 
+    if (used_nested_error_handler && used_error_handler != nullptr) {
+      *used_error_handler = true;
+    }
     trace.SetResult(*result);
     return result;
   }
@@ -592,6 +798,61 @@ class StatefulResolver : public TypeAnnotationResolver {
     return ResolveIndirectTypeAnnotations(
         parametric_context, context_node, annotation->members()[*arm_id],
         filter.Chain(TypeAnnotationFilter::BlockRecursion(annotation)));
+  }
+
+  // A construction projection selects a declaration slot after the enclosing
+  // nominal type has reconciled all evidence at this structural position.
+  absl::StatusOr<const TypeAnnotation*> ResolveDeclaredMemberType(
+      std::optional<const ParametricContext*> parametric_context,
+      std::optional<const AstNode*> context_node,
+      const DeclaredMemberTypeAnnotation* projection,
+      TypeAnnotationFilter filter) {
+    XLS_ASSIGN_OR_RETURN(
+        const TypeAnnotation* aggregate_type,
+        ResolveIndirectTypeAnnotations(
+            parametric_context, context_node, projection->aggregate_type(),
+            filter.Chain(TypeAnnotationFilter::BlockRecursion(projection))));
+    const int64_t index = projection->member_index();
+    const AggregateDeclaration declaration = projection->declaration();
+    if (const auto* const* def =
+            std::get_if<const StructDefBase*>(&declaration)) {
+      XLS_ASSIGN_OR_RETURN(std::optional<StructOrProcRef> ref,
+                           GetStructOrProcRef(aggregate_type, import_data_));
+      XLS_RET_CHECK(ref.has_value() && ref->def == *def);
+      XLS_RET_CHECK_GE(index, 0);
+      XLS_RET_CHECK_LT(index, (*def)->members().size());
+      const StructMemberNode* member = (*def)->members()[index];
+      if ((*def)->IsParametric()) {
+        XLS_ASSIGN_OR_RETURN(
+            parametric_context,
+            parametric_struct_instantiator_.GetOrCreateParametricStructContext(
+                parametric_context, *ref, projection));
+      }
+      return parametric_struct_instantiator_.GetParametricFreeStructMemberType(
+          parametric_context, *ref,
+          (*def)->kind() == AstNodeKind::kProcDef
+              ? member->non_state_wrapped_type()
+              : member->type());
+    } else {
+      const SumVariant* variant =
+          std::get<const SumVariant*>(projection->declaration());
+      XLS_ASSIGN_OR_RETURN(std::optional<SumRef> ref,
+                           GetSumRef(aggregate_type, import_data_));
+      XLS_RET_CHECK(ref.has_value());
+      XLS_RET_CHECK(ref->def->GetVariant(variant->identifier()) == variant);
+      XLS_RET_CHECK_GE(index, 0);
+      const TypeAnnotation* member_type;
+      if (variant->is_tuple()) {
+        XLS_RET_CHECK_LT(index, variant->tuple_members().size());
+        member_type = variant->tuple_members()[index];
+      } else {
+        XLS_RET_CHECK(variant->is_struct());
+        XLS_RET_CHECK_LT(index, variant->struct_members().size());
+        member_type = variant->struct_members()[index]->type();
+      }
+      return GetParametricFreeSumMemberType(member_type, *ref, table_,
+                                            import_data_);
+    }
   }
 
   // Converts `member_type` into a regular `TypeAnnotation` that expresses the
@@ -1032,6 +1293,14 @@ class StatefulResolver : public TypeAnnotationResolver {
       return absl::OkStatus();
     }
 
+    absl::Status HandleDeclaredMemberTypeAnnotation(
+        const DeclaredMemberTypeAnnotation* member_type) override {
+      XLS_ASSIGN_OR_RETURN(result_, resolver_.ResolveDeclaredMemberType(
+                                        parametric_context_, context_node_,
+                                        member_type, filter_));
+      return absl::OkStatus();
+    }
+
     absl::Status HandleElementTypeAnnotation(
         const ElementTypeAnnotation* element_type) override {
       XLS_ASSIGN_OR_RETURN(result_, resolver_.ResolveElementType(
@@ -1184,7 +1453,8 @@ class StatefulResolver : public TypeAnnotationResolver {
           if (std::optional<const TypeAnnotation*> cached =
                   simplified_type_annotation_cache_.GetSimplifiedypeAnnotation(
                       std::nullopt, alias)) {
-            return const_cast<TypeAnnotation*>(*cached);
+            latest = *cached;
+            replaced_dynamic_alias = true;
           }
         }
 
@@ -1198,11 +1468,17 @@ class StatefulResolver : public TypeAnnotationResolver {
       // to the unwrapped type.
       if (latest.has_value() &&
           (*latest)->IsAnnotation<TypeRefTypeAnnotation>() &&
-          !type_ref_annotation->parametrics().empty()) {
+          (!type_ref_annotation->parametrics().empty() ||
+           type_ref_annotation->construction_origin().has_value())) {
+        const auto* target = (*latest)->AsAnnotation<TypeRefTypeAnnotation>();
         latest = (*latest)->owner()->Make<TypeRefTypeAnnotation>(
-            (*latest)->span(),
-            (*latest)->AsAnnotation<TypeRefTypeAnnotation>()->type_ref(),
-            type_ref_annotation->parametrics());
+            (*latest)->span(), target->type_ref(),
+            type_ref_annotation->parametrics().empty()
+                ? target->parametrics()
+                : type_ref_annotation->parametrics(),
+            type_ref_annotation->construction_origin().has_value()
+                ? type_ref_annotation->construction_origin()
+                : target->construction_origin());
       }
 
       if (latest.has_value()) {

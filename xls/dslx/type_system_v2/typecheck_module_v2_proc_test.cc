@@ -20,12 +20,12 @@
 #include <utility>
 #include <vector>
 
-#include "gmock/gmock.h"
-#include "gtest/gtest.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/substitute.h"
+#include "gmock/gmock.h"
+#include "gtest/gtest.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
@@ -37,6 +37,7 @@
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/interp_value.h"
 #include "xls/dslx/parse_and_typecheck.h"
+#include "xls/dslx/type_system/type.h"
 #include "xls/dslx/type_system/type_info.h"
 #include "xls/dslx/type_system/typecheck_test_utils.h"
 #include "xls/dslx/type_system_v2/matchers.h"
@@ -530,8 +531,9 @@ impl Main {
 }
 
 TEST(TypecheckV2ProcTest, ExplicitStateAccessSimpleU32) {
-  EXPECT_THAT(
-      R"(#![feature(explicit_state_access)]
+  constexpr std::string_view kProgram = R"(#![feature(explicit_state_access)]
+enum E { A, B(u8) }
+$0
 proc Counter {
   init { u32:0 }
   config() { }
@@ -541,10 +543,83 @@ proc Counter {
     write(state, y);
   }
 }
+)";
+  for (std::string_view constructor : {"", "const X = E::A;"}) {
+    SCOPED_TRACE(constructor);
+    EXPECT_THAT(
+        absl::Substitute(kProgram, constructor),
+        TypecheckSucceeds(AllOf(HasNodeWithType("read(state)", "uN[32]"),
+                                HasNodeWithType("y", "uN[32]"),
+                                HasNodeWithType("write(state, y)", "()"))));
+  }
+}
+
+TEST(TypecheckV2ProcTest,
+     CanonicalizationPreservesProcStateIdentityAndInitialization) {
+  constexpr std::string_view kProgram = R"(#![feature(explicit_state_access)]
+enum E { A, B(u8) }
+const X = E::A;
+proc Counter {
+  state: u32,
+}
+impl Counter {
+  fn new() -> Self { Counter { state: u32:0 } }
+  fn next(self) {
+    let x = read(self.state);
+    write(self.state, x + u32:1);
+  }
+}
+)";
+  ImportData import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result,
+                           TypecheckV2(kProgram, "main", &import_data));
+  EXPECT_THAT(result,
+              HasTypeInfo(HasNodeWithType("read(self.state)", "uN[32]")));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Module * builtins,
+                           import_data.GetBuiltinStubsModule());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      StructDef * builtin_state,
+      builtins->GetMemberOrError<StructDef>("BuiltinProcState"));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      ProcDef * counter,
+      result.tm.module->GetMemberOrError<ProcDef>("Counter"));
+  ASSERT_EQ(counter->members().size(), 1);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Type * state_type,
+      result.tm.type_info->GetItemOrError(counter->members().front()));
+  ASSERT_TRUE(state_type->IsStruct());
+  EXPECT_EQ(&state_type->AsStruct().struct_def_base(), builtin_state);
+}
+
+TEST(TypecheckV2ProcTest, ImportedProcPreparationWithSuppressedWarnings) {
+  constexpr std::string_view kImported = R"(#![feature(type_inference_v2)]
+#![feature(explicit_state_access)]
+enum E { A, B(u8) }
+const X = E::A;
+proc Counter {
+  init { u32:0 }
+  config() { }
+  next(state: u32) {
+    write(state, read(state) + u32:1);
+  }
+}
+pub fn value() -> u32 {
+  let unused = u32:0;
+  u32:0
+}
+)";
+  absl::flat_hash_map<std::filesystem::path, std::string> files = {
+      {"/imported.x", std::string(kImported)},
+  };
+  ImportData import_data = CreateImportDataForTest(
+      std::make_unique<FakeFilesystem>(std::move(files), "/"));
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result,
+                           TypecheckV2(R"(import imported;
+fn main() -> u32 { imported::value() }
 )",
-      TypecheckSucceeds(AllOf(HasNodeWithType("read(state)", "uN[32]"),
-                              HasNodeWithType("y", "uN[32]"),
-                              HasNodeWithType("write(state, y)", "()"))));
+                                       "main", &import_data));
+  EXPECT_TRUE(result.tm.warnings.warnings().empty());
 }
 
 TEST(TypecheckV2ProcTest, ProcWithImplIntegerParamInTopProcNewFails) {
