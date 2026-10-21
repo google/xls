@@ -2285,7 +2285,12 @@ cc_test(
 proto_library(
     name = "ram_rewrite_proto",
     srcs = ["ram_rewrite.proto"],
-    option_deps = ["@protobuf//:cpp_features_proto"],
+    option_deps = [
+        "@protobuf//:cpp_features_proto",
+    ],
+    deps = [
+        ":xls_value_proto",
+    ],
 )
 
 cc_proto_library(

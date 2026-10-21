@@ -80,6 +80,7 @@ enum class RamKind {
 
 std::string_view RamKindToString(RamKind kind);
 absl::StatusOr<RamKind> RamKindFromProto(RamKindProto proto);
+absl::StatusOr<RamKindProto> RamKindToProto(RamKind kind);
 
 // Configuration describing the behavior of a RAM.
 struct RamConfig {
@@ -98,6 +99,10 @@ struct RamConfig {
   std::optional<int64_t> mask_width(int64_t data_width) const;
 
   static absl::StatusOr<RamConfig> FromProto(const RamConfigProto& proto);
+  absl::StatusOr<RamConfigProto> ToProto() const;
+
+  bool operator==(const RamConfig& other) const = default;
+  bool operator!=(const RamConfig& other) const = default;
 };
 
 // A configuration describing a desired RAM rewrite.
@@ -118,6 +123,10 @@ struct RamRewrite {
   std::optional<std::string> proc_name;
 
   static absl::StatusOr<RamRewrite> FromProto(const RamRewriteProto& proto);
+  absl::StatusOr<RamRewriteProto> ToProto() const;
+
+  bool operator==(const RamRewrite& other) const = default;
+  bool operator!=(const RamRewrite& other) const = default;
 };
 
 absl::StatusOr<std::vector<RamRewrite>> RamRewritesFromProto(

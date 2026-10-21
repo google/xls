@@ -21,6 +21,7 @@
 #include <string>
 #include <string_view>
 #include <tuple>
+#include <utility>
 #include <vector>
 
 #include "absl/algorithm/container.h"
@@ -38,6 +39,7 @@
 #include "xls/ir/package.h"
 #include "xls/ir/ram_rewrite.pb.h"
 #include "xls/ir/topo_sort.h"
+#include "xls/ir/value.h"
 
 namespace xls {
 
@@ -69,6 +71,21 @@ std::optional<int64_t> RamConfig::mask_width(int64_t data_width) const {
          word_partition_size.value();
 }
 
+absl::StatusOr<RamKindProto> RamKindToProto(RamKind kind) {
+  switch (kind) {
+    case RamKind::kAbstract:
+      return RamKindProto::RAM_ABSTRACT;
+    case RamKind::k1RW:
+      return RamKindProto::RAM_1RW;
+    case RamKind::k1R1W:
+      return RamKindProto::RAM_1R1W;
+    case RamKind::k2RW:
+      return RamKindProto::RAM_2RW;
+    default:
+      return absl::InvalidArgumentError("Invalid RamKind");
+  }
+}
+
 absl::StatusOr<RamKind> RamKindFromProto(RamKindProto proto) {
   switch (proto) {
     case RamKindProto::RAM_ABSTRACT:
@@ -77,6 +94,8 @@ absl::StatusOr<RamKind> RamKindFromProto(RamKindProto proto) {
       return RamKind::k1RW;
     case RamKindProto::RAM_1R1W:
       return RamKind::k1R1W;
+    case RamKindProto::RAM_2RW:
+      return RamKind::k2RW;
     default:
       return absl::InvalidArgumentError("Invalid RamKind");
   }
@@ -85,15 +104,40 @@ absl::StatusOr<RamKind> RamKindFromProto(RamKindProto proto) {
 /* static */ absl::StatusOr<RamConfig> RamConfig::FromProto(
     const RamConfigProto& proto) {
   XLS_ASSIGN_OR_RETURN(RamKind kind, RamKindFromProto(proto.kind()));
+  std::optional<std::vector<Value>> initial_value;
+  if (!proto.initial_value().empty()) {
+    initial_value.emplace();
+    initial_value->reserve(proto.initial_value_size());
+    for (const auto& value_proto : proto.initial_value()) {
+      XLS_ASSIGN_OR_RETURN(std::back_inserter(*initial_value),
+                           Value::FromProto(value_proto));
+    }
+  }
   return RamConfig{
       .kind = kind,
       .depth = proto.depth(),
       .word_partition_size = proto.has_word_partition_size()
                                  ? std::optional(proto.word_partition_size())
                                  : std::nullopt,
-      // TODO(google/xls#861): Add support for initialization info in proto.
-      .initial_value = std::nullopt,
+      .initial_value = std::move(initial_value),
   };
+}
+
+absl::StatusOr<RamConfigProto> RamConfig::ToProto() const {
+  RamConfigProto proto;
+  XLS_ASSIGN_OR_RETURN(RamKindProto kind_proto, RamKindToProto(kind));
+  proto.set_kind(kind_proto);
+  proto.set_depth(depth);
+  if (word_partition_size.has_value()) {
+    proto.set_word_partition_size(*word_partition_size);
+  }
+  if (initial_value.has_value()) {
+    proto.mutable_initial_value()->Reserve(initial_value->size());
+    for (const auto& value : *initial_value) {
+      XLS_ASSIGN_OR_RETURN(*proto.add_initial_value(), value.AsProto());
+    }
+  }
+  return proto;
 }
 
 /* static */ absl::StatusOr<RamRewrite> RamRewrite::FromProto(
@@ -114,6 +158,20 @@ absl::StatusOr<RamKind> RamKindFromProto(RamKindProto proto) {
                        ? std::optional<std::string>(proto.proc_name())
                        : std::nullopt,
   };
+}
+
+absl::StatusOr<RamRewriteProto> RamRewrite::ToProto() const {
+  RamRewriteProto proto;
+  XLS_ASSIGN_OR_RETURN(*proto.mutable_from_config(), from_config.ToProto());
+  XLS_ASSIGN_OR_RETURN(*proto.mutable_to_config(), to_config.ToProto());
+  proto.mutable_from_channels_logical_to_physical()->insert(
+      from_channels_logical_to_physical.begin(),
+      from_channels_logical_to_physical.end());
+  if (proc_name.has_value()) {
+    proto.set_proc_name(*proc_name);
+  }
+  proto.set_to_name_prefix(to_name_prefix);
+  return proto;
 }
 
 absl::StatusOr<std::vector<RamRewrite>> RamRewritesFromProto(

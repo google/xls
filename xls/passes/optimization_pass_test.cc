@@ -24,6 +24,7 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "xls/common/fuzzing/fuzztest.h"
 #include "absl/base/casts.h"
 #include "absl/log/check.h"
 #include "absl/status/status.h"
@@ -795,6 +796,20 @@ TEST(RamDatastructuresTest, RamRewritesProtoTest) {
       Contains(std::make_pair("read_req", "ram_read_req")));
   EXPECT_EQ(RamRewritesFromProto(proto)->at(0).to_name_prefix, "ram");
 }
+
+void RamRewriteProtoRoundTrip(const RamRewriteProto& proto) {
+  auto rewrite = RamRewrite::FromProto(proto);
+  if (!rewrite.ok()) {
+    return;
+  }
+  XLS_ASSERT_OK_AND_ASSIGN(auto proto_out, rewrite->ToProto());
+  // NB Because proto can have multiple equivalent representations for things
+  // like empty string, 0 etc we do one more from proto before comparing.
+  EXPECT_THAT(RamRewrite::FromProto(proto_out), IsOkAndHolds(*rewrite));
+}
+
+FUZZ_TEST(RamDatastructuresTest, RamRewriteProtoRoundTrip)
+    .WithDomains(fuzztest::Arbitrary<RamRewriteProto>());
 
 class OptimizationContextTest : public IrTestBase {};
 
