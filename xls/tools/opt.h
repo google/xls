@@ -63,7 +63,7 @@ struct OptOptions {
   bool optimize_for_best_case_throughput = false;
   bool enable_resource_sharing = false;
   bool force_resource_sharing = false;
-  std::string area_model = "asap7";
+  std::string area_model = "v";
   // Custom registry to use to get default pipeline and compound passes.
   std::optional<OptimizationPipelineProto> custom_registry = std::nullopt;
   // Decorator to modify the registry before use. Must live for the duration of
