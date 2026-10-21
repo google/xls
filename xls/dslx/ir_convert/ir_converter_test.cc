@@ -28,14 +28,15 @@
 #include <string_view>
 #include <vector>
 
-#include "gmock/gmock.h"
-#include "gtest/gtest.h"
 #include "absl/base/casts.h"
+#include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
+#include "gmock/gmock.h"
+#include "gtest/gtest.h"
 #include "xls/common/file/temp_file.h"
 #include "xls/common/status/matchers.h"
 #include "xls/dslx/create_import_data.h"
@@ -47,6 +48,7 @@
 #include "xls/dslx/run_routines/run_comparator.h"
 #include "xls/dslx/run_routines/run_routines.h"
 #include "xls/dslx/type_system/typecheck_test_utils.h"
+#include "xls/dslx/virtualizable_file_system.h"
 #include "xls/ir/channel.h"
 #include "xls/ir/ir_matcher.h"
 #include "xls/ir/proc.h"
@@ -851,9 +853,7 @@ fn test() -> Foo<u32:6, u32:5> {
 
 // This is an example where we use an externally-defined parametric function
 // into module scope and invoke it at module scope.
-// TODO: https://github.com/google/xls/issues/2876 - TIv2 does not yet
-// support "use" syntax.
-TEST_F(IrConverterTest, DISABLED_UseOfClog2InModuleScopedConstantDefinition) {
+TEST_F(IrConverterTest, UseOfClog2InModuleScopedConstantDefinition) {
   constexpr std::string_view program = R"(#![feature(use_syntax)]
 use std::clog2;
 
@@ -866,6 +866,30 @@ fn main() -> u32 {
 
   XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
                            ConvertModuleForTest(program));
+  ExpectIr(converted);
+}
+
+TEST_F(IrConverterTest, UseOfModuleWithSameNamedConstant) {
+  absl::flat_hash_map<std::filesystem::path, std::string> files = {
+      {std::filesystem::path("/foo.x"), R"(
+const foo = u32:7;
+pub const X = u32:3;
+)"},
+  };
+  auto vfs = std::make_unique<FakeFilesystem>(
+      files, /*cwd=*/std::filesystem::path("/"));
+  ImportData import_data = CreateImportDataForTest(std::move(vfs));
+  constexpr std::string_view program = R"(#![feature(use_syntax)]
+use foo;
+
+fn main() -> u32 {
+    foo::X
+}
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertOneFunctionForTest(program, "main", import_data));
   ExpectIr(converted);
 }
 
@@ -4209,9 +4233,7 @@ proc Generator {
                          "config arguments: 'val: u32', 'val2: u32'")));
 }
 
-// TODO: https://github.com/google/xls/issues/2876 - TIv2 does not yet
-// support "use" syntax.
-TEST_F(IrConverterTest, DISABLED_UseTreeEntryCallInParametric) {
+TEST_F(IrConverterTest, UseTreeEntryCallInParametric) {
   constexpr std::string_view program = R"(
   #![feature(use_syntax)]
   use std::is_pow2;

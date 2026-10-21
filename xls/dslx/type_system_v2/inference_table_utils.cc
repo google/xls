@@ -127,7 +127,13 @@ absl::StatusOr<Expr*> MakeTypeCheckedNumberOrEnumValue(
       subject = module.Make<NameRef>(span, def->identifier(), def->name_def());
       target_name_def = def->name_def();
     } else if (std::holds_alternative<UseTreeEntry*>(type_def)) {
-      return absl::UnimplementedError("`use` syntax is not yet supported.");
+      UseTreeEntry* use_tree_entry = std::get<UseTreeEntry*>(type_def);
+      std::optional<NameDef*> name_def = use_tree_entry->GetLeafNameDef();
+      XLS_RET_CHECK(name_def.has_value())
+          << "A type reference cannot refer to an interior use tree entry.";
+      subject =
+          module.Make<NameRef>(span, (*name_def)->identifier(), *name_def);
+      target_name_def = *name_def;
     } else if (std::holds_alternative<TypeAlias*>(type_def)) {
       TypeAlias* alias = std::get<TypeAlias*>(type_def);
       subject =

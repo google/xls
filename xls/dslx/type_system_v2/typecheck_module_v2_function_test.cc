@@ -1011,10 +1011,10 @@ fn main() -> u32 {
       StatusIs(absl::StatusCode::kInvalidArgument, HasSubstr("not public")));
 }
 
-TEST(TypecheckV2FunctionTest, DISABLED_UseFunction) {
+TEST(TypecheckV2FunctionTest, UseFunction) {
   constexpr std::string_view kImported = R"(
 pub fn get_val() -> u5[3] {
-  u5[3]:[1, 2, 3]
+  [1, 2, 3]
 }
 )";
   constexpr std::string_view kProgram = R"(#![feature(use_syntax)]
@@ -1030,8 +1030,39 @@ fn main() -> u5 {
   auto vfs = std::make_unique<FakeFilesystem>(
       files, /*cwd=*/std::filesystem::path("/"));
   ImportData import_data = CreateImportDataForTest(std::move(vfs));
-  EXPECT_THAT(TypecheckV2(kProgram, "fake_main_path", &import_data),
-              IsOkAndHolds(HasTypeInfo(HasNodeWithType("get_val()[1]", "u5"))));
+  EXPECT_THAT(
+      TypecheckV2(kProgram, "fake_main_path", &import_data),
+      IsOkAndHolds(HasTypeInfo(HasNodeWithType("get_val()[1]", "uN[5]"))));
+}
+
+TEST(TypecheckV2FunctionTest, UseConstantAsConstexprInTypePositions) {
+  constexpr std::string_view kImported = R"(
+pub const WIDTH = u32:16;
+
+pub fn double_n<N: u32>(x: uN[N]) -> uN[N] { x + x }
+)";
+  constexpr std::string_view kProgram = R"(#![feature(use_syntax)]
+use imported::WIDTH;
+use imported::double_n;
+
+type LocalAlias = uN[WIDTH];
+
+fn with_default<N: u32 = {WIDTH}>() -> u32 { N }
+
+fn use_as_type_alias_bitwidth() -> LocalAlias { 1 }
+
+fn use_as_parametric_default() -> u32 { with_default() }
+
+fn use_as_explicit_parametric() -> u16 { double_n<WIDTH>(21) }
+)";
+  absl::flat_hash_map<std::filesystem::path, std::string> files = {
+      {std::filesystem::path("/imported.x"), std::string(kImported)},
+      {std::filesystem::path("/fake_main_path.x"), std::string(kProgram)},
+  };
+  auto vfs = std::make_unique<FakeFilesystem>(
+      files, /*cwd=*/std::filesystem::path("/"));
+  ImportData import_data = CreateImportDataForTest(std::move(vfs));
+  XLS_EXPECT_OK(TypecheckV2(kProgram, "fake_main_path", &import_data).status());
 }
 
 TEST(TypecheckV2FunctionTest,
@@ -1054,6 +1085,45 @@ proc Foo<N: u32> {
     }
 }
 proc Bar = Foo<16>;)"));
+}
+
+TEST(TypecheckV2FunctionTest, UseProcSpawned) {
+  constexpr std::string_view kImported = R"(
+pub proc Doubler {
+    in_r: chan<u32> in,
+    out_s: chan<u32> out
+}
+
+impl Doubler {
+    fn new(in_r: chan<u32> in, out_s: chan<u32> out) -> Self {
+        Doubler { in_r, out_s }
+    }
+    fn next(self) {
+        let (tok, v) = recv(join(), self.in_r);
+        send(tok, self.out_s, v * 2);
+    }
+}
+)";
+  constexpr std::string_view kProgram = R"(#![feature(use_syntax)]
+use imported::Doubler;
+
+proc Main {}
+impl Main {
+    fn new() -> Self {
+        let (in_s, in_r) = chan<u32>("in");
+        let (out_s, out_r) = chan<u32>("out");
+        Doubler::new(in_r, out_s).spawn();
+        Main {}
+    }
+})";
+  absl::flat_hash_map<std::filesystem::path, std::string> files = {
+      {std::filesystem::path("/imported.x"), std::string(kImported)},
+      {std::filesystem::path("/fake_main_path.x"), std::string(kProgram)},
+  };
+  auto vfs = std::make_unique<FakeFilesystem>(
+      files, /*cwd=*/std::filesystem::path("/"));
+  ImportData import_data = CreateImportDataForTest(std::move(vfs));
+  XLS_EXPECT_OK(TypecheckV2(kProgram, "fake_main_path", &import_data).status());
 }
 
 TEST(TypecheckV2FunctionTest, ProcAliasTargetingBuiltinFails) {
