@@ -178,13 +178,17 @@ absl::StatusOr<bool> SetOptionsFromFlags(OptFlagsProto& proto) {
       proto.set_##__x(absl::GetFlag(FLAGS_##__x)); \
     }                                              \
   }
-#define POPULATE_OPTIONAL_FLAG(__x)                       \
-  {                                                       \
-    if (auto optional_value = absl::GetFlag(FLAGS_##__x); \
-        optional_value.has_value()) {                     \
-      any_flags_set |= true;                              \
-      proto.set_##__x(*optional_value);                   \
-    }                                                     \
+#define POPULATE_OPTIONAL_FLAG(__x)                         \
+  {                                                         \
+    if (FLAGS_##__x.IsSpecifiedOnCommandLine()) {           \
+      any_flags_set |= true;                                \
+      if (auto optional_value = absl::GetFlag(FLAGS_##__x); \
+          optional_value.has_value()) {                     \
+        proto.set_##__x(*optional_value);                   \
+      } else {                                              \
+        proto.clear_##__x();                                \
+      }                                                     \
+    }                                                       \
   }
   bool any_flags_set = false;
 
@@ -200,7 +204,11 @@ absl::StatusOr<bool> SetOptionsFromFlags(OptFlagsProto& proto) {
                                      repeated_flag.end());
   }
   POPULATE_OPTIONAL_FLAG(convert_array_index_to_select)
-  POPULATE_OPTIONAL_FLAG(split_next_value_selects)
+  if (FLAGS_split_next_value_selects.IsSpecifiedOnCommandLine()) {
+    any_flags_set |= true;
+    proto.set_split_next_value_selects(
+        absl::GetFlag(FLAGS_split_next_value_selects).value_or(0));
+  }
   if (FLAGS_ram_rewrites_pb.IsSpecifiedOnCommandLine()) {
     XLS_RETURN_IF_ERROR(ParseTextProtoFile(absl::GetFlag(FLAGS_ram_rewrites_pb),
                                            proto.mutable_ram_rewrites()));

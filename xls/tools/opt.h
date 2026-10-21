@@ -24,8 +24,11 @@
 #include <string_view>
 #include <vector>
 
+#include "absl/base/attributes.h"
+#include "absl/base/macros.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "xls/common/status/status_macros.h"
 #include "xls/ir/package.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/optimization_pass_pipeline.pb.h"
@@ -49,21 +52,30 @@ class PassRegistryDecorator {
 
 // Various optimizer options (that generally funnel from the `opt_main` tool to
 // this consolidated library).
-struct OptOptions {
-  int64_t opt_level = xls::kMaxOptLevel;
-  std::string top;
-  std::string ir_dump_path = "";
+//
+// Deprecated. Use OptFlagsProto as the canonical representation of options.
+struct ABSL_DEPRECATED("Use OptFlagsProto to pass configuration information.")
+    OptOptions {
+  int64_t opt_level = OptFlagsProto::default_instance().opt_level();
+  std::string top = std::string(OptFlagsProto::default_instance().top());
+  std::string ir_dump_path =
+      std::string(OptFlagsProto::default_instance().ir_dump_path());
   std::optional<std::string> ir_path = std::nullopt;
   std::vector<std::string> skip_passes;
   std::optional<int64_t> convert_array_index_to_select = std::nullopt;
   std::optional<int64_t> split_next_value_selects =
-      xls::kDefaultSplitNextValueSelects;
+      OptFlagsProto::default_instance().split_next_value_selects();
   std::vector<RamRewrite> ram_rewrites = {};
-  bool use_context_narrowing_analysis = false;
-  bool optimize_for_best_case_throughput = false;
-  bool enable_resource_sharing = false;
-  bool force_resource_sharing = false;
-  std::string area_model = "v";
+  bool use_context_narrowing_analysis =
+      OptFlagsProto::default_instance().use_context_narrowing_analysis();
+  bool optimize_for_best_case_throughput =
+      OptFlagsProto::default_instance().optimize_for_best_case_throughput();
+  bool enable_resource_sharing =
+      OptFlagsProto::default_instance().enable_resource_sharing();
+  bool force_resource_sharing =
+      OptFlagsProto::default_instance().force_resource_sharing();
+  std::string area_model =
+      std::string(OptFlagsProto::default_instance().area_model());
   // Custom registry to use to get default pipeline and compound passes.
   std::optional<OptimizationPipelineProto> custom_registry = std::nullopt;
   // Decorator to modify the registry before use. Must live for the duration of
@@ -71,11 +83,13 @@ struct OptOptions {
   std::optional<PassRegistryDecorator*> registry_decorator = std::nullopt;
   std::optional<PassPipelineProto> pass_pipeline = std::nullopt;
   std::optional<int64_t> bisect_limit;
-  bool debug_optimizations = false;
+  bool debug_optimizations =
+      OptFlagsProto::default_instance().debug_optimizations();
   std::optional<std::string> delay_model = std::nullopt;
 };
 
-absl::StatusOr<OptOptions> OptOptionsFromFlagsProto(const OptFlagsProto& proto);
+ABSL_DEPRECATED("Use OptFlags directly instead")
+absl::StatusOr<OptFlagsProto> OptFlagsFromOptOptions(const OptOptions& options);
 
 // Metadata which can be optionally returned from
 // the optimizer.
@@ -83,18 +97,55 @@ struct OptMetadata {
   PassPipelineMetricsProto metrics;
 };
 
+// Struct of additional pointers that can be used to modify the way opt runs.
+struct OptModifiers {
+  std::optional<PassRegistryDecorator*> registry_decorator = std::nullopt;
+};
+
 // Helper used in the opt_main tool, optimizes the given IR for a particular
 // top-level entity (e.g., function, proc, etc) at the given opt level and
 // modifies the package in place.
-absl::Status OptimizeIrForTop(Package* package, const OptOptions& options,
-                              OptMetadata* metadata = nullptr);
+absl::Status OptimizeIrForTop(Package* package, const OptFlagsProto& options,
+                              OptMetadata* metadata = nullptr,
+                              const OptModifiers& modifiers = {});
+
+// Helper used in the opt_main tool, optimizes the given IR for a particular
+// top-level entity (e.g., function, proc, etc) at the given opt level and
+// modifies the package in place.
+//
+// Deprecated. Use the OptFlagsProto to pass configuration information.
+ABSL_DEPRECATE_AND_INLINE()
+ABSL_DEPRECATED("Use OptimizeIrForTop with OptFlagsProto instead.")
+inline absl::Status OptimizeIrForTop(Package* package,
+                                     const OptOptions& options,
+                                     OptMetadata* metadata = nullptr) {
+  XLS_ASSIGN_OR_RETURN(OptFlagsProto flags, OptFlagsFromOptOptions(options));
+  return OptimizeIrForTop(package, flags, metadata,
+                          {.registry_decorator = options.registry_decorator});
+}
 
 // Helper used in the opt_main tool, optimizes the given IR for a particular
 // top-level entity (e.g., function, proc, etc) at the given opt level and
 // returns the resulting optimized IR.
-absl::StatusOr<std::string> OptimizeIrForTop(std::string_view ir,
-                                             const OptOptions& options,
-                                             OptMetadata* metadata = nullptr);
+absl::StatusOr<std::string> OptimizeIrForTop(
+    std::string_view ir, const OptFlagsProto& options,
+    OptMetadata* metadata = nullptr, const OptModifiers& modifiers = {});
+
+// Helper used in the opt_main tool, optimizes the given IR for a particular
+// top-level entity (e.g., function, proc, etc) at the given opt level and
+// returns the resulting optimized IR.
+//
+// Deprecated. Use the OptFlagsProto to pass configuration information.
+ABSL_DEPRECATE_AND_INLINE()
+ABSL_DEPRECATED("Use OptimizeIrForTop with OptFlagsProto instead.")
+inline absl::StatusOr<std::string> OptimizeIrForTop(
+    std::string_view ir, const OptOptions& options,
+    OptMetadata* metadata = nullptr) {
+  XLS_ASSIGN_OR_RETURN(OptFlagsProto flags, OptFlagsFromOptOptions(options));
+  return OptimizeIrForTop(ir, flags, metadata,
+                          {.registry_decorator = options.registry_decorator});
+}
+
 }  // namespace xls::tools
 
 #endif  // XLS_TOOLS_OPT_H_

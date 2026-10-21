@@ -402,6 +402,8 @@ cc_library(
         "//xls/passes:pass_pipeline_cc_proto",
         "//xls/passes:query_engine_checker",
         "//xls/passes:verifier_checker",
+        "@abseil-cpp//absl/algorithm:container",
+        "@abseil-cpp//absl/base:core_headers",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:statusor",

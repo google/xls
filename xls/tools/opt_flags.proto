@@ -21,30 +21,30 @@ import "xls/passes/optimization_pass_pipeline.proto";
 import "xls/passes/pass_pipeline.proto";
 
 message OptFlagsProto {
-  string top = 1;
-  string ir_dump_path = 2;
+  string top = 1 [default = ""];
+  string ir_dump_path = 2 [default = ""];
   // Note that this path is generally used as a filename for some already loaded
   // IR. Not specifying it is OK and specifying it does not mean that the IR at
   // that path will be used.
   string ir_path = 3;
   repeated string skip_passes = 4;
   int64 convert_array_index_to_select = 5;
-  int64 split_next_value_selects = 6;
-  int64 opt_level = 7;
+  int64 split_next_value_selects = 6 [default = 4];
+  int64 opt_level = 7 [default = 3];
   RamRewritesProto ram_rewrites = 8;
-  bool use_context_narrowing_analysis = 9;
-  bool optimize_for_best_case_throughput = 10;
-  bool enable_resource_sharing = 11;
-  bool force_resource_sharing = 12;
-  string area_model = 13;
+  bool use_context_narrowing_analysis = 9 [default = false];
+  bool optimize_for_best_case_throughput = 10 [default = false];
+  bool enable_resource_sharing = 11 [default = false];
+  bool force_resource_sharing = 12 [default = false];
+  string area_model = 13 [default = "asap7"];
   // Note: --pipeline_proto and --pipeline_textproto both map to this message.
   OptimizationPipelineProto custom_registry = 15;
   // Note: -passes, --passes_proto, and --passes_textproto all map to this
   // message.
   PassPipelineProto pipeline = 16;
   int64 passes_bisect_limit = 17;
-  bool passes_bisect_limit_is_error = 18;
+  bool passes_bisect_limit_is_error = 18 [default = false];
   string pass_metrics_path = 19;
-  bool debug_optimizations = 20;
+  bool debug_optimizations = 20 [default = false];
   string delay_model = 21;
 }

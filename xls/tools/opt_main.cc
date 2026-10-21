@@ -215,20 +215,20 @@ absl::Status RealMain(std::string_view input_path) {
   };
 
   XLS_ASSIGN_OR_RETURN(OptFlagsProto opt_flags, GetOptFlags(input_path));
-  XLS_ASSIGN_OR_RETURN(OptOptions options, OptOptionsFromFlagsProto(opt_flags));
 
   XLS_ASSIGN_OR_RETURN(std::string ir, GetFileContents(input_path));
 
+  OptModifiers modifiers;
   BisectInjectPasses bisect_inject_passes(
       absl::GetFlag(FLAGS_bisect_inject_passes).value_or(""),
       absl::GetFlag(FLAGS_bisect_inject_passes_count).value_or(-1));
   if (absl::GetFlag(FLAGS_bisect_inject_passes).has_value()) {
-    options.registry_decorator = &bisect_inject_passes.decorator();
+    modifiers.registry_decorator = &bisect_inject_passes.decorator();
   }
 
   OptMetadata metadata;
   XLS_ASSIGN_OR_RETURN(std::string optimized_ir,
-                       OptimizeIrForTop(ir, options, &metadata));
+                       OptimizeIrForTop(ir, opt_flags, &metadata, modifiers));
   VLOG(2) << "Ran " << metadata.metrics.total_passes() << " passes";
   if (opt_flags.has_pass_metrics_path()) {
     std::string tf;
