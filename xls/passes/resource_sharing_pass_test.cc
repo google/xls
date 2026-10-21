@@ -64,9 +64,14 @@ namespace xls {
 
 namespace {
 
+using ::absl_testing::IsOkAndHolds;
 using ::absl_testing::StatusIs;
+using ::testing::ElementsAre;
 using ::testing::HasSubstr;
+using ::testing::IsFalse;
 using ::testing::Pair;
+using ::testing::Pointee;
+using ::testing::Property;
 using ::testing::UnorderedElementsAre;
 using ::xls::solvers::ScopedVerifyEquivalence;
 
@@ -504,6 +509,60 @@ TEST_F(ResourceSharingPassTest, SelectSubsetOfFoldsEachInputMuxEstimated) {
           ResourceSharingPass::kDefaultConfig));
   EXPECT_TRUE(estimate_rejected.folds.empty());
   EXPECT_DOUBLE_EQ(estimate_rejected.area_saved, 0.0);
+}
+
+TEST_F(ResourceSharingPassTest,
+       LegalizeBinaryFoldingActionsPreservesDestinationOrderDeterministically) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* u8 = p->GetBitsType(8);
+  BValue x = fb.Param("x", u8);
+  BValue y = fb.Param("y", u8);
+  BValue cond = fb.Param("cond", p->GetBitsType(2));
+  BValue a = fb.Add(x, y, SourceInfo(), "a");
+  BValue b = fb.Add(x, y, SourceInfo(), "b");
+  BValue c = fb.Add(x, y, SourceInfo(), "c");
+  BValue d = fb.Add(x, y, SourceInfo(), "d");
+  BValue sel = fb.Select(cond, {a, b, c, d});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(sel));
+
+  XLS_ASSERT_OK_AND_ASSIGN(ResourceSharingPass::VisibilityAnalyses visibilities,
+                           ResourceSharingPass::VisibilityAnalyses::Create(
+                               f, ResourceSharingPass::kDefaultConfig));
+
+  absl::btree_set<ResourceSharingPass::MutuallyExclPair> mutual_exclusivity = {
+      {a.node(), b.node()}, {a.node(), c.node()}, {a.node(), d.node()},
+      {b.node(), c.node()}, {b.node(), d.node()}, {c.node(), d.node()}};
+
+  auto make_binary_fold = [&](Node* from, Node* to) {
+    absl::flat_hash_map<Node*, std::unique_ptr<EquivalenceMapping>> mappings;
+    mappings[from] = std::make_unique<IdentityEquivalenceMapping>(from, to);
+    return std::make_unique<BinaryFoldingAction>(
+        from, to, /*from_edges=*/FoldingAction::VisibilityEdges(),
+        /*to_edges=*/FoldingAction::VisibilityEdges(), /*area_saved=*/10.0,
+        std::move(mappings));
+  };
+
+  XLS_ASSERT_OK_AND_ASSIGN(const AreaEstimator* area_estimator,
+                           GetAreaEstimator("unit"));
+
+  // Expect the fold into b before the fold into d.
+  auto fold_a_to_b = make_binary_fold(a.node(), b.node());
+  auto fold_c_to_d = make_binary_fold(c.node(), d.node());
+  std::vector<BinaryFoldingAction*> selected_b_then_d = {fold_a_to_b.get(),
+                                                         fold_c_to_d.get()};
+
+  // Repeat multiple times to verify determinism across calls.
+  for (int i = 0; i < 10; ++i) {
+    EXPECT_THAT(
+        ResourceSharingPass::LegalizeBinaryFoldingActions(
+            f, selected_b_then_d, mutual_exclusivity, visibilities,
+            GetNodeEquivalenceMapper(), *area_estimator),
+        IsOkAndHolds(Pair(
+            ElementsAre(Pointee(Property(&NaryFoldingAction::GetTo, b.node())),
+                        Pointee(Property(&NaryFoldingAction::GetTo, d.node()))),
+            IsFalse())));
+  }
 }
 
 void IrFuzzResourceSharing(FuzzPackageWithArgs fuzz_package_with_args) {

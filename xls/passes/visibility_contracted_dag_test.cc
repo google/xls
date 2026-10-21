@@ -179,5 +179,47 @@ TEST_F(VisibilityContractedDagTest,
                     UnorderedElementsAre(1))));
 }
 
+TEST_F(VisibilityContractedDagTest,
+       BuildContractedDefUseGraphDeterministicWithMultipleJoinedUsers) {
+  std::unique_ptr<Package> p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  // A -> B -> D
+  // |--> C ---^
+  // |--> E ---^
+  BValue a = fb.Param("a", p->GetBitsType(4));
+  BValue b = fb.Not(a);
+  BValue c = fb.Negate(a);
+  BValue e = fb.Identity(a);
+  BValue d = fb.Or({b, c, e});
+  XLS_ASSERT_OK(fb.BuildWithReturnValue(d).status());
+
+  BinaryDecisionDiagram bdd;
+  auto always_one = [&](Node*, Node*) { return bdd.one(); };
+  std::vector<ContractedDagNode> dag = BuildContractedDefUseGraph(
+      a.node(),
+      {{b.node(), d.node()}, {c.node(), d.node()}, {e.node(), d.node()}},
+      always_one);
+
+  EXPECT_THAT(
+      dag,
+      ElementsAre(
+          // D (0)
+          FieldsAre(IsEmpty(), IsEmpty()),
+          // E (1)
+          FieldsAre(ElementsAre(ContractedDagEdge{
+                        .user_idx = 0, .edge_idx = 2, .edge_vis = bdd.one()}),
+                    IsEmpty()),
+          // C (2)
+          FieldsAre(ElementsAre(ContractedDagEdge{
+                        .user_idx = 0, .edge_idx = 1, .edge_vis = bdd.one()}),
+                    IsEmpty()),
+          // B (3)
+          FieldsAre(ElementsAre(ContractedDagEdge{
+                        .user_idx = 0, .edge_idx = 0, .edge_vis = bdd.one()}),
+                    IsEmpty()),
+          // A (4) has joined {E (1), C (2), B (3)}
+          FieldsAre(IsEmpty(), ElementsAre(1, 2, 3))));
+}
+
 }  // namespace
 }  // namespace xls

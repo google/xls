@@ -1359,15 +1359,26 @@ ResourceSharingPass::LegalizeBinaryFoldingActions(
     const absl::btree_set<MutuallyExclPair>& mutual_exclusivity,
     const VisibilityAnalyses& visibility, const NodeEquivalenceMapper& mapper,
     const AreaEstimator& area_estimator, const Config& config) {
+  // Group selected edges by destination node.
   absl::flat_hash_map<Node*, std::vector<BinaryFoldingAction*>>
       edges_selected_by_destination;
+  std::vector<Node*> ordered_destinations;
+  ordered_destinations.reserve(edges_selected.size());
   for (BinaryFoldingAction* edge : edges_selected) {
-    edges_selected_by_destination[edge->GetTo()].push_back(edge);
+    auto [it, inserted] =
+        edges_selected_by_destination.try_emplace(edge->GetTo());
+    it->second.push_back(edge);
+    if (inserted) {
+      ordered_destinations.push_back(edge->GetTo());
+    }
   }
 
+  // Make nary folds in the order the destinations appeared in binary folds.
   bool modified = false;
   std::vector<std::unique_ptr<NaryFoldingAction>> folding_actions_to_perform;
-  for (auto& [to, edges_to_dest] : edges_selected_by_destination) {
+  for (Node* to_node : ordered_destinations) {
+    std::vector<BinaryFoldingAction*>& edges_to_dest =
+        edges_selected_by_destination[to_node];
     XLS_ASSIGN_OR_RETURN(std::optional<NodeToMappings> mappings,
                          CompatibleNaryMappings(edges_to_dest, mapper));
     if (!mappings.has_value()) {
