@@ -305,7 +305,9 @@ absl::Status XlsccTestBase::ScanFile(
       xlscc::DebugIrTraceFlags(xlscc::DebugIrTraceFlags_FSMStates),
       /*max_unroll_iters=*/(max_unroll_iters > 0) ? max_unroll_iters : 100,
       /*warn_unroll_iters=*/100, /*z3_rlimit=*/-1,
-      /*op_ordering=*/xlscc::IOOpOrdering::kLexical, std::move(parser));
+      /*op_ordering=*/xlscc::IOOpOrdering::kLexical, std::move(parser),
+      /*fsm_state_element_sharing_criterion=*/
+      fsm_state_element_sharing_criterion_);
   if (io_test_mode) {
     translator_->SetIOTestMode();
   }

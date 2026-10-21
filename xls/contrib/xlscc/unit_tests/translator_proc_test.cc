@@ -29,6 +29,7 @@
 #include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
 #include "absl/strings/match.h"
+#include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "clang/include/clang/AST/Decl.h"
 #include "google/protobuf/message.h"
@@ -67,6 +68,7 @@ struct TestParams {
   bool generate_new_fsm;
   bool merge_states;
   bool split_states_on_channel_ops;
+  xlscc::StateElementSharingCriteria sharing_criterion;
 };
 
 // TODO(seanhaskell): Re-enable state bits checks for new FSM once it settles
@@ -86,6 +88,8 @@ class TranslatorProcTestWithoutFSMParam : public XlsccTestBase {
     generate_new_fsm_ = false;
     merge_states_ = false;
     split_states_on_channel_ops_ = false;
+    fsm_state_element_sharing_criterion_ =
+        xlscc::StateElementSharingCriteria::kByDecl;
   }
 };
 
@@ -96,42 +100,78 @@ class TranslatorProcTest : public TranslatorProcTestWithoutFSMParam,
     generate_new_fsm_ = GetParam().generate_new_fsm;
     merge_states_ = GetParam().merge_states;
     split_states_on_channel_ops_ = GetParam().split_states_on_channel_ops;
+    fsm_state_element_sharing_criterion_ = GetParam().sharing_criterion;
   }
 };
 
 std::string GetTestInfo(const ::testing::TestParamInfo<TestParams>& info) {
-  return absl::StrFormat(
+  std::string ret = absl::StrFormat(
       "With%sFSM%s%s", info.param.generate_new_fsm ? "New" : "Old",
       info.param.split_states_on_channel_ops ? "_SplitOnChannelOps" : "",
       info.param.merge_states ? "" : "_BarrierBeforeLoop");
+  if (info.param.generate_new_fsm) {
+    absl::StrAppend(
+        &ret, "_share_by_",
+        FSMStateElementSharingCriteriaToString(info.param.sharing_criterion));
+  }
+  return ret;
 }
 
 INSTANTIATE_TEST_SUITE_P(
     TranslatorProcTest, TranslatorProcTest,
-    Values(TestParams{.generate_new_fsm = false,
-                      .merge_states = false,
-                      .split_states_on_channel_ops = false},
-           TestParams{.generate_new_fsm = false,
-                      .merge_states = true,
-                      .split_states_on_channel_ops = false},
-           TestParams{.generate_new_fsm = false,
-                      .merge_states = false,
-                      .split_states_on_channel_ops = true},
-           TestParams{.generate_new_fsm = false,
-                      .merge_states = true,
-                      .split_states_on_channel_ops = true},
-           TestParams{.generate_new_fsm = true,
-                      .merge_states = false,
-                      .split_states_on_channel_ops = false},
-           TestParams{.generate_new_fsm = true,
-                      .merge_states = false,
-                      .split_states_on_channel_ops = true},
-           TestParams{.generate_new_fsm = true,
-                      .merge_states = true,
-                      .split_states_on_channel_ops = false},
-           TestParams{.generate_new_fsm = true,
-                      .merge_states = true,
-                      .split_states_on_channel_ops = true}),
+    Values(
+        TestParams{.generate_new_fsm = false,
+                   .merge_states = false,
+                   .split_states_on_channel_ops = false},
+        TestParams{.generate_new_fsm = false,
+                   .merge_states = true,
+                   .split_states_on_channel_ops = false},
+        TestParams{.generate_new_fsm = false,
+                   .merge_states = false,
+                   .split_states_on_channel_ops = true},
+        TestParams{.generate_new_fsm = false,
+                   .merge_states = true,
+                   .split_states_on_channel_ops = true},
+        TestParams{
+            .generate_new_fsm = true,
+            .merge_states = false,
+            .split_states_on_channel_ops = false,
+            .sharing_criterion = xlscc::StateElementSharingCriteria::kByDecl},
+        TestParams{
+            .generate_new_fsm = true,
+            .merge_states = false,
+            .split_states_on_channel_ops = true,
+            .sharing_criterion = xlscc::StateElementSharingCriteria::kByDecl},
+        TestParams{
+            .generate_new_fsm = true,
+            .merge_states = true,
+            .split_states_on_channel_ops = false,
+            .sharing_criterion = xlscc::StateElementSharingCriteria::kByDecl},
+        TestParams{
+            .generate_new_fsm = true,
+            .merge_states = true,
+            .split_states_on_channel_ops = true,
+            .sharing_criterion = xlscc::StateElementSharingCriteria::kByDecl},
+        TestParams{
+            .generate_new_fsm = true,
+            .merge_states = false,
+            .split_states_on_channel_ops = false,
+            .sharing_criterion = xlscc::StateElementSharingCriteria::kByType},
+        TestParams{
+            .generate_new_fsm = true,
+            .merge_states = false,
+            .split_states_on_channel_ops = true,
+            .sharing_criterion = xlscc::StateElementSharingCriteria::kByType},
+        TestParams{
+            .generate_new_fsm = true,
+            .merge_states = true,
+            .split_states_on_channel_ops = false,
+            .sharing_criterion = xlscc::StateElementSharingCriteria::kByType},
+        TestParams{
+            .generate_new_fsm = true,
+            .merge_states = true,
+            .split_states_on_channel_ops = true,
+            .sharing_criterion = xlscc::StateElementSharingCriteria::kByType}),
     GetTestInfo);
 
 // TODO(seanhaskell): Remove this once new FSM has all features
@@ -143,6 +183,7 @@ class TranslatorProcTest_OldFSMOnly
     generate_new_fsm_ = GetParam().generate_new_fsm;
     merge_states_ = GetParam().merge_states;
     split_states_on_channel_ops_ = GetParam().split_states_on_channel_ops;
+    fsm_state_element_sharing_criterion_ = GetParam().sharing_criterion;
   }
 };
 
@@ -170,6 +211,7 @@ class TranslatorProcTest_NewFSMOnly
     generate_new_fsm_ = GetParam().generate_new_fsm;
     merge_states_ = GetParam().merge_states;
     split_states_on_channel_ops_ = GetParam().split_states_on_channel_ops;
+    fsm_state_element_sharing_criterion_ = GetParam().sharing_criterion;
   }
 };
 
@@ -188,18 +230,47 @@ absl::Status RunBasicOptimization(xls::Package* package) {
 
 INSTANTIATE_TEST_SUITE_P(
     TranslatorProcTest_NewFSMOnly, TranslatorProcTest_NewFSMOnly,
-    Values(TestParams{.generate_new_fsm = true,
-                      .merge_states = false,
-                      .split_states_on_channel_ops = false},
-           TestParams{.generate_new_fsm = true,
-                      .merge_states = false,
-                      .split_states_on_channel_ops = true},
-           TestParams{.generate_new_fsm = true,
-                      .merge_states = true,
-                      .split_states_on_channel_ops = false},
-           TestParams{.generate_new_fsm = true,
-                      .merge_states = true,
-                      .split_states_on_channel_ops = true}),
+    Values(
+        TestParams{
+            .generate_new_fsm = true,
+            .merge_states = false,
+            .split_states_on_channel_ops = false,
+            .sharing_criterion = xlscc::StateElementSharingCriteria::kByDecl},
+        TestParams{
+            .generate_new_fsm = true,
+            .merge_states = false,
+            .split_states_on_channel_ops = true,
+            .sharing_criterion = xlscc::StateElementSharingCriteria::kByDecl},
+        TestParams{
+            .generate_new_fsm = true,
+            .merge_states = true,
+            .split_states_on_channel_ops = false,
+            .sharing_criterion = xlscc::StateElementSharingCriteria::kByDecl},
+        TestParams{
+            .generate_new_fsm = true,
+            .merge_states = true,
+            .split_states_on_channel_ops = true,
+            .sharing_criterion = xlscc::StateElementSharingCriteria::kByDecl},
+        TestParams{
+            .generate_new_fsm = true,
+            .merge_states = false,
+            .split_states_on_channel_ops = false,
+            .sharing_criterion = xlscc::StateElementSharingCriteria::kByType},
+        TestParams{
+            .generate_new_fsm = true,
+            .merge_states = false,
+            .split_states_on_channel_ops = true,
+            .sharing_criterion = xlscc::StateElementSharingCriteria::kByType},
+        TestParams{
+            .generate_new_fsm = true,
+            .merge_states = true,
+            .split_states_on_channel_ops = false,
+            .sharing_criterion = xlscc::StateElementSharingCriteria::kByType},
+        TestParams{
+            .generate_new_fsm = true,
+            .merge_states = true,
+            .split_states_on_channel_ops = true,
+            .sharing_criterion = xlscc::StateElementSharingCriteria::kByType}),
     GetTestInfo);
 
 class TranslatorProcTest_NewFSM_Mutex : public XlsccTestBase {
@@ -208,6 +279,8 @@ class TranslatorProcTest_NewFSM_Mutex : public XlsccTestBase {
     generate_new_fsm_ = true;
     merge_states_ = true;
     split_states_on_channel_ops_ = false;
+    fsm_state_element_sharing_criterion_ =
+        xlscc::StateElementSharingCriteria::kByDecl;
   }
 
   absl::Status RunMutualExclusion() {
@@ -238,6 +311,8 @@ class TranslatorProcTest_NewFSM_IO : public XlsccTestBase {
     generate_new_fsm_ = true;
     merge_states_ = true;
     split_states_on_channel_ops_ = false;
+    fsm_state_element_sharing_criterion_ =
+        xlscc::StateElementSharingCriteria::kByDecl;
   }
 
   absl::flat_hash_set<const xls::Node*> GetUpstreamNodes(

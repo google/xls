@@ -1416,7 +1416,8 @@ absl::Status Translator::FinishLastSlice(TrackedBValue return_bval,
   // Set ContinuationInput::choose_in_states from
   // NewFSMState::current_inputs_by_input_param. This allows phi selection order
   // to be preserved through optimization.
-  NewFSMGenerator generator(*this, *this, DebugIrTraceFlags_None);
+  NewFSMGenerator generator(*this, *this, DebugIrTraceFlags_None,
+                            fsm_state_element_sharing_criterion_);
   XLS_RETURN_IF_ERROR(
       GenerateLayoutAndInsertChooseInStates(*context().sf, generator, loc));
 

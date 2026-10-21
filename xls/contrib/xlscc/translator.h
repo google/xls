@@ -312,7 +312,9 @@ class Translator final : public GeneratorBase,
       DebugIrTraceFlags debug_ir_trace_flags = DebugIrTraceFlags_None,
       int64_t max_unroll_iters = 1000, int64_t warn_unroll_iters = 100,
       int64_t z3_rlimit = -1, IOOpOrdering op_ordering = IOOpOrdering::kNone,
-      std::unique_ptr<CCParser> existing_parser = std::unique_ptr<CCParser>());
+      std::unique_ptr<CCParser> existing_parser = std::unique_ptr<CCParser>(),
+      StateElementSharingCriteria fsm_state_element_sharing_criterion =
+          StateElementSharingCriteria::kByDecl);
   ~Translator() final;
 
   // This function uses Clang to parse a source file and then walks its
@@ -389,6 +391,10 @@ class Translator final : public GeneratorBase,
   void AddSourceInfoToPackage(xls::Package& package);
 
   inline void SetIOTestMode() { io_test_mode_ = true; }
+
+  StateElementSharingCriteria fsm_state_element_sharing_criterion() const {
+    return fsm_state_element_sharing_criterion_;
+  }
 
   absl::StatusOr<const clang::FunctionDecl*> GetTopFunction() const {
     CHECK_NE(parser_, nullptr);
@@ -634,6 +640,8 @@ class Translator final : public GeneratorBase,
 
   // How to generate the token dependencies for IO Ops
   const IOOpOrdering op_ordering_;
+
+  const StateElementSharingCriteria fsm_state_element_sharing_criterion_;
 
   // Makes translation of external channel parameters optional,
   // so that IO operations can be generated without calling GenerateIR_Block()

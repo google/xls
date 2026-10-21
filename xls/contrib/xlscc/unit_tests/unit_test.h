@@ -235,6 +235,8 @@ class XlsccTestBase : public xls::SimTestBase, public ::absl::LogSink {
   bool generate_new_fsm_ = false;
   bool merge_states_ = true;
   bool split_states_on_channel_ops_ = false;
+  xlscc::StateElementSharingCriteria fsm_state_element_sharing_criterion_ =
+      xlscc::StateElementSharingCriteria::kByDecl;
 
  protected:
   std::vector<CapturedLogEntry> log_entries_;

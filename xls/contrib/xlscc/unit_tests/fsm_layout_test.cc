@@ -42,13 +42,22 @@
 
 namespace xlscc {
 
-class FSMLayoutTest : public XlsccTestBase {
+using ::testing::Values;
+
+struct TestParams {
+  xlscc::StateElementSharingCriteria sharing_criterion =
+      xlscc::StateElementSharingCriteria::kByDecl;
+};
+
+class FSMLayoutTest : public XlsccTestBase,
+                      public ::testing::WithParamInterface<TestParams> {
  public:
   absl::StatusOr<NewFSMLayout> GenerateTopFunction(
       std::string_view content,
       absl::flat_hash_map<DeclLeaf, xls::StateElement*>*
           state_element_for_static_out = nullptr) {
     generate_new_fsm_ = true;
+    fsm_state_element_sharing_criterion_ = GetParam().sharing_criterion;
 
     XLS_ASSIGN_OR_RETURN(xls::TempFile temp,
                          xls::TempFile::CreateWithContent(content, ".cc"));
@@ -68,8 +77,9 @@ class FSMLayoutTest : public XlsccTestBase {
                          translator_->GenerateIR_Top_Function(
                              package_.get(), top_channel_injections));
 
-    NewFSMGenerator generator(*translator_, *translator_,
-                              DebugIrTraceFlags_FSMStates);
+    NewFSMGenerator generator(
+        *translator_, *translator_, DebugIrTraceFlags_FSMStates,
+        translator_->fsm_state_element_sharing_criterion());
 
     absl::flat_hash_map<DeclLeaf, xls::StateElement*> state_element_for_static;
 
@@ -254,7 +264,18 @@ class FSMLayoutTest : public XlsccTestBase {
 
 namespace {
 
-TEST_F(FSMLayoutTest, Basic) {
+std::string GetTestInfo(const ::testing::TestParamInfo<TestParams>& info) {
+  return StateElementSharingCriteriaToString(info.param.sharing_criterion);
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    FSMLayoutTest, FSMLayoutTest,
+    Values(
+        TestParams{.sharing_criterion = StateElementSharingCriteria::kByDecl},
+        TestParams{.sharing_criterion = StateElementSharingCriteria::kByType}),
+    GetTestInfo);
+
+TEST_P(FSMLayoutTest, Basic) {
   const std::string content = R"(
     #pragma hls_top
     void my_package(__xls_channel<int>& in,
@@ -296,7 +317,7 @@ TEST_F(FSMLayoutTest, Basic) {
                               /*jumped_from_slice_indices=*/{}, "x"));
 }
 
-TEST_F(FSMLayoutTest, BasicReuse) {
+TEST_P(FSMLayoutTest, BasicReuse) {
   const std::string content = R"(
     #pragma hls_top
     void my_package(__xls_channel<int>& in,
@@ -331,7 +352,7 @@ TEST_F(FSMLayoutTest, BasicReuse) {
             layout.state_element_by_continuation_value.at(x1_value));
 }
 
-TEST_F(FSMLayoutTest, BasicReuseInSubroutine) {
+TEST_P(FSMLayoutTest, BasicReuseInSubroutine) {
   const std::string content = R"(
     void Subroutine(__xls_channel<int>& in,
                     __xls_channel<int>& out) {
@@ -371,7 +392,7 @@ TEST_F(FSMLayoutTest, BasicReuseInSubroutine) {
             layout.state_element_by_continuation_value.at(x1_value));
 }
 
-TEST_F(FSMLayoutTest, DirectIn) {
+TEST_P(FSMLayoutTest, DirectIn) {
   const std::string content = R"(
     #pragma hls_top
     void my_package(int&direct_in,
@@ -390,7 +411,7 @@ TEST_F(FSMLayoutTest, DirectIn) {
   }
 }
 
-TEST_F(FSMLayoutTest, PipelinedLoop) {
+TEST_P(FSMLayoutTest, PipelinedLoop) {
   const std::string content = R"(
     #pragma hls_top
     void my_package(__xls_channel<int>& in,
@@ -486,7 +507,7 @@ TEST_F(FSMLayoutTest, PipelinedLoop) {
                               /*jumped_from_slice_indices=*/{}, "r"));
 }
 
-TEST_F(FSMLayoutTest, PipelinedLoopConstantPropagation) {
+TEST_P(FSMLayoutTest, PipelinedLoopConstantPropagation) {
   const std::string content = R"(
     #pragma hls_top
     void my_package(__xls_channel<int>& in,
@@ -585,7 +606,7 @@ TEST_F(FSMLayoutTest, PipelinedLoopConstantPropagation) {
   EXPECT_FALSE(AnyStateSavesDecl(layout, "c"));
 }
 
-TEST_F(FSMLayoutTest, PipelinedLoopBypass) {
+TEST_P(FSMLayoutTest, PipelinedLoopBypass) {
   const std::string content = R"(
     #pragma hls_top
     void my_package(__xls_channel<int>& in,
@@ -626,7 +647,7 @@ TEST_F(FSMLayoutTest, PipelinedLoopBypass) {
                               /*jumped_from_slice_indices=*/{}, "r"));
 }
 
-TEST_F(FSMLayoutTest, PipelinedLoopNested) {
+TEST_P(FSMLayoutTest, PipelinedLoopNested) {
   const std::string content = R"(
     #pragma hls_top
     void my_package(__xls_channel<int>& in,
@@ -657,7 +678,7 @@ TEST_F(FSMLayoutTest, PipelinedLoopNested) {
   }
 }
 
-TEST_F(FSMLayoutTest, PipelinedLoopSerialShared) {
+TEST_P(FSMLayoutTest, PipelinedLoopSerialShared) {
   const std::string content = R"(
     #pragma hls_top
     void my_package(__xls_channel<int>& in,
@@ -711,8 +732,18 @@ TEST_F(FSMLayoutTest, PipelinedLoopSerialShared) {
   const int64_t i1_index =
       layout.state_element_by_continuation_value.at(i1_value);
 
-  // State element sharing is by decl
-  EXPECT_NE(i0_index, i1_index);
+  switch (fsm_state_element_sharing_criterion_) {
+    case StateElementSharingCriteria::kByDecl:
+      EXPECT_NE(i0_index, i1_index);
+      break;
+    case StateElementSharingCriteria::kByType:
+      EXPECT_EQ(i0_index, i1_index);
+      break;
+    default:
+      FAIL() << "Unknown FSM state element sharing criterion: "
+             << StateElementSharingCriteriaToString(
+                    fsm_state_element_sharing_criterion_);
+  }
 
   const ContinuationValue* r_value = nullptr;
   ASSERT_TRUE(r_value = StateSavesDecl(layout, /*slice_index=*/1,
@@ -723,7 +754,7 @@ TEST_F(FSMLayoutTest, PipelinedLoopSerialShared) {
   EXPECT_EQ(layout.output_slice_index_by_value.at(r_value), 1);
 }
 
-TEST_F(FSMLayoutTest, IOActivationTransitions) {
+TEST_P(FSMLayoutTest, IOActivationTransitions) {
   const std::string content = R"(
     #pragma hls_top
     void my_package(__xls_channel<int>& in,
@@ -749,7 +780,7 @@ TEST_F(FSMLayoutTest, IOActivationTransitions) {
   EXPECT_TRUE(layout.state_element_by_continuation_value.contains(x_value));
 }
 
-TEST_F(FSMLayoutTest, IOActivationTransitionsMultiTransition) {
+TEST_P(FSMLayoutTest, IOActivationTransitionsMultiTransition) {
   const std::string content = R"(
     #pragma hls_top
     void my_package(__xls_channel<int>& in,
@@ -767,7 +798,7 @@ TEST_F(FSMLayoutTest, IOActivationTransitionsMultiTransition) {
                         /*conditional=*/false, /*forward=*/true);
 }
 
-TEST_F(FSMLayoutTest, IOActivationTransitionsNoTransition) {
+TEST_P(FSMLayoutTest, IOActivationTransitionsNoTransition) {
   const std::string content = R"(
     #pragma hls_top
     void my_package(__xls_channel<int>& in1,
@@ -786,7 +817,7 @@ TEST_F(FSMLayoutTest, IOActivationTransitionsNoTransition) {
   EXPECT_TRUE(layout.transition_by_slice_from_index.empty());
 }
 
-TEST_F(FSMLayoutTest, StaticStateElementLeafShared) {
+TEST_P(FSMLayoutTest, StaticStateElementLeafShared) {
   const std::string content = R"(
     struct Test {
       int x = 0;
@@ -815,7 +846,18 @@ TEST_F(FSMLayoutTest, StaticStateElementLeafShared) {
       NewFSMLayout layout,
       GenerateTopFunction(content, &state_element_for_static));
 
-  ASSERT_EQ(layout.state_elements.size(), 3);
+  switch (fsm_state_element_sharing_criterion_) {
+    case StateElementSharingCriteria::kByDecl:
+      EXPECT_EQ(layout.state_elements.size(), 3);
+      break;
+    case StateElementSharingCriteria::kByType:
+      EXPECT_EQ(layout.state_elements.size(), 2);
+      break;
+    default:
+      FAIL() << "Unknown FSM state element sharing criterion: "
+             << StateElementSharingCriteriaToString(
+                    fsm_state_element_sharing_criterion_);
+  }
 
   for (const NewFSMStateElement& elem : layout.state_elements) {
     EXPECT_TRUE(elem.type->IsBits());
@@ -823,7 +865,7 @@ TEST_F(FSMLayoutTest, StaticStateElementLeafShared) {
   }
 }
 
-TEST_F(FSMLayoutTest, StateElementSharedForAlias) {
+TEST_P(FSMLayoutTest, StateElementSharedForAlias) {
   const std::string content = R"(
     struct TestBase {
       long arr[16];
@@ -868,7 +910,7 @@ TEST_F(FSMLayoutTest, StateElementSharedForAlias) {
   EXPECT_EQ(n_array_state_elements, 1);
 }
 
-TEST_F(FSMLayoutTest, StaticStateElementLeafSharedByRef) {
+TEST_P(FSMLayoutTest, StaticStateElementLeafSharedByRef) {
   const std::string content = R"(
     struct Test {
       int x = 0;
@@ -901,7 +943,7 @@ TEST_F(FSMLayoutTest, StaticStateElementLeafSharedByRef) {
   ASSERT_EQ(layout.state_elements.size(), 2);
 }
 
-TEST_F(FSMLayoutTest, ActivationBarrier) {
+TEST_P(FSMLayoutTest, ActivationBarrier) {
   const std::string content = R"(
     #pragma hls_top
     void my_package(__xls_channel<int>& in,
@@ -918,7 +960,7 @@ TEST_F(FSMLayoutTest, ActivationBarrier) {
                         /*conditional=*/true, /*forward=*/true);
 }
 
-TEST_F(FSMLayoutTest, ActivationBarrierUnconditional) {
+TEST_P(FSMLayoutTest, ActivationBarrierUnconditional) {
   const std::string content = R"(
     #pragma hls_top
     void my_package(__xls_channel<int>& in,
@@ -935,7 +977,7 @@ TEST_F(FSMLayoutTest, ActivationBarrierUnconditional) {
                         /*conditional=*/false, /*forward=*/true);
 }
 
-TEST_F(FSMLayoutTest, ActivationBarrierAtBeginning) {
+TEST_P(FSMLayoutTest, ActivationBarrierAtBeginning) {
   const std::string content = R"(
     #pragma hls_top
     void my_package(__xls_channel<int>& in,
@@ -952,7 +994,7 @@ TEST_F(FSMLayoutTest, ActivationBarrierAtBeginning) {
                         /*conditional=*/true, /*forward=*/true);
 }
 
-TEST_F(FSMLayoutTest, ActivationBarrierAtEnd) {
+TEST_P(FSMLayoutTest, ActivationBarrierAtEnd) {
   const std::string content = R"(
     #pragma hls_top
     void my_package(__xls_channel<int>& in,
@@ -968,7 +1010,7 @@ TEST_F(FSMLayoutTest, ActivationBarrierAtEnd) {
   ExpectNoSliceTransition(layout, /*from_slice_index=*/1);
 }
 
-TEST_F(FSMLayoutTest, MergeStatesBarrierBeforeLoop) {
+TEST_P(FSMLayoutTest, MergeStatesBarrierBeforeLoop) {
   const std::string content = R"(
     #pragma hls_top
     void my_package(__xls_channel<int>& in,
@@ -992,7 +1034,7 @@ TEST_F(FSMLayoutTest, MergeStatesBarrierBeforeLoop) {
                         /*conditional=*/true, /*forward=*/false);
 }
 
-TEST_F(FSMLayoutTest, AvoidInvalidStateElementReuse) {
+TEST_P(FSMLayoutTest, AvoidInvalidStateElementReuse) {
   const std::string content = R"(
     #pragma hls_top
     void my_package(__xls_channel<int>& in,

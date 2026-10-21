@@ -122,9 +122,12 @@ struct NewFSMLayout {
 // such as error handling.
 class NewFSMGenerator : public GeneratorBase {
  public:
-  NewFSMGenerator(TranslatorTypeInterface& translator_types,
-                  TranslatorIOInterface& translator_io,
-                  DebugIrTraceFlags debug_ir_trace_flags);
+  NewFSMGenerator(
+      TranslatorTypeInterface& translator_types,
+      TranslatorIOInterface& translator_io,
+      DebugIrTraceFlags debug_ir_trace_flags,
+      StateElementSharingCriteria fsm_state_element_sharing_criterion =
+          StateElementSharingCriteria::kByDecl);
 
   // Analyzes the control and data flow graphs, ie function slices and
   // continuations, for a translated function, and generates a "layout"
@@ -340,6 +343,7 @@ class NewFSMGenerator : public GeneratorBase {
  private:
   TranslatorIOInterface& translator_io_;
   DebugIrTraceFlags debug_ir_trace_flags_;
+  StateElementSharingCriteria fsm_state_element_sharing_criterion_;
 };
 
 }  // namespace xlscc

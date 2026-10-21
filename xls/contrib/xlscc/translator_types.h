@@ -20,8 +20,10 @@
 #include <map>
 #include <memory>
 #include <optional>
+#include <ostream>
 #include <set>
 #include <string>
+#include <string_view>
 #include <tuple>
 #include <utility>
 #include <vector>
@@ -1336,6 +1338,71 @@ enum DebugIrTraceFlags {
   DebugIrTraceFlags_ActivationBarriers = 32,
   DebugIrTraceFlags_FSMTrace = 64,
 };
+
+enum class StateElementSharingCriteria {
+  kByDecl = 0,
+  kByType = 1,
+};
+
+inline constexpr StateElementSharingCriteria
+    kDefaultStateElementSharingCriteria = StateElementSharingCriteria::kByDecl;
+
+inline absl::StatusOr<StateElementSharingCriteria>
+StateElementSharingCriteriaFromString(std::string_view text) {
+  if (text == "decl" || text == "by_decl") {
+    return StateElementSharingCriteria::kByDecl;
+  }
+  if (text == "type" || text == "by_type" || text == "all") {
+    return StateElementSharingCriteria::kByType;
+  }
+  return absl::InvalidArgumentError(
+      absl::StrFormat("Invalid state element sharing criteria: `%s`", text));
+}
+
+inline std::string StateElementSharingCriteriaToString(
+    StateElementSharingCriteria in) {
+  if (in == StateElementSharingCriteria::kByDecl) {
+    return "decl";
+  }
+  if (in == StateElementSharingCriteria::kByType) {
+    return "type";
+  }
+  return "unknown";
+}
+
+inline std::ostream& operator<<(std::ostream& os,
+                                StateElementSharingCriteria in) {
+  os << StateElementSharingCriteriaToString(in);
+  return os;
+}
+
+inline bool AbslParseFlag(std::string_view text,
+                          StateElementSharingCriteria* result,
+                          std::string* error) {
+  absl::StatusOr<StateElementSharingCriteria> criteria =
+      StateElementSharingCriteriaFromString(text);
+  if (criteria.ok()) {
+    *result = *std::move(criteria);
+    return true;
+  }
+  *error = criteria.status().ToString();
+  return false;
+}
+
+inline std::string AbslUnparseFlag(
+    const StateElementSharingCriteria& criteria) {
+  return StateElementSharingCriteriaToString(criteria);
+}
+
+inline absl::StatusOr<StateElementSharingCriteria>
+FSMStateElementSharingCriteriaFromString(std::string_view text) {
+  return StateElementSharingCriteriaFromString(text);
+}
+
+inline std::string FSMStateElementSharingCriteriaToString(
+    StateElementSharingCriteria in) {
+  return StateElementSharingCriteriaToString(in);
+}
 
 struct NextStateValue {
   // When the condition is true for multiple next state values,

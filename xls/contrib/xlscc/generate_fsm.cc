@@ -58,12 +58,16 @@
 
 namespace xlscc {
 
-NewFSMGenerator::NewFSMGenerator(TranslatorTypeInterface& translator_types,
-                                 TranslatorIOInterface& translator_io,
-                                 DebugIrTraceFlags debug_ir_trace_flags)
+NewFSMGenerator::NewFSMGenerator(
+    TranslatorTypeInterface& translator_types,
+    TranslatorIOInterface& translator_io,
+    DebugIrTraceFlags debug_ir_trace_flags,
+    StateElementSharingCriteria fsm_state_element_sharing_criterion)
     : GeneratorBase(translator_types),
       translator_io_(translator_io),
-      debug_ir_trace_flags_(debug_ir_trace_flags) {}
+      debug_ir_trace_flags_(debug_ir_trace_flags),
+      fsm_state_element_sharing_criterion_(
+          fsm_state_element_sharing_criterion) {}
 
 absl::Status NewFSMGenerator::SetupNewFSMGenerationContext(
     const std::list<GeneratedFunctionSlice>& slices, NewFSMLayout& layout,
@@ -508,8 +512,27 @@ absl::Status NewFSMGenerator::LayoutNewFSMStateElements(
       state_element_indices_by_decl;
 
   // Inject statics: this enables state element sharing with statics
-  for (const auto& [decl_leaf, existing_state_element] :
-       state_element_for_static) {
+  std::vector<DeclLeaf> static_decls;
+  static_decls.reserve(state_element_for_static.size());
+  for (const auto& [decl_leaf, _] : state_element_for_static) {
+    static_decls.push_back(decl_leaf);
+  }
+
+  // Deterministic ordering by state element names, which should be unique
+  std::sort(
+      static_decls.begin(), static_decls.end(),
+      [&state_element_for_static](const DeclLeaf& a, const DeclLeaf& b) {
+        const std::string& a_name = state_element_for_static.at(a)->name();
+        const std::string& b_name = state_element_for_static.at(b)->name();
+        if (a_name == b_name) {
+          return a.leaf_index < b.leaf_index;
+        }
+        return a_name < b_name;
+      });
+
+  for (const DeclLeaf& decl_leaf : static_decls) {
+    xls::StateElement* existing_state_element =
+        state_element_for_static.at(decl_leaf);
     NewFSMStateElement state_element = {
         .name = existing_state_element->name(),
         .type = existing_state_element->type(),
@@ -598,31 +621,56 @@ absl::Status NewFSMGenerator::LayoutNewFSMStateElements(
       }
       func.SortNamesDeterministically(decls);
 
-      for (const DeclLeaf& decl : decls) {
-        if (!state_element_indices_by_decl.contains(decl)) {
-          continue;
-        }
-        const std::vector<int64_t>& elements_for_this_decl =
-            state_element_indices_by_decl.at(decl);
+      if (fsm_state_element_sharing_criterion_ ==
+          StateElementSharingCriteria::kByDecl) {
+        for (const DeclLeaf& decl : decls) {
+          auto found_elem = state_element_indices_by_decl.find(decl);
+          if (found_elem == state_element_indices_by_decl.end()) {
+            continue;
+          }
+          const std::vector<int64_t>& elements_for_this_decl =
+              found_elem->second;
 
-        for (const int64_t element_for_decl_index : elements_for_this_decl) {
-          if (used_state_element_indices.contains(element_for_decl_index) ||
-              disallowed_elements_by_value[value].contains(
-                  element_for_decl_index)) {
+          for (const int64_t element_for_decl_index : elements_for_this_decl) {
+            if (used_state_element_indices.contains(element_for_decl_index) ||
+                disallowed_elements_by_value[value].contains(
+                    element_for_decl_index)) {
+              continue;
+            }
+
+            if (!layout.state_elements.at(element_for_decl_index)
+                     .type->IsEqualTo(value->output_node->GetType())) {
+              continue;
+            }
+
+            found_element_by_decl = element_for_decl_index;
+            break;
+          }
+          if (found_element_by_decl.has_value()) {
+            break;
+          }
+        }
+      } else if (fsm_state_element_sharing_criterion_ ==
+                 StateElementSharingCriteria::kByType) {
+        for (int64_t si = 0; si < layout.state_elements.size(); ++si) {
+          if (used_state_element_indices.contains(si) ||
+              disallowed_elements_by_value[value].contains(si)) {
             continue;
           }
 
-          if (!layout.state_elements.at(element_for_decl_index)
-                   .type->IsEqualTo(value->output_node->GetType())) {
+          if (!layout.state_elements.at(si).type->IsEqualTo(
+                  value->output_node->GetType())) {
             continue;
           }
 
-          found_element_by_decl = element_for_decl_index;
+          found_element_by_decl = si;
           break;
         }
-        if (found_element_by_decl.has_value()) {
-          break;
-        }
+      } else {
+        return absl::InvalidArgumentError(
+            absl::StrFormat("Unknown FSM state element sharing criterion: %s",
+                            StateElementSharingCriteriaToString(
+                                fsm_state_element_sharing_criterion_)));
       }
       int64_t element_index = found_element_by_decl.value_or(-1);
 
@@ -1810,7 +1858,8 @@ absl::Status NewFSMGenerator::GenerateSharedCalls(
     }
 
     NewFSMGenerator generator(translator_types(), translator_io_,
-                              debug_ir_trace_flags_);
+                              debug_ir_trace_flags_,
+                              fsm_state_element_sharing_criterion_);
     GenerateFSMInvocationReturn fsm_ret;
     absl::flat_hash_map<DeclLeaf, xls::StateElement*> state_element_for_static;
     absl::flat_hash_map<const clang::NamedDecl*, xls::Type*> type_for_static;

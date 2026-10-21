@@ -399,6 +399,7 @@ cc_binary(
     ],
     visibility = ["//xls:xls_users"],
     deps = [
+        ":cc_parser",
         ":hls_block_cc_proto",
         ":metadata_output_cc_proto",
         ":translator",

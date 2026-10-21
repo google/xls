@@ -19,6 +19,7 @@
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <memory>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -39,6 +40,7 @@
 #include "xls/common/init_xls.h"
 #include "xls/common/logging/log_flags.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/contrib/xlscc/cc_parser.h"
 #include "xls/contrib/xlscc/flags.h"
 #include "xls/contrib/xlscc/hls_block.pb.h"
 #include "xls/contrib/xlscc/metadata_output.pb.h"
@@ -115,6 +117,11 @@ ABSL_FLAG(bool, split_states_on_channel_ops, true,
           "Split FSM states so that two IO operations on the same channel "
           "cannot be in the same FSM state. This does not try to determine"
           "mutual exclusion, so it can unnecessarily reduce throughput.");
+
+ABSL_FLAG(xlscc::StateElementSharingCriteria,
+          fsm_state_element_sharing_criteria,
+          xlscc::StateElementSharingCriteria::kByDecl,
+          "Criteria for sharing FSM state elements (decl, type, none).");
 
 ABSL_FLAG(int, top_level_init_interval, 1,
           "Initiation interval of block top level (Run/main function)");
@@ -214,6 +221,9 @@ static absl::Status Run(std::string_view cpp_path) {
                                                     DebugIrTraceFlags_FSMTrace);
   }
 
+  xlscc::StateElementSharingCriteria fsm_state_element_sharing_criteria =
+      absl::GetFlag(FLAGS_fsm_state_element_sharing_criteria);
+
   xlscc::Translator translator(
       absl::GetFlag(FLAGS_error_on_init_interval),
       absl::GetFlag(FLAGS_error_on_uninitialized),
@@ -221,7 +231,9 @@ static absl::Status Run(std::string_view cpp_path) {
       absl::GetFlag(FLAGS_split_states_on_channel_ops), ir_trace_flags,
       absl::GetFlag(FLAGS_max_unroll_iters),
       absl::GetFlag(FLAGS_warn_unroll_iters), absl::GetFlag(FLAGS_z3_rlimit),
-      io_op_token_ordering);
+      io_op_token_ordering,
+      /*existing_parser=*/std::unique_ptr<CCParser>(),
+      fsm_state_element_sharing_criteria);
 
   const std::string block_pb_name = absl::GetFlag(FLAGS_block_pb);
 

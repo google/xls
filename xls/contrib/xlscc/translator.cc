@@ -147,13 +147,13 @@ bool Translator::IOChannelInCurrentFunction(IOChannel* to_find,
   return false;
 }
 
-Translator::Translator(bool error_on_init_interval, bool error_on_uninitialized,
-                       bool generate_new_fsm, bool merge_states,
-                       bool split_states_on_channel_ops,
-                       DebugIrTraceFlags debug_ir_trace_flags,
-                       int64_t max_unroll_iters, int64_t warn_unroll_iters,
-                       int64_t z3_rlimit, IOOpOrdering op_ordering,
-                       std::unique_ptr<CCParser> existing_parser)
+Translator::Translator(
+    bool error_on_init_interval, bool error_on_uninitialized,
+    bool generate_new_fsm, bool merge_states, bool split_states_on_channel_ops,
+    DebugIrTraceFlags debug_ir_trace_flags, int64_t max_unroll_iters,
+    int64_t warn_unroll_iters, int64_t z3_rlimit, IOOpOrdering op_ordering,
+    std::unique_ptr<CCParser> existing_parser,
+    StateElementSharingCriteria fsm_state_element_sharing_criterion)
     : GeneratorBase(static_cast<TranslatorTypeInterface&>(*this)),
       max_unroll_iters_(max_unroll_iters),
       warn_unroll_iters_(warn_unroll_iters),
@@ -164,7 +164,9 @@ Translator::Translator(bool error_on_init_interval, bool error_on_uninitialized,
       merge_states_(merge_states),
       split_states_on_channel_ops_(split_states_on_channel_ops),
       debug_ir_trace_flags_(debug_ir_trace_flags),
-      op_ordering_(op_ordering) {
+      op_ordering_(op_ordering),
+      fsm_state_element_sharing_criterion_(
+          fsm_state_element_sharing_criterion) {
   context_stack_.push_front(TranslationContext());
   if (existing_parser != nullptr) {
     parser_ = std::move(existing_parser);
