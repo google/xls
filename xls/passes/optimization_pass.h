@@ -31,7 +31,6 @@
 #include <variant>
 #include <vector>
 
-#include "absl/base/nullability.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/hash/hash.h"
 #include "absl/log/check.h"
@@ -132,6 +131,15 @@ struct RamRewrite {
 absl::StatusOr<std::vector<RamRewrite>> RamRewritesFromProto(
     const RamRewritesProto& proto);
 
+// Abstract class that should be overridden if a class wants to store extra
+// configuration. Those classes should cast this to the right type to access the
+// real values.
+class OptimizationPassOptionExtension {
+ public:
+  virtual ~OptimizationPassOptionExtension() = default;
+  virtual std::string_view extension_name() const = 0;
+};
+
 struct OptimizationPassOptions : public PassOptionsBase {
   OptimizationPassOptions() = default;
 
@@ -216,6 +224,41 @@ struct OptimizationPassOptions : public PassOptionsBase {
     opt.delay_estimator = delay_estimator;
     return opt;
   }
+
+  absl::Status AddExtension(
+      std::unique_ptr<OptimizationPassOptionExtension> ext) {
+    std::string_view name = ext->extension_name();
+    XLS_RET_CHECK(!ext_options.contains(name))
+        << "Another extensions with name " << name << " already exists.";
+    ext_options.emplace(name, std::move(ext));
+    return absl::OkStatus();
+  }
+
+  std::optional<const OptimizationPassOptionExtension*> GetExtension(
+      std::string_view name) const {
+    auto it = ext_options.find(name);
+    if (it == ext_options.end()) {
+      return std::nullopt;
+    }
+    return it->second.get();
+  }
+
+  template <typename T>
+    requires(std::is_base_of_v<OptimizationPassOptionExtension, T>)
+  std::optional<const T*> GetExtension(
+      std::string_view name = T::kExtensionName) const {
+    if (auto ext = GetExtension(name); ext.has_value()) {
+      const auto* res = dynamic_cast<const T*>(*ext);
+      CHECK_NE(res, nullptr);
+      return res;
+    }
+    return std::nullopt;
+  }
+
+  // Extensions to the pass options. Should not be directly used.
+  absl::flat_hash_map<std::string,
+                      std::shared_ptr<OptimizationPassOptionExtension>>
+      ext_options;
 };
 
 class OptimizationContext {

@@ -47,4 +47,7 @@ message OptFlagsProto {
   string pass_metrics_path = 19;
   bool debug_optimizations = 20 [default = false];
   string delay_model = 21;
+
+  // Space for pass-specific configuration extensions.
+  extensions 20000 to max;
 }

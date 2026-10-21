@@ -48,6 +48,7 @@
 #include "xls/passes/query_engine_checker.h"
 #include "xls/passes/verifier_checker.h"
 #include "xls/tools/opt_flags.pb.h"
+#include "xls/tools/opt_flags_handler_registry.h"
 
 namespace xls::tools {
 
@@ -217,6 +218,7 @@ absl::Status OptimizeIrForTop(Package* package, const OptFlagsProto& options,
   if (options.has_passes_bisect_limit()) {
     pass_options.bisect_limit = options.passes_bisect_limit();
   }
+  XLS_RETURN_IF_ERROR(OptFlagsHandlerRegistry::Process(options, pass_options));
   PassResults results;
   OptimizationContext context;
   XLS_RETURN_IF_ERROR(

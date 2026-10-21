@@ -382,6 +382,7 @@ cc_library(
     visibility = ["//xls:xls_users"],
     deps = [
         ":opt_flags_cc_proto",
+        ":opt_flags_handler_registry",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "//xls/estimators/area_model:area_estimator",
@@ -419,6 +420,7 @@ cc_library(
     visibility = ["//xls:xls_users"],
     deps = [
         ":opt_flags_cc_proto",
+        ":opt_flags_handler_registry",
         "//xls/common/file:filesystem",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
@@ -1433,5 +1435,46 @@ cc_test(
         "@riegeli//riegeli/bytes:string_writer",
         "@riegeli//riegeli/records:record_reader",
         "@riegeli//riegeli/records:record_writer",
+    ],
+)
+
+cc_library(
+    name = "opt_flags_handler_registry",
+    srcs = ["opt_flags_handler_registry.cc"],
+    hdrs = ["opt_flags_handler_registry.h"],
+    deps = [
+        ":opt_flags_cc_proto",
+        "//xls/common:module_initializer",
+        "//xls/common/status:status_macros",
+        "//xls/passes:optimization_pass",
+        "@abseil-cpp//absl/status",
+    ],
+)
+
+cc_test(
+    name = "opt_flags_handler_registry_test",
+    srcs = ["opt_flags_handler_registry_test.cc"],
+    deps = [
+        ":opt",
+        ":opt_flags",
+        ":opt_flags_cc_proto",
+        ":opt_flags_handler_registry",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/common/status:status_macros",
+        "//xls/ir",
+        "//xls/ir:bits",
+        "//xls/ir:function_builder",
+        "//xls/passes:optimization_pass",
+        "//xls/passes:optimization_pass_registry",
+        "//xls/passes:pass_base",
+        "//xls/tools/test_utils:test_opt_flag_handler",
+        "//xls/tools/test_utils:test_opt_flags_cc_proto",
+        "@abseil-cpp//absl/cleanup",
+        "@abseil-cpp//absl/flags:flag",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:status_matchers",
+        "@abseil-cpp//absl/status:statusor",
+        "@googletest//:gtest",
     ],
 )
