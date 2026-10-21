@@ -774,8 +774,30 @@ cc_library(
     deps = [
         ":codegen_flags_cc_proto",
         "//xls/codegen:codegen_options",
+        "//xls/common:module_initializer",
         "//xls/common/status:status_macros",
         "@abseil-cpp//absl/status",
+    ],
+)
+
+cc_test(
+    name = "codegen_flags_handler_registry_test",
+    srcs = ["codegen_flags_handler_registry_test.cc"],
+    deps = [
+        ":codegen",
+        ":codegen_flags",
+        ":codegen_flags_cc_proto",
+        ":codegen_flags_handler_registry",
+        "//xls/codegen:codegen_options",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/tools/test_utils:test_codegen_flag_handler",
+        "//xls/tools/test_utils:test_codegen_flags_cc_proto",
+        "@abseil-cpp//absl/cleanup",
+        "@abseil-cpp//absl/flags:flag",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:status_matchers",
+        "@googletest//:gtest",
     ],
 )
 

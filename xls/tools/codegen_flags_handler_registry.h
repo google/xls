@@ -20,6 +20,7 @@
 
 #include "absl/status/status.h"
 #include "xls/codegen/codegen_options.h"
+#include "xls/common/module_initializer.h"
 #include "xls/tools/codegen_flags.pb.h"
 
 namespace xls {
@@ -58,7 +59,7 @@ using CodegenFlagsParser = std::function<absl::Status(CodegenFlagsProto&)>;
 //     return absl::OkStatus();
 //   }
 //
-//   XLS_REGISTER_CODEGEN_FLAGS_HANDLER("my_pass", MyHandler, MyParser);
+//   XLS_REGISTER_CODEGEN_FLAGS_HANDLER(my_pass, MyHandler, MyParser);
 class CodegenFlagsHandlerRegistry {
  public:
   static void Register(std::string_view name, CodegenFlagsHandler handler,
@@ -68,18 +69,10 @@ class CodegenFlagsHandlerRegistry {
                               verilog::CodegenOptions& options);
 };
 
-#define XLS_REGISTER_CODEGEN_FLAGS_HANDLER(name, handler, parser) \
-  XLS_REGISTER_CODEGEN_FLAGS_HANDLER_UNIQHelper(__LINE__, name, handler, parser)
-
-#define XLS_REGISTER_CODEGEN_FLAGS_HANDLER_UNIQHelper(line, name, handler, \
-                                                      parser)              \
-  XLS_REGISTER_CODEGEN_FLAGS_HANDLER_UNIQ(line, name, handler, parser)
-
-#define XLS_REGISTER_CODEGEN_FLAGS_HANDLER_UNIQ(line, name, handler, parser) \
-  static bool const registrator_##line = []() {                              \
-    ::xls::CodegenFlagsHandlerRegistry::Register(name, handler, parser);     \
-    return true;                                                             \
-  }();
+#define XLS_REGISTER_CODEGEN_FLAGS_HANDLER(name, handler, parser)         \
+  XLS_REGISTER_MODULE_INITIALIZER(name, {                                 \
+    ::xls::CodegenFlagsHandlerRegistry::Register(#name, handler, parser); \
+  });
 
 }  // namespace xls
 
