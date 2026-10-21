@@ -241,7 +241,7 @@ class Formatter {
                               const Span& body_span,
                               std::vector<DocRef>& pieces,
                               bool place_internal_comments = false);
-  void FormatSumTuplePayloadMembers(const SumVariant& variant,
+  void FormatSumTuplePayloadMembers(const TupleTypeAnnotation& payload,
                                     const Span& payload_span,
                                     std::vector<DocRef>& pieces);
   DocRef FormatStructMembersBreak(

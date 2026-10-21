@@ -16,6 +16,7 @@
 #include <memory>
 #include <optional>
 #include <utility>
+#include <variant>
 #include <vector>
 
 #include "gmock/gmock.h"
@@ -81,9 +82,8 @@ class IrConversionUtilsSemanticSumTest : public ::testing::Test {
     const Span span = Span::Fake();
     auto* sum_name = module_.Make<NameDef>(span, "Example", nullptr);
     auto* variant_name = module_.Make<NameDef>(span, "X", nullptr);
-    auto* variant = module_.Make<SumVariant>(
-        span, variant_name, SumVariant::PayloadShape::kUnit,
-        std::vector<TypeAnnotation*>{}, std::vector<StructMemberNode*>{});
+    auto* variant =
+        module_.Make<SumVariant>(span, variant_name, std::monostate{});
     auto* sum_def = module_.Make<SumDef>(
         span, sum_name, std::vector<ParametricBinding*>{},
         std::vector<SumVariant*>{variant}, /*is_public=*/false);
