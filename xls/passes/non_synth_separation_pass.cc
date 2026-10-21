@@ -196,8 +196,6 @@ class CloneProcAsFunctionVisitor : public DfsVisitorWithDefault {
         "%v_non_synth_read",
         NodeNameOr{state_read,
                    absl::StrFormat("state_read_%d", state_read->id())});
-    std::string nonsynth_element_name =
-        absl::StrCat(state_read->state_element()->name(), "_non_synth");
     // First clone the state-read and state element to get a non-synth element.
     Proc* src_proc = state_read->function_base()->AsProcOrDie();
     XLS_ASSIGN_OR_RETURN(
