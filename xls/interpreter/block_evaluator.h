@@ -75,6 +75,9 @@ class ChannelSource {
   absl::Status SetDataSequence(std::vector<Value> data);
   absl::Status SetDataSequence(absl::Span<const uint64_t> data);
 
+  // Attempts to send data will be deferred until specifiec clock cycle.
+  void DeferUntil(int64_t clock_cycle) { first_clock_cycle_ = clock_cycle; }
+
   // For each cycle, SetBlockInputs() is called to provide the block
   // this channel's inputs for the cycle.
   //
@@ -118,6 +121,8 @@ class ChannelSource {
   // depending on which constructor was called.
   std::vector<Value> data_sequence_;
 
+  // Attempts to send data will be deferred until this clock cycle.
+  int64_t first_clock_cycle_ = 0;
   int64_t current_index_ = -1;  // Cycle next data will be sent on.
   bool is_valid_ = false;       // Valid signal is asserted.
 };

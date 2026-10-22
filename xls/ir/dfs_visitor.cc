@@ -108,6 +108,10 @@ absl::Status DfsVisitorWithDefault::HandleCover(Cover* cover) {
   return DefaultHandler(cover);
 }
 
+absl::Status DfsVisitorWithDefault::HandlePeek(Peek* peek) {
+  return DefaultHandler(peek);
+}
+
 absl::Status DfsVisitorWithDefault::HandleReceive(Receive* receive) {
   return DefaultHandler(receive);
 }
