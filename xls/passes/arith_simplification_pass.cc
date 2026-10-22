@@ -2286,6 +2286,8 @@ absl::StatusOr<bool> MatchArithPatterns(int64_t opt_level, Node* n,
     for (int64_t i = 0; i < 2; ++i) {
       Node* arithmetic = n->operand(i);
       Node* common = n->operand(1 - i);
+      // TODO: Extend cancellation to XOR with more than two operands by
+      // comparing the XOR of the remaining operands with zero.
       if (!arithmetic->OpIn({Op::kAdd, Op::kSub, Op::kXor}) ||
           arithmetic->operand_count() != 2) {
         continue;
