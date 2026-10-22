@@ -2277,6 +2277,39 @@ absl::StatusOr<bool> MatchArithPatterns(int64_t opt_level, Node* n,
     return true;
   }
 
+  // Equality can cancel a shared operand in same-width modular arithmetic:
+  //   (x + y) cmp x, (x - y) cmp x, (x ^ y) cmp x => y cmp 0.
+  // Only addition and xor permit cancelling the right operand. Ordered
+  // comparisons cannot use this rule because addition/subtraction may wrap.
+  // Replace the comparison, leaving any other users of the arithmetic intact.
+  if (IsBitsCompare(n) && n->OpIn({Op::kEq, Op::kNe})) {
+    for (int64_t i = 0; i < 2; ++i) {
+      Node* arithmetic = n->operand(i);
+      Node* common = n->operand(1 - i);
+      if (!arithmetic->OpIn({Op::kAdd, Op::kSub, Op::kXor}) ||
+          arithmetic->operand_count() != 2) {
+        continue;
+      }
+      Node* remaining = nullptr;
+      if (arithmetic->operand(0) == common) {
+        remaining = arithmetic->operand(1);
+      } else if (arithmetic->op() != Op::kSub &&
+                 arithmetic->operand(1) == common) {
+        remaining = arithmetic->operand(0);
+      }
+      if (remaining != nullptr) {
+        XLS_ASSIGN_OR_RETURN(
+            Node * zero,
+            n->function_base()->MakeNode<Literal>(
+                n->loc(), Value(Bits(remaining->BitCountOrDie()))));
+        XLS_RETURN_IF_ERROR(
+            n->ReplaceUsesWithNew<CompareOp>(remaining, zero, n->op())
+                .status());
+        return true;
+      }
+    }
+  }
+
   XLS_ASSIGN_OR_RETURN(bool injective_matched,
                        MatchComparisonOfInjectiveOp(n, query_engine));
   if (injective_matched) {

@@ -110,6 +110,119 @@ TEST_F(ArithSimplificationPassTest, Arith1) {
                      m::Concat(m::Literal(0), m::BitSlice())));
 }
 
+// Check both comparison orders, both commutative operand orders, and a live
+// second use of the arithmetic result. The solver quantifies all input bits at
+// each width, including wrapping addition and subtraction.
+TEST_F(ArithSimplificationPassTest, CompareCancelsSharedArithmeticOperand) {
+  for (int64_t width : {1, 2, 8, 32, 64, 128}) {
+    for (Op arithmetic_op : {Op::kAdd, Op::kSub, Op::kXor}) {
+      for (Op comparison_op : {Op::kEq, Op::kNe}) {
+        for (bool reverse_arithmetic : {false, true}) {
+          if (arithmetic_op == Op::kSub && reverse_arithmetic) {
+            continue;
+          }
+          for (bool reverse_comparison : {false, true}) {
+            SCOPED_TRACE(absl::StrFormat(
+                "width=%d op=%s cmp=%s reverse=%d/%d", width,
+                OpToString(arithmetic_op), OpToString(comparison_op),
+                reverse_arithmetic, reverse_comparison));
+            auto p = CreatePackage();
+            FunctionBuilder fb("f", p.get());
+            BValue x = fb.Param("x", p->GetBitsType(width));
+            BValue y = fb.Param("y", p->GetBitsType(width));
+            BValue lhs = reverse_arithmetic ? y : x;
+            BValue rhs = reverse_arithmetic ? x : y;
+            BValue arithmetic = arithmetic_op == Op::kXor
+                                    ? fb.Xor(lhs, rhs)
+                                    : fb.AddBinOp(arithmetic_op, lhs, rhs);
+            BValue comparison = fb.AddCompareOp(
+                comparison_op, reverse_comparison ? x : arithmetic,
+                reverse_comparison ? arithmetic : x);
+            XLS_ASSERT_OK_AND_ASSIGN(
+                Function * f,
+                fb.BuildWithReturnValue(fb.Tuple({arithmetic, comparison})));
+            ScopedVerifyEquivalence stays_equivalent(f, kProverTimeout);
+            ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+            Node* simplified = f->return_value()->operand(1);
+            EXPECT_EQ(f->return_value()->operand(0), arithmetic.node());
+            EXPECT_EQ(simplified->op(), comparison_op);
+            EXPECT_EQ(simplified->operand(0), y.node());
+            EXPECT_THAT(simplified->operand(1), m::Literal(Bits(width)));
+          }
+        }
+      }
+    }
+  }
+}
+
+TEST_F(ArithSimplificationPassTest, CompareCancellationRemovesDeadArithmetic) {
+  auto p = CreatePackage();
+  FunctionBuilder fb("f", p.get());
+  BValue x = fb.Param("x", p->GetBitsType(32));
+  BValue y = fb.Param("y", p->GetBitsType(32));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
+                           fb.BuildWithReturnValue(fb.Eq(fb.Add(x, y), x)));
+  ScopedVerifyEquivalence stays_equivalent(f, kProverTimeout);
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  PassResults results;
+  OptimizationContext context;
+  ASSERT_THAT(DeadCodeEliminationPass().Run(p.get(), OptimizationPassOptions(),
+                                            &results, context),
+              IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(), m::Eq(m::Param("y"), m::Literal(0)));
+  EXPECT_EQ(f->node_count(), 4);  // Two parameters, a zero literal and eq.
+}
+
+// Neither subtraction's right operand nor an unrelated value can be cancelled.
+TEST_F(ArithSimplificationPassTest, CompareDoesNotCancelUnmatchedOperand) {
+  for (Op comparison_op : {Op::kEq, Op::kNe}) {
+    for (bool reverse_comparison : {false, true}) {
+      auto p = CreatePackage();
+      FunctionBuilder fb("f", p.get());
+      BValue x = fb.Param("x", p->GetBitsType(32));
+      BValue y = fb.Param("y", p->GetBitsType(32));
+      BValue z = fb.Param("z", p->GetBitsType(32));
+      BValue sub = fb.Subtract(x, y);
+      BValue add = fb.Add(x, y);
+      BValue wrong_sub_operand =
+          fb.AddCompareOp(comparison_op, reverse_comparison ? y : sub,
+                          reverse_comparison ? sub : y);
+      BValue unrelated =
+          fb.AddCompareOp(comparison_op, reverse_comparison ? z : add,
+                          reverse_comparison ? add : z);
+      XLS_ASSERT_OK_AND_ASSIGN(
+          Function * f,
+          fb.BuildWithReturnValue(fb.Tuple({wrong_sub_operand, unrelated})));
+      ScopedVerifyEquivalence stays_equivalent(f, kProverTimeout);
+      EXPECT_THAT(Run(p.get()), IsOkAndHolds(false));
+    }
+  }
+}
+
+TEST_F(ArithSimplificationPassTest, OrderedCompareDoesNotCancelSharedOperand) {
+  for (Op comparison_op : {Op::kULt, Op::kULe, Op::kUGt, Op::kUGe, Op::kSLt,
+                           Op::kSLe, Op::kSGt, Op::kSGe}) {
+    for (Op arithmetic_op : {Op::kAdd, Op::kSub, Op::kXor}) {
+      for (bool reverse_comparison : {false, true}) {
+        auto p = CreatePackage();
+        FunctionBuilder fb("f", p.get());
+        BValue x = fb.Param("x", p->GetBitsType(32));
+        BValue y = fb.Param("y", p->GetBitsType(32));
+        BValue arithmetic = arithmetic_op == Op::kXor
+                                ? fb.Xor(x, y)
+                                : fb.AddBinOp(arithmetic_op, x, y);
+        XLS_ASSERT_OK_AND_ASSIGN(
+            Function * f,
+            fb.BuildWithReturnValue(fb.AddCompareOp(
+                comparison_op, reverse_comparison ? x : arithmetic,
+                reverse_comparison ? arithmetic : x)));
+        ScopedVerifyEquivalence stays_equivalent(f, kProverTimeout);
+        EXPECT_THAT(Run(p.get()), IsOkAndHolds(false));
+      }
+    }
+  }
+}
+
 TEST_F(ArithSimplificationPassTest, CompareEqNegated) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
