@@ -1064,7 +1064,7 @@ absl::StatusOr<bool> ConditionalSpecializationPass::RunOnFunctionBaseInternal(
           if (!combined_next_set.has_value()) {
             combined_next_set = std::move(next_set);
           } else {
-            combined_next_set->Union(next_set);
+            combined_next_set->Intersect(next_set);
           }
         }
         if (combined_next_set.has_value()) {

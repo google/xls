@@ -16,6 +16,7 @@
 
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <utility>
 #include <vector>
 
@@ -1375,6 +1376,67 @@ TEST_F(ConditionalSpecializationPassTest, HarderStateReadSpecialization) {
           // can be simplified away by other passes.
           m::Ne(m::StateRead("index"), m::Literal(1)),
           m::Ne(m::StateRead("index"), m::Literal(0)))));
+}
+
+TEST_F(ConditionalSpecializationPassTest,
+       StateReadSpecializationMultipleNexts) {
+  auto p = CreatePackage();
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * out, p->CreateStreamingChannel("out", ChannelOps::kSendOnly,
+                                               p->GetBitsType(32)));
+  TokenlessProcBuilder pb(TestName(), "tkn", p.get());
+  BValue index = pb.ReadStateElement("index", UBits(0, 3));
+  BValue accum = pb.ReadStateElement("accum", UBits(0, 32));
+  BValue index_is_0 = pb.Eq(index, pb.Literal(UBits(0, 3)));
+  BValue index_is_1 = pb.Eq(index, pb.Literal(UBits(1, 3)));
+  BValue index_is_2 = pb.Eq(index, pb.Literal(UBits(2, 3)));
+  pb.SendIf(out, /*pred=*/index_is_2, /*data=*/accum);
+  pb.Next(index, pb.Add(index, pb.Literal(UBits(1, 3))));
+  // `accum` is written (with non-noop values) when `index` is 0 or 1, and read
+  // when `index` is 2. Its state read must remain enabled whenever it is read
+  // OR written (i.e., `index <= 2`), not just when read (`index == 2`).
+  pb.Next(accum, pb.Literal(UBits(10, 32)), /*pred=*/index_is_0);
+  pb.Next(accum, pb.Literal(UBits(20, 32)), /*pred=*/index_is_1);
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
+
+  ScopedRecordIr sri(p.get());
+  solvers::ScopedVerifyProcEquivalence sve(proc, /*activation_count=*/5);
+  EXPECT_THAT(
+      Run(proc, /*use_bdd=*/true, /*optimize_for_best_case_throughput=*/true),
+      IsOkAndHolds(true));
+
+  EXPECT_THAT(
+      proc->GetStateReadByStateElement(*proc->GetStateElementByName("accum"))
+          ->predicate(),
+      Optional(m::ULe(m::StateRead("index"), m::Literal(2))));
+}
+
+TEST_F(ConditionalSpecializationPassTest,
+       StateReadSpecializationExhaustiveNexts) {
+  auto p = CreatePackage();
+
+  TokenlessProcBuilder pb(TestName(), "tkn", p.get());
+  BValue index = pb.ReadStateElement("index", UBits(0, 1));
+  BValue index_is_0 = pb.Not(index);
+  BValue index_is_1 = index;
+  BValue accum = pb.ReadStateElement("accum", UBits(0, 32));
+  pb.Next(index, index_is_0);
+  // `accum` is only read when `index == 1`, but has non-noop writes across all
+  // possible values of `index`, so its state read cannot be specialized.
+  pb.Next(accum, pb.Literal(UBits(0, 32)), /*pred=*/index_is_0);
+  pb.Next(accum, pb.Add(accum, pb.Literal(UBits(1, 32))), /*pred=*/index_is_1);
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
+
+  ScopedRecordIr sri(p.get());
+  EXPECT_THAT(
+      Run(proc, /*use_bdd=*/true, /*optimize_for_best_case_throughput=*/true),
+      IsOkAndHolds(false));
+
+  EXPECT_EQ(
+      proc->GetStateReadByStateElement(*proc->GetStateElementByName("accum"))
+          ->predicate(),
+      std::nullopt);
 }
 
 TEST_F(ConditionalSpecializationPassTest, StateReadSpecializationDisabled) {
