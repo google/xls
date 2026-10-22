@@ -96,11 +96,13 @@ auto MakeJitWithOptLevel(bool with_observers, int64_t opt_level) {
           std::optional<EvaluationObserver*> obs)
           -> absl::StatusOr<InterpreterResult<Value>> {
         XLS_ASSIGN_OR_RETURN(
-            auto jit, FunctionJit::Create(function, EvaluatorOptions(),
-                                          JitEvaluatorOptions()
-                                              .set_opt_level(opt_level)
-                                              .set_include_observer_callbacks(
-                                                  obs.has_value())));
+            auto jit,
+            FunctionJit::Create(
+                function, EvaluatorOptions(),
+                JitEvaluatorOptions()
+                    .set_opt_level(opt_level)
+                    .set_include_observer_callbacks(obs.has_value())
+                    .set_max_trace_verbosity(options.max_trace_verbosity())));
         std::optional<RuntimeEvaluationObserverAdapter> run_obs;
         if (obs) {
           run_obs.emplace(
@@ -319,6 +321,46 @@ TEST(FunctionJitTest, TraceFmtBigArgTest) {
           "hi I traced: "
           "800000000000000000000000000000000000000000000000000000000000000000"
           "00000000000000000000000000000000000000000000000000000000000000"));
+}
+
+TEST(FunctionJitTest, VtraceFmtVerbosityTest) {
+  Package package("my_package");
+  std::string ir_text = R"(
+  fn vtrace_fmt_example(tok: token, activ: bits[1], a: bits[32], b: bits[32]) -> (token, bits[32]) {
+    VERBOSITY_LEV_0: bits[32] = literal(value=0)
+    VERBOSITY_LEV_1: bits[32] = literal(value=2)
+    VERBOSITY_LEV_2: bits[32] = literal(value=4)
+    VERBOSITY_LEV_3: bits[32] = literal(value=8)
+    VERBOSITY_LEV_4: bits[32] = literal(value=16)
+    VERBOSITY_LEV_5: bits[32] = literal(value=32)
+    VERBOSITY_LEV_6: bits[32] = literal(value=64)
+    trace.12: token = trace(tok, activ, format="Verbosity level: {:d}", data_operands=[VERBOSITY_LEV_0])
+    trace.13: token = trace(tok, activ, format="Verbosity level: {:d}", data_operands=[VERBOSITY_LEV_1], verbosity=2)
+    trace.14: token = trace(tok, activ, format="Verbosity level: {:d}", data_operands=[VERBOSITY_LEV_2], verbosity=4)
+    trace.15: token = trace(tok, activ, format="Verbosity level: {:d}", data_operands=[VERBOSITY_LEV_3], verbosity=8)
+    trace.16: token = trace(tok, activ, format="Verbosity level: {:d}", data_operands=[VERBOSITY_LEV_4], verbosity=16)
+    trace.17: token = trace(tok, activ, format="Verbosity level: {:d}", data_operands=[VERBOSITY_LEV_5], verbosity=32)
+    trace.18: token = trace(tok, activ, format="Verbosity level: {:d}", data_operands=[VERBOSITY_LEV_6], verbosity=64)
+    trace.19: token = trace(tok, activ, format="Trace verification.", data_operands=[])
+    after_all.21: token = after_all(trace.12, trace.13, trace.14, trace.15, trace.16, trace.17, trace.18, trace.19)
+    add.20: bits[32] = add(a, b)
+    ret tuple.22: (token, bits[32]) = tuple(after_all.21, add.20)
+  }
+  )";
+  XLS_ASSERT_OK_AND_ASSIGN(Function * function,
+                           Parser::ParseFunction(ir_text, &package));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto jit,
+      FunctionJit::Create(function, EvaluatorOptions(),
+                          JitEvaluatorOptions().set_max_trace_verbosity(16)));
+  std::vector<Value> args = {Value::Token(), Value(UBits(1, 1)),
+                             Value(UBits(1, 32)), Value(UBits(2, 32))};
+  XLS_ASSERT_OK_AND_ASSIGN(InterpreterResult<Value> result, jit->Run(args));
+  EXPECT_THAT(result.events.GetTraceMessageStrings(),
+              ElementsAre("Verbosity level: 0", "Verbosity level: 2",
+                          "Verbosity level: 4", "Verbosity level: 8",
+                          "Verbosity level: 16", "Trace verification."));
 }
 
 // This test verifies that a compiled JIT function can be reused.
