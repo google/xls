@@ -126,7 +126,8 @@ TEST(TypeTest, TestTwoTupleOfStruct) {
             t2->ToString());
   EXPECT_EQ("(S, S)", t2->ToInlayHintString());
   EXPECT_EQ("tuple", t2->GetDebugTypeName());
-  EXPECT_EQ(false, t2->HasEnum());
+  EXPECT_FALSE(t2->HasEnum());
+  EXPECT_TRUE(t2->HasStruct());
 }
 
 TEST(TypeTest, TestArrayOfStruct) {
@@ -137,7 +138,8 @@ TEST(TypeTest, TestArrayOfStruct) {
   EXPECT_EQ("S { x: uN[8], y: uN[1] }[2]", a.ToString());
   EXPECT_EQ("S[2]", a.ToInlayHintString());
   EXPECT_EQ("array", a.GetDebugTypeName());
-  EXPECT_EQ(false, a.HasEnum());
+  EXPECT_FALSE(a.HasEnum());
+  EXPECT_TRUE(a.HasStruct());
 }
 
 TEST(TypeTest, TestArrayOfU32) {
@@ -165,6 +167,7 @@ TEST(TypeTest, TestEnum) {
   EnumType t(*e, /*bit_count=*/TypeDim::CreateU32(2),
              /*is_signed=*/false, {});
   EXPECT_TRUE(t.HasEnum());
+  EXPECT_FALSE(t.HasStruct());
   EXPECT_EQ(std::vector<TypeDim>{TypeDim::CreateU32(2)}, t.GetAllDims());
   EXPECT_EQ("MyEnum", t.ToString());
   EXPECT_EQ("MyEnum", t.ToInlayHintString());
@@ -245,6 +248,7 @@ TEST(TypeTest, EmptyStructTypeIsNotUnit) {
   EXPECT_THAT(s.GetTotalBitCount(), IsOkAndHolds(TypeDim::CreateU32(0)));
   EXPECT_TRUE(s.GetAllDims().empty());
   EXPECT_FALSE(s.HasEnum());
+  EXPECT_TRUE(s.HasStruct());
   EXPECT_FALSE(s.IsUnit());
   EXPECT_EQ(s.ToString(), "S {}");
   EXPECT_EQ(s.ToInlayHintString(), "S");
