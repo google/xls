@@ -54,3 +54,33 @@ cc_library(
     ],
     alwayslink = True,
 )
+
+proto_library(
+    name = "test_opt_flags_proto",
+    testonly = True,
+    srcs = ["test_opt_flags.proto"],
+    deps = ["//xls/tools:opt_flags_proto"],
+)
+
+cc_proto_library(
+    name = "test_opt_flags_cc_proto",
+    testonly = True,
+    deps = [":test_opt_flags_proto"],
+)
+
+cc_library(
+    name = "test_opt_flag_handler",
+    testonly = True,
+    srcs = ["test_opt_flag_handler.cc"],
+    hdrs = ["test_opt_flag_handler.h"],
+    deps = [
+        ":test_opt_flags_cc_proto",
+        "//xls/common/status:status_macros",
+        "//xls/passes:optimization_pass",
+        "//xls/tools:opt_flags_cc_proto",
+        "//xls/tools:opt_flags_handler_registry",
+        "@abseil-cpp//absl/flags:flag",
+        "@abseil-cpp//absl/status",
+    ],
+    alwayslink = True,
+)

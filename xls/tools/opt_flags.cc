@@ -38,6 +38,7 @@
 #include "xls/passes/query_engine_checker.h"
 #include "xls/passes/verifier_checker.h"
 #include "xls/tools/opt_flags.pb.h"
+#include "xls/tools/opt_flags_handler_registry.h"
 
 // LINT.IfChange
 ABSL_FLAG(std::string, top, "", "Top entity to optimize.");
@@ -297,6 +298,7 @@ absl::StatusOr<OptFlagsProto> GetOptFlags(
     XLS_RETURN_IF_ERROR(xls::ParseTextProtoFile(
         absl::GetFlag(FLAGS_opt_options_proto), &proto));
   }
+  XLS_RETURN_IF_ERROR(OptFlagsHandlerRegistry::ParseFlags(proto));
   if (absl::GetFlag(FLAGS_opt_options_used_textproto_file)) {
     XLS_RETURN_IF_ERROR(SetTextProtoFile(
         *absl::GetFlag(FLAGS_opt_options_used_textproto_file), proto));
