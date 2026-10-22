@@ -34,6 +34,7 @@
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_split.h"
 #include "absl/strings/strip.h"
+#include "absl/types/optional_ref.h"
 #include "absl/types/span.h"
 #include "xls/common/exit_status.h"
 // TODO(taktoa): 2021-03-10 maybe switch to https://github.com/injinj/linecook
@@ -251,10 +252,11 @@ Trie PopulateIdentifierTrie() {
   Trie trie;
   PopulateTrieFromModule("", globals.dslx->module, &trie);
   for (const auto& import_entry : globals.dslx->module->GetImportByName()) {
-    if (auto maybe_imported_info =
-            globals.dslx->type_info->GetImported(import_entry.second)) {
-      const dslx::ImportedInfo* imported_info = *maybe_imported_info;
-      PopulateTrieFromModule(import_entry.first, imported_info->module, &trie);
+    if (absl::optional_ref<const dslx::ImportedInfo> maybe_imported_info =
+            globals.dslx->type_info->GetImported(import_entry.second);
+        maybe_imported_info.has_value()) {
+      PopulateTrieFromModule(import_entry.first, maybe_imported_info->module,
+                             &trie);
     }
   }
   return trie;
@@ -443,15 +445,14 @@ absl::Status CommandType(std::string_view ident) {
       return absl::OkStatus();
     }
     dslx::Import* import = import_map[import_name];
-    std::optional<const dslx::ImportedInfo*> maybe_imported_info =
+    absl::optional_ref<const dslx::ImportedInfo> maybe_imported_info =
         globals.dslx->type_info->GetImported(import);
-    if (!maybe_imported_info) {
+    if (!maybe_imported_info.has_value()) {
       std::cout << "Something is wrong with TypeInfo::GetImported\n";
       return absl::OkStatus();
     }
-    const dslx::ImportedInfo* imported_info = *maybe_imported_info;
-    function_map = imported_info->module->GetFunctionByName();
-    type_info = imported_info->type_info;
+    function_map = maybe_imported_info->module->GetFunctionByName();
+    type_info = maybe_imported_info->type_info;
     ident = split[1];
   } else {
     std::cout << "Invalid number of :: in identifier.\n";

@@ -34,6 +34,7 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/synchronization/mutex.h"
+#include "absl/types/optional_ref.h"
 #include "absl/types/span.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
@@ -405,7 +406,7 @@ AbstractInterpreter<EvalT>::InterpretCell(
     const rtl::AbstractCell<EvalT>* cell,
     const AbstractNetRef2Value<EvalT>& inputs) {
   const AbstractCellLibraryEntry<EvalT>* entry = cell->cell_library_entry();
-  std::optional<const rtl::AbstractModule<EvalT>*> opt_module =
+  absl::optional_ref<const rtl::AbstractModule<EvalT>> opt_module =
       netlist_->MaybeGetModule(entry->name());
 
   AbstractNetRef2Value<EvalT> results;
@@ -416,7 +417,7 @@ AbstractInterpreter<EvalT>::InterpretCell(
     AbstractNetRef2Value<EvalT> module_inputs;
     // who's input/output name - needs to be internal
     // need to map cell inputs to module inputs?
-    auto module = opt_module.value();
+    auto module = opt_module.as_pointer();
     const std::vector<rtl::AbstractNetRef<EvalT>>& module_input_refs =
         module->inputs();
     const absl::Span<const std::string> module_input_names =

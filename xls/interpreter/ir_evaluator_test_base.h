@@ -30,6 +30,7 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
+#include "absl/types/optional_ref.h"
 #include "absl/types/span.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
@@ -53,7 +54,7 @@ struct IrEvaluatorTestParam {
   using EvaluatorFnT = std::function<absl::StatusOr<InterpreterResult<Value>>(
       Function* function, absl::Span<const Value> args,
       const EvaluatorOptions& options,
-      std::optional<EvaluationObserver*> observer)>;
+      absl::optional_ref<EvaluationObserver> observer)>;
 
   // Function to perform evaluation of the specified program with the given
   // keyword args.
@@ -62,7 +63,7 @@ struct IrEvaluatorTestParam {
           Function* function,
           const absl::flat_hash_map<std::string, Value>& kwargs,
           const EvaluatorOptions& options,
-          std::optional<EvaluationObserver*> observer)>;
+          absl::optional_ref<EvaluationObserver> observer)>;
 
   IrEvaluatorTestParam(EvaluatorFnT evaluator_in,
                        KwargsEvaluatorFnT kwargs_evaluator_in,
@@ -120,7 +121,7 @@ class IrEvaluatorTestBase
   absl::StatusOr<InterpreterResult<Value>> RunWithEvents(
       Function* f, absl::Span<const Value> args,
       const EvaluatorOptions& options = EvaluatorOptions(),
-      std::optional<EvaluationObserver*> observer = std::nullopt) {
+      absl::optional_ref<EvaluationObserver> observer = std::nullopt) {
     return GetParam().evaluator(f, args, options, observer);
   }
 
@@ -129,7 +130,7 @@ class IrEvaluatorTestBase
   absl::StatusOr<Value> RunWithNoEvents(
       Function* f, absl::Span<const Value> args,
       const EvaluatorOptions& options = EvaluatorOptions(),
-      std::optional<EvaluationObserver*> observer = std::nullopt) {
+      absl::optional_ref<EvaluationObserver> observer = std::nullopt) {
     XLS_ASSIGN_OR_RETURN(InterpreterResult<Value> result,
                          GetParam().evaluator(f, args, options, observer));
 
@@ -149,7 +150,7 @@ class IrEvaluatorTestBase
   // must be bits-typed.
   absl::StatusOr<uint64_t> RunWithUint64sNoEvents(
       Function* f, absl::Span<const uint64_t> args,
-      std::optional<EvaluationObserver*> observer = std::nullopt) {
+      absl::optional_ref<EvaluationObserver> observer = std::nullopt) {
     std::vector<Value> value_args;
     for (int64_t i = 0; i < args.size(); ++i) {
       XLS_RET_CHECK(f->param(i)->GetType()->IsBits());

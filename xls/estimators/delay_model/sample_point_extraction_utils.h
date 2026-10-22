@@ -23,6 +23,7 @@
 #include <vector>
 
 #include "absl/status/statusor.h"
+#include "absl/types/optional_ref.h"
 #include "absl/types/span.h"
 #include "xls/estimators/delay_model/delay_estimator.h"
 #include "xls/estimators/estimator_model.pb.h"
@@ -54,7 +55,7 @@ struct SamplePoint {
 // is in a canonical order by op name and sizes of the parameters.
 absl::StatusOr<std::vector<SamplePoint>> ExtractSamplePoints(
     const Package& package, const OpModels& op_models,
-    std::optional<DelayEstimator*> delay_estimator = std::nullopt);
+    absl::optional_ref<DelayEstimator> delay_estimator = std::nullopt);
 
 // Converts the given `samples` into an `OpSamplesList` proto suitable for
 // downstream use. The output is limited to the first `n` elements, if `samples`

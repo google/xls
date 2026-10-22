@@ -33,6 +33,7 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/substitute.h"
+#include "absl/types/optional_ref.h"
 #include "absl/types/span.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
@@ -914,7 +915,7 @@ class Visitor : public AstNodeVisitorWithDefault {
       return absl::OkStatus();
     }
 
-    std::optional<const ChannelType*> channel_type =
+    absl::optional_ref<const ChannelType> channel_type =
         type_.GetDirectOrElementChannelType();
     if (channel_type.has_value()) {
       XLS_ASSIGN_OR_RETURN(
@@ -958,7 +959,7 @@ class Visitor : public AstNodeVisitorWithDefault {
     member_values.reserve(type.struct_def_base().members().size());
     for (const StructMemberNode* member : type.struct_def_base().members()) {
       const std::string& member_name = member->name();
-      std::optional<const Type*> maybe_member_type =
+      absl::optional_ref<const Type> maybe_member_type =
           type.GetMemberTypeByName(member_name);
       XLS_RET_CHECK(maybe_member_type.has_value());
 
@@ -967,11 +968,11 @@ class Visitor : public AstNodeVisitorWithDefault {
       absl::StatusOr<Expr*> maybe_initializer = node->GetExpr(member_name);
       if (!maybe_initializer.ok()) {
         XLS_RET_CHECK(absl::IsNotFound(maybe_initializer.status()));
-        XLS_ASSIGN_OR_RETURN(
-            InterpValue value,
-            CreateChannelReferenceOrArray(
-                *maybe_member_type, [this] { return ++*next_channel_id_; },
-                /*definer=*/member));
+        XLS_ASSIGN_OR_RETURN(InterpValue value,
+                             CreateChannelReferenceOrArray(
+                                 maybe_member_type.as_pointer(),
+                                 [this] { return ++*next_channel_id_; },
+                                 /*definer=*/member));
         ti_->NoteConstExpr(member, value);
         ti_->NoteConstExpr(member->name_def(), value);
         member_values.push_back(std::move(value));

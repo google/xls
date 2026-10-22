@@ -32,6 +32,7 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/time/time.h"
+#include "absl/types/optional_ref.h"
 #include "absl/types/span.h"
 #include "re2/re2.h"
 #include "xls/dslx/bytecode/bytecode_interpreter.h"
@@ -242,7 +243,7 @@ class AbstractParsedTestRunner {
       std::string_view name, const BytecodeInterpreterOptions& options) = 0;
   virtual absl::StatusOr<RunResult> RunTestFunction(
       std::string_view name, const BytecodeInterpreterOptions& options,
-      std::optional<DslxInterpreterEvents*> events) = 0;
+      absl::optional_ref<DslxInterpreterEvents> events) = 0;
 };
 
 class DslxInterpreterTestRunner final : public AbstractTestRunner {
@@ -265,7 +266,7 @@ class DslxInterpreterParsedTestRunner : public AbstractParsedTestRunner {
       const BytecodeInterpreterOptions& options) override;
   absl::StatusOr<RunResult> RunTestFunction(
       std::string_view name, const BytecodeInterpreterOptions& options,
-      std::optional<DslxInterpreterEvents*> events) override;
+      absl::optional_ref<DslxInterpreterEvents> events) override;
 
  private:
   ImportData* import_data_;

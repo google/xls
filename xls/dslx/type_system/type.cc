@@ -35,6 +35,7 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
+#include "absl/types/optional_ref.h"
 #include "absl/types/span.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
@@ -545,11 +546,11 @@ absl::StatusOr<int64_t> StructTypeBase::GetMemberIndex(
   return std::distance(names.begin(), it);
 }
 
-std::optional<const Type*> StructTypeBase::GetMemberTypeByName(
+absl::optional_ref<const Type> StructTypeBase::GetMemberTypeByName(
     std::string_view target) const {
   for (int64_t i = 0; i < members().size(); ++i) {
     if (GetMemberName(i) == target) {
-      return &GetMemberType(i);
+      return GetMemberType(i);
     }
   }
   return std::nullopt;
@@ -1112,10 +1113,10 @@ std::unique_ptr<Type> ChannelType::CloneToUnique() const {
 }
 
 std::optional<ChannelDirection> GetChannelLikeDirection(const Type& type) {
-  if (std::optional<const ChannelType*> channel_type =
+  if (absl::optional_ref<const ChannelType> channel_type =
           type.GetDirectOrElementChannelType();
       channel_type.has_value()) {
-    return (*channel_type)->direction();
+    return channel_type->direction();
   }
   const Type* element = &type;
   if (const auto* array_type = dynamic_cast<const ArrayType*>(&type)) {

@@ -24,6 +24,7 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/types/optional_ref.h"
 #include "xls/data_structures/inline_bitmap.h"
 #include "xls/data_structures/leaf_type_tree.h"
 #include "xls/interpreter/observer.h"
@@ -38,10 +39,12 @@ namespace xls {
 class CoverageEvalObserver final : public EvaluationObserver,
                                    public RuntimeObserver {
  public:
-  explicit CoverageEvalObserver(std::optional<JitRuntime*> jit = std::nullopt)
-      : jit_(jit) {}
+  explicit CoverageEvalObserver(
+      absl::optional_ref<JitRuntime> jit = std::nullopt)
+      : jit_(jit.has_value() ? std::optional<JitRuntime*>(jit.as_pointer())
+                             : std::nullopt) {}
   void NodeEvaluated(Node* n, const Value& v) override;
-  std::optional<RuntimeObserver*> AsRawObserver() override {
+  absl::optional_ref<RuntimeObserver> AsRawObserver() override {
     if (jit_) {
       return this;
     }
@@ -69,12 +72,12 @@ class ScopedRecordNodeCoverage {
   ScopedRecordNodeCoverage(std::optional<std::string> binproto,
                            std::optional<std::string> txtproto,
 
-                           std::optional<JitRuntime*> jit = std::nullopt)
+                           absl::optional_ref<JitRuntime> jit = std::nullopt)
       : binproto_(std::move(binproto)),
         txtproto_(std::move(txtproto)),
         obs_(jit) {}
   ~ScopedRecordNodeCoverage();
-  std::optional<EvaluationObserver*> observer() {
+  absl::optional_ref<EvaluationObserver> observer() {
     if (binproto_ || txtproto_) {
       return &obs_;
     }

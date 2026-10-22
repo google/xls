@@ -39,6 +39,7 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
+#include "absl/types/optional_ref.h"
 #include "absl/types/span.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
@@ -234,23 +235,23 @@ struct OptimizationPassOptions : public PassOptionsBase {
     return absl::OkStatus();
   }
 
-  std::optional<const OptimizationPassOptionExtension*> GetExtension(
+  absl::optional_ref<const OptimizationPassOptionExtension> GetExtension(
       std::string_view name) const {
     auto it = ext_options.find(name);
     if (it == ext_options.end()) {
       return std::nullopt;
     }
-    return it->second.get();
+    return *it->second;
   }
 
   template <typename T>
     requires(std::is_base_of_v<OptimizationPassOptionExtension, T>)
-  std::optional<const T*> GetExtension(
+  absl::optional_ref<const T> GetExtension(
       std::string_view name = T::kExtensionName) const {
     if (auto ext = GetExtension(name); ext.has_value()) {
-      const auto* res = dynamic_cast<const T*>(*ext);
+      const auto* res = dynamic_cast<const T*>(ext.as_pointer());
       CHECK_NE(res, nullptr);
-      return res;
+      return *res;
     }
     return std::nullopt;
   }

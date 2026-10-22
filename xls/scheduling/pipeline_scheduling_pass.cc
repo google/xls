@@ -24,6 +24,7 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
+#include "absl/types/optional_ref.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/node.h"
@@ -110,9 +111,6 @@ absl::StatusOr<bool> PipelineSchedulingPass::RunInternal(
     XLS_ASSIGN_OR_RETURN(Proc * top, package->GetTopAsProc());
     XLS_ASSIGN_OR_RETURN(elab, ProcElaboration::Elaborate(top));
   }
-  std::optional<const ProcElaboration*> elab_opt =
-      elab.has_value() ? std::optional<const ProcElaboration*>(&elab.value())
-                       : std::nullopt;
 
   for (FunctionBase* f : schedulable_functions) {
     if (f->ForeignFunctionData().has_value()) {
@@ -132,10 +130,10 @@ absl::StatusOr<bool> PipelineSchedulingPass::RunInternal(
         PipelineSchedule schedule,
         options.synthesizer == nullptr
             ? RunPipelineSchedule(f, *options.delay_estimator,
-                                  scheduling_options, elab_opt)
+                                  scheduling_options, elab)
             : RunPipelineScheduleWithFdo(f, *options.delay_estimator,
                                          scheduling_options,
-                                         *options.synthesizer, elab_opt));
+                                         *options.synthesizer, elab));
 
     // Compute `changed` before moving schedule into context.schedules.
     changed = changed || (schedule_cycle_map_before != schedule.GetCycleMap());

@@ -24,6 +24,7 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
+#include "absl/types/optional_ref.h"
 #include "absl/types/span.h"
 #include "xls/common/status/matchers.h"
 #include "xls/interpreter/evaluator_options.h"
@@ -54,13 +55,13 @@ INSTANTIATE_TEST_SUITE_P(
     testing::Values(IrEvaluatorTestParam(
         [](Function* function, absl::Span<const Value> args,
            const EvaluatorOptions& options,
-           std::optional<EvaluationObserver*> obs) {
+           absl::optional_ref<EvaluationObserver> obs) {
           return InterpretFunction(function, args, options, obs);
         },
         [](Function* function,
            const absl::flat_hash_map<std::string, Value>& kwargs,
            const EvaluatorOptions& options,
-           std::optional<EvaluationObserver*> obs) {
+           absl::optional_ref<EvaluationObserver> obs) {
           return InterpretFunctionKwargs(function, kwargs, options, obs);
         },
         true, "IrInterpreter")),

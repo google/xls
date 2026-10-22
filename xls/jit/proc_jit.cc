@@ -32,6 +32,7 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
+#include "absl/types/optional_ref.h"
 #include "absl/types/span.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
@@ -116,7 +117,7 @@ class ProcJitContinuation : public ProcContinuation {
     explicit RuntimeObserverShim(ProcJitContinuation* owner) : owner_(owner) {}
 
     void RecordNodeValue(int64_t node_ptr, const uint8_t* data) override {
-      if (!owner_->GetObserver()) {
+      if (!owner_->GetObserver().has_value()) {
         return;
       }
       CHECK(owner_->has_observer_callbacks_)
@@ -126,11 +127,11 @@ class ProcJitContinuation : public ProcContinuation {
       // translate the pointers.
       Node* node = reinterpret_cast<Node*>(static_cast<intptr_t>(node_ptr));
       Value val = owner_->jit_runtime_->UnpackBuffer(data, node->GetType());
-      owner_->GetObserver().value()->NodeEvaluated(node, val);
+      owner_->GetObserver()->NodeEvaluated(node, val);
     }
     void Tick() override {
-      if (owner_->GetObserver()) {
-        (*owner_->GetObserver())->Tick();
+      if (owner_->GetObserver().has_value()) {
+        owner_->GetObserver()->Tick();
       }
     }
 
@@ -196,9 +197,9 @@ absl::Status ProcJitContinuation::SetObserver(EvaluationObserver* obs) {
         "Observers are not supported on this compilation.");
   }
   XLS_RETURN_IF_ERROR(ProcContinuation::SetObserver(obs));
-  auto runtime_obs = obs->AsRawObserver();
-  if (runtime_obs) {
-    instance_context_.observer = *runtime_obs;
+  absl::optional_ref<RuntimeObserver> runtime_obs = obs->AsRawObserver();
+  if (runtime_obs.has_value()) {
+    instance_context_.observer = runtime_obs.as_pointer();
   } else {
     instance_context_.observer = &observer_shim_;
   }
@@ -371,9 +372,10 @@ std::unique_ptr<ProcContinuation> ProcJit::NewContinuation(
 }
 
 absl::StatusOr<TickResult> ProcJit::Tick(ProcContinuation& continuation) const {
-  if (std::optional<EvaluationObserver*> observer = continuation.GetObserver();
+  if (absl::optional_ref<EvaluationObserver> observer =
+          continuation.GetObserver();
       observer.has_value()) {
-    (*observer)->Tick();
+    observer->Tick();
   }
   ProcJitContinuation* cont = dynamic_cast<ProcJitContinuation*>(&continuation);
   XLS_RET_CHECK_NE(cont, nullptr)

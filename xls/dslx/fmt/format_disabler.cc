@@ -27,6 +27,7 @@
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_split.h"
+#include "absl/types/optional_ref.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/fmt/comments.h"
 #include "xls/dslx/frontend/ast.h"
@@ -146,14 +147,14 @@ absl::StatusOr<std::optional<AstNode *>> FormatDisabler::operator()(
 
   // a. Look for the next enable formatting comment in the comment stream and
   // use its end position as the end position.
-  std::optional<const CommentData *> enable_comment = FindEnableAfter(node);
+  absl::optional_ref<const CommentData> enable_comment = FindEnableAfter(node);
 
   // The limit defaults to the end of the module.
   Pos limit = node->owner()->span().limit();
   if (enable_comment.has_value()) {
     // Use the end of the enable comment as the end position, so it is also left
     // unformatted.
-    limit = (*enable_comment)->span.limit();
+    limit = enable_comment->span.limit();
   }
 
   // b. Extract the content between the disable comment and the end position
@@ -218,8 +219,8 @@ std::vector<const CommentData *> FormatDisabler::FindDisablesBetween(
   return FindCommentsWithText(" dslx-fmt::off\n", span);
 }
 
-std::optional<const CommentData *> FormatDisabler::FindEnableAfter(
-    const AstNode *node) {
+absl::optional_ref<const CommentData> FormatDisabler::FindEnableAfter(
+    const AstNode* node) {
   if (!node->GetSpan().has_value()) {
     return std::nullopt;
   }

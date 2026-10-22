@@ -33,6 +33,7 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
+#include "absl/types/optional_ref.h"
 #include "absl/types/span.h"
 #include "absl/types/variant.h"
 #include "xls/common/status/ret_check.h"
@@ -211,13 +212,13 @@ class InvocationVisitor : public ExprVisitor {
       XLS_RETURN_IF_ERROR(arg->AcceptExpr(this));
     }
 
-    std::optional<const InvocationData*> inv_data =
+    absl::optional_ref<const InvocationData> inv_data =
         type_info_->GetInvocationData(node);
 
     // TODO: erinzmoore - Once v1 is removed, delete if/else clause here and
     // require that `inv_data` is present and complete.
-    if (inv_data.has_value() && (*inv_data)->callee() != nullptr) {
-      const Function* callee = (*inv_data)->callee();
+    if (inv_data.has_value() && inv_data->callee() != nullptr) {
+      const Function* callee = inv_data->callee();
       if (IsBuiltin(callee)) {
         return absl::OkStatus();
       }
@@ -262,12 +263,11 @@ class InvocationVisitor : public ExprVisitor {
             << " @ " << node->span().ToString(file_table())
             << " caller bindings: " << bindings_.ToString();
 
-    std::optional<const ParametricEnv*> callee_bindings =
+    absl::optional_ref<const ParametricEnv> callee_bindings =
         type_info_->GetInvocationCalleeBindings(node, bindings_);
 
     if (callee_bindings.has_value()) {
-      XLS_RET_CHECK(*callee_bindings != nullptr);
-      VLOG(5) << "Found callee bindings: " << **callee_bindings
+      VLOG(5) << "Found callee bindings: " << *callee_bindings
               << " for node: " << node->ToString();
       std::optional<TypeInfo*> instantiation_type_info =
           type_info_->GetInvocationTypeInfo(node, bindings_);
@@ -289,7 +289,8 @@ class InvocationVisitor : public ExprVisitor {
         auto callee,
         Callee::Make(
             callee_info->callee, callee_info->module, callee_info->type_info,
-            callee_bindings ? **callee_bindings : ParametricEnv(), proc_id));
+            callee_bindings.has_value() ? *callee_bindings : ParametricEnv(),
+            proc_id));
     callees_.push_back(std::move(callee));
     return absl::OkStatus();
   }

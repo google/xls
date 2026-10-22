@@ -44,6 +44,7 @@
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/substitute.h"
+#include "absl/types/optional_ref.h"
 #include "absl/types/span.h"
 #include "llvm/include/llvm/IR/DataLayout.h"
 #include "xls/common/bits_util.h"
@@ -93,7 +94,7 @@ auto MakeJitWithOptLevel(bool with_observers, int64_t opt_level) {
   return IrEvaluatorTestParam(
       [=](Function* function, absl::Span<const Value> args,
           const EvaluatorOptions& options,
-          std::optional<EvaluationObserver*> obs)
+          absl::optional_ref<EvaluationObserver> obs)
           -> absl::StatusOr<InterpreterResult<Value>> {
         XLS_ASSIGN_OR_RETURN(
             auto jit, FunctionJit::Create(function, EvaluatorOptions(),
@@ -102,9 +103,9 @@ auto MakeJitWithOptLevel(bool with_observers, int64_t opt_level) {
                                               .set_include_observer_callbacks(
                                                   obs.has_value())));
         std::optional<RuntimeEvaluationObserverAdapter> run_obs;
-        if (obs) {
+        if (obs.has_value()) {
           run_obs.emplace(
-              *obs,
+              obs.as_pointer(),
               [](uint64_t idx) -> Node* {
                 return reinterpret_cast<Node*>(static_cast<intptr_t>(idx));
               },
@@ -116,7 +117,7 @@ auto MakeJitWithOptLevel(bool with_observers, int64_t opt_level) {
       [=](Function* function,
           const absl::flat_hash_map<std::string, Value>& kwargs,
           const EvaluatorOptions& /*options*/,
-          std::optional<EvaluationObserver*> obs)
+          absl::optional_ref<EvaluationObserver> obs)
           -> absl::StatusOr<InterpreterResult<Value>> {
         XLS_ASSIGN_OR_RETURN(
             auto jit, FunctionJit::Create(function, EvaluatorOptions(),
@@ -125,9 +126,9 @@ auto MakeJitWithOptLevel(bool with_observers, int64_t opt_level) {
                                               .set_include_observer_callbacks(
                                                   obs.has_value())));
         std::optional<RuntimeEvaluationObserverAdapter> run_obs;
-        if (obs) {
+        if (obs.has_value()) {
           run_obs.emplace(
-              *obs,
+              obs.as_pointer(),
               [](uint64_t idx) -> Node* {
                 return reinterpret_cast<Node*>(static_cast<intptr_t>(idx));
               },

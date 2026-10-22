@@ -31,6 +31,7 @@
 #include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/types/optional_ref.h"
 #include "absl/types/span.h"
 #include "xls/common/attribute_data.h"
 #include "xls/dslx/channel_direction.h"
@@ -377,7 +378,7 @@ class FunctionConverter {
   // Returns:
   //  The parametric bindings for the given instantiation (function call or proc
   //  spawn).
-  std::optional<const ParametricEnv*> GetInvocationCalleeBindings(
+  absl::optional_ref<const ParametricEnv> GetInvocationCalleeBindings(
       const Invocation* invocation) const {
     ParametricEnv key = GetParametricEnv();
     return current_type_info_->GetInvocationCalleeBindings(invocation, key);

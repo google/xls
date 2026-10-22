@@ -20,6 +20,7 @@
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/statusor.h"
+#include "absl/types/optional_ref.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/block.h"
@@ -35,7 +36,8 @@ namespace xls {
 
 absl::StatusOr<std::unique_ptr<Package>> ClonePackage(
     const Package* p, std::optional<std::string_view> name,
-    std::optional<absl::flat_hash_map<Node*, Node*>*> original_node_to_clone) {
+    absl::optional_ref<absl::flat_hash_map<Node*, Node*>>
+        original_node_to_clone) {
   std::unique_ptr<Package> clone =
       std::make_unique<Package>(name.value_or(p->name()));
   absl::flat_hash_map<Channel*, Channel*> chan_map;

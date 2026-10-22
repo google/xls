@@ -36,6 +36,7 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
+#include "absl/types/optional_ref.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/pos.h"
@@ -383,15 +384,16 @@ class TypeInfo {
 
   // Returns information on the imported module (its module AST node and
   // top-level type information).
-  std::optional<const ImportedInfo*> GetImported(Import* import) const;
-  std::optional<ImportedInfo*> GetImported(Import* import);
+  absl::optional_ref<const ImportedInfo> GetImported(Import* import) const;
+  absl::optional_ref<ImportedInfo> GetImported(Import* import);
 
-  std::optional<const ImportedInfo*> GetImported(
+  absl::optional_ref<const ImportedInfo> GetImported(
       UseTreeEntry* use_tree_entry) const;
-  std::optional<ImportedInfo*> GetImported(UseTreeEntry* use_tree_entry);
+  absl::optional_ref<ImportedInfo> GetImported(UseTreeEntry* use_tree_entry);
 
-  std::optional<const ImportedInfo*> GetImported(ImportSubject import) const;
-  std::optional<ImportedInfo*> GetImported(ImportSubject import);
+  absl::optional_ref<const ImportedInfo> GetImported(
+      ImportSubject import) const;
+  absl::optional_ref<ImportedInfo> GetImported(ImportSubject import);
 
   absl::StatusOr<const ImportedInfo*> GetImportedOrError(Import* import) const;
   absl::StatusOr<ImportedInfo*> GetImportedOrError(Import* import);
@@ -424,7 +426,7 @@ class TypeInfo {
   // with M=32.
   //
   // When calling a non-parametric callee, the record will be absent.
-  std::optional<const ParametricEnv*> GetInvocationCalleeBindings(
+  absl::optional_ref<const ParametricEnv> GetInvocationCalleeBindings(
       const Invocation* invocation, const ParametricEnv& caller) const;
 
   // Notes the evaluation of a constexpr to a value, as discovered during type
@@ -482,7 +484,7 @@ class TypeInfo {
 
   // Returns the InvocationData for the given invocation, if present in the
   // TypeInfo tree.
-  std::optional<const InvocationData*> GetInvocationData(
+  absl::optional_ref<const InvocationData> GetInvocationData(
       const Invocation* invocation) const;
 
   // Returns unique InvocationCalleeData for the given function, if present in

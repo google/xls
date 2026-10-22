@@ -39,6 +39,7 @@
 #include "absl/strings/str_split.h"
 #include "absl/strings/strip.h"
 #include "absl/strings/substitute.h"
+#include "absl/types/optional_ref.h"
 #include "absl/types/span.h"
 #include "xls/common/bits_util.h"
 #include "xls/common/status/status_macros.h"
@@ -498,7 +499,7 @@ class AbstractNetlist {
   // Faster version of GetModule--returns nullopt when module is not present.
   // Useful when looking for a module expects to get false results most of the
   // time.
-  std::optional<const AbstractModule<EvalT>*> MaybeGetModule(
+  absl::optional_ref<const AbstractModule<EvalT>> MaybeGetModule(
       const std::string& module_name) const;
   absl::Span<const std::unique_ptr<AbstractModule<EvalT>>> modules() {
     return modules_;
@@ -824,7 +825,7 @@ void AbstractNetlist<EvalT>::AddModule(
 }
 
 template <typename EvalT>
-std::optional<const AbstractModule<EvalT>*>
+absl::optional_ref<const AbstractModule<EvalT>>
 AbstractNetlist<EvalT>::MaybeGetModule(const std::string& module_name) const {
   for (const auto& module : modules_) {
     if (module->name() == module_name) {
@@ -842,7 +843,7 @@ absl::StatusOr<const AbstractModule<EvalT>*> AbstractNetlist<EvalT>::GetModule(
     return absl::NotFoundError(
         absl::StrFormat("Module %s not found in netlist.", module_name));
   }
-  return found.value();
+  return found.as_pointer();
 }
 
 template <typename EvalT>

@@ -24,6 +24,7 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
+#include "absl/types/optional_ref.h"
 #include "absl/types/span.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/interpreter/evaluator_options.h"
@@ -45,7 +46,7 @@ class FunctionInterpreter final : public IrInterpreter {
  public:
   FunctionInterpreter(absl::Span<const Value> args,
                       const EvaluatorOptions& options,
-                      std::optional<EvaluationObserver*> observer,
+                      absl::optional_ref<EvaluationObserver> observer,
                       int call_depth)
       : IrInterpreter(/*events=*/nullptr, options, observer, call_depth),
         args_(args.begin(), args.end()) {}
@@ -71,7 +72,7 @@ class FunctionInterpreter final : public IrInterpreter {
 absl::StatusOr<InterpreterResult<Value>> InterpretFunction(
     Function* function, absl::Span<const Value> args,
     const EvaluatorOptions& options,
-    std::optional<EvaluationObserver*> observer, int call_depth,
+    absl::optional_ref<EvaluationObserver> observer, int call_depth,
     std::optional<SourceInfo> call_site) {
   VLOG(3) << "Interpreting function " << function->name();
   if (args.size() != function->params().size()) {
@@ -125,7 +126,7 @@ absl::StatusOr<InterpreterResult<Value>> InterpretFunction(
 /* static */ absl::StatusOr<InterpreterResult<Value>> InterpretFunctionKwargs(
     Function* function, const absl::flat_hash_map<std::string, Value>& args,
     const EvaluatorOptions& options,
-    std::optional<EvaluationObserver*> observer) {
+    absl::optional_ref<EvaluationObserver> observer) {
   VLOG(2) << "Interpreting function " << function->name() << " with arguments:";
   XLS_ASSIGN_OR_RETURN(std::vector<Value> positional_args,
                        KeywordArgsToPositional(*function, args));

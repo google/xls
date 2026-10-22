@@ -34,6 +34,7 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
+#include "absl/types/optional_ref.h"
 #include "absl/types/span.h"
 #include "xls/codegen/bdd_io_analysis.h"
 #include "xls/codegen/clone_nodes_into_block_handler.h"
@@ -256,13 +257,13 @@ CloneNodesIntoPipelinedBlock(
     FunctionBase* function_base, const PackageSchedule& package_schedule,
     const CodegenOptions& options, Block* block,
     const absl::flat_hash_map<FunctionBase*, Block*>& converted_blocks,
-    std::optional<const ProcElaboration*> elab) {
+    absl::optional_ref<const ProcElaboration> elab) {
   XLS_RET_CHECK(function_base->IsProc() || function_base->IsFunction());
 
   const PipelineSchedule& pipeline_schedule =
       package_schedule.GetSchedule(function_base);
   CloneNodesIntoBlockHandler cloner(function_base, pipeline_schedule.length(),
-                                    options, block, &package_schedule);
+                                    options, block, package_schedule);
   XLS_RETURN_IF_ERROR(cloner.AddLiterals());
   if (function_base->IsProc()) {
     XLS_RETURN_IF_ERROR(cloner.AddChannelPortsAndFifoInstantiations());
@@ -704,9 +705,7 @@ absl::StatusOr<CodegenContext> PackageToPipelinedBlocks(
       }
       XLS_RETURN_IF_ERROR(SingleProcToPipelinedBlock(
           package_schedule, options, context, fb->AsProcOrDie(), instances,
-          sub_block, converted_blocks,
-          proc_elab.has_value() ? std::make_optional(&proc_elab.value())
-                                : std::nullopt));
+          sub_block, converted_blocks, proc_elab));
     } else if (fb->IsFunction()) {
       XLS_RET_CHECK_EQ(conversion_order.size(), 1);
       XLS_RET_CHECK_EQ(fb, top);

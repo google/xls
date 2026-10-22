@@ -35,6 +35,7 @@
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/substitute.h"
+#include "absl/types/optional_ref.h"
 #include "absl/types/variant.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
@@ -566,7 +567,7 @@ TypeInfo::GetFunctionCallGraph(const Module* module) const {
   return result;
 }
 
-std::optional<const InvocationData*> TypeInfo::GetInvocationData(
+absl::optional_ref<const InvocationData> TypeInfo::GetInvocationData(
     const Invocation* invocation) const {
   auto it = invocations_.find(invocation);
   if (it == invocations_.end()) {
@@ -576,7 +577,7 @@ std::optional<const InvocationData*> TypeInfo::GetInvocationData(
       return std::nullopt;
     }
   }
-  return it->second.get();
+  return *it->second;
 }
 
 std::vector<InvocationCalleeData> TypeInfo::GetUniqueInvocationCalleeData(
@@ -770,7 +771,7 @@ void TypeInfo::NoteRequiresImplicitToken(const Function& f, bool is_required) {
 std::optional<TypeInfo*> TypeInfo::GetInvocationTypeInfo(
     const Invocation* invocation, const ParametricEnv& caller) const {
   // Find the data for this invocation node.
-  std::optional<const InvocationData*> invocation_data_opt =
+  absl::optional_ref<const InvocationData> invocation_data_opt =
       GetInvocationData(invocation);
   if (!invocation_data_opt.has_value()) {
     VLOG(5) << "Could not find instantiation for invocation: "
@@ -778,7 +779,7 @@ std::optional<TypeInfo*> TypeInfo::GetInvocationTypeInfo(
     return std::nullopt;
   }
 
-  const InvocationData& invocation_data = **invocation_data_opt;
+  const InvocationData& invocation_data = *invocation_data_opt;
   // Find the callee data given the caller's parametric environment.
   VLOG(5) << "Invocation " << invocation->ToString()
           << " caller bindings: " << caller
@@ -922,13 +923,13 @@ absl::StatusOr<const Function*> TypeInfo::GetCallee(
 
 absl::StatusOr<const Function*> TypeInfo::GetCallee(
     const Invocation* invocation) const {
-  std::optional<const InvocationData*> invocation_data =
+  absl::optional_ref<const InvocationData> invocation_data =
       GetInvocationData(invocation);
   if (!invocation_data.has_value()) {
     return absl::NotFoundError(
         absl::StrCat("Could not find invocation ", invocation->ToString()));
   }
-  return (*invocation_data)->callee();
+  return invocation_data->callee();
 }
 
 void TypeInfo::SetResolvedColonRefSubject(const ColonRef* node,
@@ -946,7 +947,7 @@ TypeInfo::GetResolvedColonRefSubject(const ColonRef* node) const {
   return it->second;
 }
 
-std::optional<const ParametricEnv*> TypeInfo::GetInvocationCalleeBindings(
+absl::optional_ref<const ParametricEnv> TypeInfo::GetInvocationCalleeBindings(
     const Invocation* invocation, const ParametricEnv& caller) const {
   const TypeInfo* top = GetRoot();
   VLOG(3) << absl::StreamFormat(
@@ -954,7 +955,7 @@ std::optional<const ParametricEnv*> TypeInfo::GetInvocationCalleeBindings(
       invocation, invocation->ToString(),
       invocation->span().ToString(file_table()), caller.ToString());
 
-  std::optional<const InvocationData*> invocation_data_opt =
+  absl::optional_ref<const InvocationData> invocation_data_opt =
       GetInvocationData(invocation);
   if (!invocation_data_opt.has_value()) {
     VLOG(3) << "Could not find instantiation " << invocation
@@ -962,7 +963,7 @@ std::optional<const ParametricEnv*> TypeInfo::GetInvocationCalleeBindings(
     return std::nullopt;
   }
 
-  const InvocationData& invocation_data = **invocation_data_opt;
+  const InvocationData& invocation_data = *invocation_data_opt;
   auto it2 = invocation_data.env_to_callee_data().find(caller);
   if (it2 == invocation_data.env_to_callee_data().end()) {
     VLOG(3) << "Could not find caller symbolic bindings in instantiation data: "
@@ -970,9 +971,9 @@ std::optional<const ParametricEnv*> TypeInfo::GetInvocationCalleeBindings(
             << invocation->span().ToString(file_table());
     return std::nullopt;
   }
-  const ParametricEnv* result = &it2->second.callee_bindings;
+  const ParametricEnv& result = it2->second.callee_bindings;
   VLOG(3) << "Resolved instantiation symbolic bindings for "
-          << invocation->ToString() << ": " << result->ToString();
+          << invocation->ToString() << ": " << result.ToString();
   return result;
 }
 
@@ -1019,47 +1020,49 @@ std::optional<TypeInfo*> TypeInfo::GetImportedTypeInfo(
   return std::nullopt;
 }
 
-std::optional<ImportedInfo*> TypeInfo::GetImported(Import* import) {
+absl::optional_ref<ImportedInfo> TypeInfo::GetImported(Import* import) {
   auto* self = GetRoot();
   auto it = self->imports_.find(import);
   if (it == self->imports_.end()) {
     return std::nullopt;
   }
-  return &it->second;
+  return it->second;
 }
 
-std::optional<const ImportedInfo*> TypeInfo::GetImported(Import* import) const {
+absl::optional_ref<const ImportedInfo> TypeInfo::GetImported(
+    Import* import) const {
   return const_cast<TypeInfo*>(this)->GetImported(import);
 }
 
-std::optional<const ImportedInfo*> TypeInfo::GetImported(
+absl::optional_ref<const ImportedInfo> TypeInfo::GetImported(
     UseTreeEntry* use_tree_entry) const {
   return const_cast<TypeInfo*>(this)->GetImported(use_tree_entry);
 }
 
-std::optional<ImportedInfo*> TypeInfo::GetImported(
+absl::optional_ref<ImportedInfo> TypeInfo::GetImported(
     UseTreeEntry* use_tree_entry) {
   auto* self = GetRoot();
   if (auto it = self->imports_.find(use_tree_entry);
       it != self->imports_.end()) {
-    return &it->second;
+    return it->second;
   }
 
   return std::nullopt;
 }
 
-std::optional<const ImportedInfo*> TypeInfo::GetImported(
+absl::optional_ref<const ImportedInfo> TypeInfo::GetImported(
     ImportSubject import) const {
   return const_cast<TypeInfo*>(this)->GetImported(import);
 }
 
-std::optional<ImportedInfo*> TypeInfo::GetImported(ImportSubject import) {
+absl::optional_ref<ImportedInfo> TypeInfo::GetImported(ImportSubject import) {
   return absl::visit(
       Visitor{
-          [&](UseTreeEntry* use_tree_entry) -> std::optional<ImportedInfo*> {
+          [&](UseTreeEntry* use_tree_entry)
+              -> absl::optional_ref<ImportedInfo> {
             return GetImported(use_tree_entry);
           },
-          [&](Import* import) -> std::optional<ImportedInfo*> {
+          [&](Import* import) -> absl::optional_ref<ImportedInfo> {
             return GetImported(import);
           },
       },
@@ -1072,9 +1075,9 @@ absl::StatusOr<const ImportedInfo*> TypeInfo::GetImportedOrError(
 }
 
 absl::StatusOr<ImportedInfo*> TypeInfo::GetImportedOrError(Import* import) {
-  std::optional<ImportedInfo*> imported = GetImported(import);
+  absl::optional_ref<ImportedInfo> imported = GetImported(import);
   if (imported.has_value()) {
-    return imported.value();
+    return imported.as_pointer();
   }
 
   return absl::NotFoundError(absl::StrFormat(
@@ -1083,9 +1086,9 @@ absl::StatusOr<ImportedInfo*> TypeInfo::GetImportedOrError(Import* import) {
 
 absl::StatusOr<ImportedInfo*> TypeInfo::GetImportedOrError(
     UseTreeEntry* use_tree_entry) {
-  if (std::optional<ImportedInfo*> imported = GetImported(use_tree_entry);
+  if (absl::optional_ref<ImportedInfo> imported = GetImported(use_tree_entry);
       imported.has_value()) {
-    return imported.value();
+    return imported.as_pointer();
   }
 
   return absl::NotFoundError(

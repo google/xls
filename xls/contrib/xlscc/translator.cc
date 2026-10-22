@@ -49,6 +49,7 @@
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_replace.h"
+#include "absl/types/optional_ref.h"
 #include "absl/types/span.h"
 #include "clang/include/clang/AST/APValue.h"
 #include "clang/include/clang/AST/ASTContext.h"
@@ -3613,7 +3614,7 @@ absl::StatusOr<CValue> Translator::GenerateIR_BuiltInMemcpy(
 
 absl::Status Translator::InsertActivationBarrier(
     ActivationBarrierType type, const xls::SourceInfo& loc,
-    std::optional<IOOp*> start_op) {
+    absl::optional_ref<IOOp> start_op) {
   if (!generate_new_fsm_) {
     return absl::InvalidArgumentError(
         ErrorMessage(loc, "Activation barrier is only supported in new FSM."));
@@ -3632,8 +3633,7 @@ absl::Status Translator::InsertActivationBarrier(
     context().conditional_barrier_start_ops.push_back(op_ptr);
   } else if (type == ActivationBarrierType::kConditionalEnd) {
     XLSCC_CHECK(start_op.has_value(), loc);
-    XLSCC_CHECK_NE(start_op.value(), nullptr, loc);
-    op_ptr->barrier_begin_op = start_op.value();
+    op_ptr->barrier_begin_op = start_op.as_pointer();
   }
 
   return absl::OkStatus();

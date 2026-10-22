@@ -28,6 +28,7 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
+#include "absl/types/optional_ref.h"
 #include "absl/types/span.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
@@ -145,7 +146,7 @@ absl::Status OptimizeIrForTop(Package* package, const OptFlagsProto& options,
   if (modifiers.registry_decorator.has_value()) {
     XLS_ASSIGN_OR_RETURN(
         decorated_registry,
-        (*modifiers.registry_decorator)->Decorate(chosen_registry));
+        modifiers.registry_decorator->Decorate(chosen_registry));
   }
   const OptimizationPassRegistry& final_registry =
       decorated_registry ? **decorated_registry : chosen_registry;

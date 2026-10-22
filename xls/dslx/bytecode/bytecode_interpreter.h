@@ -32,6 +32,7 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
+#include "absl/types/optional_ref.h"
 #include "absl/types/span.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/dslx/bytecode/bytecode.h"
@@ -249,9 +250,10 @@ class BytecodeInterpreter {
   static absl::StatusOr<InterpValue> Interpret(
       ImportData* import_data, BytecodeFunction* bf,
       const std::vector<InterpValue>& args,
-      std::optional<InterpValueChannelManager*> channel_manager = std::nullopt,
+      absl::optional_ref<InterpValueChannelManager> channel_manager =
+          std::nullopt,
       const BytecodeInterpreterOptions& options = BytecodeInterpreterOptions(),
-      std::optional<DslxInterpreterEvents*> events = std::nullopt);
+      absl::optional_ref<DslxInterpreterEvents> events = std::nullopt);
 
   virtual ~BytecodeInterpreter() = default;
 
@@ -287,16 +289,16 @@ class BytecodeInterpreter {
   static absl::StatusOr<std::unique_ptr<BytecodeInterpreter>> CreateUnique(
       ImportData* import_data, const std::optional<ProcId>& proc_id,
       BytecodeFunction* bf, const std::vector<InterpValue>& args,
-      std::optional<InterpValueChannelManager*> channel_manager,
+      absl::optional_ref<InterpValueChannelManager> channel_manager,
       const BytecodeInterpreterOptions& options,
-      std::optional<DslxInterpreterEvents*> events = std::nullopt);
+      absl::optional_ref<DslxInterpreterEvents> events = std::nullopt);
 
  protected:
   BytecodeInterpreter(
       ImportData* import_data, const std::optional<ProcId>& proc_id,
-      std::optional<InterpValueChannelManager*> channel_manager,
+      absl::optional_ref<InterpValueChannelManager> channel_manager,
       const BytecodeInterpreterOptions& options,
-      std::optional<DslxInterpreterEvents*> events = std::nullopt);
+      absl::optional_ref<DslxInterpreterEvents> events = std::nullopt);
 
   std::vector<Frame>& frames() { return frames_; }
   ImportData* import_data() { return import_data_; }
@@ -410,7 +412,7 @@ class BytecodeInterpreter {
 
   InterpreterStack stack_;
   std::vector<Frame> frames_;
-  std::optional<InterpValueChannelManager*> channel_manager_;
+  absl::optional_ref<InterpValueChannelManager> channel_manager_;
   BytecodeInterpreterOptions options_;
 
   // This field is set to the name of the blocked channel when a receive is
@@ -420,7 +422,7 @@ class BytecodeInterpreter {
   // separate continuation data structure which encapsulates the entire
   // execution state including this value.
   std::optional<BlockedChannelInfo> blocked_channel_info_;
-  std::optional<DslxInterpreterEvents*> events_;
+  absl::optional_ref<DslxInterpreterEvents> events_;
   absl::flat_hash_map<const NameDef*, InterpValue> state_values_;
 };
 

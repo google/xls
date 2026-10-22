@@ -36,6 +36,7 @@
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_split.h"
+#include "absl/types/optional_ref.h"
 #include "absl/types/span.h"
 #include "llvm/include/llvm/ADT/APInt.h"
 #include "llvm/include/llvm/ADT/StringRef.h"
@@ -404,7 +405,7 @@ absl::StatusOr<InterpreterResult<Value>> RunLlvmInterpreter(
 // results, respectively. These strings are included in error messages.
 absl::StatusOr<std::vector<Value>> Eval(
     Function* f, absl::Span<const ArgSet> arg_sets, bool use_jit,
-    std::optional<EvaluationObserver*> eval_observer = std::nullopt,
+    absl::optional_ref<EvaluationObserver> eval_observer = std::nullopt,
     std::string_view actual_src = "actual",
     std::string_view expected_src = "expected",
     EvaluatorResultsProto* results_out = nullptr) {
@@ -427,16 +428,16 @@ absl::StatusOr<std::vector<Value>> Eval(
     if (use_jit) {
       if (absl::GetFlag(FLAGS_test_only_inject_jit_result).empty()) {
         if (absl::GetFlag(FLAGS_use_llvm_jit_interpreter)) {
-          XLS_RET_CHECK(!eval_observer)
+          XLS_RET_CHECK(!eval_observer.has_value())
               << "Observer not supported with llvm interpreter.";
           XLS_ASSIGN_OR_RETURN(
               run_res, RunLlvmInterpreter(f, observer.saved_opt_ir(), jit.get(),
                                           arg_set.args));
         } else {
           std::optional<RuntimeEvaluationObserverAdapter> adapt;
-          if (eval_observer) {
+          if (eval_observer.has_value()) {
             adapt.emplace(
-                eval_observer.value(),
+                eval_observer.as_pointer(),
                 [](int64_t v) -> Node* {
                   return reinterpret_cast<Node*>(static_cast<intptr_t>(v));
                 },
@@ -552,14 +553,14 @@ absl::Status Run(Package* package, absl::Span<const ArgSet> arg_sets_in) {
   }
   if (coverage_enabled) {
     if (auto cov_observer = cov.observer(); cov_observer.has_value()) {
-      composite_observer.AddObserver(*cov_observer);
+      composite_observer.AddObserver(cov_observer.as_pointer());
     }
   }
 
-  std::optional<EvaluationObserver*> observer_opt =
+  absl::optional_ref<EvaluationObserver> observer_opt =
       composite_observer.empty()
           ? std::nullopt
-          : std::optional<EvaluationObserver*>(&composite_observer);
+          : absl::optional_ref<EvaluationObserver>(composite_observer);
 
   // Copy the input ArgSets because we want to write in expected values if they
   // do not exist.

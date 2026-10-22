@@ -42,6 +42,7 @@
 #include "absl/strings/str_join.h"
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
+#include "absl/types/optional_ref.h"
 #include "absl/types/span.h"
 #include "re2/re2.h"
 #include "xls/common/status/ret_check.h"
@@ -167,10 +168,10 @@ void HandleError(TestResultData& result, const absl::Status& status,
             << "\n";
 };
 
-absl::Status RunDslxTestFunction(ImportData* import_data, TypeInfo* type_info,
-                                 const Module* module, TestFunction* tf,
-                                 const BytecodeInterpreterOptions& options,
-                                 std::optional<DslxInterpreterEvents*> events) {
+absl::Status RunDslxTestFunction(
+    ImportData* import_data, TypeInfo* type_info, const Module* module,
+    TestFunction* tf, const BytecodeInterpreterOptions& options,
+    absl::optional_ref<DslxInterpreterEvents> events) {
   auto cache = std::make_unique<BytecodeCache>();
   import_data->SetBytecodeCache(std::move(cache));
   XLS_ASSIGN_OR_RETURN(
@@ -294,7 +295,7 @@ DslxInterpreterTestRunner::CreateTestRunner(ImportData* import_data,
 }
 absl::StatusOr<RunResult> DslxInterpreterParsedTestRunner::RunTestFunction(
     std::string_view name, const BytecodeInterpreterOptions& options,
-    std::optional<DslxInterpreterEvents*> events) {
+    absl::optional_ref<DslxInterpreterEvents> events) {
   XLS_ASSIGN_OR_RETURN(TestFunction * tf, entry_module_->GetTest(name));
   return RunResult{.result =
                        RunDslxTestFunction(import_data_, type_info_,

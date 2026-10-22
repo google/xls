@@ -21,6 +21,7 @@
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/statusor.h"
+#include "absl/types/optional_ref.h"
 #include "xls/ir/node.h"
 #include "xls/ir/package.h"
 
@@ -35,8 +36,8 @@ namespace xls {
 // IR nodes in @p to the returned package.
 absl::StatusOr<std::unique_ptr<Package>> ClonePackage(
     const Package* p, std::optional<std::string_view> name = std::nullopt,
-    std::optional<absl::flat_hash_map<Node*, Node*>*> original_node_to_clone =
-        std::nullopt);
+    absl::optional_ref<absl::flat_hash_map<Node*, Node*>>
+        original_node_to_clone = std::nullopt);
 
 }  // namespace xls
 

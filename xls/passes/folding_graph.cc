@@ -436,7 +436,7 @@ absl::StatusOr<std::unique_ptr<NaryFoldingAction>> NaryFoldingAction::Clone(
         << "Mapped node " << orig_node->ToString()
         << " not found in original_node_to_clone map";
     XLS_ASSIGN_OR_RETURN(std::unique_ptr<EquivalenceMapping> cloned_mapping,
-                         mapping->Clone(&original_node_to_clone));
+                         mapping->Clone(original_node_to_clone));
     clone_mappings[it->second] = std::move(cloned_mapping);
   }
 

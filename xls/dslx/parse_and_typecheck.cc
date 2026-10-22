@@ -141,9 +141,7 @@ absl::StatusOr<TypecheckedModule> TypecheckModule(
       std::unique_ptr<ModuleInfo> module_info,
       TypecheckModuleV2(std::move(module), path, import_data, &warnings,
                         std::move(semantics_analysis), error_handler,
-                        trait_deriver == nullptr
-                            ? std::nullopt
-                            : std::make_optional(trait_deriver)));
+                        trait_deriver));
 
   if (transform_test_functions) {
     // Transform proc-spawning test functions into test procs.

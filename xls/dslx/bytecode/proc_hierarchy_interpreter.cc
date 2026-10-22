@@ -31,6 +31,7 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
+#include "absl/types/optional_ref.h"
 #include "absl/types/span.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
@@ -188,7 +189,7 @@ ProcConfigBytecodeInterpreter::ProcConfigBytecodeInterpreter(
     ProcHierarchyInterpreter* hierarchy_interpreter,
     const BytecodeInterpreterOptions& options)
     : BytecodeInterpreter(import_data, proc_id,
-                          /*channel_manager=*/nullptr, options),
+                          /*channel_manager=*/std::nullopt, options),
       hierarchy_interpreter_(hierarchy_interpreter),
       proc_id_factory_(proc_id_factory) {}
 
@@ -392,7 +393,7 @@ ProcHierarchyInterpreter::Create(ImportData* import_data, TypeInfo* type_info,
   for (const Param* param : constructor->params()) {
     XLS_ASSIGN_OR_RETURN(const Type* param_type,
                          type_info->GetItemOrError(param));
-    std::optional<const ChannelType*> channel_type =
+    absl::optional_ref<const ChannelType> channel_type =
         param_type->GetDirectOrElementChannelType();
     if (!channel_type.has_value()) {
       continue;

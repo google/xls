@@ -28,6 +28,7 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_replace.h"
+#include "absl/types/optional_ref.h"
 #include "clang/include/clang/AST/Attr.h"
 #include "clang/include/clang/AST/Decl.h"
 #include "clang/include/clang/AST/DeclTemplate.h"
@@ -267,11 +268,11 @@ absl::StatusOr<IOOp*> Translator::AddOpToChannel(
     op.input_param = pbval;
   }
 
-  XLS_ASSIGN_OR_RETURN(std::optional<const IOOp*> last_op,
+  XLS_ASSIGN_OR_RETURN(absl::optional_ref<const IOOp> last_op,
                        GetPreviousOp(op, loc));
 
   if (last_op.has_value()) {
-    op.after_ops.push_back(last_op.value());
+    op.after_ops.push_back(last_op.as_pointer());
   }
 
   // Sequence after the previous op on the channel
@@ -304,7 +305,7 @@ absl::StatusOr<IOOp*> Translator::AddOpToChannel(
   return ret;
 }
 
-absl::StatusOr<std::optional<const IOOp*>> Translator::GetPreviousOp(
+absl::StatusOr<absl::optional_ref<const IOOp>> Translator::GetPreviousOp(
     const IOOp& op, const xls::SourceInfo& loc) {
   if (op_ordering_ == IOOpOrdering::kNone) {
     return std::nullopt;

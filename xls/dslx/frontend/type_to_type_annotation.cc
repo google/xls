@@ -24,6 +24,7 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
+#include "absl/types/optional_ref.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/module.h"
@@ -39,9 +40,9 @@ absl::StatusOr<std::string> FindImportAlias(const Module& module,
                                             const Module* target_module,
                                             std::string_view nominal_type) {
   for (const auto& [name, import_node] : module.GetImportByName()) {
-    auto imported_info = type_info.GetImported(import_node);
-    if (imported_info.has_value() &&
-        imported_info.value()->module == target_module) {
+    absl::optional_ref<const ImportedInfo> imported_info =
+        type_info.GetImported(import_node);
+    if (imported_info.has_value() && imported_info->module == target_module) {
       return name;
     }
   }

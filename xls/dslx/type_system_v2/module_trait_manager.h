@@ -20,6 +20,7 @@
 #include <string_view>
 
 #include "absl/status/statusor.h"
+#include "absl/types/optional_ref.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/type_system/type.h"
@@ -48,7 +49,7 @@ class ModuleTraitManager {
 
 std::unique_ptr<ModuleTraitManager> CreateModuleTraitManager(
     Module& module, ImportData& import_data, InferenceTable& table,
-    std::optional<TraitDeriver*> trait_deriver, TypeSystemTracer& tracer);
+    absl::optional_ref<TraitDeriver> trait_deriver, TypeSystemTracer& tracer);
 
 }  // namespace xls::dslx
 

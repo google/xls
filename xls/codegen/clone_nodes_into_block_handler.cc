@@ -33,6 +33,7 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
+#include "absl/types/optional_ref.h"
 #include "absl/types/span.h"
 #include "xls/codegen/codegen_options.h"
 #include "xls/codegen/codegen_pass.h"
@@ -568,7 +569,7 @@ absl::Status CloneNodesIntoBlockHandler::AddBlockInstantiations(
 CloneNodesIntoBlockHandler::CloneNodesIntoBlockHandler(
     FunctionBase* proc_or_function, int64_t stage_count,
     const CodegenOptions& options, Block* block,
-    std::optional<const PackageSchedule*> schedule)
+    absl::optional_ref<const PackageSchedule> schedule)
     : is_proc_(proc_or_function->IsProc()),
       function_base_(proc_or_function),
       options_(options),

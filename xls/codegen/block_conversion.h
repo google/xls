@@ -25,6 +25,7 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/types/optional_ref.h"
 #include "absl/types/span.h"
 #include "xls/codegen/codegen_options.h"
 #include "xls/codegen/codegen_pass.h"
@@ -125,7 +126,7 @@ CloneNodesIntoPipelinedBlock(
     FunctionBase* function_base, const PackageSchedule& package_schedule,
     const CodegenOptions& options, Block* block,
     const absl::flat_hash_map<FunctionBase*, Block*>& converted_blocks,
-    std::optional<const ProcElaboration*> elab = std::nullopt);
+    absl::optional_ref<const ProcElaboration> elab = std::nullopt);
 
 // Adds ready/valid ports for each of the given streaming inputs/outputs. Also,
 // adds logic which propagates ready and valid signals through the block.

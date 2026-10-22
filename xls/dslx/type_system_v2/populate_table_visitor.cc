@@ -38,6 +38,7 @@
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/substitute.h"
+#include "absl/types/optional_ref.h"
 #include "absl/types/variant.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
@@ -335,7 +336,7 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
     // associated impl or to an imported enum.
     if (std::holds_alternative<ColonRef*>(node->subject())) {
       auto* sub_col_ref = std::get<ColonRef*>(node->subject());
-      XLS_ASSIGN_OR_RETURN(std::optional<ModuleInfo*> import_module,
+      XLS_ASSIGN_OR_RETURN(absl::optional_ref<ModuleInfo> import_module,
                            GetImportedModuleInfo(sub_col_ref, import_data_));
       if (!import_module.has_value()) {
         return UndefinedNameErrorStatus(sub_col_ref->span(),
@@ -359,7 +360,7 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
                       AttrSpan(node), subject_annotation, node->attr()));
       }
       XLS_ASSIGN_OR_RETURN(ModuleMember member,
-                           GetPublicModuleMember((*import_module)->module(),
+                           GetPublicModuleMember(import_module->module(),
                                                  sub_col_ref, file_table_));
       return SetCrossModuleTypeAnnotation(node, ToAstNode(member));
     }
@@ -401,12 +402,12 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
     }
 
     // Any imported_module::entity case not covered above.
-    XLS_ASSIGN_OR_RETURN(std::optional<ModuleInfo*> import_module,
+    XLS_ASSIGN_OR_RETURN(absl::optional_ref<ModuleInfo> import_module,
                          GetImportedModuleInfo(node, import_data_));
     if (import_module.has_value()) {
       XLS_ASSIGN_OR_RETURN(
           ModuleMember member,
-          GetPublicModuleMember((*import_module)->module(), node, file_table_));
+          GetPublicModuleMember(import_module->module(), node, file_table_));
       absl::StatusOr<TypeDefinition> type_def =
           ToTypeDefinition(ToAstNode(member));
       if (type_def.ok()) {

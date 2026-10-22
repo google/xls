@@ -280,6 +280,7 @@ cc_library(
         "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/strings:str_format",
         "@abseil-cpp//absl/time",
+        "@abseil-cpp//absl/types:optional_ref",
         "@abseil-cpp//absl/types:span",
         "@llvm-project//clang:ast",
         "@llvm-project//clang:basic",

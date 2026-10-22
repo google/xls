@@ -277,8 +277,9 @@ absl::Status IrInterpreter::HandleCountedFor(CountedFor* counted_for) {
     }
     XLS_ASSIGN_OR_RETURN(
         InterpreterResult<Value> loop_result,
-        InterpretFunction(body, args_for_body, options_, observer_,
-                          call_depth_ + 1, counted_for->loc()));
+        InterpretFunction(body, args_for_body, options_,
+                          observer_.value_or(nullptr), call_depth_ + 1,
+                          counted_for->loc()));
     XLS_RETURN_IF_ERROR(AddInterpreterEvents(loop_result.events));
     loop_state = loop_result.value;
   }
@@ -531,7 +532,8 @@ absl::Status IrInterpreter::HandleInvoke(Invoke* invoke) {
   }
   XLS_ASSIGN_OR_RETURN(
       InterpreterResult<Value> result,
-      InterpretFunction(to_apply, args, options_, observer_, call_depth_ + 1,
+      InterpretFunction(to_apply, args, options_, observer_.value_or(nullptr),
+                        call_depth_ + 1,
                         std::optional<SourceInfo>(invoke->loc())));
   XLS_RETURN_IF_ERROR(AddInterpreterEvents(result.events));
   return SetValueResult(invoke, result.value);
@@ -584,8 +586,8 @@ absl::Status IrInterpreter::HandleMap(Map* map) {
        ResolveAsValue(map->operand(0)).elements()) {
     XLS_ASSIGN_OR_RETURN(
         InterpreterResult<Value> result,
-        InterpretFunction(to_apply, {operand_element}, options_, observer_,
-                          call_depth_ + 1));
+        InterpretFunction(to_apply, {operand_element}, options_,
+                          observer_.value_or(nullptr), call_depth_ + 1));
     XLS_RETURN_IF_ERROR(AddInterpreterEvents(result.events));
     results.push_back(result.value);
   }

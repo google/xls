@@ -20,6 +20,7 @@
 
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/types/optional_ref.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/module.h"
 #include "xls/dslx/frontend/pos.h"
@@ -94,11 +95,11 @@ absl::StatusOr<ModuleMember> GetPublicModuleMember(const Module& module,
                                                    const FileTable& file_table);
 
 // Retrieves the `ModuleInfo` for the given `ColonRef`.
-absl::StatusOr<std::optional<ModuleInfo*>> GetImportedModuleInfo(
+absl::StatusOr<absl::optional_ref<ModuleInfo>> GetImportedModuleInfo(
     const ColonRef* colon_ref, const ImportData& import_data);
 
 // Variant that forces the type checking of the imported module.
-absl::StatusOr<std::optional<ModuleInfo*>> GetImportedModuleInfo(
+absl::StatusOr<absl::optional_ref<ModuleInfo>> GetImportedModuleInfo(
     const ColonRef* colon_ref, ImportData& import_data,
     const TypecheckModuleFn& typecheck_imported_module);
 

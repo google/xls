@@ -30,6 +30,23 @@ This file provides a context for the XLS project.
     (https://google.github.io/xls/style_guide, `docs_src/xls_style.md`) for
     additional guidance. However, the Google style guides always take
     precedence.
+*   **Optional Non-Owning References (`absl::optional_ref`):** Use
+    `absl::optional_ref<T>` instead of `std::optional<T*>` (or nullable `T*`)
+    when passing or returning an optional non-owning reference to a type that is
+    normally passed by reference.
+    *   *Exception:* IR, AST, and VAST node/element types (e.g., `Node*`,
+        `FunctionBase*`, `dslx::AstNode*`, `verilog::VastNode*`) are uniformly
+        passed as pointers per the XLS Style Guide, so optional values of those
+        types should continue to use `std::optional<T*>`.
+    *   *Conditional initialization with `XLS_ASSIGN_OR_RETURN`:* Because
+        `absl::optional_ref<T>` is not assignable after construction, when
+        conditionally populating one with `XLS_ASSIGN_OR_RETURN`, assign into a
+        temporary `T*` initialized to `nullptr` inside the `if` block and
+        construct the `absl::optional_ref<T>` from that pointer afterward (do
+        not use an immediately-invoked lambda).
+    *   *Naming:* Avoid `maybe_` prefixes or `_ptr` suffixes on
+        `absl::optional_ref` and `std::optional` variables; name variables after
+        their underlying value or role.
 
 **Development Workflow:**
 

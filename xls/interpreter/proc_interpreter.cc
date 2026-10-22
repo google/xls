@@ -28,6 +28,7 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
+#include "absl/types/optional_ref.h"
 #include "absl/types/span.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
@@ -135,7 +136,7 @@ class ProcIrInterpreter : public IrInterpreter {
                     absl::flat_hash_map<StateElement*, std::vector<Next*>>*
                         active_next_values,
                     const EvaluatorOptions& options,
-                    std::optional<EvaluationObserver*> observer)
+                    absl::optional_ref<EvaluationObserver> observer)
       : IrInterpreter(node_values, events, options, observer),
         proc_instance_(proc_instance),
         state_(state.begin(), state.end()),
@@ -283,9 +284,10 @@ std::unique_ptr<ProcContinuation> ProcInterpreter::NewContinuation(
 
 absl::StatusOr<TickResult> ProcInterpreter::Tick(
     ProcContinuation& continuation) const {
-  if (std::optional<EvaluationObserver*> observer = continuation.GetObserver();
+  if (absl::optional_ref<EvaluationObserver> observer =
+          continuation.GetObserver();
       observer.has_value()) {
-    (*observer)->Tick();
+    observer->Tick();
   }
   ProcInterpreterContinuation* cont =
       dynamic_cast<ProcInterpreterContinuation*>(&continuation);

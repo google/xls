@@ -31,6 +31,7 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
+#include "absl/types/optional_ref.h"
 #include "google/protobuf/text_format.h"
 #include "xls/common/exit_status.h"
 #include "xls/common/file/filesystem.h"
@@ -187,10 +188,11 @@ absl::Status RealMain() {
   XLS_ASSIGN_OR_RETURN(auto package, Parser::ParsePackage(ir_text));
   XLS_ASSIGN_OR_RETURN(estimator_model::OpModels op_models,
                        LoadOpModels(op_models_path));
-  std::optional<DelayEstimator*> delay_estimator;
+  DelayEstimator* raw_delay_estimator = nullptr;
   if (!delay_model.empty()) {
-    XLS_ASSIGN_OR_RETURN(delay_estimator, GetDelayEstimator(delay_model));
+    XLS_ASSIGN_OR_RETURN(raw_delay_estimator, GetDelayEstimator(delay_model));
   }
+  absl::optional_ref<DelayEstimator> delay_estimator = raw_delay_estimator;
   XLS_ASSIGN_OR_RETURN(
       std::vector<estimator_model::SamplePoint> points,
       ExtractSamplePoints(*package, op_models, delay_estimator));

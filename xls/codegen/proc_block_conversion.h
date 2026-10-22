@@ -20,6 +20,7 @@
 #include "absl/base/nullability.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
+#include "absl/types/optional_ref.h"
 #include "absl/types/span.h"
 #include "xls/codegen/codegen_options.h"
 #include "xls/codegen/codegen_pass.h"
@@ -45,7 +46,7 @@ absl::Status SingleProcToPipelinedBlock(
     CodegenContext& context, Proc* proc,
     absl::Span<ProcInstance* const> instances, Block* absl_nonnull block,
     const absl::flat_hash_map<FunctionBase*, Block*>& converted_blocks,
-    std::optional<const ProcElaboration*> elab = std::nullopt);
+    absl::optional_ref<const ProcElaboration> elab = std::nullopt);
 
 }  // namespace xls::verilog
 #endif  // XLS_CODEGEN_PROC_BLOCK_CONVERSION_H_

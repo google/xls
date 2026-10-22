@@ -161,6 +161,7 @@ cc_test(
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/types:optional_ref",
         "@googletest//:gtest",
         "@llvm-project//clang:ast",
     ],

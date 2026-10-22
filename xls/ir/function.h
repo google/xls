@@ -28,6 +28,7 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/types/optional_ref.h"
 #include "absl/types/span.h"
 #include "xls/common/attribute_data.h"
 #include "xls/common/status/status_macros.h"
@@ -116,8 +117,8 @@ class Function : public FunctionBase {
       std::string_view new_name, Package* target_package = nullptr,
       const absl::flat_hash_map<const Function*, Function*>& call_remapping =
           {},
-      std::optional<absl::flat_hash_map<Node*, Node*>*> original_node_to_clone =
-          std::nullopt) const;
+      absl::optional_ref<absl::flat_hash_map<Node*, Node*>>
+          original_node_to_clone = std::nullopt) const;
 
   // Returns true if analysis indicates that this function always produces the
   // same value as 'other' when run with the same arguments. The analysis is

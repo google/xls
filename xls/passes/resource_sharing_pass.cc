@@ -42,6 +42,7 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
+#include "absl/types/optional_ref.h"
 #include "absl/types/span.h"
 #include "cppitertools/combinations.hpp"
 #include "xls/common/status/ret_check.h"
@@ -1014,7 +1015,7 @@ ResourceSharingPass::LegalizeSequenceOfFolding(
     const absl::btree_set<ResourceSharingPass::MutuallyExclPair>&
         mutual_exclusivity,
     const NodeBackwardDependencyAnalysis& nda,
-    std::optional<const AreaEstimator*> area_estimator,
+    absl::optional_ref<const AreaEstimator> area_estimator,
     const ResourceSharingPass::Config& config) {
   if (potential_folding_actions_to_perform.empty()) {
     return std::make_pair(std::vector<std::unique_ptr<NaryFoldingAction>>(),
@@ -1136,7 +1137,7 @@ ResourceSharingPass::LegalizeSequenceOfFolding(
           // Reduce the area saved
           XLS_ASSIGN_OR_RETURN(
               double area_of_source,
-              (*area_estimator)->GetOperationAreaInSquareMicrons(source));
+              area_estimator->GetOperationAreaInSquareMicrons(source));
           area_saved -= area_of_source;
         }
         continue;
@@ -1608,7 +1609,7 @@ SelectFoldingActionsBasedOnInDegree(
       ResourceSharingPass::LegalizeSequenceOfFolding(
           std::move(
               potential_folding_actions_to_perform_without_timing_problems),
-          mutual_exclusivity, nda, &area_estimator, config));
+          mutual_exclusivity, nda, area_estimator, config));
 
   return folding_actions_to_perform;
 }
@@ -1700,7 +1701,7 @@ SelectAllFoldingActions(
   XLS_ASSIGN_OR_RETURN(std::tie(folding_actions_to_perform, std::ignore),
                        ResourceSharingPass::LegalizeSequenceOfFolding(
                            std::move(potential_folding_actions_to_perform),
-                           mutual_exclusivity, nda, &area_estimator, config));
+                           mutual_exclusivity, nda, area_estimator, config));
 
   return folding_actions_to_perform;
 }

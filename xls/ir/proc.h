@@ -28,6 +28,7 @@
 #include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/types/optional_ref.h"
 #include "absl/types/span.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
@@ -289,8 +290,8 @@ class Proc : public FunctionBase {
           call_remapping = {},
       const absl::flat_hash_map<std::string, std::string>&
           state_name_remapping = {},
-      std::optional<absl::flat_hash_map<Node*, Node*>*> original_node_to_clone =
-          std::nullopt,
+      absl::optional_ref<absl::flat_hash_map<Node*, Node*>>
+          original_node_to_clone = std::nullopt,
       const absl::flat_hash_map<std::string, std::string>&
           spawned_proc_name_remapping = {}) const;
 

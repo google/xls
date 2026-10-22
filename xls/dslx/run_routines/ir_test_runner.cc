@@ -33,6 +33,7 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
+#include "absl/types/optional_ref.h"
 #include "absl/types/span.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
@@ -183,7 +184,7 @@ class IrRunner : public AbstractParsedTestRunner {
 
   absl::StatusOr<RunResult> RunTestFunction(
       std::string_view name, const BytecodeInterpreterOptions& options,
-      std::optional<DslxInterpreterEvents*> events) override {
+      absl::optional_ref<DslxInterpreterEvents> events) override {
     auto* func_package = packages_.at(name).get();
     XLS_ASSIGN_OR_RETURN(xls::Function * f, func_package->GetTopAsFunction());
     XLS_RET_CHECK(f->GetType()->return_type()->IsTuple()) << f->GetType();
@@ -194,7 +195,7 @@ class IrRunner : public AbstractParsedTestRunner {
         this->func_runner_(
             f, {}, BytecodeInterpreterOptionsToEvaluatorOptions(options)));
     if (events.has_value()) {
-      *(events.value()) = DslxInterpreterEvents::FromProto(v.events.AsProto());
+      *events = DslxInterpreterEvents::FromProto(v.events.AsProto());
     }
     if (v.events.GetAssertMessages().empty()) {
       return RunResult{.result = absl::OkStatus()};

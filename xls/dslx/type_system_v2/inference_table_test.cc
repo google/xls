@@ -74,7 +74,7 @@ class InferenceTableTest : public ::testing::Test {
             *table_, *module_, *import_data_, *warning_collector_, file_table_,
             TypeSystemTracer::Create(/*active=*/false),
             /*semantics_analysis=*/nullptr, /*error_handler=*/nullptr,
-            /*trait_deriver=*/nullptr));
+            /*trait_deriver=*/std::nullopt));
     XLS_RETURN_IF_ERROR(
         converter->ConvertSubtree(module_.get(), /*function=*/std::nullopt,
                                   /*parametric_context=*/std::nullopt));
@@ -726,7 +726,7 @@ TEST_F(InferenceTableTest, ConcretizeAnyTypeAnnotationProducesPositionalError) {
           *table_, *module_, *import_data_, *warning_collector_, file_table_,
           TypeSystemTracer::Create(/*active=*/false),
           /*semantics_analysis=*/nullptr, /*error_handler=*/nullptr,
-          /*trait_deriver=*/nullptr));
+          /*trait_deriver=*/std::nullopt));
   TypeAnnotation* any_type = module_->Make<AnyTypeAnnotation>();
   absl::StatusOr<std::unique_ptr<Type>> result =
       converter->Concretize(any_type, /*parametric_context=*/std::nullopt,

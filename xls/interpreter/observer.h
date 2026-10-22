@@ -21,6 +21,7 @@
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/types/optional_ref.h"
 #include "absl/types/span.h"
 #include "xls/ir/node.h"
 #include "xls/ir/value.h"
@@ -40,7 +41,7 @@ class EvaluationObserver {
   virtual void Tick() = 0;
 
   // Convert this to an observer capable of accepting jit values if possible.
-  virtual std::optional<RuntimeObserver*> AsRawObserver() {
+  virtual absl::optional_ref<RuntimeObserver> AsRawObserver() {
     return std::nullopt;
   }
 };

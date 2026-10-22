@@ -25,6 +25,7 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/substitute.h"
+#include "absl/types/optional_ref.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/errors.h"
@@ -53,7 +54,7 @@ absl::StatusOr<std::unique_ptr<ModuleInfo>> TypecheckModuleV2(
     ImportData* import_data, WarningCollector* warnings,
     std::unique_ptr<SemanticsAnalysis> semantics_analysis,
     TypeInferenceErrorHandler error_handler,
-    std::optional<TraitDeriver*> trait_deriver) {
+    absl::optional_ref<TraitDeriver> trait_deriver) {
   std::string_view module_name = module->name();
   const bool top_module = !import_data->HasInferenceTable();
   if (top_module) {

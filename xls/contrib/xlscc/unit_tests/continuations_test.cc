@@ -30,6 +30,7 @@
 #include "absl/log/log.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/match.h"
+#include "absl/types/optional_ref.h"
 #include "clang/include/clang/AST/Decl.h"
 #include "xls/common/file/temp_file.h"
 #include "xls/common/status/matchers.h"
@@ -133,13 +134,13 @@ class ContinuationsTest : public XlsccTestBase {
       const xlscc::GeneratedFunctionSlice& slice, std::string_view name,
       std::optional<bool> direct_in = std::nullopt,
       std::optional<bool> is_feedback = std::nullopt,
-      std::optional<const GeneratedFunction*> func = std::nullopt,
+      absl::optional_ref<const GeneratedFunction> func = std::nullopt,
       std::optional<int64_t> decl_index = std::nullopt) {
     auto check_is_feedback =
         [&func,
          &slice](const xlscc::ContinuationInput& continuation_in) -> bool {
       CHECK(func.has_value());
-      const xlscc::GeneratedFunction& full_func = *func.value();
+      const xlscc::GeneratedFunction& full_func = *func;
       std::optional<int64_t> input_slice_index = std::nullopt;
       absl::flat_hash_map<const ContinuationValue*, int64_t>
           slice_index_by_value = GetSliceIndicesByValue(full_func);

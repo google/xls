@@ -24,6 +24,7 @@
 #include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/types/optional_ref.h"
 #include "xls/dslx/fmt/comments.h"
 #include "xls/dslx/frontend/ast_node.h"
 #include "xls/dslx/frontend/comment_data.h"
@@ -65,7 +66,7 @@ class FormatDisabler {
                                                        const AstNode *current);
 
   // Find a CommentData object that is a enable comment after the given node
-  std::optional<const CommentData *> FindEnableAfter(const AstNode *node);
+  absl::optional_ref<const CommentData> FindEnableAfter(const AstNode* node);
 
   VirtualizableFilesystem &vfs_;
 

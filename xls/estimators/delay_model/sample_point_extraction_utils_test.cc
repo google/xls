@@ -160,7 +160,7 @@ TEST_F(SamplePointExtractionUtilsTest,
   XLS_ASSERT_OK_AND_ASSIGN(auto package, ParsePackage(kBasicPackageCode));
   XLS_ASSERT_OK_AND_ASSIGN(
       std::vector<SamplePoint> points,
-      ExtractSamplePoints(*package, op_models_, &delay_estimator_));
+      ExtractSamplePoints(*package, op_models_, delay_estimator_));
   EXPECT_THAT(
       points,
       ElementsAre(

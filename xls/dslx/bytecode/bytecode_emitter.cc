@@ -37,6 +37,7 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/strip.h"
+#include "absl/types/optional_ref.h"
 #include "absl/types/span.h"
 #include "absl/types/variant.h"
 #include "xls/common/status/ret_check.h"
@@ -1254,11 +1255,11 @@ absl::Status BytecodeEmitter::HandleInvocation(const Invocation* node) {
   }
 
   std::optional<ParametricEnv> callee_bindings;
-  std::optional<const ParametricEnv*> callee_bindings_ptr =
+  absl::optional_ref<const ParametricEnv> callee_bindings_from_invocation =
       type_info_->GetInvocationCalleeBindings(
           node, caller_bindings_.value_or(ParametricEnv()));
-  if (callee_bindings_ptr.has_value()) {
-    callee_bindings = *callee_bindings_ptr.value();
+  if (callee_bindings_from_invocation.has_value()) {
+    callee_bindings = *callee_bindings_from_invocation;
   }
 
   bytecode_.push_back(Bytecode(
@@ -1665,11 +1666,11 @@ absl::Status BytecodeEmitter::HandleSpawn(const Spawn* node) {
   // (config/next), so we can use either invocation to get the bindings.
   const ParametricEnv caller_bindings =
       caller_bindings_.has_value() ? caller_bindings_.value() : ParametricEnv();
-  std::optional<const ParametricEnv*> maybe_callee_bindings =
+  absl::optional_ref<const ParametricEnv> maybe_callee_bindings =
       type_info_->GetInvocationCalleeBindings(node->config(), caller_bindings);
   std::optional<ParametricEnv> final_bindings = std::nullopt;
   if (maybe_callee_bindings.has_value()) {
-    final_bindings = *maybe_callee_bindings.value();
+    final_bindings = *maybe_callee_bindings;
   }
 
   Bytecode::SpawnFunctions spawn_functions = {.config = node->config(),

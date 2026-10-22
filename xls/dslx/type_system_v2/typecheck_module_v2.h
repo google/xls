@@ -17,9 +17,9 @@
 
 #include <filesystem>
 #include <memory>
-#include <optional>
 
 #include "absl/status/statusor.h"
+#include "absl/types/optional_ref.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/ast_node.h"
 #include "xls/dslx/frontend/module.h"
@@ -38,7 +38,7 @@ absl::StatusOr<std::unique_ptr<ModuleInfo>> TypecheckModuleV2(
     ImportData* import_data, WarningCollector* warnings,
     std::unique_ptr<SemanticsAnalysis> semantics_analysis,
     TypeInferenceErrorHandler error_handler,
-    std::optional<TraitDeriver*> trait_deriver);
+    absl::optional_ref<TraitDeriver> trait_deriver);
 
 }  // namespace xls::dslx
 

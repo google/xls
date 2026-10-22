@@ -16,9 +16,9 @@
 #define XLS_DSLX_TYPE_SYSTEM_V2_INFERENCE_TABLE_CONVERTER_IMPL_H_
 
 #include <memory>
-#include <optional>
 
 #include "absl/status/statusor.h"
+#include "absl/types/optional_ref.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/module.h"
 #include "xls/dslx/frontend/pos.h"
@@ -41,7 +41,7 @@ CreateInferenceTableConverter(
     std::unique_ptr<TypeSystemTracer> tracer,
     std::unique_ptr<SemanticsAnalysis> semantics_analysis,
     TypeInferenceErrorHandler error_handler,
-    std::optional<TraitDeriver*> trait_deriver);
+    absl::optional_ref<TraitDeriver> trait_deriver);
 
 }  // namespace xls::dslx
 

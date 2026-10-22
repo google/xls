@@ -33,6 +33,7 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/synchronization/mutex.h"
+#include "absl/types/optional_ref.h"
 #include "absl/types/span.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
@@ -148,7 +149,7 @@ class BitwidthExtendingEquivalenceMapping : public EquivalenceMapping {
   using EquivalenceMapping::EquivalenceMapping;
 
   absl::StatusOr<std::unique_ptr<EquivalenceMapping>> Clone(
-      std::optional<const absl::flat_hash_map<Node*, Node*>*>
+      absl::optional_ref<const absl::flat_hash_map<Node*, Node*>>
           original_node_to_clone) const override {
     XLS_ASSIGN_OR_RETURN(Node * new_src, MapNode(src_, original_node_to_clone));
     XLS_ASSIGN_OR_RETURN(Node * new_dst, MapNode(dst_, original_node_to_clone));
@@ -230,7 +231,7 @@ class AddSubEquivalenceMapping : public EquivalenceMapping {
   using EquivalenceMapping::EquivalenceMapping;
 
   absl::StatusOr<std::unique_ptr<EquivalenceMapping>> Clone(
-      std::optional<const absl::flat_hash_map<Node*, Node*>*>
+      absl::optional_ref<const absl::flat_hash_map<Node*, Node*>>
           original_node_to_clone) const override {
     return CloneEqMapping(this, original_node_to_clone);
   }
@@ -405,7 +406,7 @@ class ComparatorEquivalenceMapping : public EquivalenceMapping {
   using EquivalenceMapping::EquivalenceMapping;
 
   absl::StatusOr<std::unique_ptr<EquivalenceMapping>> Clone(
-      std::optional<const absl::flat_hash_map<Node*, Node*>*>
+      absl::optional_ref<const absl::flat_hash_map<Node*, Node*>>
           original_node_to_clone) const override {
     return CloneEqMapping(this, original_node_to_clone);
   }
@@ -618,7 +619,7 @@ class CompareToArithEquivalenceMapping : public EquivalenceMapping {
         orig_dst_(orig_dst.value_or(dst)) {}
 
   absl::StatusOr<std::unique_ptr<EquivalenceMapping>> Clone(
-      std::optional<const absl::flat_hash_map<Node*, Node*>*>
+      absl::optional_ref<const absl::flat_hash_map<Node*, Node*>>
           original_node_to_clone) const override {
     XLS_ASSIGN_OR_RETURN(Node * new_src, MapNode(src_, original_node_to_clone));
     XLS_ASSIGN_OR_RETURN(Node * new_dst, MapNode(dst_, original_node_to_clone));
@@ -871,7 +872,7 @@ class ShiftEquivalenceMapping : public EquivalenceMapping {
   using EquivalenceMapping::EquivalenceMapping;
 
   absl::StatusOr<std::unique_ptr<EquivalenceMapping>> Clone(
-      std::optional<const absl::flat_hash_map<Node*, Node*>*>
+      absl::optional_ref<const absl::flat_hash_map<Node*, Node*>>
           original_node_to_clone) const override {
     return CloneEqMapping(this, original_node_to_clone);
   }
@@ -965,7 +966,7 @@ class ShiftEquivalenceMapping : public EquivalenceMapping {
 }  // namespace
 
 absl::StatusOr<Node*> EquivalenceMapping::MapNode(
-    Node* node, std::optional<const absl::flat_hash_map<Node*, Node*>*>
+    Node* node, absl::optional_ref<const absl::flat_hash_map<Node*, Node*>>
                     original_node_to_clone) const {
   // If no mapping is given, or the node is from a temporary package, return
   // the node itself.
@@ -973,8 +974,8 @@ absl::StatusOr<Node*> EquivalenceMapping::MapNode(
       (tmp_package_ != nullptr && node->package() == tmp_package_.get())) {
     return node;
   }
-  auto it = (*original_node_to_clone)->find(node);
-  XLS_RET_CHECK(it != (*original_node_to_clone)->end())
+  auto it = original_node_to_clone->find(node);
+  XLS_RET_CHECK(it != original_node_to_clone->end())
       << "Node " << node->ToString()
       << " not found in original_node_to_clone map";
   return it->second;

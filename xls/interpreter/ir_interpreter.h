@@ -22,6 +22,7 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/types/optional_ref.h"
 #include "absl/types/span.h"
 #include "xls/interpreter/evaluator_options.h"
 #include "xls/interpreter/observer.h"
@@ -53,12 +54,13 @@ class IrInterpreter : public DfsVisitor {
   explicit IrInterpreter(
       InterpreterEvents* events,
       const EvaluatorOptions& options = EvaluatorOptions(),
-      std::optional<EvaluationObserver*> observer = std::nullopt,
+      absl::optional_ref<EvaluationObserver> observer = std::nullopt,
       int call_depth = 0)
       : node_values_ptr_(nullptr),
         events_ptr_(events),
         options_(options),
-        observer_(observer),
+        observer_(observer.has_value() ? std::optional(observer.as_pointer())
+                                       : std::nullopt),
         call_depth_(call_depth) {}
 
   // Constructor which takes an existing map of node values and events. Used for
@@ -67,12 +69,13 @@ class IrInterpreter : public DfsVisitor {
   IrInterpreter(absl::flat_hash_map<Node*, Value>* node_values,
                 InterpreterEvents* events,
                 const EvaluatorOptions& options = EvaluatorOptions(),
-                std::optional<EvaluationObserver*> observer = std::nullopt,
+                absl::optional_ref<EvaluationObserver> observer = std::nullopt,
                 int call_depth = 0)
       : node_values_ptr_(node_values),
         events_ptr_(events),
         options_(options),
-        observer_(observer),
+        observer_(observer.has_value() ? std::optional(observer.as_pointer())
+                                       : std::nullopt),
         call_depth_(call_depth) {}
 
   // Sets the evaluated value for 'node' to the given Value. 'value' must be

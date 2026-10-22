@@ -495,7 +495,7 @@ absl::StatusOr<dslx::Import*> DslxBuilder::GetOrImportModule(
                                    std::move(module), path, &import_data_,
                                    &warnings_, std::move(semantics_analysis),
                                    /*error_handler=*/nullptr,
-                                   /*trait_deriver=*/nullptr);
+                                   /*trait_deriver=*/std::nullopt);
                              },
                              import_tokens, &import_data_, dslx::Span::Fake(),
                              import_data_.vfs()));

@@ -40,6 +40,7 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
+#include "absl/types/optional_ref.h"
 #include "absl/types/span.h"
 #include "xls/common/logging/log_lines.h"
 #include "xls/common/math_util.h"
@@ -277,7 +278,7 @@ absl::StatusOr<int64_t> FindMinimumWorstCaseThroughput(
 // return true if any instance of the proc has the channel as an I/O. With
 // multiple instantiations, this could lead to unexpected behavior.
 bool IsExternalIoNode(ChannelNode* node,
-                      const std::optional<const ProcElaboration*> elab) {
+                      absl::optional_ref<const ProcElaboration> elab) {
   Proc* proc = node->function_base()->AsProcOrDie();
   if (proc->is_new_style_proc()) {
     // Channels are proc-scoped.
@@ -289,8 +290,8 @@ bool IsExternalIoNode(ChannelNode* node,
     CHECK_OK(channel_interface.status());
     CHECK(elab.has_value());
     for (ChannelInstance* channel_instance :
-         (*elab)->GetInstancesOfChannelInterface(channel_interface.value())) {
-      if ((*elab)->IsTopInterfaceChannel(channel_instance)) {
+         elab->GetInstancesOfChannelInterface(channel_interface.value())) {
+      if (elab->IsTopInterfaceChannel(channel_instance)) {
         return true;
       }
     }
@@ -545,7 +546,7 @@ void SetWorstCaseThroughput(std::optional<int64_t> worst_case_throughput,
 absl::StatusOr<PipelineSchedule> RunPipelineScheduleInternal(
     FunctionBase* f, const DelayEstimator& delay_estimator,
     const SchedulingOptions& options,
-    const std::optional<const ProcElaboration*> elab,
+    absl::optional_ref<const ProcElaboration> elab,
     const synthesis::Synthesizer* synthesizer) {
   if (!options.pipeline_stages().has_value() &&
       !options.clock_period_ps().has_value()) {
@@ -920,7 +921,7 @@ absl::StatusOr<PipelineSchedule> RunPipelineScheduleInternal(
 absl::StatusOr<PipelineSchedule> RunPipelineSchedule(
     FunctionBase* f, const DelayEstimator& delay_estimator,
     const SchedulingOptions& options,
-    std::optional<const ProcElaboration*> elab) {
+    absl::optional_ref<const ProcElaboration> elab) {
   return RunPipelineScheduleInternal(f, delay_estimator, options, elab,
                                      /*synthesizer=*/nullptr);
 }
@@ -928,7 +929,7 @@ absl::StatusOr<PipelineSchedule> RunPipelineSchedule(
 absl::StatusOr<PipelineSchedule> RunPipelineScheduleWithFdo(
     FunctionBase* f, const DelayEstimator& delay_estimator,
     const SchedulingOptions& options, const synthesis::Synthesizer& synthesizer,
-    std::optional<const ProcElaboration*> elab) {
+    absl::optional_ref<const ProcElaboration> elab) {
   return RunPipelineScheduleInternal(f, delay_estimator, options, elab,
                                      &synthesizer);
 }

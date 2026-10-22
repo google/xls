@@ -72,6 +72,7 @@ cc_library(
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/strings:str_format",
+        "@abseil-cpp//absl/types:optional_ref",
         "@abseil-cpp//absl/types:span",
     ],
 )
@@ -129,6 +130,7 @@ cc_test(
         "@abseil-cpp//absl/container:flat_hash_map",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:status_matchers",
+        "@abseil-cpp//absl/types:optional_ref",
         "@abseil-cpp//absl/types:span",
         "@googletest//:gtest",
     ],
@@ -158,6 +160,7 @@ cc_library(
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/strings:str_format",
+        "@abseil-cpp//absl/types:optional_ref",
         "@abseil-cpp//absl/types:span",
     ],
 )
@@ -282,6 +285,7 @@ cc_library(
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/strings:str_format",
+        "@abseil-cpp//absl/types:optional_ref",
         "@abseil-cpp//absl/types:span",
         "@googletest//:gtest",
     ],
@@ -397,6 +401,7 @@ cc_library(
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings:str_format",
+        "@abseil-cpp//absl/types:optional_ref",
     ],
 )
 
@@ -587,6 +592,7 @@ cc_library(
         "//xls/ir",
         "//xls/ir:value",
         "@abseil-cpp//absl/container:flat_hash_map",
+        "@abseil-cpp//absl/types:optional_ref",
         "@abseil-cpp//absl/types:span",
     ],
 )

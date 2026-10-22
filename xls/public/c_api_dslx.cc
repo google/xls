@@ -32,6 +32,7 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
+#include "absl/types/optional_ref.h"
 #include "absl/types/span.h"
 #include "absl/types/variant.h"
 #include "xls/common/attribute_data.h"
@@ -1658,13 +1659,13 @@ struct xls_dslx_invocation_data* xls_dslx_type_info_get_root_invocation_data(
   CHECK_NE(invocation, nullptr);
   auto* cpp_type_info = reinterpret_cast<xls::dslx::TypeInfo*>(type_info);
   auto* cpp_invocation = reinterpret_cast<xls::dslx::Invocation*>(invocation);
-  std::optional<const xls::dslx::InvocationData*> result =
+  absl::optional_ref<const xls::dslx::InvocationData> result =
       cpp_type_info->GetInvocationData(cpp_invocation);
   if (!result.has_value()) {
     return nullptr;
   }
   return reinterpret_cast<xls_dslx_invocation_data*>(
-      const_cast<xls::dslx::InvocationData*>(*result));
+      const_cast<xls::dslx::InvocationData*>(result.as_pointer()));
 }
 
 void xls_dslx_invocation_callee_data_array_free(

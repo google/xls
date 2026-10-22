@@ -18,6 +18,7 @@
 #include <optional>
 
 #include "absl/status/statusor.h"
+#include "absl/types/optional_ref.h"
 #include "xls/estimators/delay_model/delay_estimator.h"
 #include "xls/fdo/synthesizer.h"
 #include "xls/ir/function_base.h"
@@ -34,13 +35,13 @@ namespace xls {
 absl::StatusOr<PipelineSchedule> RunPipelineSchedule(
     FunctionBase* f, const DelayEstimator& delay_estimator,
     const SchedulingOptions& options,
-    std::optional<const ProcElaboration*> elab = std::nullopt);
+    absl::optional_ref<const ProcElaboration> elab = std::nullopt);
 
 // Produce a pipeline schedule using feedback-directed scheduling.
 absl::StatusOr<PipelineSchedule> RunPipelineScheduleWithFdo(
     FunctionBase* f, const DelayEstimator& delay_estimator,
     const SchedulingOptions& options, const synthesis::Synthesizer& synthesizer,
-    std::optional<const ProcElaboration*> elab = std::nullopt);
+    absl::optional_ref<const ProcElaboration> elab = std::nullopt);
 
 // Produces a pipeline schedule for the network of procs defined by `elab`. The
 // schedule is for a synchronous proc implementation.

@@ -36,6 +36,7 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
+#include "absl/types/optional_ref.h"
 #include "absl/types/span.h"
 #include "xls/codegen/codegen_options.h"
 #include "xls/codegen/codegen_residual_data.pb.h"
@@ -375,7 +376,7 @@ class BlockGenerator {
     }
   }
 
-  std::optional<const BlockResidualData*> GetReferenceBlockResidualData()
+  absl::optional_ref<const BlockResidualData> GetReferenceBlockResidualData()
       const {
     if (!options_.residual_data().has_value()) {
       return std::nullopt;
@@ -383,7 +384,7 @@ class BlockGenerator {
     for (const BlockResidualData& block_data :
          options_.residual_data().value().blocks()) {
       if (block_data.block_name() == block_->name()) {
-        return &block_data;
+        return block_data;
       }
     }
     return std::nullopt;
@@ -612,11 +613,11 @@ class BlockGenerator {
     // If reference residual data is provided, this map indicates which nodes
     // (by id) were emitted inline in the reference compilation.
     absl::flat_hash_map<int64_t, bool> nodes_ids_emitted_inline_in_reference;
-    std::optional<const BlockResidualData*> reference_block_residual_data =
+    absl::optional_ref<const BlockResidualData> reference_block_residual_data =
         GetReferenceBlockResidualData();
     if (reference_block_residual_data.has_value()) {
       for (const NodeResidualData& node_data :
-           reference_block_residual_data.value()->nodes()) {
+           reference_block_residual_data->nodes()) {
         nodes_ids_emitted_inline_in_reference[node_data.node_id()] =
             node_data.emitted_inline();
       }

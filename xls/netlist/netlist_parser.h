@@ -36,6 +36,7 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/substitute.h"
+#include "absl/types/optional_ref.h"
 #include "re2/re2.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
@@ -438,9 +439,10 @@ template <typename EvalT>
 absl::StatusOr<const AbstractCellLibraryEntry<EvalT>*>
 AbstractParser<EvalT>::ParseCellModule(AbstractNetlist<EvalT>& netlist) {
   XLS_ASSIGN_OR_RETURN(std::string name, PopNameOrError());
-  auto maybe_module = netlist.MaybeGetModule(name);
+  absl::optional_ref<const AbstractModule<EvalT>> maybe_module =
+      netlist.MaybeGetModule(name);
   if (maybe_module.has_value()) {
-    return maybe_module.value()->AsCellLibraryEntry();
+    return maybe_module->AsCellLibraryEntry();
   }
   if (name == "SB_LUT4") {
     XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kStartParams));

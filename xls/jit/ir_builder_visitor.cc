@@ -37,6 +37,7 @@
 #include "absl/strings/ascii.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
+#include "absl/types/optional_ref.h"
 #include "absl/types/span.h"
 #include "cppitertools/groupby.hpp"
 #include "cppitertools/range.hpp"
@@ -817,12 +818,12 @@ class NodeIrContext {
   // If `return_value` is not specified then false is returned by the node
   // function.
   void FinalizeWithValue(llvm::Value* result,
-                         std::optional<llvm::IRBuilder<>*> exit_builder,
+                         absl::optional_ref<llvm::IRBuilder<>> exit_builder,
                          std::optional<llvm::Value*> return_value,
                          std::optional<Type*> return_type = std::nullopt);
   void FinalizeWithPointerToValue(
       llvm::Value* result_buffer,
-      std::optional<llvm::IRBuilder<>*> exit_builder,
+      absl::optional_ref<llvm::IRBuilder<>> exit_builder,
       std::optional<llvm::Value*> return_value,
       std::optional<Type*> result_type = std::nullopt,
       const std::function<void(llvm::IRBuilder<>&)>& result_cleanup =
@@ -1245,11 +1246,11 @@ llvm::Value* NodeIrContext::GetOperandPtr(int64_t i) {
 }
 
 void NodeIrContext::FinalizeWithValue(
-    llvm::Value* result, std::optional<llvm::IRBuilder<>*> exit_builder,
+    llvm::Value* result, absl::optional_ref<llvm::IRBuilder<>> exit_builder,
     std::optional<llvm::Value*> return_value,
     std::optional<Type*> return_type) {
   llvm::IRBuilder<>* b =
-      exit_builder.has_value() ? exit_builder.value() : &entry_builder();
+      exit_builder.has_value() ? exit_builder.as_pointer() : &entry_builder();
   // Special case 0 & 1 bit values to automatically extend them since using them
   // as a boolean within ssa registers is a common pattern.
   if (result->getType()->isIntegerTy(1)) {
@@ -1273,11 +1274,12 @@ void NodeIrContext::FinalizeWithValue(
 }
 
 void NodeIrContext::FinalizeWithPointerToValue(
-    llvm::Value* result_buffer, std::optional<llvm::IRBuilder<>*> exit_builder,
+    llvm::Value* result_buffer,
+    absl::optional_ref<llvm::IRBuilder<>> exit_builder,
     std::optional<llvm::Value*> return_value, std::optional<Type*> result_type,
     const std::function<void(llvm::IRBuilder<>&)>& result_cleanup) {
   llvm::IRBuilder<>* b =
-      exit_builder.has_value() ? exit_builder.value() : &entry_builder();
+      exit_builder.has_value() ? exit_builder.as_pointer() : &entry_builder();
   llvm::IRBuilder<>* final_exit_block;
   std::optional<llvm::IRBuilder<>> build;
   if (jit_context_.llvm_compiler().include_observer_callbacks()) {
@@ -1464,19 +1466,19 @@ class IrBuilderVisitor : public DfsVisitorWithDefault {
   // function.
   absl::Status FinalizeNodeIrContextWithValue(
       NodeIrContext&& node_context, llvm::Value* result,
-      std::optional<llvm::IRBuilder<>*> exit_builder = std::nullopt,
+      absl::optional_ref<llvm::IRBuilder<>> exit_builder = std::nullopt,
       std::optional<llvm::Value*> return_value = std::nullopt,
       std::optional<Type*> result_type = std::nullopt);
 
   absl::Status FinalizeNodeIrContextWithPointerToValue(
       NodeIrContext&& node_context, llvm::Value* result_buffer,
-      std::optional<llvm::IRBuilder<>*> exit_builder = std::nullopt,
+      absl::optional_ref<llvm::IRBuilder<>> exit_builder = std::nullopt,
       std::optional<llvm::Value*> return_value = std::nullopt,
       std::optional<Type*> result_type = std::nullopt);
 
   absl::Status FinalizeNodeIrContextWithAllocaValue(
       NodeIrContext&& node_context, AllocaBuffer result_buffer,
-      std::optional<llvm::IRBuilder<>*> exit_builder = std::nullopt,
+      absl::optional_ref<llvm::IRBuilder<>> exit_builder = std::nullopt,
       std::optional<llvm::Value*> return_value = std::nullopt,
       std::optional<Type*> result_type = std::nullopt);
   llvm::Value* MaybeAsSigned(llvm::Value* v, Type* xls_type,
@@ -3369,7 +3371,7 @@ absl::StatusOr<NodeIrContext> IrBuilderVisitor::NewInputNodeIrContext(
 
 absl::Status IrBuilderVisitor::FinalizeNodeIrContextWithValue(
     NodeIrContext&& node_context, llvm::Value* result,
-    std::optional<llvm::IRBuilder<>*> exit_builder,
+    absl::optional_ref<llvm::IRBuilder<>> exit_builder,
     std::optional<llvm::Value*> return_value,
     std::optional<Type*> result_type) {
   node_context.FinalizeWithValue(result, exit_builder, return_value,
@@ -3380,7 +3382,7 @@ absl::Status IrBuilderVisitor::FinalizeNodeIrContextWithValue(
 
 absl::Status IrBuilderVisitor::FinalizeNodeIrContextWithAllocaValue(
     NodeIrContext&& node_context, AllocaBuffer result_buffer,
-    std::optional<llvm::IRBuilder<>*> exit_builder,
+    absl::optional_ref<llvm::IRBuilder<>> exit_builder,
     std::optional<llvm::Value*> return_value,
     std::optional<Type*> result_type) {
   node_context.FinalizeWithPointerToValue(
@@ -3392,7 +3394,7 @@ absl::Status IrBuilderVisitor::FinalizeNodeIrContextWithAllocaValue(
 
 absl::Status IrBuilderVisitor::FinalizeNodeIrContextWithPointerToValue(
     NodeIrContext&& node_context, llvm::Value* result_buffer,
-    std::optional<llvm::IRBuilder<>*> exit_builder,
+    absl::optional_ref<llvm::IRBuilder<>> exit_builder,
     std::optional<llvm::Value*> return_value,
     std::optional<Type*> result_type) {
   node_context.FinalizeWithPointerToValue(result_buffer, exit_builder,

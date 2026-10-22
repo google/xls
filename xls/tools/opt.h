@@ -28,6 +28,7 @@
 #include "absl/base/macros.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/types/optional_ref.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/package.h"
 #include "xls/passes/optimization_pass.h"
@@ -80,7 +81,7 @@ struct ABSL_DEPRECATED("Use OptFlagsProto to pass configuration information.")
   std::optional<OptimizationPipelineProto> custom_registry = std::nullopt;
   // Decorator to modify the registry before use. Must live for the duration of
   // the optimization.
-  std::optional<PassRegistryDecorator*> registry_decorator = std::nullopt;
+  absl::optional_ref<PassRegistryDecorator> registry_decorator = std::nullopt;
   std::optional<PassPipelineProto> pass_pipeline = std::nullopt;
   std::optional<int64_t> bisect_limit;
   bool debug_optimizations =
@@ -99,7 +100,7 @@ struct OptMetadata {
 
 // Struct of additional pointers that can be used to modify the way opt runs.
 struct OptModifiers {
-  std::optional<PassRegistryDecorator*> registry_decorator = std::nullopt;
+  absl::optional_ref<PassRegistryDecorator> registry_decorator = std::nullopt;
 };
 
 // Helper used in the opt_main tool, optimizes the given IR for a particular

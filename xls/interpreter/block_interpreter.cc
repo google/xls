@@ -32,6 +32,7 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
+#include "absl/types/optional_ref.h"
 #include "absl/types/span.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
@@ -63,7 +64,7 @@ class BlockInterpreter final : public IrInterpreter {
                    std::string_view register_prefix,
                    const absl::flat_hash_map<std::string, Value>& reg_state,
                    absl::flat_hash_map<std::string, Value>& next_reg_state,
-                   std::optional<EvaluationObserver*> observer)
+                   absl::optional_ref<EvaluationObserver> observer)
       : IrInterpreter(events, EvaluatorOptions(), observer),
         register_prefix_(register_prefix),
         reg_state_(reg_state),
@@ -439,7 +440,7 @@ class ElaboratedBlockInterpreter final : public ElaboratedBlockDfsVisitor {
       const BlockElaboration& elaboration,
       const absl::flat_hash_map<std::string, Value>& inputs,
       const absl::flat_hash_map<std::string, Value>& reg_state,
-      std::optional<EvaluationObserver*> observer)
+      absl::optional_ref<EvaluationObserver> observer)
       : inputs_(inputs), reg_state_(reg_state) {
     next_reg_state_.reserve(reg_state_.size());
 
@@ -949,7 +950,7 @@ absl::StatusOr<BlockRunResult> BlockRun(
     const absl::flat_hash_map<std::string, Value>& inputs,
     const absl::flat_hash_map<std::string, Value>& reg_state,
     const BlockElaboration& elaboration,
-    std::optional<EvaluationObserver*> observer) {
+    absl::optional_ref<EvaluationObserver> observer) {
   Block* top_block = *elaboration.top()->block();
   // Verify each input corresponds to an input port. The reverse check (each
   // input port has a corresponding value in `inputs`) is checked in
@@ -1052,14 +1053,15 @@ class StatelessBlockContinuation final : public BlockContinuation {
       (*observer_)->Tick();
     }
     // Run to get the next value of all registers.
-    XLS_ASSIGN_OR_RETURN(last_result_, BlockRun(inputs, last_result_.reg_state,
-                                                elaboration_, observer_));
+    XLS_ASSIGN_OR_RETURN(last_result_,
+                         BlockRun(inputs, last_result_.reg_state, elaboration_,
+                                  observer_.value_or(nullptr)));
 
     if (sample_time_ == BlockEvaluator::OutputPortSampleTime::kAfterLastClock) {
       // Propagate that register value forwards.
-      XLS_ASSIGN_OR_RETURN(
-          BlockRunResult raw,
-          BlockRun(inputs, last_result_.reg_state, elaboration_, observer_));
+      XLS_ASSIGN_OR_RETURN(BlockRunResult raw,
+                           BlockRun(inputs, last_result_.reg_state,
+                                    elaboration_, observer_.value_or(nullptr)));
       last_result_.outputs = std::move(raw.outputs);
     }
     return absl::OkStatus();

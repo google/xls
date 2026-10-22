@@ -25,6 +25,7 @@
 #include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/types/optional_ref.h"
 #include "xls/interpreter/evaluator_options.h"
 #include "xls/interpreter/observer.h"
 #include "xls/ir/events.h"
@@ -65,8 +66,8 @@ class ProcContinuation {
   ProcInstance* proc_instance() const { return proc_instance_; }
   Proc* proc() const { return proc_instance_->proc(); }
 
-  const std::optional<EvaluationObserver*>& GetObserver() const {
-    return observer_;
+  absl::optional_ref<EvaluationObserver> GetObserver() const {
+    return observer_.value_or(nullptr);
   }
 
   virtual void ClearObserver() { observer_ = std::nullopt; }

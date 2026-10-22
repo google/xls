@@ -28,6 +28,7 @@
 #include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
+#include "absl/types/optional_ref.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
@@ -101,7 +102,7 @@ static absl::StatusOr<InterpValue> Interpret(
     const std::vector<InterpValue>& args = {},
     const BytecodeInterpreterOptions& options = BytecodeInterpreterOptions(),
     ImportData* import_data = nullptr,
-    std::optional<DslxInterpreterEvents*> events = std::nullopt) {
+    absl::optional_ref<DslxInterpreterEvents> events = std::nullopt) {
   std::optional<ImportData> local_import_data;
   if (import_data == nullptr) {
     local_import_data.emplace(CreateImportDataForTest());

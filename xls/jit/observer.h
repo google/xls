@@ -22,6 +22,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/types/optional_ref.h"
 #include "absl/types/span.h"
 #include "xls/interpreter/observer.h"
 #include "xls/ir/node.h"
@@ -115,7 +116,7 @@ class RuntimeEvaluationObserverAdapter final
                                    JitRuntime* runtime)
       : RuntimeEvaluationObserver(to_node, runtime), real_(obs) {}
 
-  std::optional<RuntimeObserver*> AsRawObserver() override { return this; }
+  absl::optional_ref<RuntimeObserver> AsRawObserver() override { return this; }
 
   void NodeEvaluated(Node* n, const Value& v) override {
     real_->NodeEvaluated(n, v);

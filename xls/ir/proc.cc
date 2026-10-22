@@ -35,6 +35,7 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
+#include "absl/types/optional_ref.h"
 #include "absl/types/span.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
@@ -323,7 +324,8 @@ absl::StatusOr<Proc*> Proc::Clone(
     const absl::flat_hash_map<const FunctionBase*, FunctionBase*>&
         call_remapping,
     const absl::flat_hash_map<std::string, std::string>& state_name_remapping,
-    std::optional<absl::flat_hash_map<Node*, Node*>*> original_node_to_clone,
+    absl::optional_ref<absl::flat_hash_map<Node*, Node*>>
+        original_node_to_clone,
     const absl::flat_hash_map<std::string, std::string>&
         spawned_proc_name_remapping) const {
   auto new_chan_name = [&](std::string_view n) -> std::string_view {
@@ -616,11 +618,8 @@ absl::StatusOr<Proc*> Proc::Clone(
   }
 
   if (original_node_to_clone.has_value()) {
-    absl::flat_hash_map<Node*, Node*>* original_node_to_clone_ptr =
-        *original_node_to_clone;
-    XLS_RET_CHECK(original_node_to_clone_ptr != nullptr);
     for (auto& [original_node, cloned_node] : original_to_clone) {
-      (*original_node_to_clone_ptr)[original_node] = cloned_node;
+      (*original_node_to_clone)[original_node] = cloned_node;
     }
   }
 

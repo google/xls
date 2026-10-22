@@ -30,6 +30,7 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
+#include "absl/types/optional_ref.h"
 #include "absl/types/span.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/common/visitor.h"
@@ -336,11 +337,11 @@ std::optional<const StructDefBase*> ResolveColonRefSubjectToStruct(
 
 std::optional<const Function*> ResolveImportedFunction(
     const TypeInfo& ti, const ImportSubject& subject, std::string_view name) {
-  std::optional<const ImportedInfo*> imported = ti.GetImported(subject);
+  absl::optional_ref<const ImportedInfo> imported = ti.GetImported(subject);
   if (!imported.has_value()) {
     return std::nullopt;
   }
-  return (*imported)->module->GetFunction(name);
+  return imported->module->GetFunction(name);
 }
 
 std::optional<const Function*> ResolveStaticCalleeFunction(

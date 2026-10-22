@@ -41,6 +41,7 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/substitute.h"
+#include "absl/types/optional_ref.h"
 #include "absl/types/span.h"
 #include "xls/common/attribute_data.h"
 #include "xls/common/status/ret_check.h"
@@ -149,7 +150,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
       const FileTable& file_table, std::unique_ptr<TypeSystemTracer> tracer,
       std::unique_ptr<SemanticsAnalysis> semantics_analysis,
       TypeInferenceErrorHandler error_handler,
-      std::optional<TraitDeriver*> trait_deriver)
+      absl::optional_ref<TraitDeriver> trait_deriver)
       : table_(table),
         module_(module),
         import_data_(import_data),
@@ -3681,7 +3682,7 @@ CreateInferenceTableConverter(
     std::unique_ptr<TypeSystemTracer> tracer,
     std::unique_ptr<SemanticsAnalysis> semantics_analysis,
     TypeInferenceErrorHandler error_handler,
-    std::optional<TraitDeriver*> trait_deriver) {
+    absl::optional_ref<TraitDeriver> trait_deriver) {
   VLOG(1) << "CreateInferenceTableConverter: module " << module.name();
 
   XLS_ASSIGN_OR_RETURN(TypeInfo * type_info,

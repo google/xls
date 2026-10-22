@@ -36,6 +36,7 @@
 #include "absl/log/log_sink_registry.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_format.h"
+#include "absl/types/optional_ref.h"
 #include "google/protobuf/text_format.h"
 #include "xls/common/exit_status.h"
 #include "xls/common/file/filesystem.h"
@@ -218,13 +219,16 @@ absl::Status RealMain(std::string_view input_path) {
 
   XLS_ASSIGN_OR_RETURN(std::string ir, GetFileContents(input_path));
 
-  OptModifiers modifiers;
   BisectInjectPasses bisect_inject_passes(
       absl::GetFlag(FLAGS_bisect_inject_passes).value_or(""),
       absl::GetFlag(FLAGS_bisect_inject_passes_count).value_or(-1));
-  if (absl::GetFlag(FLAGS_bisect_inject_passes).has_value()) {
-    modifiers.registry_decorator = &bisect_inject_passes.decorator();
-  }
+  OptModifiers modifiers{
+      .registry_decorator =
+          absl::GetFlag(FLAGS_bisect_inject_passes).has_value()
+              ? absl::optional_ref<PassRegistryDecorator>(
+                    bisect_inject_passes.decorator())
+              : std::nullopt,
+  };
 
   OptMetadata metadata;
   XLS_ASSIGN_OR_RETURN(std::string optimized_ir,

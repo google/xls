@@ -1278,7 +1278,7 @@ TEST_F(ResourceSharingEquivalenceTest, CloneEquivalenceMapping) {
         {dst, src},
     };
     XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<EquivalenceMapping> clone_remapped,
-                             mappings->at(src)->Clone(&remapping));
+                             mappings->at(src)->Clone(remapping));
     EXPECT_EQ(clone_remapped->src(), dst);
     Node* expected_remapped_dst =
         (mappings->at(src)->dst() == dst) ? src : mappings->at(src)->dst();
@@ -1288,7 +1288,7 @@ TEST_F(ResourceSharingEquivalenceTest, CloneEquivalenceMapping) {
     absl::flat_hash_map<Node*, Node*> incomplete_remapping = {
         {dst, src},
     };
-    EXPECT_THAT(mappings->at(src)->Clone(&incomplete_remapping),
+    EXPECT_THAT(mappings->at(src)->Clone(incomplete_remapping),
                 StatusIs(absl::StatusCode::kInternal));
   };
 

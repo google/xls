@@ -26,6 +26,7 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/substitute.h"
+#include "absl/types/optional_ref.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/errors.h"
@@ -64,20 +65,17 @@ class TypeRefUnwrapper : public AstNodeVisitorWithDefault {
         typecheck_imported_module_(typecheck_imported_module) {}
 
   absl::Status HandleColonRef(const ColonRef* colon_ref) override {
-    std::optional<ModuleInfo*> import_module;
-    if (mutable_import_data_ != nullptr &&
-        typecheck_imported_module_.has_value()) {
-      XLS_ASSIGN_OR_RETURN(
-          import_module, GetImportedModuleInfo(colon_ref, *mutable_import_data_,
-                                               *typecheck_imported_module_));
-    } else {
-      XLS_ASSIGN_OR_RETURN(import_module,
-                           GetImportedModuleInfo(colon_ref, import_data_));
-    }
+    XLS_ASSIGN_OR_RETURN(
+        absl::optional_ref<ModuleInfo> import_module,
+        (mutable_import_data_ != nullptr &&
+         typecheck_imported_module_.has_value())
+            ? GetImportedModuleInfo(colon_ref, *mutable_import_data_,
+                                    *typecheck_imported_module_)
+            : GetImportedModuleInfo(colon_ref, import_data_));
     if (import_module.has_value()) {
       XLS_ASSIGN_OR_RETURN(
           ModuleMember member,
-          GetPublicModuleMember((*import_module)->module(), colon_ref,
+          GetPublicModuleMember(import_module->module(), colon_ref,
                                 import_data_.file_table()));
       return ToAstNode(member)->Accept(this);
     }
@@ -249,17 +247,19 @@ GetTypeVariableTypeAnnotationForSubject(const ColonRef* ref,
   return unwrapper.GetTypeVariableTypeAnnotation();
 }
 
-absl::StatusOr<std::optional<ModuleInfo*>> GetImportedModuleInfo(
+absl::StatusOr<absl::optional_ref<ModuleInfo>> GetImportedModuleInfo(
     const ColonRef* colon_ref, const ImportData& import_data) {
   std::optional<ImportSubject> subject = colon_ref->ResolveImportSubject();
   if (subject.has_value() && std::holds_alternative<Import*>(*subject)) {
     Import* import = std::get<Import*>(*subject);
-    return import_data.Get(ImportTokens(import->subject()));
+    XLS_ASSIGN_OR_RETURN(ModuleInfo * module_info,
+                         import_data.Get(ImportTokens(import->subject())));
+    return *module_info;
   }
   return std::nullopt;
 }
 
-absl::StatusOr<std::optional<ModuleInfo*>> GetImportedModuleInfo(
+absl::StatusOr<absl::optional_ref<ModuleInfo>> GetImportedModuleInfo(
     const ColonRef* colon_ref, ImportData& import_data,
     const TypecheckModuleFn& typecheck_imported_module) {
   std::optional<ImportSubject> subject = colon_ref->ResolveImportSubject();
@@ -272,7 +272,8 @@ absl::StatusOr<std::optional<ModuleInfo*>> GetImportedModuleInfo(
                                    import_data.vfs())
                               .status());
     }
-    return import_data.Get(tokens);
+    XLS_ASSIGN_OR_RETURN(ModuleInfo * module_info, import_data.Get(tokens));
+    return *module_info;
   }
   return std::nullopt;
 }

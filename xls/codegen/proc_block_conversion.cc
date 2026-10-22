@@ -34,6 +34,7 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
+#include "absl/types/optional_ref.h"
 #include "absl/types/span.h"
 #include "xls/codegen/bdd_io_analysis.h"
 #include "xls/codegen/block_conversion.h"
@@ -1520,7 +1521,7 @@ absl::Status SingleProcToPipelinedBlock(
     CodegenContext& context, Proc* proc,
     absl::Span<ProcInstance* const> instances, Block* absl_nonnull block,
     const absl::flat_hash_map<FunctionBase*, Block*>& converted_blocks,
-    std::optional<const ProcElaboration*> elab) {
+    absl::optional_ref<const ProcElaboration> elab) {
   VLOG(1) << absl::StrFormat("SingleProcToPipelinedBlock(proc=`%s`, block=`%s)",
                              proc->name(), block->name());
   XLS_RET_CHECK(package_schedule.HasSchedule(proc));

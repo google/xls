@@ -29,6 +29,7 @@
 #include "absl/functional/function_ref.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/types/optional_ref.h"
 #include "absl/types/span.h"
 #include "xls/estimators/area_model/area_estimator.h"
 #include "xls/ir/function_base.h"
@@ -435,7 +436,7 @@ class ResourceSharingPass : public OptimizationFunctionBasePass {
       const absl::btree_set<ResourceSharingPass::MutuallyExclPair>&
           mutual_exclusivity,
       const NodeBackwardDependencyAnalysis& nda,
-      std::optional<const AreaEstimator*> area_estimator,
+      absl::optional_ref<const AreaEstimator> area_estimator,
       const ResourceSharingPass::Config& config);
 
   // Groups selected binary folding actions by destination into n-ary folding

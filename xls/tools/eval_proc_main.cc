@@ -275,7 +275,7 @@ class ScopedObserver {
       return;
     }
     if (auto eval_observer = observer->observer(); eval_observer.has_value()) {
-      composite_.AddObserver(*eval_observer);
+      composite_.AddObserver(eval_observer.as_pointer());
     }
     coverage_observers_.push_back(std::move(observer));
   }

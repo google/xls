@@ -90,6 +90,7 @@ cc_library(
         "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/strings:str_format",
         "@abseil-cpp//absl/time",
+        "@abseil-cpp//absl/types:optional_ref",
         "@abseil-cpp//absl/types:span",
         "@re2",
     ],
@@ -223,6 +224,7 @@ cc_library(
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/strings:str_format",
+        "@abseil-cpp//absl/types:optional_ref",
         "@abseil-cpp//absl/types:span",
     ],
 )

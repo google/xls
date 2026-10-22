@@ -23,6 +23,7 @@
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/statusor.h"
+#include "absl/types/optional_ref.h"
 #include "absl/types/span.h"
 #include "xls/ir/events.h"
 #include "xls/ir/function.h"
@@ -67,7 +68,7 @@ class SwitchableFunctionJit {
   // Returns the function that the JIT executes.
   Function* function() { return xls_function_; }
 
-  std::optional<FunctionJit*> function_jit() {
+  absl::optional_ref<FunctionJit> function_jit() {
     if (use_jit_) {
       return function_jit_.get();
     }

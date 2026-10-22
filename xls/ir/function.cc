@@ -32,6 +32,7 @@
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/strip.h"
+#include "absl/types/optional_ref.h"
 #include "absl/types/span.h"
 #include "absl/types/variant.h"
 #include "xls/common/attribute_data.h"
@@ -164,8 +165,8 @@ std::string Function::DumpIr(const IrAnnotator& annotate) const {
 absl::StatusOr<Function*> Function::Clone(
     std::string_view new_name, Package* target_package,
     const absl::flat_hash_map<const Function*, Function*>& call_remapping,
-    std::optional<absl::flat_hash_map<Node*, Node*>*> original_node_to_clone)
-    const {
+    absl::optional_ref<absl::flat_hash_map<Node*, Node*>>
+        original_node_to_clone) const {
   absl::flat_hash_map<Node*, Node*> original_to_clone;
   if (target_package == nullptr) {
     target_package = package();
@@ -255,11 +256,8 @@ absl::StatusOr<Function*> Function::Clone(
 
   // Update the original-to-clone mapping if requested.
   if (original_node_to_clone.has_value()) {
-    absl::flat_hash_map<Node*, Node*>* original_node_to_clone_ptr =
-        *original_node_to_clone;
-    XLS_RET_CHECK(original_node_to_clone_ptr != nullptr);
     for (auto& [original_node, cloned_node] : original_to_clone) {
-      (*original_node_to_clone_ptr)[original_node] = cloned_node;
+      (*original_node_to_clone)[original_node] = cloned_node;
     }
   }
 

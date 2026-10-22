@@ -232,6 +232,7 @@ cc_binary(
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/strings:str_format",
+        "@abseil-cpp//absl/types:optional_ref",
         "@abseil-cpp//absl/types:span",
         "@llvm-project//llvm:CodeGen",
         "@llvm-project//llvm:ExecutionEngine",
@@ -409,6 +410,7 @@ cc_library(
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings:str_format",
+        "@abseil-cpp//absl/types:optional_ref",
         "@abseil-cpp//absl/types:span",
     ],
 )
@@ -472,6 +474,7 @@ cc_binary(
         "@abseil-cpp//absl/log:log_sink_registry",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/strings:str_format",
+        "@abseil-cpp//absl/types:optional_ref",
         "@protobuf",
     ],
 )
@@ -1347,6 +1350,7 @@ cc_library(
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/types:optional_ref",
         "@abseil-cpp//absl/types:span",
         "@protobuf",
     ],
@@ -1475,6 +1479,7 @@ cc_test(
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:status_matchers",
         "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/types:optional_ref",
         "@googletest//:gtest",
     ],
 )

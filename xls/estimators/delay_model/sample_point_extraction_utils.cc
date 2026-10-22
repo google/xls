@@ -31,6 +31,7 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
+#include "absl/types/optional_ref.h"
 #include "absl/types/span.h"
 #include "xls/common/case_converters.h"
 #include "xls/common/status/status_macros.h"
@@ -210,7 +211,7 @@ OpSamplesList ConvertSampleMapToList(SampleMap samples) {
 
 absl::StatusOr<std::vector<SamplePoint>> ExtractSamplePoints(
     const Package& package, const estimator_model::OpModels& op_models,
-    std::optional<DelayEstimator*> delay_estimator) {
+    absl::optional_ref<DelayEstimator> delay_estimator) {
   ExtractionConfig config = CategorizeOps(op_models);
   SampleMap samples;
   for (FunctionBase* fn : package.GetFunctionBases()) {
@@ -223,7 +224,7 @@ absl::StatusOr<std::vector<SamplePoint>> ExtractSamplePoints(
                 .first->second;
         if (mapped_point.frequency == 0 && delay_estimator.has_value()) {
           XLS_ASSIGN_OR_RETURN(mapped_point.delay_estimate_in_ps,
-                               (*delay_estimator)->GetOperationDelayInPs(node));
+                               delay_estimator->GetOperationDelayInPs(node));
         }
         ++mapped_point.frequency;
       }

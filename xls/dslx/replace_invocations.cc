@@ -29,6 +29,7 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
+#include "absl/types/optional_ref.h"
 #include "absl/types/span.h"
 #include "absl/types/variant.h"
 #include "xls/common/status/ret_check.h"
@@ -428,14 +429,14 @@ absl::StatusOr<TypecheckedModule> ReplaceInvocationsInModule(
       return std::nullopt;
     }
 
-    std::optional<const InvocationData*> data_opt =
+    absl::optional_ref<const InvocationData> data_opt =
         type_info.GetInvocationData(inv);
     if (!data_opt.has_value()) {
       return std::nullopt;
     }
-    const InvocationData* data = *data_opt;
 
-    const InvocationRewriteRule* matched_rule = FindMatchingRule(*data, rules);
+    const InvocationRewriteRule* matched_rule =
+        FindMatchingRule(*data_opt, rules);
     if (matched_rule == nullptr) {
       return std::nullopt;
     }

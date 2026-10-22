@@ -25,6 +25,7 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/statusor.h"
 #include "absl/synchronization/mutex.h"
+#include "absl/types/optional_ref.h"
 #include "absl/types/span.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/estimators/area_model/area_estimator.h"
@@ -55,7 +56,7 @@ class EquivalenceMapping {
   // Clones this mapping. If `original_node_to_clone` is non-empty, `src_` and
   // `dst_`, if not from `tmp_package_`, must be in `original_node_to_clone`.
   virtual absl::StatusOr<std::unique_ptr<EquivalenceMapping>> Clone(
-      std::optional<const absl::flat_hash_map<Node*, Node*>*>
+      absl::optional_ref<const absl::flat_hash_map<Node*, Node*>>
           original_node_to_clone) const = 0;
 
   // Applies this mapping's operand transformations to `src_operands`,
@@ -93,14 +94,14 @@ class EquivalenceMapping {
 
  protected:
   absl::StatusOr<Node*> MapNode(
-      Node* node, std::optional<const absl::flat_hash_map<Node*, Node*>*>
+      Node* node, absl::optional_ref<const absl::flat_hash_map<Node*, Node*>>
                       original_node_to_clone) const;
 
   // Clones EquivalenceMapping if it has only the members from the base class.
   template <typename EqMapping>
   absl::StatusOr<std::unique_ptr<EquivalenceMapping>> CloneEqMapping(
       const EqMapping* mapping,
-      std::optional<const absl::flat_hash_map<Node*, Node*>*>
+      absl::optional_ref<const absl::flat_hash_map<Node*, Node*>>
           original_node_to_clone) const {
     XLS_ASSIGN_OR_RETURN(
         Node * new_src,
@@ -210,7 +211,7 @@ class IdentityEquivalenceMapping : public EquivalenceMapping {
   using EquivalenceMapping::EquivalenceMapping;
 
   absl::StatusOr<std::unique_ptr<EquivalenceMapping>> Clone(
-      std::optional<const absl::flat_hash_map<Node*, Node*>*>
+      absl::optional_ref<const absl::flat_hash_map<Node*, Node*>>
           original_node_to_clone) const override {
     return CloneEqMapping(this, original_node_to_clone);
   }

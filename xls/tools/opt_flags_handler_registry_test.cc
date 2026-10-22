@@ -25,6 +25,7 @@
 #include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
+#include "absl/types/optional_ref.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/bits.h"
@@ -56,7 +57,7 @@ class CaptureOptionsPass : public OptimizationPass {
       OptimizationContext& context) const override {
     if (auto ext = options.GetExtension<TestOptOptionExtension>();
         ext.has_value()) {
-      *captured_value_ = (*ext)->value;
+      *captured_value_ = ext->value;
     }
     return false;
   }
@@ -109,10 +110,10 @@ TEST(OptFlagsHandlerRegistryTest, CustomFlagValue) {
 
   OptimizationPassOptions options;
   XLS_ASSERT_OK(OptFlagsHandlerRegistry::Process(proto, options));
-  std::optional<const TestOptOptionExtension*> ext =
+  absl::optional_ref<const TestOptOptionExtension> ext =
       options.GetExtension<TestOptOptionExtension>();
   ASSERT_TRUE(ext.has_value());
-  EXPECT_EQ((*ext)->value, "custom_value");
+  EXPECT_EQ(ext->value, "custom_value");
 }
 
 TEST(OptFlagsHandlerRegistryTest, EndToEndViaOptFlagsAndOptions) {

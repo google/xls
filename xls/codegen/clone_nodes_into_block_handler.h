@@ -26,6 +26,7 @@
 #include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/types/optional_ref.h"
 #include "absl/types/span.h"
 #include "xls/codegen/codegen_options.h"
 #include "xls/codegen/codegen_pass.h"
@@ -92,7 +93,7 @@ class CloneNodesIntoBlockHandler {
   CloneNodesIntoBlockHandler(
       FunctionBase* proc_or_function, int64_t stage_count,
       const CodegenOptions& options, Block* block,
-      std::optional<const PackageSchedule*> schedule = std::nullopt);
+      absl::optional_ref<const PackageSchedule> schedule = std::nullopt);
 
   // Add ports to the block corresponding to the channels on the interface of
   // the proc. Should only be called for procs.
@@ -203,7 +204,7 @@ class CloneNodesIntoBlockHandler {
 
   // Returns the schedule for the FunctionBase being lowered.
   const PipelineSchedule& GetSchedule() const {
-    return schedule_.value()->GetSchedule(function_base_);
+    return schedule_->GetSchedule(function_base_);
   }
 
   bool is_proc_;
@@ -212,7 +213,7 @@ class CloneNodesIntoBlockHandler {
   const CodegenOptions& options_;
 
   Block* block_;
-  std::optional<const PackageSchedule*> schedule_;
+  absl::optional_ref<const PackageSchedule> schedule_;
   std::optional<ConcurrentStageGroups> concurrent_stages_;
   StreamingIOPipeline result_;
   absl::flat_hash_map<Node*, Node*> node_map_;

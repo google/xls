@@ -36,6 +36,7 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
+#include "absl/types/optional_ref.h"
 #include "absl/types/span.h"
 #include "xls/common/logging/log_lines.h"
 #include "xls/common/status/ret_check.h"
@@ -290,18 +291,18 @@ void InfoLoggingDslxInterpreterEvents::NoteTraceMessageString(
 /* static */ absl::StatusOr<InterpValue> BytecodeInterpreter::Interpret(
     ImportData* import_data, BytecodeFunction* bf,
     const std::vector<InterpValue>& args,
-    std::optional<InterpValueChannelManager*> channel_manager,
+    absl::optional_ref<InterpValueChannelManager> channel_manager,
     const BytecodeInterpreterOptions& options,
-    std::optional<DslxInterpreterEvents*> events) {
+    absl::optional_ref<DslxInterpreterEvents> events) {
   BytecodeInterpreter interpreter(import_data,
                                   /*proc_id=*/std::nullopt, channel_manager,
                                   options, events);
   XLS_RETURN_IF_ERROR(interpreter.InitFrame(bf, args, bf->type_info()));
   if (options.trace_calls() && events.has_value()) {
-    (*events)->AddTraceCallMessage(
-        import_data->file_table(), bf->source_fn()->span(),
-        bf->source_fn()->identifier(), args,
-        /*call_depth=*/0, options.format_preference());
+    events->AddTraceCallMessage(import_data->file_table(),
+                                bf->source_fn()->span(),
+                                bf->source_fn()->identifier(), args,
+                                /*call_depth=*/0, options.format_preference());
   }
   XLS_RETURN_IF_ERROR(interpreter.Run());
   if (options.validate_final_stack_depth()) {
@@ -312,9 +313,9 @@ void InfoLoggingDslxInterpreterEvents::NoteTraceMessageString(
 
 BytecodeInterpreter::BytecodeInterpreter(
     ImportData* import_data, const std::optional<ProcId>& proc_id,
-    std::optional<InterpValueChannelManager*> channel_manager,
+    absl::optional_ref<InterpValueChannelManager> channel_manager,
     const BytecodeInterpreterOptions& options,
-    std::optional<DslxInterpreterEvents*> events)
+    absl::optional_ref<DslxInterpreterEvents> events)
     : import_data_(ABSL_DIE_IF_NULL(import_data)),
       proc_id_(proc_id),
       stack_(import_data_->file_table()),
@@ -342,9 +343,9 @@ absl::Status BytecodeInterpreter::InitFrame(BytecodeFunction* bf,
 BytecodeInterpreter::CreateUnique(
     ImportData* import_data, const std::optional<ProcId>& proc_id,
     BytecodeFunction* bf, const std::vector<InterpValue>& args,
-    std::optional<InterpValueChannelManager*> channel_manager,
+    absl::optional_ref<InterpValueChannelManager> channel_manager,
     const BytecodeInterpreterOptions& options,
-    std::optional<DslxInterpreterEvents*> events) {
+    absl::optional_ref<DslxInterpreterEvents> events) {
   auto interp = absl::WrapUnique(new BytecodeInterpreter(
       import_data, proc_id, channel_manager, options, events));
   XLS_RETURN_IF_ERROR(interp->InitFrame(bf, args, bf->type_info()));
@@ -409,10 +410,10 @@ absl::Status BytecodeInterpreter::Run(bool* progress_made) {
     if (options_.trace_calls() && events_.has_value() && source_fn != nullptr) {
       int64_t call_depth = static_cast<int64_t>(frames_.size()) - 1;
       const InterpValue& ret = stack_.PeekOrDie();
-      (*events_)->AddTraceCallReturnMessage(import_data_->file_table(),
-                                            source_fn->span(),
-                                            source_fn->identifier(), call_depth,
-                                            options_.format_preference(), ret);
+      events_->AddTraceCallReturnMessage(import_data_->file_table(),
+                                         source_fn->span(),
+                                         source_fn->identifier(), call_depth,
+                                         options_.format_preference(), ret);
     }
 
     // We've reached the end of a function. Time to load the next frame up!
@@ -720,7 +721,7 @@ absl::StatusOr<BytecodeFunction*> BytecodeInterpreter::GetBytecodeFn(
     const ParametricEnv& caller_bindings) {
   const Frame& frame = frames_.back();
   const TypeInfo* caller_type_info = frame.type_info();
-  std::optional<const ParametricEnv*> callee_env =
+  absl::optional_ref<const ParametricEnv> callee_env =
       caller_type_info->GetInvocationCalleeBindings(invocation,
                                                     caller_bindings);
   std::optional<TypeInfo*> callee_type_info =
@@ -735,9 +736,7 @@ absl::StatusOr<BytecodeFunction*> BytecodeInterpreter::GetBytecodeFn(
 
   return cache->GetOrCreateBytecodeFunction(
       *import_data(), f, effective_type_info,
-      callee_env.has_value()
-          ? std::make_optional(*const_cast<ParametricEnv*>(*callee_env))
-          : std::nullopt);
+      callee_env.has_value() ? std::make_optional(*callee_env) : std::nullopt);
 }
 
 absl::Status BytecodeInterpreter::EvalCall(const Bytecode& bytecode) {
@@ -809,10 +808,10 @@ absl::Status BytecodeInterpreter::EvalCall(const Bytecode& bytecode) {
 
   // Emit a call trace message with function name and arguments at call time.
   if (options_.trace_calls() && events_.has_value()) {
-    (*events_)->AddTraceCallMessage(
-        import_data_->file_table(), bytecode.source_span(),
-        user_fn_data.function->identifier(), args, frames_.size(),
-        options_.format_preference());
+    events_->AddTraceCallMessage(import_data_->file_table(),
+                                 bytecode.source_span(),
+                                 user_fn_data.function->identifier(), args,
+                                 frames_.size(), options_.format_preference());
   }
 
   std::vector<InterpValue> args_copy = args;
@@ -1342,16 +1341,15 @@ absl::Status BytecodeInterpreter::EvalRecvNonBlocking(
   XLS_ASSIGN_OR_RETURN(InterpValue token, Pop());
 
   XLS_RET_CHECK(channel_manager_.has_value());
-  InterpValueChannel& channel =
-      (*channel_manager_)
-          ->GetChannel(frames_.back().type_info(), channel_reference);
+  InterpValueChannel& channel = channel_manager_->GetChannel(
+      frames_.back().type_info(), channel_reference);
 
   XLS_ASSIGN_OR_RETURN(const Bytecode::ChannelData* channel_data,
                        bytecode.channel_data());
   if (condition.IsTrue() && !channel.IsEmpty()) {
     InterpValue value = channel.Read();
     if (options_.trace_channels() && events_.has_value()) {
-      (*events_)->AddTraceChannelMessage(
+      events_->AddTraceChannelMessage(
           import_data_->file_table(), bytecode.source_span(),
           FormatChannelNameForTracing(*channel_data), value,
           ChannelDirection::kIn, channel_data->value_fmt_desc());
@@ -1376,9 +1374,8 @@ absl::Status BytecodeInterpreter::EvalRecv(const Bytecode& bytecode) {
                        bytecode.channel_data());
 
   XLS_RET_CHECK(channel_manager_.has_value());
-  InterpValueChannel& channel =
-      (*channel_manager_)
-          ->GetChannel(frames_.back().type_info(), channel_reference);
+  InterpValueChannel& channel = channel_manager_->GetChannel(
+      frames_.back().type_info(), channel_reference);
 
   if (condition.IsTrue()) {
     if (channel.IsEmpty()) {
@@ -1396,7 +1393,7 @@ absl::Status BytecodeInterpreter::EvalRecv(const Bytecode& bytecode) {
     XLS_ASSIGN_OR_RETURN(InterpValue token, Pop());
     InterpValue value = channel.Read();
     if (options_.trace_channels() && events_.has_value()) {
-      (*events_)->AddTraceChannelMessage(
+      events_->AddTraceChannelMessage(
           import_data_->file_table(), bytecode.source_span(),
           FormatChannelNameForTracing(*channel_data), value,
           ChannelDirection::kIn, channel_data->value_fmt_desc());
@@ -1419,15 +1416,14 @@ absl::Status BytecodeInterpreter::EvalSend(const Bytecode& bytecode) {
   XLS_ASSIGN_OR_RETURN(InterpValue token, Pop());
 
   XLS_RET_CHECK(channel_manager_.has_value());
-  InterpValueChannel& channel =
-      (*channel_manager_)
-          ->GetChannel(frames_.back().type_info(), channel_reference);
+  InterpValueChannel& channel = channel_manager_->GetChannel(
+      frames_.back().type_info(), channel_reference);
 
   if (condition.IsTrue()) {
     if (options_.trace_channels() && events_.has_value()) {
       XLS_ASSIGN_OR_RETURN(const Bytecode::ChannelData* channel_data,
                            bytecode.channel_data());
-      (*events_)->AddTraceChannelMessage(
+      events_->AddTraceChannelMessage(
           import_data_->file_table(), bytecode.source_span(),
           FormatChannelNameForTracing(*channel_data), payload,
           ChannelDirection::kOut, channel_data->value_fmt_desc());
@@ -1578,8 +1574,8 @@ absl::Status BytecodeInterpreter::EvalTraceFmt(const Bytecode& bytecode) {
   XLS_ASSIGN_OR_RETURN(std::string message,
                        TraceDataToString(*trace_data, stack_));
   if (events_.has_value()) {
-    (*events_)->AddTraceStatementMessage(import_data_->file_table(),
-                                         bytecode.source_span(), message);
+    events_->AddTraceStatementMessage(import_data_->file_table(),
+                                      bytecode.source_span(), message);
   }
   stack_.Push(InterpValue::MakeToken());
   return absl::OkStatus();
@@ -1594,8 +1590,8 @@ absl::Status BytecodeInterpreter::EvalTraceArg(const Bytecode& bytecode) {
   XLS_ASSIGN_OR_RETURN(std::string message,
                        TraceDataToString(*trace_data, stack_));
   if (events_.has_value()) {
-    (*events_)->AddTraceStatementMessage(import_data_->file_table(),
-                                         bytecode.source_span(), message);
+    events_->AddTraceStatementMessage(import_data_->file_table(),
+                                      bytecode.source_span(), message);
   }
   stack_.Push(value);
   return absl::OkStatus();

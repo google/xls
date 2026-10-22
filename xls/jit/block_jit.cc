@@ -30,6 +30,7 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
+#include "absl/types/optional_ref.h"
 #include "absl/types/span.h"
 #include "llvm/include/llvm/IR/DataLayout.h"
 #include "llvm/include/llvm/Support/Error.h"
@@ -846,9 +847,9 @@ class BlockContinuationJitWrapper final : public BlockContinuation {
   }
   absl::Status SetObserver(EvaluationObserver* obs) override {
     ClearObserver();
-    std::optional<RuntimeObserver*> run = obs->AsRawObserver();
-    if (run) {
-      return continuation_->SetObserver(*run);
+    absl::optional_ref<RuntimeObserver> run = obs->AsRawObserver();
+    if (run.has_value()) {
+      return continuation_->SetObserver(run.as_pointer());
     }
     eval_observer_.emplace(
         obs,

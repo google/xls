@@ -33,6 +33,7 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/substitute.h"
+#include "absl/types/optional_ref.h"
 #include "xls/common/attribute_data.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
@@ -54,7 +55,7 @@ class ModuleTraitManagerImpl : public ModuleTraitManager {
  public:
   ModuleTraitManagerImpl(Module& module, ImportData& import_data,
                          InferenceTable& table,
-                         std::optional<TraitDeriver*> trait_deriver,
+                         absl::optional_ref<TraitDeriver> trait_deriver,
                          TypeSystemTracer& tracer)
       : module_(module),
         file_table_(*module.file_table()),
@@ -192,9 +193,8 @@ class ModuleTraitManagerImpl : public ModuleTraitManager {
       derived->set_impl(&impl);
       XLS_ASSIGN_OR_RETURN(
           StatementBlock * body,
-          (*trait_deriver_)
-              ->DeriveFunctionBody(module_, trait, struct_or_proc_def,
-                                   struct_type, *derived));
+          trait_deriver_->DeriveFunctionBody(module_, trait, struct_or_proc_def,
+                                             struct_type, *derived));
       derived->set_body(body);
       derived->SetParentage();
 
@@ -328,7 +328,7 @@ class ModuleTraitManagerImpl : public ModuleTraitManager {
   const FileTable& file_table_;
   ImportData& import_data_;
   InferenceTable& table_;
-  std::optional<TraitDeriver*> trait_deriver_;
+  absl::optional_ref<TraitDeriver> trait_deriver_;
 
   absl::flat_hash_map<
       const StructDefBase*,
@@ -351,7 +351,7 @@ class ModuleTraitManagerImpl : public ModuleTraitManager {
 
 std::unique_ptr<ModuleTraitManager> CreateModuleTraitManager(
     Module& module, ImportData& import_data, InferenceTable& table,
-    std::optional<TraitDeriver*> trait_deriver, TypeSystemTracer& tracer) {
+    absl::optional_ref<TraitDeriver> trait_deriver, TypeSystemTracer& tracer) {
   return std::make_unique<ModuleTraitManagerImpl>(module, import_data, table,
                                                   trait_deriver, tracer);
 }

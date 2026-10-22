@@ -32,6 +32,7 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
+#include "absl/types/optional_ref.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/conversion_record.h"
@@ -339,7 +340,7 @@ class ConversionRecordVisitor : public AstNodeRecursiveVisitor {
     XLS_RET_CHECK(invocation_data.has_value())
         << " no invocation data for " << invocation->ToString();
 
-    const Function* config_fn = (*invocation_data)->callee();
+    const Function* config_fn = invocation_data->callee();
     XLS_RET_CHECK(config_fn->proc().has_value());
     Proc* proc = config_fn->proc().value();
     if (config_fn->owner() == module_) {
@@ -582,12 +583,12 @@ class ConversionRecordVisitor : public AstNodeRecursiveVisitor {
       bool is_proc, std::string_view identifier) {
     bool called_from_outside_test = false;
     for (auto& callee_data : calls) {
-      std::optional<const InvocationData*> invocation_data =
+      absl::optional_ref<const InvocationData> invocation_data =
           type_info->GetInvocationData(callee_data.invocation);
       XLS_RET_CHECK(invocation_data.has_value())
           << " no root invocation data for "
           << callee_data.invocation->ToString();
-      if (!IsTestFn((*invocation_data)->caller())) {
+      if (!IsTestFn(invocation_data->caller())) {
         called_from_outside_test = true;
         break;
       }

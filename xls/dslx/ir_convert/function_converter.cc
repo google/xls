@@ -39,6 +39,7 @@
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/substitute.h"
+#include "absl/types/optional_ref.h"
 #include "absl/types/span.h"
 #include "absl/types/variant.h"
 #include "xls/common/attribute_data.h"
@@ -2161,7 +2162,7 @@ absl::StatusOr<BValue> FunctionConverter::HandleMap(const Invocation* node) {
   XLS_ASSIGN_OR_RETURN(BValue arg, Use(node->args()[0]));
   Expr* fn_node = node->args()[1];
   VLOG(5) << "Function being mapped AST: " << fn_node->ToString();
-  std::optional<const ParametricEnv*> node_parametric_env =
+  absl::optional_ref<const ParametricEnv> node_parametric_env =
       GetInvocationCalleeBindings(node);
 
   const Function* mapped_fn;
@@ -2191,17 +2192,17 @@ absl::StatusOr<BValue> FunctionConverter::HandleMap(const Invocation* node) {
     if (IsBuiltinParametricNameRef(name_ref)) {
       VLOG(5) << "Map of parametric builtin: " << name_ref->identifier();
       return DefMapWithBuiltin(node, name_ref, node->args()[0],
-                               *node_parametric_env.value());
+                               node_parametric_env.value());
     }
     XLS_ASSIGN_OR_RETURN(
         mapped_fn, module_->GetMemberOrError<Function>(name_ref->identifier()));
   } else if (auto* colon_ref = dynamic_cast<ColonRef*>(fn_node)) {
     std::optional<ImportSubject> import = colon_ref->ResolveImportSubject();
     XLS_RET_CHECK(import.has_value());
-    std::optional<const ImportedInfo*> info =
+    absl::optional_ref<const ImportedInfo> info =
         current_type_info_->GetImported(import.value());
-    XLS_ASSIGN_OR_RETURN(mapped_fn, (*info)->module->GetMemberOrError<Function>(
-                                        colon_ref->attr()));
+    XLS_ASSIGN_OR_RETURN(
+        mapped_fn, info->module->GetMemberOrError<Function>(colon_ref->attr()));
   } else {
     return absl::UnimplementedError(
         absl::StrCat("Unhandled function mapping: ", fn_node->ToString()));
@@ -2216,7 +2217,7 @@ absl::StatusOr<BValue> FunctionConverter::HandleMap(const Invocation* node) {
       std::string mangled_name,
       MangleDslxName(mapped_fn->owner()->name(), mapped_fn->identifier(),
                      convention, free_set,
-                     (node_parametric_env.has_value() ? **node_parametric_env
+                     (node_parametric_env.has_value() ? *node_parametric_env
                                                       : ParametricEnv{}),
                      scope));
   VLOG(5) << "Getting function with mangled name: " << mangled_name
@@ -3763,11 +3764,11 @@ absl::Status FunctionConverter::HandleSpawn(const Spawn* node) {
   // Figure out the function and callee parametric env from this invocation:
   XLS_ASSIGN_OR_RETURN(const dslx::Function* callee,
                        current_type_info_->GetCallee(invocation));
-  std::optional<const ParametricEnv*> stored_callee_bindings =
+  absl::optional_ref<const ParametricEnv> stored_callee_bindings =
       current_type_info_->GetInvocationCalleeBindings(invocation,
                                                       GetParametricEnv());
   const ParametricEnv& callee_bindings = stored_callee_bindings.has_value()
-                                             ? **stored_callee_bindings
+                                             ? *stored_callee_bindings
                                              : ParametricEnv{};
   const auto proc_it =
       package_data_.callee_to_ir_proc.find({callee, callee_bindings});
@@ -4689,10 +4690,10 @@ absl::Status FunctionConverter::HandleColonRef(const ColonRef* node) {
     VLOG(6) << "ColonRef @ " << node->span().ToString(file_table())
             << " was import subject; import: "
             << ToAstNode(import.value())->ToString();
-    std::optional<const ImportedInfo*> imported =
+    absl::optional_ref<const ImportedInfo> imported =
         current_type_info_->GetImported(import.value());
     XLS_RET_CHECK(imported.has_value());
-    Module* imported_mod = (*imported)->module;
+    Module* imported_mod = imported->module;
     XLS_ASSIGN_OR_RETURN(ConstantDef * constant_def,
                          imported_mod->GetConstantDef(node->attr()));
     // A constant may be defined in terms of other constants
@@ -4700,7 +4701,7 @@ absl::Status FunctionConverter::HandleColonRef(const ColonRef* node) {
     // constants transitively so we can visit all dependees.
     XLS_ASSIGN_OR_RETURN(
         std::vector<ConstantDef*> constant_deps,
-        GetConstantDepFreevars(constant_def, *imported.value()->type_info));
+        GetConstantDepFreevars(constant_def, *imported->type_info));
     for (ConstantDef* dep : constant_deps) {
       XLS_RETURN_IF_ERROR(Visit(dep));
     }
@@ -4777,11 +4778,11 @@ absl::StatusOr<std::string> FunctionConverter::GetCalleeIdentifier(
     }
   }
 
-  std::optional<const InvocationData*> inv_data =
+  absl::optional_ref<const InvocationData> inv_data =
       current_type_info_->GetInvocationData(node);
-  XLS_RET_CHECK(inv_data.has_value() && (*inv_data)->callee() != nullptr);
+  XLS_RET_CHECK(inv_data.has_value() && inv_data->callee() != nullptr);
 
-  const Function* f = (*inv_data)->callee();
+  const Function* f = inv_data->callee();
   std::string scope = "";
   if (f->impl().has_value()) {
     scope = (*f->impl())->struct_ref()->ToString();
@@ -4797,16 +4798,16 @@ absl::StatusOr<std::string> FunctionConverter::GetCalleeIdentifier(
                           ParametricEnv{}, scope);
   }
 
-  std::optional<const ParametricEnv*> resolved_parametric_env =
+  absl::optional_ref<const ParametricEnv> resolved_parametric_env =
       GetInvocationCalleeBindings(node);
   XLS_RET_CHECK(resolved_parametric_env.has_value());
   VLOG(5) << absl::StreamFormat("Node `%s` (%s) @ %s parametric bindings %s",
                                 node->ToString(), node->GetNodeTypeName(),
                                 node->span().ToString(file_table()),
-                                (*resolved_parametric_env)->ToString());
-  XLS_RET_CHECK(!(*resolved_parametric_env)->empty());
+                                resolved_parametric_env->ToString());
+  XLS_RET_CHECK(!resolved_parametric_env->empty());
   return MangleDslxName(m->name(), f->identifier(), convention, free_keys,
-                        **resolved_parametric_env, scope);
+                        *resolved_parametric_env, scope);
 }
 
 std::optional<const Expr*> FunctionConverter::GetUnrolledForLoop(
@@ -5525,10 +5526,10 @@ FunctionConverter::DerefStructOrEnum(TypeDefinition node) {
   auto* colon_ref = std::get<ColonRef*>(node);
   std::optional<ImportSubject> import = colon_ref->ResolveImportSubject();
   XLS_RET_CHECK(import.has_value());
-  std::optional<const ImportedInfo*> info =
+  absl::optional_ref<const ImportedInfo> info =
       current_type_info_->GetImported(import.value());
-  Module* imported_mod = (*info)->module;
-  ScopedTypeInfoSwap stis(this, (*info)->type_info);
+  Module* imported_mod = info->module;
+  ScopedTypeInfoSwap stis(this, info->type_info);
   XLS_ASSIGN_OR_RETURN(TypeDefinition td,
                        imported_mod->GetTypeDefinition(colon_ref->attr()));
   // Recurse to resolve the typedef within the imported module.

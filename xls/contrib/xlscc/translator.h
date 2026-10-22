@@ -40,6 +40,7 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
+#include "absl/types/optional_ref.h"
 #include "absl/types/span.h"
 #include "clang/include/clang/AST/ASTContext.h"
 #include "clang/include/clang/AST/Attr.h"
@@ -803,7 +804,7 @@ class Translator final : public GeneratorBase,
                                                   const xls::SourceInfo& loc);
   absl::Status InsertActivationBarrier(
       ActivationBarrierType type, const xls::SourceInfo& loc,
-      std::optional<IOOp*> start_op = std::nullopt);
+      absl::optional_ref<IOOp> start_op = std::nullopt);
   absl::StatusOr<CValue> GenerateIR_Call(const clang::CallExpr* call,
                                          const xls::SourceInfo& loc);
 
@@ -1104,7 +1105,7 @@ class Translator final : public GeneratorBase,
       NATIVE_BVAL slice_ret_val, const GeneratedFunctionSlice& slice,
       const xls::SourceInfo& loc) final;
 
-  absl::StatusOr<std::optional<const IOOp*>> GetPreviousOp(
+  absl::StatusOr<absl::optional_ref<const IOOp>> GetPreviousOp(
       const IOOp& op, const xls::SourceInfo& loc);
 
   absl::StatusOr<TrackedBValue> AddConditionToIOReturn(

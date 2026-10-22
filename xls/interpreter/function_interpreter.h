@@ -20,6 +20,7 @@
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/statusor.h"
+#include "absl/types/optional_ref.h"
 #include "absl/types/span.h"
 #include "xls/interpreter/evaluator_options.h"
 #include "xls/interpreter/observer.h"
@@ -37,7 +38,7 @@ namespace xls {
 absl::StatusOr<InterpreterResult<Value>> InterpretFunction(
     Function* function, absl::Span<const Value> args,
     const EvaluatorOptions& options = EvaluatorOptions(),
-    std::optional<EvaluationObserver*> observer = std::nullopt,
+    absl::optional_ref<EvaluationObserver> observer = std::nullopt,
     int call_depth = 0, std::optional<SourceInfo> call_site = std::nullopt);
 
 // Runs the interpreter on the function where the arguments are given by name.
@@ -46,7 +47,7 @@ absl::StatusOr<InterpreterResult<Value>> InterpretFunction(
 absl::StatusOr<InterpreterResult<Value>> InterpretFunctionKwargs(
     Function* function, const absl::flat_hash_map<std::string, Value>& args,
     const EvaluatorOptions& options = EvaluatorOptions(),
-    std::optional<EvaluationObserver*> observer = std::nullopt);
+    absl::optional_ref<EvaluationObserver> observer = std::nullopt);
 
 }  // namespace xls
 

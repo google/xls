@@ -44,6 +44,7 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
+#include "absl/types/optional_ref.h"
 #include "absl/types/span.h"
 #include "xls/dslx/channel_direction.h"
 #include "xls/dslx/frontend/ast.h"
@@ -340,7 +341,7 @@ class Type {
   const TupleType& AsTuple() const;
   // keep-sorted end
 
-  virtual std::optional<const ChannelType*> GetDirectOrElementChannelType()
+  virtual absl::optional_ref<const ChannelType> GetDirectOrElementChannelType()
       const {
     return std::nullopt;
   }
@@ -496,7 +497,8 @@ class StructTypeBase : public Type {
   // this TupleType does not have named members.
   absl::StatusOr<int64_t> GetMemberIndex(std::string_view name) const;
 
-  std::optional<const Type*> GetMemberTypeByName(std::string_view target) const;
+  absl::optional_ref<const Type> GetMemberTypeByName(
+      std::string_view target) const;
 
   // The values of any parametrics that were explicitly specified in
   // instantiating this type. For example, on instantiating the type
@@ -694,14 +696,14 @@ class ArrayType : public Type {
   const Type& element_type() const { return *element_type_; }
   const TypeDim& size() const { return size_; }
 
-  std::optional<const ChannelType*> GetDirectOrElementChannelType()
+  absl::optional_ref<const ChannelType> GetDirectOrElementChannelType()
       const override {
     ArrayType::InnerMostElementType innermost_element_type =
         GetInnermostElementType();
-    return innermost_element_type.element_type.IsChannel()
-               ? std::make_optional(
-                     &innermost_element_type.element_type.AsChannel())
-               : std::nullopt;
+    if (innermost_element_type.element_type.IsChannel()) {
+      return innermost_element_type.element_type.AsChannel();
+    }
+    return std::nullopt;
   }
 
   // Returns the number of dimensions (i.e., nested ArrayTypes)
@@ -1122,9 +1124,9 @@ class ChannelType : public Type {
   const Type& payload_type() const { return *payload_type_; }
   ChannelDirection direction() const { return direction_; }
 
-  std::optional<const ChannelType*> GetDirectOrElementChannelType()
+  absl::optional_ref<const ChannelType> GetDirectOrElementChannelType()
       const override {
-    return this;
+    return *this;
   }
 
  private:
