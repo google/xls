@@ -13,6 +13,8 @@
 // limitations under the License.
 
 #include <algorithm>
+#include <compare>
+#include <cstddef>
 #include <cstdint>
 #include <initializer_list>
 #include <iterator>
@@ -33,6 +35,7 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/container/inlined_vector.h"
+#include "absl/hash/hash.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
@@ -2294,41 +2297,76 @@ absl::Status RemovePassthroughFeedbacks(GeneratedFunction& func, bool& changed,
   return absl::OkStatus();
 }
 
+size_t HashChooseInStatesSample(const absl::btree_set<StateId>& states) {
+  if (states.empty()) {
+    return 0;
+  }
+  const StateId& first = *states.begin();
+  const StateId& last = *states.rbegin();
+  const int64_t first_jump =
+      first.from_jump_slice_indices.empty()
+          ? -1
+          : first.from_jump_slice_indices.begin()->from_slice_index;
+  const int64_t last_jump =
+      last.from_jump_slice_indices.empty()
+          ? -1
+          : last.from_jump_slice_indices.rbegin()->from_slice_index;
+  return absl::HashOf(states.size(), first.slice_index, first_jump,
+                      last.slice_index, last_jump);
+}
+
+struct DuplicateParamInputTuple {
+  const ContinuationValue* const continuation_out = nullptr;
+  const absl::btree_set<StateId>* const choose_in_states = nullptr;
+
+  friend std::weak_ordering operator<=>(const DuplicateParamInputTuple& lhs,
+                                        const DuplicateParamInputTuple& rhs) {
+    if (auto cmp = lhs.continuation_out <=> rhs.continuation_out;
+        cmp != std::weak_ordering::equivalent) {
+      return cmp;
+    }
+    return std::lexicographical_compare_three_way(
+        lhs.choose_in_states->begin(), lhs.choose_in_states->end(),
+        rhs.choose_in_states->begin(), rhs.choose_in_states->end());
+  }
+
+  friend bool operator==(const DuplicateParamInputTuple& lhs,
+                         const DuplicateParamInputTuple& rhs) {
+    return (lhs <=> rhs) == std::weak_ordering::equivalent;
+  }
+
+  template <typename H>
+  friend H AbslHashValue(H h, const DuplicateParamInputTuple& tuple) {
+    return H::combine(std::move(h), tuple.continuation_out,
+                      HashChooseInStatesSample(*tuple.choose_in_states));
+  }
+};
+
 absl::Status RemoveDuplicateParams(GeneratedFunction& func, bool& changed,
                                    const xls::SourceInfo& loc) {
-  typedef std::tuple<const ContinuationValue*, absl::btree_set<StateId>>
-      InputTuple;
-
   for (GeneratedFunctionSlice& slice : func.slices) {
-    absl::flat_hash_map<xls::Param*, absl::btree_set<InputTuple>>
+    absl::flat_hash_map<xls::Param*, absl::btree_set<DuplicateParamInputTuple>>
         upstream_values_by_param;
 
     absl::flat_hash_map<xls::Param*, std::vector<ContinuationInput*>>
         continuation_inputs_by_param;
 
-    absl::btree_map<absl::btree_set<InputTuple>,
-                    absl::flat_hash_set<xls::Param*>>
+    absl::flat_hash_map<absl::btree_set<DuplicateParamInputTuple>,
+                        absl::flat_hash_set<xls::Param*>>
         params_by_upstream_values;
 
-    auto update_maps = [&]() {
-      upstream_values_by_param.clear();
-      continuation_inputs_by_param.clear();
-      params_by_upstream_values.clear();
+    for (ContinuationInput& continuation_in : slice.continuations_in) {
+      DuplicateParamInputTuple new_tuple{
+          .continuation_out = continuation_in.continuation_out,
+          .choose_in_states = &continuation_in.choose_in_states};
+      upstream_values_by_param[continuation_in.input_node].insert(new_tuple);
+      continuation_inputs_by_param[continuation_in.input_node].push_back(
+          &continuation_in);
+    }
 
-      for (ContinuationInput& continuation_in : slice.continuations_in) {
-        InputTuple new_tuple(continuation_in.continuation_out,
-                             continuation_in.choose_in_states);
-        upstream_values_by_param[continuation_in.input_node].insert(new_tuple);
-        continuation_inputs_by_param[continuation_in.input_node].push_back(
-            &continuation_in);
-      }
-
-      for (const auto& [param, upstream_values] : upstream_values_by_param) {
-        params_by_upstream_values[upstream_values].insert(param);
-      }
-    };
-
-    update_maps();
+    for (const auto& [param, upstream_values] : upstream_values_by_param) {
+      params_by_upstream_values[upstream_values].insert(param);
+    }
 
     // Determinism is ensured by the ordering of these loops
     absl::flat_hash_set<xls::Param*> params_processed;
@@ -2337,19 +2375,19 @@ absl::Status RemoveDuplicateParams(GeneratedFunction& func, bool& changed,
       bool changed_this_input = false;
 
       xls::Param* this_param = continuation_in.input_node;
-      if (params_processed.contains(this_param)) {
+      if (!params_processed.insert(this_param).second) {
         continue;
       }
-      const absl::btree_set<InputTuple>& this_param_upstream_values =
-          upstream_values_by_param.at(this_param);
-      const absl::flat_hash_set<xls::Param*>& params_for_upstream_values =
-          params_by_upstream_values.at(this_param_upstream_values);
+      absl::flat_hash_set<xls::Param*>& params_for_upstream_values =
+          params_by_upstream_values.at(upstream_values_by_param.at(this_param));
 
       CHECK(params_for_upstream_values.contains(this_param));
       if (params_for_upstream_values.size() == 1) {
         continue;
       }
-      params_processed.insert(this_param);
+
+      std::vector<ContinuationInput*>& continuation_inputs_this_param =
+          continuation_inputs_by_param.at(this_param);
 
       // Rewrite continuation inputs for other params
       for (const xls::Param* other_param : params_for_upstream_values) {
@@ -2367,6 +2405,7 @@ absl::Status RemoveDuplicateParams(GeneratedFunction& func, bool& changed,
           other_continuation_in->input_node = this_param;
           continuation_in.decls.insert(other_continuation_in->decls.begin(),
                                        other_continuation_in->decls.end());
+          continuation_inputs_this_param.push_back(other_continuation_in);
 
           changed_this_input = true;
         }
@@ -2387,11 +2426,13 @@ absl::Status RemoveDuplicateParams(GeneratedFunction& func, bool& changed,
             other_param->function_base()->RemoveNode(other_param));
 
         params_processed.insert(other_param);
+        upstream_values_by_param.erase(other_param);
+        continuation_inputs_by_param.erase(other_param);
         changed_this_input = true;
       }
 
       if (changed_this_input) {
-        update_maps();
+        params_for_upstream_values = {this_param};
       }
 
       changed = changed || changed_this_input;
