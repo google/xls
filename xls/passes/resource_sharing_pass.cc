@@ -2006,13 +2006,15 @@ PrecomputeVisibilityExpressions(
 
 }  // namespace
 
-absl::StatusOr<bool> ResourceSharingPass::PerformFoldingActions(
+absl::StatusOr<std::vector<const NaryFoldingAction*>>
+ResourceSharingPass::PerformFoldingActions(
     FunctionBase* f, int64_t next_node_id,
     VisibilityBuilder* visibility_builder,
     const NodeBackwardDependencyAnalysis& nda,
     const std::vector<std::unique_ptr<NaryFoldingAction>>&
         folding_actions_to_perform) {
-  bool modified = !folding_actions_to_perform.empty();
+  std::vector<const NaryFoldingAction*> performed_folding_actions;
+  performed_folding_actions.reserve(folding_actions_to_perform.size());
   VLOG(2) << "There are " << folding_actions_to_perform.size()
           << " folding actions to perform";
 
@@ -2259,12 +2261,14 @@ absl::StatusOr<bool> ResourceSharingPass::PerformFoldingActions(
       renaming_done_by_previous_folding[to_node] = unified_node;
     }
     VLOG(3) << "      Folding completed";
+    performed_folding_actions.push_back(folding.get());
   }
 
-  return modified;
+  return performed_folding_actions;
 }
 
-absl::StatusOr<bool> ResourceSharingPass::PerformFoldingActions(
+absl::StatusOr<std::vector<const NaryFoldingAction*>>
+ResourceSharingPass::PerformFoldingActions(
     FunctionBase* f, const VisibilityAnalyses& visibility,
     const std::vector<std::unique_ptr<NaryFoldingAction>>&
         folding_actions_to_perform) {
@@ -2404,7 +2408,10 @@ absl::StatusOr<bool> ResourceSharingPass::RunOnFunctionBaseInternal(
                                    options, context));
 
   // Perform the folding
-  return PerformFoldingActions(f, fg.visibility, folding_actions_to_perform);
+  XLS_ASSIGN_OR_RETURN(
+      std::vector<const NaryFoldingAction*> performed_folding_actions,
+      PerformFoldingActions(f, fg.visibility, folding_actions_to_perform));
+  return !performed_folding_actions.empty();
 }
 
 TimingAnalysis::TimingAnalysis(
