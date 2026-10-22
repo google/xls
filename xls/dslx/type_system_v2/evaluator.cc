@@ -188,13 +188,7 @@ class EvaluatorImpl : public Evaluator {
       }
     }
 
-    int64_t result;
-    if (value->IsSigned()) {
-      XLS_ASSIGN_OR_RETURN(result, value->GetBitValueSigned());
-    } else {
-      XLS_ASSIGN_OR_RETURN(result, value->GetBitValueUnsigned());
-    }
-    return result;
+    return value->GetBitValueViaSign();
   }
 
   // Evaluates the given `Expr` if there is a faster way to do so than using
