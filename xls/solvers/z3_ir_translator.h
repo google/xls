@@ -24,7 +24,6 @@
 #include <string>
 #include <string_view>
 #include <type_traits>
-#include <utility>
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
@@ -60,7 +59,7 @@ class IrTranslator : public DfsVisitorWithDefault {
   // AST. The `allow_unsupported` option will cause unsupported ops to be
   // translated into fresh variables of the appropriate type.
   static absl::StatusOr<std::unique_ptr<IrTranslator>> CreateAndTranslate(
-      FunctionBase* source, bool allow_unsupported = false);
+      FunctionBase* source, const SolverOptions& options = {});
 
   // Translates the given function into a Z3 AST using a preexisting context
   // (i.e., that used by another Z3Translator). This binds the given function
@@ -69,12 +68,13 @@ class IrTranslator : public DfsVisitorWithDefault {
   // usually for equivalence checking.
   static absl::StatusOr<std::unique_ptr<IrTranslator>> CreateAndTranslate(
       Z3_context ctx, FunctionBase* function_base,
-      absl::Span<const Z3_ast> imported_params, bool allow_unsupported = false);
+      absl::Span<const Z3_ast> imported_params,
+      const SolverOptions& options = {});
 
   // Translates the given node into a Z3 AST using a preexisting context
   // (i.e., that used by another Z3Translator).
   static absl::StatusOr<std::unique_ptr<IrTranslator>> CreateAndTranslate(
-      Z3_context ctx, Node* source, bool allow_unsupported = false);
+      Z3_context ctx, Node* source, const SolverOptions& options = {});
 
   ~IrTranslator() override;
 
@@ -99,15 +99,22 @@ class IrTranslator : public DfsVisitorWithDefault {
   // Translates if the translation is not yet stored.
   Z3_ast GetTranslation(const Node* source);
 
+  // Convenience version for the above for the function return Node.
+  Z3_ast GetReturnNode();
+
+  // Returns true if the node has already been translated in the SMT context.
+  // Primarily intended for verifying lazy/on-demand translation coverage in
+  // testing.
+  bool IsNodeTranslated(const Node* node) const {
+    return translations_.contains(node);
+  }
+
   // Re-translates the function from scratch, using fixed mappings for the
   // values in "replacements", i.e., when any node in "replacements" is
   // encountered, the fixed Z3_ast is used instead of using a translation from
   // the original IR.
   absl::Status Retranslate(
       const absl::flat_hash_map<const Node*, Z3_ast>& replacements);
-
-  // Convenience version for the above for the function return Node.
-  Z3_ast GetReturnNode();
 
   // Returns the kind (bit vector, tuple, function decl, etc.) of a Z3 sort.
   Z3_sort_kind GetValueKind(Z3_ast value);
@@ -154,7 +161,8 @@ class IrTranslator : public DfsVisitorWithDefault {
   absl::StatusOr<ProverResult> TryProveCombination(
       absl::Span<const PredicateOfNode> terms,
       PredicateCombination predicate_combination,
-      absl::Span<const PredicateOfNode> assumptions = {});
+      absl::Span<const PredicateOfNode> assumptions = {},
+      Z3_solver solver = nullptr, const ProveOptions& options = {});
 
   // DfsVisitorWithDefault override decls.
   absl::Status DefaultHandler(Node* node) override;
@@ -225,7 +233,8 @@ class IrTranslator : public DfsVisitorWithDefault {
 
  protected:
   IrTranslator(Z3_context ctx, FunctionBase* source,
-               std::optional<absl::Span<const Z3_ast>> imported_params);
+               std::optional<absl::Span<const Z3_ast>> imported_params,
+               const SolverOptions& options);
 
   // Records the mapping of the specified XLS IR node to Z3 value.
   void NoteTranslation(Node* node, Z3_ast translated);
@@ -236,7 +245,8 @@ class IrTranslator : public DfsVisitorWithDefault {
   }
 
  private:
-  IrTranslator(Z3_config config, FunctionBase* source);
+  IrTranslator(Z3_config config, FunctionBase* source,
+               const SolverOptions& options);
 
   // Gets the bit count associated with the bit-vector-sort Z3 node "arg".
   // (Arg must be known to be of bit-vector sort.)
@@ -369,6 +379,7 @@ class IrTranslator : public DfsVisitorWithDefault {
   // True if this is translating a function called from another, in which case
   // we shouldn't delete our context, etc.!
   bool borrowed_context_;
+  bool pre_translate_;
   // Params specified in the context-borrowing CreateAndTranslate() builder.
   // Parameters already translated in a separate function traversal that should
   // be used as this translation's parameter set.
@@ -469,21 +480,24 @@ absl::StatusOr<std::string> EmitFunctionAsSmtLib(Function* function);
 
 class Z3SolverInstance : public xls::solvers::SolverInstance {
  public:
-  explicit Z3SolverInstance(std::unique_ptr<IrTranslator> translator)
-      : translator_(std::move(translator)) {}
+  explicit Z3SolverInstance(std::unique_ptr<IrTranslator> translator);
+  ~Z3SolverInstance() override;
 
   void SetLimit(const SolverLimit& limit) override;
 
   absl::StatusOr<ProverResult> TryProve(
       Node* subject, const Predicate& p,
-      absl::Span<const PredicateOfNode> assumptions = {}) override;
+      absl::Span<const PredicateOfNode> assumptions = {},
+      const ProveOptions& options = {}) override;
 
   absl::StatusOr<ProverResult> TryProveCombination(
       absl::Span<const PredicateOfNode> terms, PredicateCombination combination,
-      absl::Span<const PredicateOfNode> assumptions = {}) override;
+      absl::Span<const PredicateOfNode> assumptions = {},
+      const ProveOptions& options = {}) override;
 
  private:
   std::unique_ptr<IrTranslator> translator_;
+  Z3_solver solver_;
 };
 
 class Z3Solver : public xls::solvers::Solver {
@@ -492,7 +506,7 @@ class Z3Solver : public xls::solvers::Solver {
 
   absl::StatusOr<std::unique_ptr<xls::solvers::SolverInstance>>
   CreateSolverInstance(FunctionBase* f,
-                       bool allow_unsupported = false) override;
+                       const SolverOptions& options = {}) override;
 
   absl::StatusOr<ProverResult> TryProve(
       FunctionBase* f, Node* subject, const Predicate& p,

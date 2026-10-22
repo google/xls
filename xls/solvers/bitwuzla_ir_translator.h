@@ -20,7 +20,6 @@
 #include <optional>
 #include <string>
 #include <string_view>
-#include <utility>
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
@@ -46,16 +45,16 @@ namespace xls::solvers::bitwuzla {
 class IrTranslator : public DfsVisitorWithDefault {
  public:
   static absl::StatusOr<std::unique_ptr<IrTranslator>> CreateAndTranslate(
-      FunctionBase* source, bool allow_unsupported = false);
+      FunctionBase* source, const SolverOptions& options = {});
 
   static absl::StatusOr<std::unique_ptr<IrTranslator>> CreateAndTranslate(
       ::bitwuzla::TermManager& tm, FunctionBase* source,
       absl::Span<const ::bitwuzla::Term> imported_params,
-      bool allow_unsupported = false);
+      const SolverOptions& options = {});
 
   static absl::StatusOr<std::unique_ptr<IrTranslator>> CreateAndTranslate(
       ::bitwuzla::TermManager& tm, Node* source,
-      bool allow_unsupported = false);
+      const SolverOptions& options = {});
 
   ~IrTranslator() override;
 
@@ -65,12 +64,21 @@ class IrTranslator : public DfsVisitorWithDefault {
   ::bitwuzla::Term GetTranslation(const Node* source);
   ::bitwuzla::Term GetReturnNode();
 
+  // Returns true if the node has already been translated in the SMT context.
+  // Primarily intended for verifying lazy/on-demand translation coverage in
+  // testing.
+  bool IsNodeTranslated(const Node* node) const {
+    return translations_.contains(node);
+  }
+
   absl::Status Retranslate(
       const absl::flat_hash_map<const Node*, ::bitwuzla::Term>& replacements);
 
   absl::StatusOr<ProverResult> TryProveCombination(
       absl::Span<const PredicateOfNode> terms, PredicateCombination combination,
-      absl::Span<const PredicateOfNode> assumptions = {});
+      absl::Span<const PredicateOfNode> assumptions = {},
+      ::bitwuzla::Bitwuzla* bitwuzla = nullptr,
+      const ProveOptions& options = {});
 
   ::bitwuzla::TermManager& tm() { return tm_; }
   FunctionBase* xls_function() { return xls_function_; }
@@ -156,9 +164,9 @@ class IrTranslator : public DfsVisitorWithDefault {
 
  private:
   IrTranslator(std::unique_ptr<::bitwuzla::TermManager> owned_tm,
-               FunctionBase* source, bool allow_unsupported);
+               FunctionBase* source, const SolverOptions& options);
   IrTranslator(::bitwuzla::TermManager& tm, FunctionBase* source,
-               bool allow_unsupported);
+               const SolverOptions& options);
 
   ::bitwuzla::Sort TypeToSort(const Type* type);
   ::bitwuzla::Sort GetArrayIndexSort(const ArrayType* type);
@@ -224,6 +232,7 @@ class IrTranslator : public DfsVisitorWithDefault {
   ::bitwuzla::TermManager& tm_;
   FunctionBase* xls_function_;
   bool allow_unsupported_;
+  bool pre_translate_;
   std::optional<absl::Duration> timeout_;
   std::optional<int64_t> limit_;
   absl::flat_hash_map<const Node*, ::bitwuzla::Term> translations_;
@@ -233,21 +242,24 @@ class IrTranslator : public DfsVisitorWithDefault {
 
 class BitwuzlaSolverInstance : public xls::solvers::SolverInstance {
  public:
-  explicit BitwuzlaSolverInstance(std::unique_ptr<IrTranslator> translator)
-      : translator_(std::move(translator)) {}
+  explicit BitwuzlaSolverInstance(std::unique_ptr<IrTranslator> translator);
+  ~BitwuzlaSolverInstance() override;
 
   void SetLimit(const SolverLimit& limit) override;
 
   absl::StatusOr<ProverResult> TryProve(
       Node* subject, const Predicate& p,
-      absl::Span<const PredicateOfNode> assumptions = {}) override;
+      absl::Span<const PredicateOfNode> assumptions = {},
+      const ProveOptions& options = {}) override;
 
   absl::StatusOr<ProverResult> TryProveCombination(
       absl::Span<const PredicateOfNode> terms, PredicateCombination combination,
-      absl::Span<const PredicateOfNode> assumptions = {}) override;
+      absl::Span<const PredicateOfNode> assumptions = {},
+      const ProveOptions& options = {}) override;
 
  private:
   std::unique_ptr<IrTranslator> translator_;
+  std::unique_ptr<::bitwuzla::Bitwuzla> bitwuzla_;
 };
 
 class BitwuzlaSolver : public xls::solvers::Solver {
@@ -256,7 +268,7 @@ class BitwuzlaSolver : public xls::solvers::Solver {
 
   absl::StatusOr<std::unique_ptr<xls::solvers::SolverInstance>>
   CreateSolverInstance(FunctionBase* f,
-                       bool allow_unsupported = false) override;
+                       const SolverOptions& options = {}) override;
 
   absl::StatusOr<ProverResult> TryProve(
       FunctionBase* f, Node* subject, const Predicate& p,
