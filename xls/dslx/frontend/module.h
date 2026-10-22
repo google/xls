@@ -48,7 +48,7 @@ namespace xls::dslx {
 
 using ModuleMember =
     std::variant<Function*, Proc*, TestFunction*, TestProc*, QuickCheck*,
-                 TypeAlias*, StructDef*, ProcAlias*, ProcDef*, ConstantDef*,
+                 TypeAlias*, StructDef*, AliasDef*, ProcDef*, ConstantDef*,
                  EnumDef*, SumDef*, Import*, Use*, ConstAssert*, Impl*, Trait*,
                  VerbatimNode*, FuzzTestFunction*>;
 

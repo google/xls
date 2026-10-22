@@ -1018,8 +1018,8 @@ pub proc Bar = Foo<3, 4>;
   FileTable file_table;
   XLS_ASSERT_OK_AND_ASSIGN(auto module, ParseModule(kProgram, "fake_path.x",
                                                     "the_module", file_table));
-  XLS_ASSERT_OK_AND_ASSIGN(ProcAlias * proc_alias,
-                           module->GetMemberOrError<ProcAlias>("Bar"));
+  XLS_ASSERT_OK_AND_ASSIGN(AliasDef * proc_alias,
+                           module->GetMemberOrError<AliasDef>("Bar"));
   XLS_ASSERT_OK_AND_ASSIGN(AstNode * clone, CloneAst(proc_alias));
   XLS_ASSERT_OK(VerifyClone(proc_alias, clone, file_table));
 }

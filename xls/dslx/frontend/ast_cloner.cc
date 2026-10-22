@@ -1283,19 +1283,19 @@ class AstCloner : public AstNodeVisitor {
     return absl::OkStatus();
   }
 
-  absl::Status HandleProcAlias(const ProcAlias* n) override {
+  absl::Status HandleAliasDef(const AliasDef* n) override {
     XLS_RETURN_IF_ERROR(VisitChildren(n));
 
     NameDef* new_name_def =
         absl::down_cast<NameDef*>(old_to_new_.at(n->name_def()));
     AstNode* new_target_node = old_to_new_.at(ToAstNode(n->target()));
-    ProcAlias::Target new_target;
+    AliasDef::Target new_target;
     if (new_target_node->kind() == AstNodeKind::kNameRef) {
       new_target = absl::down_cast<NameRef*>(new_target_node);
     } else {
       new_target = absl::down_cast<ColonRef*>(new_target_node);
     }
-    ProcAlias* new_pa = module(n)->Make<ProcAlias>(
+    AliasDef* new_pa = module(n)->Make<AliasDef>(
         n->span(), new_name_def, new_target, n->is_public(),
         CloneParametrics(n->parametrics()));
     new_name_def->set_definer(new_pa);
