@@ -47,6 +47,7 @@
 #include "xls/dslx/ir_convert/conversion_info.h"
 #include "xls/dslx/ir_convert/convert_options.h"
 #include "xls/dslx/ir_convert/ir_conversion_utils.h"
+#include "xls/dslx/type_system/channel_manager.h"
 #include "xls/dslx/type_system/type.h"
 #include "xls/dslx/type_system/type_info.h"
 #include "xls/ir/channel.h"
@@ -109,29 +110,6 @@ ChannelScope::ChannelScope(PackageConversionData* conversion_info,
   }
 }
 
-absl::StatusOr<ChannelOrArray> ChannelScope::DefineChannelOrArray(
-    const ChannelDecl* decl) {
-  VLOG(4) << "ChannelScope::DefineChannelOrArray: " << decl->ToString();
-  XLS_RET_CHECK(function_context_.has_value());
-  XLS_ASSIGN_OR_RETURN(
-      InterpValue name_interp_value,
-      ConstexprEvaluator::EvaluateToValue(
-          import_data_, function_context_->type_info,
-          /*warning_collector=*/nullptr, function_context_->bindings,
-          &decl->channel_name_expr()));
-  XLS_ASSIGN_OR_RETURN(std::string short_name,
-                       InterpValueAsString(name_interp_value));
-  XLS_ASSIGN_OR_RETURN(xls::Type * type, GetChannelType(decl));
-  XLS_ASSIGN_OR_RETURN(std::optional<ChannelConfig> channel_config,
-                       CreateChannelConfig(decl));
-  XLS_ASSIGN_OR_RETURN(
-      ChannelOrArray channel_or_array,
-      DefineChannelOrArrayInternal(short_name, ChannelOps::kSendReceive, type,
-                                   channel_config, decl->dims(), false));
-  decl_to_channel_or_array_[decl] = channel_or_array;
-  return channel_or_array;
-}
-
 ChannelOrArray ToChannelOrArray(ChannelRef ref) {
   return absl::visit(
       Visitor{
@@ -190,6 +168,55 @@ absl::StatusOr<ChannelOrArray> ChannelScope::DefineChannelOrArrayInternal(
     array->AddChannel(channel_name, channel);
   }
   return array;
+}
+
+absl::StatusOr<ChannelOrArray> ChannelScope::DefineChannelOrArray(
+    std::variant<const ChannelDecl*, const ImplicitChannelDecl*> decl) {
+  XLS_RET_CHECK(function_context_.has_value());
+  if (std::holds_alternative<const ChannelDecl*>(decl)) {
+    const auto* channel_decl = std::get<const ChannelDecl*>(decl);
+    VLOG(4) << "ChannelScope::DefineChannelOrArray: "
+            << channel_decl->ToString();
+    XLS_ASSIGN_OR_RETURN(
+        InterpValue name_interp_value,
+        ConstexprEvaluator::EvaluateToValue(
+            import_data_, function_context_->type_info,
+            /*warning_collector=*/nullptr, function_context_->bindings,
+            &channel_decl->channel_name_expr()));
+    XLS_ASSIGN_OR_RETURN(std::string short_name,
+                         InterpValueAsString(name_interp_value));
+    XLS_ASSIGN_OR_RETURN(xls::Type * type, GetChannelType(channel_decl));
+    XLS_ASSIGN_OR_RETURN(std::optional<ChannelConfig> channel_config,
+                         CreateChannelConfig(channel_decl));
+    XLS_ASSIGN_OR_RETURN(ChannelOrArray channel_or_array,
+                         DefineChannelOrArrayInternal(
+                             short_name, ChannelOps::kSendReceive, type,
+                             channel_config, channel_decl->dims(), false));
+    decl_to_channel_or_array_[channel_decl] = channel_or_array;
+    return channel_or_array;
+  }
+
+  const auto* implicit_decl = std::get<const ImplicitChannelDecl*>(decl);
+  XLS_RET_CHECK(function_context_->proc_def != nullptr);
+  const StructMemberNode* member =
+      implicit_decl->GetNamedMember(function_context_->proc_def);
+  VLOG(4) << "ChannelScope::DefineChannelOrArray (implicit): "
+          << member->name();
+  ChannelTypeAnnotation* annot =
+      IoObjectToChannelTypeAnnotation(member->type());
+  XLS_RET_CHECK(!annot->dims().has_value())
+      << "Implicit channel arrays are not supported: " << member->ToString();
+
+  std::optional<Type*> payload_type =
+      function_context_->type_info->GetItem(annot->payload());
+  XLS_RET_CHECK(payload_type.has_value());
+  XLS_ASSIGN_OR_RETURN(xls::Type * ir_type,
+                       TypeToIr(conversion_info_->package.get(), **payload_type,
+                                function_context_->bindings));
+
+  return DefineChannelOrArrayInternal(member->name(), ChannelOps::kSendReceive,
+                                      ir_type, /*channel_config=*/std::nullopt,
+                                      /*dims=*/std::nullopt);
 }
 
 absl::StatusOr<ChannelOrArray> ChannelScope::DefineBoundaryChannelOrArray(

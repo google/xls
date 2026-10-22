@@ -593,10 +593,13 @@ class FunctionConverter {
   absl::Status ExpandProcDefChannelReference(
       const InterpValue& channel_or_array_value,
       std::vector<ChannelInterface*>& out);
+  // `callee_constructor_ti` is the constructor `TypeInfo` of the spawned proc,
+  // which holds the channels that proc declares implicitly for itself.
   absl::Status AddProcDefInstantiation(const ProcDef* proc_def,
                                        const InterpValue& external_initializer,
                                        const InterpValue& canonical_initializer,
-                                       const TypeInfo* constructor_ti);
+                                       const TypeInfo* constructor_ti,
+                                       const TypeInfo* callee_constructor_ti);
   absl::StatusOr<ChannelArray*> GetChannelArrayForAttr(const Attr* attr);
 
   absl::Status HandleProcDefSpawn(ProcDefInstance* instance);
@@ -739,6 +742,9 @@ class FunctionConverter {
   // The ID of the unique Proc instance currently being converted. Only valid if
   // a Proc is being converted.
   std::optional<ProcId> proc_id_;
+
+  // The ProcDef being converted. Only valid if a Proc is being converted.
+  const ProcDef* proc_def_ = nullptr;
 
   // If the function is the entry function resulting in a top entity in the IR.
   bool is_top_;

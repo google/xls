@@ -138,13 +138,15 @@ class ChannelScope {
   // The owner (IR converter driving the overall procedure) should invoke this
   // with the `type_info` and `bindings` for the function, before converting
   // each function to IR. All other functions assume this has been done.
-  void EnterFunctionContext(TypeInfo* type_info, ParametricEnv bindings) {
-    function_context_.emplace(type_info, std::move(bindings));
+  void EnterFunctionContext(TypeInfo* type_info, ParametricEnv bindings,
+                            const ProcDef* proc_def = nullptr) {
+    function_context_.emplace(type_info, std::move(bindings), proc_def);
   }
 
   // Creates the channel object, or array of channel objects, indicated by the
   // given `decl`, and returns it.
-  absl::StatusOr<ChannelOrArray> DefineChannelOrArray(const ChannelDecl* decl);
+  absl::StatusOr<ChannelOrArray> DefineChannelOrArray(
+      std::variant<const ChannelDecl*, const ImplicitChannelDecl*> decl);
 
   // Creates the channel object, or array of channel objects, indicated by the
   // given parameter or proc member at the overall DSLX->IR conversion
@@ -255,11 +257,15 @@ class ChannelScope {
   // Set by the caller via `EnterContext()` before the conversion of each
   // function.
   struct FunctionContext {
-    FunctionContext(TypeInfo* type_info_value, ParametricEnv bindings_value)
-        : type_info(type_info_value), bindings(std::move(bindings_value)) {}
+    FunctionContext(TypeInfo* type_info_value, ParametricEnv bindings_value,
+                    const ProcDef* proc_def_value = nullptr)
+        : type_info(type_info_value),
+          bindings(std::move(bindings_value)),
+          proc_def(proc_def_value) {}
 
     TypeInfo* const type_info;
     ParametricEnv bindings;
+    const ProcDef* const proc_def;
   };
   std::optional<FunctionContext> function_context_;
 

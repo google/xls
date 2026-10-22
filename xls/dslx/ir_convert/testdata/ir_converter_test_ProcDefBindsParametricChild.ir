@@ -1,0 +1,39 @@
+package test_module
+
+file_number 0 "test_module.x"
+
+proc __test_module__Loopback__8_next<_input: bits[8] in, _output: bits[8] out>() {
+  chan_interface _input(direction=receive, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
+  chan_interface _output(direction=send, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
+  __token: token = literal(value=token, id=1)
+  literal.2: bits[1] = literal(value=1, id=2)
+  tuple.3: () = tuple(id=3)
+}
+
+proc __test_module__Loopback__16_next<_input: bits[16] in, _output: bits[16] out>() {
+  chan_interface _input(direction=receive, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
+  chan_interface _output(direction=send, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
+  __token: token = literal(value=token, id=4)
+  literal.5: bits[1] = literal(value=1, id=5)
+  tuple.6: () = tuple(id=6)
+}
+
+proc __test_module__Top_next<>() {
+  chan _to_a(bits[8], id=0, kind=streaming, ops=send_receive, flow_control=ready_valid, strictness=proven_mutually_exclusive)
+  chan_interface _to_a(direction=send, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
+  chan_interface _to_a(direction=receive, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
+  chan _from_a(bits[8], id=1, kind=streaming, ops=send_receive, flow_control=ready_valid, strictness=proven_mutually_exclusive)
+  chan_interface _from_a(direction=send, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
+  chan_interface _from_a(direction=receive, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
+  chan _to_b(bits[16], id=2, kind=streaming, ops=send_receive, flow_control=ready_valid, strictness=proven_mutually_exclusive)
+  chan_interface _to_b(direction=send, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
+  chan_interface _to_b(direction=receive, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
+  chan _from_b(bits[16], id=3, kind=streaming, ops=send_receive, flow_control=ready_valid, strictness=proven_mutually_exclusive)
+  chan_interface _from_b(direction=send, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
+  chan_interface _from_b(direction=receive, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
+  proc_instantiation __test_module__Loopback__8_next_inst(_to_a, _from_a, proc=__test_module__Loopback__8_next)
+  proc_instantiation __test_module__Loopback__16_next_inst(_to_b, _from_b, proc=__test_module__Loopback__16_next)
+  __token: token = literal(value=token, id=7)
+  literal.8: bits[1] = literal(value=1, id=8)
+  tuple.9: () = tuple(id=9)
+}
