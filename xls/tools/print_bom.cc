@@ -12,6 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Finds all `*.metrics.(text)proto` (`XlsMetricsProto`) files in a directory
+// structure and prints out a summary of BOM (bill of materials) items.
+
 #include <algorithm>
 #include <cstdint>
 #include <filesystem>
@@ -20,9 +23,6 @@
 #include <string_view>
 #include <utility>
 #include <vector>
-
-// Find all `*.sig.textproto` files in a directory structure and prints out a
-// summary of modules used.
 
 #include "absl/container/btree_map.h"
 #include "absl/container/flat_hash_map.h"
@@ -70,7 +70,7 @@ std::string AbslUnparseFlag(PrintBomOutputMode mode) {
 ABSL_FLAG(std::string, root_path, ".",
           "Path to start the recursive search at.");
 
-ABSL_FLAG(std::string, file_pattern, ".*\\.sig\\.(text)?proto",
+ABSL_FLAG(std::string, file_pattern, ".*\\.metrics\\.(text)?proto",
           "Regex pattern used to find `XlsMetricsProto` (text)proto files.");
 
 ABSL_FLAG(PrintBomOutputMode, output_as, PrintBomOutputMode::kTable,

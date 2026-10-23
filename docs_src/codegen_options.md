@@ -39,8 +39,12 @@ codegen can generate files useful for understanding or integrating the RTL.
     associating lines of verilog to lines of IR.
 -   `--codegen_options_used_textproto_file` is the path to write a textproto
     containing the actual configuration used for codegen.
--   `--block_metrics_file` is the path to write a textproto containing the block
-    metrics of the generated Verilog.
+-   `--block_metrics_path` is the path to write an `XlsMetricsProto` textproto
+    containing the block metrics, including the bill of materials, for the
+    generated Verilog. In Bazel, the corresponding
+    [`xls_ir_verilog`](bazel_rules_macros.md#xls_ir_verilog) rule output
+    attribute is `block_metrics_file` (defaulting to
+    `<verilog_basename>.metrics.textproto`).
 
 # Output specification
 

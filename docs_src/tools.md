@@ -282,8 +282,9 @@ purposes only.
 ## [`print_bom`](https://github.com/google/xls/tree/main/xls/tools/print_bom.cc)
 
 Tool to calculate and print a summary of the BOM (bill of materials) elements
-from `ModuleSignatureProto` protobuf files produced using the
-`--output_signature_path` codegen argument.
+from `XlsMetricsProto` protobuf files produced using the `--block_metrics_path`
+`codegen_main` argument (or `.metrics.textproto` files emitted by
+[`xls_ir_verilog`](bazel_rules_macros.md#xls_ir_verilog)).
 
 Features include;
 
@@ -304,7 +305,7 @@ should produce the following output;
 
 ```
 Found 1 protobuf files.
- * "bazel-bin/xls/examples/protobuf/varint_encode_u32.sig.textproto"
+ * bazel-bin/xls/examples/protobuf/varint_encode_u32.metrics.textproto
 
  +------------------------+----------------+-------------+--------------+-------+
  |                   Kind |             Op | Input Width | Output Width | Count |
@@ -325,11 +326,11 @@ Found 1 protobuf files.
  |                        |                |           2 |            3 |     1 |
  |                        |                |           4 |            8 |     1 |
  |                        |                |           7 |            8 |     4 |
- |                        |        literal |           0 |            1 |     2 |
+ |                        |        literal |           0 |            1 |     1 |
  |                        |                |           0 |            2 |     2 |
  |                        |                |           0 |            3 |     2 |
- |                        |                |           0 |            4 |     2 |
- |                        |                |           0 |            7 |     2 |
+ |                        |                |           0 |            4 |     1 |
+ |                        |                |           0 |            7 |     1 |
  |                        |                |           0 |           11 |     1 |
  |                        |                |           0 |           18 |     1 |
  |                        |                |           0 |           25 |     1 |

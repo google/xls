@@ -23,12 +23,9 @@
 #include "absl/container/btree_map.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/statusor.h"
-#include "xls/codegen/module_signature.pb.h"
 #include "xls/codegen/xls_metrics.pb.h"
 
 namespace xls {
-
-using ::xls::verilog::ModuleSignatureProto;
 
 struct BomItem {
   // The op values are stored as strings because this code isn't performance
@@ -43,7 +40,7 @@ struct BomItem {
 bool operator==(const BomItem& lhs, const BomItem& rhs);
 bool operator<(const BomItem& lhs, const BomItem& rhs);
 
-// Calculate a BOM summary from a given list of ModuleSignatureProto files.
+// Calculate a BOM summary from a given list of XlsMetricsProto files.
 // Using absl::btree_map as we *want* the items to be stored in sorted order.
 absl::StatusOr<absl::btree_map<BomItem, int64_t>> BomCalculateSummary(
     const absl::flat_hash_map<std::string, verilog::XlsMetricsProto>&

@@ -64,27 +64,24 @@ absl::StatusOr<absl::btree_map<BomItem, int64_t>> BomCalculateSummary(
   for (const auto& [path, metrics] : metrics_data) {
     if (!metrics.has_block_metrics()) {
       return absl::InvalidArgumentError(absl::StrFormat(
-          "Proto ModuleSignatureProto from %s has empty block metrics.", path));
+          "Proto XlsMetricsProto from %s has empty block metrics.", path));
     }
     if (metrics.block_metrics().bill_of_materials().empty()) {
       return absl::InvalidArgumentError(absl::StrFormat(
-          "Proto ModuleSignatureProto from %s has no bill of materials.",
-          path));
+          "Proto XlsMetricsProto from %s has no bill of materials.", path));
     }
 
     for (const verilog::BomEntryProto& item :
          metrics.block_metrics().bill_of_materials()) {
       if (!item.has_op()) {
-        return absl::InvalidArgumentError(
-            absl::StrFormat("ModuleSignatureProto from %s has a BomEmptyProto "
-                            "missing op value.",
-                            path));
+        return absl::InvalidArgumentError(absl::StrFormat(
+            "XlsMetricsProto from %s has a BomEntryProto missing op value.",
+            path));
       }
       if (!item.has_kind()) {
-        return absl::InvalidArgumentError(
-            absl::StrFormat("ModuleSignatureProto from %s has a BomEmptyProto "
-                            "missing klind value.",
-                            path));
+        return absl::InvalidArgumentError(absl::StrFormat(
+            "XlsMetricsProto from %s has a BomEntryProto missing kind value.",
+            path));
       }
       std::string op_kind = verilog::BomKindProto_Name(item.kind());
       std::string op_name = OpToString(FromOpProto(item.op()));
@@ -110,7 +107,7 @@ CollectMetricsProtos(const std::filesystem::path& root,
     if (absl::EndsWith(path.filename().c_str(), ".textproto")) {
       XLS_RETURN_IF_ERROR(ParseTextProtoFile(path, &metrics));
     } else if (absl::EndsWith(path.filename().c_str(), ".proto")) {
-      XLS_RETURN_IF_ERROR(ParseProtobinFile(path.filename(), &metrics));
+      XLS_RETURN_IF_ERROR(ParseProtobinFile(path, &metrics));
     } else {
       return absl::InvalidArgumentError(
           absl::StrCat(path.c_str(), " is not a .proto or .textproto file"));

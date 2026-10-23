@@ -1123,7 +1123,6 @@ cc_library(
     srcs = ["bom.cc"],
     hdrs = ["bom.h"],
     deps = [
-        "//xls/codegen:module_signature_cc_proto",
         "//xls/codegen:xls_metrics_cc_proto",
         "//xls/common/file:filesystem",
         "//xls/common/status:status_macros",
@@ -1140,15 +1139,20 @@ cc_library(
 cc_test(
     name = "bom_test",
     srcs = ["bom_test.cc"],
-    data = ["//xls/tools/testdata:bom.sig.textproto"],
+    data = ["//xls/tools/testdata:bom.metrics.textproto"],
     deps = [
         ":bom",
         "//xls/codegen:xls_metrics_cc_proto",
         "//xls/common:xls_gunit_main",
+        "//xls/common/file:filesystem",
         "//xls/common/file:get_runfile_path",
+        "//xls/common/file:temp_directory",
         "//xls/common/status:matchers",
+        "//xls/ir:op_cc_proto",
         "@abseil-cpp//absl/container:btree",
         "@abseil-cpp//absl/container:flat_hash_map",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:status_matchers",
         "@googletest//:gtest",
     ],
 )
