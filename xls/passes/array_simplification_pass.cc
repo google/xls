@@ -587,7 +587,10 @@ absl::StatusOr<SimplifyResult> SimplifyArrayIndex(
         array_index->ReplaceUsesWithNew<ArrayIndex>(
             array_update->update_value(),
             array_index->indices().subspan(array_update->indices().size()),
-            IndicesAreDefinitelyInBounds(array_update, query_engine)));
+            IndicesAreDefinitelyInBounds(array_index, query_engine)));
+    if (IndicesAreDefinitelyInBounds(new_array_index, query_engine)) {
+      new_array_index->SetAssumedInBounds();
+    }
     return SimplifyResult::Changed({new_array_index});
   }
 
@@ -900,7 +903,8 @@ absl::StatusOr<SimplifyResult> SimplifyArrayUpdate(
             array_update->ReplaceUsesWithNew<ArrayUpdate>(
                 array_update->array_to_update(), subupdate->update_value(),
                 new_update_indices,
-                IndicesAreDefinitelyInBounds(array_update, query_engine)));
+                IndicesAreDefinitelyInBounds(array_update, query_engine) &&
+                    IndicesAreDefinitelyInBounds(subupdate, query_engine)));
         return SimplifyResult::Changed({new_array_update});
       }
     }

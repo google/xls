@@ -820,6 +820,45 @@ TEST_F(ArraySimplificationPassTest, ChainedArrayUpdate) {
                   /*indices=*/{m::Param("x"), m::Param("y"), m::Param("z")}));
 }
 
+TEST_F(ArraySimplificationPassTest, ChainedArrayUpdateOutOfBoundsSubupdate) {
+  Package* p = GetPackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+ fn func(a0: bits[32][1], a1: bits[32][1], a2: bits[32][1], z: bits[2], v: bits[32]) -> bits[32][1][3] {
+  a: bits[32][1][3] = array(a0, a1, a2)
+  one: bits[2] = literal(value=1)
+  subarray: bits[32][1] = array_index(a, indices=[one])
+  update: bits[32][1] = array_update(subarray, v, indices=[z])
+  ret update2: bits[32][1][3] = array_update(a, update, indices=[one])
+ }
+  )",
+                                                       p));
+  ScopedVerifyEquivalence sve(f);
+  ASSERT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::Array(m::Param("a0"),
+                       m::PrioritySelect(m::Eq(m::Param("z"), m::Literal(0)),
+                                         /*cases=*/{m::Array(m::Param("v"))},
+                                         /*default_value=*/m::Param("a1")),
+                       m::Param("a2")));
+}
+
+TEST_F(ArraySimplificationPassTest,
+       IndexingArrayUpdatePrefixWithOutOfBoundsSuffix) {
+  Package* p = GetPackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+ fn func(a: bits[32][2][3], sub: bits[32][2], z: bits[2], v: bits[32]) -> bits[32] {
+  one: bits[2] = literal(value=1)
+  inner_update: bits[32][2] = array_update(sub, v, indices=[z])
+  outer_update: bits[32][2][3] = array_update(a, inner_update, indices=[one])
+  ret result: bits[32] = array_index(outer_update, indices=[one, z])
+ }
+  )",
+                                                       p));
+  ScopedVerifyEquivalence sve(f);
+  ASSERT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(), Not(m::Param("v")));
+}
+
 TEST_F(ArraySimplificationPassTest, IndexOfSelect) {
   Package* p = GetPackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
