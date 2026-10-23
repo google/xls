@@ -1060,7 +1060,7 @@ IOChannel* Translator::AddChannel(const IOChannel& new_channel,
   ret->unique_name = GetUniqueChannelName(ret->unique_name);
 
   // Assertion for linear scan. If it fires, consider changing data structure
-  XLSCC_CHECK_LE(context().sf->io_channels.size(), 128, loc);
+  XLSCC_CHECK_LE(context().sf->io_channels.size(), 256, loc);
   for (const IOChannel& existing_channel : context().sf->io_channels) {
     if (&existing_channel == ret) {
       continue;

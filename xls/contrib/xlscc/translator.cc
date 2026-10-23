@@ -139,7 +139,7 @@ bool Translator::ContainsKeyValuePair(
 bool Translator::IOChannelInCurrentFunction(IOChannel* to_find,
                                             const xls::SourceInfo& loc) {
   // Assertion for linear scan. If it fires, consider changing data structure
-  XLSCC_CHECK_LE(context().sf->io_channels.size(), 128, loc);
+  XLSCC_CHECK_LE(context().sf->io_channels.size(), 256, loc);
   for (IOChannel& channel : context().sf->io_channels) {
     if (&channel == to_find) {
       return true;
