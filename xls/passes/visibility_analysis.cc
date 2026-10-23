@@ -306,7 +306,7 @@ BddNodeIndex OperandVisibilityAnalysis::AndAggregateSubsetThatFitsTermLimit(
   }
 
   // Sort from least to most expensive to maximize the number of terms kept.
-  absl::c_sort(operands, [&](BddNodeIndex a, BddNodeIndex b) {
+  absl::c_stable_sort(operands, [&](BddNodeIndex a, BddNodeIndex b) {
     return bdd_query_engine_->bdd().path_count(a) <
            bdd_query_engine_->bdd().path_count(b);
   });

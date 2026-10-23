@@ -37,6 +37,7 @@
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
+#include "xls/ir/package.h"
 #include "xls/ir/source_location.h"
 #include "xls/ir/value.h"
 #include "xls/passes/bdd_evaluator.h"
@@ -462,6 +463,39 @@ TEST_F(VisibilityAnalysisTest, VisibilityThroughAnd) {
   EXPECT_NE(bdd.Implies(x_bit_0, bdd.Not(z_visible)), bdd.one());
   EXPECT_NE(bdd.Implies(y_bit_0, z_visible), bdd.one());
   EXPECT_NE(bdd.Implies(y_bit_0, bdd.Not(z_visible)), bdd.one());
+}
+
+TEST_F(VisibilityAnalysisTest, VisibilityThroughAndStableSortTieBreaker) {
+  std::unique_ptr<Package> p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetBitsType(1));
+  BValue a = fb.Param("a", p->GetBitsType(1));
+  BValue b = fb.Param("b", p->GetBitsType(1));
+  BValue and_xab = fb.And({x, a, b});
+  BValue and_xba = fb.And({x, b, a});
+  BValue out = fb.Concat({and_xab, and_xba});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(out));
+  NodeForwardDependencyAnalysis nda;
+  XLS_ASSERT_OK(nda.Attach(f));
+  std::unique_ptr<BddQueryEngine> bdd_engine = BddQueryEngine::MakeDefault();
+  XLS_ASSERT_OK(bdd_engine->Populate(f));
+  // Both params a and b have path_count 2, and a & b has path_count 3.
+  // With edge_term_limit = 2, only the first sorted operand fits.
+  XLS_ASSERT_OK_AND_ASSIGN(OperandVisibilityAnalysis operand_visibility,
+                           OperandVisibilityAnalysis::Create(
+                               /*edge_term_limit=*/2, &nda, bdd_engine.get()));
+  XLS_ASSERT_OK_AND_ASSIGN(BddNodeIndex a_bit,
+                           GetNodeBit(a.node(), 0, *bdd_engine));
+  XLS_ASSERT_OK_AND_ASSIGN(BddNodeIndex b_bit,
+                           GetNodeBit(b.node(), 0, *bdd_engine));
+  // For and(x, a, b): 'a' is first, fits the limit, and 'b' is dropped.
+  EXPECT_EQ(
+      operand_visibility.OperandVisibilityThroughNode(x.node(), and_xab.node()),
+      a_bit);
+  // For and(x, b, a): 'b' is first, fits the limit, and 'a' is dropped.
+  EXPECT_EQ(
+      operand_visibility.OperandVisibilityThroughNode(x.node(), and_xba.node()),
+      b_bit);
 }
 
 TEST_F(VisibilityAnalysisTest, VisibilityThroughPredicate) {
