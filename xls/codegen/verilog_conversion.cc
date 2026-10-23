@@ -432,7 +432,7 @@ class BlockGenerator {
       // cosmetic relative to the emit_as_pipeline=false option as the Verilog
       // generated each way is functionally identical.
       XLS_ASSIGN_OR_RETURN(std::vector<Stage> stages,
-                           SplitBlockIntoStages(block_, rng_));
+                           SplitBlockIntoStages(block_, rng()));
       for (int64_t stage_num = 0; stage_num < stages.size(); ++stage_num) {
         VLOG(2) << "Emitting stage: " << stage_num;
         const Stage& stage = stages.at(stage_num);
@@ -465,7 +465,7 @@ class BlockGenerator {
     } else {
       std::vector<Register*> shuffled_storage;
       absl::Span<Register* const> registers =
-          MaybeShuffle(block_->GetRegisters(), shuffled_storage, rng_);
+          MaybeShuffle(block_->GetRegisters(), shuffled_storage, rng());
 
       XLS_RETURN_IF_ERROR(DeclareRegisters(registers));
       // Determine emission order using residual reference order if available.
@@ -478,7 +478,7 @@ class BlockGenerator {
         }
       }
       if (order.empty()) {
-        XLS_ASSIGN_OR_RETURN(order, TopoSort(block_, rng_));
+        XLS_ASSIGN_OR_RETURN(order, TopoSort(block_, rng()));
       }
       XLS_RETURN_IF_ERROR(EmitLogic(order));
       XLS_RETURN_IF_ERROR(AssignRegisters(registers));
@@ -495,7 +495,7 @@ class BlockGenerator {
   absl::Status EmitInputPorts() {
     std::vector<Block::Port> shuffled_storage;
     for (const Block::Port& port :
-         MaybeShuffle(block_->GetPorts(), shuffled_storage, rng_)) {
+         MaybeShuffle(block_->GetPorts(), shuffled_storage, rng())) {
       if (std::holds_alternative<InputPort*>(port)) {
         InputPort* input_port = std::get<InputPort*>(port);
         if (reset_proto_.has_value() &&
@@ -959,7 +959,7 @@ class BlockGenerator {
     // contains the desired port ordering.
     std::vector<Block::Port> shuffled_storage;
     for (const Block::Port& port :
-         MaybeShuffle(block_->GetPorts(), shuffled_storage, rng_)) {
+         MaybeShuffle(block_->GetPorts(), shuffled_storage, rng())) {
       if (std::holds_alternative<OutputPort*>(port)) {
         OutputPort* output_port = std::get<OutputPort*>(port);
         const NodeRepresentation& output_expr =
@@ -982,11 +982,11 @@ class BlockGenerator {
   absl::Status DeclareInstantiationOutputs() {
     std::vector<xls::Instantiation*> shuffled_instantiations;
     for (xls::Instantiation* instantiation : MaybeShuffle(
-             block_->GetInstantiations(), shuffled_instantiations, rng_)) {
+             block_->GetInstantiations(), shuffled_instantiations, rng())) {
       std::vector<InstantiationOutput*> shuffled_outputs;
       for (InstantiationOutput* output :
            MaybeShuffle(block_->GetInstantiationOutputs(instantiation),
-                        shuffled_outputs, rng_)) {
+                        shuffled_outputs, rng())) {
         XLS_ASSIGN_OR_RETURN(
             node_exprs_[output],
             mb_.DeclareVariable(output->GetName(), output->GetType()));
@@ -1025,12 +1025,12 @@ class BlockGenerator {
     };
     std::vector<xls::Instantiation*> shuffled_instantiations;
     for (xls::Instantiation* instantiation : MaybeShuffle(
-             block_->GetInstantiations(), shuffled_instantiations, rng_)) {
+             block_->GetInstantiations(), shuffled_instantiations, rng())) {
       std::vector<Connection> connections;
       std::vector<InstantiationInput*> shuffled_inputs;
       for (InstantiationInput* input :
            MaybeShuffle(block_->GetInstantiationInputs(instantiation),
-                        shuffled_inputs, rng_)) {
+                        shuffled_inputs, rng())) {
         XLS_RET_CHECK(input->operand_count() > 0);
         const NodeRepresentation& expr = node_exprs_.at(input->operand(0));
         XLS_RET_CHECK(std::holds_alternative<Expression*>(expr));
@@ -1043,7 +1043,7 @@ class BlockGenerator {
       std::vector<InstantiationOutput*> shuffled_outputs;
       for (InstantiationOutput* output :
            MaybeShuffle(block_->GetInstantiationOutputs(instantiation),
-                        shuffled_outputs, rng_)) {
+                        shuffled_outputs, rng())) {
         const NodeRepresentation& expr = node_exprs_.at(output);
         XLS_RET_CHECK(std::holds_alternative<Expression*>(expr));
         XLS_ASSIGN_OR_RETURN(Expression * to_connect,
@@ -1182,6 +1182,16 @@ class BlockGenerator {
       }
     }
     return absl::OkStatus();
+  }
+
+  // Returns a BitGenRef bound to `rng_`, if set. Converting
+  // `std::optional<std::mt19937_64>` to `std::optional<absl::BitGenRef>`
+  // implicitly would bind the generator through a const reference.
+  std::optional<absl::BitGenRef> rng() {
+    if (!rng_.has_value()) {
+      return std::nullopt;
+    }
+    return absl::BitGenRef(*rng_);
   }
 
   Block* block_;
