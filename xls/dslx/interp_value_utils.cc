@@ -1005,7 +1005,9 @@ absl::StatusOr<std::pair<InterpValue, InterpValue>> CreateChannelReferencePair(
       lhs_elements.push_back(lhs_rhs.first);
       rhs_elements.push_back(lhs_rhs.second);
     }
-    int64_t array_id = (*channel_instance_allocator)();
+    int64_t array_id = channel_instance_allocator.has_value()
+                           ? (*channel_instance_allocator)()
+                           : 0;
     return std::make_pair(
         InterpValue::MakeChannelArray(ChannelDirection::kOut, array_id,
                                       definer.has_value() ? *definer : nullptr,
