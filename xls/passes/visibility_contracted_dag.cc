@@ -14,6 +14,7 @@
 
 #include "xls/passes/visibility_contracted_dag.h"
 
+#include <algorithm>
 #include <cstdint>
 #include <utility>
 #include <vector>
@@ -131,7 +132,11 @@ bool PushUnindexedUsersToWorklist(
       pushed_any = true;
     }
   }
-  pushed_any |= PushUnvisitedToWorklist(joined, node_to_idx, worklist);
+  // Ensure we push deterministically onto the worklist.
+  std::vector<Node*> joined_vec(joined.begin(), joined.end());
+  std::sort(joined_vec.begin(), joined_vec.end(),
+            [](Node* a, Node* b) { return a->id() < b->id(); });
+  pushed_any |= PushUnvisitedToWorklist(joined_vec, node_to_idx, worklist);
   return pushed_any;
 }
 
@@ -186,6 +191,7 @@ std::vector<ContractedDagNode> BuildContractedDefUseGraph(
     for (Node* joined_user : joined) {
       dag_node.joined.push_back(node_to_idx.at(joined_user));
     }
+    std::sort(dag_node.joined.begin(), dag_node.joined.end());
     node_to_idx.emplace(node, static_cast<int32_t>(contracted_nodes.size()));
     contracted_nodes.push_back(std::move(dag_node));
   }
