@@ -49,5 +49,6 @@ message OptFlagsProto {
   string delay_model = 21;
 
   // Space for pass-specific configuration extensions.
+  // NB Flags 20000 to 30000 should not be used.
   extensions 20000 to max;
 }

@@ -937,6 +937,39 @@ cc_library(
     ],
 )
 
+cc_library(
+    name = "optimization_pass_extension_flag",
+    hdrs = ["optimization_pass_extension_flag.h"],
+    deps = [
+        ":optimization_pass",
+        "//xls/common/status:status_macros",
+        "//xls/tools:opt_flags_cc_proto",
+        "//xls/tools:opt_flags_handler_registry",
+        "@abseil-cpp//absl/flags:flag",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/types:optional_ref",
+    ],
+)
+
+cc_test(
+    name = "optimization_pass_extension_flag_test",
+    srcs = ["optimization_pass_extension_flag_test.cc"],
+    deps = [
+        ":optimization_pass",
+        ":optimization_pass_extension_flag",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/passes/test_utils:test_opt_pass_ext_flags_cc_proto",
+        "//xls/tools:opt_flags_cc_proto",
+        "//xls/tools:opt_flags_handler_registry",
+        "@abseil-cpp//absl/flags:flag",
+        "@abseil-cpp//absl/flags:reflection",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:status_matchers",
+        "@googletest//:gtest",
+    ],
+)
+
 xls_pass(
     name = "identity_removal_pass",
     srcs = ["identity_removal_pass.cc"],
