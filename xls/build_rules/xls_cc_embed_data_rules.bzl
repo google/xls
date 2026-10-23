@@ -122,6 +122,11 @@ def get_embedded_data(
             ctx.attr._absl_span[CcInfo].linking_context,
             ctx.attr._libc_runtime[CcInfo].linking_context,
         ],
+        # Embedded data is only ever linked statically into its consumers, and
+        # building the shared variant breaks on macOS: the toolchain passes the
+        # ELF-only `-soname` to the Mach-O linker, which rejects it. Skipping
+        # the shared library avoids the dead artifact on every platform.
+        disallow_dynamic_library = True,
     )
     return CcInfo(compilation_context = comp_ctx, linking_context = link_ctx)
 
