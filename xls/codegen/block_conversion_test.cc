@@ -142,6 +142,16 @@ class BlockConversionTest : public BlockConversionTestFixture {
   CodegenOptions codegen_options() {
     return CodegenOptions().module_name(TestName());
   }
+
+  absl::StatusOr<std::pair<std::unique_ptr<Package>, Function*>>
+  CreateAddXYFunction(std::string_view func_name) {
+    std::unique_ptr<Package> p = CreatePackage();
+    FunctionBuilder fb(func_name, p.get());
+    BValue x = fb.Param("x", p->GetBitsType(32));
+    BValue y = fb.Param("y", p->GetBitsType(32));
+    XLS_ASSIGN_OR_RETURN(Function * f, fb.BuildWithReturnValue(fb.Add(x, y)));
+    return std::make_pair(std::move(p), f);
+  }
 };
 
 // Unit delay delay estimator.
@@ -266,11 +276,7 @@ class ProcConversionTestFixture : public BlockConversionTest {
 };
 
 TEST_F(BlockConversionTest, SimpleFunction) {
-  auto p = CreatePackage();
-  FunctionBuilder fb(TestName(), p.get());
-  BValue x = fb.Param("x", p->GetBitsType(32));
-  BValue y = fb.Param("y", p->GetBitsType(32));
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(fb.Add(x, y)));
+  XLS_ASSERT_OK_AND_ASSIGN((auto [p, f]), CreateAddXYFunction(TestName()));
   XLS_ASSERT_OK_AND_ASSIGN(
       CodegenContext context,
       FunctionToCombinationalBlock(
@@ -287,11 +293,7 @@ TEST_F(BlockConversionTest, SimpleFunction) {
 }
 
 TEST_F(BlockConversionTest, SimpleFunctionWithNamedOutput) {
-  auto p = CreatePackage();
-  FunctionBuilder fb(TestName(), p.get());
-  BValue x = fb.Param("x", p->GetBitsType(32));
-  BValue y = fb.Param("y", p->GetBitsType(32));
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(fb.Add(x, y)));
+  XLS_ASSERT_OK_AND_ASSIGN((auto [p, f]), CreateAddXYFunction(TestName()));
   XLS_ASSERT_OK_AND_ASSIGN(
       CodegenContext context,
       FunctionToCombinationalBlock(f, codegen_options()
@@ -334,6 +336,47 @@ TEST_F(BlockConversionTest, ZeroWidthInputsAndOutput) {
                            FunctionToCombinationalBlock(f, codegen_options()));
 
   EXPECT_EQ(context.top_block()->GetPorts().size(), 4);
+}
+
+TEST_F(BlockConversionTest, InvalidResetPortNameReturnsInvalidArgument) {
+  XLS_ASSERT_OK_AND_ASSIGN((auto [p, f]), CreateAddXYFunction(TestName()));
+  XLS_ASSERT_OK_AND_ASSIGN(PipelineSchedule schedule,
+                           PipelineSchedule::SingleStage(f));
+
+  CodegenOptions options = codegen_options();
+  options.reset("invalid port name", /*asynchronous=*/false,
+                /*active_low=*/false, /*reset_data_path=*/false);
+  EXPECT_THAT(FunctionBaseToPipelinedBlock(schedule, options, f),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("is not a valid identifier")));
+}
+
+TEST_F(BlockConversionTest, InvalidClockPortNameReturnsInvalidArgument) {
+  XLS_ASSERT_OK_AND_ASSIGN((auto [p, f]), CreateAddXYFunction(TestName()));
+  XLS_ASSERT_OK_AND_ASSIGN(PipelineSchedule schedule,
+                           PipelineSchedule::SingleStage(f));
+
+  CodegenOptions options = codegen_options();
+  options.clock_name("invalid port name");
+  EXPECT_THAT(FunctionBaseToPipelinedBlock(schedule, options, f),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("is not a valid identifier")));
+}
+
+TEST_F(BlockConversionTest, ProcInvalidResetPortNameReturnsInvalidArgument) {
+  std::unique_ptr<Package> p = CreatePackage();
+  ProcBuilder pb(TestName(), p.get());
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
+
+  XLS_ASSERT_OK_AND_ASSIGN(PipelineSchedule schedule,
+                           PipelineSchedule::SingleStage(proc));
+
+  CodegenOptions options = codegen_options();
+  options.reset("invalid port name", /*asynchronous=*/false,
+                /*active_low=*/false, /*reset_data_path=*/false);
+  EXPECT_THAT(FunctionBaseToPipelinedBlock(schedule, options, proc),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("is not a valid identifier")));
 }
 
 TEST_F(BlockConversionTest, SimplePipelinedFunction) {

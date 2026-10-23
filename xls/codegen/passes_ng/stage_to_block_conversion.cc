@@ -845,16 +845,16 @@ absl::StatusOr<Block*> AddResetAndClockPortsToBlockHierarchy(
         BlockMetadata * block_metadata,
         block_conversion_metadata.GetBlockMetadata(proc_metadata));
 
-    XLS_RET_CHECK_OK(MaybeAddResetPort(block_metadata->block(), options));
-    XLS_RET_CHECK_OK(MaybeAddClockPort(block_metadata->block(), options));
+    XLS_RETURN_IF_ERROR(MaybeAddResetPort(block_metadata->block(), options));
+    XLS_RETURN_IF_ERROR(MaybeAddClockPort(block_metadata->block(), options));
   }
 
   XLS_ASSIGN_OR_RETURN(
       BlockMetadata * top_block_metadata,
       block_conversion_metadata.GetBlockMetadata(&top_metadata));
 
-  XLS_RET_CHECK_OK(MaybeAddResetPort(top_block_metadata->block(), options));
-  XLS_RET_CHECK_OK(MaybeAddClockPort(top_block_metadata->block(), options));
+  XLS_RETURN_IF_ERROR(MaybeAddResetPort(top_block_metadata->block(), options));
+  XLS_RETURN_IF_ERROR(MaybeAddClockPort(top_block_metadata->block(), options));
 
   return top_block_metadata->block();
 }

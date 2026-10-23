@@ -371,8 +371,8 @@ absl::Status SingleFunctionToPipelinedBlock(const PipelineSchedule& schedule,
     block->SetInitiationInterval(*ii);
   }
 
-  XLS_RET_CHECK_OK(MaybeAddResetPort(block, options));
-  XLS_RET_CHECK_OK(MaybeAddClockPort(block, options));
+  XLS_RETURN_IF_ERROR(MaybeAddResetPort(block, options));
+  XLS_RETURN_IF_ERROR(MaybeAddClockPort(block, options));
 
   // Flopping inputs and outputs can be handled as a transformation to the
   // schedule. This makes the later code for creation of the pipeline simpler.

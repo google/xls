@@ -1530,7 +1530,7 @@ absl::Status SingleProcToPipelinedBlock(
     block->SetInitiationInterval(*ii);
   }
 
-  XLS_RET_CHECK_OK(MaybeAddResetPort(block, options));
+  XLS_RETURN_IF_ERROR(MaybeAddResetPort(block, options));
 
   XLS_RETURN_IF_ERROR(block->AddClockPort("clk"));
   VLOG(3) << "Schedule Used";

@@ -23,8 +23,10 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/log/check.h"
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
+#include "xls/codegen/codegen_options.h"
 #include "xls/codegen/passes_ng/block_channel_adapter.h"
 #include "xls/codegen/passes_ng/block_channel_slot.h"
 #include "xls/codegen/passes_ng/block_pipeline_inserter.h"
@@ -51,8 +53,10 @@ namespace {
 
 namespace m = ::xls::op_matchers;
 using ::absl_testing::IsOkAndHolds;
+using ::absl_testing::StatusIs;
 using ::testing::ElementsAreArray;
 using ::testing::Field;
+using ::testing::HasSubstr;
 using ::testing::Optional;
 
 TEST_P(SweepTrivialPipelinedFunctionFixture, TestBlockAndClocksCreation) {
@@ -95,6 +99,39 @@ TEST_P(SweepTrivialPipelinedFunctionFixture, TestBlockAndClocksCreation) {
         BlockMetadata * block_metadata_from_conversion_metadata,
         block_conversion_metadata_.GetBlockMetadata(proc_metadata));
     EXPECT_EQ(block_metadata, block_metadata_from_conversion_metadata);
+  }
+}
+
+TEST_P(SweepTrivialPipelinedFunctionFixture,
+       InvalidPortNameReturnsInvalidArgument) {
+  XLS_ASSERT_OK(CreateStageProcInPackage());
+  XLS_ASSERT_OK_AND_ASSIGN(ProcMetadata * top_metadata,
+                           stage_conversion_metadata_.GetTopProcMetadata(
+                               package_->GetTop().value()));
+  XLS_ASSERT_OK(CreateBlocksForProcHierarchy(codegen_options(), *top_metadata,
+                                             stage_conversion_metadata_,
+                                             block_conversion_metadata_)
+                    .status());
+
+  {
+    CodegenOptions options = codegen_options();
+    options.reset("invalid port name", /*asynchronous=*/false,
+                  /*active_low=*/false, /*reset_data_path=*/true);
+    EXPECT_THAT(AddResetAndClockPortsToBlockHierarchy(
+                    options, *top_metadata, stage_conversion_metadata_,
+                    block_conversion_metadata_),
+                StatusIs(absl::StatusCode::kInvalidArgument,
+                         HasSubstr("is not a valid identifier")));
+  }
+
+  {
+    CodegenOptions options = codegen_options();
+    options.clock_name("invalid port name");
+    EXPECT_THAT(AddResetAndClockPortsToBlockHierarchy(
+                    options, *top_metadata, stage_conversion_metadata_,
+                    block_conversion_metadata_),
+                StatusIs(absl::StatusCode::kInvalidArgument,
+                         HasSubstr("is not a valid identifier")));
   }
 }
 
