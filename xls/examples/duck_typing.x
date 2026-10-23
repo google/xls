@@ -36,8 +36,6 @@ impl FloatNum<EXP_SIZE, FRACTION_SIZE> {
     fn add(self, b: FloatNum<EXP_SIZE, FRACTION_SIZE>) -> Self {
         FloatNum { n: apfloat::add<EXP_SIZE, FRACTION_SIZE>(self.n, b.n) }
     }
-
-    fn is_zero(self) -> u1 { apfloat::is_zero_or_subnormal<EXP_SIZE, FRACTION_SIZE>(self.n) }
 }
 
 struct IntNum<T: type> { n: T }
@@ -51,8 +49,6 @@ impl IntNum<T> {
     fn from(value: T) -> Self { IntNum { n: value } }
 
     fn add(self, b: IntNum<T>) -> Self { IntNum { n: self.n + b.n } }
-
-    fn is_zero(self) -> u1 { self.n == 0 }
 }
 
 // A generic function adding two objects together that happen to have an
@@ -72,7 +68,7 @@ fn float64_add_test() {
     let one = Float64Num::from(float64::one(0));
     let minus_one = Float64Num::from(float64::one(1));
     let result = generic_add(one, minus_one);
-    assert_eq(result.is_zero(), 1);
+    assert_eq(result, Float64Num::default());
 }
 
 #[test]
