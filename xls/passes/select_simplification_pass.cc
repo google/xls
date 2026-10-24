@@ -1333,6 +1333,85 @@ absl::StatusOr<Node*> ElementwiseOr(absl::Span<Node* const> inputs, Type* type,
   return FromTreeOfNodes(fb, result_tree.AsView(), "", loc);
 }
 
+}  // namespace
+
+absl::StatusOr<PrioritySelect*> SimplifyPrioritySelectDuplicateCases(
+    PrioritySelect* sel) {
+  if (sel->cases().size() <= 1) {
+    return nullptr;
+  }
+  FunctionBase* f = sel->function_base();
+
+  // We can merge adjacent cases with the same outputs by OR-ing together
+  // the relevant bits of the selector.
+  struct SelectorRange {
+    int64_t start;
+    int64_t width = 1;
+  };
+  std::vector<SelectorRange> new_selector_ranges;
+  std::vector<Node*> new_cases;
+  new_selector_ranges.push_back({.start = 0});
+  new_cases.push_back(sel->get_case(0));
+  for (int64_t i = 1; i < sel->cases().size(); ++i) {
+    Node* old_case = sel->get_case(i);
+    if (old_case == new_cases.back()) {
+      new_selector_ranges.back().width++;
+    } else {
+      new_selector_ranges.push_back({.start = i});
+      new_cases.push_back(old_case);
+    }
+  }
+  if (new_cases.size() < sel->cases().size()) {
+    std::vector<Node*> new_selector_slices;
+    std::optional<SelectorRange> current_original_slice = std::nullopt;
+    auto commit_original_slice = [&]() -> absl::Status {
+      if (!current_original_slice.has_value()) {
+        return absl::OkStatus();
+      }
+      XLS_ASSIGN_OR_RETURN(
+          Node * selector_slice,
+          f->MakeNode<BitSlice>(sel->loc(), sel->selector(),
+                                current_original_slice->start,
+                                current_original_slice->width));
+      new_selector_slices.push_back(selector_slice);
+      current_original_slice.reset();
+      return absl::OkStatus();
+    };
+    for (const SelectorRange& range : new_selector_ranges) {
+      if (range.width == 1 && current_original_slice.has_value()) {
+        current_original_slice->width++;
+        continue;
+      }
+
+      XLS_RETURN_IF_ERROR(commit_original_slice());
+      if (range.width == 1) {
+        current_original_slice = SelectorRange{.start = range.start};
+      } else {
+        XLS_ASSIGN_OR_RETURN(Node * selector_slice,
+                             f->MakeNode<BitSlice>(sel->loc(), sel->selector(),
+                                                   range.start, range.width));
+        XLS_ASSIGN_OR_RETURN(Node * selector_bit,
+                             f->MakeNode<BitwiseReductionOp>(
+                                 sel->loc(), selector_slice, Op::kOrReduce));
+        new_selector_slices.push_back(selector_bit);
+      }
+    }
+    XLS_RETURN_IF_ERROR(commit_original_slice());
+    absl::c_reverse(new_selector_slices);
+    XLS_ASSIGN_OR_RETURN(Node * new_selector,
+                         f->MakeNode<Concat>(sel->loc(), new_selector_slices));
+    VLOG(2) << absl::StrFormat("Priority select with equivalent cases: %s",
+                               sel->ToString());
+    XLS_ASSIGN_OR_RETURN(PrioritySelect * new_sel,
+                         sel->ReplaceUsesWithNew<PrioritySelect>(
+                             new_selector, new_cases, sel->default_value()));
+    return new_sel;
+  }
+  return nullptr;
+}
+
+namespace {
+
 absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
                                   BitProvenanceAnalysis& provenance,
                                   int64_t opt_level, bool range_analysis) {
@@ -1666,74 +1745,10 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
   // Common out equivalent cases in a priority select.
   if (SplitsEnabled(opt_level) && node->Is<PrioritySelect>() &&
       !node->As<PrioritySelect>()->cases().empty()) {
-    FunctionBase* f = node->function_base();
-    PrioritySelect* sel = node->As<PrioritySelect>();
-
-    // We can merge adjacent cases with the same outputs by OR-ing together
-    // the relevant bits of the selector.
-    struct SelectorRange {
-      int64_t start;
-      int64_t width = 1;
-    };
-    std::vector<SelectorRange> new_selector_ranges;
-    std::vector<Node*> new_cases;
-    new_selector_ranges.push_back({.start = 0});
-    new_cases.push_back(sel->get_case(0));
-    for (int64_t i = 1; i < sel->cases().size(); ++i) {
-      Node* old_case = sel->get_case(i);
-      if (old_case == new_cases.back()) {
-        new_selector_ranges.back().width++;
-      } else {
-        new_selector_ranges.push_back({.start = i});
-        new_cases.push_back(old_case);
-      }
-    }
-    if (new_cases.size() < sel->cases().size()) {
-      std::vector<Node*> new_selector_slices;
-      std::optional<SelectorRange> current_original_slice = std::nullopt;
-      auto commit_original_slice = [&]() -> absl::Status {
-        if (!current_original_slice.has_value()) {
-          return absl::OkStatus();
-        }
-        XLS_ASSIGN_OR_RETURN(
-            Node * selector_slice,
-            f->MakeNode<BitSlice>(node->loc(), sel->selector(),
-                                  current_original_slice->start,
-                                  current_original_slice->width));
-        new_selector_slices.push_back(selector_slice);
-        current_original_slice.reset();
-        return absl::OkStatus();
-      };
-      for (const SelectorRange& range : new_selector_ranges) {
-        if (range.width == 1 && current_original_slice.has_value()) {
-          current_original_slice->width++;
-          continue;
-        }
-
-        XLS_RETURN_IF_ERROR(commit_original_slice());
-        if (range.width == 1) {
-          current_original_slice = SelectorRange{.start = range.start};
-        } else {
-          XLS_ASSIGN_OR_RETURN(
-              Node * selector_slice,
-              f->MakeNode<BitSlice>(node->loc(), sel->selector(), range.start,
-                                    range.width));
-          XLS_ASSIGN_OR_RETURN(Node * selector_bit,
-                               f->MakeNode<BitwiseReductionOp>(
-                                   node->loc(), selector_slice, Op::kOrReduce));
-          new_selector_slices.push_back(selector_bit);
-        }
-      }
-      XLS_RETURN_IF_ERROR(commit_original_slice());
-      absl::c_reverse(new_selector_slices);
-      XLS_ASSIGN_OR_RETURN(
-          Node * new_selector,
-          f->MakeNode<Concat>(node->loc(), new_selector_slices));
-      VLOG(2) << absl::StrFormat("Priority select with equivalent cases: %s",
-                                 node->ToString());
-      XLS_RETURN_IF_ERROR(node->ReplaceUsesWithNew<PrioritySelect>(
-                                  new_selector, new_cases, sel->default_value())
-                              .status());
+    XLS_ASSIGN_OR_RETURN(
+        PrioritySelect * simplified,
+        SimplifyPrioritySelectDuplicateCases(node->As<PrioritySelect>()));
+    if (simplified != nullptr) {
       return true;
     }
   }

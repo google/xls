@@ -251,6 +251,19 @@ TEST_F(SelectMergingPassTest, ComplexMergeablePrioritySelects) {
           /*default_value=*/m::Param("y")));
 }
 
+TEST_F(SelectMergingPassTest, MergeSelectNodeNoOp) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+     fn f(p: bits[1], x: bits[32], y: bits[32]) -> bits[32] {
+       ret priority_sel.1: bits[32] = priority_sel(p, cases=[x], default=y)
+     }
+  )",
+                                                       p.get()));
+
+  EXPECT_THAT(MergeSelectNode(f->return_value()),
+              IsOkAndHolds(testing::IsNull()));
+}
+
 void IrFuzzSelectMerging(FuzzPackageWithArgs fuzz_package_with_args) {
   SelectMergingPass pass;
   OptimizationPassChangesOutputs(std::move(fuzz_package_with_args), pass);

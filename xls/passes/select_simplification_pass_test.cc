@@ -41,7 +41,6 @@
 #include "xls/ir/source_location.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
-#include "xls/ir/value_utils.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/pass_base.h"
 #include "xls/solvers/ir_equivalence_testutils.h"
@@ -883,6 +882,27 @@ TEST_P(SelectSimplificationPassTest, PrioritySelectCommoning) {
                             m::BitSlice(/*start=*/0, /*width=*/1)),
                   /*cases=*/{m::Param("x"), m::Param("y"), m::Param("z")},
                   /*default_value=*/m::Param("z")));
+}
+
+TEST_F(IrTestBase, SimplifyPrioritySelectDuplicateCases_Adjacent) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* u32 = p->GetBitsType(32);
+  BValue a = fb.Param("a", u32);
+  BValue b = fb.Param("b", u32);
+  BValue s = fb.Param("s", p->GetBitsType(3));
+  BValue prio = fb.PrioritySelect(s, {b, b, a}, a);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(prio));
+  solvers::ScopedVerifyEquivalence stays_equivalent{f};
+
+  EXPECT_THAT(
+      SimplifyPrioritySelectDuplicateCases(prio.node()->As<PrioritySelect>()),
+      IsOkAndHolds(m::PrioritySelect(
+          m::Concat(m::BitSlice(m::Param("s"), /*start=*/2, /*width=*/1),
+                    m::OrReduce(m::BitSlice(m::Param("s"), /*start=*/0,
+                                            /*width=*/2))),
+          /*cases=*/{m::Param("b"), m::Param("a")},
+          /*default_value=*/m::Param("a"))));
 }
 
 TEST_P(SelectSimplificationPassTest, OneHotSelectWithLiteralZeroArms) {

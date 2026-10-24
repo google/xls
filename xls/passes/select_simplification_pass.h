@@ -19,10 +19,18 @@
 
 #include "absl/status/statusor.h"
 #include "xls/ir/function_base.h"
+#include "xls/ir/nodes.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/pass_base.h"
 
 namespace xls {
+
+// Collapses adjacent duplicate cases in `sel` by merging consecutive cases
+// with the same outputs, OR-ing together the relevant bits of the selector.
+// Returns the replacement `PrioritySelect` if any duplicate cases were
+// collapsed, or nullptr if no adjacent duplicate cases were found.
+absl::StatusOr<PrioritySelect*> SimplifyPrioritySelectDuplicateCases(
+    PrioritySelect* sel);
 
 // Base class which simplifies selects and one-hot-selects. Example
 // optimizations include removing dead arms and eliminating selects with

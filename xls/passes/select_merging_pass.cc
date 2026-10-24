@@ -40,10 +40,10 @@
 
 namespace xls {
 
-absl::StatusOr<bool> MergeNode(Node* node) {
+absl::StatusOr<Node*> MergeSelectNode(Node* node) {
   // We only consider PrioritySelect and OneHotSelect
   if (!node->Is<PrioritySelect>() && !node->Is<OneHotSelect>()) {
-    return false;
+    return nullptr;
   }
 
   // Try to merge consecutive selects
@@ -234,22 +234,23 @@ absl::StatusOr<bool> MergeNode(Node* node) {
       XLS_RET_CHECK(!new_default_value.has_value());
       VLOG(2) << absl::StrFormat("Merging consecutive one-hot-selects: %s",
                                  node->ToString());
-      XLS_RETURN_IF_ERROR(
-          node->ReplaceUsesWithNew<OneHotSelect>(new_selector, new_cases)
-              .status());
+      XLS_ASSIGN_OR_RETURN(
+          OneHotSelect * new_select,
+          node->ReplaceUsesWithNew<OneHotSelect>(new_selector, new_cases));
+      return new_select;
     } else {
       XLS_RET_CHECK(node->Is<PrioritySelect>());
       XLS_RET_CHECK(new_default_value.has_value());
       VLOG(2) << absl::StrFormat("Merging consecutive priority-selects: %s",
                                  node->ToString());
-      XLS_RETURN_IF_ERROR(node->ReplaceUsesWithNew<PrioritySelect>(
-                                  new_selector, new_cases, *new_default_value)
-                              .status());
+      XLS_ASSIGN_OR_RETURN(PrioritySelect * new_select,
+                           node->ReplaceUsesWithNew<PrioritySelect>(
+                               new_selector, new_cases, *new_default_value));
+      return new_select;
     }
-    return true;
   }
 
-  return false;
+  return nullptr;
 }
 
 absl::StatusOr<bool> SelectMergingPass::RunOnFunctionBaseInternal(
@@ -260,12 +261,11 @@ absl::StatusOr<bool> SelectMergingPass::RunOnFunctionBaseInternal(
   XLS_ASSIGN_OR_RETURN(std::vector<Node*> topo_sort_nodes,
                        context.TopoSort(func));
   for (Node* node : topo_sort_nodes) {
-    XLS_ASSIGN_OR_RETURN(bool node_changed, MergeNode(node));
-    changed = changed || node_changed;
+    XLS_ASSIGN_OR_RETURN(Node * merged_node, MergeSelectNode(node));
+    changed = changed || merged_node != nullptr;
   }
 
   return changed;
 }
-
 
 }  // namespace xls
