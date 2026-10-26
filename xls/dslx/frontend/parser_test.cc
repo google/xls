@@ -5917,10 +5917,26 @@ TEST_F(ParserTest, LambdaInUserFnNoReturnImplicit) {
 })");
 }
 
-TEST_F(ParserTest, LambdaInUserFnWithParameterName) {
-  EXPECT_THAT(Parse(R"(fn foo(f: fn(u32: in), x: u32) -> u32 {
+TEST_F(ParserTest, LambdaInUserFnWithTypeAndParameterName) {
+  EXPECT_THAT(Parse(R"(fn foo(f: fn(u32: y), x: u32) -> u32 {
     f(x)
 })",
+                    /*parse_fn_stubs=*/true),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("must only contain types")));
+}
+
+TEST_F(ParserTest, LambdaInUserFnWithParameterName) {
+  EXPECT_THAT(Parse(R"(fn foo(f: fn(y: u32), x: u32) -> u32 {
+    f(x)
+})",
+                    /*parse_fn_stubs=*/true),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("must only contain types")));
+}
+
+TEST_F(ParserTest, LambdaInUserFnWithMalformedSignature) {
+  EXPECT_THAT(Parse("fn foo(f: fn(u32, y:u32), x:u32) -> u32 { 0 }",
                     /*parse_fn_stubs=*/true),
               StatusIs(absl::StatusCode::kInvalidArgument,
                        HasSubstr("must only contain types")));
