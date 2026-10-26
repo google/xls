@@ -771,9 +771,15 @@ fn test_make_array() {
 }
 ```
 
-Note: arrays with length zero will typecheck, but fail to work in most
-circumstances. Eventually, XLS should support them but they can't be used
-currently (see [google/xls#917](https://github.com/google/xls/issues/917)).
+Note: while arrays with length zero will typecheck, they will otherwise fail to
+work in most circumstances (see:
+[google/xls#917](https://github.com/google/xls/issues/917)).
+
+Note: in parametric functions that initialize a parametric array `T[N]` where
+`N` may be `0`, use
+[`zero!<T[N]>()`](./dslx_std.md#zerot)
+(e.g., `zero!<u32[N]>()`) instead of `[u32:0, ...]` (since `[u32:0, ...]` has 1
+explicit element and fails typechecking when `N = 0`).
 
 <!--
 TODO(meheff): Explain arrays and the intricacies of our bits type interpretation
@@ -1611,7 +1617,11 @@ ranging from 0 to 7 and the value at the index `e = x[i]`.
 ```
 fn prefix_scan_eq(x: u32[8]) -> u3[8] {
   let (_, _, result) =
-    for ((i, e), (prior, count, result)) in std::enumerate(x) {...
+    // TODO(https://github.com/google/xls/issues/5125): Destructure `(i, e)` in
+    // the `for` loop header once supported during IR conversion.
+    for (item, (prior, count, result)) in std::enumerate(x) {
+      let (i, e) = item;
+      ...
 ```
 
 ### `for` Expression

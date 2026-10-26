@@ -80,8 +80,11 @@ Using tuples as the accumulator is a convenient way to model multiple
 loop-carried values:
 
 ```dslx-snippet
-    for ((i, elem), (prior, count, result)): ((u32, u32), (u32, u3, u3[8]))
+    // TODO(https://github.com/google/xls/issues/5125): Destructure `(i, elem)`
+    // in the `for` loop header once supported during IR conversion.
+    for (item, (prior, count, result)): ((u32, u32), (u32, u3, u3[8]))
           in std::enumerate(x) {
+      let (i, elem) = item;
 ```
 
 The iterable of this loop is created by `std::enumerate(x)`. On each iteration,
@@ -197,8 +200,7 @@ To run tests against the file present in the repository:
 
 ```console
 xls$ bazel run -c opt //xls/dslx:interpreter_main -- \
-       $PWD/xls/examples/dslx_intro/prefix_scan_equality.x \
-       --compare=none
+       $PWD/xls/examples/dslx_intro/prefix_scan_equality.x
 [ RUN UNITTEST  ] prefix_scan_eq_all_zero_test
 [            OK ]
 [ RUN UNITTEST  ] prefix_scan_eq_doubles_test

@@ -18,8 +18,11 @@ import std;
 
 fn prefix_scan_eq(x: u32[8]) -> u3[8] {
   let (_, _, result) =
-    for ((i, elem), (prior, count, result)): ((u32, u32), (u32, u3, u3[8]))
+    // TODO(https://github.com/google/xls/issues/5125): Destructure `(i, elem)`
+    // in the `for` loop header once supported during IR conversion.
+    for (item, (prior, count, result)): ((u32, u32), (u32, u3, u3[8]))
           in std::enumerate(x) {
+      let (i, elem) = item;
       let (to_place, new_count): (u3, u3) = match (i == u32:0, prior == elem) {
         // The first iteration always places 0 and propagates seen count of 1.
         (true, _) => (u3:0, u3:1),
