@@ -63,27 +63,17 @@ type TestValue = uN[32];
 
 struct TestData { idx: TestIdx, value: TestValue }
 
-const TEST_DATA = TestData[20]:[
-    TestData { idx: TestIdx:0, value: TestValue:0xca32_9f4a },
-    TestData { idx: TestIdx:1, value: TestValue:0x0fb3_fa42 },
-    TestData { idx: TestIdx:2, value: TestValue:0xe7ee_da41 },
-    TestData { idx: TestIdx:3, value: TestValue:0xef51_f98c },
-    TestData { idx: TestIdx:0, value: TestValue:0x97a3_a2d2 },
-    TestData { idx: TestIdx:0, value: TestValue:0xea06_e94b },
-    TestData { idx: TestIdx:1, value: TestValue:0x5fac_17ce },
-    TestData { idx: TestIdx:3, value: TestValue:0xf9d8_9938 },
-    TestData { idx: TestIdx:2, value: TestValue:0xc262_2d2e },
-    TestData { idx: TestIdx:2, value: TestValue:0xb4dd_424e },
-    TestData { idx: TestIdx:1, value: TestValue:0x01f9_b9e4 },
-    TestData { idx: TestIdx:1, value: TestValue:0x3020_6eec },
-    TestData { idx: TestIdx:3, value: TestValue:0x3124_87b5 },
-    TestData { idx: TestIdx:0, value: TestValue:0x0a49_f5e3 },
-    TestData { idx: TestIdx:2, value: TestValue:0xde3b_5d0f },
-    TestData { idx: TestIdx:3, value: TestValue:0x5948_c1b3 },
-    TestData { idx: TestIdx:0, value: TestValue:0xa26d_851f },
-    TestData { idx: TestIdx:3, value: TestValue:0x3fa9_59c0 },
-    TestData { idx: TestIdx:1, value: TestValue:0x4efd_dd09 },
-    TestData { idx: TestIdx:1, value: TestValue:0x6d75_058a },
+const TEST_DATA = [
+    TestData { idx: 0, value: 0xca32_9f4a }, TestData { idx: 1, value: 0x0fb3_fa42 },
+    TestData { idx: 2, value: 0xe7ee_da41 }, TestData { idx: 3, value: 0xef51_f98c },
+    TestData { idx: 0, value: 0x97a3_a2d2 }, TestData { idx: 0, value: 0xea06_e94b },
+    TestData { idx: 1, value: 0x5fac_17ce }, TestData { idx: 3, value: 0xf9d8_9938 },
+    TestData { idx: 2, value: 0xc262_2d2e }, TestData { idx: 2, value: 0xb4dd_424e },
+    TestData { idx: 1, value: 0x01f9_b9e4 }, TestData { idx: 1, value: 0x3020_6eec },
+    TestData { idx: 3, value: 0x3124_87b5 }, TestData { idx: 0, value: 0x0a49_f5e3 },
+    TestData { idx: 2, value: 0xde3b_5d0f }, TestData { idx: 3, value: 0x5948_c1b3 },
+    TestData { idx: 0, value: 0xa26d_851f }, TestData { idx: 3, value: 0x3fa9_59c0 },
+    TestData { idx: 1, value: 0x4efd_dd09 }, TestData { idx: 1, value: 0x6d75_058a },
 ];
 
 #[test]
@@ -252,7 +242,7 @@ fn sadd_test() {
 }
 
 // Saturating subtraction: returns x - y, saturating at 0 if x < y.
-pub fn usub_or_zero<N: u32>(x: uN[N], y: uN[N]) -> uN[N] { if x < y { uN[N]:0 } else { x - y } }
+pub fn usub_or_zero<N: u32>(x: uN[N], y: uN[N]) -> uN[N] { if x < y { 0 } else { x - y } }
 
 #[test]
 fn usub_or_zero_test() {
@@ -361,7 +351,7 @@ fn iterative_div_mod_test() {
     assert_eq((u4:2, u4:0), iterative_div_mod(u4:8, u4:4));
     assert_eq((u4:4, u4:0), iterative_div_mod(u4:8, u4:2));
     assert_eq((u4:8, u4:0), iterative_div_mod(u4:8, u4:1));
-    assert_eq((u4:8 / u4:0, u4:8), iterative_div_mod(u4:8, u4:0));
+    assert_eq((u4:8 / 0, u4:8), iterative_div_mod(u4:8, u4:0));
     assert_eq((u4:15, u4:8), iterative_div_mod(u4:8, u4:0));
 
     // Non-powers-of-2.
@@ -396,7 +386,7 @@ fn iterative_div_test() {
     assert_eq(u4:2, iterative_div(u4:8, u4:4));
     assert_eq(u4:4, iterative_div(u4:8, u4:2));
     assert_eq(u4:8, iterative_div(u4:8, u4:1));
-    assert_eq(u4:8 / u4:0, iterative_div(u4:8, u4:0));
+    assert_eq(u4:8 / 0, iterative_div(u4:8, u4:0));
     assert_eq(u4:15, iterative_div(u4:8, u4:0));
 
     // Non-powers-of-2.
@@ -465,13 +455,13 @@ pub fn lsbs<R: u32, S: bool, N: u32>(x: xN[S][N]) -> bits[R] {
 
 #[test]
 fn lsbs_test() {
-    assert_eq(lsbs<u32:1>(u2:1), u1:1);
-    assert_eq(lsbs<u32:2>(u3:5), u2:1);
-    assert_eq(lsbs<u32:3>(u5:30), u3:6);
+    assert_eq(lsbs<1>(u2:1), u1:1);
+    assert_eq(lsbs<2>(u3:5), u2:1);
+    assert_eq(lsbs<3>(u5:30), u3:6);
 
-    assert_eq(lsbs<u32:1>(s2:1), u1:1);
-    assert_eq(lsbs<u32:2>(s3:-3), u2:1);
-    assert_eq(lsbs<u32:3>(s5:-2), u3:6);
+    assert_eq(lsbs<1>(s2:1), u1:1);
+    assert_eq(lsbs<2>(s3:-3), u2:1);
+    assert_eq(lsbs<3>(s5:-2), u3:6);
 }
 
 // Returns the R MSbs of x.
@@ -484,13 +474,13 @@ pub fn msbs<R: u32, S: bool, N: u32>(x: xN[S][N]) -> bits[R] {
 
 #[test]
 fn msbs_test() {
-    assert_eq(msbs<u32:1>(u2:1), u1:0);
-    assert_eq(msbs<u32:2>(u3:5), u2:2);
-    assert_eq(msbs<u32:3>(u5:30), u3:7);
+    assert_eq(msbs<1>(u2:1), u1:0);
+    assert_eq(msbs<2>(u3:5), u2:2);
+    assert_eq(msbs<3>(u5:30), u3:7);
 
-    assert_eq(msbs<u32:1>(s2:0b01), u1:0b0);
-    assert_eq(msbs<u32:2>(s3:0b101), u2:0b10);
-    assert_eq(msbs<u32:2>(s5:0b10101), u2:0b10);
+    assert_eq(msbs<1>(s2:0b01), u1:0b0);
+    assert_eq(msbs<2>(s3:0b101), u2:0b10);
+    assert_eq(msbs<2>(s5:0b10101), u2:0b10);
 }
 
 // Splits bits into (the remaining most significant bits, N least significant
@@ -510,17 +500,17 @@ pub fn split_lsbs<N: u32, X: u32, Y: u32 = {X - N}>(x: bits[X]) -> (bits[Y], bit
 
 #[test]
 fn test_split_lsbs() {
-    assert_eq(split_lsbs<u32:5>(u5:0b10101), (uN[0]:0, u5:0b10101));
-    assert_eq(split_lsbs<u32:4>(u5:0b10101), (u1:0b1, u4:0b0101));
-    assert_eq(split_lsbs<u32:3>(u5:0b10101), (u2:0b10, u3:0b101));
-    assert_eq(split_lsbs<u32:2>(u5:0b10101), (u3:0b101, u2:0b01));
-    assert_eq(split_lsbs<u32:1>(u5:0b10101), (u4:0b1010, u1:0b1));
-    assert_eq(split_lsbs<u32:0>(u5:0b10101), (u5:0b10101, uN[0]:0));
+    assert_eq(split_lsbs<5>(u5:0b10101), (uN[0]:0, u5:0b10101));
+    assert_eq(split_lsbs<4>(u5:0b10101), (u1:0b1, u4:0b0101));
+    assert_eq(split_lsbs<3>(u5:0b10101), (u2:0b10, u3:0b101));
+    assert_eq(split_lsbs<2>(u5:0b10101), (u3:0b101, u2:0b01));
+    assert_eq(split_lsbs<1>(u5:0b10101), (u4:0b1010, u1:0b1));
+    assert_eq(split_lsbs<0>(u5:0b10101), (u5:0b10101, uN[0]:0));
 }
 
 #[quickcheck(exhaustive)]
 fn prop_split_lsbs(n: uN[4], o: uN[3]) -> bool {
-    let (n2, o2) = split_lsbs<u32:3>(n ++ o);
+    let (n2, o2) = split_lsbs<3>(n ++ o);
     n == n2 && o == o2
 }
 
@@ -541,17 +531,17 @@ pub fn split_msbs<N: u32, X: u32, Z: u32 = {X - N}>(x: bits[X]) -> (bits[N], bit
 
 #[test]
 fn test_split_msbs() {
-    assert_eq(split_msbs<u32:0>(u5:0b10101), (uN[0]:0, u5:0b10101));
-    assert_eq(split_msbs<u32:1>(u5:0b10101), (u1:0b1, u4:0b0101));
-    assert_eq(split_msbs<u32:2>(u5:0b10101), (u2:0b10, u3:0b101));
-    assert_eq(split_msbs<u32:3>(u5:0b10101), (u3:0b101, u2:0b01));
-    assert_eq(split_msbs<u32:4>(u5:0b10101), (u4:0b1010, u1:0b1));
-    assert_eq(split_msbs<u32:5>(u5:0b10101), (u5:0b10101, uN[0]:0));
+    assert_eq(split_msbs<0>(u5:0b10101), (uN[0]:0, u5:0b10101));
+    assert_eq(split_msbs<1>(u5:0b10101), (u1:0b1, u4:0b0101));
+    assert_eq(split_msbs<2>(u5:0b10101), (u2:0b10, u3:0b101));
+    assert_eq(split_msbs<3>(u5:0b10101), (u3:0b101, u2:0b01));
+    assert_eq(split_msbs<4>(u5:0b10101), (u4:0b1010, u1:0b1));
+    assert_eq(split_msbs<5>(u5:0b10101), (u5:0b10101, uN[0]:0));
 }
 
 #[quickcheck(exhaustive)]
 fn prop_split_msbs(n: uN[4], o: uN[3]) -> bool {
-    let (n2, o2) = split_msbs<u32:4>(n ++ o);
+    let (n2, o2) = split_msbs<4>(n ++ o);
     n == n2 && o == o2
 }
 
@@ -570,8 +560,8 @@ pub fn zero_pad_lsbs
 
 #[test]
 fn test_zero_pad_lsbs() {
-    assert_eq(zero_pad_lsbs<u32:4>(u1:1), u4:0b1000);
-    assert_eq(zero_pad_lsbs<u32:16>(u32:1), u32:1);
+    assert_eq(zero_pad_lsbs<4>(u1:1), u4:0b1000);
+    assert_eq(zero_pad_lsbs<16>(u32:1), u32:1);
 }
 
 // Returns a bits that is at least AtLeast bits wide, by inserting the minimum required number
@@ -589,12 +579,12 @@ pub fn zero_pad_msbs
 
 #[test]
 fn test_zero_pad_msbs() {
-    assert_eq(zero_pad_msbs<u32:4>(u1:1), u4:1);
-    assert_eq(zero_pad_msbs<u32:16>(u32:1), u32:1);
+    assert_eq(zero_pad_msbs<4>(u1:1), u4:1);
+    assert_eq(zero_pad_msbs<16>(u32:1), u32:1);
 }
 
 // Returns the absolute value of x as a signed number.
-pub fn abs<BITS: u32>(x: sN[BITS]) -> sN[BITS] { if x < sN[BITS]:0 { -x } else { x } }
+pub fn abs<BITS: u32>(x: sN[BITS]) -> sN[BITS] { if x < 0 { -x } else { x } }
 
 // Converts an array of N bools to a bits[N] value.
 //
@@ -608,13 +598,13 @@ pub fn convert_to_bits_msb0<N: u32>(x: bool[N]) -> uN[N] {
 
 #[test]
 fn convert_to_bits_msb0_test() {
-    assert_eq(u3:0b000, convert_to_bits_msb0(bool[3]:[false, false, false]));
-    assert_eq(u3:0b001, convert_to_bits_msb0(bool[3]:[false, false, true]));
-    assert_eq(u3:0b010, convert_to_bits_msb0(bool[3]:[false, true, false]));
-    assert_eq(u3:0b011, convert_to_bits_msb0(bool[3]:[false, true, true]));
-    assert_eq(u3:0b100, convert_to_bits_msb0(bool[3]:[true, false, false]));
-    assert_eq(u3:0b110, convert_to_bits_msb0(bool[3]:[true, true, false]));
-    assert_eq(u3:0b111, convert_to_bits_msb0(bool[3]:[true, true, true]));
+    assert_eq(u3:0b000, convert_to_bits_msb0([false, false, false]));
+    assert_eq(u3:0b001, convert_to_bits_msb0([false, false, true]));
+    assert_eq(u3:0b010, convert_to_bits_msb0([false, true, false]));
+    assert_eq(u3:0b011, convert_to_bits_msb0([false, true, true]));
+    assert_eq(u3:0b100, convert_to_bits_msb0([true, false, false]));
+    assert_eq(u3:0b110, convert_to_bits_msb0([true, true, false]));
+    assert_eq(u3:0b111, convert_to_bits_msb0([true, true, true]));
 }
 
 // Converts a bits[N] values to an array of N bools.
@@ -625,16 +615,16 @@ pub fn convert_to_bools_lsb0<N: u32>(x: uN[N]) -> bool[N] { map(0..N, |idx| x[id
 
 #[test]
 fn convert_to_bools_lsb0_test() {
-    assert_eq(convert_to_bools_lsb0(u1:1), bool[1]:[true]);
-    assert_eq(convert_to_bools_lsb0(u2:0b01), bool[2]:[true, false]);
-    assert_eq(convert_to_bools_lsb0(u2:0b10), bool[2]:[false, true]);
-    assert_eq(convert_to_bools_lsb0(u3:0b000), bool[3]:[false, false, false]);
-    assert_eq(convert_to_bools_lsb0(u3:0b001), bool[3]:[true, false, false]);
-    assert_eq(convert_to_bools_lsb0(u3:0b010), bool[3]:[false, true, false]);
-    assert_eq(convert_to_bools_lsb0(u3:0b011), bool[3]:[true, true, false]);
-    assert_eq(convert_to_bools_lsb0(u3:0b100), bool[3]:[false, false, true]);
-    assert_eq(convert_to_bools_lsb0(u3:0b110), bool[3]:[false, true, true]);
-    assert_eq(convert_to_bools_lsb0(u3:0b111), bool[3]:[true, true, true]);
+    assert_eq(convert_to_bools_lsb0(u1:1), [true]);
+    assert_eq(convert_to_bools_lsb0(u2:0b01), [true, false]);
+    assert_eq(convert_to_bools_lsb0(u2:0b10), [false, true]);
+    assert_eq(convert_to_bools_lsb0(u3:0b000), [false, false, false]);
+    assert_eq(convert_to_bools_lsb0(u3:0b001), [true, false, false]);
+    assert_eq(convert_to_bools_lsb0(u3:0b010), [false, true, false]);
+    assert_eq(convert_to_bools_lsb0(u3:0b011), [true, true, false]);
+    assert_eq(convert_to_bools_lsb0(u3:0b100), [false, false, true]);
+    assert_eq(convert_to_bools_lsb0(u3:0b110), [false, true, true]);
+    assert_eq(convert_to_bools_lsb0(u3:0b111), [true, true, true]);
 }
 
 #[quickcheck]
@@ -660,7 +650,7 @@ pub fn find_index<BITS: u32, ELEMS: u32>(array: uN[BITS][ELEMS], x: uN[BITS]) ->
 
 #[test]
 fn find_index_test() {
-    let haystack = u3[4]:[0b001, 0b010, 0b100, 0b111];
+    let haystack = [u3:0b001, 0b010, 0b100, 0b111];
     assert_eq((true, u32:1), find_index(haystack, u3:0b010));
     assert_eq((true, u32:3), find_index(haystack, u3:0b111));
     assert_eq((false, u32:0), find_index(haystack, u3:0b000));
@@ -705,8 +695,8 @@ pub fn round_up_to_nearest(x: u32, y: u32) -> u32 { (ceil_div(x, y) * y) as u32 
 
 #[test]
 fn round_up_to_nearest_test() {
-    assert_eq(u32:4, round_up_to_nearest(u32:3, u32:2));
-    assert_eq(u32:4, round_up_to_nearest(u32:4, u32:2));
+    assert_eq(u32:4, round_up_to_nearest(3, 2));
+    assert_eq(u32:4, round_up_to_nearest(4, 2));
 }
 
 // Returns `x` rounded up to the nearest multiple of `y`, where `y` is a known positive power of 2.
@@ -901,7 +891,7 @@ fn div_pow2_test() {
 }
 
 // Returns a value with X bits set (of type bits[X]).
-pub fn mask_bits<X: u32>() -> bits[X] { !bits[X]:0 }
+pub fn mask_bits<X: u32>() -> bits[X] { !0 }
 
 #[test]
 fn mask_bits_test() {
@@ -1025,9 +1015,9 @@ pub fn pow<S: bool, N: u32>(x: xN[S][N], n: uN[N]) -> xN[S][N] {
     let result = xN[S][N]:1;
     let p = x;
 
-    let work = for (i, (n, p, result)) in u32:0..N {
-        let result = if (n & uN[N]:1) == uN[N]:1 { result * p } else { result };
-        (n >> 1, if n == uN[N]:0 { p } else { p * p }, result)
+    let work = for (i, (n, p, result)) in 0..N {
+        let result = if (n & 1) == 1 { result * p } else { result };
+        (n >> 1, if n == 0 { p } else { p * p }, result)
     }((n, p, result));
     work.2
 }
@@ -1219,7 +1209,7 @@ pub fn extract_bits
      EXTRACT_WIDTH: u32 = {max(s32:0, TO_EXCLUSIVE as s32 - FROM_INCLUSIVE as s32) as u32}>
     (x: uN[N]) -> uN[EXTRACT_WIDTH] {
     if TO_EXCLUSIVE <= FROM_INCLUSIVE {
-        uN[EXTRACT_WIDTH]:0
+        0
     } else {
         // With a non-zero fixed width, all lower bits of index < fixed_shift are
         // are zero.
@@ -1564,10 +1554,10 @@ fn or_reduce_lsb_impl<DO_MASK_IMPL: bool, WIDTH: u32, N_WIDTH: u32>
     (value: uN[WIDTH], n: uN[N_WIDTH]) -> bool {
     if DO_MASK_IMPL {
         // Mask the relevant bits, then compare.
-        keep_lsbs(value, n) != uN[WIDTH]:0
+        keep_lsbs(value, n) != 0
     } else {
         // shift out uninteresting bits, then compare.
-        value << (WIDTH as uN[N_WIDTH] - n) != uN[WIDTH]:0
+        value << (WIDTH as uN[N_WIDTH] - n) != 0
     }
 }
 
@@ -1602,8 +1592,8 @@ pub fn or_reduce_lsb<WIDTH: u32, N_WIDTH: u32>(value: uN[WIDTH], n: uN[N_WIDTH])
 // Thus, this whole operation can be lowered to muxing.
 fn combine_clzt_halfs<N: u32>(left: uN[N], right: uN[N]) -> uN[N + 1] {
     match (left[-1:], right[-1:]) {
-        (u1:1, u1:1) => left ++ u1:0,  // Both at maximum: add them, i.e. mult by 2
-        (u1:1, u1:0) => u2:0b01 ++ right[:-1],  // right side less than max zero bits
+        (1, 1) => left ++ u1:0,  // Both at maximum: add them, i.e. mult by 2
+        (1, 0) => u2:0b01 ++ right[:-1],  // right side less than max zero bits
         _ => u1:0 ++ left,  // right side can't contribute anymore
     }
 }
@@ -1720,26 +1710,26 @@ pub fn clzt_pow2<N: u32, RESULT_BITS: u32 = {clog2(N + 1)}>(value: bits[N]) -> u
 #[test]
 fn clzt_pow2_test() {
     // Individual explicit number
-    assert_eq(clzt_pow2_2(u2:0), u2:2);
-    assert_eq(clzt_pow2_2(u2:1), u2:1);
-    assert_eq(clzt_pow2_2(u2:2), u2:0);
-    assert_eq(clzt_pow2_2(u2:3), u2:0);
+    assert_eq(clzt_pow2_2(0), u2:2);
+    assert_eq(clzt_pow2_2(1), u2:1);
+    assert_eq(clzt_pow2_2(2), u2:0);
+    assert_eq(clzt_pow2_2(3), u2:0);
 
-    assert_eq(clzt_pow2_4(u4:0b0000), u3:4);
-    assert_eq(clzt_pow2_4(u4:0b0001), u3:3);
-    assert_eq(clzt_pow2_4(u4:0b0010), u3:2);
+    assert_eq(clzt_pow2_4(0b0000), u3:4);
+    assert_eq(clzt_pow2_4(0b0001), u3:3);
+    assert_eq(clzt_pow2_4(0b0010), u3:2);
 
-    assert_eq(clzt_pow2_4(u4:0b0100), u3:1);
-    assert_eq(clzt_pow2_4(u4:0b0101), u3:1);
+    assert_eq(clzt_pow2_4(0b0100), u3:1);
+    assert_eq(clzt_pow2_4(0b0101), u3:1);
 
-    assert_eq(clzt_pow2_4(u4:0b1000), u3:0);
-    assert_eq(clzt_pow2_4(u4:0b1001), u3:0);
+    assert_eq(clzt_pow2_4(0b1000), u3:0);
+    assert_eq(clzt_pow2_4(0b1001), u3:0);
 
-    assert_eq(clzt_pow2_8(u8:0b10000000), u4:0);
-    assert_eq(clzt_pow2_8(u8:0b01000000), u4:1);
-    assert_eq(clzt_pow2_8(u8:0b00100000), u4:2);
-    assert_eq(clzt_pow2_8(u8:0b00000001), u4:7);
-    assert_eq(clzt_pow2_8(u8:0b00000000), u4:8);
+    assert_eq(clzt_pow2_8(0b10000000), u4:0);
+    assert_eq(clzt_pow2_8(0b01000000), u4:1);
+    assert_eq(clzt_pow2_8(0b00100000), u4:2);
+    assert_eq(clzt_pow2_8(0b00000001), u4:7);
+    assert_eq(clzt_pow2_8(0b00000000), u4:8);
 
     // Driver function
     assert_eq(clzt_pow2(u2:3), u2:0);
@@ -1752,17 +1742,17 @@ pub fn next_pow2(n: u32) -> u32 { upow(u32:2, clog2(n)) }
 
 #[test]
 fn test_next_pow2() {
-    assert_eq(next_pow2(u32:1), u32:1);
-    assert_eq(next_pow2(u32:2), u32:2);
-    assert_eq(next_pow2(u32:4), u32:4);
-    assert_eq(next_pow2(u32:5), u32:8);
-    assert_eq(next_pow2(u32:7), u32:8);
-    assert_eq(next_pow2(u32:8), u32:8);
-    assert_eq(next_pow2(u32:9), u32:16);
-    assert_eq(next_pow2(u32:16), u32:16);
-    assert_eq(next_pow2(u32:20), u32:32);
-    assert_eq(next_pow2(u32:47), u32:64);
-    assert_eq(next_pow2(u32:65), u32:128);
+    assert_eq(next_pow2(1), u32:1);
+    assert_eq(next_pow2(2), u32:2);
+    assert_eq(next_pow2(4), u32:4);
+    assert_eq(next_pow2(5), u32:8);
+    assert_eq(next_pow2(7), u32:8);
+    assert_eq(next_pow2(8), u32:8);
+    assert_eq(next_pow2(9), u32:16);
+    assert_eq(next_pow2(16), u32:16);
+    assert_eq(next_pow2(20), u32:32);
+    assert_eq(next_pow2(47), u32:64);
+    assert_eq(next_pow2(65), u32:128);
 }
 
 // General purpose clzt() number that works on any number, though most efficient for powers of two.
