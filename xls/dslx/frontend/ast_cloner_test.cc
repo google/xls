@@ -2776,6 +2776,26 @@ fn unwrap_or_sum(x: Option) -> u32 {
                            CloneModule(*module.get()));
   EXPECT_EQ(kExpected, clone->ToString());
   XLS_ASSERT_OK(VerifyClone(module.get(), clone.get(), file_table));
+
+  XLS_ASSERT_OK_AND_ASSIGN(SumDef * original,
+                           module->GetMemberOrError<SumDef>("Option"));
+  XLS_ASSERT_OK_AND_ASSIGN(SumDef * copied,
+                           clone->GetMemberOrError<SumDef>("Option"));
+  SumVariant* some = *copied->GetVariant("Some");
+  TupleTypeAnnotation* payload = some->tuple_payload();
+  EXPECT_NE(payload, (*original->GetVariant("Some"))->tuple_payload());
+  EXPECT_EQ(payload->owner(), clone.get());
+  EXPECT_EQ(payload->parent(), some);
+  ASSERT_EQ(payload->size(), 1);
+  EXPECT_EQ(payload->members()[0]->parent(), payload);
+
+  SumVariant* point = *copied->GetVariant("Point");
+  ASSERT_EQ(point->named_fields().GetMemberIndex("y"), 1);
+  StructMemberNode* y = *point->named_fields().GetMemberByName("y");
+  EXPECT_EQ(y, point->struct_members()[1]);
+  EXPECT_NE(y, (*original->GetVariant("Point"))->struct_members()[1]);
+  EXPECT_EQ(y->owner(), clone.get());
+  EXPECT_EQ(y->parent(), point);
 }
 
 TEST(AstClonerTest, ParametricFunctionClonesParamTypeDefiner) {

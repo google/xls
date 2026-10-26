@@ -3260,21 +3260,20 @@ void Formatter::FormatSumStructMembers(
   }
 }
 
-void Formatter::FormatSumTuplePayloadMembers(const SumVariant& variant,
+void Formatter::FormatSumTuplePayloadMembers(const TupleTypeAnnotation& payload,
                                              const Span& payload_span,
                                              std::vector<DocRef>& pieces) {
   if (!comments_.HasComments(payload_span)) {
     pieces.push_back(FormatJoin<TypeAnnotation*>(
-        variant.tuple_members(),
-        Joiner::kCommaBreak1AsGroupTrailingCommaOnBreak,
+        payload.members(), Joiner::kCommaBreak1AsGroupTrailingCommaOnBreak,
         [this](TypeAnnotation* member) {
           return FormatTypeAnnotation(*member);
         }));
   } else {
     std::vector<DocRef> body_pieces;
     Pos last_member_pos = payload_span.start();
-    for (size_t i = 0; i < variant.tuple_members().size(); ++i) {
-      const TypeAnnotation* member = variant.tuple_members()[i];
+    for (size_t i = 0; i < payload.size(); ++i) {
+      const TypeAnnotation* member = payload.members()[i];
       const bool first_member = i == 0;
       const Span comments_span(last_member_pos, member->span().start());
       const std::vector<const CommentData*> comment_items =
@@ -3305,7 +3304,7 @@ void Formatter::FormatSumTuplePayloadMembers(const SumVariant& variant,
     if (std::optional<DocRef> comments_doc =
             FormatCommentsBetween(last_member_pos, payload_span.limit(),
                                   /*last_comment_span=*/nullptr)) {
-      if (!variant.tuple_members().empty()) {
+      if (!payload.empty()) {
         body_pieces.push_back(arena_.comma());
         body_pieces.push_back(comment_items.front()->span.start().lineno() ==
                                       last_member_pos.lineno()
@@ -3380,7 +3379,8 @@ DocRef Formatter::FormatSumDef(const SumDef& n) {
       FormatAppendSumCommentsBetween(last_piece_limit, payload_span.start(),
                                      variant_pieces);
       variant_pieces.push_back(arena_.oparen());
-      FormatSumTuplePayloadMembers(*variant, payload_span, variant_pieces);
+      FormatSumTuplePayloadMembers(*variant->tuple_payload(), payload_span,
+                                   variant_pieces);
       variant_pieces.push_back(arena_.cparen());
       last_piece_limit = payload_span.limit();
     } else if (variant->is_struct()) {

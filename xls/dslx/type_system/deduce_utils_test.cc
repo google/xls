@@ -17,6 +17,7 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <variant>
 #include <vector>
 
 #include "gmock/gmock.h"
@@ -66,9 +67,8 @@ TEST(DeduceUtilsTest, RejectsSemanticSumNestedInFormattedTuple) {
   Module module("test_module", /*fs_path=*/std::nullopt, file_table);
   NameDef* sum_name = module.Make<NameDef>(kFakeSpan, "Option", nullptr);
   NameDef* none_name = module.Make<NameDef>(kFakeSpan, "None", nullptr);
-  SumVariant* none = module.Make<SumVariant>(
-      kFakeSpan, none_name, SumVariant::PayloadShape::kUnit,
-      std::vector<TypeAnnotation*>{}, std::vector<StructMemberNode*>{});
+  SumVariant* none =
+      module.Make<SumVariant>(kFakeSpan, none_name, std::monostate{});
   SumDef* sum_def = module.Make<SumDef>(
       kFakeSpan, sum_name, std::vector<ParametricBinding*>{},
       std::vector<SumVariant*>{none}, /*is_public=*/false);

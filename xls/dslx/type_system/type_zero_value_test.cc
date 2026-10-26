@@ -17,6 +17,7 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <variant>
 #include <vector>
 
 #include "gtest/gtest.h"
@@ -36,9 +37,8 @@ SumType MakeOuterSumWithInhabitedNestedSumPayload(Module& module) {
 
   auto* inner_name = module.Make<NameDef>(kFakeSpan, "Inner", nullptr);
   auto* inner_unit_name = module.Make<NameDef>(kFakeSpan, "InnerUnit", nullptr);
-  auto* inner_unit = module.Make<SumVariant>(
-      kFakeSpan, inner_unit_name, SumVariant::PayloadShape::kUnit,
-      std::vector<TypeAnnotation*>{}, std::vector<StructMemberNode*>{});
+  auto* inner_unit =
+      module.Make<SumVariant>(kFakeSpan, inner_unit_name, std::monostate{});
   auto* inner_def = module.Make<SumDef>(
       kFakeSpan, inner_name, std::vector<ParametricBinding*>{},
       std::vector<SumVariant*>{inner_unit}, /*is_public=*/false);
@@ -50,11 +50,12 @@ SumType MakeOuterSumWithInhabitedNestedSumPayload(Module& module) {
   auto* outer_name = module.Make<NameDef>(kFakeSpan, "Outer", nullptr);
   auto* wrapped_name = module.Make<NameDef>(kFakeSpan, "Wrapped", nullptr);
   auto* wrapped = module.Make<SumVariant>(
-      kFakeSpan, wrapped_name, SumVariant::PayloadShape::kTuple,
-      std::vector<TypeAnnotation*>{module.Make<TypeRefTypeAnnotation>(
-          kFakeSpan, module.Make<TypeRef>(kFakeSpan, inner_def),
-          std::vector<ExprOrType>{})},
-      std::vector<StructMemberNode*>{});
+      kFakeSpan, wrapped_name,
+      module.Make<TupleTypeAnnotation>(
+          kFakeSpan,
+          std::vector<TypeAnnotation*>{module.Make<TypeRefTypeAnnotation>(
+              kFakeSpan, module.Make<TypeRef>(kFakeSpan, inner_def),
+              std::vector<ExprOrType>{})}));
   auto* outer_def = module.Make<SumDef>(
       kFakeSpan, outer_name, std::vector<ParametricBinding*>{},
       std::vector<SumVariant*>{wrapped}, /*is_public=*/false);
@@ -109,11 +110,11 @@ TEST(TypeZeroValueTest, ConstructsDeeplyNestedSumZerosWithoutRevalidation) {
           std::vector<ExprOrType>{}));
       payload_members.push_back(current->CloneToUnique());
     }
-    auto* variant = module.Make<SumVariant>(
-        span, variant_name,
-        previous_definition == nullptr ? SumVariant::PayloadShape::kUnit
-                                       : SumVariant::PayloadShape::kTuple,
-        payload_annotations, std::vector<StructMemberNode*>{});
+    SumVariant::Payload payload;
+    if (previous_definition != nullptr) {
+      payload = module.Make<TupleTypeAnnotation>(span, payload_annotations);
+    }
+    auto* variant = module.Make<SumVariant>(span, variant_name, payload);
     auto* definition = module.Make<SumDef>(
         span, sum_name, std::vector<ParametricBinding*>{},
         std::vector<SumVariant*>{variant}, /*is_public=*/false);
@@ -174,14 +175,16 @@ TEST(TypeZeroValueTest, UsesExplicitZeroDiscriminantInsteadOfDenseStorageTag) {
   auto* sum_name = tm.module->Make<NameDef>(span, "Message", nullptr);
   auto* request_name = tm.module->Make<NameDef>(span, "Request", nullptr);
   auto* idle_name = tm.module->Make<NameDef>(span, "Idle", nullptr);
-  auto* request = tm.module->Make<SumVariant>(
-      span, request_name, SumVariant::PayloadShape::kTuple,
-      std::vector<TypeAnnotation*>{u8}, std::vector<StructMemberNode*>{},
-      request_discriminant);
-  auto* idle = tm.module->Make<SumVariant>(
-      span, idle_name, SumVariant::PayloadShape::kTuple,
-      std::vector<TypeAnnotation*>{u16}, std::vector<StructMemberNode*>{},
-      idle_discriminant);
+  auto* request =
+      tm.module->Make<SumVariant>(span, request_name,
+                                  tm.module->Make<TupleTypeAnnotation>(
+                                      span, std::vector<TypeAnnotation*>{u8}),
+                                  request_discriminant);
+  auto* idle =
+      tm.module->Make<SumVariant>(span, idle_name,
+                                  tm.module->Make<TupleTypeAnnotation>(
+                                      span, std::vector<TypeAnnotation*>{u16}),
+                                  idle_discriminant);
   auto* sum_def = tm.module->Make<SumDef>(
       span, sum_name, std::vector<ParametricBinding*>{},
       std::vector<SumVariant*>{request, idle}, /*is_public=*/false, tag_type);

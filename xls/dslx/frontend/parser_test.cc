@@ -3184,6 +3184,46 @@ fn f(x: Option) -> Option {
   EXPECT_EQ(std::get<NameDef*>(point_leaves.at(1)), struct_names.at(0));
 }
 
+TEST_F(ParserTest, SumPayloadOwnsTupleAnnotationAndNamedFields) {
+  std::unique_ptr<Module> module = RoundTrip(R"(enum E {
+    Unit,
+    EmptyTuple(),
+    EmptyNamed {},
+    One(u32),
+    TupleValue((u32,)),
+    Named { x: u32, y: u8 },
+})");
+  XLS_ASSERT_OK_AND_ASSIGN(SumDef * sum, module->GetMemberOrError<SumDef>("E"));
+  SumVariant* empty_tuple = *sum->GetVariant("EmptyTuple");
+  EXPECT_TRUE(empty_tuple->is_tuple());
+  EXPECT_TRUE(empty_tuple->tuple_payload()->empty());
+  EXPECT_EQ(empty_tuple->tuple_payload()->parent(), empty_tuple);
+
+  SumVariant* one = *sum->GetVariant("One");
+  TupleTypeAnnotation* payload = one->tuple_payload();
+  ASSERT_EQ(payload->size(), 1);
+  EXPECT_EQ(payload->parent(), one);
+  EXPECT_EQ(payload->members()[0]->parent(), payload);
+  EXPECT_EQ(one->ToString(), "One(u32)");
+  EXPECT_EQ(one->payload_span(), payload->span());
+
+  SumVariant* tuple_value = *sum->GetVariant("TupleValue");
+  ASSERT_EQ(tuple_value->payload_member_count(), 1);
+  auto* member_tuple =
+      dynamic_cast<TupleTypeAnnotation*>(tuple_value->tuple_members()[0]);
+  ASSERT_NE(member_tuple, nullptr);
+  EXPECT_EQ(member_tuple->parent(), tuple_value->tuple_payload());
+  EXPECT_EQ(tuple_value->ToString(), "TupleValue((u32,))");
+
+  SumVariant* named = *sum->GetVariant("Named");
+  EXPECT_EQ(named->named_fields().GetMemberIndex("x"), 0);
+  EXPECT_EQ(named->named_fields().GetMemberIndex("y"), 1);
+  EXPECT_EQ(named->named_fields().GetMemberByName("x"),
+            named->struct_members()[0]);
+  EXPECT_EQ(named->struct_members()[0]->parent(), named);
+  EXPECT_EQ(named->named_fields().GetMemberIndex("missing"), std::nullopt);
+}
+
 TEST_F(ParserTest, DefersConstructorLevelParametricsToTypechecking) {
   constexpr std::string_view kExplicitOnConstructor = R"(#![feature(generics)]
 
