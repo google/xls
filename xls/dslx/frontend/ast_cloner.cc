@@ -724,6 +724,15 @@ class AstCloner : public AstNodeVisitor {
       ModuleMember new_member;
       XLS_RETURN_IF_ERROR(absl::visit(
           Visitor{
+              [&](Function* old_member) -> absl::Status {
+                if (old_member->proc().has_value()) {
+                  XLS_RETURN_IF_ERROR(ReplaceOrVisit(*old_member->proc()));
+                }
+                XLS_RETURN_IF_ERROR(ReplaceOrVisit(old_member));
+                new_member =
+                    CastOrVerbatim<Function*>(old_to_new().at(old_member));
+                return absl::OkStatus();
+              },
               [&](auto* old_member) -> absl::Status {
                 XLS_RETURN_IF_ERROR(ReplaceOrVisit(old_member));
                 new_member = CastOrVerbatim<decltype(old_member)>(
@@ -821,18 +830,26 @@ class AstCloner : public AstNodeVisitor {
 
   absl::Status HandleParam(const Param* n) override {
     XLS_RETURN_IF_ERROR(VisitChildren(n));
-    old_to_new_[n] = module(n)->Make<Param>(
-        absl::down_cast<NameDef*>(old_to_new_.at(n->name_def())),
+    NameDef* new_name_def =
+        absl::down_cast<NameDef*>(old_to_new_.at(n->name_def()));
+    Param* new_param = module(n)->Make<Param>(
+        new_name_def,
         absl::down_cast<TypeAnnotation*>(old_to_new_.at(n->type_annotation())));
+    new_name_def->set_definer(new_param);
+    old_to_new_[n] = new_param;
     return absl::OkStatus();
   }
 
   absl::Status HandleProcMember(const ProcMember* n) override {
     XLS_RETURN_IF_ERROR(VisitChildren(n));
-    old_to_new_[n] = module(n)->Make<ProcMember>(
-        absl::down_cast<NameDef*>(old_to_new_.at(n->name_def())),
+    NameDef* new_name_def =
+        absl::down_cast<NameDef*>(old_to_new_.at(n->name_def()));
+    ProcMember* new_proc_member = module(n)->Make<ProcMember>(
+        new_name_def,
         absl::down_cast<TypeAnnotation*>(old_to_new_.at(n->type_annotation())),
         n->strictness(), n->flow_control());
+    new_name_def->set_definer(new_proc_member);
+    old_to_new_[n] = new_proc_member;
     return absl::OkStatus();
   }
 
@@ -857,18 +874,24 @@ class AstCloner : public AstNodeVisitor {
       // If we've already cloned this proc, just return it.
       return absl::OkStatus();
     }
-    XLS_RETURN_IF_ERROR(VisitChildren(n));
+    XLS_RETURN_IF_ERROR(ReplaceOrVisit(n->name_def()));
 
     std::vector<ParametricBinding*> new_parametric_bindings;
     new_parametric_bindings.reserve(n->parametric_bindings().size());
     for (const ParametricBinding* pb : n->parametric_bindings()) {
+      XLS_RETURN_IF_ERROR(ReplaceOrVisit(pb));
       new_parametric_bindings.push_back(
           absl::down_cast<ParametricBinding*>(old_to_new_.at(pb)));
+    }
+
+    for (const ProcStmt* stmt : n->GetNonFunctionStmts()) {
+      XLS_RETURN_IF_ERROR(ReplaceOrVisit(ToAstNode(*stmt)));
     }
 
     std::vector<ProcMember*> new_members;
     new_members.reserve(n->members().size());
     for (const ProcMember* member : n->members()) {
+      XLS_RETURN_IF_ERROR(ReplaceOrVisit(member));
       new_members.push_back(
           absl::down_cast<ProcMember*>(old_to_new_.at(member)));
     }
@@ -876,10 +899,16 @@ class AstCloner : public AstNodeVisitor {
     std::vector<ProcStmt> new_stmts;
     new_stmts.reserve(n->stmts().size());
     for (const ProcStmt& stmt : n->stmts()) {
+      AstNode* old_stmt_node = ToAstNode(stmt);
+      XLS_RETURN_IF_ERROR(ReplaceOrVisit(old_stmt_node));
       XLS_ASSIGN_OR_RETURN(ProcStmt new_stmt,
-                           ToProcStmt(old_to_new_.at(ToAstNode(stmt))));
+                           ToProcStmt(old_to_new_.at(old_stmt_node)));
       new_stmts.push_back(new_stmt);
     }
+
+    XLS_RETURN_IF_ERROR(ReplaceOrVisit(&n->config()));
+    XLS_RETURN_IF_ERROR(ReplaceOrVisit(&n->next()));
+    XLS_RETURN_IF_ERROR(ReplaceOrVisit(&n->init()));
 
     NameDef* new_name_def =
         absl::down_cast<NameDef*>(old_to_new_.at(n->name_def()));
@@ -1876,6 +1905,18 @@ absl::Status VerifyClone(const AstNode* old_root, const AstNode* new_root,
           new_node->ToString(),
           span.has_value() ? span.value().ToString(file_table) : "<no span>",
           new_node->GetNodeTypeName()));
+    }
+    if (new_node->kind() == AstNodeKind::kNameRef) {
+      const auto* name_ref = absl::down_cast<const NameRef*>(new_node);
+      if (std::holds_alternative<const NameDef*>(name_ref->name_def()) &&
+          old_nodes.contains(std::get<const NameDef*>(name_ref->name_def()))) {
+        std::optional<Span> span = new_node->GetSpan();
+        return absl::InvalidArgumentError(absl::StrFormat(
+            "NameRef \"%s\" (%s) in new clone refers to NameDef in original.",
+            new_node->ToString(),
+            span.has_value() ? span.value().ToString(file_table)
+                             : "<no span>"));
+      }
     }
   }
   return absl::OkStatus();
