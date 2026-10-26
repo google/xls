@@ -25,7 +25,9 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_cat.h"
 #include "absl/strings/substitute.h"
+#include "absl/types/span.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
@@ -37,6 +39,7 @@
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/interp_value.h"
 #include "xls/dslx/parse_and_typecheck.h"
+#include "xls/dslx/type_system/channel_manager.h"
 #include "xls/dslx/type_system/type_info.h"
 #include "xls/dslx/type_system/typecheck_test_utils.h"
 #include "xls/dslx/type_system_v2/matchers.h"
@@ -1398,6 +1401,231 @@ impl Parent {
               IsOkAndHolds(HasNodeWithType("uN[N]", "typeof(uN[8])")));
   EXPECT_THAT(TypeInfoToString(*inits[1].constructor_type_info, file_table),
               IsOkAndHolds(HasNodeWithType("uN[N]", "typeof(uN[16])")));
+}
+
+constexpr std::string_view kLoopbackProc = R"(
+#![feature(io_objects)]
+proc Loopback {
+  input: Source<u32>,
+  output: Sink<u32>
+}
+impl Loopback {
+  fn new() -> Self { Loopback {} }
+  fn next(self) {}
+}
+)";
+
+TEST(TypecheckV2ProcTest, BindRecordsBothEndpoints) {
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result,
+                           TypecheckV2(absl::StrCat(kLoopbackProc, R"(
+proc Top { to_child: Sink<u32>, from_child: Source<u32> }
+impl Top {
+  fn new() -> Self {
+    let top = Top {};
+    let c = Loopback::new();
+    top.to_child.bind(c.input);
+    c.output.bind(top.from_child);
+    c.spawn();
+    top
+  }
+  fn next(self) {}
+}
+)")));
+  XLS_ASSERT_OK_AND_ASSIGN(ProcDef * top,
+                           result.tm.module->GetMemberOrError<ProcDef>("Top"));
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue top_init,
+                           GetCanonicalInitializer(result.tm, "Top"));
+  XLS_ASSERT_OK_AND_ASSIGN(std::vector<InterpValue> spawns,
+                           result.tm.type_info->GetProcDefSpawnsFrom(top));
+  ASSERT_EQ(spawns.size(), 1);
+
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue to_child,
+                           GetMemberValue(top_init, "to_child"));
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue from_child,
+                           GetMemberValue(top_init, "from_child"));
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue child_input,
+                           GetMemberValue(spawns[0], "input"));
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue child_output,
+                           GetMemberValue(spawns[0], "output"));
+
+  const ChannelManager& manager = result.tm.type_info->channel_manager();
+  std::optional<const ImplicitChannelDecl*> to_child_decl =
+      manager.GetImplicitChannelDecl(top, to_child);
+  ASSERT_TRUE(to_child_decl.has_value());
+  EXPECT_EQ(manager.GetImplicitChannelDecl(top, child_input), to_child_decl);
+  EXPECT_EQ((*to_child_decl)->out_end, to_child);
+  EXPECT_EQ((*to_child_decl)->in_end, child_input);
+
+  std::optional<const ImplicitChannelDecl*> from_child_decl =
+      manager.GetImplicitChannelDecl(top, from_child);
+  ASSERT_TRUE(from_child_decl.has_value());
+  EXPECT_EQ(manager.GetImplicitChannelDecl(top, child_output), from_child_decl);
+  EXPECT_EQ((*from_child_decl)->out_end, child_output);
+  EXPECT_EQ((*from_child_decl)->in_end, from_child);
+}
+
+TEST(TypecheckV2ProcTest, BindChildToChild) {
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result,
+                           TypecheckV2(absl::StrCat(kLoopbackProc, R"(
+proc Top {}
+impl Top {
+  fn new() -> Self {
+    let a = Loopback::new();
+    let b = Loopback::new();
+    a.output.bind(b.input);
+    a.spawn();
+    b.spawn();
+    Top {}
+  }
+  fn next(self) {}
+}
+)")));
+  XLS_ASSERT_OK_AND_ASSIGN(ProcDef * top,
+                           result.tm.module->GetMemberOrError<ProcDef>("Top"));
+  XLS_ASSERT_OK_AND_ASSIGN(std::vector<InterpValue> spawns,
+                           result.tm.type_info->GetProcDefSpawnsFrom(top));
+  ASSERT_EQ(spawns.size(), 2);
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue a_output,
+                           GetMemberValue(spawns[0], "output"));
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue b_input,
+                           GetMemberValue(spawns[1], "input"));
+
+  const ChannelManager& manager = result.tm.type_info->channel_manager();
+  std::optional<const ImplicitChannelDecl*> decl =
+      manager.GetImplicitChannelDecl(top, a_output);
+  ASSERT_TRUE(decl.has_value());
+  EXPECT_EQ(manager.GetImplicitChannelDecl(top, b_input), decl);
+  EXPECT_EQ((*decl)->out_end, a_output);
+  EXPECT_EQ((*decl)->in_end, b_input);
+}
+
+TEST(TypecheckV2ProcTest, BindEndpointTwiceIsRejected) {
+  EXPECT_THAT(absl::StrCat(kLoopbackProc, R"(
+proc Top { to_child: Sink<u32> }
+impl Top {
+  fn new() -> Self {
+    let top = Top {};
+    let c = Loopback::new();
+    let d = Loopback::new();
+    top.to_child.bind(c.input);
+    top.to_child.bind(d.input);
+    c.spawn();
+    d.spawn();
+    top
+  }
+  fn next(self) {}
+}
+)"),
+              TypecheckFails(HasSubstr("`top.to_child` is already bound by "
+                                       "`top.to_child.bind(c.input)`.")));
+}
+
+TEST(TypecheckV2ProcTest, BindOutsideProcImplIsRejected) {
+  EXPECT_THAT(
+      R"(
+#![feature(io_objects)]
+fn connect(s: Sink<u32>, r: Source<u32>) { s.bind(r) }
+)",
+      TypecheckFails(HasSubstr("`bind` can only be called in a proc impl.")));
+}
+
+TEST(TypecheckV2ProcTest, BindInParametricProcIsRecordedPerInstantiation) {
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result,
+                           TypecheckV2(absl::StrCat(kLoopbackProc, R"(
+proc Top<N: u32> { to_child: Sink<u32>, from_child: Source<u32> }
+impl Top<N> {
+  fn new() -> Self {
+    let top = Top<N> {};
+    let c = Loopback::new();
+    top.to_child.bind(c.input);
+    c.output.bind(top.from_child);
+    c.spawn();
+    top
+  }
+  fn next(self) {}
+}
+proc Main {}
+impl Main {
+  fn new() -> Self {
+    Top<1>::new().spawn();
+    Top<2>::new().spawn();
+    Top<1>::new().spawn();
+    Main {}
+  }
+  fn next(self) {}
+}
+)")));
+  XLS_ASSERT_OK_AND_ASSIGN(ProcDef * top,
+                           result.tm.module->GetMemberOrError<ProcDef>("Top"));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::vector<ProcInitializerWithTypeInfo> inits,
+      result.tm.type_info->GetCanonicalProcInitializers(top));
+  ASSERT_EQ(inits.size(), 2);
+  EXPECT_NE(inits[0].constructor_type_info, inits[1].constructor_type_info);
+  for (const ProcInitializerWithTypeInfo& init : inits) {
+    XLS_ASSERT_OK_AND_ASSIGN(InterpValue to_child,
+                             GetMemberValue(init.initializer, "to_child"));
+    XLS_ASSERT_OK_AND_ASSIGN(InterpValue from_child,
+                             GetMemberValue(init.initializer, "from_child"));
+    EXPECT_TRUE(init.constructor_type_info->channel_manager()
+                    .GetImplicitChannelDecl(top, to_child)
+                    .has_value());
+    EXPECT_TRUE(init.constructor_type_info->channel_manager()
+                    .GetImplicitChannelDecl(top, from_child)
+                    .has_value());
+    EXPECT_FALSE(result.tm.type_info->channel_manager()
+                     .GetImplicitChannelDecl(top, to_child)
+                     .has_value());
+  }
+}
+
+TEST(TypecheckV2ProcTest, BindsInDifferentModulesDoNotConflict) {
+  // Both modules number channel ids from the same start and share one root
+  // `TypeInfo`, verify that keying by `ProcDef` prevents cross-module id
+  // collisions.
+  constexpr std::string_view kImported = R"(#![feature(io_objects)]
+proc Leaf { input: Source<u32> }
+impl Leaf { fn new() -> Self { Leaf {} } fn next(self) {} }
+pub proc Mid { to_leaf: Sink<u32> }
+impl Mid {
+  pub fn new() -> Self {
+    let m = Mid {};
+    let l = Leaf::new();
+    m.to_leaf.bind(l.input);
+    l.spawn();
+    m
+  }
+  fn next(self) {}
+}
+)";
+  constexpr std::string_view kProgram = R"(#![feature(io_objects)]
+import imported;
+
+proc Leaf { input: Source<u32> }
+impl Leaf { fn new() -> Self { Leaf {} } fn next(self) {} }
+proc Top { to_leaf: Sink<u32> }
+impl Top {
+  fn new() -> Self {
+    let t = Top {};
+    let l = Leaf::new();
+    t.to_leaf.bind(l.input);
+    l.spawn();
+    t
+  }
+  fn next(self) {}
+}
+)";
+
+  absl::flat_hash_map<std::filesystem::path, std::string> files;
+  files[std::filesystem::path("/imported.x")] = std::string(kImported);
+  auto vfs = std::make_unique<FakeFilesystem>(std::move(files),
+                                              std::filesystem::path("/"));
+  ImportData import_data =
+      CreateImportData(xls::kDefaultDslxStdlibPath,
+                       /*additional_search_paths=*/{std::filesystem::path("/")},
+                       kAllWarningsSet, std::move(vfs));
+
+  XLS_EXPECT_OK(TypecheckV2(kProgram, "main", &import_data));
 }
 
 }  // namespace

@@ -37,10 +37,12 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "absl/types/optional_ref.h"
+#include "absl/types/span.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/interp_value.h"
+#include "xls/dslx/type_system/channel_manager.h"
 #include "xls/dslx/type_system/parametric_env.h"
 #include "xls/dslx/type_system/type.h"
 
@@ -280,6 +282,9 @@ class TypeInfo {
   // directly from the given `caller` proc.
   absl::StatusOr<std::vector<InterpValue>> GetProcDefSpawnsFrom(
       const ProcDef* caller) const;
+
+  ChannelManager& channel_manager() { return channel_manager_; }
+  const ChannelManager& channel_manager() const { return channel_manager_; }
 
   // Attempts to retrieve "instantiation" type information -- that is, when
   // there's an invocation with parametrics in a caller, it may map to
@@ -624,6 +629,8 @@ class TypeInfo {
   // constructor TypeInfo where the spawn occurred.
   absl::flat_hash_map<const ProcDef*, std::vector<InterpValue>>
       proc_def_spawns_by_caller_proc_;
+
+  ChannelManager channel_manager_;
 
   absl::flat_hash_map<const ColonRef*, ResolvedColonRefSubject>
       resolved_colon_ref_subjects_;

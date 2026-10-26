@@ -268,10 +268,26 @@ cc_test(
 )
 
 cc_library(
+    name = "channel_manager",
+    srcs = ["channel_manager.cc"],
+    hdrs = ["channel_manager.h"],
+    deps = [
+        "//xls/dslx:errors",
+        "//xls/dslx:interp_value",
+        "//xls/dslx/frontend:ast",
+        "//xls/dslx/frontend:pos",
+        "@abseil-cpp//absl/container:flat_hash_map",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/strings",
+    ],
+)
+
+cc_library(
     name = "type_info",
     srcs = ["type_info.cc"],
     hdrs = ["type_info.h"],
     deps = [
+        ":channel_manager",
         ":parametric_env",
         ":type",
         "//xls/common:symbolized_stacktrace",
@@ -295,6 +311,7 @@ cc_library(
         "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/strings:str_format",
         "@abseil-cpp//absl/types:optional_ref",
+        "@abseil-cpp//absl/types:span",
         "@abseil-cpp//absl/types:variant",
     ],
 )

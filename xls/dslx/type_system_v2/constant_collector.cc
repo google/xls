@@ -43,6 +43,7 @@
 #include "xls/dslx/frontend/ast_cloner.h"
 #include "xls/dslx/frontend/ast_node_visitor_with_default.h"
 #include "xls/dslx/frontend/ast_utils.h"
+#include "xls/dslx/frontend/builtin_stubs_utils.h"
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/interp_value.h"
@@ -664,6 +665,12 @@ class Visitor : public AstNodeVisitorWithDefault {
           table_.GetCalleeInCallerContext(invocation, parametric_context_);
       XLS_RET_CHECK(f.has_value());
 
+      if (IsBuiltin(*f) && (*f)->IsMethod()) {
+        if ((*f)->identifier() == "bind") {
+          return HandleIoObjectBindInvocation(invocation);
+        }
+      }
+
       XLS_ASSIGN_OR_RETURN(
           std::optional<const StructDefBase*> struct_or_proc_def,
           GetStructOrProcDef(*f, import_data_));
@@ -815,9 +822,9 @@ class Visitor : public AstNodeVisitorWithDefault {
     } else if (definer.has_value() &&
                (*definer)->kind() == AstNodeKind::kStructMember &&
                internal_arg.IsChannelReference()) {
-      // TODO(nelsonliang): Use the matching end of the implicit `ChannelDecl`
-      // inferred from `bind`/`forward`/`set_name`, instead of creating a new
-      // channel id.
+      // Give each `Child::new()` call its own channel ID for each `Source` or
+      // `Sink` member so `bind` can tell different instances apart (e.g.
+      // `c1.input` vs. `c2.input`).
       return InterpValue::MakeChannelReference(
           internal_arg.GetChannelReferenceOrDie().GetDirection(),
           ++*next_channel_id_, *definer);
@@ -840,9 +847,8 @@ class Visitor : public AstNodeVisitorWithDefault {
         }
       }
       if (replaced_any) {
-        // TODO(nelsonliang): For an array of io objects, use the matching ends
-        // of the implicit `ChannelDecl`s once `bind`/`forward`/`set_name` are
-        // tracked, instead of creating a new array id.
+        // Assign a fresh caller-scoped array ID for this child instance; each
+        // element already received a fresh ID via the recursive call above.
         return InterpValue::MakeChannelArray(
             internal_arg.GetChannelArrayOrDie().direction(),
             ++*next_channel_id_, internal_arg.GetChannelArrayOrDie().definer(),
@@ -871,6 +877,36 @@ class Visitor : public AstNodeVisitorWithDefault {
     // Proc def spawns should be considered constexprs, but their value is just
     // the empty tuple. Downstream processes (e.g., bytecode interpreter, IR
     // converter) should already take care of spawns, ignoring the const value.
+    ti_->NoteConstExpr(invocation, InterpValue::MakeTuple({}));
+    return absl::OkStatus();
+  }
+
+  // Records `sink.bind(source)`, which connects the two endpoints with one
+  // channel. The IR converter reads the record when it converts the calling
+  // proc.
+  absl::Status HandleIoObjectBindInvocation(const Invocation* invocation) {
+    XLS_RET_CHECK_EQ(invocation->callee()->kind(), AstNodeKind::kAttr);
+    XLS_RET_CHECK_EQ(invocation->args().size(), 1);
+    XLS_ASSIGN_OR_RETURN(
+        std::optional<const StructDefBase*> caller,
+        GetContainingStructOrProcDef(invocation, import_data_));
+    if (!caller.has_value() || (*caller)->kind() != AstNodeKind::kProcDef) {
+      return TypeInferenceErrorStatus(
+          invocation->span(), nullptr,
+          "`bind` can only be called in a proc impl.", file_table_);
+    }
+
+    const Expr* sink_expr =
+        absl::down_cast<const Attr*>(invocation->callee())->lhs();
+    const Expr* source_expr = invocation->args()[0];
+    XLS_ASSIGN_OR_RETURN(InterpValue sink, Evaluate(sink_expr));
+    XLS_ASSIGN_OR_RETURN(InterpValue source, Evaluate(source_expr));
+    XLS_RET_CHECK(sink.IsChannelReference());
+    XLS_RET_CHECK(source.IsChannelReference());
+    const auto* proc_def = absl::down_cast<const ProcDef*>(*caller);
+    XLS_RETURN_IF_ERROR(ti_->channel_manager().Bind(proc_def, sink, source,
+                                                    sink_expr, source_expr,
+                                                    invocation, file_table_));
     ti_->NoteConstExpr(invocation, InterpValue::MakeTuple({}));
     return absl::OkStatus();
   }

@@ -49,6 +49,7 @@
 #include "xls/dslx/errors.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/ast_utils.h"
+#include "xls/dslx/frontend/builtin_stubs_utils.h"
 #include "xls/dslx/frontend/module.h"
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/import_data.h"
@@ -805,6 +806,13 @@ absl::Status BytecodeEmitter::HandleBuiltinBitCount(const Invocation* node) {
   return absl::OkStatus();
 }
 
+absl::Status BytecodeEmitter::HandleBuiltinBind(const Invocation* node) {
+  VLOG(5) << "BytecodeEmitter::HandleInvocation - Bind @ "
+          << node->span().ToString(file_table());
+  Add(Bytecode::MakeLiteral(node->span(), InterpValue::MakeTuple({})));
+  return absl::OkStatus();
+}
+
 absl::Status BytecodeEmitter::HandleBuiltinArraySize(const Invocation* node) {
   XLS_ASSIGN_OR_RETURN(InterpValue default_or_override_interp_value,
                        type_info_->GetConstExpr(node));
@@ -1236,6 +1244,17 @@ absl::Status BytecodeEmitter::HandleInvocation(const Invocation* node) {
     }
     if (name_ref->identifier() == "write") {
       return HandleBuiltinWrite(node);
+    }
+  }
+
+  // Methods of the builtin `Source`/`Sink` are called on an `Attr`, so they
+  // are resolved by callee rather than by name.
+  if (node->callee()->kind() == AstNodeKind::kAttr) {
+    XLS_ASSIGN_OR_RETURN(const Function* callee, type_info_->GetCallee(node));
+    if (IsBuiltin(callee) && callee->IsMethod()) {
+      if (callee->identifier() == "bind") {
+        return HandleBuiltinBind(node);
+      }
     }
   }
 
