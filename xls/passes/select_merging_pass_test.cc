@@ -264,6 +264,26 @@ TEST_F(SelectMergingPassTest, MergeSelectNodeNoOp) {
               IsOkAndHolds(testing::IsNull()));
 }
 
+TEST_F(SelectMergingPassTest, MergeSelectNodeFlattensConcatSelector) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+     fn f(s0: bits[1], s1: bits[1], s2: bits[1], x: bits[32], y: bits[32], z: bits[32], d: bits[32]) -> bits[32] {
+       concat.1: bits[2] = concat(s2, s1)
+       priority_sel.2: bits[32] = priority_sel(concat.1, cases=[y, z], default=d)
+       ret priority_sel.3: bits[32] = priority_sel(s0, cases=[x], default=priority_sel.2)
+     }
+  )",
+                                                       p.get()));
+
+  solvers::ScopedVerifyEquivalence stays_equivalent{f};
+  Node* outer_prio = f->return_value();
+  EXPECT_THAT(MergeSelectNode(outer_prio),
+              IsOkAndHolds(m::PrioritySelect(
+                  m::Concat(m::Param("s2"), m::Param("s1"), m::Param("s0")),
+                  /*cases=*/{m::Param("x"), m::Param("y"), m::Param("z")},
+                  /*default_value=*/m::Param("d"))));
+}
+
 void IrFuzzSelectMerging(FuzzPackageWithArgs fuzz_package_with_args) {
   SelectMergingPass pass;
   OptimizationPassChangesOutputs(std::move(fuzz_package_with_args), pass);

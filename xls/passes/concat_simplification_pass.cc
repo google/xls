@@ -32,9 +32,11 @@
 #include "xls/ir/bits.h"
 #include "xls/ir/bits_ops.h"
 #include "xls/ir/function_base.h"
+#include "xls/ir/node.h"
 #include "xls/ir/node_util.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
+#include "xls/ir/source_location.h"
 #include "xls/ir/value.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/pass_base.h"
@@ -95,17 +97,11 @@ absl::StatusOr<Concat*> ReplaceConsecutiveConstantOperands(
   return concat->ReplaceUsesWithNew<Concat>(new_operands);
 }
 
-// Replaces the given concat and any of its operand which are concats (and any
-// of *their* operands which are concats, etc) with a single concat
-// operation. For example:
-//
-//   Concat(a, b, Concat(c, Concat(d, e))) => Concat(a, b, c, d, e)
-//
-// Returns the newly created concat which never aliases the given concat.
-absl::StatusOr<Concat*> FlattenConcatTree(Concat* concat) {
+// Flattens any Concat operands (and any of their operands which are concats,
+// etc) into a single flat operand list.
+std::vector<Node*> FlattenConcatOperands(absl::Span<Node* const> operands) {
   std::vector<Node*> new_operands;
-  std::deque<Node*> worklist(concat->operands().begin(),
-                             concat->operands().end());
+  std::deque<Node*> worklist(operands.begin(), operands.end());
   while (!worklist.empty()) {
     Node* node = worklist.front();
     worklist.pop_front();
@@ -116,7 +112,19 @@ absl::StatusOr<Concat*> FlattenConcatTree(Concat* concat) {
       new_operands.push_back(node);
     }
   }
-  return concat->ReplaceUsesWithNew<Concat>(new_operands);
+  return new_operands;
+}
+
+// Replaces the given concat and any of its operand which are concats (and any
+// of *their* operands which are concats, etc) with a single concat
+// operation. For example:
+//
+//   Concat(a, b, Concat(c, Concat(d, e))) => Concat(a, b, c, d, e)
+//
+// Returns the newly created concat which never aliases the given concat.
+absl::StatusOr<Concat*> FlattenConcatTree(Concat* concat) {
+  return concat->ReplaceUsesWithNew<Concat>(
+      FlattenConcatOperands(concat->operands()));
 }
 
 struct ReversedSliceInfo {
@@ -866,6 +874,12 @@ absl::StatusOr<bool> TryDistributeReducibleOperation(Node* node) {
 }
 
 }  // namespace
+
+absl::StatusOr<Concat*> CreateFlattenedConcat(FunctionBase* f,
+                                              absl::Span<Node* const> operands,
+                                              const SourceInfo& loc) {
+  return f->MakeNode<Concat>(loc, FlattenConcatOperands(operands));
+}
 
 RedundancyGuard ConcatSimplificationPass::GetRedundancyGuard(
     const OptimizationPassOptions& options,

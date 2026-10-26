@@ -1144,6 +1144,22 @@ TEST_F(ConcatSimplificationPassTest, ConcatOfMultipleReversedRuns) {
                         m::Param("c")));
 }
 
+TEST_F(ConcatSimplificationPassTest, CreateFlattenedConcatFlattensNestedTree) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue a = fb.Param("a", p->GetBitsType(1));
+  BValue b = fb.Param("b", p->GetBitsType(1));
+  BValue c = fb.Param("c", p->GetBitsType(1));
+  BValue d = fb.Param("d", p->GetBitsType(1));
+  BValue inner = fb.Concat({b, c});
+  BValue outer = fb.Concat({a, inner});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(d));
+
+  EXPECT_THAT(CreateFlattenedConcat(f, {outer.node(), d.node()}, SourceInfo()),
+              IsOkAndHolds(m::Concat(m::Param("a"), m::Param("b"),
+                                     m::Param("c"), m::Param("d"))));
+}
+
 void IrFuzzConcatSimplification(FuzzPackageWithArgs fuzz_package_with_args) {
   ConcatSimplificationPass pass;
   OptimizationPassChangesOutputs(std::move(fuzz_package_with_args), pass);

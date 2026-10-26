@@ -679,6 +679,7 @@ xls_pass(
         "//xls/ir:bits_ops",
         "//xls/ir:node_util",
         "//xls/ir:op",
+        "//xls/ir:source_location",
         "//xls/ir:value",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:statusor",
@@ -1463,6 +1464,7 @@ xls_pass(
     hdrs = ["select_merging_pass.h"],
     pass_class = "SelectMergingPass",
     deps = [
+        ":concat_simplification_pass",
         ":optimization_pass",
         ":pass_base",
         "//xls/common/status:ret_check",

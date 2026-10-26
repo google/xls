@@ -18,11 +18,21 @@
 #include <string_view>
 
 #include "absl/status/statusor.h"
+#include "absl/types/span.h"
 #include "xls/ir/function_base.h"
+#include "xls/ir/node.h"
+#include "xls/ir/nodes.h"
+#include "xls/ir/source_location.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/pass_base.h"
 
 namespace xls {
+
+// Creates a Concat node in `f` whose operands are `operands` with any nested
+// Concat trees flattened into a single operand list.
+absl::StatusOr<Concat*> CreateFlattenedConcat(FunctionBase* f,
+                                              absl::Span<Node* const> operands,
+                                              const SourceInfo& loc);
 
 // Pass which simplifies concats. This includes removing single-operand concats,
 // flattening trees of dependent concats, and others.

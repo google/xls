@@ -35,6 +35,7 @@
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
 #include "xls/ir/value_utils.h"
+#include "xls/passes/concat_simplification_pass.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/pass_base.h"
 
@@ -227,9 +228,10 @@ absl::StatusOr<Node*> MergeSelectNode(Node* node) {
     }
     // Reverse selector parts because concat operand zero is the msb.
     std::reverse(new_selector_parts.begin(), new_selector_parts.end());
-    XLS_ASSIGN_OR_RETURN(Node * new_selector,
-                         node->function_base()->MakeNode<Concat>(
-                             node->loc(), new_selector_parts));
+    XLS_ASSIGN_OR_RETURN(
+        Node * new_selector,
+        CreateFlattenedConcat(node->function_base(), new_selector_parts,
+                              node->loc()));
     if (node->Is<OneHotSelect>()) {
       XLS_RET_CHECK(!new_default_value.has_value());
       VLOG(2) << absl::StrFormat("Merging consecutive one-hot-selects: %s",
