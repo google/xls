@@ -156,7 +156,7 @@ llvm::Error LlvmCompiler::PerformStandardOptimization(
   llvm::FunctionAnalysisManager fam;
   llvm::LoopAnalysisManager lam;
   llvm::ModuleAnalysisManager mam;
-  llvm::PassBuilder pass_builder;
+  llvm::PassBuilder pass_builder(bare_module->getContext());
 
   if (include_msan_) {
     VLOG(2) << "Building with MSAN";
