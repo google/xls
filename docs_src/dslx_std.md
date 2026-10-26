@@ -782,26 +782,26 @@ the positive edge of the module clock, of the form:
 <label>: cover property (@(posedge <clk>) <condition>);
 ```
 
-Coverpoints are a SystemVerilog-only feature: they are omitted when generating
-plain Verilog, and they require a clock in the generated module. Its signature
-is:
+Cover properties are a SystemVerilog-only feature: they are omitted when
+generating plain Verilog, and they require a clock in the generated module. Its
+signature is:
 
 ```
 fn cover!<N: u32>(name: u8[N], condition: bool) -> ()
 ```
 
-Where `name` is a function-unique literal string identifying the coverpoint and
-`condition` is a boolean element. When `condition` is true, a counter with the
-given name is incremented that can be inspected upon program termination.
+Where `name` is a function-unique literal string identifying the cover property
+and `condition` is a boolean element. When `condition` is true, a counter with
+the given name is incremented that can be inspected upon program termination.
 
 This is targeted **assertion-based coverage**: you place `cover!` at specific
 conditions of interest and the simulator counts how often those properties hold.
 It is not automatically generated, fully-instrumented **code coverage**
-(statement, branch, toggle, and similar). Coverpoints can still indicate which
-manually marked paths of a design are exercised in practice.
+(statement, branch, toggle, and similar). Cover properties can still indicate
+which manually marked paths of a design are exercised in practice.
 
-The name of the coverpoint must begin with either a letter or underscore, and
-its remainder must consist of letters, digits, underscores, or dollar signs.
+The name of the cover property must begin with either a letter or underscore,
+and its remainder must consist of letters, digits, underscores, or dollar signs.
 
 Further coverage-related work is tracked in
 [google/xls#2139](https://github.com/google/xls/issues/2139) (DSLX interpreter
