@@ -226,6 +226,26 @@ git_override(
     remote = "https://github.com/The-OpenROAD-Project/qt_bazel_prebuilts",
 )
 
+archive_override(
+    module_name = "sv-lang",
+    integrity = "sha256-Pj8AVITB12EZCg7lD3wYZpuHgcexydYPQsOUh77CWqg=",
+    remote_file_integrity = {
+        "BUILD.bazel": "sha256-aTxrPJ+ycNG86YervJHcs0/jW9qXzQAIOdBeS/oZOOU=",
+        "MODULE.bazel": "sha256-Sf7p8HXHyD+Dp5fOXMY7jB4PqXDKgYS9XxfEa8VTRjI=",
+        "private/slang/export_headers/BUILD.bazel": "sha256-R6Dv/CqeG3BKpy2/F7RraVg/6QpVp9R2+itU1P0jUDE=",
+        "private/slang/version_info/BUILD.bazel": "sha256-DgIsIglnPC4vIqxSFt2orPq/I7SvAo3oiRrLFcHaS+Q=",
+        "private/slang/version_info/VersionInfo.cpp.in": "sha256-lEtZRUGNz46yF8M8sBgjL1N4Zr+KXioy8sv/0DmCSfE=",
+    },
+    remote_file_urls = {
+        "BUILD.bazel": ["https://bcr.bazel.build/modules/sv-lang/10.0.1-20260316-f04e8156/overlay/BUILD.bazel"],
+        "MODULE.bazel": ["https://bcr.bazel.build/modules/sv-lang/10.0.1-20260316-f04e8156/overlay/MODULE.bazel"],
+        "private/slang/export_headers/BUILD.bazel": ["https://bcr.bazel.build/modules/sv-lang/10.0.1-20260316-f04e8156/overlay/private/slang/export_headers/BUILD.bazel"],
+        "private/slang/version_info/BUILD.bazel": ["https://bcr.bazel.build/modules/sv-lang/10.0.1-20260316-f04e8156/overlay/private/slang/version_info/BUILD.bazel"],
+        "private/slang/version_info/VersionInfo.cpp.in": ["https://bcr.bazel.build/modules/sv-lang/10.0.1-20260316-f04e8156/overlay/private/slang/version_info/VersionInfo.cpp.in"],
+    },
+    urls = ["https://github.com/MikePopoloski/slang/archive/f04e81565793c768b747a8fd058f3e7aeceee1b5.tar.gz"],
+)
+
 # TODO: mikex - Remove this override once fixed upstream in https://registry.bazel.build/modules/sv-lang.
 # rules_pycross is a transitive dependency of OpenROAD (via sv-lang).
 # We override rules_pycross to 0.8.3 here to incorporate the fix from
