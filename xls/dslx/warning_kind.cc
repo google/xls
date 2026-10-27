@@ -62,6 +62,8 @@ absl::StatusOr<std::string_view> WarningKindToString(WarningKind kind) {
       return "width_slice_out_of_range";
     case WarningKind::kUnusedConfiguredValue:
       return "unused_configured_value";
+    case WarningKind::kVerilogKeywordName:
+      return "verilog_keyword_name";
   }
   return absl::InvalidArgumentError(
       absl::StrCat("Invalid warning kind: ", static_cast<int>(kind)));

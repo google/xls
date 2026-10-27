@@ -14,12 +14,12 @@
 
 // Perform a (sequential) Adler-32 checksum over a single input byte.
 
-fn adler32_seq(buf: u8) -> u32 {
+fn adler32_seq(x: u8) -> u32 {
     let a = u32:1;
     let b = u32:0;
     // Iterate only over input of length 1, for now.
     let (a, b) = for (_, (a, b)): (u8, (u32, u32)) in u8:0..u8:1 {
-        let a = (a + (buf as u32)) % u32:65521;
+        let a = (a + (x as u32)) % u32:65521;
         let b = (b + a) % u32:65521;
         (a, b)
     }((a, b));

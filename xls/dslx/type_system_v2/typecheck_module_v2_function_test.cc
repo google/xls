@@ -29,6 +29,7 @@
 #include "xls/dslx/type_system/typecheck_test_utils.h"
 #include "xls/dslx/type_system_v2/matchers.h"
 #include "xls/dslx/virtualizable_file_system.h"
+#include "xls/dslx/warning_kind.h"
 
 // Tests for function definitions, calls, return types, and parametric
 // functions.
@@ -38,6 +39,18 @@ namespace {
 using ::absl_testing::IsOkAndHolds;
 using ::testing::AllOf;
 using ::testing::HasSubstr;
+
+TEST(TypecheckV2FunctionTest, SystemVerilogKeywordParameterNameGivesWarning) {
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(R"(
+fn f(input: u32) -> u32 { input }
+)"));
+  ASSERT_THAT(result.tm.warnings.warnings().size(), 1);
+  EXPECT_EQ(result.tm.warnings.warnings()[0].kind,
+            WarningKind::kVerilogKeywordName);
+  EXPECT_EQ(result.tm.warnings.warnings()[0].message,
+            "Parameter name `input` is a Verilog/SystemVerilog keyword; "
+            "(System)Verilog code generation may fail");
+}
 
 TEST(TypecheckV2FunctionTest, ComparisonAsFunctionArgument) {
   EXPECT_THAT(R"(
