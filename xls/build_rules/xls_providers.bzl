@@ -129,7 +129,10 @@ CODEGEN_FIELDS = {
     "register_merge_strategy": "The strategy to use for merging registers. Either " +
                                "'IdentityOnly' or 'None'",
     "emit_sv_types": "Whether or not to honor the #[sv_type(NAME)] annotations in the source DSLX.",
-    "codegen_version": "Version of codegen to use (0=default).",
+    "codegen_version": "Version of codegen to use (0=default)." +
+                       "NB: Packages with proc-scoped channels currently require codegen 1.5; " +
+                       "explicitly requesting another version for such a package is an error " +
+                       "rather than being silently overridden.",
     "fifo_module": "If provided, instantiates the provided module where (positive " +
                    "width) FIFOs are needed, passing the parameters Width, Depth, " +
                    "RegisterPushOutputs, RegisterPopOutputs, and EnableBypass; " +

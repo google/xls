@@ -47,7 +47,8 @@ xls_ir_verilog(
         "flop_outputs": "false",
         "use_system_verilog": "true",
         "module_name": "f_proc",
-        "codegen_version": "2",
+        # f_proc uses proc-scoped channels; this flow currently requires codegen 1.5.
+        "codegen_version": "1.5",
         "reset": "rst",
         "reset_data_path": "true",
         "reset_active_low": "false",
@@ -67,7 +68,8 @@ xls_ir_verilog(
         "flop_outputs": "false",
         "use_system_verilog": "true",
         "module_name": "f_proc_as_comb",
-        "codegen_version": "2",
+        # f_proc uses proc-scoped channels; this flow currently requires codegen 1.5.
+        "codegen_version": "1.5",
     },
     enable_presubmit_generated_file = True,
     verilog_file = "f_proc_as_comb.sv",

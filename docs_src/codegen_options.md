@@ -200,7 +200,10 @@ control the scheduler.
 -   `--codegen_version` is the version of codegen pipeline to use; options are 0
     (default), 1 (original codegen path), 1.5 (refactored codegen), or 2
     (revised codegen with a new architecture). Currently default means v1.5
-    (refactored).
+    (refactored). Packages with proc-scoped channels (the default output of the
+    DSLX IR converter) currently require v1.5: leaving the version at the
+    default selects v1.5 for them, while explicitly requesting another version
+    is an error rather than being silently overridden.
 
 -   `--merge_on_mutual_exclusion` runs a mutual-exclusion analysis and attempts
     to merge any I/O operations on the same channel that can be proven to be

@@ -59,6 +59,24 @@ proc neg_proc(my_state: (), init={()}) {
 }
 """
 
+# The same proc as NEG_PROC_IR, but written as a new-style proc with
+# proc-scoped channels (no package-level `chan` declarations). This is the form
+# the DSLX IR converter emits by default.
+PROC_SCOPED_NEG_PROC_IR = """package test
+
+top proc neg_proc<in: bits[32] in, out: bits[32] out>(my_state: (), init={()}) {
+  chan_interface in(direction=receive, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
+  chan_interface out(direction=send, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
+  my_token: token = literal(value=token)
+  rcv: (token, bits[32]) = receive(my_token, channel=in)
+  data: bits[32] = tuple_index(rcv, index=1)
+  negate: bits[32] = neg(data)
+  rcv_token: token = tuple_index(rcv, index=0)
+  send: token = send(rcv_token, negate, channel=out)
+  next (my_state)
+}
+"""
+
 ASSERT_IR = """package assert_example
 
 fn invert_with_assert(x: bits[1]) -> bits[1] {
@@ -331,6 +349,82 @@ class CodeGenMainTest(parameterized.TestCase):
         ir_file.full_path,
     ]).decode('utf-8')
     self._compare_to_golden(verilog)
+
+  def _codegen_proc_scoped_neg_proc(self, *extra_args):
+    """Runs codegen_main on PROC_SCOPED_NEG_PROC_IR; returns the process."""
+    ir_file = self.create_tempfile(content=PROC_SCOPED_NEG_PROC_IR)
+    return subprocess.run(
+        [
+            CODEGEN_MAIN_PATH,
+            '--generator=pipeline',
+            '--pipeline_stages=1',
+            '--reset=rst',
+            '--reset_data_path=false',
+            '--delay_model=unit',
+            '--alsologtostderr',
+            *extra_args,
+            ir_file.full_path,
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+  def test_proc_scoped_channels_default_codegen_version(self):
+    # No --codegen_version: XLS picks the default (1.5), which supports
+    # proc-scoped channels.
+    proc = self._codegen_proc_scoped_neg_proc()
+    self.assertEqual(proc.returncode, 0, proc.stderr)
+    self.assertIn('module neg_proc', proc.stdout)
+
+  def test_proc_scoped_channels_explicit_codegen_version_1_5(self):
+    # Explicitly asking for 1.5 behaves exactly like the default.
+    default_proc = self._codegen_proc_scoped_neg_proc()
+    self.assertEqual(default_proc.returncode, 0, default_proc.stderr)
+    proc = self._codegen_proc_scoped_neg_proc('--codegen_version=1.5')
+    self.assertEqual(proc.returncode, 0, proc.stderr)
+    self.assertIn('module neg_proc', proc.stdout)
+    self.assertEqual(proc.stdout, default_proc.stdout)
+
+  @parameterized.named_parameters(
+      ('v1', '1', '1'),
+      ('v1_0', '1.0', '1'),
+      ('v2', '2', '2'),
+      ('v2_0', '2.0', '2'),
+  )
+  def test_proc_scoped_channels_reject_explicit_incompatible_codegen_version(
+      self, flag_value, version_in_message
+  ):
+    # Regression test for https://github.com/google/xls/issues/4554: an
+    # explicitly requested codegen version must not be silently replaced by
+    # 1.5 when the package uses proc-scoped channels. It must be an error that
+    # names both the requested version and the reason.
+    proc = self._codegen_proc_scoped_neg_proc(f'--codegen_version={flag_value}')
+    self.assertNotEqual(proc.returncode, 0)
+    self.assertIn(
+        f'Codegen version {version_in_message} was explicitly requested',
+        proc.stderr,
+    )
+    self.assertIn('proc-scoped channels', proc.stderr)
+    self.assertNotIn('module neg_proc', proc.stdout)
+
+  def test_global_channels_explicit_codegen_version_1_0(self):
+    # The error above is specific to proc-scoped channels: the same proc with
+    # package-level (global) channels still works with codegen 1.0.
+    ir_file = self.create_tempfile(content=NEG_PROC_IR)
+    verilog = subprocess.check_output([
+        CODEGEN_MAIN_PATH,
+        '--generator=pipeline',
+        '--pipeline_stages=1',
+        '--reset=rst',
+        '--reset_data_path=false',
+        '--delay_model=unit',
+        '--codegen_version=1.0',
+        '--alsologtostderr',
+        '--top=neg_proc',
+        ir_file.full_path,
+    ]).decode('utf-8')
+    self.assertIn('module neg_proc', verilog)
 
   def test_assert_format(self):
     ir_file = self.create_tempfile(content=ASSERT_IR)
