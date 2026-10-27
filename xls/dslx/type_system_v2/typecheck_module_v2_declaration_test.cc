@@ -1179,10 +1179,10 @@ TEST(TypecheckV2Test, UseNonPublicConstant) {
 const SOME_CONSTANT = s32:1;
 )";
   constexpr std::string_view kProgram = R"(#![feature(use_syntax)]
-use imported::SOME_OTHER_CONSTANT;
+use imported::SOME_CONSTANT;
 
-fn main() -> u32 {
-  SOME_OTHER_CONSTANT
+fn main() -> s32 {
+  SOME_CONSTANT
 })";
   absl::flat_hash_map<std::filesystem::path, std::string> files = {
       {std::filesystem::path("/imported.x"), std::string(kImported)},
@@ -1191,9 +1191,11 @@ fn main() -> u32 {
   auto vfs = std::make_unique<FakeFilesystem>(
       files, /*cwd=*/std::filesystem::path("/"));
   ImportData import_data = CreateImportDataForTest(std::move(vfs));
-  EXPECT_THAT(TypecheckV2(kProgram, "main", &import_data),
-              StatusIs(absl::StatusCode::kNotFound,
-                       HasSubstr("Could not find member")));
+  EXPECT_THAT(
+      TypecheckV2(kProgram, "main", &import_data),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("Attempted to refer to a module member "
+                         "imported::SOME_CONSTANT that is not public")));
 }
 
 TEST(TypecheckV2Test, UseNonExistingConstant) {

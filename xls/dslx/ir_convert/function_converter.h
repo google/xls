@@ -71,7 +71,7 @@ namespace xls::dslx {
 // Warning: the `ConstantDef`s may be owned by different modules, e.g. if we had
 // to traverse a name that was `use`d into the current module.
 absl::StatusOr<std::vector<ConstantDef*>> GetConstantDepFreevars(
-    AstNode* node, TypeInfo& type_info);
+    AstNode* node, TypeInfo& type_info, const ImportData& import_data);
 
 // Wrapper around the type information query for whether DSL function "f"
 // requires an implicit token calling convention, including overrides provided

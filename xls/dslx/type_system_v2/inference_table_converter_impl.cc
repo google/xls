@@ -1237,6 +1237,31 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
       return absl::OkStatus();
     }
 
+    if (node->kind() == AstNodeKind::kUseTreeEntry) {
+      const auto* use_tree_entry = absl::down_cast<const UseTreeEntry*>(node);
+      std::optional<UseImportResult> use_import_result =
+          import_data_.GetUseImportResult(use_tree_entry);
+      if (use_import_result.has_value()) {
+        base_type_info_->AddImport(
+            const_cast<UseTreeEntry*>(use_tree_entry),
+            &use_import_result->imported_module->module(),
+            use_import_result->imported_module->type_info());
+        // Like a `ColonRef` to a type, a `use` of a type is a `TypeDefinition`
+        // that tools like `dslx_to_verilog` want a type for.
+        if (use_import_result->imported_member != nullptr) {
+          AstNode* member = ToAstNode(*use_import_result->imported_member);
+          if (ToTypeDefinition(member).ok()) {
+            XLS_ASSIGN_OR_RETURN(TypeInfo * member_ti,
+                                 import_data_.GetRootTypeInfoForNode(member));
+            if (std::optional<Type*> type = member_ti->GetItem(member)) {
+              base_type_info_->SetItem(use_tree_entry, **type);
+            }
+          }
+        }
+      }
+      return absl::OkStatus();
+    }
+
     XLS_ASSIGN_OR_RETURN(TypeInfo * ti, GetTypeInfo(parametric_context));
 
     if (node->kind() == AstNodeKind::kProcAlias) {

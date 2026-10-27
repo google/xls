@@ -2421,6 +2421,15 @@ fn main() -> u32 {
 })");
 }
 
+TEST_F(ParserTest, UseFunctionInvokedWithExplicitParametrics) {
+  RoundTrip(R"(#![feature(use_syntax)]
+
+use foo::{bar, N};
+fn main() -> u32 {
+    bar<N>(1)
+})");
+}
+
 TEST_F(ParserTest, UseWithNestedLevels) {
   RoundTrip(R"(#![feature(use_syntax)]
 
@@ -4748,6 +4757,35 @@ const x)";
       StatusIs(absl::StatusCode::kInvalidArgument,
                "ParseError: <no-file>:2:7-2:8 Constant definition is "
                "shadowing an existing definition from <no-file>:1:1-1:10"));
+}
+
+TEST_F(ParserTest, ConstShadowsUse) {
+  constexpr std::string_view kProgram = R"(#![feature(use_syntax)]
+use foo::C;
+const C = u32:5;
+)";
+  EXPECT_THAT(Parse(kProgram),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Constant definition is shadowing an existing "
+                                 "definition")));
+}
+
+TEST_F(ParserTest, MemberShadowsUse) {
+  EXPECT_THAT(Parse(R"(#![feature(use_syntax)]
+use foo::S;
+struct S {}
+)"),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("already contains a member named `S`")));
+}
+
+TEST_F(ParserTest, UseShadowsMember) {
+  EXPECT_THAT(Parse(R"(#![feature(use_syntax)]
+struct S {}
+use foo::S;
+)"),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("already contains a member named `S`")));
 }
 
 TEST_F(ParserTest, ConstParseErrorIncludesContext) {
