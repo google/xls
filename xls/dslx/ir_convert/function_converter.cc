@@ -3920,6 +3920,32 @@ absl::Status FunctionConverter::DefineProcDefChannelOrArrayIfLocal(
       /*name_def=*/std::nullopt, value, &direction_type, channel_decls);
 }
 
+namespace {
+
+// Returns all leaf `ChannelReference` values from a `ChannelReference` or
+// `ChannelArray` in the same index order produced by
+// `ChannelScope::CreateAllArrayElementSuffixes()`.
+std::vector<InterpValue> GetChannelArrayLeafReferencesInScopeOrder(
+    const InterpValue& channel_or_array) {
+  std::vector<InterpValue> current = {channel_or_array};
+  while (!current.empty() && current.front().IsChannelArray()) {
+    size_t dim_size = current.front().GetChannelArrayOrDie().elements().size();
+    std::vector<InterpValue> next;
+    next.reserve(dim_size * current.size());
+    for (size_t element_index = 0; element_index < dim_size; ++element_index) {
+      for (const InterpValue& item : current) {
+        const auto& elements = item.GetChannelArrayOrDie().elements();
+        CHECK_LT(element_index, elements.size());
+        next.push_back(elements[element_index]);
+      }
+    }
+    current = std::move(next);
+  }
+  return current;
+}
+
+}  // namespace
+
 void FunctionConverter::PopulateChannelOrArrayIdToObject(
     const InterpValue& value, const ChannelOrArray& channel_or_array) {
   channel_or_array_id_to_object_[GetChannelOrArrayId(value)] = channel_or_array;
@@ -3928,7 +3954,8 @@ void FunctionConverter::PopulateChannelOrArrayIdToObject(
   }
 
   ChannelArray* array = std::get<ChannelArray*>(channel_or_array);
-  std::vector<InterpValue> leaves = GetLeafChannelReferences(value);
+  std::vector<InterpValue> leaves =
+      GetChannelArrayLeafReferencesInScopeOrder(value);
   if (leaves.size() == array->channels().size()) {
     for (int i = 0; i < leaves.size(); ++i) {
       channel_or_array_id_to_object_
@@ -4031,13 +4058,12 @@ absl::Status FunctionConverter::InitProcDefChannels(
     const ProcDef* proc_def,
     const InterpValue::ProcInitializer& canonical_initializer,
     const TypeInfo* constructor_ti) {
-  ParametricEnv env;
   proc_def_channel_scope_ = std::make_unique<ProcScopedChannelScope>(
       package_data_.conversion_info, import_data_, options_,
       absl::down_cast<ProcBuilder*>(function_builder_.get()),
       [this](const Attr* attr) { return GetChannelArrayForAttr(attr); });
   proc_def_channel_scope_->EnterFunctionContext(current_type_info_,
-                                                std::move(env));
+                                                GetParametricEnv());
   channel_scope_ = proc_def_channel_scope_.get();
 
   XLS_ASSIGN_OR_RETURN(const Type* type,
@@ -4143,7 +4169,7 @@ absl::Status FunctionConverter::ExpandProcDefChannelReference(
     std::vector<ChannelInterface*>& out) {
   if (channel_or_array_value.IsChannelArray()) {
     for (const InterpValue& elem :
-         channel_or_array_value.GetChannelArrayOrDie().elements()) {
+         GetChannelArrayLeafReferencesInScopeOrder(channel_or_array_value)) {
       XLS_RETURN_IF_ERROR(ExpandProcDefChannelReference(elem, out));
     }
     return absl::OkStatus();
@@ -4318,6 +4344,7 @@ absl::Status FunctionConverter::ConvertProcDef(
 
   SetNodeToIr((*next_fn)->params()[0]->name_def(), instance.get());
   ScopedTypeInfoSwap stis_next(this, next_ti);
+  proc_def_channel_scope_->EnterFunctionContext(next_ti, env);
   XLS_RETURN_IF_ERROR(Visit((*next_fn)->body()));
 
   XLS_ASSIGN_OR_RETURN(

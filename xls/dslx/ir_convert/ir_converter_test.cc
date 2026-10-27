@@ -8744,5 +8744,81 @@ fn sum_enumerated(values: u8[3]) -> u32 {
       ConvertOneFunctionForTest(kProgram, "sum_enumerated"));
   ExpectIr(converted);
 }
+
+TEST_F(IrConverterTest, ProcDefWith2DChannelArrayAndParametricBounds) {
+  constexpr std::string_view kModule = R"(
+#![feature(explicit_state_access)]
+#![feature(generics)]
+
+proc Node<ROW: u32, COL: u32> {
+  from_west: chan<u32> in,
+  to_east: chan<u32> out,
+}
+
+impl Node<ROW, COL> {
+  fn new(from_west: chan<u32> in, to_east: chan<u32> out) -> Self {
+    Self { from_west, to_east }
+  }
+  fn next(self) {
+    let (tok, val) = recv(join(), self.from_west);
+    send(tok, self.to_east, val);
+  }
+}
+
+proc Grid<ROWS: u32, COLS: u32> {
+  from_wests: chan<u32>[COLS + 1][ROWS] in,
+  to_easts: chan<u32>[COLS + 1][ROWS] out,
+}
+
+impl Grid<ROWS, COLS> {
+  fn new() -> Self {
+    let (to_easts, from_wests) = chan<u32>[COLS + 1][ROWS]("east_west");
+    unroll_for! (row, _): (u32, ()) in u32:0..ROWS {
+      unroll_for! (col, _): (u32, ()) in u32:0..COLS {
+        Node<row, col>::new(from_wests[row][col], to_easts[row][col + 1]).spawn();
+      }(());
+    }(());
+    Self { from_wests, to_easts }
+  }
+  fn next(self) {
+    const FIRST_COL: u32 = 0;
+    const LAST_COL = COLS;
+    unroll_for! (row, _): (u32, ()) in u32:0..ROWS {
+      send(join(), self.to_easts[row][FIRST_COL], row);
+      recv(join(), self.from_wests[row][LAST_COL]);
+    }(());
+  }
+}
+
+proc Top {}
+impl Top {
+  fn new() -> Self {
+    Grid<2, 2>::new().spawn();
+    Self {}
+  }
+  fn next(self) {}
+}
+)";
+
+  ConvertOptions options = kProcScopedChannelOptions;
+  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
+                           ConvertModuleForTest(kModule, options));
+  EXPECT_THAT(converted,
+              HasSubstr("proc_instantiation __test_module__Node__0_0_next_inst("
+                        "_east_west__0_0, _east_west__0_1, "
+                        "proc=__test_module__Node__0_0_next)"));
+  EXPECT_THAT(converted,
+              HasSubstr("proc_instantiation __test_module__Node__1_0_next_inst("
+                        "_east_west__0_1, _east_west__0_2, "
+                        "proc=__test_module__Node__1_0_next)"));
+  EXPECT_THAT(converted,
+              HasSubstr("proc_instantiation __test_module__Node__0_1_next_inst("
+                        "_east_west__1_0, _east_west__1_1, "
+                        "proc=__test_module__Node__0_1_next)"));
+  EXPECT_THAT(converted,
+              HasSubstr("proc_instantiation __test_module__Node__1_1_next_inst("
+                        "_east_west__1_1, _east_west__1_2, "
+                        "proc=__test_module__Node__1_1_next)"));
+}
 }  // namespace
 }  // namespace xls::dslx

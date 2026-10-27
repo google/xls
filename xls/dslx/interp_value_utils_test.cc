@@ -1241,6 +1241,29 @@ TEST(InterpValueHelpersTest, GetLeafChannelReferences) {
               testing::ElementsAre(ch0, ch1, ch2, ch3));
 }
 
+TEST(InterpValueHelpersTest,
+     CreateChannelReferencePairWithoutAllocatorOnArrayType) {
+  auto chan_type = std::make_unique<ChannelType>(BitsType::MakeU32(),
+                                                 ChannelDirection::kOut);
+  auto inner_array_type =
+      std::make_unique<ArrayType>(std::move(chan_type), TypeDim::CreateU32(3));
+  ArrayType outer_array_type(std::move(inner_array_type),
+                             TypeDim::CreateU32(2));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto pair,
+      CreateChannelReferencePair(&outer_array_type,
+                                 /*channel_instance_allocator=*/std::nullopt));
+  EXPECT_TRUE(pair.first.IsChannelArray());
+  EXPECT_TRUE(pair.second.IsChannelArray());
+  EXPECT_EQ(pair.first.GetChannelArrayOrDie().direction(),
+            ChannelDirection::kOut);
+  EXPECT_EQ(pair.second.GetChannelArrayOrDie().direction(),
+            ChannelDirection::kIn);
+  EXPECT_EQ(GetLeafChannelReferences(pair.first).size(), 6);
+  EXPECT_EQ(GetLeafChannelReferences(pair.second).size(), 6);
+}
+
 TEST(InterpValueHelpersTest, ValueToInterpValueSumRejectsInvalidTag) {
   FileTable file_table;
   Module module("test", /*fs_path=*/std::nullopt, file_table);

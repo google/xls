@@ -16,6 +16,9 @@
 // For a more comprehensive example that also can work with SRAM codegen, have
 // a look at ram.x
 
+#![feature(explicit_state_access)]
+#![feature(generics)]
+
 pub const MEM_SIZE = u32:256;
 
 pub type MemWord = u32;
@@ -31,60 +34,64 @@ type State = MemWord[MEM_SIZE];
 const DEFAULT_VALUE = u32:0x12345678 as MemWord;
 
 pub proc Memory {
-    req_in: chan<MemReq> in;
-    data_out: chan<u32> out;
+    req_in: chan<MemReq> in,
+    data_out: chan<u32> out,
+    state: State,
+}
 
-    config(req_in: chan<MemReq> in, data_out: chan<u32> out) { (req_in, data_out) }
+impl Memory {
+    fn new(req_in: chan<MemReq> in, data_out: chan<u32> out) -> Self {
+        Self { req_in, data_out, state: State:[DEFAULT_VALUE, ...] }
+    }
 
-    init { State:[DEFAULT_VALUE, ...] }
-
-    next(state: State) {
+    fn next(self) {
+        let state = read(self.state);
         let tok = join();
-        let (tok, req) = recv(tok, req_in);
+        let (tok, req) = recv(tok, self.req_in);
         let state = if req.is_write { update(state, req.address, req.wdata) } else { state };
 
         // A read request returns a response.
-        let tok = send_if(tok, data_out, !req.is_write, state[req.address]);
-        state
+        let tok = send_if(tok, self.data_out, !req.is_write, state[req.address]);
+        write(self.state, state);
     }
 }
 
 const TEST_WRITE_VALUE: u32 = u32:0xcafe600d;
 
-#[test_proc]
+#[test]
 proc MemoryTest {
-    terminator: chan<bool> out;
-    cmd_out: chan<MemReq> out;
-    read_data_in: chan<u32> in;
+    terminator: chan<bool> out,
+    cmd_out: chan<MemReq> out,
+    read_data_in: chan<u32> in,
+}
 
-    config(terminator: chan<bool> out) {
+impl MemoryTest {
+    fn new(terminator: chan<bool> out) -> Self {
         let (cmd_s, cmd_r) = chan<MemReq>("cmd");
         let (data_s, data_r) = chan<u32>("data");
-        spawn Memory(cmd_r, data_s);
-        (terminator, cmd_s, data_r)
+        Memory::new(cmd_r, data_s).spawn();
+        Self { terminator, cmd_out: cmd_s, read_data_in: data_r }
     }
 
-    init { () }
-
-    next(state: ()) {
+    fn next(self) {
         let tok = join();
 
         // Read will yield default value in memory.
         let read_req = MemReq { is_write: false, address: u32:12, wdata: u32:0 };
-        let tok = send(tok, cmd_out, read_req);
-        let (tok, value) = recv(tok, read_data_in);
+        let tok = send(tok, self.cmd_out, read_req);
+        let (tok, value) = recv(tok, self.read_data_in);
         assert_eq(value, DEFAULT_VALUE);
 
         // Write value to a particular address...
         let write_req = MemReq { is_write: true, address: u32:12, wdata: TEST_WRITE_VALUE };
-        let tok = send(tok, cmd_out, write_req);
+        let tok = send(tok, self.cmd_out, write_req);
 
         // ... and expect it to be retrieved
         let read_req = MemReq { is_write: false, address: u32:12, wdata: u32:0 };
-        let tok = send(tok, cmd_out, read_req);
-        let (tok, value) = recv(tok, read_data_in);
+        let tok = send(tok, self.cmd_out, read_req);
+        let (tok, value) = recv(tok, self.read_data_in);
         assert_eq(value, TEST_WRITE_VALUE);
 
-        let tok = send(tok, terminator, true);
+        let tok = send(tok, self.terminator, true);
     }
 }

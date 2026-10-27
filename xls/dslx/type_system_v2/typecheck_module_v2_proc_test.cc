@@ -1628,5 +1628,92 @@ impl Top {
   XLS_EXPECT_OK(TypecheckV2(kProgram, "main", &import_data));
 }
 
+TEST(TypecheckV2ProcTest, ProcDefWithArrayTypeAliasState) {
+  EXPECT_THAT(R"(
+#![feature(explicit_state_access)]
+
+pub const MEM_SIZE = u32:256;
+pub type MemWord = u32;
+type State = MemWord[MEM_SIZE];
+
+pub proc MemoryProc {
+    addr_in: chan<u8> in,
+    val_out: chan<MemWord> out,
+    state: State,
+}
+
+impl MemoryProc {
+    pub fn new(addr_in: chan<u8> in, val_out: chan<MemWord> out) -> Self {
+        Self { addr_in, val_out, state: zero!<State>() }
+    }
+
+    pub fn next(self) {
+        let state = read(self.state);
+        let (tok, addr) = recv(join(), self.addr_in);
+        let word = state[addr];
+        send(tok, self.val_out, word);
+        let next_state = update(state, addr, word + u32:1);
+        write(self.state, next_state);
+    }
+}
+)",
+              TypecheckSucceeds(::testing::_));
+}
+
+TEST(TypecheckV2ProcTest, ProcDefWith2DChannelArrayInConstructor) {
+  EXPECT_THAT(R"(
+#![feature(explicit_state_access)]
+#![feature(generics)]
+
+proc Node<ROW: u32, COL: u32> {
+    from_west: chan<u32> in,
+    to_east: chan<u32> out,
+}
+
+impl Node<ROW, COL> {
+    fn new(from_west: chan<u32> in, to_east: chan<u32> out) -> Self {
+        Self { from_west, to_east }
+    }
+    fn next(self) {
+        let (tok, val) = recv(join(), self.from_west);
+        send(tok, self.to_east, val);
+    }
+}
+
+proc Grid<ROWS: u32, COLS: u32> {
+    from_wests: chan<u32>[COLS + u32:1][ROWS] in,
+    to_easts: chan<u32>[COLS + u32:1][ROWS] out,
+}
+
+impl Grid<ROWS, COLS> {
+    fn new() -> Self {
+        let (to_easts, from_wests) = chan<u32>[COLS + u32:1][ROWS]("east_west");
+        unroll_for! (row, _): (u32, ()) in u32:0..ROWS {
+            unroll_for! (col, _): (u32, ()) in u32:0..COLS {
+                Node<row, col>::new(from_wests[row][col], to_easts[row][col + u32:1]).spawn();
+            }(());
+        }(());
+        Self { from_wests, to_easts }
+    }
+    fn next(self) {
+        const FIRST_COL = u32:0;
+        const LAST_COL = COLS;
+        unroll_for! (row, _): (u32, ()) in u32:0..ROWS {
+            send(join(), self.to_easts[row][FIRST_COL], row);
+            recv(join(), self.from_wests[row][LAST_COL]);
+        }(());
+    }
+}
+
+proc Top {}
+impl Top {
+    fn new() -> Self {
+        Grid<u32:2, u32:3>::new().spawn();
+        Self {}
+    }
+}
+)",
+              TypecheckSucceeds(::testing::_));
+}
 }  // namespace
 }  // namespace xls::dslx
