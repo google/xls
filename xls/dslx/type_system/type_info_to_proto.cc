@@ -589,6 +589,21 @@ absl::Status ValidateSumVariantProto(const SumVariant& variant,
   return absl::OkStatus();
 }
 
+absl::StatusOr<ChannelDirection> FromProto(ChannelDirectionProto d) {
+  switch (d) {
+    case CHANNEL_DIRECTION_IN:
+      return ChannelDirection::kIn;
+    case CHANNEL_DIRECTION_OUT:
+      return ChannelDirection::kOut;
+    case CHANNEL_DIRECTION_INVALID:
+    case ChannelDirectionProto_INT_MIN_SENTINEL_DO_NOT_USE_:
+    case ChannelDirectionProto_INT_MAX_SENTINEL_DO_NOT_USE_:
+      break;
+  }
+  return absl::InvalidArgumentError(
+      absl::StrCat("Unknown ChannelDirectionProto: ", d));
+}
+
 absl::StatusOr<std::unique_ptr<Type>> FromProto(const TypeProto& ctp,
                                                 const ImportData& import_data,
                                                 FileTable& file_table) {
@@ -793,7 +808,12 @@ absl::StatusOr<std::unique_ptr<Type>> FromProto(const TypeProto& ctp,
       return std::make_unique<MetaType>(std::move(wrapped));
     }
     case TypeProto::TypeOneofCase::kChannelType: {
-      break;  // Not yet implemented.
+      XLS_ASSIGN_OR_RETURN(
+          std::unique_ptr<Type> payload,
+          FromProto(ctp.channel_type().payload(), import_data, file_table));
+      XLS_ASSIGN_OR_RETURN(ChannelDirection direction,
+                           FromProto(ctp.channel_type().direction()));
+      return std::make_unique<ChannelType>(std::move(payload), direction);
     }
     case TypeProto::TypeOneofCase::kBitsConstructorType: {
       const BitsConstructorTypeProto& bctp = ctp.bits_constructor_type();

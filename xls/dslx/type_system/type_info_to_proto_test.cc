@@ -392,6 +392,68 @@ proc Foo { a: u32 }
   DoRun(program);
 }
 
+TEST_F(TypeInfoToProtoWithBothTypecheckVersionsTest, ProcWithInAndOutChannels) {
+  std::string program = R"(
+proc Foo {
+  in_ch: chan<u32> in;
+  out_ch: chan<u8> out;
+
+  config(in_ch: chan<u32> in, out_ch: chan<u8> out) {
+    (in_ch, out_ch)
+  }
+
+  init { () }
+
+  next(state: ()) {
+    let (tok, x) = recv(join(), in_ch);
+    let _ = send(tok, out_ch, x as u8);
+  }
+}
+)";
+  ImportData import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(program, "fake.x", "fake", &import_data, nullptr));
+  XLS_ASSERT_OK_AND_ASSIGN(TypeInfoProto tip,
+                           TypeInfoToProto(*tm.type_info, tm.module));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string nodes_text,
+      ToHumanString(tip, import_data, import_data.file_table()));
+
+  EXPECT_THAT(nodes_text, ::testing::HasSubstr("chan(uN[32], dir=in)"));
+  EXPECT_THAT(nodes_text, ::testing::HasSubstr("chan(uN[8], dir=out)"));
+
+  int channel_index = -1;
+  bool found_in = false;
+  bool found_out = false;
+  for (int i = 0; i < tip.nodes_size(); ++i) {
+    const AstNodeTypeInfoProto& node = tip.nodes(i);
+    if (node.type().has_channel_type()) {
+      channel_index = i;
+      if (node.type().channel_type().direction() == CHANNEL_DIRECTION_IN) {
+        found_in = true;
+      } else if (node.type().channel_type().direction() ==
+                 CHANNEL_DIRECTION_OUT) {
+        found_out = true;
+      }
+    }
+  }
+  ASSERT_GE(channel_index, 0);
+  EXPECT_TRUE(found_in);
+  EXPECT_TRUE(found_out);
+
+  TypeInfoProto invalid_direction = tip;
+  invalid_direction.mutable_nodes(channel_index)
+      ->mutable_type()
+      ->mutable_channel_type()
+      ->set_direction(CHANNEL_DIRECTION_INVALID);
+  EXPECT_THAT(
+      ToHumanString(invalid_direction, import_data, import_data.file_table()),
+      absl_testing::StatusIs(
+          absl::StatusCode::kInvalidArgument,
+          ::testing::HasSubstr("Unknown ChannelDirectionProto")));
+}
+
 TEST_F(TypeInfoToProtoWithBothTypecheckVersionsTest, BitsConstructorTypeProto) {
   std::string program = R"(
 fn distinct<COUNT: u32, N: u32, S: bool>(items: xN[S][N][COUNT], valid: bool[COUNT]) -> bool { fail!("unimplemented", zero!<bool>()) }
