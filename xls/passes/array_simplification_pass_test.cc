@@ -32,6 +32,7 @@
 #include "xls/ir/ir_matcher.h"
 #include "xls/ir/ir_parser.h"
 #include "xls/ir/ir_test_base.h"
+#include "xls/ir/nodes.h"
 #include "xls/ir/package.h"
 #include "xls/ir/source_location.h"
 #include "xls/ir/value.h"
@@ -916,6 +917,138 @@ TEST_F(ArraySimplificationPassTest, IndexOfPrioritySelect) {
            m::ArrayIndex(m::Param("c"), {m::Param("i"), m::Param("j")})},
           /*default_value=*/
           m::ArrayIndex(m::Param("d"), {m::Param("i"), m::Param("j")})));
+}
+
+TEST_F(ArraySimplificationPassTest, NestedSelectionOfThreeArrays) {
+  Package* p = GetPackage();
+  FunctionBuilder fb(TestName(), p);
+  Type* arr_type = p->GetArrayType(4, p->GetBitsType(32));
+  BValue a = fb.Param("a", arr_type);
+  BValue b = fb.Param("b", arr_type);
+  BValue c = fb.Param("c", arr_type);
+  BValue p1 = fb.Param("p1", p->GetBitsType(1));
+  BValue p2 = fb.Param("p2", p->GetBitsType(1));
+  BValue s = fb.Select(p2, {fb.Select(p1, {a, b}), c});
+  BValue idx0 = fb.Literal(UBits(0, 32));
+  BValue idx1 = fb.Literal(UBits(1, 32));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Function * f, fb.BuildWithReturnValue(fb.Add(fb.ArrayIndex(s, {idx0}),
+                                                   fb.ArrayIndex(s, {idx1}))));
+
+  ScopedVerifyEquivalence sve(f);
+  EXPECT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(
+      f->return_value(),
+      m::Add(
+          m::Select(m::Param("p2"),
+                    /*cases=*/
+                    {m::Select(m::Param("p1"),
+                               /*cases=*/
+                               {m::ArrayIndex(m::Param("a"), {m::Literal(0)}),
+                                m::ArrayIndex(m::Param("b"), {m::Literal(0)})}),
+                     m::ArrayIndex(m::Param("c"), {m::Literal(0)})}),
+          m::Select(m::Param("p2"),
+                    /*cases=*/
+                    {m::Select(m::Param("p1"),
+                               /*cases=*/
+                               {m::ArrayIndex(m::Param("a"), {m::Literal(1)}),
+                                m::ArrayIndex(m::Param("b"), {m::Literal(1)})}),
+                     m::ArrayIndex(m::Param("c"), {m::Literal(1)})})));
+}
+
+TEST_F(ArraySimplificationPassTest, PrioritySelectOfThreeArrays) {
+  Package* p = GetPackage();
+  FunctionBuilder fb(TestName(), p);
+  Type* arr_type = p->GetArrayType(4, p->GetBitsType(32));
+  BValue a = fb.Param("a", arr_type);
+  BValue b = fb.Param("b", arr_type);
+  BValue d = fb.Param("d", arr_type);
+  BValue p1 = fb.Param("p1", p->GetBitsType(2));
+  BValue idx0 = fb.Literal(UBits(0, 32));
+  BValue idx2 = fb.Literal(UBits(2, 32));
+  BValue ps = fb.PrioritySelect(p1, {a, b}, d);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Function * f, fb.BuildWithReturnValue(fb.Add(fb.ArrayIndex(ps, {idx0}),
+                                                   fb.ArrayIndex(ps, {idx2}))));
+
+  ScopedVerifyEquivalence sve(f);
+  EXPECT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(
+      f->return_value(),
+      m::Add(m::PrioritySelect(m::Param("p1"),
+                               /*cases=*/
+                               {m::ArrayIndex(m::Param("a"), {m::Literal(0)}),
+                                m::ArrayIndex(m::Param("b"), {m::Literal(0)})},
+                               /*default_value=*/
+                               m::ArrayIndex(m::Param("d"), {m::Literal(0)})),
+             m::PrioritySelect(m::Param("p1"),
+                               /*cases=*/
+                               {m::ArrayIndex(m::Param("a"), {m::Literal(2)}),
+                                m::ArrayIndex(m::Param("b"), {m::Literal(2)})},
+                               /*default_value=*/
+                               m::ArrayIndex(m::Param("d"), {m::Literal(2)}))));
+}
+
+TEST_F(ArraySimplificationPassTest, DissolveIntermediateArraysInNestedSelect) {
+  Package* p = GetPackage();
+  FunctionBuilder fb(TestName(), p);
+  Type* arr_type = p->GetArrayType(4, p->GetBitsType(8));
+  BValue c0 = fb.Param("c0", p->GetBitsType(1));
+  BValue c1 = fb.Param("c1", p->GetBitsType(1));
+  BValue c2 = fb.Param("c2", p->GetBitsType(1));
+  BValue x = fb.Param("x", arr_type);
+  BValue y0 = fb.Param("y0", p->GetBitsType(8));
+  BValue y1 = fb.Param("y1", p->GetBitsType(8));
+  BValue zero = fb.Literal(UBits(0, 8));
+  BValue arr_c0 = fb.Array({y0, y1, zero, zero}, p->GetBitsType(8));
+  BValue arr_c1 = fb.Array({y0, zero, zero, zero}, p->GetBitsType(8));
+  BValue arr_else = fb.Array({zero, zero, zero, zero}, p->GetBitsType(8));
+  BValue sel_c1 = fb.Select(c1, {fb.Select(c2, {arr_else, x}), arr_c1});
+  BValue sel_c0 = fb.Select(c0, {sel_c1, arr_c0});
+  BValue v0 = fb.ArrayIndex(sel_c0, {zero});
+  BValue v1 = fb.ArrayIndex(sel_c0, {fb.Literal(UBits(1, 32))});
+  BValue v2 = fb.ArrayIndex(sel_c0, {fb.Literal(UBits(2, 32))});
+  BValue v3 = fb.ArrayIndex(sel_c0, {fb.Literal(UBits(3, 32))});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(fb.Add(
+                                             fb.Add(fb.Add(v0, v1), v2), v3)));
+  ScopedVerifyEquivalence sve(f);
+  EXPECT_THAT(Run(f), IsOkAndHolds(true));
+
+  auto x0 = m::ArrayIndex(m::Param("x"), {m::Literal(0)});
+  auto x1 = m::ArrayIndex(m::Param("x"), {m::Literal(1)});
+  auto x2 = m::ArrayIndex(m::Param("x"), {m::Literal(2)});
+  auto x3 = m::ArrayIndex(m::Param("x"), {m::Literal(3)});
+
+  auto sel_c2_0 = m::Select(m::Param("c2"),
+                            /*cases=*/{m::Literal(0), x0});
+  auto v0_m = m::Select(m::Param("c0"), /*cases=*/{
+                            m::Select(m::Param("c1"),
+                                      /*cases=*/{sel_c2_0, m::Param("y0")}),
+                            m::Param("y0")});
+
+  auto sel_c2_1 = m::Select(m::Param("c2"),
+                            /*cases=*/{m::Literal(0), x1});
+  auto v1_m = m::Select(
+      m::Param("c0"),
+      /*cases=*/{m::Select(m::Param("c1"), /*cases=*/{sel_c2_1, m::Literal(0)}),
+                 m::Param("y1")});
+
+  auto sel_c2_2 = m::Select(m::Param("c2"),
+                            /*cases=*/{m::Literal(0), x2});
+  auto v2_m = m::Select(
+      m::Param("c0"),
+      /*cases=*/{m::Select(m::Param("c1"), /*cases=*/{sel_c2_2, m::Literal(0)}),
+                 m::Literal(0)});
+
+  auto sel_c2_3 = m::Select(m::Param("c2"),
+                            /*cases=*/{m::Literal(0), x3});
+  auto v3_m = m::Select(
+      m::Param("c0"),
+      /*cases=*/{m::Select(m::Param("c1"), /*cases=*/{sel_c2_3, m::Literal(0)}),
+                 m::Literal(0)});
+
+  EXPECT_THAT(f->return_value(),
+              m::Add(m::Add(m::Add(v0_m, v1_m), v2_m), v3_m));
 }
 
 TEST_F(ArraySimplificationPassTest, SelectAmongArrayUpdates) {
