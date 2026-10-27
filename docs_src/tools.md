@@ -603,9 +603,39 @@ against the post-synthesis netlist.
 
 Performs terminal-based color code highlighting of a DSL file.
 
-## [`dslx/type_system/typecheck_main`](https://github.com/google/xls/tree/main/xls/dslx/type_system/typecheck_main.cc)
+## [`dslx/parse_and_typecheck_dslx_main`](https://github.com/google/xls/tree/main/xls/dslx/parse_and_typecheck_dslx_main.cc)
 
-Dumps type information that has been deduced for a given DSL file.
+Parses and typechecks one or more DSLX (`.x`) source files, printing positional
+error and warning diagnostics on failure and exiting `0` silently on success.
+
+```
+$ bazel build -c opt //xls/dslx:parse_and_typecheck_dslx_main
+$ echo 'fn f(x: u32) -> u32 { x }' > /tmp/my_file.x
+$ ./bazel-bin/xls/dslx/parse_and_typecheck_dslx_main /tmp/my_file.x
+$ echo 'fn f(x: u32) -> u8 { x }' > /tmp/bad_file.x
+$ ./bazel-bin/xls/dslx/parse_and_typecheck_dslx_main /tmp/bad_file.x
+/tmp/bad_file.x:1:22-1:23
+0001: fn f(x: u32) -> u8 { x }
+~~~~~~~~~~~~~~~~~~~~~~~~~~~^ TypeInferenceError: TypeInferenceError: size mismatch: u32 vs. u8. The body of function `f` does not actually return the function's declared return type, which is `u8`
+...
+```
+
+Key flags include:
+
+-   `--dslx_path=PATHS`: Colon-delimited list of additional directories to
+    search for `.x` modules on `import`.
+-   `--dslx_stdlib_path=PATH`: Path to the DSLX standard library directory.
+-   `--warnings_as_errors=true|false`: Whether to fail with a non-zero exit
+    status when warnings are detected. Defaults to `true`.
+-   `--enable_warnings=NAMES`: Comma-delimited list of warning kinds to enable
+    beyond the default warning set.
+-   `--disable_warnings=NAMES`: Comma-delimited list of warning kinds to disable
+    from the default warning set.
+-   `--configured_values=SPECS`: Comma-delimited list of `configured_value_or`
+    overrides of the form `key:value` or `key@mod_1+...+mod_n:value`.
+
+In a Bazel environment this binary is encapsulated in
+[an `xls_dslx_library` target](https://google.github.io/xls/bazel_rules_macros/#xls_dslx_library).
 
 ## Development Tools
 
