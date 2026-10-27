@@ -51,6 +51,7 @@
 #include "xls/dslx/conversion_record.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/ast_node.h"
+#include "xls/dslx/frontend/ast_node_visitor_with_default.h"
 #include "xls/dslx/frontend/ast_utils.h"
 #include "xls/dslx/frontend/module.h"
 #include "xls/dslx/frontend/pos.h"
@@ -1078,93 +1079,71 @@ absl::Status FunctionConverter::HandleLet(const Let* node) {
           "config methods.");
     }
 
-    // TODO: https://github.com/google/xls/issues/1459 - Rewrite this to be
-    // actually recursive (instead of "effectively recursive" via the `levels`
-    // and `delta_at_level` vectors).
-
-    // Walk the pattern members, performing tuple_index operations on the RHS
-    // to get to the corresponding values.
-    std::vector<BValue> levels = {rhs};
-    // Invoked at each level of the pattern: maps the current pattern member
-    // to the corresponding value. Only NameDef leaves bind names; wildcard and
-    // rest members are visited without binding.
-    //
-    // Args:
-    //  pattern: Current subtree of the pattern.
-    //  level: Level (depth) in the pattern, root is 0.
-    //  index: Index of node in the current tree level (e.g. leftmost is 0).
-
-    // We need to add the delta to every tuple index *at this level*. E.g.,:
-    // if have a pattern like: (a,..,b,(c,..,d),e), then b, (c,..,d) and
-    // e's indexes need to be adjusted at level 1; d's needs to be adjusted at
-    // level 2, etc.
-    std::vector<int64_t> delta_at_level;
-
-    auto walk = [&](const PatternTree& pattern, int64_t level,
-                    int64_t index) -> absl::Status {
-      AstNode* pattern_node = ToAstNode(pattern);
-      XLS_RET_CHECK_NE(pattern_node, nullptr);
-      VLOG(6) << absl::StreamFormat("Walking level %d index %d: `%s`", level,
-                                    index, PatternToString(pattern));
-
-      while (level > delta_at_level.size()) {
-        // Make sure we have enough entries at this level
-        delta_at_level.push_back(0);
-      }
-      // Levels start at 1, so we subtract one.
-      index += delta_at_level[level - 1];
-
-      levels.resize(level);
-      BValue tuple = levels.back();
-      CHECK(tuple.valid());
-
-      xls::TupleType* tuple_type = tuple.GetType()->AsTupleOrDie();
-
-      if (IsRestOfTupleLeaf(pattern)) {
-        // If we're at a "rest of tuple" operator, we may need to "skip"
-        // tuple elements at this level. We can tell how many tuple *entries*
-        // there are via tuple_type, and how many pattern members there are at
-        // this level (including the "rest of tuple") via the parent tuple
-        // pattern.
-        const TuplePattern* parent =
-            absl::down_cast<const TuplePattern*>(pattern_node->parent());
-        int64_t pattern_member_count = parent->members().size();
-        int64_t number_of_tuple_elements = tuple_type->size();
-
-        int64_t delta = number_of_tuple_elements - pattern_member_count;
-        delta_at_level[level - 1] = delta;
-
-        // Don't need to bind anything to the ..
-        return absl::OkStatus();
-      }
-
-      CHECK_LT(index, tuple_type->size())
-          << "index: " << index << " type: " << tuple_type->ToString();
-
-      BValue bound_value =
-          Def(pattern_node, [this, pattern_node, index, tuple](SourceInfo loc) {
-            if (!loc.Empty()) {
-              loc = ToSourceInfo(pattern_node->GetSpan());
-            }
-
-            CHECK(tuple.GetType()->IsTuple());
-            BValue tuple_index =
-                function_builder_->TupleIndex(tuple, index, loc);
-            CHECK_OK(function_builder_->GetError());
-
-            return tuple_index;
-          });
-      if (std::holds_alternative<NameDef*>(pattern)) {
-        bound_value.SetName(std::get<NameDef*>(pattern)->identifier());
-      }
-      levels.push_back(bound_value);
-      return absl::OkStatus();
-    };
-
-    XLS_RETURN_IF_ERROR(DoPatternPreorder(node->pattern(), walk));
+    XLS_RETURN_IF_ERROR(
+        DestructureTuplePattern(std::get<TuplePattern*>(node->pattern()), rhs));
   }
 
   return absl::OkStatus();
+}
+
+class FunctionConverter::TuplePatternDestructurer
+    : public AstNodeRecursiveVisitor {
+ public:
+  TuplePatternDestructurer(FunctionConverter& converter,
+                           const TuplePattern* root)
+      : converter_(converter), root_(root) {}
+
+  absl::Status HandleRestOfTuple(const RestOfTuple* node) override {
+    XLS_RET_CHECK(!index_stack_.empty());
+    const auto* parent = absl::down_cast<const TuplePattern*>(node->parent());
+    XLS_ASSIGN_OR_RETURN(BValue tuple, converter_.Use(parent));
+    xls::TupleType* tuple_type = tuple.GetType()->AsTupleOrDie();
+    // Advance past the tuple elements matched by `..` (which may be zero).
+    index_stack_.back() += tuple_type->size() -
+                           (static_cast<int64_t>(parent->members().size()) - 1);
+    return absl::OkStatus();
+  }
+
+  absl::Status DefaultHandler(const AstNode* node) override {
+    // `root_` itself may have a `TuplePattern` parent (e.g. `(a, b)` in
+    // `for ((a, b), acc) in ...`), and is already bound to the RHS tuple.
+    if (node != root_ && node->parent() != nullptr &&
+        node->parent()->kind() == AstNodeKind::kTuplePattern) {
+      XLS_RET_CHECK(!index_stack_.empty());
+      int64_t index = index_stack_.back()++;
+      XLS_ASSIGN_OR_RETURN(BValue tuple, converter_.Use(node->parent()));
+      xls::TupleType* tuple_type = tuple.GetType()->AsTupleOrDie();
+      XLS_RET_CHECK_LT(index, tuple_type->size())
+          << "index: " << index << " type: " << tuple_type->ToString();
+      BValue bound_value =
+          converter_.Def(node, [this, index, tuple](const SourceInfo& loc) {
+            return converter_.function_builder_->TupleIndex(tuple, index, loc);
+          });
+      if (node->kind() == AstNodeKind::kNameDef) {
+        bound_value.SetName(
+            absl::down_cast<const NameDef*>(node)->identifier());
+      }
+    }
+    if (node->kind() == AstNodeKind::kTuplePattern) {
+      index_stack_.push_back(0);
+      XLS_RETURN_IF_ERROR(AstNodeRecursiveVisitor::DefaultHandler(node));
+      index_stack_.pop_back();
+      return absl::OkStatus();
+    }
+    return AstNodeRecursiveVisitor::DefaultHandler(node);
+  }
+
+ private:
+  FunctionConverter& converter_;
+  const TuplePattern* const root_;
+  std::vector<int64_t> index_stack_;
+};
+
+absl::Status FunctionConverter::DestructureTuplePattern(
+    const TuplePattern* pattern, BValue rhs) {
+  SetNodeToIr(pattern, rhs);
+  TuplePatternDestructurer destructurer(*this, pattern);
+  return pattern->Accept(&destructurer);
 }
 
 absl::Status FunctionConverter::HandleCast(const Cast* node) {
@@ -1885,7 +1864,12 @@ absl::Status FunctionConverter::HandleFor(const For* node) {
         body_converter.AddParam("__indexable", indexable->GetType());
     ivar_value =
         body_converter.function_builder_->ArrayIndex(iterable, {index});
-    body_converter.SetNodeToIr(ToAstNode(ivar_node), ivar_value);
+    if (const auto* tuple_pattern = std::get_if<TuplePattern*>(&ivar_node)) {
+      XLS_RETURN_IF_ERROR(
+          body_converter.DestructureTuplePattern(*tuple_pattern, ivar_value));
+    } else {
+      body_converter.SetNodeToIr(ToAstNode(ivar_node), ivar_value);
+    }
     invariant_args.push_back(indexable.value());
   }
 

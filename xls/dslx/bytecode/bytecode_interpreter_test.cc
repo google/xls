@@ -991,6 +991,27 @@ fn has_tuple_pattern() -> (u32, u64, uN[128]) {
   EXPECT_EQ(bit_value, 5);
 }
 
+TEST_F(BytecodeInterpreterTest, ForWithRestOfTupleDestructuring) {
+  constexpr std::string_view kProgram = R"(
+fn sum_with_rest() -> u32 {
+  let items = [(u32:1, u32:2, u32:3, u32:4), (u32:10, u32:20, u32:30, u32:40)];
+  let (tail, ..) = for ((.., c, d), (acc, ..)) in items {
+    (acc + c + d, u8:0, u16:0)
+  }((u32:0, u8:1, u16:2));
+  let middle = for ((a, .., d), acc) in items {
+    acc + a + d
+  }(u32:0);
+  let head = for ((a, b, ..), acc) in items {
+    acc + a + b
+  }(u32:0);
+  tail + middle + head
+})";
+
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
+                           Interpret(kProgram, "sum_with_rest"));
+  EXPECT_THAT(value.GetBitValueUnsigned(), IsOkAndHolds(165));
+}
+
 TEST_F(BytecodeInterpreterTest, RunMatchArms) {
   constexpr std::string_view kProgram = R"(
 fn main(x: u32) -> u32 {

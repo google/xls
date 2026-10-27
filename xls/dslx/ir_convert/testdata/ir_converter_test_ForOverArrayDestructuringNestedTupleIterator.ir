@@ -1,0 +1,22 @@
+package test_module
+
+file_number 0 "test_module.x"
+
+fn ____test_module__sum_nested_counted_for_0_body(__index: bits[32] id=3, acc: bits[32] id=4, __indexable: (bits[32], (bits[32], (bits[32]), bits[32]))[2] id=5) -> bits[32] {
+  array_index.6: (bits[32], (bits[32], (bits[32]), bits[32])) = array_index(__indexable, indices=[__index], id=6)
+  x: bits[32] = tuple_index(array_index.6, index=0, id=7)
+  tuple_index.8: (bits[32], (bits[32]), bits[32]) = tuple_index(array_index.6, index=1, id=8)
+  add.13: bits[32] = add(acc, x, id=13)
+  y: bits[32] = tuple_index(tuple_index.8, index=0, id=9)
+  tuple_index.10: (bits[32]) = tuple_index(tuple_index.8, index=1, id=10)
+  add.14: bits[32] = add(add.13, y, id=14)
+  z: bits[32] = tuple_index(tuple_index.10, index=0, id=11)
+  add.15: bits[32] = add(add.14, z, id=15)
+  w: bits[32] = tuple_index(tuple_index.8, index=2, id=12)
+  ret add.16: bits[32] = add(add.15, w, id=16)
+}
+
+top fn __test_module__sum_nested(items: (bits[32], (bits[32], (bits[32]), bits[32]))[2] id=1) -> bits[32] {
+  literal.2: bits[32] = literal(value=0, id=2)
+  ret counted_for.17: bits[32] = counted_for(literal.2, trip_count=2, stride=1, body=____test_module__sum_nested_counted_for_0_body, invariant_args=[items], id=17)
+}

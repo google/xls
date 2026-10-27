@@ -194,8 +194,7 @@ class BytecodeEmitter : public ExprVisitor {
   absl::StatusOr<Bytecode::MatchArmItem> HandlePatternExpr(
       const PatternTree& pattern, Type* type = nullptr);
 
-  absl::Status DestructureLet(const PatternTree& pattern,
-                              std::variant<Type*, int64_t> type_or_size);
+  absl::Status DestructureLet(const PatternTree& pattern, Type* type);
 
   const FileTable& file_table() const { return import_data_->file_table(); }
 

@@ -979,7 +979,14 @@ absl::Status BytecodeEmitter::HandleFor(const For* node) {
   bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kSwap));
   bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kCreateTuple,
                                Bytecode::NumElements(2)));
-  XLS_RETURN_IF_ERROR(DestructureLet(node->pattern(), /*type_or_size=*/2));
+  std::optional<Type*> pattern_type =
+      type_info_->GetItem(ToAstNode(node->pattern()));
+  if (!pattern_type.has_value()) {
+    return absl::InternalError(
+        absl::StrFormat("@ %s: Could not retrieve type of `for` loop pattern.",
+                        node->span().ToString(file_table())));
+  }
+  XLS_RETURN_IF_ERROR(DestructureLet(node->pattern(), pattern_type.value()));
 
   // Emit the loop body.
   XLS_RETURN_IF_ERROR(node->body()->AcceptExpr(this));
@@ -1396,21 +1403,8 @@ absl::StatusOr<Bytecode::MatchArmItem> BytecodeEmitter::HandlePatternExpr(
   return Bytecode::MatchArmItem::MakeTuple(std::move(elements));
 }
 
-static int64_t CountElements(std::variant<Type*, int64_t> element) {
-  return std::visit(Visitor{[&](Type* type) -> int64_t {
-                              const TupleType* tuple_type =
-                                  dynamic_cast<const TupleType*>(type);
-                              if (tuple_type != nullptr) {
-                                return tuple_type->members().size();
-                              }
-                              return 0;
-                            },
-                            [&](int64_t size) -> int64_t { return size; }},
-                    element);
-}
-
-absl::Status BytecodeEmitter::DestructureLet(
-    const PatternTree& pattern, std::variant<Type*, int64_t> type_or_size) {
+absl::Status BytecodeEmitter::DestructureLet(const PatternTree& pattern,
+                                             Type* type) {
   if (!std::holds_alternative<TuplePattern*>(pattern)) {
     if (IsWildcardLeaf(pattern) || IsRestOfTupleLeaf(pattern)) {
       // We can just drop this one.
@@ -1432,15 +1426,12 @@ absl::Status BytecodeEmitter::DestructureLet(
     Add(Bytecode(tuple_pattern->span(), Bytecode::Op::kExpandTuple));
 
     // Note: we intentionally don't check validity of the tuple here; that's
-    // done by Deduce().
-
-    if (std::holds_alternative<Type*>(type_or_size)) {
-      TupleType* tuple_type =
-          dynamic_cast<TupleType*>(std::get<Type*>(type_or_size));
-      if (tuple_type == nullptr) {
-        return absl::InternalError(absl::StrFormat(
-            "Type %s is not of type TupleType", tuple_type->ToString()));
-      }
+    // done by typechecking.
+    TupleType* tuple_type = dynamic_cast<TupleType*>(type);
+    if (tuple_type == nullptr) {
+      return absl::InternalError(
+          absl::StrFormat("Type %s is not of type TupleType",
+                          type == nullptr ? "<null>" : type->ToString()));
     }
 
     int64_t tuple_index = 0;
@@ -1448,7 +1439,7 @@ absl::Status BytecodeEmitter::DestructureLet(
          member_index < tuple_pattern->members().size(); ++member_index) {
       const PatternTree& member = tuple_pattern->members()[member_index];
       if (IsRestOfTupleLeaf(member)) {
-        int64_t number_of_tuple_elements = CountElements(type_or_size);
+        int64_t number_of_tuple_elements = tuple_type->members().size();
         // Decrement for the rest-of-tuple
         int64_t non_rest_pattern_member_count =
             tuple_pattern->members().size() - 1;
@@ -1464,19 +1455,8 @@ absl::Status BytecodeEmitter::DestructureLet(
         }
         continue;
       }
-      XLS_RETURN_IF_ERROR(std::visit(
-          Visitor{[&](Type* type) -> absl::Status {
-                    TupleType* tuple_type = absl::down_cast<TupleType*>(type);
-                    return DestructureLet(
-                        member, &tuple_type->GetMemberType(tuple_index));
-                  },
-                  [&](int64_t size) -> absl::Status {
-                    // If a simple count is given, the tuple can only
-                    // contain single elements, so the child count
-                    // must be 1.
-                    return DestructureLet(member, 1);
-                  }},
-          type_or_size));
+      XLS_RETURN_IF_ERROR(
+          DestructureLet(member, &tuple_type->GetMemberType(tuple_index)));
       ++tuple_index;
     }
   }

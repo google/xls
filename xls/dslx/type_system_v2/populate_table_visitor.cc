@@ -910,9 +910,15 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
     }
 
     // Validate the iterator/accumulator binding pattern.
+    const auto* outer_tuple_pattern =
+        std::holds_alternative<TuplePattern*>(node->pattern())
+            ? std::get<TuplePattern*>(node->pattern())
+            : nullptr;
     if (!IsIrrefutablePattern(node->pattern()) ||
-        !std::holds_alternative<TuplePattern*>(node->pattern()) ||
-        std::get<TuplePattern*>(node->pattern())->members().size() != 2) {
+        outer_tuple_pattern == nullptr ||
+        outer_tuple_pattern->members().size() != 2 ||
+        IsRestOfTupleLeaf(outer_tuple_pattern->members()[0]) ||
+        IsRestOfTupleLeaf(outer_tuple_pattern->members()[1])) {
       return TypeInferenceErrorStatus(
           GetPatternSpan(node->pattern()),
           /*type=*/nullptr,
@@ -921,8 +927,7 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
                            PatternToString(node->pattern())),
           file_table_);
     }
-    const TuplePattern* tuple_pattern =
-        std::get<TuplePattern*>(node->pattern());
+    const TuplePattern* tuple_pattern = outer_tuple_pattern;
     const PatternTree& iterator_pattern = tuple_pattern->members()[0];
     AstNode* iterator = ToAstNode(iterator_pattern);
     XLS_ASSIGN_OR_RETURN(
@@ -941,7 +946,6 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
     AstNode* accumulator = ToAstNode(accumulator_pattern);
 
     if (node->body()->trailing_semi() && !IsWildcardLeaf(accumulator_pattern) &&
-        !IsRestOfTupleLeaf(accumulator_pattern) &&
         !std::holds_alternative<TuplePattern*>(accumulator_pattern)) {
       return TypeInferenceErrorStatus(
           GetPatternSpan(accumulator_pattern), /*type=*/nullptr,

@@ -431,5 +431,18 @@ TEST_F(AstTest, AttributeToStringExternVerilogStringLiteral) {
   EXPECT_EQ(attr->ToString(), "#[extern_verilog(\"my_module\")]");
 }
 
+TEST_F(AstTest, IsIrrefutablePatternWithRestOfTuple) {
+  NameDef* x =
+      m.Make<NameDef>(fake_span, std::string("x"), /*definer=*/nullptr);
+  WildcardPattern* wildcard = m.Make<WildcardPattern>(fake_span);
+  RestOfTuple* rest = m.Make<RestOfTuple>(fake_span);
+  TuplePattern* tuple = m.Make<TuplePattern>(
+      fake_span, std::vector<PatternTree>{x, wildcard, rest});
+
+  PatternTree pattern = tuple;
+  EXPECT_TRUE(IsIrrefutablePattern(pattern));
+  EXPECT_TRUE(IsIrrefutablePattern(ToConstPatternTree(pattern)));
+}
+
 }  // namespace
 }  // namespace xls::dslx
