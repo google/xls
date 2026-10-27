@@ -19,14 +19,29 @@
 #include <optional>
 #include <utility>
 
+#include "absl/base/casts.h"
 #include "absl/status/status.h"
 #include "absl/strings/substitute.h"
 #include "xls/dslx/errors.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/interp_value.h"
+#include "xls/dslx/interp_value_utils.h"
 
 namespace xls::dslx {
+
+const StructMemberNode* ImplicitChannelDecl::GetNamedMember() const {
+  const auto* sink_member = absl::down_cast<const StructMemberNode*>(
+      GetChannelOrArrayDefiner(out_end));
+  const auto* source_member = absl::down_cast<const StructMemberNode*>(
+      GetChannelOrArrayDefiner(in_end));
+  // Prefer `sink_member`, unless only `source_member` belongs to `caller`.
+  if (caller->GetMemberByName(sink_member->name()) != sink_member &&
+      caller->GetMemberByName(source_member->name()) == source_member) {
+    return source_member;
+  }
+  return sink_member;
+}
 
 absl::Status ChannelManager::Bind(const ProcDef* caller,
                                   const InterpValue& out_end,
@@ -50,8 +65,11 @@ absl::Status ChannelManager::Bind(const ProcDef* caller,
     }
   }
 
-  auto decl = std::make_shared<ImplicitChannelDecl>(ImplicitChannelDecl{
-      .out_end = out_end, .in_end = in_end, .origin = origin});
+  auto decl = std::make_shared<ImplicitChannelDecl>(
+      ImplicitChannelDecl{.out_end = out_end,
+                          .in_end = in_end,
+                          .caller = caller,
+                          .origin = origin});
   endpoint_to_decl_.emplace(std::make_pair(caller, out_id), decl);
   endpoint_to_decl_.emplace(std::make_pair(caller, in_id), std::move(decl));
   return absl::OkStatus();
