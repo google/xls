@@ -313,6 +313,34 @@ TEST(TypecheckV2Test, SnAnnotationWithMissingBitCountFails) {
       TypecheckFails(HasSubstr("`sN` requires a specified bit count.")));
 }
 
+TEST(TypecheckV2Test, TupleBitCountFailsWithMissingBitCount) {
+  EXPECT_THAT(
+      R"(
+const W = (1, 2);
+const A = sN[W][1]:[[0, 1]];
+)",
+      TypecheckFails(HasSubstr("`sN` requires a specified bit count.")));
+}
+
+TEST(TypecheckV2Test, TupleBitCountAndMismatchedValueFailsWithValueMismatch) {
+  EXPECT_THAT(
+      R"(
+const W = (1, 2);
+const A = sN[W][1]:[0];
+)",
+      // TODO: it would be nice to have an array index type mismatch error here
+      // instead of complaining that the value `[0]` is mistyped.
+      TypecheckFails(HasTypeMismatch("(uN[1], uN[2])", "u32")));
+}
+
+TEST(TypecheckV2Test, RangeBitCountFailsWithUnknownType) {
+  EXPECT_THAT(R"(
+const W = 20..137;
+const A = sN[W][1]:[0];
+)",
+              TypecheckFails(HasTypeMismatch("u32", "")));
+}
+
 TEST(TypecheckV2Test, GlobalBoolConstantEqualsComparisonOfUntypedLiterals) {
   EXPECT_THAT("const Z = 4 > 1;", TopNodeHasType("uN[1]"));
 }
