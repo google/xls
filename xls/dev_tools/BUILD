@@ -1284,3 +1284,41 @@ cc_test(
         "@googletest//:gtest",
     ],
 )
+
+cc_binary(
+    name = "block_to_verilog_main",
+    srcs = ["block_to_verilog_main.cc"],
+    deps = [
+        "//xls/codegen:codegen_result",
+        "//xls/common:exit_status",
+        "//xls/common:init_xls",
+        "//xls/common/file:filesystem",
+        "//xls/common/status:status_macros",
+        "//xls/ir:ir_parser",
+        "//xls/ir:verifier",
+        "//xls/tools:codegen",
+        "//xls/tools:codegen_flags",
+        "//xls/tools:codegen_flags_cc_proto",
+        "@abseil-cpp//absl/flags:flag",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/strings:str_format",
+    ],
+)
+
+pytype_strict_contrib_test(
+    name = "block_to_verilog_main_test",
+    srcs = ["block_to_verilog_main_test.py"],
+    data = [
+        ":block_to_verilog_main",
+    ],
+    deps = [
+        "//xls/codegen:codegen_residual_data_py_pb2",
+        "//xls/codegen:module_signature_py_pb2",
+        "//xls/common:runfiles",
+        "//xls/common:test_base",
+        "@abseil-py//absl/testing:absltest",
+        "@protobuf//:protobuf_python",
+    ],
+)

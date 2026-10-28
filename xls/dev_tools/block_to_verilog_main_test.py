@@ -23,7 +23,7 @@ from xls.common import runfiles
 from xls.common import test_base
 
 BLOCK_TO_VERILOG_MAIN_PATH = runfiles.get_path(
-    'xls/tools/block_to_verilog_main'
+    'xls/dev_tools/block_to_verilog_main'
 )
 
 
