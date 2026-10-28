@@ -41,7 +41,6 @@
 #include "xls/ir/node_util.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
-#include "xls/ir/source_location.h"
 #include "xls/ir/ternary.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
@@ -149,6 +148,36 @@ bool IndicesAreDefinitelyPrefixOf(absl::Span<Node* const> prefix,
   }
   return IndicesAreDefinitelyEqual(prefix, indices.subspan(0, prefix.size()),
                                    query_engine);
+}
+
+// Returns true if all live users of a node are ArrayIndex operations with known
+// values for all indices, and no implicit uses, e.g., function return value.
+bool ArrayOnlyConstIndexed(Node* node, const QueryEngine& query_engine) {
+  if (node->function_base()->HasImplicitUse(node)) {
+    return false;
+  }
+  int64_t live_users = 0;
+  for (Node* user : node->users()) {
+    if (user->IsDead()) {
+      continue;
+    }
+    if (!user->Is<ArrayIndex>()) {
+      return false;
+    }
+    ArrayIndex* array_idx = user->As<ArrayIndex>();
+    if (array_idx->array() != node || array_idx->indices().empty()) {
+      return false;
+    }
+    for (Node* index : array_idx->indices()) {
+      // Note: If an index is not fully known but is definitely out-of-bounds,
+      // we rely on simplification to first clamp it.
+      if (!query_engine.IsFullyKnown(index)) {
+        return false;
+      }
+    }
+    live_users++;
+  }
+  return live_users > 0;
 }
 
 // Clamp any known OOB indices in ArrayIndex ops. In this case the index is
@@ -486,12 +515,16 @@ absl::StatusOr<SimplifyResult> SimplifyArrayIndex(
   //
   // For very small arrays (when narrowing is enabled) we will perform this
   // unconditionally since we totally remove the array in these circumstances.
+  // Also perform this optimization if all users of the select are constant
+  // indexed array_index operations.
   // TODO(meheff): Consider cases where selects with multiple users are still
   // advantageous to transform.
   if (array_index->array()->OpIn(
           {Op::kSel, Op::kOneHotSel, Op::kPrioritySel}) &&
       (HasSingleUse(array_index->array()) ||
-       (IsSmallArray(array_index->array()) && SplitsEnabled(opt_level)))) {
+       ((IsSmallArray(array_index->array()) ||
+         ArrayOnlyConstIndexed(array_index->array(), query_engine)) &&
+        SplitsEnabled(opt_level)))) {
     VLOG(2) << absl::StrFormat(
         "Replacing array-index of select with select of array-indexes: %s "
         "(select array: %s)",
@@ -629,7 +662,7 @@ absl::StatusOr<SimplifyResult> SimplifyArrayIndex(
   // NB Since in the case where an update did not actually change the array the
   // update-idx must be out-of-bounds that means the only way the bounded
   // arr-idx can match the update-idx is if the update-idx is in bounds and so
-  // the update acctually happened.
+  // the update actually happened.
   if (IsSmallArray(array_update) && array_update->indices().size() == 1 &&
       array_index->indices().size() == 1 && SplitsEnabled(opt_level)) {
     VLOG(2) << "Replacing " << array_index << " with select using "
