@@ -352,6 +352,99 @@ TEST_F(ChannelToPortIoLoweringPassTest, OneShotLogicRequiresReset) {
                HasSubstr("must have a reset signal for send one-shot logic")));
 }
 
+TEST_F(ChannelToPortIoLoweringPassTest,
+       OneShotLogicForNonBlockingReceiveInStageWithSend) {
+  // A non-blocking receive in the same stage as a stalling send. While the send
+  // is stalled, the stage is active and unable to advance; the non-blocking
+  // receive needs one-shot logic so an empty receive does not flip to valid
+  // mid-activation.
+  auto p = std::make_unique<Package>("test");
+  ScheduledProcBuilder pb(NewStyleProc(), "test_main", p.get());
+  BReceiveChannel ch_in = pb.AddInputChannel("ch_in", p->GetBitsType(32));
+  BSendChannel ch_out = pb.AddOutputChannel("ch_out", p->GetBitsType(32));
+
+  BValue tkn = pb.Literal(Value::Token());
+  BValue recv = pb.ReceiveNonBlocking(ch_in, tkn);
+  BValue recv_tkn = pb.TupleIndex(recv, 0);
+  BValue recv_data = pb.TupleIndex(recv, 1);
+  pb.Send(ch_out, recv_tkn, recv_data);
+  XLS_ASSERT_OK(pb.Build());
+
+  EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block, p->GetBlock("test_main"));
+  EXPECT_THAT(block->nodes(),
+              Contains(m::RegisterRead(HasSubstr("latched_empty_reg"))));
+}
+
+TEST_F(ChannelToPortIoLoweringPassTest,
+       OneShotLogicForNonBlockingReceiveBeforeStallingStage) {
+  // A non-blocking receive, followed by a blocking receive in the next stage.
+  // While the later stage is stalled, the first stage can be active and unable
+  // to advance; the non-blocking receive needs one-shot logic.
+  auto p = std::make_unique<Package>("test");
+  ScheduledProcBuilder pb(NewStyleProc(), "test_main", p.get());
+  BReceiveChannel ch_nb = pb.AddInputChannel("ch_nb", p->GetBitsType(32));
+  BReceiveChannel ch_blk = pb.AddInputChannel("ch_blk", p->GetBitsType(32));
+
+  BValue tkn = pb.Literal(Value::Token());
+  BValue nb_recv = pb.ReceiveNonBlocking(ch_nb, tkn);
+  BValue nb_tkn = pb.TupleIndex(nb_recv, 0);
+  pb.EndStage();
+  pb.Receive(ch_blk, nb_tkn);
+  XLS_ASSERT_OK(pb.Build());
+
+  EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block, p->GetBlock("test_main"));
+  EXPECT_THAT(block->nodes(),
+              Contains(m::RegisterRead(HasSubstr("latched_empty_reg"))));
+}
+
+TEST_F(ChannelToPortIoLoweringPassTest,
+       NoOneShotLogicForNonBlockingReceiveBeforeNonStallingStage) {
+  // A non-blocking receive in a stage with no stalling outputs, followed by a
+  // stage that can't stall; once active, the receive's stage can always
+  // advance, so it doesn't need one-shot logic.
+  auto p = std::make_unique<Package>("test");
+  ScheduledProcBuilder pb(NewStyleProc(), "test_main", p.get());
+  BReceiveChannel ch_nb = pb.AddInputChannel("ch_nb", p->GetBitsType(32));
+
+  BValue tkn = pb.Literal(Value::Token());
+  pb.ReceiveNonBlocking(ch_nb, tkn);
+  pb.EndStage();
+  pb.Literal(Value(UBits(456, 32)));
+  XLS_ASSERT_OK(pb.Build());
+
+  EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block, p->GetBlock("test_main"));
+  EXPECT_THAT(block->nodes(),
+              Not(Contains(m::RegisterRead(HasSubstr("latched_empty_reg")))));
+}
+
+TEST_F(ChannelToPortIoLoweringPassTest,
+       OneShotLogicForNonBlockingReceiveRequiresReset) {
+  auto p = std::make_unique<Package>("test");
+  ScheduledProcBuilder pb(NewStyleProc(), "test_main", p.get());
+  BReceiveChannel ch_in = pb.AddInputChannel("ch_in", p->GetBitsType(32));
+  BSendChannel ch_out = pb.AddOutputChannel("ch_out", p->GetBitsType(32));
+
+  BValue tkn = pb.Literal(Value::Token());
+  BValue recv = pb.ReceiveNonBlocking(ch_in, tkn);
+  BValue recv_tkn = pb.TupleIndex(recv, 0);
+  BValue recv_data = pb.TupleIndex(recv, 1);
+  pb.Send(ch_out, recv_tkn, recv_data);
+  XLS_ASSERT_OK(pb.Build());
+
+  EXPECT_THAT(
+      Run(p.get(), BlockConversionPassOptions(),
+          /*add_default_reset=*/false),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("must have a reset signal for non-blocking receive "
+                         "one-shot logic")));
+}
+
 TEST_F(ChannelToPortIoLoweringPassTest, LowerSingleValueInputChannel) {
   auto p = std::make_unique<Package>("test");
   ScheduledProcBuilder pb(NewStyleProc(), "test_main", p.get());
