@@ -61,13 +61,23 @@ class SplitPipelineFactory {
   // Returns an empty pipeline if the split pass is the first pass in the
   // overall pipeline.
   absl::StatusOr<std::unique_ptr<OptimizationCompoundPass>>
-  GetPipelineBeforeSplit(std::string_view pass_name);
+  GetPipelineBeforeSplit(std::string_view pass_name) const;
+
+  // Returns a pipeline containing all passes exclusively between
+  // `from_pass_name` and `to_pass_name`. Returns an empty pipeline if the two
+  // split passes are immediately adjacent in the overall pipeline.
+  absl::StatusOr<std::unique_ptr<OptimizationCompoundPass>>
+  GetPipelineBetweenSplits(std::string_view from_pass_name,
+                           std::string_view to_pass_name) const;
 
   // Returns a pipeline containing all passes after the given split pass.
   // Returns an empty pipeline if the split pass is the last pass in the overall
   // pipeline.
   absl::StatusOr<std::unique_ptr<OptimizationCompoundPass>>
-  GetPipelineAfterSplit(std::string_view pass_name);
+  GetPipelineAfterSplit(std::string_view pass_name) const;
+
+  // Returns the split pass names ordered by their appearance in the pipeline.
+  std::vector<std::string> GetOrderedSplitPasses() const;
 
  private:
   const std::vector<SplitPassInfo> split_pass_infos_;

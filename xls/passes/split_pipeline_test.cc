@@ -41,6 +41,8 @@ using ::testing::ElementsAre;
 using ::testing::HasSubstr;
 using ::testing::IsEmpty;
 using ::testing::NotNull;
+using ::testing::Pointee;
+using ::testing::Property;
 
 struct SubpassInfo {
   std::string short_name;
@@ -260,6 +262,124 @@ TEST(SplitPipelineTest, MultipleSplitsInPipeline) {
       split_pipeline_factory->GetPipelineAfterSplit("resource_sharing"));
   ASSERT_THAT(after_second, NotNull());
   EXPECT_THAT(GetSubpassShortNames(*after_second), ElementsAre("dce"));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<OptimizationCompoundPass> between_first_and_second,
+      split_pipeline_factory->GetPipelineBetweenSplits("collapse_select_chains",
+                                                       "resource_sharing"));
+  ASSERT_THAT(between_first_and_second, NotNull());
+  EXPECT_THAT(GetSubpassShortNames(*between_first_and_second),
+              ElementsAre("cse"));
+}
+
+TEST(SplitPipelineTest, GetOrderedSplitPassesOrdersByPipelineOrder) {
+  OptimizationPipelineProto pipeline_proto;
+  XLS_ASSERT_OK(ParseTextProto(R"pb(
+                                 compound_passes {
+                                   short_name: "first_split_step"
+                                   long_name: "First Split Step"
+                                   passes: "collapse_select_chains"
+                                 }
+                                 compound_passes {
+                                   short_name: "mid_split"
+                                   long_name: "Mid Split"
+                                   passes: "cse"
+                                 }
+                                 compound_passes {
+                                   short_name: "second_split_step"
+                                   long_name: "Second Split Step"
+                                   passes: "resource_sharing"
+                                 }
+                                 default_pipeline: "first_split_step"
+                                 default_pipeline: "mid_split"
+                                 default_pipeline: "second_split_step"
+                               )pb",
+                               "", &pipeline_proto));
+
+  OptimizationPassRegistry registry = GetOptimizationRegistry();
+  const std::vector<std::string> split_passes = {"resource_sharing",
+                                                 "collapse_select_chains"};
+  EXPECT_THAT(
+      SplitPipelineFactory::Create(registry, split_passes, pipeline_proto),
+      IsOkAndHolds(Pointee(Property(
+          &SplitPipelineFactory::GetOrderedSplitPasses,
+          ElementsAre("collapse_select_chains", "resource_sharing")))));
+}
+
+TEST(SplitPipelineTest, GetPipelineBetweenAdjacentSplitsReturnsEmptyPipeline) {
+  OptimizationPipelineProto pipeline_proto;
+  XLS_ASSERT_OK(ParseTextProto(R"pb(
+                                 compound_passes {
+                                   short_name: "first_split_step"
+                                   long_name: "First Split Step"
+                                   passes: "collapse_select_chains"
+                                 }
+                                 compound_passes {
+                                   short_name: "second_split_step"
+                                   long_name: "Second Split Step"
+                                   passes: "resource_sharing"
+                                 }
+                                 default_pipeline: "first_split_step"
+                                 default_pipeline: "second_split_step"
+                               )pb",
+                               "", &pipeline_proto));
+
+  OptimizationPassRegistry registry = GetOptimizationRegistry();
+  const std::vector<std::string> split_passes = {"collapse_select_chains",
+                                                 "resource_sharing"};
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<SplitPipelineFactory> split_pipeline_factory,
+      SplitPipelineFactory::Create(registry, split_passes, pipeline_proto));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<OptimizationCompoundPass> between_pipeline,
+      split_pipeline_factory->GetPipelineBetweenSplits("collapse_select_chains",
+                                                       "resource_sharing"));
+  ASSERT_THAT(between_pipeline, NotNull());
+  EXPECT_THAT(GetSubpassShortNames(*between_pipeline), IsEmpty());
+}
+
+TEST(SplitPipelineTest, GetPipelineBetweenSplitsInvalidArgumentsReturnError) {
+  OptimizationPipelineProto pipeline_proto;
+  XLS_ASSERT_OK(ParseTextProto(R"pb(
+                                 compound_passes {
+                                   short_name: "first_split_step"
+                                   long_name: "First Split Step"
+                                   passes: "collapse_select_chains"
+                                 }
+                                 compound_passes {
+                                   short_name: "second_split_step"
+                                   long_name: "Second Split Step"
+                                   passes: "resource_sharing"
+                                 }
+                                 default_pipeline: "first_split_step"
+                                 default_pipeline: "second_split_step"
+                               )pb",
+                               "", &pipeline_proto));
+
+  OptimizationPassRegistry registry = GetOptimizationRegistry();
+  const std::vector<std::string> split_passes = {"collapse_select_chains",
+                                                 "resource_sharing"};
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<SplitPipelineFactory> split_pipeline_factory,
+      SplitPipelineFactory::Create(registry, split_passes, pipeline_proto));
+
+  EXPECT_THAT(split_pipeline_factory->GetPipelineBetweenSplits(
+                  "unknown_pass", "resource_sharing"),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("not found in split pipeline")));
+  EXPECT_THAT(split_pipeline_factory->GetPipelineBetweenSplits(
+                  "collapse_select_chains", "unknown_pass"),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("not found in split pipeline")));
+  EXPECT_THAT(
+      split_pipeline_factory->GetPipelineBetweenSplits(
+          "collapse_select_chains", "collapse_select_chains"),
+      StatusIs(absl::StatusCode::kInvalidArgument, HasSubstr("must precede")));
+  EXPECT_THAT(
+      split_pipeline_factory->GetPipelineBetweenSplits(
+          "resource_sharing", "collapse_select_chains"),
+      StatusIs(absl::StatusCode::kInvalidArgument, HasSubstr("must precede")));
 }
 
 TEST(SplitPipelineTest, SplitAsFirstPassReturnsNullBeforePipeline) {

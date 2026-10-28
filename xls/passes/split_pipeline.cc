@@ -374,7 +374,7 @@ SplitPipelineFactory::Create(OptimizationPassRegistry& registry,
 }
 
 absl::StatusOr<std::unique_ptr<OptimizationCompoundPass>>
-SplitPipelineFactory::GetPipelineBeforeSplit(std::string_view pass_name) {
+SplitPipelineFactory::GetPipelineBeforeSplit(std::string_view pass_name) const {
   auto split_it = split_pass_name_to_index_.find(pass_name);
   if (split_it == split_pass_name_to_index_.end()) {
     return absl::InvalidArgumentError(
@@ -396,7 +396,44 @@ SplitPipelineFactory::GetPipelineBeforeSplit(std::string_view pass_name) {
 }
 
 absl::StatusOr<std::unique_ptr<OptimizationCompoundPass>>
-SplitPipelineFactory::GetPipelineAfterSplit(std::string_view pass_name) {
+SplitPipelineFactory::GetPipelineBetweenSplits(
+    std::string_view from_pass_name, std::string_view to_pass_name) const {
+  auto from_it = split_pass_name_to_index_.find(from_pass_name);
+  if (from_it == split_pass_name_to_index_.end()) {
+    return absl::InvalidArgumentError(absl::StrCat(
+        "Split pass ", from_pass_name, " not found in split pipeline"));
+  }
+  auto to_it = split_pass_name_to_index_.find(to_pass_name);
+  if (to_it == split_pass_name_to_index_.end()) {
+    return absl::InvalidArgumentError(absl::StrCat(
+        "Split pass ", to_pass_name, " not found in split pipeline"));
+  }
+  size_t from_index = from_it->second + 1;
+  size_t to_index = to_it->second;
+  if (from_index > to_index) {
+    return absl::InvalidArgumentError(
+        absl::StrCat("Split pass '", from_pass_name, "' must precede '",
+                     to_pass_name, "' in split pipeline"));
+  }
+
+  // There are no passes between the two split passes.
+  if (from_index == to_index) {
+    return GetOptimizationPipelineGenerator(registry_).GeneratePipeline("");
+  }
+
+  std::vector<std::string_view> pass_names;
+  pass_names.reserve(to_index - from_index);
+  for (const SplitPassInfo& pass_info :
+       absl::MakeSpan(split_pass_infos_)
+           .subspan(from_index, to_index - from_index)) {
+    pass_names.push_back(pass_info.default_pass_name);
+  }
+  return GetOptimizationPipelineGenerator(registry_).GeneratePipeline(
+      absl::StrJoin(pass_names, " "));
+}
+
+absl::StatusOr<std::unique_ptr<OptimizationCompoundPass>>
+SplitPipelineFactory::GetPipelineAfterSplit(std::string_view pass_name) const {
   auto split_it = split_pass_name_to_index_.find(pass_name);
   if (split_it == split_pass_name_to_index_.end()) {
     return absl::InvalidArgumentError(
@@ -415,6 +452,16 @@ SplitPipelineFactory::GetPipelineAfterSplit(std::string_view pass_name) {
   }
   return GetOptimizationPipelineGenerator(registry_).GeneratePipeline(
       absl::StrJoin(pass_names, " "));
+}
+
+std::vector<std::string> SplitPipelineFactory::GetOrderedSplitPasses() const {
+  std::vector<std::string> ordered_passes;
+  for (const SplitPassInfo& pass_info : split_pass_infos_) {
+    if (pass_info.split_pass_name.has_value()) {
+      ordered_passes.push_back(*pass_info.split_pass_name);
+    }
+  }
+  return ordered_passes;
 }
 
 }  // namespace xls
