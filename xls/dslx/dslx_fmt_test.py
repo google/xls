@@ -265,11 +265,13 @@ class DslxFmtTest(absltest.TestCase):
     const X = u32:42;
     const Y: u32 = u32:42;
     const A = u32[3]:[u32:1, u32:2, u32:3];
+    const B = [u32:1, u32:2, u32:3];
     """)
     want = textwrap.dedent("""\
     const X = u32:42;
     const Y: u32 = 42;
-    const A = [u32:1, 2, 3];
+    const A = u32[3]:[1, 2, 3];
+    const B = [u32:1, 2, 3];
     """)
     f = self.create_tempfile(content=program)
     p = subp.run(

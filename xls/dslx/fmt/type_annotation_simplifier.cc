@@ -458,11 +458,10 @@ class TypeAnnotationSimplifier : public Formatter {
   }
 
   DocRef FormatExpr(const Expr& n, bool suppress_parens) override {
-    // Apply any per-expression context override (`type_inferred` and/or
-    // `forced_type_annotation`) registered by an enclosing AST node handler.
+    // Apply any per-expression `type_inferred` override registered by an
+    // enclosing AST node handler.
     if (auto it = expr_overrides_.find(&n); it != expr_overrides_.end()) {
-      ScopedContext scoped(*this, it->second.type_inferred,
-                           it->second.forced_type_annotation);
+      ScopedContext scoped(*this, it->second.type_inferred);
       return Formatter::FormatExpr(n, suppress_parens);
     }
     return Formatter::FormatExpr(n, suppress_parens);
@@ -471,8 +470,7 @@ class TypeAnnotationSimplifier : public Formatter {
   DocRef FormatNumber(const Number& n) override {
     // Drop the number's type annotation if the surrounding context already
     // determines its type (`type_inferred_` is true) or if it is a boolean
-    // literal. Otherwise, keep its explicit type annotation (or attach
-    // `forced_type_annotation_` if pushed down from an enclosing array).
+    // literal. Otherwise, keep its explicit type annotation.
     DocRef num_text;
     if (n.number_kind() == NumberKind::kCharacter) {
       std::string guts;
@@ -486,63 +484,16 @@ class TypeAnnotationSimplifier : public Formatter {
       num_text = arena().MakeText(n.text());
     }
 
-    const TypeAnnotation* type = n.type_annotation() != nullptr
-                                     ? n.type_annotation()
-                                     : forced_type_annotation_;
-    if (type != nullptr && !type_inferred_ &&
+    if (n.type_annotation() != nullptr && !type_inferred_ &&
         n.number_kind() != NumberKind::kBool) {
-      return ConcatNGroup(
-          arena(), {FormatTypeAnnotation(*type), arena().colon(), num_text});
+      return ConcatNGroup(arena(), {FormatTypeAnnotation(*n.type_annotation()),
+                                    arena().colon(), num_text});
     }
     return num_text;
   }
 
-  DocRef FormatMakeArrayLeader(const Array& n) override {
-    // Emit or omit the leading array type annotation (`Type:[`) based on the
-    // decision recorded in `array_leader_types_` by `ScopedArrayConfig`.
-    if (auto it = array_leader_types_.find(&n);
-        it != array_leader_types_.end()) {
-      if (it->second == nullptr) {
-        return arena().obracket();
-      }
-      return ConcatN(arena(), {FormatTypeAnnotation(*it->second),
-                               arena().colon(), arena().obracket()});
-    }
-    return Formatter::FormatMakeArrayLeader(n);
-  }
-
-  DocRef FormatBlockedExprLeader(const Expr& e) override {
-    if (e.kind() == AstNodeKind::kArray) {
-      return FormatMakeArrayLeader(static_cast<const Array&>(e));
-    }
-    return Formatter::FormatBlockedExprLeader(e);
-  }
-
-  bool IsBlockedExprNoLeader(const Expr& e) override {
-    if (e.kind() == AstNodeKind::kArray) {
-      const auto& arr = static_cast<const Array&>(e);
-      if (auto it = array_leader_types_.find(&arr);
-          it != array_leader_types_.end()) {
-        return it->second == nullptr;
-      }
-    }
-    return Formatter::IsBlockedExprNoLeader(e);
-  }
-
-  bool IsBlockedExprWithLeader(const Expr& e) override {
-    if (e.kind() == AstNodeKind::kArray) {
-      const auto& arr = static_cast<const Array&>(e);
-      if (auto it = array_leader_types_.find(&arr);
-          it != array_leader_types_.end()) {
-        return it->second != nullptr;
-      }
-    }
-    return Formatter::IsBlockedExprWithLeader(e);
-  }
-
   DocRef FormatArray(const Array& n) override {
-    // Delegate array and element type-annotation simplification to
-    // `ScopedArrayConfig`.
+    // Delegate element type-annotation simplification to `ScopedArrayConfig`.
     ScopedArrayConfig config(*this, n);
     return Formatter::FormatArray(n);
   }
@@ -913,35 +864,26 @@ class TypeAnnotationSimplifier : public Formatter {
     return node;
   }
 
-  // Per-expression simplification state used to override `type_inferred_` and
-  // `forced_type_annotation_` when formatting a specific child `Expr`.
+  // Per-expression simplification state used to override `type_inferred_` when
+  // formatting a specific child `Expr`.
   struct ExprContext {
     bool type_inferred = false;
-    const TypeAnnotation* forced_type_annotation = nullptr;
   };
 
-  // RAII guard that temporarily sets `type_inferred_` and
-  // `forced_type_annotation_` on `TypeAnnotationSimplifier` for the duration of
-  // a subtree's formatting and restores the previous values upon destruction.
+  // RAII guard that temporarily sets `type_inferred_` on
+  // `TypeAnnotationSimplifier` for the duration of a subtree's formatting and
+  // restores the previous value upon destruction.
   class ScopedContext {
    public:
-    ScopedContext(TypeAnnotationSimplifier& s, bool type_inferred,
-                  const TypeAnnotation* forced_type = nullptr)
-        : s_(s),
-          old_type_inferred_(s.type_inferred_),
-          old_forced_type_(s.forced_type_annotation_) {
+    ScopedContext(TypeAnnotationSimplifier& s, bool type_inferred)
+        : s_(s), old_type_inferred_(s.type_inferred_) {
       s_.type_inferred_ = type_inferred;
-      s_.forced_type_annotation_ = forced_type;
     }
-    ~ScopedContext() {
-      s_.type_inferred_ = old_type_inferred_;
-      s_.forced_type_annotation_ = old_forced_type_;
-    }
+    ~ScopedContext() { s_.type_inferred_ = old_type_inferred_; }
 
    private:
     TypeAnnotationSimplifier& s_;
     bool old_type_inferred_;
-    const TypeAnnotation* old_forced_type_;
   };
 
   // RAII guard that registers temporary `ExprContext` overrides in
@@ -996,11 +938,9 @@ class TypeAnnotationSimplifier : public Formatter {
     std::optional<bool> old_;
   };
 
-  // RAII guard that computes and records whether an `Array` literal should
-  // emit a leading array type annotation (`array_leader_types_`) and sets
-  // per-element `ExprContext` overrides (including pushing the element type
-  // down to the first element when dropping the outer array annotation).
-  // Guards against re-entry when `FormatArray` delegates to
+  // RAII guard that sets per-element `ExprContext` overrides for an `Array`
+  // literal while always preserving any explicit array type annotation on the
+  // literal itself. Guards against re-entry when `FormatArray` delegates to
   // `FormatArrayWithoutComments`.
   class ScopedArrayConfig {
    public:
@@ -1011,55 +951,28 @@ class TypeAnnotationSimplifier : public Formatter {
         return;
       }
       active_ = true;
-      const TypeAnnotation* effective_type = n.type_annotation() != nullptr
-                                                 ? n.type_annotation()
-                                                 : s_.forced_type_annotation_;
-      const auto* array_type =
-          dynamic_cast<const ArrayTypeAnnotation*>(effective_type);
-      const TypeAnnotation* elem_type =
-          array_type != nullptr ? array_type->element_type() : nullptr;
 
-      bool any_non_literal = false;
-      for (const Expr* member : n.members()) {
-        if (HasNonLiteralType(member)) {
-          any_non_literal = true;
-          break;
-        }
-      }
-
-      if (s_.type_inferred_ && !n.has_ellipsis()) {
-        // The surrounding context already determines the array's full type and
-        // length (and there is no `...`), so drop both the outer array type
-        // annotation and all element type annotations.
-        s_.array_leader_types_[&n] = nullptr;
+      if (n.type_annotation() != nullptr || s_.type_inferred_) {
+        // Either the array carries an explicit array type annotation (which is
+        // always preserved) or the surrounding context already determines the
+        // array's type, so all element type annotations are redundant.
         for (const Expr* member : n.members()) {
           overrides_.Set(member, {.type_inferred = true});
-        }
-      } else if (!n.has_ellipsis() && !n.members().empty() &&
-                 (effective_type == nullptr || array_type != nullptr)) {
-        // The array's length is fixed by its explicit member list (no `...`),
-        // and its element type can be inferred from the members themselves:
-        // drop the outer array type annotation, and drop element type
-        // annotations on all members except element 0 when all members are
-        // literals (pushing `elem_type` onto element 0 if it is not already
-        // annotated).
-        s_.array_leader_types_[&n] = nullptr;
-        for (size_t i = 0; i < n.members().size(); ++i) {
-          if (!any_non_literal && i == 0) {
-            overrides_.Set(
-                n.members()[i],
-                {.type_inferred = false, .forced_type_annotation = elem_type});
-          } else {
-            overrides_.Set(n.members()[i], {.type_inferred = true});
-          }
         }
       } else {
-        // Either the array has an ellipsis (`...`), is empty, or its outer type
-        // annotation is a type alias (e.g., `MyArray:[1, 2]`): keep the outer
-        // array type annotation and drop all element type annotations.
-        s_.array_leader_types_[&n] = effective_type;
+        // Untyped array literal in an uninferred context: drop element type
+        // annotations on all members if any member has a non-literal type, or
+        // on all members after element 0 when all members are literals.
+        bool any_non_literal = false;
         for (const Expr* member : n.members()) {
-          overrides_.Set(member, {.type_inferred = true});
+          if (HasNonLiteralType(member)) {
+            any_non_literal = true;
+            break;
+          }
+        }
+        for (size_t i = 0; i < n.members().size(); ++i) {
+          overrides_.Set(n.members()[i],
+                         {.type_inferred = any_non_literal || i > 0});
         }
       }
     }
@@ -1080,11 +993,9 @@ class TypeAnnotationSimplifier : public Formatter {
   const TypeInfo& type_info_;
   absl::flat_hash_map<NodeKey, const AstNode*> original_nodes_;
   bool type_inferred_ = false;
-  const TypeAnnotation* forced_type_annotation_ = nullptr;
   std::optional<bool> match_pattern_inferred_;
   absl::flat_hash_map<const Expr*, ExprContext> expr_overrides_;
   absl::flat_hash_set<const Array*> active_arrays_;
-  absl::flat_hash_map<const Array*, const TypeAnnotation*> array_leader_types_;
 };
 
 }  // namespace

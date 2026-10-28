@@ -317,6 +317,10 @@ fn add_sized_with_flag<N: u32, CLAMP: bool = {false}>(a: uN[N], b: u32) -> uN[N]
     if CLAMP { a } else { a + (b as uN[N]) }
 }
 
+fn first_elem(arr: MyU32[3]) -> MyU32 {
+    arr[u32:0]
+}
+
 const CALL_CONCRETE = add_u32(u32:10, u32:20);
 const CALL_WITH_ALIAS = add_u32(MyU32:10, uN[WIDTH]:20);
 const CALL_PARAMETRIC_LITS = add_parametric(u32:10, u32:20);
@@ -328,6 +332,9 @@ const CALL_INDEPENDENT_DEFAULT = add_with_flags(u32:10, u32:20, MyU32:30);
 const CALL_INDEPENDENT_PARTIAL = add_with_flags<false>(u32:10, u32:20, u32:30);
 const CALL_SIZED_FLAG_INFERRED = add_sized_with_flag(u8:1, u32:2);
 const CALL_SIZED_FLAG_EXPLICIT = add_sized_with_flag<u32:8>(u8:1, u32:2);
+const CALL_ARRAY_TYPED = first_elem(MyU32[3]:[1, 2, 3]);
+const CALL_ARRAY_BOTH_TYPES = first_elem(MyU32[3]:[MyU32:1, MyU32:2, MyU32:3]);
+const CALL_ARRAY_UNTYPED = first_elem([MyU32:1, MyU32:2, MyU32:3]);
 )";
   constexpr std::string_view kWant = R"(import std;
 
@@ -353,6 +360,8 @@ fn add_sized_with_flag<N: u32, CLAMP: bool = {false}>(a: uN[N], b: u32) -> uN[N]
     if CLAMP { a } else { a + (b as uN[N]) }
 }
 
+fn first_elem(arr: MyU32[3]) -> MyU32 { arr[0] }
+
 const CALL_CONCRETE = add_u32(10, 20);
 const CALL_WITH_ALIAS = add_u32(MyU32:10, 20);
 const CALL_PARAMETRIC_LITS = add_parametric(u32:10, u32:20);
@@ -364,6 +373,9 @@ const CALL_INDEPENDENT_DEFAULT = add_with_flags(10, 20, MyU32:30);
 const CALL_INDEPENDENT_PARTIAL = add_with_flags<false>(10, 20, 30);
 const CALL_SIZED_FLAG_INFERRED = add_sized_with_flag(u8:1, u32:2);
 const CALL_SIZED_FLAG_EXPLICIT = add_sized_with_flag<8>(1, 2);
+const CALL_ARRAY_TYPED = first_elem(MyU32[3]:[1, 2, 3]);
+const CALL_ARRAY_BOTH_TYPES = first_elem(MyU32[3]:[1, 2, 3]);
+const CALL_ARRAY_UNTYPED = first_elem([1, 2, 3]);
 )";
   SimplifyAndExpectEq(kOriginal, kWant);
 }
@@ -374,31 +386,41 @@ TEST_F(TypeAnnotationSimplifierTest, ArrayLiterals) {
 type WordArray = u32[3];
 
 const ARR_WHOLE_TYPE = u32[3]:[1, 2, 3];
+const ARR_DIM_TYPE = u32[u32:3]:[u32:1, u32:2, u32:3];
 const ARR_ELEM_TYPES = [u32:1, u32:2, u32:3];
 const ARR_ELEM_ALIAS = [MyU32:0, 1, 2];
 const ARR_ELEM_ALIASES = [MyU32:0, MyU32:1, MyU32:2];
 const ARR_BOTH_TYPES = u32[3]:[u32:1, u32:2, u32:3];
 const ARR_TYPED_LHS: u32[3] = u32[3]:[u32:1, u32:2, u32:3];
+const ARR_TYPED_LHS_UNTYPED_RHS: u32[3] = [u32:1, u32:2, u32:3];
 const ARR_ALIAS = WordArray:[u32:1, u32:2, u32:3];
 const ARR_ALIAS_TYPED: WordArray = WordArray:[u32:1, u32:2, u32:3];
 const ARR_2D = u32[2][2]:[u32[2]:[u32:1, u32:2], u32[2]:[u32:3, u32:4]];
+const ARR_2D_OUTER_ONLY = u32[2][2]:[[u32:1, u32:2], [u32:3, u32:4]];
+const ARR_2D_UNTYPED = [[u32:1, u32:2], [u32:3, u32:4]];
 const ARR_2D_TYPED: u32[2][2] = u32[2][2]:[u32[2]:[u32:1, u32:2], u32[2]:[u32:3, u32:4]];
+const ARR_2D_TYPED_UNTYPED_RHS: u32[2][2] = [[u32:1, u32:2], [u32:3, u32:4]];
 const ARR_ELLIPSIS = u32[3]:[u32:0, ...];
 const ARR_ELLIPSIS_TYPED: u32[3] = u32[3]:[u32:0, ...];
 )";
   constexpr std::string_view kWant = R"(type MyU32 = u32;
 type WordArray = u32[3];
 
-const ARR_WHOLE_TYPE = [u32:1, 2, 3];
+const ARR_WHOLE_TYPE = u32[3]:[1, 2, 3];
+const ARR_DIM_TYPE = u32[3]:[1, 2, 3];
 const ARR_ELEM_TYPES = [u32:1, 2, 3];
 const ARR_ELEM_ALIAS = [MyU32:0, 1, 2];
 const ARR_ELEM_ALIASES = [MyU32:0, 1, 2];
-const ARR_BOTH_TYPES = [u32:1, 2, 3];
-const ARR_TYPED_LHS: u32[3] = [1, 2, 3];
+const ARR_BOTH_TYPES = u32[3]:[1, 2, 3];
+const ARR_TYPED_LHS: u32[3] = u32[3]:[1, 2, 3];
+const ARR_TYPED_LHS_UNTYPED_RHS: u32[3] = [1, 2, 3];
 const ARR_ALIAS = WordArray:[1, 2, 3];
-const ARR_ALIAS_TYPED: WordArray = [1, 2, 3];
-const ARR_2D = [[u32:1, 2], [3, 4]];
-const ARR_2D_TYPED: u32[2][2] = [[1, 2], [3, 4]];
+const ARR_ALIAS_TYPED: WordArray = WordArray:[1, 2, 3];
+const ARR_2D = u32[2][2]:[u32[2]:[1, 2], u32[2]:[3, 4]];
+const ARR_2D_OUTER_ONLY = u32[2][2]:[[1, 2], [3, 4]];
+const ARR_2D_UNTYPED = [[u32:1, 2], [3, 4]];
+const ARR_2D_TYPED: u32[2][2] = u32[2][2]:[u32[2]:[1, 2], u32[2]:[3, 4]];
+const ARR_2D_TYPED_UNTYPED_RHS: u32[2][2] = [[1, 2], [3, 4]];
 const ARR_ELLIPSIS = u32[3]:[0, ...];
 const ARR_ELLIPSIS_TYPED: u32[3] = u32[3]:[0, ...];
 )";
@@ -412,9 +434,9 @@ const CONCAT_BITS = u8:1 ++ u8:2;
 const CONCAT_ARRAYS = u32[2]:[u32:1, u32:2] ++ u32[2]:[u32:3, u32:4];
 )";
   constexpr std::string_view kWant = R"(const TUPLE = (u32:1, u16:2);
-const TUPLE_WITH_ARRAY = ([u32:1, 2], u8:3);
+const TUPLE_WITH_ARRAY = (u32[2]:[1, 2], u8:3);
 const CONCAT_BITS = u8:1 ++ u8:2;
-const CONCAT_ARRAYS = [u32:1, 2] ++ [u32:3, 4];
+const CONCAT_ARRAYS = u32[2]:[1, 2] ++ u32[2]:[3, 4];
 )";
   SimplifyAndExpectEq(kOriginal, kWant);
 }
@@ -439,7 +461,7 @@ TEST_F(TypeAnnotationSimplifierTest, ControlFlowAndIndexing) {
   constexpr std::string_view kWant = R"(fn compute(x: u32) -> u32 {
     let untyped_local = u32:5;
     let typed_local: u32 = 6;
-    let arr = [u32:10, 20, 30];
+    let arr = u32[3]:[10, 20, 30];
     let elem = arr[0];
     let sliced = x[0+:u16] ++ x[16:32];
     let loop_sum = for (i, acc): (u32, u32) in 0..4 {
@@ -492,21 +514,21 @@ pub fn make_group_config() -> GroupConfig {
 pub struct GroupConfig { items: ItemConfig[4], values: u32[4] }
 
 pub fn make_group_config() -> GroupConfig {
-    let very_long_local_array_variable_name_that_nears_column_limit_with_type_leader = [
-        ItemConfig { valid: true, has_payload: true, payload: 0x11111111 },
-        ItemConfig { valid: true, has_payload: true, payload: 0x22222222 },
-        ItemConfig { valid: false, has_payload: false, payload: 0 },
-        ItemConfig { valid: false, has_payload: false, payload: 0 },
-    ];
+    let very_long_local_array_variable_name_that_nears_column_limit_with_type_leader =
+        ItemConfig[4]:[
+            ItemConfig { valid: true, has_payload: true, payload: 0x11111111 },
+            ItemConfig { valid: true, has_payload: true, payload: 0x22222222 },
+            ItemConfig { valid: false, has_payload: false, payload: 0 },
+            ItemConfig { valid: false, has_payload: false, payload: 0 },
+        ];
     GroupConfig {
-        items:
-            [
-                ItemConfig { valid: true, has_payload: true, payload: 0x11111111 },
-                ItemConfig { valid: true, has_payload: true, payload: 0x22222222 },
-                very_long_local_array_variable_name_that_nears_column_limit_with_type_leader[2],
-                very_long_local_array_variable_name_that_nears_column_limit_with_type_leader[3],
-            ],
-        values: [0xffffffff, 0x11101111, 0x0001020a, 0x22222222],
+        items: ItemConfig[4]:[
+            ItemConfig { valid: true, has_payload: true, payload: 0x11111111 },
+            ItemConfig { valid: true, has_payload: true, payload: 0x22222222 },
+            very_long_local_array_variable_name_that_nears_column_limit_with_type_leader[2],
+            very_long_local_array_variable_name_that_nears_column_limit_with_type_leader[3],
+        ],
+        values: u32[4]:[0xffffffff, 0x11101111, 0x0001020a, 0x22222222],
     }
 }
 )";
