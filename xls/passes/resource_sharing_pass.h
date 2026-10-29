@@ -45,6 +45,7 @@
 #include "xls/passes/post_dominator_analysis.h"
 #include "xls/passes/resource_sharing_equivalence.h"
 #include "xls/passes/visibility_analysis.h"
+#include "xls/passes/visibility_analysis_pairwise.h"
 #include "xls/passes/visibility_expr_builder.h"
 
 namespace xls {
@@ -264,8 +265,11 @@ class ResourceSharingPass : public OptimizationFunctionBasePass {
                                                      const Config& config);
 
     VisibilityAnalyses(const VisibilityAnalysis& general_ref,
-                       const SingleSelectVisibilityAnalysis& single_select_ref)
-        : general(general_ref), single_select(single_select_ref) {}
+                       const SingleSelectVisibilityAnalysis& single_select_ref,
+                       const PairwiseVisibilityAnalysis& pairwise_ref)
+        : general(general_ref),
+          single_select(single_select_ref),
+          pairwise(pairwise_ref) {}
 
     VisibilityAnalyses(
         std::unique_ptr<NodeForwardDependencyAnalysis> nda,
@@ -276,7 +280,8 @@ class ResourceSharingPass : public OptimizationFunctionBasePass {
         std::unique_ptr<OperandVisibilityAnalysis> op_visibility,
         std::unique_ptr<VisibilityAnalysis> general_storage,
         std::unique_ptr<OperandVisibilityAnalysis> op_vis_large,
-        std::unique_ptr<SingleSelectVisibilityAnalysis> single_select_storage)
+        std::unique_ptr<SingleSelectVisibilityAnalysis> single_select_storage,
+        std::unique_ptr<PairwiseVisibilityAnalysis> pairwise_storage)
         : nda(std::move(nda)),
           nda_backwards(std::move(nda_backwards)),
           post_dom(std::move(post_dom)),
@@ -287,7 +292,9 @@ class ResourceSharingPass : public OptimizationFunctionBasePass {
           op_vis_large(std::move(op_vis_large)),
           single_select_storage(std::move(single_select_storage)),
           general(*this->general_storage),
-          single_select(*this->single_select_storage) {}
+          single_select(*this->single_select_storage),
+          pairwise_storage(std::move(pairwise_storage)),
+          pairwise(*this->pairwise_storage) {}
 
     VisibilityAnalyses(VisibilityAnalyses&& o)
         : nda(std::move(o.nda)),
@@ -302,7 +309,10 @@ class ResourceSharingPass : public OptimizationFunctionBasePass {
           general(general_storage != nullptr ? *general_storage : o.general),
           single_select(single_select_storage != nullptr
                             ? *single_select_storage
-                            : o.single_select) {}
+                            : o.single_select),
+          pairwise_storage(std::move(o.pairwise_storage)),
+          pairwise(pairwise_storage != nullptr ? *pairwise_storage
+                                               : o.pairwise) {}
 
     VisibilityAnalyses& operator=(VisibilityAnalyses&&) = delete;
     VisibilityAnalyses(const VisibilityAnalyses&) = delete;
@@ -320,6 +330,9 @@ class ResourceSharingPass : public OptimizationFunctionBasePass {
 
     const VisibilityAnalysis& general;
     const SingleSelectVisibilityAnalysis& single_select;
+
+    std::unique_ptr<PairwiseVisibilityAnalysis> pairwise_storage;
+    const PairwiseVisibilityAnalysis& pairwise;
   };
 
   struct FunctionFoldingGraph {

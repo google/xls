@@ -66,6 +66,7 @@
 #include "xls/passes/post_dominator_analysis.h"
 #include "xls/passes/resource_sharing_equivalence.h"
 #include "xls/passes/visibility_analysis.h"
+#include "xls/passes/visibility_analysis_pairwise.h"
 #include "xls/passes/visibility_expr_builder.h"
 #include "xls/visualization/math_notation.h"
 
@@ -211,6 +212,24 @@ bool CanTarget(Node* n) {
   return false;
 }
 
+Op GetEquivalenceFamily(Node* n) {
+  Op op = n->op();
+  if (op == Op::kAdd || op == Op::kSub || OpIsCompare(op)) {
+    return Op::kSub;
+  }
+  switch (op) {
+    case Op::kShll:
+    case Op::kShrl:
+    case Op::kShra:
+      return Op::kShll;
+    case Op::kUMul:
+    case Op::kSMul:
+      return Op::kUMul;
+    default:
+      return op;
+  }
+}
+
 absl::StatusOr<absl::btree_set<ResourceSharingPass::MutuallyExclPair>>
 ResourceSharingPass::ComputeMutualExclusionAnalysis(
     FunctionBase* f, OptimizationContext& context,
@@ -218,27 +237,30 @@ ResourceSharingPass::ComputeMutualExclusionAnalysis(
     const VisibilityAnalyses& visibility) {
   absl::btree_set<MutuallyExclPair> mutual_exclusivity;
 
-  std::vector<Node*> relevant_nodes;
-  // Relatively few nodes are expected to satisfy the target criteria.
-  relevant_nodes.reserve(f->node_count() / 10);
+  absl::flat_hash_map<Op, std::vector<Node*>> family_to_relevant_nodes;
   for (Node* node : f->nodes()) {
     if (CanTarget(node) && should_target(node)) {
-      relevant_nodes.push_back(node);
+      family_to_relevant_nodes[GetEquivalenceFamily(node)].push_back(node);
     }
   }
-  for (auto&& nodes : iter::combinations(relevant_nodes, 2)) {
-    Node* one_node = nodes[0];
-    Node* other_node = nodes[1];
-    // Leverage both single select visibility analysis and the general
-    // visibility analysis in case the other of the two analyses produced a
-    // conservative expression which is unable to prove mutual exclusivity.
-    // The general analysis produces a conservative expression should the BDD
-    // saturate. The single select analysis only produces an expression where
-    // the node's visibility is entirely representable by a single priority
-    // select descendant of the node.
-    if (visibility.single_select.IsMutuallyExclusive(one_node, other_node) ||
-        visibility.general.IsMutuallyExclusive(one_node, other_node)) {
-      mutual_exclusivity.emplace(one_node, other_node);
+  for (const auto& [family, relevant_nodes] : family_to_relevant_nodes) {
+    for (auto&& nodes : iter::combinations(relevant_nodes, 2)) {
+      Node* one_node = nodes[0];
+      Node* other_node = nodes[1];
+
+      // Leverage multiple visibility analyses in case some of the analyses
+      // produced a conservative expression which is unable to prove mutual
+      // exclusivity. The general analysis produces a conservative expression
+      // should the BDD saturate. The single select analysis only produces an
+      // expression where the node's visibility is entirely representable by a
+      // single priority select descendant of the node. The pairwise analysis
+      // minimizes the visibility expression for the pair by restricting
+      // constraints to shared BDD variables.
+      if (visibility.single_select.IsMutuallyExclusive(one_node, other_node) ||
+          visibility.general.IsMutuallyExclusive(one_node, other_node) ||
+          visibility.pairwise.IsMutuallyExclusive(one_node, other_node)) {
+        mutual_exclusivity.emplace(one_node, other_node);
+      }
     }
   }
 
@@ -284,20 +306,38 @@ ResourceSharingPass::GetFoldableActionForMutuallyExclusiveNodes(
     XLS_ASSIGN_OR_RETURN(
         from_edges,
         visibility.single_select.GetEdgesForVisibilityExpr(from_node));
-    XLS_ASSIGN_OR_RETURN(
-        to_edges, visibility.single_select.GetEdgesForVisibilityExpr(to_node));
-    // Specifying a sink indicates that visibility through ths node is
-    // equivalent to visibility through all terminal nodes.
-    sinks = {visibility.single_select.GetInfo(from_node)->select};
-  } else {
-    XLS_ASSIGN_OR_RETURN(
-        from_edges,
-        visibility.general.GetEdgesForMutuallyExclusiveVisibilityExpr(
-            from_node, {to_node}, max_edges_to_handle));
-    XLS_ASSIGN_OR_RETURN(
-        to_edges, visibility.general.GetEdgesForMutuallyExclusiveVisibilityExpr(
-                      to_node, {from_node}, max_edges_to_handle));
+    // Only waste time computing to_edges if from_edges was computable.
+    to_edges.clear();
+    if (!from_edges.empty()) {
+      XLS_ASSIGN_OR_RETURN(
+          to_edges,
+          visibility.single_select.GetEdgesForVisibilityExpr(to_node));
+    }
+    if (!to_edges.empty()) {
+      // Specifying a sink indicates that visibility through ths node is
+      // equivalent to visibility through all terminal nodes.
+      sinks = {visibility.single_select.GetInfo(from_node)->select};
+    }
   }
+  auto try_next_analysis_variant = [&](auto& variant) -> absl::Status {
+    if ((from_edges.empty() || to_edges.empty()) &&
+        variant.IsMutuallyExclusive(from_node, to_node)) {
+      XLS_ASSIGN_OR_RETURN(from_edges,
+                           variant.GetEdgesForMutuallyExclusiveVisibilityExpr(
+                               from_node, {to_node}, max_edges_to_handle));
+      // Only waste time computing to_edges if from_edges was computable.
+      to_edges.clear();
+      if (!from_edges.empty()) {
+        XLS_ASSIGN_OR_RETURN(to_edges,
+                             variant.GetEdgesForMutuallyExclusiveVisibilityExpr(
+                                 to_node, {from_node}, max_edges_to_handle));
+      }
+    }
+    return absl::OkStatus();
+  };
+  XLS_RETURN_IF_ERROR(try_next_analysis_variant(visibility.general));
+  XLS_RETURN_IF_ERROR(try_next_analysis_variant(visibility.pairwise));
+
   if (from_edges.empty() || to_edges.empty()) {
     // This will only ever happen if visibility analysis returns no edges
     // because there were too many of them, more than the configured threshold
@@ -344,13 +384,30 @@ ResourceSharingPass::ComputeFoldableActions(
         std::unique_ptr<BinaryFoldingAction> fold_one_into_other,
         GetFoldableActionForMutuallyExclusiveNodes(
             one_node, other_node, visibility, config.max_edges_to_handle));
+
+    if (fold_one_into_other) {
+      // Directly construct the reverse folding action to avoid recomputing
+      // visibility expressions.
+      XLS_ASSIGN_OR_RETURN(
+          std::optional<NodeToMappings> mappings,
+          GetNodeEquivalenceMapper().ComputeMappings({other_node}, one_node));
+      if (mappings.has_value()) {
+        auto fold_other_into_one = std::make_unique<BinaryFoldingAction>(
+            other_node, one_node, fold_one_into_other->GetToVisibilityEdges(),
+            fold_one_into_other->GetFromVisibilityEdges(),
+            fold_one_into_other->area_saved(), std::move(*mappings),
+            fold_one_into_other->GetSinks());
+        foldable_actions.push_back(std::move(fold_other_into_one));
+      }
+      foldable_actions.push_back(std::move(fold_one_into_other));
+      continue;
+    }
+
+    // There is no visibility to reuse, try folding in the other direction.
     XLS_ASSIGN_OR_RETURN(
         std::unique_ptr<BinaryFoldingAction> fold_other_into_one,
         GetFoldableActionForMutuallyExclusiveNodes(
             other_node, one_node, visibility, config.max_edges_to_handle));
-    if (fold_one_into_other) {
-      foldable_actions.push_back(std::move(fold_one_into_other));
-    }
     if (fold_other_into_one) {
       foldable_actions.push_back(std::move(fold_other_into_one));
     }
@@ -428,31 +485,34 @@ ResourceSharingPass::MakeNaryFoldingAction(
     }
     rest_of_others.push_back(binary_folding->GetTo());
 
-    bool is_describable_via_single_select = true;
-    bool is_describable_via_full_visibility = true;
-    for (Node* other : rest_of_others) {
-      if (!visibility.single_select.IsMutuallyExclusive(
-              binary_folding->GetFrom(), other)) {
-        is_describable_via_single_select = false;
-        if (!is_describable_via_full_visibility) {
-          break;
+    // Determine whether `binary_folding->GetFrom()` is provably mut excl with
+    // all of `rest_of_others` nodes as determined by each analysis variant.
+    auto is_mut_excl_with_analysis = [&](const auto& analysis) -> bool {
+      for (Node* other : rest_of_others) {
+        if (!analysis.IsMutuallyExclusive(binary_folding->GetFrom(), other)) {
+          return false;
         }
       }
-      if (!visibility.general.IsMutuallyExclusive(binary_folding->GetFrom(),
-                                                  other)) {
-        is_describable_via_full_visibility = false;
-        if (!is_describable_via_single_select) {
-          break;
-        }
-      }
-    }
+      return true;
+    };
 
     absl::flat_hash_set<OperandVisibilityAnalysis::OperandNode> edges;
-    if (is_describable_via_single_select) {
+    // If the source is describable by visibility on a single select, or if
+    // there is only one other node, we use the binary folding's edges.
+    if (is_mut_excl_with_analysis(visibility.single_select) ||
+        rest_of_others.size() == 1) {
       edges = binary_folding->GetFromVisibilityEdges();
-    } else if (is_describable_via_full_visibility) {
+    }
+    // If not, try general visibility, and finally pairwise visibility.
+    if (edges.empty() && is_mut_excl_with_analysis(visibility.general)) {
       XLS_ASSIGN_OR_RETURN(
           edges, visibility.general.GetEdgesForMutuallyExclusiveVisibilityExpr(
+                     binary_folding->GetFrom(), rest_of_others,
+                     config.max_edges_to_handle));
+    }
+    if (edges.empty() && is_mut_excl_with_analysis(visibility.pairwise)) {
+      XLS_ASSIGN_OR_RETURN(
+          edges, visibility.pairwise.GetEdgesForMutuallyExclusiveVisibilityExpr(
                      binary_folding->GetFrom(), rest_of_others,
                      config.max_edges_to_handle));
     }
@@ -2354,11 +2414,15 @@ ResourceSharingPass::VisibilityAnalyses::Create(FunctionBase* f,
       SingleSelectVisibilityAnalysis::Create(op_vis_large_ptr.get(), nda.get(),
                                              bdd_engine.get()));
 
-  return VisibilityAnalyses(std::move(nda), std::move(nda_backwards),
-                            std::move(post_dom), std::move(bdd_engine),
-                            std::move(bpa), std::move(op_visibility_ptr),
-                            std::move(visibility), std::move(op_vis_large_ptr),
-                            std::move(single_select_visibility));
+  XLS_ASSIGN_OR_RETURN(auto pairwise_visibility,
+                       PairwiseVisibilityAnalysis::Create(
+                           *op_visibility_ptr.get(), *visibility.get()));
+
+  return VisibilityAnalyses(
+      std::move(nda), std::move(nda_backwards), std::move(post_dom),
+      std::move(bdd_engine), std::move(bpa), std::move(op_visibility_ptr),
+      std::move(visibility), std::move(op_vis_large_ptr),
+      std::move(single_select_visibility), std::move(pairwise_visibility));
 }
 
 // This function computes the resource sharing optimization for multiplication

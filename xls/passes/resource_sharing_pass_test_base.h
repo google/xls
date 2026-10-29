@@ -1716,6 +1716,48 @@ TYPED_TEST_P(ResourceSharingPassTestBase, MergeAllShiftsTogether) {
   EXPECT_EQ(NumberOfShifts(f), 1);
 }
 
+TYPED_TEST_P(ResourceSharingPassTestBase, MergeComparisonAndSubtract) {
+  std::unique_ptr<Package> p = this->CreatePackage();
+  FunctionBuilder fb(this->TestName(), p.get());
+  Type* u16 = p->GetBitsType(16);
+  Type* u8 = p->GetBitsType(8);
+  BValue cond = fb.Param("cond", p->GetBitsType(1));
+  BValue sub = fb.Subtract(fb.Param("a", u16), fb.Param("b", u16));
+  BValue ult = fb.ULt(fb.Param("x", u8), fb.Param("y", u8));
+  BValue sel = fb.Select(cond, {sub, fb.ZeroExtend(ult, 16)});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(sel));
+
+  XLS_ASSERT_OK_AND_ASSIGN(ResourceSharingPass::VisibilityAnalyses visibilities,
+                           ResourceSharingPass::VisibilityAnalyses::Create(
+                               f, ResourceSharingPass::kDefaultConfig));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::vector<std::unique_ptr<BinaryFoldingAction>> foldable_actions,
+      GetBinaryFoldings(f, visibilities));
+  std::vector<BinaryFoldingAction*> selected_folds;
+  for (const auto& action : foldable_actions) {
+    if (action->GetTo()->op() == Op::kSub) {
+      selected_folds.push_back(action.get());
+    }
+  }
+  ASSERT_EQ(selected_folds.size(), 1);
+
+  ScopedVerifyEquivalence check_equivalent(f, absl::Seconds(10));
+  XLS_ASSERT_OK(ApplyBinaryFoldings(selected_folds, f, visibilities).status());
+
+  EXPECT_EQ(NumberOfNodes(f, {Op::kSub}), 1);
+  EXPECT_EQ(NumberOfNodes(f, {Op::kULt}), 0);
+  auto sub_folded =
+      m::Sub(m::PrioritySelect(m::Eq(cond.node(), m::Literal(1)),
+                               /*cases=*/{m::ZeroExt(m::Param("x"))},
+                               /*default_value=*/m::Param("a")),
+             m::PrioritySelect(m::Eq(cond.node(), m::Literal(1)),
+                               /*cases=*/{m::ZeroExt(m::Param("y"))},
+                               /*default_value=*/m::Param("b")));
+  auto msb = m::ZeroExt(m::BitSlice(sub_folded, /*start=*/15, /*width=*/1));
+  EXPECT_THAT(f->return_value(),
+              m::Select(cond.node(), /*cases=*/{sub_folded, msb}));
+}
+
 REGISTER_TYPED_TEST_SUITE_P(
     ResourceSharingPassTestBase, MergeSingleUnsignedMultiplication,
     MergeSingleUnsignedMultiplication2, MergeSingleSignedMultiplication,
@@ -1730,9 +1772,9 @@ REGISTER_TYPED_TEST_SUITE_P(
     MergeAddsWithDifferentBitwidths, MergeSubs, MergeSubs2,
     MergeSubsWithDifferentBitwidths, MergeAddsAndSubs, MergeShift,
     MergeShiftLeftAndRight, MergeShiftLogicalAndArithmetic,
-    MergeAllShiftsTogether, MergeMultipliesAndAddsUsedByTwoSelects,
-    PreventCyclesInFoldingChains, PreventCyclesInFoldingChainsNary,
-    PreventCyclesInFoldingChainsIndirect);
+    MergeAllShiftsTogether, MergeComparisonAndSubtract,
+    MergeMultipliesAndAddsUsedByTwoSelects, PreventCyclesInFoldingChains,
+    PreventCyclesInFoldingChainsNary, PreventCyclesInFoldingChainsIndirect);
 
 }  // namespace xls
 

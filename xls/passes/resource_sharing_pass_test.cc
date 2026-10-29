@@ -23,6 +23,7 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "xls/common/fuzzing/fuzztest.h"
+#include "absl/algorithm/container.h"
 #include "absl/container/btree_set.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
@@ -504,6 +505,44 @@ TEST_F(ResourceSharingPassTest, SelectSubsetOfFoldsEachInputMuxEstimated) {
           ResourceSharingPass::kDefaultConfig));
   EXPECT_TRUE(estimate_rejected.folds.empty());
   EXPECT_DOUBLE_EQ(estimate_rejected.area_saved, 0.0);
+}
+
+TEST_F(ResourceSharingPassTest,
+       IgnoresComplexIrrelevantConditionsForMutualExclusivity) {
+  // Create two shifts to share.
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue opcode = fb.Param("opcode", p->GetBitsType(6));
+  BValue mode_1 = fb.Param("mode_1", p->GetBitsType(4));
+  BValue mode_2 = fb.Param("mode_2", p->GetBitsType(4));
+  BValue mode_3 = fb.Param("mode_3", p->GetBitsType(4));
+  BValue a = fb.Param("a", p->GetBitsType(8));
+  BValue b = fb.Param("b", p->GetBitsType(8));
+  BValue shll_1 = fb.Shll(a, b);
+  BValue shll_2 = fb.Shll(b, a);
+
+  // Gate usage of the shifts by high BDD path count xor operations and only one
+  // operation on a shared variable `opcode` to exercise pairwise visibility's
+  // strength. Then verify only pairwise visibility proves mutual exclusivity.
+  BValue sh1_gated =
+      fb.Gate(fb.XorReduce(mode_3), fb.Gate(fb.XorReduce(mode_1), shll_1));
+  BValue sh2_gated = fb.Gate(fb.XorReduce(mode_2), shll_2);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Function * f,
+      fb.BuildWithReturnValue(
+          fb.Select(fb.XorReduce(opcode), /*cases=*/{sh2_gated, sh1_gated})));
+
+  // Verify PairwiseVisibilityAnalysis enables folding the shifts.
+  XLS_ASSERT_OK_AND_ASSIGN(ResourceSharingPass::VisibilityAnalyses visibilities,
+                           ResourceSharingPass::VisibilityAnalyses::Create(
+                               f, ResourceSharingPass::kDefaultConfig));
+  EXPECT_TRUE(
+      visibilities.pairwise.IsMutuallyExclusive(shll_1.node(), shll_2.node()));
+  ScopedVerifyEquivalence sve(f);
+  EXPECT_THAT(ResourceSharingPassRunner::RunPass(f), IsOkAndHolds(true));
+  EXPECT_EQ(absl::c_count_if(
+                f->nodes(), [](Node* node) { return node->op() == Op::kShll; }),
+            1);
 }
 
 void IrFuzzResourceSharing(FuzzPackageWithArgs fuzz_package_with_args) {

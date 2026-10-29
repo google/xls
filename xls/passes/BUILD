@@ -1390,6 +1390,7 @@ xls_pass(
         ":post_dominator_analysis",
         ":resource_sharing_equivalence",
         ":visibility_analysis",
+        ":visibility_analysis_pairwise",
         ":visibility_expr_builder",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
@@ -2026,6 +2027,7 @@ cc_library(
     hdrs = ["visibility_analysis_pairwise.h"],
     deps = [
         ":visibility_analysis",
+        "//xls/common/status:status_macros",
         "//xls/data_structures:binary_decision_diagram",
         "//xls/data_structures:inline_bitmap",
         "//xls/ir",
@@ -5141,6 +5143,7 @@ cc_test(
         "//xls/ir:op",
         "//xls/ir:source_location",
         "//xls/solvers:ir_equivalence_testutils",
+        "@abseil-cpp//absl/algorithm:container",
         "@abseil-cpp//absl/container:btree",
         "@abseil-cpp//absl/container:flat_hash_map",
         "@abseil-cpp//absl/container:flat_hash_set",
