@@ -89,6 +89,7 @@ load(
 # XLS Rules
 check_sha256sum_test = _check_sha256sum_test
 check_sha256sum_frozen = _check_sha256sum_frozen
+dslx_fuzz_test = _dslx_fuzz_test
 proto_data = _proto_data
 xls_dslx_library = _xls_dslx_library
 xls_dslx_test = _xls_dslx_test
@@ -129,4 +130,3 @@ xls_model_generation = _xls_model_generation
 xls_ir_verilog_fdo = _xls_ir_verilog_fdo
 
 xls_diff_test = _xls_diff_test
-dslx_fuzz_test = _dslx_fuzz_test

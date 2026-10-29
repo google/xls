@@ -5,6 +5,36 @@
 
 <!-- DO NOT REMOVE! Placeholder for TOC. -->
 
+<a id="dslx_fuzz_test"></a>
+
+## dslx_fuzz_test
+
+<pre>
+load("//xls/build_rules:xls_build_defs.bzl", "dslx_fuzz_test")
+
+dslx_fuzz_test(<a href="#dslx_fuzz_test-name">name</a>, <a href="#dslx_fuzz_test-jit_namespace">jit_namespace</a>, <a href="#dslx_fuzz_test-library">library</a>, <a href="#dslx_fuzz_test-opt_ir">opt_ir</a>, <a href="#dslx_fuzz_test-pass_pipeline">pass_pipeline</a>, <a href="#dslx_fuzz_test-ram_rewrites">ram_rewrites</a>, <a href="#dslx_fuzz_test-test_function">test_function</a>)
+</pre>
+
+A build rule that generates and runs a C++ FuzzTest for a DSLX function.
+
+The rule converts the DSLX library to XLS IR (and optionally optimizes it),
+AOT-compiles the IR with LLVM coverage instrumentation, generates C++ JIT and
+FuzzTest wrappers, and compiles and links the test executable.
+
+**ATTRIBUTES**
+
+
+| Name  | Description | Type | Mandatory | Default |
+| :------------- | :------------- | :------------- | :------------- | :------------- |
+| <a id="dslx_fuzz_test-name"></a>name |  A unique name for this target.   | <a href="https://bazel.build/concepts/labels#target-names">Name</a> | required |  |
+| <a id="dslx_fuzz_test-jit_namespace"></a>jit_namespace |  The C++ namespace for the generated JIT wrapper class.   | String | optional |  `"dslx_fuzztest::impl"`  |
+| <a id="dslx_fuzz_test-library"></a>library |  The xls_dslx_library target containing the DSLX code.   | <a href="https://bazel.build/concepts/labels">Label</a> | required |  |
+| <a id="dslx_fuzz_test-opt_ir"></a>opt_ir |  Whether to generate optimized IR or not.   | Boolean | optional |  `False`  |
+| <a id="dslx_fuzz_test-pass_pipeline"></a>pass_pipeline |  The pass pipeline to use.<br><br>This should generally not be used directly. Prefer using the toolchains to control what pass pipeline to use. The provided toolchain here must not have any pass library linked to it that the one configured via toolchains lacks.   | <a href="https://bazel.build/concepts/labels">Label</a> | optional |  `"//xls/passes"`  |
+| <a id="dslx_fuzz_test-ram_rewrites"></a>ram_rewrites |  List of ram rewrite protos.   | <a href="https://bazel.build/concepts/labels">List of labels</a> | optional |  `[]`  |
+| <a id="dslx_fuzz_test-test_function"></a>test_function |  The name of the top-level DSLX function to be fuzzed.   | String | required |  |
+
+
 <a id="proto_data"></a>
 
 ## proto_data
@@ -506,37 +536,6 @@ check_sha256sum_test(<a href="#check_sha256sum_test-name">name</a>, <a href="#ch
 | <a id="check_sha256sum_test-sha256sum"></a>sha256sum |  <p align="center"> - </p>   |  none |
 | <a id="check_sha256sum_test-tags"></a>tags |  <p align="center"> - </p>   |  `[]` |
 | <a id="check_sha256sum_test-kwargs"></a>kwargs |  <p align="center"> - </p>   |  none |
-
-
-<a id="dslx_fuzz_test"></a>
-
-## dslx_fuzz_test
-
-<pre>
-load("//xls/build_rules:xls_build_defs.bzl", "dslx_fuzz_test")
-
-dslx_fuzz_test(<a href="#dslx_fuzz_test-name">name</a>, <a href="#dslx_fuzz_test-library">library</a>, <a href="#dslx_fuzz_test-test_function">test_function</a>, <a href="#dslx_fuzz_test-opt_ir">opt_ir</a>, <a href="#dslx_fuzz_test-jit_namespace">jit_namespace</a>, <a href="#dslx_fuzz_test-tags">tags</a>)
-</pre>
-
-A macro that instantiates a DSLX fuzz test.
-
-The macro instantiates:
-1. An xls_dslx_ir target to generate non-optimized IR.
-2. A cc_xls_ir_wrapper target to generate C++ fuzz test wrapper code.
-3. A cc_test target to run the fuzz test.
-
-
-**PARAMETERS**
-
-
-| Name  | Description | Default Value |
-| :------------- | :------------- | :------------- |
-| <a id="dslx_fuzz_test-name"></a>name |  The name of the test target.   |  none |
-| <a id="dslx_fuzz_test-library"></a>library |  The xls_dslx_library target containing the DSLX code.   |  none |
-| <a id="dslx_fuzz_test-test_function"></a>test_function |  The name of the top-level DSLX function to be fuzzed.   |  none |
-| <a id="dslx_fuzz_test-opt_ir"></a>opt_ir |  Whether to generate optimized IR or not.   |  `False` |
-| <a id="dslx_fuzz_test-jit_namespace"></a>jit_namespace |  The C++ namespace for the generated JIT wrapper class.   |  `"dslx_fuzztest::impl"` |
-| <a id="dslx_fuzz_test-tags"></a>tags |  Tags to apply to the generated cc_test target.   |  `[]` |
 
 
 <a id="get_mangled_ir_symbol"></a>

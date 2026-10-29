@@ -348,10 +348,14 @@ bzl_library(
     srcs = ["xls_fuzz_rules.bzl"],
     visibility = ["//visibility:private"],
     deps = [
-        ":xls_ir_macros_bzl",
+        ":xls_internal_aot_rules_bzl",
+        ":xls_ir_rules_bzl",
         ":xls_ir_wrapper_rules_bzl",
-        ":xls_macros_bzl",
-        "@rules_cc//cc:core_rules",
+        ":xls_providers_bzl",
+        ":xls_toolchains_bzl",
+        "//xls/build_rules/compat:toolchain_utils_bzl",
+        "@bazel_skylib//lib:dicts",
+        "@rules_cc//cc/common",
     ],
 )
 
