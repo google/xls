@@ -1,15 +1,15 @@
 # XLS Tools
 
-An index of XLS developer tools.
+An index of XLS command-line and developer tools.
 
-## [`bdd_stats`](https://github.com/google/xls/tree/main/xls/dev_tools/bdd_stats.cc)
+## [`bdd_stats`](https://github.com/google/xls/tree/main/xls/dev_tools/bdd_stats.cc) {#bdd-stats}
 
 Constructs a binary decision diagram (BDD) using a given XLS function and prints
 various statistics about the BDD. BDD construction can be very slow in
 pathological cases and this utility is useful for identifying the underlying
 causes. Accepts arbitrary IR as input or a benchmark specified by name.
 
-## [`benchmark_main`](https://github.com/google/xls/tree/main/xls/dev_tools/benchmark_main.cc)
+## [`benchmark_main`](https://github.com/google/xls/tree/main/xls/dev_tools/benchmark_main.cc) {#benchmark-main}
 
 Prints numerous metrics and other information about an XLS IR file including:
 total delay, critical path, codegen information, optimization time, etc. This
@@ -17,13 +17,13 @@ tool may be run against arbitrary IR not just the fixed set of XLS benchmarks.
 The output of this tool is scraped by `run_benchmarks` to construct a table
 comparing metrics against a mint CL across the benchmark suite.
 
-## [`block_to_verilog_main`](https://github.com/google/xls/tree/main/xls/tools/block_to_verilog_main.cc)
+## [`block_to_verilog_main`](https://github.com/google/xls/tree/main/xls/tools/block_to_verilog_main.cc) {#block-to-verilog-main}
 
 Lowers a XLS IR file containing a block into Verilog. This the final step of
 what `codegen_main` performs. This tool accepts the same codegen options as
 `codegen_main`.
 
-## [`booleanify_main`](https://github.com/google/xls/tree/main/xls/dev_tools/booleanify_main.cc)
+## [`booleanify_main`](https://github.com/google/xls/tree/main/xls/dev_tools/booleanify_main.cc) {#booleanify-main}
 
 Rewrites an XLS IR function in terms of its ops' fundamental AND/OR/NOT
 constituents, i.e., makes all operations boolean, thus it's "booleanifying" the
@@ -40,7 +40,7 @@ the backend.
 For a detailed list of codegen options including I/O configurations, please
 visit the [codegen options](codegen_options.md) page.
 
-## [`delay_info_main`](https://github.com/google/xls/tree/main/xls/tools/delay_info_main.cc)
+## [`delay_info_main`](https://github.com/google/xls/tree/main/xls/tools/delay_info_main.cc) {#delay-info-main}
 
 Dumps delay information about an XLS function including per-node delay
 information and critical-path.
@@ -52,7 +52,7 @@ depending on the type of design. `eval_ir_main` is used to simulate `fn` designs
 and `eval_proc_main` is used to simulate `proc` and `block` irs. Both binaries
 support running using the JIT to simulate at high performance.
 
-### [`eval_ir_main`](https://github.com/google/xls/tree/main/xls/tools/eval_ir_main.cc)
+### [`eval_ir_main`](https://github.com/google/xls/tree/main/xls/tools/eval_ir_main.cc) {#eval-ir-main}
 
 Evaluates an XLS IR file with user-specified or random inputs. Includes features
 for evaluating the IR before and after optimizations which makes this tool very
@@ -68,7 +68,7 @@ return true if the inputs are valid for the function and false otherwise.
 whereas `--input_validator_path` holds the path to a .x file containing the
 validation function.
 
-### [`eval_proc_main`](https://github.com/google/xls/tree/main/xls/tools/eval_proc_main.cc)
+### [`eval_proc_main`](https://github.com/google/xls/tree/main/xls/tools/eval_proc_main.cc) {#eval-proc-main}
 
 Simulates an XLS IR `proc` network or `block`. The tool accepts a list of inputs
 to provide to the channels of the proc/ports of the block and a list of expected
@@ -77,7 +77,7 @@ including simulating to input exhaustion. Port naming options like those of
 [`codegen_main`](#codegen-main) are also present to encode how to translate
 channel names into the block ready/valid/data ports.
 
-### Node Coverage
+### Node Coverage {#node-coverage}
 
 `eval_ir_main` and `eval_proc_main` can generate data coverage reports using the
 `--output_node_coverage_stats_[text]proto={file}` flag. This generates a
@@ -85,7 +85,7 @@ channel names into the block ready/valid/data ports.
 with information about which bits of every node were observed set. This can be
 used to validate transformations and gain insights into how the code performs.
 
-### Execution Tracing
+### Execution Tracing {#execution-tracing}
 
 `eval_ir_main` and `eval_proc_main` can record execution traces using the
 `--trace_output={file}` flag. This generates a trace file in
@@ -103,8 +103,8 @@ format for visualization. The tool
 converts an XLS trace to a Perfetto trace:
 
 ```shell
-bazel run //xls/tools:trace_to_perfetto_main -- \
-  --input_trace=/tmp/my_trace.riegeli --output_trace=/tmp/my_trace.perfetto
+$ bazel run -c opt //xls/tools:trace_to_perfetto_main -- \
+    --input_trace=/tmp/my_trace.riegeli --output_trace=/tmp/my_trace.perfetto
 ```
 
 The resulting `/tmp/my_trace.perfetto` file can be opened in the Perfetto web UI
@@ -117,14 +117,14 @@ One can use the `jit:aot_compiler_main` to inspect the jit code produced by our
 jits.
 
 ```sh
-% bazel-bin/xls/jit/aot_compiler_main \
-              --input=code.ir \
-              --output_asm code.asm \
-              --output_llvm_ir code_llvm.ll \
-              --output_llvm_opt_ir code_llvm.opt.ll \
-              --output_object code.o \
-              --llvm_opt_level=3 \
-              --top=top
+$ bazel run -c opt //xls/jit:aot_compiler_main -- \
+    --input=code.ir \
+    --output_asm code.asm \
+    --output_llvm_ir code_llvm.ll \
+    --output_llvm_opt_ir code_llvm.opt.ll \
+    --output_object code.o \
+    --llvm_opt_level=3 \
+    --top=top
 ```
 
 This produces files containing the assembly code, the LLVM IR, the LLVM IR after
@@ -136,7 +136,7 @@ between versions. If possible, LLVM tools built at the same commit as the JIT
 should be used to interact with the generated llvm bytecode. This can be done by
 building the LLVM tools using `bazel build` from the XLS repo.
 
-## [`ir_minimizer_main`](https://github.com/google/xls/tree/main/xls/dev_tools/ir_minimizer_main.cc)
+## [`ir_minimizer_main`](https://github.com/google/xls/tree/main/xls/dev_tools/ir_minimizer_main.cc) {#ir-minimizer-main}
 
 Tool for reducing IR to a minimal test case based on an external test.
 
@@ -146,7 +146,8 @@ Supports three modes of operation:
     output. For instance:
 
     ```shell
-    $ ir_minimizer_main --test_llvm_jit --use_optimization_pipeline \
+    $ bazel run -c opt //xls/dev_tools:ir_minimizer_main -- \
+        --test_llvm_jit --use_optimization_pipeline \
         --input='bits[32]:42; bits[1]:0' IR_FILE
     ```
 
@@ -158,7 +159,8 @@ Supports three modes of operation:
     unoptimized output. For instance:
 
     ```shell
-    $ ir_minimizer_main --test_optimizer --use_optimization_pipeline \
+    $ bazel run -c opt //xls/dev_tools:ir_minimizer_main -- \
+        --test_optimizer --use_optimization_pipeline \
         --input='bits[32]:42; bits[1]:0' IR_FILE
     ```
 
@@ -171,19 +173,21 @@ Supports three modes of operation:
     one command-line parameter:
 
     ```shell
-    $ ir_minimizer_main --test_executable=/foo/test.sh IR_FILE
+    $ bazel run -c opt //xls/dev_tools:ir_minimizer_main -- \
+        --test_executable=/foo/test.sh IR_FILE
     ```
 
     will start with the given `IR_FILE`, check that `/foo/test.sh IR_FILE`
     returns 0, and then try to reduce the IR as far as possible while still
     ensuring that `/foo/test.sh REDUCED_IR_FILE` returns 0.
 
-## [`ir_stats_main`](https://github.com/google/xls/tree/main/xls/dev_tools/ir_stats_main.cc)
+## [`ir_stats_main`](https://github.com/google/xls/tree/main/xls/dev_tools/ir_stats_main.cc) {#ir-stats-main}
 
 Prints summary information/stats on an IR [Package] file. An example:
 
 ```
-$ bazel-bin/xls/tools/ir_stats_main bazel-genfiles/xls/modules/fp32_add_2.ir
+$ bazel run -c opt //xls/dev_tools:ir_stats_main -- \
+    $PWD/bazel-genfiles/xls/modules/fp32_add_2.ir
 Package "fp32_add_2"
   Function: "__float32__is_inf"
     Signature: ((bits[1], bits[8], bits[23])) -> bits[1]
@@ -198,12 +202,12 @@ Package "fp32_add_2"
     Nodes: 252
 ```
 
-## [`check_ir_equivalence`](https://github.com/google/xls/tree/main/xls/dev_tools/check_ir_equivalence_main.cc)
+## [`check_ir_equivalence_main`](https://github.com/google/xls/tree/main/xls/dev_tools/check_ir_equivalence_main.cc) {#check-ir-equivalence-main}
 
 Verifies that two IR files (for example, optimized and unoptimized IR from the
 same source) are logically equivalent.
 
-## [`opt_main`](https://github.com/google/xls/tree/main/xls/tools/opt_main.cc)
+## [`opt_main`](https://github.com/google/xls/tree/main/xls/tools/opt_main.cc) {#opt-main}
 
 Runs XLS IR through the optimization pipeline.
 
@@ -236,7 +240,7 @@ available. Care should be used when modifying the values of these flags.
     throughput, but at the cost of constraining the schedule and thus increasing
     area. Defaults to `false`.
 
-### Debugging/Experimenting with Optimizations
+### Debugging/Experimenting with Optimizations {#debugging-experimenting-with-optimizations}
 
 There are also several flags which are used for debugging and understanding the
 behavior of the standard optimization pipeline itself and the passes which make
@@ -279,12 +283,11 @@ purposes only.
 -   `--area_model=MODEL`: Specify the area model to use during the IR
     optimizations. Defaults to `asap7`.
 
-## [`print_bom`](https://github.com/google/xls/tree/main/xls/tools/print_bom.cc)
+## [`print_bom`](https://github.com/google/xls/tree/main/xls/tools/print_bom.cc) {#print-bom}
 
 Tool to calculate and print a summary of the BOM (bill of materials) elements
 from `XlsMetricsProto` protobuf files produced using the `--block_metrics_path`
-`codegen_main` argument (or `.metrics.textproto` files emitted by
-[`xls_ir_verilog`](bazel_rules_macros.md#xls_ir_verilog)).
+`codegen_main` argument.
 
 Features include;
 
@@ -297,15 +300,18 @@ Features include;
 Running the following commands;
 
 ```
-bazel build //xls/examples/protobuf:varint_encode_sv
-bazel run //xls/tools:print_bom -- --root_path $PWD/bazel-bin/xls/examples/protobuf/
+$ codegen_main --generator=pipeline --delay_model=asap7 \
+    --clock_period_ps=4000 \
+    --block_metrics_path=/tmp/varint_encode_u32.metrics.textproto \
+    varint_encode.opt.ir > /tmp/varint_encode_u32.sv
+$ print_bom --root_path=/tmp/
 ```
 
 should produce the following output;
 
 ```
 Found 1 protobuf files.
- * bazel-bin/xls/examples/protobuf/varint_encode_u32.metrics.textproto
+ * /tmp/varint_encode_u32.metrics.textproto
 
  +------------------------+----------------+-------------+--------------+-------+
  |                   Kind |             Op | Input Width | Output Width | Count |
@@ -352,7 +358,8 @@ To save the details about the comparison operators to a machine readable CSV
 file you can do;
 
 ```
-bazel run //xls/tools:print_bom -- --root_path=$PWD/bazel-bin/xls/examples/protobuf/ --output_as=csv --op_kind=BOM_KIND_COMPARISON > my.csv
+$ print_bom --root_path=/tmp/ \
+    --output_as=csv --op_kind=BOM_KIND_COMPARISON > my.csv
 ```
 
 which will produce a CSV file which looks like the following;
@@ -366,7 +373,7 @@ BOM_KIND_COMPARISON,ne,18,1,1
 BOM_KIND_COMPARISON,ne,25,1,1
 ```
 
-## [`dslx/interpreter_main`](https://github.com/google/xls/tree/main/xls/dslx/interpreter_main.cc)
+## [`dslx/interpreter_main`](https://github.com/google/xls/tree/main/xls/dslx/interpreter_main.cc) {#interpreter-main}
 
 Interpreter for DSLX code and test-runner.
 
@@ -374,7 +381,7 @@ The `--compare` flag allows to also cross-checks that the conversion to IR and
 JIT compilation of the IR produces the same values.
 
 ```
-$ bazel run -c opt //xls/dslx:interpreter_main -- $PWD/xls/dslx/stdlib/std.x
+$ interpreter_main $PWD/xls/dslx/stdlib/std.x
 [ RUN UNITTEST  ] sizeof_signed_test
 [            OK ]
 ...
@@ -388,7 +395,7 @@ pointing at installation locations where DSLX modules have been placed.
 In a Bazel environment this binary is encapsulated in
 [an `xls_dslx_test` target](https://google.github.io/xls/bazel_rules_macros/#xls_dslx_test)
 
-## [`dslx/prove_quickcheck_main`](https://github.com/google/xls/tree/main/xls/dslx/prove_quickcheck_main.cc)
+## [`dslx/prove_quickcheck_main`](https://github.com/google/xls/tree/main/xls/dslx/prove_quickcheck_main.cc) {#prove-quickcheck-main}
 
 Command line utility for attempting to prove a quickcheck property via SMT
 translation. Invoke this tool as:
@@ -399,7 +406,7 @@ And it will attempt to prove the given quickcheck property over the entire input
 domain. Example:
 
 ```
-$ bazel run -c opt //xls/dslx:prove_quickcheck_main -- --test_filter=convert_to_from_bools $PWD/xls/dslx/stdlib/std.x
+$ prove_quickcheck_main --test_filter=convert_to_from_bools $PWD/xls/dslx/stdlib/std.x
 [ RUN QUICKCHECK        ] convert_to_from_bools
 ```
 
@@ -407,7 +414,7 @@ $ bazel run -c opt //xls/dslx:prove_quickcheck_main -- --test_filter=convert_to_
 available to one solver invocation. For example:
 
 ```
-$ ./bazel-bin/xls/dslx/prove_quickcheck_main --solver_num_threads=8 --test_filter=prop_odd_mul_injective property.x
+$ prove_quickcheck_main --solver_num_threads=8 --test_filter=prop_odd_mul_injective property.x
 ```
 
 It does not run multiple properties or random QuickCheck examples in parallel.
@@ -419,7 +426,7 @@ threads rejects a value greater than `1`.
     not dump a counterexample to terminal. A temporary workaround is to use
     `--alsologtostderr --v=1` until that functionality is completed.
 
-## [`dslx/dslx_fmt`](https://github.com/google/xls/tree/main/xls/dslx/dslx_fmt.cc)
+## [`dslx/dslx_fmt`](https://github.com/google/xls/tree/main/xls/dslx/dslx_fmt.cc) {#dslx-fmt}
 
 Auto-formatter for DSLX code (i.e. `.x` files). This is analogous to rustfmt /
 clang-format.
@@ -427,9 +434,8 @@ clang-format.
 To format a file in-place, use the `-i` flag:
 
 ```
-$ bazel build -c opt //xls/dslx:dslx_fmt
 $ echo 'fn f(x:u32)->u32{x}' > /tmp/my_file.x
-$ ./bazel-bin/xls/dslx/dslx_fmt -i /tmp/my_file.x
+$ dslx_fmt -i /tmp/my_file.x
 $ cat /tmp/my_file.x
 fn f(x: u32) -> u32 { x }
 ```
@@ -452,15 +458,25 @@ xls_dslx_fmt_test(
 Also see the
 [Bazel rule documentation for `xls_dslx_fmt_test`](https://google.github.io/xls/bazel_rules_macros/#xls_dslx_fmt_test).
 
-## [`dslx/ir_convert/ir_converter_main`](https://github.com/google/xls/tree/main/xls/dslx/ir_convert/ir_converter_main.cc)
+## [`dslx/lsp/dslx_ls`](https://github.com/google/xls/tree/main/xls/dslx/lsp/dslx_ls.cc) {#dslx-ls}
+
+[Language Server Protocol (LSP)](https://microsoft.github.io/language-server-protocol/)
+server for DSLX, providing IDE and editor features. See the
+[DSLX Language Server](dslx_language_server.md) page for details and editor
+configuration.
+
+```shell
+$ dslx_ls --stdlib_path=$PWD/xls/dslx/stdlib --dslx_path=$PWD
+```
+
+## [`dslx/ir_convert/ir_converter_main`](https://github.com/google/xls/tree/main/xls/dslx/ir_convert/ir_converter_main.cc) {#ir-converter-main}
 
 Tool for converting DSLX code (i.e. whole `.x` files or functions/procs inside
 of `.x` files) into XLS IR.
 
 ```
-$ bazel build -c opt //xls/dslx/ir_convert:ir_converter_main
 $ echo 'fn f(x:u32)->u32{x}' > /tmp/my_file.x
-$ ./bazel-bin/xls/dslx/ir_convert/ir_converter_main /tmp/my_file.x > /tmp/my_file.ir
+$ ir_converter_main /tmp/my_file.x > /tmp/my_file.ir
 $ cat /tmp/my_file.ir
 package my_file
 
@@ -471,7 +487,7 @@ fn __my_file__f(x: bits[32]) -> bits[32] {
 }
 ```
 
-## [`proto_to_dslx_main`](https://github.com/google/xls/tree/main/xls/tools/proto_to_dslx_main.cc)
+## [`proto_to_dslx_main`](https://github.com/google/xls/tree/main/xls/tools/proto_to_dslx_main.cc) {#proto-to-dslx-main}
 
 Takes in a proto schema and a textproto instance thereof and outputs a DSLX
 module containing a DSLX type and constant matching both inputs, respectively.
@@ -517,7 +533,7 @@ or other behaviors requiring explanation:
     `./xls/tools/testdata/proto_to_dslx_main.*` demonstrates this
     behavior.
 
-## [`repl`](https://github.com/google/xls/tree/main/xls/dev_tools/repl.cc)
+## [`repl`](https://github.com/google/xls/tree/main/xls/dev_tools/repl.cc) {#repl}
 
 Allows you to interactively run various parts of the compiler, including
 parsing/type checking (`:reload`), lowering/optimization (`:ir`), Verilog
@@ -527,13 +543,13 @@ even imported identifiers can be accessed with `:type foo::bar`.
 
 ![animated GIF](./repl.gif)
 
-## [`simulate_module_main`](https://github.com/google/xls/tree/main/xls/tools/simulate_module_main.cc)
+## [`simulate_module_main`](https://github.com/google/xls/tree/main/xls/tools/simulate_module_main.cc) {#simulate-module-main}
 
 Runs a Verilog block emitted by XLS through a Verilog simulator. Requires both
 the Verilog text and the module signature which includes metadata about the
 block.
 
-## [`smtlib_emitter_main`](https://github.com/google/xls/tree/main/xls/solvers/smtlib_emitter_main.cc)
+## [`smtlib_emitter_main`](https://github.com/google/xls/tree/main/xls/solvers/smtlib_emitter_main.cc) {#smtlib-emitter-main}
 
 Simple driver for Z3IrTranslator - converts a given IR function into its Z3
 representation and outputs that translation as SMTLIB2.
@@ -556,7 +572,7 @@ To turn it into "gate level" SMTLib, we can do a pre-pass through the
 `booleanify_main` tool:
 
 ```
-$ bazel run -c opt //xls/tools:booleanify_main -- --ir_path \
+$ bazel run -c opt //xls/dev_tools:booleanify_main -- --ir_path \
    $PWD/bazel-bin/xls/examples/tiny_adder.opt.ir \
    > /tmp/tiny_adder.boolified.ir
 $ bazel run -c opt //xls/solvers:smtlib_emitter_main -- \
@@ -573,17 +589,7 @@ $ bazel run -c opt //xls/solvers:smtlib_emitter_main -- \
           (bvand (bvor a!1 #b0) (bvnot (bvand a!1 #b0))))))
 ```
 
-## [`solver`](https://github.com/google/xls/tree/main/xls/solvers/solver.cc)
-
-Uses a SMT solver (i.e. Z3) to prove properties of an XLS IR program from the
-command line. Currently the set of "predicates" that the solver supports from
-the command line are limited, but in theory it is capable of solving for
-arbitrary IR-function-specified predicates.
-
-This can be used to uncover opportunities for optimization that were missed, or
-to prove equivalence of transformed representations with their original version.
-
-## [`symex_main`](https://github.com/google/xls/tree/main/xls/dev_tools/symex_main.cc)
+## [`symex_main`](https://github.com/google/xls/tree/main/xls/dev_tools/symex_main.cc) {#symex-main}
 
 Symbolically executes an XLS IR function, enumerating every feasible execution
 path and solving for a concrete input that reaches each one. Prints
@@ -593,27 +599,26 @@ concolic execution by pinning selected parameters to concrete values.
 
 See [symbolic execution](symbolic_execution.md) for details.
 
-## [`cell_library_extract_formula`](https://github.com/google/xls/tree/main/xls/netlist/cell_library_extract_formula.cc)
+## [`cell_library_extract_formula`](https://github.com/google/xls/tree/main/xls/netlist/cell_library_extract_formula.cc) {#cell-library-extract-formula}
 
 Parses a cell library ".lib" file and extracts boolean formulas from it that
 determine the functionality of cells. This is useful for LEC of the XLS IR
 against the post-synthesis netlist.
 
-## [`dslx/highlight_main`](https://github.com/google/xls/tree/main/xls/dslx/highlight_main.cc)
+## [`dslx/highlight_main`](https://github.com/google/xls/tree/main/xls/dslx/highlight_main.cc) {#highlight-main}
 
 Performs terminal-based color code highlighting of a DSL file.
 
-## [`dslx/parse_and_typecheck_dslx_main`](https://github.com/google/xls/tree/main/xls/dslx/parse_and_typecheck_dslx_main.cc)
+## [`dslx/parse_and_typecheck_dslx_main`](https://github.com/google/xls/tree/main/xls/dslx/parse_and_typecheck_dslx_main.cc) {#parse-and-typecheck-dslx-main}
 
 Parses and typechecks one or more DSLX (`.x`) source files, printing positional
 error and warning diagnostics on failure and exiting `0` silently on success.
 
 ```
-$ bazel build -c opt //xls/dslx:parse_and_typecheck_dslx_main
 $ echo 'fn f(x: u32) -> u32 { x }' > /tmp/my_file.x
-$ ./bazel-bin/xls/dslx/parse_and_typecheck_dslx_main /tmp/my_file.x
+$ parse_and_typecheck_dslx_main /tmp/my_file.x
 $ echo 'fn f(x: u32) -> u8 { x }' > /tmp/bad_file.x
-$ ./bazel-bin/xls/dslx/parse_and_typecheck_dslx_main /tmp/bad_file.x
+$ parse_and_typecheck_dslx_main /tmp/bad_file.x
 /tmp/bad_file.x:1:22-1:23
 0001: fn f(x: u32) -> u8 { x }
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~^ TypeInferenceError: TypeInferenceError: size mismatch: u32 vs. u8. The body of function `f` does not actually return the function's declared return type, which is `u8`
@@ -637,22 +642,22 @@ Key flags include:
 In a Bazel environment this binary is encapsulated in
 [an `xls_dslx_library` target](https://google.github.io/xls/bazel_rules_macros/#xls_dslx_library).
 
-## Development Tools
+## Development Tools {#development-tools}
 
-### clang-tidy
+### clang-tidy {#clang-tidy}
 
 For C++ development, you might need a compilation database to have good support
 in your IDE. You can create the `compile_flags.txt` by running this script.
 
 ```
-xls/dev_tools/make-compilation-db.sh
+$ xls/dev_tools/make-compilation-db.sh
 ```
 
 To run clang-tidy and create a report of things that might be worthwhile fixing,
 use the following script:
 
 ```
-xls/dev_tools/run-clang-tidy-cached.sh
+$ xls/dev_tools/run-clang-tidy-cached.sh
 ```
 
 (Note, this will be pretty slow on the first run, but it caches results and will
@@ -664,7 +669,7 @@ these, you can use `cat xls_clang-tidy.out` as your 'compiler invocation' in
 your IDE (e.g. `M-x compile` in emacs) and step through next-error locations as
 usual.
 
-### Build dependency cleaner
+### Build dependency cleaner {#build-dependency-cleaner}
 
 For a well-defined build, it is necessary to have all implicit library
 dependencies due to `#include`s explicitly defined in the `deps = [...]` in the
@@ -674,7 +679,7 @@ To automatically check and repair these, there is the build cleaner. It takes a
 bazel pattern, in the simplest case just `...`:
 
 ```
-xls/dev_tools/run-build-cleaner.sh ...
+$ xls/dev_tools/run-build-cleaner.sh ...
 ```
 
 If there are changes needed, it will emit a set of `buildozer` commands to edit
@@ -682,7 +687,7 @@ the necessary BUILD files. You can automatically apply these by just sourcing
 the output of the script (assuming [buildozer] is installed):
 
 ```
-source <(xls/dev_tools/run-build-cleaner.sh ...)
+$ source <(xls/dev_tools/run-build-cleaner.sh ...)
 ```
 
 This also simplifies development: Just modify a library, include whatever
@@ -693,7 +698,7 @@ build-cleaner will automagically add all the necessary `deps`.
 
 The build cleaner will also remove unambiguously not needed dependencies.
 
-#### build_cleaner keep
+#### build_cleaner keep {#build-cleaner-keep}
 
 If you encounter a situation in which the build cleaner attempts to remove a
 dependency that you know you need (but you don't need to include a header it
@@ -710,16 +715,16 @@ build_cleaner: keep`.
 This should rarely be needed. If you ever run into that situation, there are
 examples for both cases in the codebase.
 
-### Golden Comparison Files
+### Golden Comparison Files {#golden-comparison-files}
 
 To re-generate golden reference files (for all test targets that use golden
 reference file comparisons), run:
 
 ```
-xls/dev_tools/rebuild_golden_files.sh
+$ xls/dev_tools/rebuild_golden_files.sh
 ```
 
-## [`extract_interface_main`](https://github.com/google/xls/tree/main/xls/dev_tools/extract_interface_main.cc)
+## [`extract_interface_main`](https://github.com/google/xls/tree/main/xls/dev_tools/extract_interface_main.cc) {#extract-interface-main}
 
 Reads an `ir` file and prints a protobuf describing the interfaces of the
 contained code. The interfaces consist of the names of the `procs`, `blocks`,

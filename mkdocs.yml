@@ -66,6 +66,7 @@ nav:
     - Build System: 'build_system.md'
     - Bazel Rules And Macros: 'bazel_rules_macros.md'
     - Quick Start: 'tools_quick_start.md'
+    - Releases: 'releases.md'
     - Listing: 'tools.md'
     - Interpreters: 'interpreters.md'
   - Development:

@@ -59,6 +59,7 @@ pkg_files(
     strip_prefix = strip_prefix.from_pkg(),
 )
 
+# LINT.IfChange
 pkg_tar(
     name = "xls_dist_tar",
     srcs = [
@@ -81,3 +82,4 @@ pkg_tar(
     package_variables = ":xls_package_vars",
     stamp = 1,
 )
+# LINT.ThenChange(//docs_src/releases.md)
