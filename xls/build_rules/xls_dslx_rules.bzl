@@ -137,6 +137,57 @@ def _get_dslx_prove_quickcheck_test_cmdline(ctx, src, all_srcs, append_cmd_line_
 
     return cmd
 
+def get_DslxInfo_from_dslx(
+        library = None,
+        srcs = None,
+        deps = None,
+        configured_values = {}):
+    """Returns the DslxInfo provider from a DSLX library or srcs/deps lists.
+
+    Args:
+      library: A DSLX library target, or None.
+      srcs: A list of DSLX source Files, or None.
+      deps: A list of dependency targets, or None.
+      configured_values: Dictionary of configured_values overrides.
+
+    Returns:
+      DslxInfo provider
+    """
+    dslx_info = None
+    count = 0
+
+    if library:
+        dslx_info = library[DslxInfo]
+        count += 1
+    if srcs or deps:
+        if not srcs:
+            fail("'srcs' must be defined when 'deps' is defined.")
+        deps = deps or []
+        dslx_info = DslxInfo(
+            target_dslx_source_files = srcs,
+            dslx_source_files = get_transitive_dslx_srcs_files_depset(
+                srcs,
+                deps,
+            ),
+            dslx_placeholder_files = get_transitive_dslx_placeholder_files_depset(
+                [],
+                deps,
+            ),
+            configured_values = get_transitive_dslx_configured_values_depset(
+                format_scoped_configured_values(
+                    srcs,
+                    configured_values,
+                ),
+                deps,
+            ),
+        )
+        count += 1
+
+    if count != 1:
+        fail("One of: 'library' or ['srcs', 'deps'] must be assigned.")
+
+    return dslx_info
+
 def get_DslxInfo_from_dslx_library_as_input(ctx):
     """Returns the DslxInfo provider of rules using 'xls_dslx_library_as_input_attrs'.
 
@@ -146,39 +197,12 @@ def get_DslxInfo_from_dslx_library_as_input(ctx):
     Returns:
       DslxInfo provider
     """
-    dslx_info = None
-    count = 0
-
-    if ctx.attr.library:
-        dslx_info = ctx.attr.library[DslxInfo]
-        count += 1
-    if ctx.attr.srcs or ctx.attr.deps:
-        if not ctx.attr.srcs:
-            fail("'srcs' must be defined when 'deps' is defined.")
-        dslx_info = DslxInfo(
-            target_dslx_source_files = ctx.files.srcs,
-            dslx_source_files = get_transitive_dslx_srcs_files_depset(
-                ctx.files.srcs,
-                ctx.attr.deps,
-            ),
-            dslx_placeholder_files = get_transitive_dslx_placeholder_files_depset(
-                [],
-                ctx.attr.deps,
-            ),
-            configured_values = get_transitive_dslx_configured_values_depset(
-                format_scoped_configured_values(
-                    ctx.files.srcs,
-                    getattr(ctx.attr, "configured_values", {}),
-                ),
-                ctx.attr.deps,
-            ),
-        )
-        count += 1
-
-    if count != 1:
-        fail("One of: 'library' or ['srcs', 'deps'] must be assigned.")
-
-    return dslx_info
+    return get_DslxInfo_from_dslx(
+        library = ctx.attr.library,
+        srcs = ctx.files.srcs,
+        deps = ctx.attr.deps,
+        configured_values = getattr(ctx.attr, "configured_values", {}),
+    )
 
 # Attributes for the xls_dslx_library rule.
 _xls_dslx_library_attrs = {

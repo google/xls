@@ -103,8 +103,43 @@ _xls_aot_files_attrs = {
     ),
 }
 
-def _xls_aot_generate_impl(ctx):
-    """Generate an aot object file and a proto describing it."""
+xls_aot_env_attrs = dicts.pick(
+    _xls_aot_files_attrs,
+    [
+        "_save_temps_is_requested",
+        "_jit_emulated_tls",
+        "_emit_aot_intermediates",
+    ],
+)
+
+def xls_aot_compile(
+        ctx,
+        ir_file,
+        top,
+        top_type,
+        with_msan,
+        llvm_opt_level = 3,
+        aot_target = "native",
+        salt_symbols = True,
+        jobs = 1,
+        enable_llvm_coverage = False):
+    """Generates AOT object file(s) and an AOT proto describing them.
+
+    Args:
+      ctx: The current rule's context object.
+      ir_file: The input IR File object.
+      top: Name of the top function/proc/block (or "" if default).
+      top_type: Type of top ("FUNCTION", "PROC", or "BLOCK").
+      with_msan: Whether the JIT code should be compiled with MSAN.
+      llvm_opt_level: Optimization level to compile AOT files with.
+      aot_target: Target architecture to generate AOT obj files for.
+      salt_symbols: Whether to use target label to uniqify symbol names.
+      jobs: Number of jobs to use for AOT compilation.
+      enable_llvm_coverage: Whether to instrument generated code for LLVM coverage.
+
+    Returns:
+      A tuple of (AotCompileInfo, DefaultInfo, CcInfo).
+    """
     cc_toolchain = find_cpp_toolchain(ctx)
     feature_configuration = cc_common.configure_features(
         ctx = ctx,
@@ -112,8 +147,6 @@ def _xls_aot_generate_impl(ctx):
         requested_features = ctx.features,
         unsupported_features = ctx.disabled_features,
     )
-    jobs = ctx.attr.jobs
-    src = get_src_ir_for_xls(ctx)
     aot_compiler = ctx.executable._xls_aot_compiler_tool
     out_proto_filename = ctx.attr.name + _PROTO_FILE_EXTENSION
     proto_file = ctx.actions.declare_file(out_proto_filename)
@@ -124,14 +157,14 @@ def _xls_aot_generate_impl(ctx):
         args.add(*va, **kwargs)
         skeleton_args.add(*va, **kwargs)
 
-    common_add("-input", src.ir_file.path)
-    if (ctx.attr.salt_symbols):
+    common_add("-input", ir_file.path)
+    if salt_symbols:
         common_add("-symbol_salt", str(ctx.label))
-    common_add("-aot_target", ctx.attr.aot_target)
-    common_add("-top", ctx.attr.top)
-    common_add("-top_type", ctx.attr.top_type)
+    common_add("-aot_target", aot_target)
+    common_add("-top", top)
+    common_add("-top_type", top_type)
     other_linking_contexts = []
-    if ctx.attr.with_msan:
+    if with_msan:
         common_add("--include_msan=true")
 
         # With msan we need the TLS implementation.
@@ -139,7 +172,7 @@ def _xls_aot_generate_impl(ctx):
     else:
         common_add("--include_msan=false")
 
-    if ctx.attr.enable_llvm_coverage:
+    if enable_llvm_coverage:
         common_add("--enable_llvm_coverage=true")
     else:
         common_add("--enable_llvm_coverage=false")
@@ -166,14 +199,14 @@ def _xls_aot_generate_impl(ctx):
             args.add("-output_asm", asm_file.path)
         out_obj_filename = ctx.attr.name + _OBJ_FILE_EXTENSION
         obj_file = ctx.actions.declare_file(out_obj_filename)
-        args.add("-llvm_opt_level", ctx.attr.llvm_opt_level)
+        args.add("-llvm_opt_level", llvm_opt_level)
 
         args.add("-output_object", obj_file.path)
 
         # Non-skeleton run to create the object file.
         ctx.actions.run(
             outputs = [obj_file] + extra_files,
-            inputs = [src.ir_file],
+            inputs = [ir_file],
             arguments = [args],
             executable = aot_compiler,
             mnemonic = "AOTCompiling",
@@ -198,7 +231,7 @@ def _xls_aot_generate_impl(ctx):
         # Non-skeleton run to create the unoptimized llvm ir file.
         ctx.actions.run(
             outputs = [unopt_llvm_ir_file],
-            inputs = [src.ir_file],
+            inputs = [ir_file],
             arguments = [args],
             executable = aot_compiler,
             mnemonic = "AOTCompiling",
@@ -229,13 +262,13 @@ def _xls_aot_generate_impl(ctx):
             piece_args = ctx.actions.args()
             piece_args.add("-input", split_files[i].path)
             piece_args.add("-output_object", obj_files[i].path)
-            piece_args.add("-llvm_opt_level", ctx.attr.llvm_opt_level)
-            piece_args.add("-aot_target", ctx.attr.aot_target)
-            if ctx.attr.with_msan:
+            piece_args.add("-llvm_opt_level", llvm_opt_level)
+            piece_args.add("-aot_target", aot_target)
+            if with_msan:
                 piece_args.add("--include_msan=true")
             else:
                 piece_args.add("--include_msan=false")
-            if ctx.attr.enable_llvm_coverage:
+            if enable_llvm_coverage:
                 piece_args.add("--enable_llvm_coverage=true")
             else:
                 piece_args.add("--enable_llvm_coverage=false")
@@ -258,7 +291,7 @@ def _xls_aot_generate_impl(ctx):
     # Skeleton run to create the proto file.
     ctx.actions.run(
         outputs = [proto_file],
-        inputs = [src.ir_file],
+        inputs = [ir_file],
         arguments = [skeleton_args],
         executable = aot_compiler,
         mnemonic = "AotSkeleton",
@@ -274,13 +307,34 @@ def _xls_aot_generate_impl(ctx):
         cc_toolchain = cc_toolchain,
         compilation_outputs = obj_file_outputs,
         linking_contexts = other_linking_contexts,
-        disallow_dynamic_library = ctx.attr.enable_llvm_coverage,
+        disallow_dynamic_library = enable_llvm_coverage,
     )
 
-    return [
+    return (
         AotCompileInfo(object_files = obj_files, proto_file = proto_file),
         DefaultInfo(files = depset(obj_files + [proto_file] + extra_files)),
         CcInfo(linking_context = linking_context),
+    )
+
+def _xls_aot_generate_impl(ctx):
+    """Generate an aot object file and a proto describing it."""
+    src = get_src_ir_for_xls(ctx)
+    aot_info, default_info, cc_info = xls_aot_compile(
+        ctx = ctx,
+        ir_file = src.ir_file,
+        top = ctx.attr.top,
+        top_type = ctx.attr.top_type,
+        with_msan = ctx.attr.with_msan,
+        llvm_opt_level = ctx.attr.llvm_opt_level,
+        aot_target = ctx.attr.aot_target,
+        salt_symbols = ctx.attr.salt_symbols,
+        jobs = ctx.attr.jobs,
+        enable_llvm_coverage = ctx.attr.enable_llvm_coverage,
+    )
+    return [
+        aot_info,
+        default_info,
+        cc_info,
     ] + get_input_infos(ctx.attr.src)
 
 xls_aot_generate = rule(

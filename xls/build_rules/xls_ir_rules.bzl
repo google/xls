@@ -37,9 +37,15 @@ load(
     "CONFIG",
     "DEFAULT_BENCHMARK_SYNTH_DELAY_MODEL",
 )
-load("//xls/build_rules:xls_dslx_common.bzl", "get_src_files_from_dslx_library_as_input", "xls_dslx_library_as_input_attrs")
+load(
+    "//xls/build_rules:xls_dslx_common.bzl",
+    "get_src_files_from_dslx",
+    "get_src_files_from_dslx_library_as_input",
+    "xls_dslx_library_as_input_attrs",
+)
 load(
     "//xls/build_rules:xls_dslx_rules.bzl",
+    "get_DslxInfo_from_dslx",
     "get_DslxInfo_from_dslx_library_as_input",
 )
 load(
@@ -129,7 +135,7 @@ def get_xls_ir_opt_ir_generated_files(args):
     """
     return [args.get("opt_ir_file")]
 
-def _convert_to_ir(ctx, src):
+def _convert_to_ir(ctx, src, dslx_top = None, ir_file = None, ir_conv_args = None):
     """Returns the runfiles and a File referencing the converted IR file.
 
     Creates an action in the context to convert a DSLX source file to an
@@ -138,6 +144,9 @@ def _convert_to_ir(ctx, src):
     Args:
       ctx: The current rule's context object.
       src: The source file.
+      dslx_top: Optional override for the top-level DSLX function name.
+      ir_file: Optional output File object for the converted IR file.
+      ir_conv_args: Optional override dictionary for IR converter arguments.
     Returns:
       A tuple with the following elements in the order presented:
         1. The runfiles to convert the IR file.
@@ -176,7 +185,7 @@ def _convert_to_ir(ctx, src):
     )
     dslx_srcs_wsroot_path = ":{}".format(dslx_srcs_wsroot) if dslx_srcs_wsroot != "" else ""
 
-    ir_conv_args = dict(ctx.attr.ir_conv_args)
+    ir_conv_args = dict(ir_conv_args if ir_conv_args != None else ctx.attr.ir_conv_args)
     ir_conv_args["dslx_path"] = (
         ir_conv_args.get("dslx_path", "") + ":${PWD}:" +
         ctx.genfiles_dir.path + ":" + ctx.bin_dir.path +
@@ -185,7 +194,7 @@ def _convert_to_ir(ctx, src):
 
     is_args_valid(ir_conv_args, IR_CONV_FLAGS)
 
-    ir_conv_args["top"] = ctx.attr.dslx_top
+    ir_conv_args["top"] = dslx_top if dslx_top != None else ctx.attr.dslx_top
 
     if "emit_fail_as_assert" in ir_conv_args:
         if "emit_assert" in ir_conv_args:
@@ -206,12 +215,13 @@ def _convert_to_ir(ctx, src):
     if all_configured_values:
         my_args.add("--configured_values={}".format(",".join(all_configured_values)))
 
-    ir_filename = get_output_filename_value(
-        ctx,
-        "ir_file",
-        ctx.attr.name + _IR_FILE_EXTENSION,
-    )
-    ir_file = ctx.actions.declare_file(ir_filename)
+    if ir_file == None:
+        ir_filename = get_output_filename_value(
+            ctx,
+            "ir_file",
+            ctx.attr.name + _IR_FILE_EXTENSION,
+        )
+        ir_file = ctx.actions.declare_file(ir_filename)
     interface_proto = ctx.actions.declare_file(ctx.attr.name + ".interface.binpb")
     my_args.add("-interface_proto_file", interface_proto.path)
     my_args.add("-output_file", ir_file.path)
@@ -238,7 +248,7 @@ def _convert_to_ir(ctx, src):
     )
     return runfiles, ir_file, interface_proto
 
-def _optimize_ir(ctx, src, original_input_files, extra_flags = [], extra_outs = [], basename = None, pass_pipeline_info = None, opt_ir_args = None):
+def _optimize_ir(ctx, src, original_input_files, extra_flags = [], extra_outs = [], basename = None, pass_pipeline_info = None, opt_ir_args = None, top = None, debug_srcs = None):
     """Returns the runfiles and a File referencing the optimized IR file.
 
     Creates an action in the context to optimize an IR file.
@@ -256,6 +266,8 @@ def _optimize_ir(ctx, src, original_input_files, extra_flags = [], extra_outs = 
                    this is used instead of ctx.attr.opt_ir_args attribute. It is
                    not merged or added to the attribute, it completely replaces
                    it.
+      top: Optional override for the top entity name.
+      debug_srcs: Optional override for additional source files for debugging info.
     Returns:
       A tuple with the following elements in the order presented:
         1. The runfiles to optimize the IR file.
@@ -291,8 +303,9 @@ def _optimize_ir(ctx, src, original_input_files, extra_flags = [], extra_outs = 
 
     is_args_valid(my_opt_ir_args, IR_OPT_FLAGS)
 
-    if ctx.attr.top:
-        my_opt_ir_args.setdefault("top", ctx.attr.top)
+    top_val = top if top != None else ctx.attr.top
+    if top_val:
+        my_opt_ir_args.setdefault("top", top_val)
 
     args = ctx.actions.args()
     args.add(src.ir_file)
@@ -361,7 +374,7 @@ def _optimize_ir(ctx, src, original_input_files, extra_flags = [], extra_outs = 
         ram_rewrite_files.extend(rewrite.files.to_list())
 
     debug_src_files = []
-    for debug_src in ctx.attr.debug_srcs:
+    for debug_src in (debug_srcs if debug_srcs != None else ctx.attr.debug_srcs):
         debug_src_files.extend(debug_src.files.to_list())
 
     if basename != None:
@@ -776,13 +789,26 @@ xls_dslx_ir_attrs = dicts.add(
     },
 )
 
-def xls_dslx_ir_impl(ctx):
+def xls_dslx_ir_impl(
+        ctx,
+        dslx_top = None,
+        ir_file = None,
+        ir_conv_args = None,
+        library = None,
+        srcs = None,
+        deps = None):
     """The implementation of the 'xls_dslx_ir' rule.
 
     Converts a DSLX source file to an IR file.
 
     Args:
       ctx: The current rule's context object.
+      dslx_top: Optional override for the top-level DSLX function name.
+      ir_file: Optional output File object for the converted IR file.
+      ir_conv_args: Optional override dictionary for IR converter arguments.
+      library: Optional override for the DSLX library target.
+      srcs: Optional override for the DSLX source files.
+      deps: Optional override for the DSLX dependency targets.
 
     Returns:
       A tuple with the following elements in the order presented:
@@ -792,20 +818,41 @@ def xls_dslx_ir_impl(ctx):
         1. The list of built files.
         1. The runfiles.
     """
-    srcs = get_src_files_from_dslx_library_as_input(ctx)
+    if library != None or srcs != None or deps != None:
+        dslx_srcs = get_src_files_from_dslx(
+            library = library,
+            srcs = srcs,
+            deps = deps,
+        )
+    else:
+        dslx_srcs = get_src_files_from_dslx_library_as_input(ctx)
 
-    if srcs and len(srcs) != 1:
+    if dslx_srcs and len(dslx_srcs) != 1:
         fail("A single source file must be specified.")
 
-    src = srcs[0]
+    src = dslx_srcs[0]
 
-    runfiles, ir_file, interface_proto = _convert_to_ir(ctx, src)
+    runfiles, ir_file, interface_proto = _convert_to_ir(
+        ctx,
+        src,
+        dslx_top = dslx_top,
+        ir_file = ir_file,
+        ir_conv_args = ir_conv_args,
+    )
 
-    dslx_info = get_DslxInfo_from_dslx_library_as_input(ctx)
+    if library != None or srcs != None or deps != None:
+        dslx_info = get_DslxInfo_from_dslx(
+            library = library,
+            srcs = srcs,
+            deps = deps,
+            configured_values = getattr(ctx.attr, "configured_values", {}),
+        )
+    else:
+        dslx_info = get_DslxInfo_from_dslx_library_as_input(ctx)
     return [
         IrFileInfo(ir_file = ir_file),
         dslx_info,
-        ConvIrInfo(original_input_files = srcs, ir_interface = interface_proto),
+        ConvIrInfo(original_input_files = dslx_srcs, ir_interface = interface_proto),
         [ir_file],
         runfiles,
     ]
@@ -866,7 +913,7 @@ An IR conversion with a top entity defined.
     ),
 )
 
-def xls_ir_opt_ir_impl(ctx, src, original_input_files, extra_flags = [], extra_outs = [], basename = None, pass_pipeline_info = None, opt_ir_args = None):
+def xls_ir_opt_ir_impl(ctx, src, original_input_files, extra_flags = [], extra_outs = [], basename = None, pass_pipeline_info = None, opt_ir_args = None, top = None, debug_srcs = None):
     """The implementation of the 'xls_ir_opt_ir' rule.
 
     Optimizes an IR file.
@@ -880,6 +927,8 @@ def xls_ir_opt_ir_impl(ctx, src, original_input_files, extra_flags = [], extra_o
       basename: Optional custom prefix for generated File objects to avoid action collisions.
       pass_pipeline_info: Optional custom XlsOptimizationPassRegistryConfigInfo provider override.
       opt_ir_args: Optional execution argument override.
+      top: Optional override for the top entity name.
+      debug_srcs: Optional override for additional source files for debugging info.
 
     Returns:
       A tuple with the following elements in the order presented:
@@ -888,7 +937,18 @@ def xls_ir_opt_ir_impl(ctx, src, original_input_files, extra_flags = [], extra_o
         1. The list of built files.
         1. The runfiles.
     """
-    runfiles, opt_ir_file, extra = _optimize_ir(ctx, src, original_input_files, extra_flags, extra_outs, basename = basename, pass_pipeline_info = pass_pipeline_info, opt_ir_args = opt_ir_args)
+    runfiles, opt_ir_file, extra = _optimize_ir(
+        ctx,
+        src,
+        original_input_files,
+        extra_flags,
+        extra_outs,
+        basename = basename,
+        pass_pipeline_info = pass_pipeline_info,
+        opt_ir_args = opt_ir_args,
+        top = top,
+        debug_srcs = debug_srcs,
+    )
     return [
         IrFileInfo(ir_file = opt_ir_file),
         OptIrArgInfo(

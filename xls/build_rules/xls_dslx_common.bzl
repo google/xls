@@ -42,6 +42,35 @@ xls_dslx_library_as_input_attrs = {
     ),
 }
 
+def get_src_files_from_dslx(library = None, srcs = None, deps = None):
+    """Returns the DSLX source files from a DSLX library or srcs/deps lists.
+
+    Args:
+      library: A DSLX library target, or None.
+      srcs: A list of DSLX source Files, or None.
+      deps: A list of dependency targets, or None.
+
+    Returns:
+      Returns the DSLX source files.
+    """
+    dslx_src_files = []
+    count = 0
+
+    if library:
+        dslx_info = library[DslxInfo]
+        dslx_src_files = dslx_info.target_dslx_source_files
+        count += 1
+    if srcs or deps:
+        if not srcs:
+            fail("'srcs' must be defined when 'deps' is defined.")
+        dslx_src_files = srcs
+        count += 1
+
+    if count != 1:
+        fail("One of: 'library' or ['srcs', 'deps'] must be assigned.")
+
+    return dslx_src_files
+
 def get_src_files_from_dslx_library_as_input(ctx):
     """Returns the DSLX source files of rules using 'xls_dslx_library_as_input_attrs'.
 
@@ -51,20 +80,8 @@ def get_src_files_from_dslx_library_as_input(ctx):
     Returns:
       Returns the DSLX source files of rules using 'xls_dslx_library_as_input_attrs'.
     """
-    dslx_src_files = []
-    count = 0
-
-    if ctx.attr.library:
-        dslx_info = ctx.attr.library[DslxInfo]
-        dslx_src_files = dslx_info.target_dslx_source_files
-        count += 1
-    if ctx.attr.srcs or ctx.attr.deps:
-        if not ctx.attr.srcs:
-            fail("'srcs' must be defined when 'deps' is defined.")
-        dslx_src_files = ctx.files.srcs
-        count += 1
-
-    if count != 1:
-        fail("One of: 'library' or ['srcs', 'deps'] must be assigned.")
-
-    return dslx_src_files
+    return get_src_files_from_dslx(
+        library = ctx.attr.library,
+        srcs = ctx.files.srcs,
+        deps = ctx.attr.deps,
+    )

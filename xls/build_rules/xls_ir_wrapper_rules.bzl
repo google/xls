@@ -82,22 +82,31 @@ _xls_ir_wrapper_attrs = {
     ),
 }
 
-def _xls_ir_wrapper_impl(ctx):
-    """The implementation of the 'xls_ir_wrapper' rule.
-
-    Execute the JIT wrapper tool on the IR file.
+def generate_jit_wrapper(
+        ctx,
+        ir_file,
+        top,
+        wrapper_type,
+        jit_wrapper_args,
+        aot_info_file,
+        source_filename,
+        header_filename = None):
+    """Executes the JIT wrapper tool on an IR file.
 
     Args:
       ctx: The current rule's context object.
+      ir_file: The input IR File object.
+      top: The top function/proc/block name (or "" for default).
+      wrapper_type: The type of wrapper (FUNCTION, PROC, BLOCK, FUZZTEST).
+      jit_wrapper_args: Dictionary of arguments for the JIT wrapper tool.
+      aot_info_file: The AOT compilation info proto File object.
+      source_filename: Relative filename for the generated .cc file.
+      header_filename: Optional relative filename for the generated .h file.
 
     Returns:
-      IrWrapperInfo provider
-      DefaultInfo provider
+      A tuple of (IrWrapperInfo, generated_files_list, runfiles).
     """
     jit_wrapper_tool = ctx.executable._xls_jit_wrapper_tool
-
-    # default arguments
-    jit_wrapper_args = ctx.attr.jit_wrapper_args
     jit_wrapper_flags = ctx.actions.args()
 
     # parse arguments
@@ -130,34 +139,32 @@ def _xls_ir_wrapper_impl(ctx):
             fail("Unrecognized argument: %s." % flag_name)
 
     # source file
-    src = get_src_ir_for_xls(ctx)
-    jit_wrapper_flags.add("--ir_path", src.ir_file.path)
+    jit_wrapper_flags.add("--ir_path", ir_file.path)
 
     # Retrieve basename and extension from filename
-    source_filename = ctx.outputs.source_file.basename
     source_basename, source_extension = split_filename(source_filename)
 
     # validate filename extension
     if source_extension != _CC_FILE_EXTENSION[1:]:
         fail("Source filename must contain the '%s' extension." %
              _CC_FILE_EXTENSION)
-    if ctx.attr.top != "":
-        jit_wrapper_flags.add("--function", ctx.attr.top)
+    if top != "":
+        jit_wrapper_flags.add("--function", top)
 
     # Append to argument list.
     jit_wrapper_flags.add("--output_name", source_basename)
 
     cc_file = ctx.actions.declare_file(source_filename)
     my_generated_files = [cc_file]
-    if ctx.outputs.header_file:
-        header_filename = ctx.outputs.header_file.basename
+    h_file = None
+    if header_filename:
         header_basename, header_extension = split_filename(header_filename)
         if header_extension != _H_FILE_EXTENSION[1:]:
             fail("Header filename must contain the '%s' extension." %
                  _H_FILE_EXTENSION)
 
         # validate basename
-        if ctx.outputs.header_file and source_basename != header_basename:
+        if source_basename != header_basename:
             fail("The basename of the source and header files do not match.")
 
         h_file = ctx.actions.declare_file(header_filename)
@@ -170,15 +177,14 @@ def _xls_ir_wrapper_impl(ctx):
     jit_wrapper_flags.add("--genfiles_dir", ctx.bin_dir.path + "/")
 
     # function_type
-    jit_wrapper_flags.add("--function_type", ctx.attr.wrapper_type)
+    jit_wrapper_flags.add("--function_type", wrapper_type)
 
     # Aot information
-    aot_info_file = ctx.attr.aot_info[AotCompileInfo].proto_file
     jit_wrapper_flags.add("--aot_info", aot_info_file.path)
 
     # Get runfiles
     jit_wrapper_tool_runfiles = ctx.attr._xls_jit_wrapper_tool[DefaultInfo].default_runfiles
-    runfiles = get_runfiles_for_xls(ctx, [jit_wrapper_tool_runfiles], [src.ir_file, aot_info_file])
+    runfiles = get_runfiles_for_xls(ctx, [jit_wrapper_tool_runfiles], [ir_file, aot_info_file])
 
     ctx.actions.run(
         outputs = my_generated_files,
@@ -187,15 +193,47 @@ def _xls_ir_wrapper_impl(ctx):
         arguments = [jit_wrapper_flags],
         executable = jit_wrapper_tool.path,
         mnemonic = "IRJITWrapper",
-        progress_message = "Building JIT wrapper for source file: %s" % (src.ir_file.path),
+        progress_message = "Building JIT wrapper for source file: %s" % (ir_file.path),
         toolchain = None,
         use_default_shell_env = True,
     )
-    return [
+    return (
         IrWrapperInfo(
             source_file = cc_file,
-            header_file = ctx.outputs.header_file,
+            header_file = h_file,
         ),
+        my_generated_files,
+        runfiles,
+    )
+
+def _xls_ir_wrapper_impl(ctx):
+    """The implementation of the 'xls_ir_wrapper' rule.
+
+    Execute the JIT wrapper tool on the IR file.
+
+    Args:
+      ctx: The current rule's context object.
+
+    Returns:
+      IrWrapperInfo provider
+      DefaultInfo provider
+    """
+    src = get_src_ir_for_xls(ctx)
+    source_filename = ctx.outputs.source_file.basename
+    header_filename = ctx.outputs.header_file.basename if ctx.outputs.header_file else None
+    aot_info_file = ctx.attr.aot_info[AotCompileInfo].proto_file
+    ir_wrapper_info, my_generated_files, runfiles = generate_jit_wrapper(
+        ctx = ctx,
+        ir_file = src.ir_file,
+        top = ctx.attr.top,
+        wrapper_type = ctx.attr.wrapper_type,
+        jit_wrapper_args = ctx.attr.jit_wrapper_args,
+        aot_info_file = aot_info_file,
+        source_filename = source_filename,
+        header_filename = header_filename,
+    )
+    return [
+        ir_wrapper_info,
         DefaultInfo(
             files = depset(my_generated_files),
             runfiles = runfiles,
