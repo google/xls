@@ -65,7 +65,9 @@ namespace xls {
 
 namespace {
 
+using ::absl_testing::IsOkAndHolds;
 using ::absl_testing::StatusIs;
+using ::testing::ElementsAre;
 using ::testing::HasSubstr;
 using ::testing::Pair;
 using ::testing::UnorderedElementsAre;
@@ -89,7 +91,22 @@ struct ResourceSharingPassRunner {
 INSTANTIATE_TYPED_TEST_SUITE_P(Baseline, ResourceSharingPassTestBase,
                                ::testing::Types<ResourceSharingPassRunner>);
 
-class ResourceSharingPassTest : public IrTestBase {};
+class ResourceSharingPassTest : public IrTestBase {
+ protected:
+  absl::StatusOr<VisibilityBuilder*> CreateVisibilityBuilder(
+      FunctionBase* f, int64_t next_node_id) {
+    XLS_RETURN_IF_ERROR(bdd_engine_.Populate(f).status());
+    XLS_RETURN_IF_ERROR(nda_.Attach(f).status());
+    XLS_RETURN_IF_ERROR(bpa_.Populate(f));
+    visibility_builder_.emplace(next_node_id, &bdd_engine_, nda_, bpa_);
+    return &*visibility_builder_;
+  }
+
+  BddQueryEngine bdd_engine_;
+  NodeForwardDependencyAnalysis nda_;
+  BitProvenanceAnalysis bpa_;
+  std::optional<VisibilityBuilder> visibility_builder_;
+};
 
 using VisibilityEdges =
     absl::flat_hash_set<OperandVisibilityAnalysis::OperandNode>;
@@ -106,14 +123,8 @@ TEST_F(ResourceSharingPassTest, CatchesCyclesBeforeTransforming) {
       fb.Select(cond, {X, Y, fb.Literal(UBits(0, 8)), fb.Literal(UBits(0, 8))});
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(sel));
   int64_t next_node_id = 10;
-
-  BddQueryEngine bdd_engine;
-  XLS_ASSERT_OK(bdd_engine.Populate(f));
-  NodeForwardDependencyAnalysis nda;
-  XLS_ASSERT_OK(nda.Attach(f));
-  BitProvenanceAnalysis bpa;
-  XLS_ASSERT_OK(bpa.Populate(f));
-  VisibilityBuilder visibility_builder(next_node_id, &bdd_engine, nda, bpa);
+  XLS_ASSERT_OK_AND_ASSIGN(VisibilityBuilder * visibility_builder,
+                           CreateVisibilityBuilder(f, next_node_id));
 
   // Exercise producing a cycle by requesting to fold X into Y; yes, they are
   // not mutually exclusive, but the transformation doesn't have a feasible way
@@ -134,7 +145,7 @@ TEST_F(ResourceSharingPassTest, CatchesCyclesBeforeTransforming) {
   XLS_ASSERT_OK(nda_backwards.Attach(f));
   EXPECT_THAT(
       ResourceSharingPass::PerformFoldingActions(
-          f, next_node_id, &visibility_builder, nda_backwards,
+          f, next_node_id, visibility_builder, nda_backwards,
           folding_actions_to_perform),
       StatusIs(absl::StatusCode::kInternal, HasSubstr("would create a cycle")));
 }
@@ -154,14 +165,8 @@ TEST_F(ResourceSharingPassTest,
   BValue sel = fb.Select(cond, {B0, B1, A2, fb.Literal(UBits(0, 8))});
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(sel));
   int64_t next_node_id = f->node_count() + 1;
-
-  BddQueryEngine bdd_engine;
-  XLS_ASSERT_OK(bdd_engine.Populate(f));
-  NodeForwardDependencyAnalysis nda;
-  XLS_ASSERT_OK(nda.Attach(f));
-  BitProvenanceAnalysis bpa;
-  XLS_ASSERT_OK(bpa.Populate(f));
-  VisibilityBuilder visibility_builder(next_node_id, &bdd_engine, nda, bpa);
+  XLS_ASSERT_OK_AND_ASSIGN(VisibilityBuilder * visibility_builder,
+                           CreateVisibilityBuilder(f, next_node_id));
 
   // Action 1: Fold A1 into A0.
   VisibilityEdges edges_A1 = {
@@ -193,10 +198,61 @@ TEST_F(ResourceSharingPassTest,
   NodeBackwardDependencyAnalysis nda_backwards;
   XLS_ASSERT_OK(nda_backwards.Attach(f));
   XLS_EXPECT_OK(ResourceSharingPass::PerformFoldingActions(
-      f, next_node_id, &visibility_builder, nda_backwards,
+      f, next_node_id, visibility_builder, nda_backwards,
       folding_actions_to_perform));
 }
 
+TEST_F(ResourceSharingPassTest,
+       PerformFoldingActionsSkipsFoldingIntoAlreadyFoldedNode) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetBitsType(8));
+  BValue y = fb.Param("y", p->GetBitsType(8));
+  BValue cond = fb.Param("cond", p->GetBitsType(2));
+  BValue A0 = fb.Add(x, y, SourceInfo(), "a0");
+  BValue B0 = fb.Add(A0, x, SourceInfo(), "b0");
+  BValue A1 = fb.Add(y, x, SourceInfo(), "a1");
+  BValue B1 = fb.Add(A1, y, SourceInfo(), "b1");
+  BValue A2 = fb.Add(x, x, SourceInfo(), "t");
+  BValue sel = fb.Select(cond, {B0, B1, A2, fb.Literal(UBits(0, 8))});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(sel));
+  int64_t next_node_id = f->node_count() + 1;
+  XLS_ASSERT_OK_AND_ASSIGN(VisibilityBuilder * visibility_builder,
+                           CreateVisibilityBuilder(f, next_node_id));
+
+  // Action 1: Fold A1 into A0.
+  VisibilityEdges edges_A1{
+      OperandVisibilityAnalysis::OperandNode(B1.node(), sel.node())};
+  VisibilityEdges edges_A0 = {
+      OperandVisibilityAnalysis::OperandNode(B0.node(), sel.node())};
+  std::vector<std::pair<Node*, VisibilityEdges>> from_1 = {
+      std::make_pair(A1.node(), edges_A1)};
+  auto fold_1 = std::make_unique<NaryFoldingAction>(
+      std::move(from_1), A0.node(), edges_A0, /*area_saved=*/1.0,
+      /*sinks=*/absl::flat_hash_set<Node*>{sel.node()});
+
+  // Action 2: Fold A2 into A1, which action 1 has already folded into A0, so
+  // action 2 is skipped.
+  VisibilityEdges edges_A2 = {
+      OperandVisibilityAnalysis::OperandNode(A2.node(), sel.node())};
+  std::vector<std::pair<Node*, VisibilityEdges>> from_2 = {
+      std::make_pair(A2.node(), edges_A2)};
+  auto fold_2 = std::make_unique<NaryFoldingAction>(
+      std::move(from_2), A1.node(), edges_A1, /*area_saved=*/1.0,
+      /*sinks=*/absl::flat_hash_set<Node*>{sel.node()});
+
+  ScopedVerifyEquivalence check_equivalent(f, absl::Seconds(1));
+  const NaryFoldingAction* performed_folding = fold_1.get();
+  std::vector<std::unique_ptr<NaryFoldingAction>> folding_actions_to_perform;
+  folding_actions_to_perform.push_back(std::move(fold_1));
+  folding_actions_to_perform.push_back(std::move(fold_2));
+  NodeBackwardDependencyAnalysis nda_backwards;
+  XLS_ASSERT_OK(nda_backwards.Attach(f));
+  EXPECT_THAT(ResourceSharingPass::PerformFoldingActions(
+                  f, next_node_id, visibility_builder, nda_backwards,
+                  folding_actions_to_perform),
+              IsOkAndHolds(ElementsAre(performed_folding)));
+}
 
 TEST_F(ResourceSharingPassTest, ReplaceOperandsIfChanged_Tests) {
   auto p = CreatePackage();

@@ -1539,8 +1539,12 @@ inline absl::StatusOr<bool> ApplyBinaryFoldings(
   std::vector<std::unique_ptr<NaryFoldingAction>> folding_actions;
   folding_actions.push_back(std::move(nary_action));
 
-  return ResourceSharingPass::PerformFoldingActions(
-      f, next_node_id, &visibility_builder, nda_backwards, folding_actions);
+  XLS_ASSIGN_OR_RETURN(
+      std::vector<const NaryFoldingAction*> performed_folding_actions,
+      ResourceSharingPass::PerformFoldingActions(
+          f, next_node_id, &visibility_builder, nda_backwards,
+          folding_actions));
+  return !performed_folding_actions.empty();
 }
 
 TYPED_TEST_P(ResourceSharingPassTestBase, MergeShiftLeftAndRight) {
