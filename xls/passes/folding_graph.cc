@@ -362,23 +362,23 @@ absl::StatusOr<std::unique_ptr<NaryFoldingAction>> NaryFoldingAction::Clone(
     const NaryFoldingAction& other,
     const absl::flat_hash_map<Node*, Node*>& original_node_to_clone) {
   // Fetch the information about the original n-ary action.
-  absl::Span<const std::pair<Node*, FoldingAction::VisibilityEdges>>
-      original_froms = other.GetFrom();
+  absl::Span<const NaryFoldingAction::NodeVisibility> original_froms =
+      other.GetFrom();
   const BinaryFoldingAction::VisibilityEdges& original_to_edges =
       other.GetToVisibilityEdges();
 
   // Fetch the clones of the Node instances referenced by @other.
-  std::vector<std::pair<Node*, FoldingAction::VisibilityEdges>> clone_froms;
-  for (const auto& [original_from, original_visibility_edges] :
+  std::vector<NaryFoldingAction::NodeVisibility> clone_froms;
+  for (const NaryFoldingAction::NodeVisibility& original_from :
        original_froms) {
     FoldingAction::VisibilityEdges clone_visibility_edges;
-    auto it = original_node_to_clone.find(original_from);
+    auto it = original_node_to_clone.find(original_from.node);
     if (it == original_node_to_clone.end()) {
       return absl::InvalidArgumentError(absl::StrFormat(
-          "Node %s not found in the clone", original_from->ToString()));
+          "Node %s not found in the clone", original_from.node->ToString()));
     }
     Node* clone_from = it->second;
-    for (const auto [operand, node] : original_visibility_edges) {
+    for (const auto [operand, node] : original_from.edges) {
       auto it = original_node_to_clone.find(operand);
       if (it == original_node_to_clone.end()) {
         return absl::InvalidArgumentError(absl::StrFormat(
@@ -393,7 +393,15 @@ absl::StatusOr<std::unique_ptr<NaryFoldingAction>> NaryFoldingAction::Clone(
       Node* clone_node = node_it->second;
       clone_visibility_edges.insert({clone_operand, clone_node});
     }
-    clone_froms.push_back({clone_from, clone_visibility_edges});
+
+    absl::flat_hash_set<Node*> clone_sinks;
+    for (Node* sink : original_from.sinks) {
+      auto sink_it = original_node_to_clone.find(sink);
+      XLS_RET_CHECK(sink_it != original_node_to_clone.end());
+      clone_sinks.insert(sink_it->second);
+    }
+    clone_froms.push_back({clone_from, std::move(clone_visibility_edges),
+                           std::move(clone_sinks)});
   }
   auto it = original_node_to_clone.find(other.GetTo());
   if (it == original_node_to_clone.end()) {
@@ -420,14 +428,6 @@ absl::StatusOr<std::unique_ptr<NaryFoldingAction>> NaryFoldingAction::Clone(
     clone_to_edges.insert({clone_operand, clone_node});
   }
 
-  absl::flat_hash_set<Node*> clone_sinks;
-  clone_sinks.reserve(other.GetSinks().size());
-  for (Node* sink : other.GetSinks()) {
-    auto it = original_node_to_clone.find(sink);
-    XLS_RET_CHECK(it != original_node_to_clone.end());
-    clone_sinks.insert(it->second);
-  }
-
   absl::flat_hash_map<Node*, std::unique_ptr<EquivalenceMapping>>
       clone_mappings;
   for (const auto& [orig_node, mapping] : other.mappings()) {
@@ -443,7 +443,7 @@ absl::StatusOr<std::unique_ptr<NaryFoldingAction>> NaryFoldingAction::Clone(
   // Create the cloned object
   auto clone_action = std::make_unique<NaryFoldingAction>(
       std::move(clone_froms), clone_to, std::move(clone_to_edges),
-      other.area_saved(), std::move(clone_sinks), std::move(clone_mappings));
+      other.area_saved(), std::move(clone_mappings));
 
   return clone_action;
 }

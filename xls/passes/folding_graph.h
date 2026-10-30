@@ -88,8 +88,6 @@ class FoldingAction {
   // folding is performed
   double area_saved() const { return area_saved_; }
 
-  const absl::flat_hash_set<Node*>& GetSinks() const { return sinks_; }
-
   const absl::flat_hash_map<Node*, std::unique_ptr<EquivalenceMapping>>&
   mappings() const {
     return mappings_;
@@ -97,20 +95,17 @@ class FoldingAction {
 
  protected:
   FoldingAction(Node* to, VisibilityEdges to_edges, double area_saved,
-                absl::flat_hash_set<Node*> sinks = {},
                 absl::flat_hash_map<Node*, std::unique_ptr<EquivalenceMapping>>
                     mappings = {})
       : to_(to),
         to_edges_(std::move(to_edges)),
         area_saved_(area_saved),
-        sinks_(std::move(sinks)),
         mappings_(std::move(mappings)) {}
 
  private:
   Node* to_;
   VisibilityEdges to_edges_;
   double area_saved_;
-  absl::flat_hash_set<Node*> sinks_;
   absl::flat_hash_map<Node*, std::unique_ptr<EquivalenceMapping>> mappings_;
 };
 
@@ -141,14 +136,16 @@ class BinaryFoldingAction : public FoldingAction {
       absl::flat_hash_map<Node*, std::unique_ptr<EquivalenceMapping>> mappings =
           {},
       absl::flat_hash_set<Node*> sinks = {})
-      : FoldingAction{to, std::move(to_edges), area_saved, std::move(sinks),
-                      std::move(mappings)},
+      : FoldingAction{to, std::move(to_edges), area_saved, std::move(mappings)},
         from_{from},
-        from_edges_{std::move(from_edges)} {}
+        from_edges_{std::move(from_edges)},
+        sinks_{std::move(sinks)} {}
 
   Node* GetFrom() const { return from_; }
 
   const VisibilityEdges& GetFromVisibilityEdges() const { return from_edges_; }
+
+  const absl::flat_hash_set<Node*>& GetSinks() const { return sinks_; }
 
   std::string GetName() const {
     return absl::StrCat(from_->GetName(), "->", GetTo()->GetName());
@@ -157,6 +154,7 @@ class BinaryFoldingAction : public FoldingAction {
  private:
   Node* from_;
   VisibilityEdges from_edges_;
+  absl::flat_hash_set<Node*> sinks_;
 };
 
 // This class represents a single folding action from a set of IR nodes into
@@ -182,19 +180,21 @@ class BinaryFoldingAction : public FoldingAction {
 //   r   = umul lhs, rhs
 class NaryFoldingAction : public FoldingAction {
  public:
+  struct NodeVisibility {
+    Node* node;
+    VisibilityEdges edges;
+    absl::flat_hash_set<Node*> sinks;
+  };
+
   NaryFoldingAction(
-      std::vector<std::pair<Node*, VisibilityEdges>>&& froms, Node* to,
-      VisibilityEdges to_edges, double area_saved = 0.0,
-      absl::flat_hash_set<Node*> sinks = {},
+      std::vector<NodeVisibility>&& froms, Node* to, VisibilityEdges to_edges,
+      double area_saved = 0.0,
       absl::flat_hash_map<Node*, std::unique_ptr<EquivalenceMapping>> mappings =
           {})
-      : FoldingAction{to, std::move(to_edges), area_saved, std::move(sinks),
-                      std::move(mappings)},
+      : FoldingAction{to, std::move(to_edges), area_saved, std::move(mappings)},
         from_(std::move(froms)) {}
 
-  absl::Span<const std::pair<Node*, VisibilityEdges>> GetFrom() const {
-    return from_;
-  }
+  absl::Span<const NodeVisibility> GetFrom() const { return from_; }
 
   static absl::StatusOr<std::unique_ptr<NaryFoldingAction>> Clone(
       const NaryFoldingAction& other,
@@ -203,8 +203,7 @@ class NaryFoldingAction : public FoldingAction {
   uint64_t GetNumberOfFroms() const { return from_.size(); }
 
  private:
-  // holds pairs of <source, source's used expression>
-  std::vector<std::pair<Node*, VisibilityEdges>> from_;
+  std::vector<NodeVisibility> from_;
 };
 
 // This class organizes the set of binary folding given as input into a graph
