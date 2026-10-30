@@ -543,6 +543,64 @@ string. These format strings use placeholders to fill in relevant information.
     -   `input logic pop_ready`,
     -   `output logic pop_valid`.
 
+# Multi-proc Codegen
+
+With `--multi_proc` (the default), every proc in a network is codegen'd and the
+top-level module instantiates the spawned procs, connecting them with FIFOs for
+each internal channel. A few things are required for this to work:
+
+1.  **Every internal channel needs a FIFO configuration.** Codegen may fail if
+    a channel declared inside the network has no FIFO depth. Either set it per
+    channel in DSLX:
+
+    ```dslx-snippet
+    let (s, r) = #[channel(depth=1)] chan<u32>("data");
+    // or, equivalently for the depth:
+    let (s, r) = chan<u32, u32:1>("data");
+    ```
+
+    or set a default for all channels when converting to IR with
+    `--default_fifo_config`, e.g. in a `BUILD` file:
+
+    ```
+    ir_conv_args = {
+        "lower_to_proc_scoped_channels": "true",
+        "default_fifo_config": "depth: 1, bypass: false, " +
+                               "register_push_outputs: true, register_pop_outputs: false",
+    },
+    ```
+
+1.  **A FIFO implementation must be available.** By default, codegen
+    instantiates a module named `xls_fifo_wrapper` (see `--fifo_module` above)
+    for every internal FIFO, which you need to provide as a sibling Verilog
+    module (for example, alongside the generated Verilog in a
+    `verilog_library`). A simple single-entry implementation can be found in
+    [`xls/modules/zstd/rtl/xls_fifo_wrapper.sv`](https://github.com/google/xls/tree/main/xls/modules/zstd/rtl/xls_fifo_wrapper.sv).
+    Alternatively, pass `--materialize_internal_fifos` (without `--fifo_module`)
+    to have XLS emit its own FIFO logic, so no external module is needed.
+
+For example, the following `BUILD` target codegens the proc network in
+[`xls/examples/proc_network.x`](https://github.com/google/xls/tree/main/xls/examples/proc_network.x)
+(whose IR conversion sets `default_fifo_config`, see `proc_network_ir` in
+[`xls/examples/BUILD`](https://github.com/google/xls/tree/main/xls/examples/BUILD))
+using XLS-provided FIFOs:
+
+```
+xls_ir_verilog(
+    name = "proc_network_sv",
+    src = ":proc_network_opt_ir",
+    codegen_args = {
+        "module_name": "proc_network",
+        "delay_model": "unit",
+        "pipeline_stages": "2",
+        "reset": "rst",
+        "multi_proc": "true",
+        "materialize_internal_fifos": "true",
+    },
+    verilog_file = "proc_network.sv",
+)
+```
+
 # RAMs (experimental)
 
 XLS has experimental support for using proc channels to drive an external RAM.
