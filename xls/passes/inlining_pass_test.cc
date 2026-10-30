@@ -18,11 +18,11 @@
 #include <string>
 #include <utility>
 
+#include "absl/status/status_matchers.h"
+#include "absl/status/statusor.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "xls/common/fuzzing/fuzztest.h"
-#include "absl/status/status_matchers.h"
-#include "absl/status/statusor.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/fuzzer/ir_fuzzer/ir_fuzz_domain.h"
@@ -36,6 +36,7 @@
 #include "xls/passes/dce_pass.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/pass_base.h"
+#include "xls/passes/unroll_pass.h"
 
 namespace m = ::xls::op_matchers;
 
@@ -325,8 +326,8 @@ fn f(foobar: bits[32]) -> bits[32] {
               m::Name("foobar"));
 }
 
-// Verifies that Cover and Assert ops have their labels differentiated when
-// "duplicated" via function inlining.
+// Duplicated source covers are commonized into one OR'd cover; asserts keep
+// their distinct prefixed labels.
 TEST_F(InliningPassTest, CoversAndAssertsDeduplicated) {
   const std::string kProgram = R"(
 package some_package
@@ -351,17 +352,170 @@ fn caller(the_token: token, x: bits[32]) -> (token, bits[32]) {
   XLS_ASSERT_OK_AND_ASSIGN(auto package, ParsePackage(kProgram));
   ASSERT_THAT(Inline(package.get()), IsOkAndHolds(true));
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, package->GetFunction("caller"));
-  for (const auto* node : f->nodes()) {
+
+  std::vector<const Cover*> covers;
+  std::vector<const Assert*> asserts;
+  for (const Node* node : f->nodes()) {
     if (node->Is<Cover>()) {
-      const Cover* cover = node->As<Cover>();
-      EXPECT_THAT(cover->label(), AnyOf(Eq("caller_0_callee_cover_label"),
-                                        Eq("caller_1_callee_cover_label")));
+      covers.push_back(node->As<Cover>());
     } else if (node->Is<Assert>()) {
-      const Assert* asrt = node->As<Assert>();
-      EXPECT_THAT(asrt->label(), AnyOf(Eq("caller_0_callee_assert_label"),
-                                       Eq("caller_1_callee_assert_label")));
+      asserts.push_back(node->As<Assert>());
     }
   }
+
+  // All clones of the single source cover collapse into one cover whose
+  // condition is the OR of the two `ne(_, 666)` conditions from the callee
+  // (666 is the distinctive literal in the original cover's condition).
+  ASSERT_EQ(covers.size(), 1);
+  EXPECT_THAT(covers.front()->condition(),
+              m::Or(m::Ne(::testing::_, m::Literal(666)),
+                    m::Ne(::testing::_, m::Literal(666))));
+  // Asserts are unchanged: two distinct, prefixed clones.
+  ASSERT_EQ(asserts.size(), 2);
+  EXPECT_THAT(asserts[0]->label(), AnyOf(Eq("caller_0_callee_assert_label"),
+                                         Eq("caller_1_callee_assert_label")));
+  EXPECT_THAT(asserts[1]->label(), AnyOf(Eq("caller_0_callee_assert_label"),
+                                         Eq("caller_1_callee_assert_label")));
+}
+
+// Unrolling a body with a cover, then inlining, must collapse to a single cover
+// whose condition is the OR over all iterations ("ever reached").
+TEST_F(InliningPassTest, UnrolledLoopCoverCommonized) {
+  const std::string kProgram = R"(
+package some_package
+
+fn body(i: bits[2], accum: bits[8]) -> bits[8] {
+  zero_ext.1: bits[8] = zero_ext(i, new_bit_count=8)
+  literal.2: bits[2] = literal(value=1)
+  eq.3: bits[1] = eq(i, literal.2)
+  cover.4: () = cover(eq.3, label="loop_cover")
+  add.5: bits[8] = add(zero_ext.1, accum)
+  literal.6: bits[8] = literal(value=1)
+  ret add.7: bits[8] = add(add.5, literal.6)
+}
+
+fn main() -> bits[8] {
+  literal.8: bits[8] = literal(value=0)
+  ret counted_for.9: bits[8] = counted_for(literal.8, trip_count=4, stride=1, body=body)
+}
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(auto package, ParsePackage(kProgram));
+  PassResults results;
+  OptimizationContext context;
+  // Unroll, then inline the invokes and commonize the duplicated covers.
+  XLS_ASSERT_OK_AND_ASSIGN(
+      bool unrolled, UnrollPass().Run(package.get(), OptimizationPassOptions(),
+                                      &results, context));
+  ASSERT_THAT(unrolled, true);
+  ASSERT_THAT(Inline(package.get()), IsOkAndHolds(true));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, package->GetFunction("main"));
+  std::vector<const Cover*> covers;
+  for (const Node* node : f->nodes()) {
+    if (node->Is<Cover>()) {
+      covers.push_back(node->As<Cover>());
+    }
+  }
+  // Exactly one cover remains, combining all four iterations; each OR'd
+  // condition is the `eq(_, 1)` from the body's cover.
+  ASSERT_EQ(covers.size(), 1);
+  EXPECT_THAT(covers.front()->condition(),
+              m::Or(m::Eq(::testing::_, m::Literal(1)),
+                    m::Eq(::testing::_, m::Literal(1)),
+                    m::Eq(::testing::_, m::Literal(1)),
+                    m::Eq(::testing::_, m::Literal(1))));
+}
+
+// Two different functions sharing the same cover label must NOT be merged (the
+// merge keys on the source cover node, not the label string).
+TEST_F(InliningPassTest, SameLabelDifferentFunctionsNotMerged) {
+  const std::string kProgram = R"(
+package some_package
+
+fn a(x: bits[8]) -> bits[8] {
+  literal.1: bits[8] = literal(value=100)
+  ult.2: bits[1] = ult(x, literal.1)
+  cover.3: () = cover(ult.2, label="X")
+  ret literal.4: bits[8] = literal(value=1)
+}
+
+fn b(y: bits[8]) -> bits[8] {
+  literal.5: bits[8] = literal(value=200)
+  ult.6: bits[1] = ult(y, literal.5)
+  cover.7: () = cover(ult.6, label="X")
+  ret literal.8: bits[8] = literal(value=2)
+}
+
+fn caller(x: bits[8], y: bits[8]) -> bits[8] {
+  invoke.9: bits[8] = invoke(x, to_apply=a)
+  invoke.10: bits[8] = invoke(y, to_apply=b)
+  ret add.11: bits[8] = add(invoke.9, invoke.10)
+}
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(auto package, ParsePackage(kProgram));
+  ASSERT_THAT(Inline(package.get()), IsOkAndHolds(true));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, package->GetFunction("caller"));
+  std::vector<const Cover*> covers;
+  for (const Node* node : f->nodes()) {
+    if (node->Is<Cover>()) {
+      covers.push_back(node->As<Cover>());
+    }
+  }
+  // Two genuinely distinct covers (from different functions) stay separate even
+  // though they share the same original label "X".
+  ASSERT_EQ(covers.size(), 2);
+  EXPECT_THAT(covers[0]->label(), Eq("caller_0_a_X"));
+  EXPECT_THAT(covers[1]->label(), Eq("caller_1_b_X"));
+}
+
+// Covers survive multi-level inlining (a -> {b, c} -> d) and still collapse to
+// a single cover in the final caller d, OR-ing the conditions from every path.
+TEST_F(InliningPassTest, MultiLevelCoverCommonized) {
+  const std::string kProgram = R"(
+package some_package
+
+fn a(x: bits[8]) -> bits[8] {
+  literal.1: bits[8] = literal(value=42)
+  ult.2: bits[1] = ult(x, literal.1)
+  cover.3: () = cover(ult.2, label="a_cover")
+  ret literal.4: bits[8] = literal(value=1)
+}
+
+fn b(x: bits[8]) -> bits[8] {
+  invoke.5: bits[8] = invoke(x, to_apply=a)
+  ret literal.6: bits[8] = literal(value=2)
+}
+
+fn c(x: bits[8]) -> bits[8] {
+  invoke.7: bits[8] = invoke(x, to_apply=a)
+  ret literal.8: bits[8] = literal(value=3)
+}
+
+fn d(x: bits[8]) -> bits[8] {
+  invoke.9: bits[8] = invoke(x, to_apply=b)
+  invoke.10: bits[8] = invoke(x, to_apply=c)
+  ret add.11: bits[8] = add(invoke.9, invoke.10)
+}
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(auto package, ParsePackage(kProgram));
+  ASSERT_THAT(Inline(package.get()), IsOkAndHolds(true));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, package->GetFunction("d"));
+  std::vector<const Cover*> covers;
+  for (const Node* node : f->nodes()) {
+    if (node->Is<Cover>()) {
+      covers.push_back(node->As<Cover>());
+    }
+  }
+  // The two clones of a's cover that reach d (via b and via c) collapse into
+  // one cover whose condition ORs both paths' `ult(_, 42)` (42 is a's covering
+  // literal).
+  ASSERT_EQ(covers.size(), 1);
+  EXPECT_THAT(covers.front()->condition(),
+              m::Or(m::ULt(::testing::_, m::Literal(42)),
+                    m::ULt(::testing::_, m::Literal(42))));
 }
 
 void IrFuzzInlining(FuzzPackageWithArgs fuzz_package_with_args) {

@@ -18,10 +18,10 @@
 #include <string>
 #include <utility>
 
+#include "absl/status/statusor.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "xls/common/fuzzing/fuzztest.h"
-#include "absl/status/statusor.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/fuzzer/ir_fuzzer/ir_fuzz_domain.h"
@@ -107,7 +107,8 @@ top fn caller(p: bits[1]) -> () {
   EXPECT_EQ(cover->label(), "cover_label");
 }
 
-// Two calls to the same callee so recovery cannot occur.
+// Inlining the same callee twice collapses the two clones into one cover (OR's
+// conditions), so no label collision reaches label-recovery.
 TEST(LabelRecoveryPassTest, CoverLabelCollisionSameCallee) {
   const std::string kProgram = R"(
 package p
@@ -124,19 +125,28 @@ top fn caller(p: bits[1]) -> () {
 )";
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
                            Parser::ParsePackage(kProgram));
+  // The two clones collapse to a single cover, letting label-recovery recover
+  // its original concise label (hence "changed == true").
   XLS_ASSERT_OK_AND_ASSIGN(bool recovery_changed,
                            InlineAndRecover(package.get()));
-  EXPECT_FALSE(recovery_changed);
+  EXPECT_TRUE(recovery_changed);
+  std::vector<Node*> covers;
   for (Node* node : package->GetTopAsFunction().value()->nodes()) {
     if (node->Is<Cover>()) {
-      EXPECT_THAT(node->As<Cover>()->label(),
-                  testing::AnyOf("caller_0_callee_cover_label",
-                                 "caller_1_callee_cover_label"));
+      covers.push_back(node);
     }
   }
+  ASSERT_EQ(covers.size(), 1);
+  // The two clones collapse to one cover whose condition ORs the two cloned
+  // conditions (here the same param feed for both call sites).
+  EXPECT_EQ(covers.front()->As<Cover>()->condition()->op(), Op::kOr);
+  EXPECT_EQ(covers.front()->As<Cover>()->condition()->operand_count(), 2);
+  EXPECT_THAT(covers.front()->As<Cover>()->label(), testing::Eq("cover_label"));
 }
 
-// A partial diamond to the same callee so recovery cannot occur.
+// A partial diamond (callee_one reached directly and via callee_two) still
+// collapses the two clones of callee_one's cover into one commonized cover, so
+// recovery succeeds.
 TEST(LabelRecoveryPassTest, CoverLabelCollisionCalleePartialDiamond) {
   const std::string kProgram = R"(
 package p
@@ -159,16 +169,18 @@ top fn caller(p: bits[1]) -> () {
                            Parser::ParsePackage(kProgram));
   XLS_ASSERT_OK_AND_ASSIGN(bool recovery_changed,
                            InlineAndRecover(package.get()));
-  EXPECT_FALSE(recovery_changed);
+  EXPECT_TRUE(recovery_changed);
+  std::vector<Node*> covers;
   for (Node* node : package->GetTopAsFunction().value()->nodes()) {
     if (node->Is<Cover>()) {
-      EXPECT_THAT(
-          node->As<Cover>()->label(),
-          testing::AnyOf(
-              "caller_1_callee_one_cover_label",
-              "caller_2_callee_two_callee_two_0_callee_one_cover_label"));
+      covers.push_back(node);
     }
   }
+  // Both paths from callee_one collapse into one cover; recovery restores its
+  // original label.
+  ASSERT_EQ(covers.size(), 1);
+  EXPECT_EQ(covers.front()->As<Cover>()->condition()->op(), Op::kOr);
+  EXPECT_THAT(covers.front()->As<Cover>()->label(), testing::Eq("cover_label"));
 }
 
 // Assert in a callee where its label gets recovered after inlining.
