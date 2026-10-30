@@ -76,6 +76,75 @@ class ConditionalSpecializationPassTest : public IrTestBase {
   }
 };
 
+// Builds the flag equations from google/xls#5152. Keeping the comparisons
+// inline makes the pass test independent of DSLX function inlining.
+absl::StatusOr<Function*> BuildRedundantFlagRepro(Package* p, bool with_mux) {
+  FunctionBuilder fb(with_mux ? "repro_mux" : "repro_direct", p);
+  std::optional<BValue> sel;
+  if (with_mux) {
+    sel = fb.Param("sel", p->GetBitsType(1));
+  }
+  BValue is_a = fb.Param("is_a", p->GetBitsType(1));
+  BValue is_b = fb.Param("is_b", p->GetBitsType(1));
+  BValue a_in = fb.Param("a_in", p->GetBitsType(8));
+  BValue b_in = fb.Param("b_in", p->GetBitsType(8));
+  std::optional<BValue> b_alt;
+  if (with_mux) {
+    b_alt = fb.Param("b_alt", p->GetBitsType(8));
+  }
+  BValue b_val = b_in;
+  if (with_mux) {
+    b_val = fb.Select(*sel, *b_alt, b_in);
+  }
+
+  BValue a_c0 = fb.Select(is_a, fb.Eq(a_in, fb.Literal(UBits(0x5a, 8))),
+                          fb.Eq(fb.BitSlice(a_in, /*start=*/1, /*width=*/7),
+                                fb.Literal(UBits(0x31, 7))));
+  BValue a_c1_cmp = fb.Eq(fb.BitSlice(a_in, /*start=*/4, /*width=*/4),
+                          fb.Literal(UBits(0xa, 4)));
+  BValue a_c1 = fb.And(is_a, a_c1_cmp);
+  BValue a_c2 = fb.Eq(fb.BitSlice(a_in, /*start=*/0, /*width=*/5),
+                      fb.Literal(UBits(0x11, 5)));
+
+  BValue b_c0 = fb.Select(is_b, fb.Eq(b_val, fb.Literal(UBits(0x5a, 8))),
+                          fb.Eq(fb.BitSlice(b_val, /*start=*/1, /*width=*/7),
+                                fb.Literal(UBits(0x31, 7))));
+  BValue b_c1_cmp = fb.Eq(fb.BitSlice(b_val, /*start=*/4, /*width=*/4),
+                          fb.Literal(UBits(0xa, 4)));
+  BValue b_c1 = fb.And(is_b, b_c1_cmp);
+  BValue b_c2 = fb.Eq(fb.BitSlice(b_val, /*start=*/0, /*width=*/5),
+                      fb.Literal(UBits(0x11, 5)));
+
+  BValue c0 = fb.Or({a_c0, b_c0, fb.And({a_c2, is_b, b_c1_cmp}),
+                     fb.And({is_a, a_c1_cmp, b_c2})});
+  BValue c1 = fb.And(fb.Or({a_c1, b_c1}), fb.Not(c0));
+  // Preserve the left-associated shape produced by DSLX for x && y && z.
+  BValue c2 = fb.And(fb.And(fb.Or({a_c2, b_c2}), fb.Not(c0)), fb.Not(c1));
+  return fb.BuildWithReturnValue(fb.Tuple({c0, c1, c2}));
+}
+
+TEST_F(ConditionalSpecializationPassTest,
+       RemovesRedundantNegatedTermAcrossMuxedOperand) {
+  {
+    auto p = CreatePackage();
+    XLS_ASSERT_OK_AND_ASSIGN(
+        Function * f, BuildRedundantFlagRepro(p.get(), /*with_mux=*/false));
+    solvers::ScopedVerifyEquivalence sve{f};
+    EXPECT_THAT(Run(f), IsOkAndHolds(true));
+    EXPECT_THAT(f->return_value()->As<Tuple>()->operand(2),
+                m::And(m::And(m::Or(), m::Not()), m::Literal(1)));
+  }
+  {
+    auto p = CreatePackage();
+    XLS_ASSERT_OK_AND_ASSIGN(
+        Function * f, BuildRedundantFlagRepro(p.get(), /*with_mux=*/true));
+    solvers::ScopedVerifyEquivalence sve{f};
+    EXPECT_THAT(Run(f), IsOkAndHolds(true));
+    EXPECT_THAT(f->return_value()->As<Tuple>()->operand(2),
+                m::And(m::And(m::Or(), m::Not()), m::Literal(1)));
+  }
+}
+
 TEST_F(ConditionalSpecializationPassTest, SpecializeSelectSimple) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
