@@ -1617,11 +1617,7 @@ ranging from 0 to 7 and the value at the index `e = x[i]`.
 ```
 fn prefix_scan_eq(x: u32[8]) -> u3[8] {
   let (_, _, result) =
-    // TODO(https://github.com/google/xls/issues/5125): Destructure `(i, e)` in
-    // the `for` loop header once supported during IR conversion.
-    for (item, (prior, count, result)) in std::enumerate(x) {
-      let (i, e) = item;
-      ...
+    for ((i, e), (prior, count, result)) in std::enumerate(x) {...
 ```
 
 ### `for` Expression

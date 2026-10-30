@@ -305,9 +305,7 @@ fn f(x: u2) -> u8 {
   ExpectIr(converted);
 }
 
-// TODO: github.com/google/xls/issues/1289 - Need to support this to enumerate
-// in a for-loop.
-TEST_F(IrConverterTest, DISABLED_LoopThroughTupleArray) {
+TEST_F(IrConverterTest, LoopThroughTupleArray) {
   constexpr std::string_view program = R"(
 pub fn make_bool_array() -> bool[2] {
     let enumerated = [(u32:0, u32:0), (u32:1, u32:1)];

@@ -1,0 +1,27 @@
+package test_module
+
+file_number 0 "test_module.x"
+
+fn ____test_module__make_bool_array_counted_for_0_body(__index: bits[32] id=9, x: bits[1][2] id=10, __indexable: (bits[32], bits[32])[2] id=11) -> bits[1][2] {
+  array_index.12: (bits[32], bits[32]) = array_index(__indexable, indices=[__index], id=12)
+  literal.15: bits[1] = literal(value=1, id=15)
+  i: bits[32] = tuple_index(array_index.12, index=1, id=14)
+  tuple_index.13: bits[32] = tuple_index(array_index.12, index=0, id=13)
+  ret array_update.16: bits[1][2] = array_update(x, literal.15, indices=[i], id=16)
+}
+
+fn __test_module__make_bool_array() -> bits[1][2] {
+  literal.1: bits[32] = literal(value=0, id=1)
+  literal.2: bits[32] = literal(value=0, id=2)
+  literal.4: bits[32] = literal(value=1, id=4)
+  literal.5: bits[32] = literal(value=1, id=5)
+  tuple.3: (bits[32], bits[32]) = tuple(literal.1, literal.2, id=3)
+  tuple.6: (bits[32], bits[32]) = tuple(literal.4, literal.5, id=6)
+  literal.8: bits[1][2] = literal(value=[0, 0], id=8)
+  enumerated: (bits[32], bits[32])[2] = array(tuple.3, tuple.6, id=7)
+  ret counted_for.17: bits[1][2] = counted_for(literal.8, trip_count=2, stride=1, body=____test_module__make_bool_array_counted_for_0_body, invariant_args=[enumerated], id=17)
+}
+
+top fn __test_module__main() -> bits[1][2] {
+  ret invoke.18: bits[1][2] = invoke(to_apply=__test_module__make_bool_array, id=18)
+}

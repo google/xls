@@ -56,15 +56,22 @@ xls_dslx_opt_ir_test(
     dep = ":crc32_one_byte_inferred",
 )
 
-# TODO: Remove `lower_to_ir` flag once the support for std::enumerate
-#       is merged: https://github.com/google/xls/pull/3816
+xls_dslx_opt_ir(
+    name = "prefix_scan_equality",
+    srcs = ["prefix_scan_equality.x"],
+    dslx_top = "prefix_scan_eq",
+    ir_conv_args = {"lower_to_proc_scoped_channels": "true"},
+)
+
+xls_dslx_opt_ir_test(
+    name = "prefix_scan_equality_test",
+    dep = ":prefix_scan_equality",
+)
+
 xls_dslx_test(
     name = "prefix_scan_equality_dslx_test",
     srcs = ["prefix_scan_equality.x"],
-    dslx_test_args = {
-        "compare": "none",
-        "lower_to_ir": "false",
-    },
+    dslx_test_args = {"compare": "jit"},
 )
 
 filegroup(
