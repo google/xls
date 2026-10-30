@@ -35,10 +35,12 @@
 
 namespace xls {
 
-// `EquivalenceMapping` is an abstract class representing a concrete plan to
-// map a source node onto a destination node by transforming some combination
-// of the `src` node's operands and/or the output as used by the original users
-// of `src`. The `dst` node is then usable as-is in place of `src`.
+// `EquivalenceMapping` is an abstract class representing what is needed to use
+// `dst` instead of `src`, i.e. what transformations to `src` node's operands
+// and/or to the output of `dst` when used by the original users of `src`.
+// For example, if src(X, Y) == h(dst(f(X), g(Y))), then this mapping helps
+// build expressions `f`, `g`, and `h` such that `src` can be replaced by `dst`
+// and those newly built expressions.
 class EquivalenceMapping {
  public:
   EquivalenceMapping(Node* src, Node* dst,
