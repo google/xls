@@ -18,6 +18,10 @@ load("@bazel_tools//tools/cpp:toolchain_utils.bzl", "find_cpp_toolchain", "use_c
 load("@rules_cc//cc/common:cc_common.bzl", "cc_common")
 load("@rules_cc//cc/common:cc_info.bzl", "CcInfo")
 load(
+    "//xls/build_rules:xls_config_rules.bzl",
+    "CONFIG",
+)
+load(
     "//xls/build_rules:xls_providers.bzl",
     "XlsEstimatorModelInfo",
     "XlsEstimatorRegistryInfo",
@@ -104,6 +108,12 @@ _xls_default_delay_models_rule = rule(
     provides = [XlsEstimatorRegistryInfo, CcInfo],
     toolchains = use_cpp_toolchain() + ["//xls/common/toolchains:toolchain_type"],
     fragments = ["cpp"],
+    attrs = {
+        "_default_registry_deps": attr.label_list(
+            default = CONFIG["static_query_delay_model_deps"],
+            doc = "Explicit dependency edges to the default delay model registries for static build-graph analysis. Has no effect on the build itself.",
+        ),
+    },
 )
 
 def xls_default_delay_models(name, tags = None):
@@ -132,6 +142,12 @@ _xls_default_area_models_rule = rule(
     provides = [XlsEstimatorRegistryInfo, CcInfo],
     toolchains = use_cpp_toolchain() + ["//xls/common/toolchains:toolchain_type"],
     fragments = ["cpp"],
+    attrs = {
+        "_default_registry_deps": attr.label_list(
+            default = CONFIG["static_query_area_model_deps"],
+            doc = "Explicit dependency edges to the default area model registries for static build-graph analysis. Has no effect on the build itself.",
+        ),
+    },
 )
 
 def xls_default_area_models(name, tags = None):

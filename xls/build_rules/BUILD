@@ -318,6 +318,7 @@ bzl_library(
     visibility = ["//visibility:private"],
     deps = [
         ":xls_cc_embed_data_rules_bzl",
+        ":xls_config_rules_bzl",
         ":xls_providers_bzl",
         ":xls_utilities_bzl",
         "@bazel_skylib//lib:dicts",
@@ -331,6 +332,7 @@ bzl_library(
     srcs = ["xls_estimator_rules.bzl"],
     visibility = ["//visibility:private"],
     deps = [
+        ":xls_config_rules_bzl",
         ":xls_providers_bzl",
         "@rules_cc//cc/common",
     ],

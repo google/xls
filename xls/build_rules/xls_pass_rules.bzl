@@ -25,6 +25,10 @@ load(
     _get_embedded_data = "get_embedded_data",
 )
 load(
+    "//xls/build_rules:xls_config_rules.bzl",
+    "CONFIG",
+)
+load(
     "//xls/build_rules:xls_providers.bzl",
     "XlsCodegenPassInfo",
     "XlsCodegenPassRegistryConfigInfo",
@@ -581,6 +585,12 @@ xls_default_pass_registry = rule(
     doc = """A pass registry with the default pipeline.""",
     provides = [XlsOptimizationPassRegistryInfo, XlsOptimizationPassRegistryConfigInfo, CcInfo],
     toolchains = ["//xls/common/toolchains:toolchain_type"],
+    attrs = {
+        "_default_registry_deps": attr.label_list(
+            default = CONFIG["static_query_optimization_pass_pipeline_deps"],
+            doc = "Explicit dependency edges to the default optimization pass registries for static build-graph analysis. Has no effect on the build itself.",
+        ),
+    },
 )
 
 def _xls_default_codegen_pass_registry(ctx):
@@ -600,4 +610,10 @@ xls_default_codegen_pass_registry = rule(
     doc = """A pass registry with the default codegen pipeline.""",
     provides = [CcInfo, XlsCodegenPassRegistryInfo, XlsCodegenPassRegistryConfigInfo],
     toolchains = ["//xls/common/toolchains:toolchain_type"],
+    attrs = {
+        "_default_registry_deps": attr.label_list(
+            default = CONFIG["static_query_codegen_pass_pipeline_deps"],
+            doc = "Explicit dependency edges to the default codegen pass registries for static build-graph analysis. Has no effect on the build itself.",
+        ),
+    },
 )

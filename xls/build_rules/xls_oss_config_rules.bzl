@@ -20,6 +20,22 @@ CONFIG = {
             doc = "The list of generated files.",
         ),
     },
+    # These lists provide explicit static label edges to the default pass and
+    # estimator model registries solely to support static build-graph analysis
+    # use cases (which do not traverse toolchain resolution). They have no
+    # effect on the build itself.
+    "static_query_optimization_pass_pipeline_deps": [
+        Label("//xls/passes:oss_optimization_passes"),
+    ],
+    "static_query_codegen_pass_pipeline_deps": [
+        Label("//xls/codegen_v_1_5:codegen_passes"),
+    ],
+    "static_query_delay_model_deps": [
+        Label("//xls/estimators/delay_model/models:oss_models"),
+    ],
+    "static_query_area_model_deps": [
+        Label("//xls/estimators/area_model/models:oss_models"),
+    ],
 }
 
 DEFAULT_BENCHMARK_SYNTH_DELAY_MODEL = "asap7"
