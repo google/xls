@@ -32,11 +32,18 @@ XLS_ROOT = 'xls'
 
 # All paths are relative to XLS_ROOT
 BINARIES = (
+    'dev_tools/check_ir_equivalence_main',
+    'dslx/dslx_fmt',
     'dslx/interpreter_main',
-    'dslx/parse_and_typecheck_dslx_main',
     'dslx/ir_convert/ir_converter_main',
-    'tools/opt_main',
+    'dslx/lsp/dslx_ls',
+    'dslx/parse_and_typecheck_dslx_main',
+    'dslx/prove_quickcheck_main',
     'tools/codegen_main',
+    'tools/delay_info_main',
+    'tools/opt_main',
+    'tools/print_bom',
+    'tools/proto_to_dslx_main',
     # TODO: https://github.com/google/xls/issues/2021 - Re-enable when fixed.
     # 'visualization/ir_viz/app',
 )

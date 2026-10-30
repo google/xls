@@ -67,6 +67,14 @@ jobs:
           [[ ${DSLX_LS_VERSION} = ${VERSION} ]]
           PARSE_AND_TYPECHECK_DSLX_MAIN_VERSION=$(./parse_and_typecheck_dslx_main --version)
           [[ ${PARSE_AND_TYPECHECK_DSLX_MAIN_VERSION} = ${VERSION} ]]
+          PROVE_QUICKCHECK_MAIN_VERSION=$(./prove_quickcheck_main --version)
+          [[ ${PROVE_QUICKCHECK_MAIN_VERSION} = ${VERSION} ]]
+          CHECK_IR_EQUIVALENCE_MAIN_VERSION=$(./check_ir_equivalence_main --version)
+          [[ ${CHECK_IR_EQUIVALENCE_MAIN_VERSION} = ${VERSION} ]]
+          DELAY_INFO_MAIN_VERSION=$(./delay_info_main --version)
+          [[ ${DELAY_INFO_MAIN_VERSION} = ${VERSION} ]]
+          PRINT_BOM_VERSION=$(./print_bom --version)
+          [[ ${PRINT_BOM_VERSION} = ${VERSION} ]]
 
       - name: Test stdlib import
         run: |
