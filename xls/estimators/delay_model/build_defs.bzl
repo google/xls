@@ -15,13 +15,52 @@
 """Contains macros for creating XLS delay models."""
 
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load("@rules_cc//cc/common:cc_info.bzl", "CcInfo")
 load("//xls/build_rules:genrule_wrapper.bzl", "genrule_wrapper")
+load("//xls/build_rules:xls_cc_embed_data_rules.bzl", "xls_cc_embed_data")
+load("//xls/build_rules:xls_diff_test.bzl", "diff_test")
+load("//xls/build_rules:xls_utilities.bzl", "proto_data")
+
+def _generate_delay_model_registration_impl(ctx):
+    output_file = ctx.actions.declare_file(ctx.attr.name + ".cc")
+    header_path = ctx.attr.data_lib[CcInfo].compilation_context.direct_public_headers[0].path
+    ctx.actions.expand_template(
+        template = ctx.file._registration_template,
+        output = output_file,
+        substitutions = {
+            "{WARNING}": "Generated file. Do not edit.",
+            "{HEADER}": header_path,
+            "{MODEL_NAME}": ctx.attr.model_name,
+            "{ACCESS_FN}": ctx.attr.access_fn,
+            "{PRECEDENCE}": ctx.attr.precedence,
+        },
+    )
+    return [DefaultInfo(files = depset([output_file]))]
+
+_generate_delay_model_registration = rule(
+    implementation = _generate_delay_model_registration_impl,
+    attrs = {
+        "model_name": attr.string(mandatory = True),
+        "access_fn": attr.string(mandatory = True),
+        "precedence": attr.string(mandatory = True),
+        "data_lib": attr.label(
+            mandatory = True,
+            providers = [CcInfo],
+        ),
+        "_registration_template": attr.label(
+            default = Label("//xls/estimators/delay_model:delay_model_registration.cc.tmpl"),
+            allow_single_file = True,
+        ),
+    },
+    doc = "Generates the C++ source file registering a pre-computed proto delay model.",
+)
 
 def delay_model(
         name,
         model_name,
         precedence,
         srcs,
+        precomputed_proto = None,
         **kwargs):
     """Generates a delay model cc_library from an EstimatorModel protobuf.
 
@@ -33,6 +72,10 @@ def delay_model(
       precedence: Precedence for the model in the delay model registry.
       srcs: The pbtext file containing the EstimatorModel proto. There should only
         be a single source file.
+      precomputed_proto: Optional pre-computed CompiledEstimatorModel textproto
+        file. If provided, the cc_library embeds the binary proto directly and
+        evaluates it at runtime without depending on Python curve-fitting tools,
+        and a diff_test target is created to verify it stays in sync with srcs.
       **kwargs: Keyword args to pass to cc_library and genrule_wrapper rules.
     """
 
@@ -42,33 +85,70 @@ def delay_model(
     if precedence not in ("kLow", "kMedium", "kHigh"):
         fail("Invalid precedence for delay model: " + precedence)
 
+    precomputed_gen_target = "{}_precomputed_gen".format(name)
+    binpb_target = "{}_binpb".format(name)
+    data_target = "{}_delay_data".format(name)
+    source_target = "{}_source".format(name)
+    testonly = kwargs.get("testonly", False)
+
     genrule_wrapper(
-        name = "{}_source".format(name),
+        name = precomputed_gen_target,
         srcs = srcs,
-        outs = ["{}.cc".format(name)],
-        cmd = ("$(location //xls/estimators/delay_model:generate_delay_lookup) " +
-               "--model_name={model_name} --precedence={precedence} $< " +
-               "| $(location @llvm//tools:clang-format)" +
-               " > $(OUTS)").format(model_name = model_name, precedence = precedence),
+        outs = ["{}_generated_precomputed.textproto".format(name)],
+        cmd = "$(location //xls/estimators:generate_compiled_estimator_model) $< > $(OUTS)",
         tools = [
-            "//xls/estimators/delay_model:generate_delay_lookup",
-            "@llvm//tools:clang-format",
+            "//xls/estimators:generate_compiled_estimator_model",
         ],
-        **kwargs
+        testonly = testonly,
+        visibility = ["//visibility:private"],
+    )
+
+    if precomputed_proto != None:
+        precomputed_src = precomputed_proto
+        diff_test(
+            name = "{}_precomputed_up_to_date_test".format(name),
+            file = ":{}".format(precomputed_gen_target),
+            golden = precomputed_proto,
+            tags = [
+                "noasan",
+                "nomsan",
+            ],
+        )
+    else:
+        precomputed_src = ":{}".format(precomputed_gen_target)
+
+    proto_data(
+        name = binpb_target,
+        src = precomputed_src,
+        proto_name = "xls.estimator_model.CompiledEstimatorModel",
+        testonly = testonly,
+        visibility = ["//visibility:private"],
+    )
+    xls_cc_embed_data(
+        name = data_target,
+        data = ":{}".format(binpb_target),
+        namespace = "xls::delay_model",
+        testonly = testonly,
+        visibility = ["//visibility:private"],
+    )
+    _generate_delay_model_registration(
+        name = source_target,
+        model_name = model_name,
+        access_fn = "::xls::delay_model::get_{}".format(data_target),
+        precedence = precedence,
+        data_lib = ":{}".format(data_target),
+        testonly = testonly,
+        visibility = ["//visibility:private"],
     )
     cc_library(
         name = name,
-        srcs = [":{}_source".format(name)],
+        srcs = [":{}".format(source_target)],
         alwayslink = 1,
         deps = [
-            "@abseil-cpp//absl/container:flat_hash_set",
+            ":{}".format(data_target),
             "@abseil-cpp//absl/log:check",
-            "@abseil-cpp//absl/memory",
-            "@abseil-cpp//absl/status",
             "//xls/common:module_initializer",
-            "@abseil-cpp//absl/status:statusor",
             "//xls/estimators/delay_model:delay_estimator",
-            "//xls/ir",
         ],
         **kwargs
     )

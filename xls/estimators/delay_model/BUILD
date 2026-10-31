@@ -19,8 +19,8 @@ load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_cc//cc:cc_test.bzl", "cc_test")
 load("@rules_hdl//dependency_support/com_google_skywater_pdk:cells_info.bzl", "for_each_sky130_cells")
 load("@rules_hdl//dependency_support/org_theopenroadproject_asap7_pdk_r1p7:cells_info.bzl", "for_each_asap7_cells")
-load("//xls/build_rules:py_oss_defs.bzl", "pytype_strict_binary")
 load("//xls/build_rules:xls_build_defs.bzl", "xls_model_generation")
+load("//xls/estimators/delay_model:build_defs.bzl", "delay_model")
 
 package(
     default_applicable_licenses = ["//:license"],
@@ -40,6 +40,8 @@ cc_library(
     deps = [
         "//xls/common:math_util",
         "//xls/common/status:status_macros",
+        "//xls/estimators:estimator_model_cc_proto",
+        "//xls/estimators:proto_estimator_utils",
         "//xls/ir",
         "//xls/ir:op",
         "//xls/netlist:cell_library",
@@ -97,15 +99,18 @@ cc_test(
         ":delay_estimator",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
+        "//xls/estimators:estimator_model_cc_proto",
         "//xls/ir:bits",
         "//xls/ir:function_builder",
         "//xls/ir:ir_test_base",
         "//xls/ir:op",
+        "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:status_matchers",
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings:str_format",
         "@googletest//:gtest",
+        "@protobuf",
     ],
 )
 
@@ -131,16 +136,28 @@ cc_test(
     ],
 )
 
+# Synthetic model used to test that `delay_model` works without a checked-in
+# `precomputed_proto` by generating the compiled estimator proto at build time.
+delay_model(
+    name = "synthetic_test_delay_model",
+    testonly = True,
+    srcs = ["testdata/synthetic_test_delay_model.textproto"],
+    model_name = "synthetic_test_delay",
+    precedence = "kLow",
+)
+
 cc_test(
     name = "delay_estimators_test",
     srcs = ["delay_estimators_test.cc"],
     deps = [
         ":delay_estimator",
         ":delay_estimators",
+        ":synthetic_test_delay_model",  # build_cleaner: keep
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/ir:function_builder",
         "//xls/ir:ir_test_base",
+        "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:status_matchers",
         "@googletest//:gtest",
     ],
@@ -221,21 +238,6 @@ cc_library(
     ],
 )
 
-pytype_strict_binary(
-    name = "generate_delay_lookup",
-    srcs = ["generate_delay_lookup.py"],
-    data = ["generate_delay_lookup.tmpl"],
-    deps = [
-        "//xls/common:runfiles",
-        "//xls/estimators:estimator_model",
-        "//xls/estimators:estimator_model_py_pb2",
-        "@abseil-py//absl:app",
-        "@abseil-py//absl/flags",
-        "@protobuf//:protobuf_python",
-        "@xls_pip_deps//jinja2",
-    ],
-)
-
 cc_library(
     name = "sample_point_extraction_utils",
     srcs = ["sample_point_extraction_utils.cc"],
@@ -284,6 +286,7 @@ cc_test(
 )
 
 exports_files([
+    "delay_model_registration.cc.tmpl",
     "samples.textproto",
 ])
 

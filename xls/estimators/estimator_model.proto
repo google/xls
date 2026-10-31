@@ -383,3 +383,103 @@ message OpSamples {
 message OpSamplesList {
   repeated OpSamples op_samples = 1;
 }
+
+// Describes a pre-computed/compiled estimator for a single operation (or
+// specialization) with all curve-fitting parameters already resolved.
+message CompiledEstimator {
+  // A pre-fitted regression model of the form:
+  //   constant + sum_i(linear_i * expr_i + log2_i * log2(max(1.0, expr_i)))
+  message Regression {
+    message Term {
+      EstimatorExpression expression = 1;
+      double linear = 2;
+      double log2 = 3;
+    }
+    double constant = 1;
+    repeated Term terms = 2;
+  }
+
+  // A pre-fitted area regression model of the form:
+  //   constant + sum_i(square_i * expr_i^2 +
+  //                    linear_log2_i * expr_i * log2(max(1.0, expr_i)) +
+  //                    linear_i * expr_i +
+  //                    log2_i * log2(max(1.0, expr_i)))
+  message AreaRegression {
+    message Term {
+      EstimatorExpression expression = 1;
+      double square = 2;
+      double linear_log2 = 3;
+      double linear = 4;
+      double log2 = 5;
+    }
+    double constant = 1;
+    repeated Term terms = 2;
+  }
+
+  message BoundingBox {
+    message FactorBound {
+      EstimatorFactor factor = 1;
+      int64 max_value = 2;
+    }
+    message Point {
+      repeated FactorBound bounds = 1;
+      oneof result {
+        int64 delay_ps = 2;
+        double area_sq_microns = 3;
+      }
+    }
+    repeated Point points = 1;
+  }
+
+  oneof estimator {
+    // An estimator which returns a fixed value given by 'fixed'.
+    int64 fixed = 1;
+
+    // An estimator which aliases the model of a different op given by
+    // alias_op.
+    string alias_op = 2;
+
+    // A pre-fitted regression model.
+    Regression regression = 3;
+
+    // A pre-extracted bounding box model.
+    BoundingBox bounding_box = 4;
+
+    // A logical effort estimator.
+    LogicalEffortEstimator logical_effort = 5;
+
+    // A pre-fitted area regression model.
+    AreaRegression area_regression = 6;
+  }
+}
+
+// Describes a pre-computed/compiled model for computing the delay/area of a
+// single operation (e.g. kAdd).
+message CompiledOpModel {
+  // The xls::Op for this model (e.g., kAdd).
+  string op = 1;
+
+  // The estimator to use to compute the metric.
+  CompiledEstimator estimator = 2;
+
+  message Specialization {
+    SpecializationKind kind = 1;
+    CompiledEstimator estimator = 2;
+    OpModel.Specialization.Details details = 3;
+  }
+  repeated Specialization specializations = 3;
+}
+
+// Describes a complete pre-computed/compiled estimator model for estimating
+// a specific metric (delay or area) of XLS operations without requiring
+// runtime curve-fitting.
+message CompiledEstimatorModel {
+  // The metric this estimator model is estimating.
+  Metric metric = 1;
+
+  // The compiled models for each op.
+  repeated CompiledOpModel op_models = 2;
+
+  // For area models, the estimated area of a 1-bit register in square microns.
+  optional double one_bit_register_area = 3;
+}

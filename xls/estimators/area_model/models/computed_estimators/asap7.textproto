@@ -1,0 +1,1005 @@
+# proto-file: xls/estimators/estimator_model.proto
+# proto-message: xls.estimator_model.CompiledEstimatorModel
+#
+# Generated File. Do Not Edit.
+# To Regenerate run xls/dev_tools/rebuild_golden_files.sh
+
+metric: AREA_METRIC
+op_models {
+  op: "kAdd"
+  estimator {
+    area_regression {
+      terms {
+        expression {
+          factor {
+            source: OPERAND_BIT_COUNT
+          }
+        }
+        linear: 0.6502695681094448
+        log2: 0.31073671629178556
+      }
+    }
+  }
+}
+op_models {
+  op: "kAfterAll"
+  estimator {
+    fixed: 0
+  }
+}
+op_models {
+  op: "kAnd"
+  estimator {
+    area_regression {
+      terms {
+        expression {
+          bin_op: MULTIPLY
+          lhs_expression {
+            factor {
+              source: OPERAND_COUNT
+            }
+          }
+          rhs_expression {
+            factor {
+              source: OPERAND_BIT_COUNT
+            }
+          }
+        }
+        square: 6.333873377878895e-07
+        linear: 0.03607151048480266
+        log2: 0.39732001433321257
+      }
+    }
+  }
+}
+op_models {
+  op: "kAndReduce"
+  estimator {
+    area_regression {
+      terms {
+        expression {
+          factor {
+            source: OPERAND_BIT_COUNT
+          }
+        }
+        linear: 0.030520112525601134
+        log2: 0.10523266968406893
+      }
+    }
+  }
+}
+op_models {
+  op: "kArray"
+  estimator {
+    fixed: 0
+  }
+}
+op_models {
+  op: "kArrayConcat"
+  estimator {
+    fixed: 0
+  }
+}
+op_models {
+  op: "kArrayIndex"
+  estimator {
+    area_regression {
+      terms {
+        expression {
+          factor {
+            source: OPERAND_BIT_COUNT
+          }
+        }
+        square: 8.183734110150095e-07
+        linear: 0.12226135611532304
+        log2: 3.582137815791325
+      }
+    }
+  }
+  specializations {
+    kind: HAS_LITERAL_OPERAND
+    estimator {
+      fixed: 0
+    }
+    details {
+      literal_operand_details {
+        allowed_nonliteral_operand: 0
+      }
+    }
+  }
+}
+op_models {
+  op: "kArraySlice"
+  estimator {
+    alias_op: "kArrayIndex"
+  }
+}
+op_models {
+  op: "kArrayUpdate"
+  estimator {
+    area_regression {
+      terms {
+        expression {
+          factor {
+            source: OPERAND_BIT_COUNT
+          }
+        }
+        square: 2.764732773048627e-07
+        linear: 0.2616628830944233
+        log2: 2.6217127881314264
+      }
+    }
+  }
+  specializations {
+    kind: HAS_LITERAL_OPERAND
+    estimator {
+      fixed: 0
+    }
+    details {
+      literal_operand_details {
+        allowed_nonliteral_operand: 0
+        allowed_nonliteral_operand: 1
+      }
+    }
+  }
+}
+op_models {
+  op: "kAssert"
+  estimator {
+    fixed: 0
+  }
+}
+op_models {
+  op: "kBitSlice"
+  estimator {
+    fixed: 0
+  }
+}
+op_models {
+  op: "kBitSliceUpdate"
+  estimator {
+    alias_op: "kDynamicBitSlice"
+  }
+}
+op_models {
+  op: "kConcat"
+  estimator {
+    fixed: 0
+  }
+}
+op_models {
+  op: "kCover"
+  estimator {
+    fixed: 0
+  }
+}
+op_models {
+  op: "kDecode"
+  estimator {
+    area_regression {
+      terms {
+        expression {
+          factor {
+            source: RESULT_BIT_COUNT
+          }
+        }
+        square: 1.605545593535171e-05
+        linear: 0.17329925788677558
+      }
+    }
+  }
+}
+op_models {
+  op: "kDynamicBitSlice"
+  estimator {
+    area_regression {
+      terms {
+        expression {
+          factor {
+            source: OPERAND_BIT_COUNT
+          }
+        }
+        linear: 0.6357826599717801
+      }
+      terms {
+        expression {
+          factor {
+            source: OPERAND_BIT_COUNT
+            operand_number: 1
+          }
+        }
+        square: 0.12287415851281946
+      }
+    }
+  }
+}
+op_models {
+  op: "kEncode"
+  estimator {
+    area_regression {
+      terms {
+        expression {
+          factor {
+            source: OPERAND_BIT_COUNT
+          }
+        }
+        linear_log2: 0.0033364246088870586
+        linear: 0.07545397534092046
+      }
+    }
+  }
+}
+op_models {
+  op: "kEq"
+  estimator {
+    area_regression {
+      terms {
+        expression {
+          factor {
+            source: OPERAND_BIT_COUNT
+          }
+        }
+        linear: 0.15596108852672483
+        log2: 0.10522215091655329
+      }
+    }
+  }
+}
+op_models {
+  op: "kGate"
+  estimator {
+    area_regression {
+      terms {
+        expression {
+          factor {
+            source: RESULT_BIT_COUNT
+          }
+        }
+        linear: 0.11079706881585842
+        log2: 0.02735932488364519
+      }
+    }
+  }
+}
+op_models {
+  op: "kIdentity"
+  estimator {
+    area_regression {
+      constant: 0.08748
+    }
+  }
+}
+op_models {
+  op: "kInputPort"
+  estimator {
+    fixed: 0
+  }
+}
+op_models {
+  op: "kLiteral"
+  estimator {
+    fixed: 0
+  }
+}
+op_models {
+  op: "kMinDelay"
+  estimator {
+    fixed: 0
+  }
+}
+op_models {
+  op: "kNand"
+  estimator {
+    area_regression {
+      terms {
+        expression {
+          bin_op: MULTIPLY
+          lhs_expression {
+            factor {
+              source: OPERAND_COUNT
+            }
+          }
+          rhs_expression {
+            factor {
+              source: OPERAND_BIT_COUNT
+            }
+          }
+        }
+        linear: 0.03873353953036097
+        log2: 0.37661842268549417
+      }
+    }
+  }
+}
+op_models {
+  op: "kNe"
+  estimator {
+    alias_op: "kEq"
+  }
+}
+op_models {
+  op: "kNeg"
+  estimator {
+    area_regression {
+      terms {
+        expression {
+          factor {
+            source: OPERAND_BIT_COUNT
+          }
+        }
+        linear: 0.33755697210723995
+        log2: 0.1390651753999621
+      }
+    }
+  }
+}
+op_models {
+  op: "kNext"
+  estimator {
+    fixed: 0
+  }
+}
+op_models {
+  op: "kNor"
+  estimator {
+    area_regression {
+      terms {
+        expression {
+          bin_op: MULTIPLY
+          lhs_expression {
+            factor {
+              source: OPERAND_COUNT
+            }
+          }
+          rhs_expression {
+            factor {
+              source: OPERAND_BIT_COUNT
+            }
+          }
+        }
+        linear_log2: 0.0016923807759489876
+        linear: 0.042898878416542816
+      }
+    }
+  }
+}
+op_models {
+  op: "kNot"
+  estimator {
+    area_regression {
+      terms {
+        expression {
+          factor {
+            source: RESULT_BIT_COUNT
+          }
+        }
+        linear_log2: 7.808699817649504e-19
+        linear: 0.043739999999999994
+      }
+    }
+  }
+}
+op_models {
+  op: "kOneHot"
+  estimator {
+    area_regression {
+      terms {
+        expression {
+          factor {
+            source: RESULT_BIT_COUNT
+          }
+        }
+        linear: 0.28843849234929897
+      }
+    }
+  }
+}
+op_models {
+  op: "kOneHotSel"
+  estimator {
+    area_regression {
+      terms {
+        expression {
+          bin_op: MULTIPLY
+          lhs_expression {
+            factor {
+              source: OPERAND_COUNT
+            }
+          }
+          rhs_expression {
+            factor {
+              source: RESULT_BIT_COUNT
+            }
+          }
+        }
+        linear: 0.07704851333668099
+        log2: 0.32293323770635923
+      }
+    }
+  }
+}
+op_models {
+  op: "kOr"
+  estimator {
+    area_regression {
+      terms {
+        expression {
+          bin_op: MULTIPLY
+          lhs_expression {
+            factor {
+              source: OPERAND_COUNT
+            }
+          }
+          rhs_expression {
+            factor {
+              source: OPERAND_BIT_COUNT
+            }
+          }
+        }
+        square: 1.218739006256019e-06
+        linear_log2: 0.0006889978975877439
+        linear: 0.04391411323469082
+      }
+    }
+  }
+}
+op_models {
+  op: "kOrReduce"
+  estimator {
+    area_regression {
+      terms {
+        expression {
+          bin_op: MULTIPLY
+          lhs_expression {
+            factor {
+              source: OPERAND_COUNT
+            }
+          }
+          rhs_expression {
+            factor {
+              source: OPERAND_BIT_COUNT
+            }
+          }
+        }
+        square: 4.547929986696115e-05
+        linear: 0.04017651138146502
+        log2: 0.09349618287761308
+      }
+    }
+  }
+}
+op_models {
+  op: "kOutputPort"
+  estimator {
+    fixed: 0
+  }
+}
+op_models {
+  op: "kParam"
+  estimator {
+    fixed: 0
+  }
+}
+op_models {
+  op: "kPrioritySel"
+  estimator {
+    area_regression {
+      terms {
+        expression {
+          bin_op: MULTIPLY
+          lhs_expression {
+            factor {
+              source: OPERAND_COUNT
+            }
+          }
+          rhs_expression {
+            factor {
+              source: RESULT_BIT_COUNT
+            }
+          }
+        }
+        linear: 0.1252435527254858
+        log2: 0.538859608257714
+      }
+    }
+  }
+}
+op_models {
+  op: "kReceive"
+  estimator {
+    fixed: 0
+  }
+}
+op_models {
+  op: "kRegisterRead"
+  estimator {
+    fixed: 0
+  }
+}
+op_models {
+  op: "kRegisterWrite"
+  estimator {
+    fixed: 0
+  }
+}
+op_models {
+  op: "kReverse"
+  estimator {
+    fixed: 0
+  }
+}
+op_models {
+  op: "kSDiv"
+  estimator {
+    area_regression {
+      terms {
+        expression {
+          factor {
+            source: OPERAND_BIT_COUNT
+          }
+        }
+        square: 0.6369597905860906
+      }
+      terms {
+        expression {
+          bin_op: MULTIPLY
+          lhs_expression {
+            factor {
+              source: OPERAND_BIT_COUNT
+            }
+          }
+          rhs_expression {
+            factor {
+              source: OPERAND_BIT_COUNT
+            }
+          }
+        }
+        linear_log2: 0.018506189522239036
+      }
+    }
+  }
+}
+op_models {
+  op: "kSGe"
+  estimator {
+    area_regression {
+      terms {
+        expression {
+          factor {
+            source: OPERAND_BIT_COUNT
+          }
+        }
+        linear: 0.32122040707301747
+        log2: 0.24112903770277366
+      }
+    }
+  }
+}
+op_models {
+  op: "kSGt"
+  estimator {
+    area_regression {
+      terms {
+        expression {
+          factor {
+            source: OPERAND_BIT_COUNT
+          }
+        }
+        linear_log2: 0.0029939331239203417
+        linear: 0.3186568169460337
+      }
+    }
+  }
+}
+op_models {
+  op: "kSLe"
+  estimator {
+    area_regression {
+      terms {
+        expression {
+          factor {
+            source: OPERAND_BIT_COUNT
+          }
+        }
+        square: 0.0012539244163020863
+        linear_log2: 0.002668525212986357
+        linear: 0.28730405165575373
+      }
+    }
+  }
+}
+op_models {
+  op: "kSLt"
+  estimator {
+    area_regression {
+      terms {
+        expression {
+          factor {
+            source: OPERAND_BIT_COUNT
+          }
+        }
+        square: 0.0026635860875469657
+        linear: 0.199071892745961
+        log2: 0.41462345154311614
+      }
+    }
+  }
+}
+op_models {
+  op: "kSMod"
+  estimator {
+    alias_op: "kSDiv"
+  }
+}
+op_models {
+  op: "kSMul"
+  estimator {
+    area_regression {
+      terms {
+        expression {
+          factor {
+            source: RESULT_BIT_COUNT
+          }
+        }
+        square: 0.3942962969119653
+      }
+    }
+  }
+  specializations {
+    kind: OPERANDS_IDENTICAL
+    estimator {
+      area_regression {
+        terms {
+          expression {
+            factor {
+              source: OPERAND_BIT_COUNT
+            }
+          }
+          square: 0.37123672595272317
+        }
+      }
+    }
+  }
+}
+op_models {
+  op: "kSMulp"
+  estimator {
+    area_regression {
+      terms {
+        expression {
+          factor {
+            source: RESULT_BIT_COUNT
+          }
+        }
+        square: 0.2274548969630692
+        linear_log2: 0.23301481047829434
+      }
+    }
+  }
+  specializations {
+    kind: OPERANDS_IDENTICAL
+    estimator {
+      area_regression {
+        terms {
+          expression {
+            factor {
+              source: OPERAND_BIT_COUNT
+            }
+          }
+          square: 0.7965216417304138
+          linear_log2: 0.3412663352095496
+        }
+      }
+    }
+  }
+}
+op_models {
+  op: "kSel"
+  estimator {
+    area_regression {
+      terms {
+        expression {
+          bin_op: MULTIPLY
+          lhs_expression {
+            factor {
+              source: OPERAND_COUNT
+            }
+          }
+          rhs_expression {
+            factor {
+              source: RESULT_BIT_COUNT
+            }
+          }
+        }
+        linear_log2: 0.00029293061977456696
+        linear: 0.13087976008187047
+      }
+    }
+  }
+  specializations {
+    kind: HAS_LITERAL_OPERAND
+    estimator {
+      fixed: 0
+    }
+    details {
+      literal_operand_details {
+        required_literal_operand: 0
+      }
+    }
+  }
+}
+op_models {
+  op: "kSend"
+  estimator {
+    fixed: 0
+  }
+}
+op_models {
+  op: "kShll"
+  estimator {
+    area_regression {
+      terms {
+        expression {
+          factor {
+            source: OPERAND_BIT_COUNT
+          }
+        }
+        square: 0.00167206547131089
+        linear_log2: 0.0764177733715866
+        linear: 0.37996282917789415
+      }
+    }
+  }
+}
+op_models {
+  op: "kShra"
+  estimator {
+    alias_op: "kShll"
+  }
+}
+op_models {
+  op: "kShrl"
+  estimator {
+    alias_op: "kShll"
+  }
+}
+op_models {
+  op: "kSignExt"
+  estimator {
+    area_regression {
+      terms {
+        expression {
+          bin_op: SUB
+          lhs_expression {
+            factor {
+              source: RESULT_BIT_COUNT
+            }
+          }
+          rhs_expression {
+            factor {
+              source: OPERAND_BIT_COUNT
+            }
+          }
+        }
+        linear: 0.06065269992779918
+        log2: 0.46593417329136416
+      }
+    }
+  }
+}
+op_models {
+  op: "kStateRead"
+  estimator {
+    fixed: 0
+  }
+}
+op_models {
+  op: "kSub"
+  estimator {
+    area_regression {
+      terms {
+        expression {
+          factor {
+            source: OPERAND_BIT_COUNT
+          }
+        }
+        linear: 0.6866567596486973
+        log2: 0.4857153864827998
+      }
+    }
+  }
+}
+op_models {
+  op: "kTrace"
+  estimator {
+    fixed: 0
+  }
+}
+op_models {
+  op: "kTuple"
+  estimator {
+    fixed: 0
+  }
+}
+op_models {
+  op: "kTupleIndex"
+  estimator {
+    fixed: 0
+  }
+}
+op_models {
+  op: "kUDiv"
+  estimator {
+    area_regression {
+      terms {
+        expression {
+          factor {
+            source: OPERAND_BIT_COUNT
+          }
+        }
+        square: 0.3762014363140633
+      }
+      terms {
+        expression {
+          bin_op: MULTIPLY
+          lhs_expression {
+            factor {
+              source: OPERAND_BIT_COUNT
+            }
+          }
+          rhs_expression {
+            factor {
+              source: OPERAND_BIT_COUNT
+            }
+          }
+        }
+        linear_log2: 0.03981707427377566
+      }
+    }
+  }
+}
+op_models {
+  op: "kUGe"
+  estimator {
+    alias_op: "kSGe"
+  }
+}
+op_models {
+  op: "kUGt"
+  estimator {
+    alias_op: "kSGt"
+  }
+}
+op_models {
+  op: "kULe"
+  estimator {
+    alias_op: "kSLe"
+  }
+}
+op_models {
+  op: "kULt"
+  estimator {
+    alias_op: "kSLt"
+  }
+}
+op_models {
+  op: "kUMod"
+  estimator {
+    alias_op: "kUDiv"
+  }
+}
+op_models {
+  op: "kUMul"
+  estimator {
+    area_regression {
+      terms {
+        expression {
+          factor {
+            source: RESULT_BIT_COUNT
+          }
+        }
+        square: 0.39471392673263644
+      }
+    }
+  }
+  specializations {
+    kind: OPERANDS_IDENTICAL
+    estimator {
+      area_regression {
+        terms {
+          expression {
+            factor {
+              source: OPERAND_BIT_COUNT
+            }
+          }
+          square: 0.368229818894746
+        }
+      }
+    }
+  }
+}
+op_models {
+  op: "kUMulp"
+  estimator {
+    area_regression {
+      terms {
+        expression {
+          factor {
+            source: RESULT_BIT_COUNT
+          }
+        }
+        square: 0.2183688588557204
+        log2: 0.2400692383964309
+      }
+    }
+  }
+  specializations {
+    kind: OPERANDS_IDENTICAL
+    estimator {
+      area_regression {
+        terms {
+          expression {
+            factor {
+              source: OPERAND_BIT_COUNT
+            }
+          }
+          square: 0.7538242318894445
+        }
+      }
+    }
+  }
+}
+op_models {
+  op: "kXor"
+  estimator {
+    area_regression {
+      terms {
+        expression {
+          bin_op: MULTIPLY
+          lhs_expression {
+            factor {
+              source: OPERAND_COUNT
+            }
+          }
+          rhs_expression {
+            factor {
+              source: OPERAND_BIT_COUNT
+            }
+          }
+        }
+        linear: 0.20261841465158634
+        log2: 1.3805888093623302
+      }
+    }
+  }
+}
+op_models {
+  op: "kXorReduce"
+  estimator {
+    area_regression {
+      terms {
+        expression {
+          bin_op: MULTIPLY
+          lhs_expression {
+            factor {
+              source: OPERAND_COUNT
+            }
+          }
+          rhs_expression {
+            factor {
+              source: OPERAND_BIT_COUNT
+            }
+          }
+        }
+        linear: 0.4285160112153812
+      }
+    }
+  }
+}
+op_models {
+  op: "kZeroExt"
+  estimator {
+    fixed: 0
+  }
+}
+one_bit_register_area: 0.2916

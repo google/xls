@@ -44,26 +44,38 @@ estimator_model_group(
     ],
 )
 
+# To create a precomputed estimator file for a new area model:
+# 1. Create an empty file at `computed_estimators/<model_name>.textproto`.
+# 2. Set `precomputed_proto = "computed_estimators/<model_name>.textproto"` on
+#    the `area_model` target.
+# 3. Run `./xls/dev_tools/rebuild_golden_files.sh` (or run the
+#    `:<target_name>_precomputed_up_to_date_test_update_golden` target) to
+#    populate the file.
+
 area_model(
     name = "area_model_asap7",
     srcs = ["asap7.textproto"],
     model_name = "asap7",
+    precomputed_proto = "computed_estimators/asap7.textproto",
 )
 
 area_model(
     name = "area_model_sky130",
     srcs = ["sky130.textproto"],
     model_name = "sky130",
+    precomputed_proto = "computed_estimators/sky130.textproto",
 )
 
 area_model(
     name = "area_model_unit",
     srcs = ["unit.textproto"],
     model_name = "unit",
+    precomputed_proto = "computed_estimators/unit.textproto",
 )
 
 area_model(
     name = "area_model_unit_with_default_recursive_op_handling",
     srcs = ["unit_with_default_recursive_op_handling.textproto"],
     model_name = "unit_with_default_recursive_op_handling",
+    precomputed_proto = "computed_estimators/unit_with_default_recursive_op_handling.textproto",
 )

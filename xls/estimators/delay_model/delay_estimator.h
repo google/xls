@@ -31,6 +31,7 @@
 #include "absl/status/statusor.h"
 #include "absl/synchronization/mutex.h"
 #include "absl/types/span.h"
+#include "xls/estimators/estimator_model.pb.h"
 #include "xls/ir/ir_annotator.h"
 #include "xls/ir/node.h"
 #include "xls/ir/op.h"
@@ -165,6 +166,34 @@ class DelayEstimatorManager {
 
 // Returns the singleton manager which holds the
 DelayEstimatorManager& GetDelayEstimatorManagerSingleton();
+
+// DelayEstimator that evaluates a pre-computed CompiledEstimatorModel proto.
+class ProtoDelayEstimator : public DelayEstimator {
+ public:
+  ProtoDelayEstimator(
+      std::string_view name,
+      absl::flat_hash_map<Op, estimator_model::CompiledOpModel> op_models)
+      : DelayEstimator(name), op_models_(std::move(op_models)) {}
+
+  static absl::StatusOr<std::unique_ptr<ProtoDelayEstimator>> Create(
+      std::string_view name,
+      const estimator_model::CompiledEstimatorModel& model);
+
+  static absl::StatusOr<std::unique_ptr<ProtoDelayEstimator>>
+  CreateFromProtoData(std::string_view name, absl::Span<const uint8_t> data);
+
+  absl::StatusOr<int64_t> GetOperationDelayInPs(Node* node) const override;
+
+ private:
+  absl::StatusOr<int64_t> GetOpDelayInPs(Op op, Node* node) const;
+
+  absl::flat_hash_map<Op, estimator_model::CompiledOpModel> op_models_;
+};
+
+// Registers a ProtoDelayEstimator parsed from embedded binary proto data.
+absl::Status RegisterProtobufDelayEstimator(
+    std::string_view name, absl::Span<const uint8_t> data,
+    DelayEstimatorPrecedence precedence);
 
 // An IrAnnotator which annotates every node with its node delay and the maximum
 // path delay to that node.

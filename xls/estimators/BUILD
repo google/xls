@@ -47,9 +47,39 @@ cc_proto_library(
     deps = [":estimator_model_proto"],
 )
 
+cc_library(
+    name = "proto_estimator_utils",
+    srcs = ["proto_estimator_utils.cc"],
+    hdrs = ["proto_estimator_utils.h"],
+    deps = [
+        ":estimator_model_cc_proto",
+        "//xls/common/status:status_macros",
+        "//xls/ir",
+        "//xls/ir:op",
+        "@abseil-cpp//absl/base:no_destructor",
+        "@abseil-cpp//absl/container:flat_hash_map",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/strings:str_format",
+    ],
+)
+
 py_proto_library(
     name = "estimator_model_py_pb2",
     deps = [":estimator_model_proto"],
+)
+
+pytype_strict_binary(
+    name = "generate_compiled_estimator_model",
+    srcs = ["generate_compiled_estimator_model.py"],
+    deps = [
+        ":estimator_model",
+        ":estimator_model_py_pb2",
+        "//xls/estimators/area_model:area_model_utils",
+        "@abseil-py//absl:app",
+        "@protobuf//:protobuf_python",
+    ],
 )
 
 pytype_strict_library(

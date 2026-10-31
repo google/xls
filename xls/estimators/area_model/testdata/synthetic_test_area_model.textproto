@@ -1,0 +1,73 @@
+# Copyright 2026 The XLS Authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# proto-file: xls/estimators/estimator_model.proto
+# proto-message: xls.estimator_model.EstimatorModel
+#
+# Synthetic area model used to test the `area_model` Bazel macro when no
+# `precomputed_proto` is provided (fitting the estimator parameters at build
+# time rather than using a checked-in precomputed proto).
+
+metric: AREA_METRIC
+op_models {
+  op: "kIdentity"
+  estimator {
+    fixed: 3
+  }
+}
+op_models {
+  op: "kParam"
+  estimator {
+    fixed: 0
+  }
+}
+op_models {
+  op: "kAdd"
+  estimator {
+    fixed: 42
+  }
+}
+op_models {
+  op: "kSub"
+  estimator {
+    area_regression {
+      expressions {
+        factor {
+          source: RESULT_BIT_COUNT
+        }
+      }
+    }
+  }
+}
+data_points {
+  operation {
+    op: "kSub"
+    bit_count: 8
+  }
+  total_area: 80
+}
+data_points {
+  operation {
+    op: "kSub"
+    bit_count: 16
+  }
+  total_area: 160
+}
+data_points {
+  operation {
+    op: "kSub"
+    bit_count: 32
+  }
+  total_area: 320
+}

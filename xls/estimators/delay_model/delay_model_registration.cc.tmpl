@@ -1,0 +1,16 @@
+// {WARNING}
+
+#include "{HEADER}"
+#include "absl/log/check.h"
+#include "xls/common/module_initializer.h"
+#include "xls/estimators/delay_model/delay_estimator.h"
+
+namespace xls {
+
+XLS_REGISTER_MODULE_INITIALIZER(delay_model_{MODEL_NAME}, {
+  CHECK_OK(RegisterProtobufDelayEstimator(
+      "{MODEL_NAME}", {ACCESS_FN}(),
+      DelayEstimatorPrecedence::{PRECEDENCE}));
+});
+
+}  // namespace xls

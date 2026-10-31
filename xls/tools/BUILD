@@ -1261,6 +1261,7 @@ cc_binary(
         "//xls/common/logging:log_lines",
         "//xls/common/status:status_macros",
         "//xls/contrib/xlscc:hls_block_cc_proto",
+        "//xls/estimators:estimator_model_cc_proto",
         "//xls/ir:ram_rewrite_cc_proto",
         "//xls/passes:optimization_pass_pipeline_cc_proto",
         "@abseil-cpp//absl/flags:flag",

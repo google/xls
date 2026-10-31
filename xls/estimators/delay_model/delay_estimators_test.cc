@@ -16,6 +16,7 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
 #include "xls/common/status/matchers.h"
 #include "xls/estimators/delay_model/delay_estimator.h"
@@ -26,6 +27,7 @@ namespace xls {
 namespace {
 
 using ::absl_testing::IsOkAndHolds;
+using ::absl_testing::StatusIs;
 
 class DelayEstimatorsTest : public IrTestBase {};
 
@@ -47,6 +49,23 @@ TEST_F(DelayEstimatorsTest, UnitDelayModel) {
   EXPECT_THAT(estimator->GetOperationDelayInPs(mul.node()), IsOkAndHolds(1));
   EXPECT_THAT(estimator->GetOperationDelayInPs(and_op.node()), IsOkAndHolds(1));
   EXPECT_THAT(estimator->GetOperationDelayInPs(tuple.node()), IsOkAndHolds(1));
+}
+
+TEST_F(DelayEstimatorsTest, SyntheticDelayModelWithoutPrecomputedProto) {
+  XLS_ASSERT_OK_AND_ASSIGN(DelayEstimator * estimator,
+                           GetDelayEstimator("synthetic_test_delay"));
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetBitsType(16));
+  BValue add = fb.Add(x, x);
+  BValue sub = fb.Subtract(x, x);
+  BValue negate = fb.Negate(x);
+
+  EXPECT_THAT(estimator->GetOperationDelayInPs(x.node()), IsOkAndHolds(0));
+  EXPECT_THAT(estimator->GetOperationDelayInPs(add.node()), IsOkAndHolds(42));
+  EXPECT_THAT(estimator->GetOperationDelayInPs(sub.node()), IsOkAndHolds(160));
+  EXPECT_THAT(estimator->GetOperationDelayInPs(negate.node()),
+              StatusIs(absl::StatusCode::kUnimplemented));
 }
 
 }  // namespace
