@@ -36,6 +36,7 @@
 #include "absl/types/span.h"
 #include "absl/types/variant.h"
 #include "xls/common/attribute_data.h"
+#include "xls/common/status/status_macros.h"
 #include "xls/common/visitor.h"
 #include "xls/dslx/create_import_data.h"
 #include "xls/dslx/frontend/ast.h"
@@ -46,6 +47,8 @@
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/interp_value.h"
 #include "xls/dslx/interp_value_from_string.h"
+#include "xls/dslx/ir_convert/convert_options.h"
+#include "xls/dslx/ir_convert/ir_converter.h"
 #include "xls/dslx/parse_and_typecheck.h"
 #include "xls/dslx/replace_invocations.h"
 #include "xls/dslx/type_system/parametric_env.h"
@@ -109,6 +112,34 @@ xls::dslx::ModuleMember* FindModuleMemberForNode(T* node) {
     }
   }
   return nullptr;
+}
+
+absl::StatusOr<std::string> ConvertTypecheckedModuleToIr(
+    const xls::dslx::TypecheckedModule* tm, xls::dslx::ImportData* import_data,
+    bool force_implicit_token_calling_convention) {
+  if (tm == nullptr || import_data == nullptr) {
+    return absl::InvalidArgumentError(
+        "Typechecked module and import data must both be provided");
+  }
+  XLS_ASSIGN_OR_RETURN(xls::dslx::ImportTokens subject,
+                       xls::dslx::ImportTokens::FromString(tm->module->name()));
+  absl::StatusOr<xls::dslx::ModuleInfo*> info = import_data->Get(subject);
+  if (!info.ok() || &(*info)->module() != tm->module ||
+      (*info)->type_info() != tm->type_info) {
+    return absl::InvalidArgumentError(
+        absl::StrFormat("Import data does not own typechecked module '%s'",
+                        tm->module->name()));
+  }
+  return xls::dslx::ConvertModule(
+      tm->module, import_data,
+      xls::dslx::ConvertOptions{
+          // DSLX warnings on this path come from the completed typecheck.
+          // Lowering the AST should preserve their severity.
+          .warnings_as_errors = false,
+          .lower_to_proc_scoped_channels = false,
+          .force_implicit_token_calling_convention =
+              force_implicit_token_calling_convention,
+      });
 }
 
 }  // namespace
@@ -396,6 +427,20 @@ bool xls_dslx_parse_and_typecheck(
   *result_out = nullptr;
   *error_out = xls::ToOwnedCString(tm.status().ToString());
   return false;
+}
+
+bool xls_dslx_typechecked_module_to_ir(
+    const struct xls_dslx_typechecked_module* tm,
+    struct xls_dslx_import_data* import_data,
+    bool force_implicit_token_calling_convention, char** error_out,
+    char** ir_out) {
+  CHECK_NE(error_out, nullptr);
+  CHECK_NE(ir_out, nullptr);
+  absl::StatusOr<std::string> ir = ConvertTypecheckedModuleToIr(
+      reinterpret_cast<const xls::dslx::TypecheckedModule*>(tm),
+      reinterpret_cast<xls::dslx::ImportData*>(import_data),
+      force_implicit_token_calling_convention);
+  return xls::ReturnStringHelper(ir, error_out, ir_out);
 }
 
 bool xls_dslx_typechecked_module_clone_removing_functions(

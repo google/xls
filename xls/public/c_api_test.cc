@@ -27,12 +27,12 @@
 #include <variant>
 #include <vector>
 
-#include "gmock/gmock.h"
-#include "gtest/gtest.h"
 #include "absl/base/macros.h"
 #include "absl/cleanup/cleanup.h"
 #include "absl/log/log.h"
 #include "absl/strings/str_format.h"
+#include "gmock/gmock.h"
+#include "gtest/gtest.h"
 #include "llvm/include/llvm/ADT/StringRef.h"
 #include "llvm/include/llvm/ExecutionEngine/Orc/ExecutionUtils.h"
 #include "llvm/include/llvm/ExecutionEngine/Orc/LLJIT.h"
@@ -77,6 +77,191 @@ TEST(XlsCApiTest, ConvertDslxToIrSimple) {
   ASSERT_NE(ir_out, nullptr);
 
   EXPECT_THAT(ir_out, HasSubstr("fn __my_module__id"));
+}
+
+TEST(XlsCApiTest, TypecheckedModuleToIrWithInMemoryImport) {
+  xls_dslx_import_data* imports = xls_dslx_import_data_create(
+      std::string(xls::kDefaultDslxStdlibPath).c_str(), nullptr, 0);
+  absl::Cleanup free_imports([&] { xls_dslx_import_data_free(imports); });
+  char* error = nullptr;
+  absl::Cleanup free_error([&] { xls_c_str_free(error); });
+  xls_dslx_typechecked_module* helper = nullptr;
+  ASSERT_TRUE(xls_dslx_parse_and_typecheck(
+      "pub fn bump(x: u8) -> u8 { x + u8:1 }", "mem_helper.x", "mem_helper",
+      imports, &error, &helper))
+      << error;
+  absl::Cleanup free_helper([&] { xls_dslx_typechecked_module_free(helper); });
+
+  constexpr char kEntry[] = R"(
+import mem_helper;
+fn entry(x: u8) -> u8 { mem_helper::bump(x) }
+)";
+  xls_dslx_typechecked_module* entry = nullptr;
+  ASSERT_TRUE(xls_dslx_parse_and_typecheck(kEntry, "mem_entry.x", "mem_entry",
+                                           imports, &error, &entry))
+      << error;
+  absl::Cleanup free_entry([&] { xls_dslx_typechecked_module_free(entry); });
+
+  char* ir = nullptr;
+  ASSERT_TRUE(xls_dslx_typechecked_module_to_ir(
+      entry, imports, /*force_implicit_token_calling_convention=*/false, &error,
+      &ir))
+      << error;
+  absl::Cleanup free_ir([&] { xls_c_str_free(ir); });
+  ASSERT_EQ(error, nullptr);
+  ASSERT_NE(ir, nullptr);
+
+  xls_package* package = nullptr;
+  ASSERT_TRUE(xls_parse_ir_package(ir, "mem_entry.ir", &error, &package))
+      << error;
+  absl::Cleanup free_package([&] { xls_package_free(package); });
+  xls_function* function = nullptr;
+  ASSERT_TRUE(xls_package_get_function(package, "__mem_entry__entry", &error,
+                                       &function))
+      << error;
+  xls_value* input = nullptr;
+  ASSERT_TRUE(xls_value_make_ubits(8, 41, &error, &input)) << error;
+  absl::Cleanup free_input([&] { xls_value_free(input); });
+  const xls_value* args[] = {input};
+  xls_value* result = nullptr;
+  ASSERT_TRUE(xls_interpret_function(function, 1, args, &error, &result))
+      << error;
+  absl::Cleanup free_result([&] { xls_value_free(result); });
+  char* result_text = nullptr;
+  ASSERT_TRUE(xls_value_to_string(result, &result_text));
+  absl::Cleanup free_result_text([&] { xls_c_str_free(result_text); });
+  EXPECT_STREQ(result_text, "bits[8]:42");
+}
+
+TEST(XlsCApiTest, TypecheckedModuleToIrRejectsInvalidHandles) {
+  const std::string stdlib_path(xls::kDefaultDslxStdlibPath);
+  xls_dslx_import_data* imports =
+      xls_dslx_import_data_create(stdlib_path.c_str(), nullptr, 0);
+  absl::Cleanup free_imports([&] { xls_dslx_import_data_free(imports); });
+  xls_dslx_import_data* other_imports =
+      xls_dslx_import_data_create(stdlib_path.c_str(), nullptr, 0);
+  absl::Cleanup free_other_imports(
+      [&] { xls_dslx_import_data_free(other_imports); });
+  constexpr char kProgram[] = "fn id(x: u8) -> u8 { x }";
+  char* error = nullptr;
+  absl::Cleanup free_error([&] { xls_c_str_free(error); });
+  xls_dslx_typechecked_module* tm = nullptr;
+  ASSERT_TRUE(xls_dslx_parse_and_typecheck(kProgram, "entry.x", "entry",
+                                           imports, &error, &tm))
+      << error;
+  absl::Cleanup free_tm([&] { xls_dslx_typechecked_module_free(tm); });
+
+  auto expect_invalid_pair = [](const xls_dslx_typechecked_module* module,
+                                xls_dslx_import_data* context) {
+    char previous_ir[] = "previous IR";
+    char* ir = previous_ir;
+    char* diagnostic = nullptr;
+    ASSERT_FALSE(xls_dslx_typechecked_module_to_ir(
+        module, context, /*force_implicit_token_calling_convention=*/false,
+        &diagnostic, &ir));
+    absl::Cleanup free_diagnostic([&] { xls_c_str_free(diagnostic); });
+    EXPECT_EQ(ir, nullptr);
+    ASSERT_NE(diagnostic, nullptr);
+    EXPECT_THAT(diagnostic, HasSubstr("INVALID_ARGUMENT"));
+  };
+  expect_invalid_pair(nullptr, imports);
+  expect_invalid_pair(tm, nullptr);
+  expect_invalid_pair(tm, other_imports);
+
+  xls_dslx_typechecked_module* other_tm = nullptr;
+  ASSERT_TRUE(xls_dslx_parse_and_typecheck(kProgram, "entry.x", "entry",
+                                           other_imports, &error, &other_tm))
+      << error;
+  absl::Cleanup free_other_tm(
+      [&] { xls_dslx_typechecked_module_free(other_tm); });
+  expect_invalid_pair(tm, other_imports);
+
+  char previous_error[] = "previous diagnostic";
+  char* conversion_error = previous_error;
+  char* ir = nullptr;
+  ASSERT_TRUE(xls_dslx_typechecked_module_to_ir(
+      tm, imports, /*force_implicit_token_calling_convention=*/false,
+      &conversion_error, &ir))
+      << conversion_error;
+  absl::Cleanup free_ir([&] { xls_c_str_free(ir); });
+  EXPECT_EQ(conversion_error, nullptr);
+  EXPECT_THAT(ir, HasSubstr("fn __entry__id"));
+}
+
+TEST(XlsCApiTest, TypecheckedModuleToIrWithWarning) {
+  const std::string stdlib_path(xls::kDefaultDslxStdlibPath);
+  xls_dslx_import_data* imports =
+      xls_dslx_import_data_create(stdlib_path.c_str(), nullptr, 0);
+  absl::Cleanup free_imports([&] { xls_dslx_import_data_free(imports); });
+  char* error = nullptr;
+  absl::Cleanup free_error([&] { xls_c_str_free(error); });
+  xls_dslx_typechecked_module* tm = nullptr;
+  // Typechecking warns that `input` is a Verilog keyword.
+  ASSERT_TRUE(xls_dslx_parse_and_typecheck("fn id(input: u8) -> u8 { input }",
+                                           "entry.x", "entry", imports, &error,
+                                           &tm))
+      << error;
+  absl::Cleanup free_tm([&] { xls_dslx_typechecked_module_free(tm); });
+
+  char* ir = nullptr;
+  absl::Cleanup free_ir([&] { xls_c_str_free(ir); });
+  ASSERT_TRUE(xls_dslx_typechecked_module_to_ir(
+      tm, imports, /*force_implicit_token_calling_convention=*/false, &error,
+      &ir))
+      << error;
+  EXPECT_EQ(error, nullptr);
+  EXPECT_THAT(ir, HasSubstr("fn __entry__id"));
+}
+
+TEST(XlsCApiTest, TypecheckedModuleToIrMatchesSourceConversion) {
+  constexpr char kProgram[] = R"(
+fn id(x: u8) -> u8 { x }
+proc producer {
+  output: chan<u8> out;
+  config(output: chan<u8> out) { (output,) }
+  init { u8:0 }
+  next(state: u8) {
+    let _ = send(join(), output, state);
+    state + u8:1
+  }
+}
+)";
+  const std::string stdlib_path(xls::kDefaultDslxStdlibPath);
+  xls_dslx_import_data* imports =
+      xls_dslx_import_data_create(stdlib_path.c_str(), nullptr, 0);
+  absl::Cleanup free_imports([&] { xls_dslx_import_data_free(imports); });
+  char* error = nullptr;
+  absl::Cleanup free_error([&] { xls_c_str_free(error); });
+  xls_dslx_typechecked_module* tm = nullptr;
+  ASSERT_TRUE(xls_dslx_parse_and_typecheck(kProgram, "parity.x", "parity",
+                                           imports, &error, &tm))
+      << error;
+  absl::Cleanup free_tm([&] { xls_dslx_typechecked_module_free(tm); });
+
+  for (bool force_implicit_token : {false, true}) {
+    SCOPED_TRACE(force_implicit_token);
+    char* source_ir = nullptr;
+    ASSERT_TRUE(xls_convert_dslx_to_ir_with_warnings(
+        kProgram, "parity.x", "parity", stdlib_path.c_str(),
+        /*additional_search_paths=*/nullptr, 0, /*enable_warnings=*/nullptr, 0,
+        /*disable_warnings=*/nullptr, 0, /*warnings_as_errors=*/false,
+        force_implicit_token, /*warnings_out=*/nullptr,
+        /*warnings_out_count=*/nullptr, &error, &source_ir))
+        << error;
+    absl::Cleanup free_source_ir([&] { xls_c_str_free(source_ir); });
+    char* checked_ir = nullptr;
+    ASSERT_TRUE(xls_dslx_typechecked_module_to_ir(
+        tm, imports, force_implicit_token, &error, &checked_ir))
+        << error;
+    absl::Cleanup free_checked_ir([&] { xls_c_str_free(checked_ir); });
+    EXPECT_STREQ(checked_ir, source_ir);
+    if (force_implicit_token) {
+      EXPECT_THAT(checked_ir, HasSubstr("fn __itok__parity__id("));
+    } else {
+      EXPECT_THAT(checked_ir,
+                  ::testing::Not(HasSubstr("fn __itok__parity__id(")));
+    }
+  }
 }
 
 TEST(XlsCApiTest, DslxBuildFunctionCallGraph) {
@@ -2346,7 +2531,7 @@ TEST(XlsCApiTest, ValueGetElementCount) {
           {"[bits[32]:42, bits[32]:43]", 2},
           // Errors
           {"bits[32]:42", "no element count"},
-      };
+  };
   for (const auto& [input, expected] : kTestCases) {
     xls_value* value = nullptr;
     char* error = nullptr;

@@ -227,6 +227,14 @@ bool xls_dslx_parse_and_typecheck(
     struct xls_dslx_import_data* import_data, char** error_out,
     struct xls_dslx_typechecked_module** result_out);
 
+// Converts `tm` to unoptimized IR using its owning import data.
+// Free the returned IR or error string with `xls_c_str_free`.
+bool xls_dslx_typechecked_module_to_ir(
+    const struct xls_dslx_typechecked_module* tm,
+    struct xls_dslx_import_data* import_data,
+    bool force_implicit_token_calling_convention, char** error_out,
+    char** ir_out);
+
 bool xls_dslx_typechecked_module_clone_removing_functions(
     struct xls_dslx_typechecked_module* tm,
     struct xls_dslx_function* functions[], size_t function_count,
