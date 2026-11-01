@@ -1,0 +1,16 @@
+package test_module
+
+file_number 0 "test_module.x"
+
+top fn __test_module__main(x: bits[8] id=1, y: bits[8] id=2) -> bits[8] {
+  tuple.3: (bits[8], bits[8], bits[8]) = tuple(x, x, y, id=3)
+  tuple.4: (bits[8], bits[8]) = tuple(x, y, id=4)
+  tuple.5: ((bits[8], bits[8], bits[8]), (bits[8], bits[8])) = tuple(tuple.3, tuple.4, id=5)
+  tuple_index.6: (bits[8], bits[8], bits[8]) = tuple_index(tuple.5, index=0, id=6)
+  tuple_index.8: (bits[8], bits[8]) = tuple_index(tuple.5, index=1, id=8)
+  a: bits[8] = tuple_index(tuple_index.6, index=2, id=7)
+  b: bits[8] = tuple_index(tuple_index.8, index=0, id=9)
+  add.11: bits[8] = add(a, b, id=11)
+  c: bits[8] = tuple_index(tuple_index.8, index=1, id=10)
+  ret add.12: bits[8] = add(add.11, c, id=12)
+}
