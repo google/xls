@@ -18,6 +18,7 @@
 #include <cstdint>
 #include <deque>
 #include <functional>
+#include <iterator>
 #include <limits>
 #include <optional>
 #include <utility>
@@ -154,6 +155,46 @@ absl::StatusOr<std::optional<Node*>> GetUnscaledIndex(
     return std::nullopt;
   }
   return unscaled_index;
+}
+
+// Replace a logical right shift used only through a proper low-bit prefix with
+// a dynamic slice of that width. Inspect all users together: after inlining,
+// an extracted byte may already have been split into eight one-bit slices.
+// Keeping a single shared slice avoids duplicating the dynamic selection.
+absl::StatusOr<bool> NarrowSlicedRightShift(Node* shift) {
+  if (shift->op() != Op::kShrl || shift->users().empty() ||
+      shift->function_base()->HasImplicitUse(shift)) {
+    return false;
+  }
+  int64_t lowest_used_bit = shift->BitCountOrDie();
+  int64_t end_bit = 0;
+  std::vector<BitSlice*> slices;
+  for (Node* user : shift->users()) {
+    if (!user->Is<BitSlice>()) {
+      return false;
+    }
+    BitSlice* slice = user->As<BitSlice>();
+    lowest_used_bit = std::min(lowest_used_bit, slice->start());
+    end_bit = std::max(end_bit, slice->start() + slice->width());
+    slices.push_back(slice);
+  }
+  if (lowest_used_bit != 0 || end_bit == 0 ||
+      end_bit == shift->BitCountOrDie()) {
+    return false;
+  }
+  // Keep the original amount, including its high bits. Both operations
+  // zero-fill out-of-bounds bits; truncating the amount would change that.
+  XLS_ASSIGN_OR_RETURN(
+      Node * narrowed,
+      shift->function_base()->MakeNode<DynamicBitSlice>(
+          shift->loc(), shift->operand(0), shift->operand(1), end_bit));
+  for (BitSlice* slice : slices) {
+    // `narrowed` is intentionally narrower than the original shift. It still
+    // covers every bit read by each slice because its width is `end_bit`.
+    XLS_RETURN_IF_ERROR(
+        slice->ReplaceOperandNumber(0, narrowed, /*type_must_match=*/false));
+  }
+  return true;
 }
 
 // Attempts to replace the given bit slice with a simpler or more canonical
@@ -1061,6 +1102,18 @@ absl::StatusOr<bool> BitSliceSimplificationPass::RunOnFunctionBaseInternal(
     FunctionBase* f, const OptimizationPassOptions& options,
     PassResults* results, OptimizationContext& context) const {
   bool changed = false;
+
+  // Run before querying or simplifying dynamic slices so the new slices can
+  // use the existing constant, range and aligned-index optimizations in this
+  // invocation of the pass.
+  std::vector<Node*> shift_candidates;
+  std::copy_if(f->nodes().begin(), f->nodes().end(),
+               std::back_inserter(shift_candidates),
+               [](Node* node) { return node->op() == Op::kShrl; });
+  for (Node* node : shift_candidates) {
+    XLS_ASSIGN_OR_RETURN(bool narrowed, NarrowSlicedRightShift(node));
+    changed |= narrowed;
+  }
 
   XLS_ASSIGN_OR_RETURN(UnionQueryEngine query_engine,
                        GetQueryEngine(f, options.opt_level, context));

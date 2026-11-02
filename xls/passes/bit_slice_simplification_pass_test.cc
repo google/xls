@@ -18,6 +18,7 @@
 #include <memory>
 #include <string>
 #include <utility>
+#include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
@@ -483,6 +484,140 @@ TEST_F(BitSliceSimplificationPassTest, SlicedShiftLeftStartNonzero) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
   ASSERT_THAT(Run(f), IsOkAndHolds(false));
   EXPECT_THAT(f->return_value(), m::BitSlice(m::Shll()));
+}
+
+TEST_F(BitSliceSimplificationPassTest, LowBitsOfShiftRight) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetBitsType(128));
+  BValue amount = fb.Param("amount", p->GetBitsType(32));
+  fb.BitSlice(fb.Shrl(x, amount), 0, 8);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ScopedVerifyEquivalence equivalent(f, kProverTimeout);
+  ASSERT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::DynamicBitSlice(m::Param("x"), m::Param("amount"), 8));
+  // The canonical form should not be turned back into a full-width shift.
+  EXPECT_THAT(Run(f), IsOkAndHolds(false));
+}
+
+TEST_F(BitSliceSimplificationPassTest, LowBitsOfShiftRightSeparateUsers) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue shifted = fb.Shrl(fb.Param("x", p->GetBitsType(128)),
+                           fb.Param("amount", p->GetBitsType(32)));
+  std::vector<BValue> bits;
+  for (int64_t i = 0; i < 8; ++i) {
+    bits.push_back(fb.BitSlice(shifted, i, 1));
+  }
+  fb.Tuple(bits);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ScopedVerifyEquivalence equivalent(f, kProverTimeout);
+  ASSERT_THAT(Run(f), IsOkAndHolds(true));
+  Node* shared_slice = f->return_value()->operand(0)->operand(0);
+  EXPECT_THAT(shared_slice, m::DynamicBitSlice(m::Param(), m::Param(), 8));
+  for (int64_t i = 0; i < 8; ++i) {
+    EXPECT_THAT(f->return_value()->operand(i), m::BitSlice(shared_slice, i, 1));
+  }
+}
+
+TEST_F(BitSliceSimplificationPassTest, LowBitsOfShiftRightOverlappingUsers) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue shifted = fb.Shrl(fb.Param("x", p->GetBitsType(128)),
+                           fb.Param("amount", p->GetBitsType(32)));
+  fb.Tuple({fb.BitSlice(shifted, 0, 5), fb.BitSlice(shifted, 3, 5)});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ScopedVerifyEquivalence equivalent(f, kProverTimeout);
+  ASSERT_THAT(Run(f), IsOkAndHolds(true));
+  Node* shared_slice = f->return_value()->operand(0)->operand(0);
+  EXPECT_THAT(shared_slice, m::DynamicBitSlice(m::Param(), m::Param(), 8));
+  EXPECT_THAT(f->return_value(), m::Tuple(m::BitSlice(shared_slice, 0, 5),
+                                          m::BitSlice(shared_slice, 3, 5)));
+}
+
+TEST_F(BitSliceSimplificationPassTest, LowBitsOfShiftRightWithWideUser) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue shifted = fb.Shrl(fb.Param("x", p->GetBitsType(128)),
+                           fb.Param("amount", p->GetBitsType(32)));
+  fb.Tuple({fb.BitSlice(shifted, 0, 8), shifted});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ScopedVerifyEquivalence equivalent(f, kProverTimeout);
+  EXPECT_THAT(Run(f), IsOkAndHolds(false));
+  EXPECT_THAT(f->return_value(), m::Tuple(m::BitSlice(m::Shrl()), m::Shrl()));
+}
+
+TEST_F(BitSliceSimplificationPassTest, LowBitsOfShiftRightCoveringFullWidth) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue shifted = fb.Shrl(fb.Param("x", p->GetBitsType(128)),
+                           fb.Param("amount", p->GetBitsType(32)));
+  fb.Tuple({fb.BitSlice(shifted, 0, 8), fb.BitSlice(shifted, 120, 8)});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ScopedVerifyEquivalence equivalent(f, kProverTimeout);
+  EXPECT_THAT(Run(f), IsOkAndHolds(false));
+  EXPECT_THAT(f->return_value(), m::Tuple(m::BitSlice(m::Shrl(), 0, 8),
+                                          m::BitSlice(m::Shrl(), 120, 8)));
+}
+
+TEST_F(BitSliceSimplificationPassTest, LowBitsOfShiftRightWithImplicitUse) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue shifted = fb.Shrl(fb.Param("x", p->GetBitsType(128)),
+                           fb.Param("amount", p->GetBitsType(32)));
+  fb.BitSlice(shifted, 0, 8);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(shifted));
+  ASSERT_TRUE(f->HasImplicitUse(shifted.node()));
+  EXPECT_THAT(Run(f), IsOkAndHolds(false));
+  EXPECT_THAT(f->return_value(), m::Shrl());
+}
+
+TEST_F(BitSliceSimplificationPassTest,
+       LowBitsOfArithmeticShiftAreNotZeroFilled) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  fb.BitSlice(fb.Shra(fb.Param("x", p->GetBitsType(128)),
+                      fb.Param("amount", p->GetBitsType(32))),
+              0, 8);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  EXPECT_THAT(Run(f), IsOkAndHolds(false));
+  EXPECT_THAT(f->return_value(), m::BitSlice(m::Shra()));
+}
+
+TEST_F(BitSliceSimplificationPassTest,
+       LowBitsOfShiftRightPartialAndFullOvershift) {
+  for (int64_t amount :
+       std::vector<int64_t>{0, 120, 121, 127, 128, 129, 0xffffffffLL}) {
+    auto p = CreatePackage();
+    FunctionBuilder fb(TestName(), p.get());
+    fb.BitSlice(fb.Shrl(fb.Param("x", p->GetBitsType(128)),
+                        fb.Literal(UBits(amount, 32))),
+                0, 8);
+    XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+    ScopedVerifyEquivalence equivalent(f, kProverTimeout);
+    ASSERT_THAT(Run(f), IsOkAndHolds(true));
+  }
+}
+
+TEST_F(BitSliceSimplificationPassTest, LowBitsOfShiftRightScaledIndex) {
+  for (int64_t index_width : {4, 32}) {
+    auto p = CreatePackage();
+    FunctionBuilder fb(TestName(), p.get());
+    BValue index = fb.Param("index", p->GetBitsType(index_width));
+    BValue amount = fb.Concat({index, fb.Literal(UBits(0, 3))});
+    fb.BitSlice(fb.Shrl(fb.Param("x", p->GetBitsType(128)), amount), 0, 8);
+    XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+    ScopedVerifyEquivalence equivalent(f, kProverTimeout);
+    ASSERT_THAT(Run(f), IsOkAndHolds(true));
+    ASSERT_TRUE(f->return_value()->Is<Select>());
+    Select* select = f->return_value()->As<Select>();
+    EXPECT_EQ(select->cases().size(), 16);
+    EXPECT_EQ(select->default_value().has_value(), index_width > 4);
+    if (select->default_value().has_value()) {
+      EXPECT_THAT(*select->default_value(), m::Literal(0));
+    }
+  }
 }
 
 TEST_F(BitSliceSimplificationPassTest, SlicedShiftRight) {
