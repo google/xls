@@ -84,6 +84,10 @@ namespace xls {
 //     *   **Multiply by Positive Power of Two**: `umul(x, 2^K)` and
 //         `smul(x, 2^K)` are replaced by resizing `x` and left-shifting by `K`
 //         (`shll(x, K)`).
+//     *   **Multiply by Variable Power of Two**: `umul(x, decode(K))` and
+//         `umul(x, shll(2^L, K))` are replaced with left shifts by `L` and `K`
+//         (where `L` is zero for `decode`). The transformation preserves the
+//         zero result produced when `K + L` reaches the one-hot operand width.
 //     *   **Multiply by Small Constant (when `SplitsEnabled(opt_level)` is
 //         true, at `opt_level >= 3`)**: Multiplication by a positive constant
 //         requiring at most one adder/subtractor is decomposed into shifts and

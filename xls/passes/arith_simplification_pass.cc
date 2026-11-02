@@ -634,7 +634,7 @@ absl::StatusOr<Node*> MakeDivByZeroResult(Node* original_divide_op) {
                               /*default_value=*/std::nullopt);
 }
 
-// Pull out a node representing the power of 2 the divisor node is if it exists.
+// Pull out the variable and constant shifts of a power-of-two value, if any.
 // TODO(allight): This is very fragile and doesn't handle many cases. (eg
 // `bitslice(k << X, 1, 12)` etc). We should try to do better than this.
 //
@@ -645,7 +645,7 @@ std::optional<Pow2Shift> GetPow2Shift(Node* divisor, const QueryEngine& qe) {
     return std::nullopt;
   }
   if (divisor->op() == Op::kDecode) {
-    VLOG(2) << "FOUND: Div by variable power of two (decode(K))";
+    VLOG(2) << "FOUND: Variable power of two (decode(K))";
     return Pow2Shift{.shift_amount = divisor->operand(0), .literal_shift = 0};
   }
   if (divisor->op() == Op::kShll) {
@@ -655,21 +655,28 @@ std::optional<Pow2Shift> GetPow2Shift(Node* divisor, const QueryEngine& qe) {
       return std::nullopt;
     }
     int64_t literal_shift = shifted_value->CountTrailingZeros();
-    VLOG(2) << absl::StreamFormat(
-        "FOUND: Div by variable power of two (2^%d << K)", literal_shift);
+    VLOG(2) << absl::StreamFormat("FOUND: Variable power of two (2^%d << K)",
+                                  literal_shift);
     return Pow2Shift{.shift_amount = divisor->operand(1),
                      .literal_shift = literal_shift};
   }
   return std::nullopt;
 }
 
-absl::StatusOr<Node*> MakePow2ShiftNode(Node* original_divide_op,
-                                        Node* dividend, Pow2Shift shift) {
+bool NeedsMultiplyBoundsGuard(Pow2Shift shift, int64_t power_width,
+                              int64_t result_width) {
+  return power_width < result_width &&
+         Bits::MinBitCountUnsigned(power_width - shift.literal_shift) <=
+             shift.shift_amount->BitCountOrDie();
+}
+
+absl::StatusOr<Node*> MakePow2ShiftNode(Node* original_op, Node* dividend,
+                                        Pow2Shift shift, int64_t power_width) {
   FunctionBase* fb = dividend->function_base();
-  const SourceInfo& loc = original_divide_op->loc();
+  const SourceInfo& loc = original_op->loc();
   Node* shift_amount = shift.shift_amount;
   int64_t literal_shift = shift.literal_shift;
-  int64_t bit_width = original_divide_op->BitCountOrDie();
+  int64_t bit_width = original_op->BitCountOrDie();
   Node* literal_shift_lit = nullptr;
   if (literal_shift != 0) {
     XLS_ASSIGN_OR_RETURN(
@@ -679,7 +686,32 @@ absl::StatusOr<Node*> MakePow2ShiftNode(Node* original_divide_op,
             Value(UBits(literal_shift,
                         Bits::MinBitCountUnsigned(literal_shift)))));
   }
-  if (original_divide_op->op() == Op::kUDiv) {
+  if (original_op->op() == Op::kUMul) {
+    XLS_ASSIGN_OR_RETURN(Node * shifted,
+                         NarrowOrExtend(dividend, false, bit_width));
+    // Keep the constant and variable shifts separate to avoid overflow in a
+    // narrow shift-amount type when adding them together.
+    if (literal_shift != 0) {
+      XLS_ASSIGN_OR_RETURN(
+          shifted,
+          fb->MakeNode<BinOp>(loc, shifted, literal_shift_lit, Op::kShll));
+    }
+    XLS_ASSIGN_OR_RETURN(
+        shifted, fb->MakeNode<BinOp>(loc, shifted, shift_amount, Op::kShll));
+    // A narrow power-of-two operand becomes zero before a result-width shift
+    // necessarily does. Preserve that behavior unless the guard is redundant.
+    if (!NeedsMultiplyBoundsGuard(shift, power_width, bit_width)) {
+      return shifted;
+    }
+    XLS_ASSIGN_OR_RETURN(
+        Node * in_bounds,
+        CompareLiteral(shift_amount, power_width - literal_shift, Op::kULt));
+    XLS_ASSIGN_OR_RETURN(
+        Node * zero, fb->MakeNode<Literal>(loc, Value(UBits(0, bit_width))));
+    return fb->MakeNode<Select>(
+        loc, in_bounds, absl::Span<Node* const>{zero, shifted}, std::nullopt);
+  }
+  if (original_op->op() == Op::kUDiv) {
     if (literal_shift != 0) {
       XLS_ASSIGN_OR_RETURN(
           dividend, fb->MakeNodeWithName<BinOp>(
@@ -690,19 +722,19 @@ absl::StatusOr<Node*> MakePow2ShiftNode(Node* original_divide_op,
         Node * shift_result,
         fb->MakeNodeWithName<BinOp>(
             dividend->loc(), dividend, shift_amount, Op::kShrl,
-            NodeNameFormat("%s_divide_using_shift", original_divide_op)));
+            NodeNameFormat("%s_divide_using_shift", original_op)));
     XLS_ASSIGN_OR_RETURN(Node * div_by_zero_res,
-                         MakeDivByZeroResult(original_divide_op));
+                         MakeDivByZeroResult(original_op));
     XLS_ASSIGN_OR_RETURN(
         Node * is_div_by_zero,
         CompareLiteral(shift_amount, bit_width - literal_shift, Op::kUGe));
     return fb->MakeNodeWithName<Select>(
         loc, is_div_by_zero,
         absl::Span<Node* const>{shift_result, div_by_zero_res}, std::nullopt,
-        NodeNameFormat("%s_select_div_by_zero", original_divide_op));
+        NodeNameFormat("%s_select_div_by_zero", original_op));
   }
 
-  XLS_RET_CHECK_EQ(original_divide_op->op(), Op::kSDiv);
+  XLS_RET_CHECK_EQ(original_op->op(), Op::kSDiv);
   // We're dealing with a signed division; the logic is slightly more complex.
   // Cases:
   // - Div by zero (K + L > N - 1): return max_signed or min_signed, depending
@@ -756,7 +788,7 @@ absl::StatusOr<Node*> MakePow2ShiftNode(Node* original_divide_op,
       div_by_shift_result,
       fb->MakeNodeWithName<BinOp>(
           loc, div_by_shift_result, shift_amount, Op::kShra,
-          NodeNameFormat("%s_divide_using_shift", original_divide_op)));
+          NodeNameFormat("%s_divide_using_shift", original_op)));
 
   XLS_ASSIGN_OR_RETURN(Node * divisor_is_zero,
                        CompareLiteral(shift_amount, limit, Op::kUGt));
@@ -765,7 +797,7 @@ absl::StatusOr<Node*> MakePow2ShiftNode(Node* original_divide_op,
 
   // Case 0: Divide by zero (K + L > N - 1)
   XLS_ASSIGN_OR_RETURN(Node * div_by_zero_result,
-                       MakeDivByZeroResult(original_divide_op));
+                       MakeDivByZeroResult(original_op));
 
   // Case 1: Divide by min_signed (K + L = N - 1)
   XLS_ASSIGN_OR_RETURN(
@@ -787,8 +819,7 @@ absl::StatusOr<Node*> MakePow2ShiftNode(Node* original_divide_op,
   return PrioritySelectOfConcatIfNeeded(
       fb, {divisor_is_zero, divisor_is_min_signed},
       {div_by_zero_result, div_by_min_signed_result}, div_by_shift_result,
-      NodeNameFormat("%s_select_div_by_zero_or_min_signed", original_divide_op),
-      loc);
+      NodeNameFormat("%s_select_div_by_zero_or_min_signed", original_op), loc);
 }
 
 absl::StatusOr<Node*> MakeDivByConstantValues(
@@ -1160,7 +1191,8 @@ absl::StatusOr<bool> MatchWithLimitedDivisorSpace(Node* original_div_op,
           },
           [&](const Pow2Shift& shift) -> absl::StatusOr<bool> {
             XLS_ASSIGN_OR_RETURN(
-                Node * n, MakePow2ShiftNode(original_div_op, dividend, shift));
+                Node * n, MakePow2ShiftNode(original_div_op, dividend, shift,
+                                            original_div_op->BitCountOrDie()));
             XLS_RETURN_IF_ERROR(original_div_op->ReplaceUsesWith(n));
             return true;
           }},
@@ -1351,6 +1383,86 @@ absl::StatusOr<bool> MatchSignedDivide(Node* original_div_op,
   return true;
 }
 
+struct MultiplyByVariablePowerOfTwo {
+  Node* multiplicand;
+  Pow2Shift shift_amount;
+  int64_t one_hot_width;
+};
+
+std::optional<MultiplyByVariablePowerOfTwo> MatchMultiplyByVariablePowerOfTwo(
+    Node* n, const QueryEngine& query_engine) {
+  if (n->op() != Op::kUMul) {
+    return std::nullopt;
+  }
+
+  // Leave zero-width operands to the existing multiplication-by-zero rule.
+  if (n->operand(0)->BitCountOrDie() == 0 ||
+      n->operand(1)->BitCountOrDie() == 0) {
+    return std::nullopt;
+  }
+
+  std::optional<MultiplyByVariablePowerOfTwo> best_match;
+  auto consider_match = [&](int64_t operand_number, Pow2Shift shift_amount) {
+    MultiplyByVariablePowerOfTwo candidate = {
+        .multiplicand = n->operand(1 - operand_number),
+        .shift_amount = shift_amount,
+        .one_hot_width = n->operand(operand_number)->BitCountOrDie(),
+    };
+    if (!best_match.has_value() ||
+        (NeedsMultiplyBoundsGuard(best_match->shift_amount,
+                                  best_match->one_hot_width,
+                                  n->BitCountOrDie()) &&
+         !NeedsMultiplyBoundsGuard(candidate.shift_amount,
+                                   candidate.one_hot_width,
+                                   n->BitCountOrDie()))) {
+      best_match = candidate;
+    }
+  };
+
+  // Consider decode before shifted-one so it wins when both choices have the
+  // same bounds-guard requirements. Examine both operands so an unguarded
+  // rewrite is preferred regardless of operand order.
+  for (Op op : {Op::kDecode, Op::kShll}) {
+    for (int64_t i = 0; i < 2; ++i) {
+      if (n->operand(i)->op() != op) {
+        continue;
+      }
+      if (std::optional<Pow2Shift> shift =
+              GetPow2Shift(n->operand(i), query_engine)) {
+        consider_match(i, *shift);
+      }
+    }
+  }
+  return best_match;
+}
+
+// Replaces an unsigned multiplication by a variable power of two with a left
+// shift:
+//
+//   umul(x, decode(k))   => x << k
+//   umul(x, 1 << k)     => x << k
+//   umul(x, 2^L << k)   => (x << L) << k
+//
+// The one-hot operand may appear on either side of the multiplication. If its
+// width is narrower than the multiplication result, preserve the one-hot
+// operation's out-of-bounds behavior: decode(k) and (1 << k) are zero for
+// k >= width, while shifting the wider multiplication result may not be.
+absl::StatusOr<bool> SimplifyMultiplyByVariablePowerOfTwo(
+    Node* n, const QueryEngine& query_engine) {
+  std::optional<MultiplyByVariablePowerOfTwo> match =
+      MatchMultiplyByVariablePowerOfTwo(n, query_engine);
+  if (!match.has_value()) {
+    return false;
+  }
+
+  VLOG(2) << "FOUND: UMul by variable power of two";
+  XLS_ASSIGN_OR_RETURN(Node * shifted, MakePow2ShiftNode(n, match->multiplicand,
+                                                         match->shift_amount,
+                                                         match->one_hot_width));
+  XLS_RETURN_IF_ERROR(n->ReplaceUsesWith(shifted));
+  return true;
+}
+
 struct LeadingZerosTrailingOnes {
   int64_t leading_zeros;
   int64_t trailing_ones;
@@ -1434,6 +1546,13 @@ absl::StatusOr<bool> MatchArithPatterns(int64_t opt_level, Node* n,
               .status());
       return true;
     }
+  }
+
+  // Pattern: UMul by a variable power of two.
+  XLS_ASSIGN_OR_RETURN(bool mul_by_variable_power_of_two_matched,
+                       SimplifyMultiplyByVariablePowerOfTwo(n, query_engine));
+  if (mul_by_variable_power_of_two_matched) {
+    return true;
   }
 
   // Pattern: UMod/SMod by a literal.
