@@ -491,7 +491,8 @@ enum class ActivationBarrierType {
   kNone = 0,
   kUnconditional = 1,
   kConditionalBegin = 2,
-  kConditionalEnd = 3
+  kConditionalEnd = 3,
+  kConditionalScopeStart = 4,
 };
 
 // __xls_channel in C/C++

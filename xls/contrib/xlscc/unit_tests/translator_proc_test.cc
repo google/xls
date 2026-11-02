@@ -11083,6 +11083,51 @@ TEST_F(TranslatorProcTest_NewFSM_Mutex, MergeMutuallyExclusiveOpsInLoop3) {
   EXPECT_EQ(receive_count, 1);
 }
 
+TEST_F(TranslatorProcTest_NewFSM_Mutex, MergeMutuallyExclusiveOpsBarrierInIf) {
+  const std::string content = R"(
+
+       class Block {
+        public:
+         __xls_channel<int, __xls_channel_dir_In>& control_in;
+         __xls_channel<int, __xls_channel_dir_In>& data_in;
+         __xls_channel<int, __xls_channel_dir_Out>& data_out;
+
+         #pragma hls_top
+         void Run() {
+          int out = 0;
+          const int control = control_in.read();
+          if (control > 5) {
+            __xlscc_barrier_scope();
+            out += data_in.read();
+            __xlscc_activation_barrier</*conditional=*/true>();
+          }
+          if (out > 10) {
+            out += 3 * data_in.read();
+          }
+          data_out.write(out);
+         }
+        };)";
+
+  absl::flat_hash_set<std::string> direct_in_channels_by_name;
+  BuildTestIR(content, /*block_spec=*/std::nullopt,
+              /* top_level_init_interval = */ 1,
+              /*top_class_name=*/"", direct_in_channels_by_name);
+
+  XLS_ASSERT_OK(RunMutualExclusion());
+
+  // Actually check # of receives
+  int64_t receive_count = 0;
+  for (const std::unique_ptr<xls::Proc>& proc : package_->procs()) {
+    for (const xls::Node* node : proc->nodes()) {
+      if (node->op() == xls::Op::kReceive &&
+          node->As<xls::Receive>()->channel_name() == "data_in") {
+        ++receive_count;
+      }
+    }
+  }
+  EXPECT_EQ(receive_count, 1);
+}
+
 TEST_P(TranslatorProcTest, PipelinedLoopOuterExit) {
   const std::string content = R"(
        class Block {

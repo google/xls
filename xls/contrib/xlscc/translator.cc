@@ -208,8 +208,23 @@ absl::Status Translator::PopContext(const xls::SourceInfo& loc) {
          op_it != context().conditional_barrier_start_ops.rend(); ++op_it) {
       IOOp* start_op = *op_it;
       XLSCC_CHECK(start_op != nullptr, loc);
-      XLSCC_CHECK_EQ(start_op->activation_barrier_type,
-                     ActivationBarrierType::kConditionalBegin, loc);
+      if (start_op->activation_barrier_type !=
+          ActivationBarrierType::kConditionalBegin) {
+        // Safety check: Scope start must come before conditional begin
+        XLSCC_CHECK_EQ(start_op->activation_barrier_type,
+                       ActivationBarrierType::kConditionalScopeStart, loc);
+        XLSCC_CHECK_NE(op_it, context().conditional_barrier_start_ops.rbegin(),
+                       loc);
+        auto op_after_it = op_it;
+        --op_after_it;
+        const IOOp* op_after = *op_after_it;
+        XLSCC_CHECK(op_after != nullptr &&
+                        op_after->op == OpType::kActivationBarrier &&
+                        op_after->activation_barrier_type ==
+                            ActivationBarrierType::kConditionalBegin,
+                    loc);
+        continue;
+      }
       XLS_RETURN_IF_ERROR(InsertActivationBarrier(
           /*type=*/ActivationBarrierType::kConditionalEnd,
           start_op->full_op_location, start_op));
@@ -3488,6 +3503,11 @@ absl::StatusOr<std::pair<bool, CValue>> Translator::GenerateIR_BuiltInCall(
         loc));
 
     return std::make_pair(true, CValue());
+  } else if (funcdecl->getNameAsString() == "__xlscc_barrier_scope") {
+    XLS_RETURN_IF_ERROR(InsertActivationBarrier(
+        /*type=*/ActivationBarrierType::kConditionalScopeStart, loc));
+
+    return std::make_pair(true, CValue());
   } else {
     // Not a built-in call
     return std::make_pair(false, CValue());
@@ -3629,7 +3649,8 @@ absl::Status Translator::InsertActivationBarrier(
   XLS_ASSIGN_OR_RETURN(IOOp * op_ptr,
                        AddOpToChannel(op, /*channel_param=*/nullptr, loc));
 
-  if (type == ActivationBarrierType::kConditionalBegin) {
+  if (type == ActivationBarrierType::kConditionalBegin ||
+      type == ActivationBarrierType::kConditionalScopeStart) {
     context().conditional_barrier_start_ops.push_back(op_ptr);
   } else if (type == ActivationBarrierType::kConditionalEnd) {
     XLSCC_CHECK(start_op.has_value(), loc);
