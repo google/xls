@@ -1351,6 +1351,132 @@ absl::StatusOr<bool> MatchSignedDivide(Node* original_div_op,
   return true;
 }
 
+Node* MatchDecode(Node* n) {
+  return n->op() == Op::kDecode ? n->operand(0) : nullptr;
+}
+
+Node* MatchShiftedOne(Node* n, const QueryEngine& query_engine) {
+  if (n->op() != Op::kShll) {
+    return nullptr;
+  }
+  std::optional<Bits> shifted_value =
+      query_engine.KnownValueAsBits(n->operand(0));
+  return shifted_value.has_value() && shifted_value->IsOne() ? n->operand(1)
+                                                             : nullptr;
+}
+
+struct MultiplyByVariablePowerOfTwo {
+  Node* multiplicand;
+  Node* shift_amount;
+  int64_t one_hot_width;
+};
+
+bool NeedsVariablePowerOfTwoBoundsGuard(
+    const MultiplyByVariablePowerOfTwo& match, int64_t result_width) {
+  return match.one_hot_width < result_width &&
+         Bits::MinBitCountUnsigned(match.one_hot_width) <=
+             match.shift_amount->BitCountOrDie();
+}
+
+std::optional<MultiplyByVariablePowerOfTwo> MatchMultiplyByVariablePowerOfTwo(
+    Node* n, const QueryEngine& query_engine) {
+  if (n->op() != Op::kUMul) {
+    return std::nullopt;
+  }
+
+  // Leave zero-width operands to the existing multiplication-by-zero rule.
+  if (n->operand(0)->BitCountOrDie() == 0 ||
+      n->operand(1)->BitCountOrDie() == 0) {
+    return std::nullopt;
+  }
+
+  std::optional<MultiplyByVariablePowerOfTwo> best_match;
+  auto consider_match = [&](int64_t operand_number, Node* shift_amount) {
+    MultiplyByVariablePowerOfTwo candidate = {
+        .multiplicand = n->operand(1 - operand_number),
+        .shift_amount = shift_amount,
+        .one_hot_width = n->operand(operand_number)->BitCountOrDie(),
+    };
+    if (!best_match.has_value() ||
+        (NeedsVariablePowerOfTwoBoundsGuard(*best_match, n->BitCountOrDie()) &&
+         !NeedsVariablePowerOfTwoBoundsGuard(candidate, n->BitCountOrDie()))) {
+      best_match = candidate;
+    }
+  };
+
+  // Consider decode before shifted-one so it wins when both choices have the
+  // same bounds-guard requirements. Examine both operands so an unguarded
+  // rewrite is preferred regardless of operand order.
+  for (int64_t i = 0; i < 2; ++i) {
+    if (Node* shift_amount = MatchDecode(n->operand(i));
+        shift_amount != nullptr) {
+      consider_match(i, shift_amount);
+    }
+  }
+  for (int64_t i = 0; i < 2; ++i) {
+    if (Node* shift_amount = MatchShiftedOne(n->operand(i), query_engine);
+        shift_amount != nullptr) {
+      consider_match(i, shift_amount);
+    }
+  }
+  return best_match;
+}
+
+// Replaces an unsigned multiplication by a variable power of two with a left
+// shift:
+//
+//   umul(x, decode(k))   => x << k
+//   umul(x, 1 << k)     => x << k
+//
+// The one-hot operand may appear on either side of the multiplication. If its
+// width is narrower than the multiplication result, preserve the one-hot
+// operation's out-of-bounds behavior: decode(k) and (1 << k) are zero for
+// k >= width, while shifting the wider multiplication result may not be.
+absl::StatusOr<bool> SimplifyMultiplyByVariablePowerOfTwo(
+    Node* n, const QueryEngine& query_engine) {
+  std::optional<MultiplyByVariablePowerOfTwo> match =
+      MatchMultiplyByVariablePowerOfTwo(n, query_engine);
+  if (!match.has_value()) {
+    return false;
+  }
+
+  VLOG(2) << "FOUND: UMul by variable power of two";
+  const int64_t result_width = n->BitCountOrDie();
+  FunctionBase* f = n->function_base();
+  XLS_ASSIGN_OR_RETURN(
+      Node * adjusted_multiplicand,
+      NarrowOrExtend(match->multiplicand, false, result_width));
+  XLS_ASSIGN_OR_RETURN(Node * shifted,
+                       f->MakeNode<BinOp>(n->loc(), adjusted_multiplicand,
+                                          match->shift_amount, Op::kShll));
+
+  // When the one-hot value is at least as wide as the result, any one-hot bit
+  // that lies outside the result is discarded just as it is by the result-width
+  // shift. The guard is also unnecessary if the shift amount cannot represent
+  // one_hot_width, because it is then always in bounds.
+  if (!NeedsVariablePowerOfTwoBoundsGuard(*match, result_width)) {
+    XLS_RETURN_IF_ERROR(n->ReplaceUsesWith(shifted));
+    return true;
+  }
+
+  XLS_ASSIGN_OR_RETURN(
+      Node * one_hot_width_literal,
+      f->MakeNode<Literal>(n->loc(),
+                           Value(UBits(match->one_hot_width,
+                                       match->shift_amount->BitCountOrDie()))));
+  XLS_ASSIGN_OR_RETURN(Node * shift_is_in_bounds,
+                       f->MakeNode<CompareOp>(n->loc(), match->shift_amount,
+                                              one_hot_width_literal, Op::kULt));
+  XLS_ASSIGN_OR_RETURN(
+      Node * zero,
+      f->MakeNode<Literal>(n->loc(), Value(UBits(0, result_width))));
+  XLS_RETURN_IF_ERROR(
+      n->ReplaceUsesWithNew<Select>(
+           shift_is_in_bounds, std::vector<Node*>{zero, shifted}, std::nullopt)
+          .status());
+  return true;
+}
+
 struct LeadingZerosTrailingOnes {
   int64_t leading_zeros;
   int64_t trailing_ones;
@@ -1434,6 +1560,13 @@ absl::StatusOr<bool> MatchArithPatterns(int64_t opt_level, Node* n,
               .status());
       return true;
     }
+  }
+
+  // Pattern: UMul by a variable power of two.
+  XLS_ASSIGN_OR_RETURN(bool mul_by_variable_power_of_two_matched,
+                       SimplifyMultiplyByVariablePowerOfTwo(n, query_engine));
+  if (mul_by_variable_power_of_two_matched) {
+    return true;
   }
 
   // Pattern: UMod/SMod by a literal.
