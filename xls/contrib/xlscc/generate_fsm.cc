@@ -308,7 +308,9 @@ absl::Status NewFSMGenerator::LayoutNewFSMTransitions(
 
     if (after_op->op == OpType::kActivationBarrier &&
         after_op->activation_barrier_type !=
-            ActivationBarrierType::kConditionalEnd) {
+            ActivationBarrierType::kConditionalEnd &&
+        after_op->activation_barrier_type !=
+            ActivationBarrierType::kConditionalScopeStart) {
       const int64_t before_io_slice_index = layout.index_by_slice.at(&slice);
 
       NewFSMActivationTransition transition = {
@@ -1049,6 +1051,9 @@ absl::Status NewFSMGenerator::GenerateExtractStaticReturns(
   return absl::OkStatus();
 }
 
+// This function does not assign down the conditional scope stack,
+// as the reset to state element doesn't apply where there's a chance the
+// activation transition didn't happen (outside the scope).
 void NewFSMGenerator::ResetValuesToStateElements(
     const absl::flat_hash_map<const ContinuationValue*, TrackedBValue>&
         state_element_by_continuation_value,
@@ -1074,6 +1079,56 @@ void NewFSMGenerator::AddToAfterConditionalActivationTransition(
                         slice_index));
   }
 };
+
+void NewFSMGenerator::AssignBValToContinuationValue(
+    const ContinuationValue* value, TrackedBValue bval,
+    std::vector<ConditionalBarrierScope>& conditional_barrier_scope_stack) {
+  for (ConditionalBarrierScope& scope_map : conditional_barrier_scope_stack) {
+    scope_map.value_by_continuation_value[value] = bval;
+
+    if (!scope_map.has_activation_barrier) {
+      scope_map.propagate_values.insert(value);
+    }
+  }
+}
+
+void NewFSMGenerator::ExtractAndAssignContinuationOutputs(
+    const GeneratedFunctionSlice& slice, int64_t slice_index,
+    TrackedBValue ret_tup, TrackedBValue slice_active,
+    const absl::flat_hash_map<const ContinuationValue*, TrackedBValue>&
+        state_element_by_continuation_value,
+    std::vector<ConditionalBarrierScope>& conditional_barrier_scope_stack,
+    xls::ProcBuilder& pb, const xls::SourceInfo& body_loc) {
+  auto continuation_out_it = slice.continuations_out.begin();
+  for (int64_t out_i = 0; out_i < slice.continuations_out.size();
+       ++out_i, ++continuation_out_it) {
+    const ContinuationValue& continuation_out = *continuation_out_it;
+    TrackedBValue value_out =
+        pb.TupleIndex(ret_tup, out_i, body_loc,
+                      /*name=*/
+                      absl::StrFormat("%s_out_%s", slice.function->name(),
+                                      continuation_out.name));
+
+    if (!state_element_by_continuation_value.contains(&continuation_out)) {
+      AssignBValToContinuationValue(&continuation_out, value_out,
+                                    conditional_barrier_scope_stack);
+      continue;
+    }
+
+    // A continuation value is available directly if the slice that produces
+    // it is active this activation.
+    TrackedBValue select_bval = pb.Select(
+        slice_active,
+        /*on_true=*/value_out,
+        /*on_false=*/
+        state_element_by_continuation_value.at(&continuation_out), body_loc,
+        /*name=*/
+        absl::StrFormat("select_active_or_prev_slice_%li_cont_%s", slice_index,
+                        continuation_out.name));
+    AssignBValToContinuationValue(&continuation_out, select_bval,
+                                  conditional_barrier_scope_stack);
+  }
+}
 
 absl::StatusOr<GenerateFSMInvocationReturn>
 NewFSMGenerator::GenerateNewFSMInvocation(
@@ -1220,13 +1275,6 @@ NewFSMGenerator::GenerateNewFSMInvocation(
   ResetValuesToStateElements(state_element_by_continuation_value,
                              conditional_barrier_scope_stack);
 
-  auto assign_bval_to_continuation_value = [&](const ContinuationValue* value,
-                                               TrackedBValue bval) {
-    for (ConditionalBarrierScope& scope_map : conditional_barrier_scope_stack) {
-      scope_map.value_by_continuation_value[value] = bval;
-    }
-  };
-
   absl::btree_map<std::tuple<xls::StateElement*, xls::Node*>,
                   absl::btree_set<xls::Node*, NodeIdLessThan>,
                   StateElementAndNodeLessThan>
@@ -1304,35 +1352,46 @@ NewFSMGenerator::GenerateNewFSMInvocation(
     // Pop the value reference stack before preparing inputs for the end
     // barrier slice.
     if (slice.after_op != nullptr &&
-        slice.after_op->op == OpType::kActivationBarrier &&
-        slice.after_op->activation_barrier_type ==
-            ActivationBarrierType::kConditionalEnd) {
-      // Should never pop the base context
-      XLSCC_CHECK_GT(conditional_barrier_scope_stack.size(), 1L, body_loc);
-      // Pop the continuation value reference stack
-      // State elements should be popped before end slice invoke, as it contains
-      // the phi selects for the end of the scope.
-      conditional_barrier_scope_stack.pop_back();
+        slice.after_op->op == OpType::kActivationBarrier) {
+      if (slice.after_op->activation_barrier_type ==
+          ActivationBarrierType::kConditionalEnd) {
+        // Should never pop the base context
+        XLSCC_CHECK_GT(conditional_barrier_scope_stack.size(), 1L, body_loc);
+        // Propagate values assigned within the scope
+        {
+          const ConditionalBarrierScope& scope =
+              conditional_barrier_scope_stack.back();
+          for (const ContinuationValue* value : scope.propagate_values) {
+            AssignBValToContinuationValue(
+                value, scope.value_by_continuation_value.at(value),
+                conditional_barrier_scope_stack);
+          }
+        }
+        // Pop the continuation value reference stack
+        // State elements should be popped before end slice invoke, as it
+        // contains the phi selects for the end of the scope.
+        conditional_barrier_scope_stack.pop_back();
 
-      const int64_t begin_slice_index =
-          layout.slice_index_by_after_op.at(slice.after_op->barrier_begin_op);
-      XLSCC_CHECK_GT(begin_slice_index, 0, body_loc);
+        const int64_t begin_slice_index =
+            layout.slice_index_by_after_op.at(slice.after_op->barrier_begin_op);
+        XLSCC_CHECK_GT(begin_slice_index, 0, body_loc);
 
-      // Transition is from the slice before.
-      // Need to also consider transitions in inner scopes.
-      AddToAfterConditionalActivationTransition(
-          jump_conditions_by_begin_slice_index.at(begin_slice_index - 1),
-          body_loc, slice_index, conditional_barrier_scope_stack, pb);
+        // Transition is from the slice before.
+        // Need to also consider transitions in inner scopes.
+        AddToAfterConditionalActivationTransition(
+            jump_conditions_by_begin_slice_index.at(begin_slice_index - 1),
+            body_loc, slice_index, conditional_barrier_scope_stack, pb);
 
-      if (debug_ir_trace_flags_ & DebugIrTraceFlags_ActivationBarriers) {
-        TrackedBValue token = pb.Literal(xls::Value::Token(), body_loc,
-                                         /*name=*/"token");
-        pb.Trace(
-            token, pb.Literal(xls::UBits(1, 1)),
-            /*args=*/
-            {conditional_barrier_scope_stack.back()
-                 .after_conditional_activation_transition},
-            absl::StrFormat("end_scope[%li]: after_act {:b}", slice_index));
+        if (debug_ir_trace_flags_ & DebugIrTraceFlags_ActivationBarriers) {
+          TrackedBValue token = pb.Literal(xls::Value::Token(), body_loc,
+                                           /*name=*/"token");
+          pb.Trace(
+              token, pb.Literal(xls::UBits(1, 1)),
+              /*args=*/
+              {conditional_barrier_scope_stack.back()
+                   .after_conditional_activation_transition},
+              absl::StrFormat("end_scope[%li]: after_act {:b}", slice_index));
+        }
       }
     }
 
@@ -1554,33 +1613,10 @@ NewFSMGenerator::GenerateNewFSMInvocation(
     }
 
     // Update value_by_continuation_value, set next values
-    auto continuation_out_it = slice.continuations_out.begin();
-    for (int64_t out_i = 0; out_i < slice.continuations_out.size();
-         ++out_i, ++continuation_out_it) {
-      const ContinuationValue& continuation_out = *continuation_out_it;
-      TrackedBValue value_out =
-          pb.TupleIndex(ret_tup, out_i, body_loc,
-                        /*name=*/
-                        absl::StrFormat("%s_out_%s", slice.function->name(),
-                                        continuation_out.name));
-
-      if (!state_element_by_continuation_value.contains(&continuation_out)) {
-        assign_bval_to_continuation_value(&continuation_out, value_out);
-        continue;
-      }
-
-      // A continuation value is available directly if the slice that produces
-      // it is active this activation.
-      TrackedBValue select_bval = pb.Select(
-          slice_active,
-          /*on_true=*/value_out,
-          /*on_false=*/
-          state_element_by_continuation_value.at(&continuation_out), body_loc,
-          /*name=*/
-          absl::StrFormat("select_active_or_prev_slice_%li_cont_%s",
-                          slice_index, continuation_out.name));
-      assign_bval_to_continuation_value(&continuation_out, select_bval);
-    }
+    ExtractAndAssignContinuationOutputs(
+        slice, slice_index, ret_tup, slice_active,
+        state_element_by_continuation_value, conditional_barrier_scope_stack,
+        pb, body_loc);
 
     if (is_last_slice) {
       // Statics not supported for shared functions
@@ -1619,6 +1655,21 @@ NewFSMGenerator::GenerateNewFSMInvocation(
           jump_conditions_by_begin_slice_index, conditional_barrier_scope_stack,
           generated_conditions,
           next_value_conditions_by_state_element_and_value, pb, body_loc));
+    }
+
+    // Scope start slice can contain outputs from before the scope start
+    if (slice.after_op != nullptr &&
+        slice.after_op->op == OpType::kActivationBarrier &&
+        slice.after_op->activation_barrier_type ==
+            ActivationBarrierType::kConditionalScopeStart) {
+      XLSCC_CHECK(!conditional_barrier_scope_stack.empty(), body_loc);
+      conditional_barrier_scope_stack.push_back(ConditionalBarrierScope{
+          .value_by_continuation_value = conditional_barrier_scope_stack.back()
+                                             .value_by_continuation_value,
+          .after_conditional_activation_transition =
+              pb.Literal(xls::UBits(0, 1), body_loc),
+          .has_activation_barrier = false,
+      });
     }
 
     slices_active.at(slice_index) = slice_active;
@@ -1966,12 +2017,22 @@ absl::Status NewFSMGenerator::GenerateTransitionFromThisSlice(
 
     if (transition.start_op_type == OpType::kActivationBarrier) {
       // Push the stack of continuation value references
-      conditional_barrier_scope_stack.push_back(ConditionalBarrierScope{
-          .value_by_continuation_value = conditional_barrier_scope_stack.back()
-                                             .value_by_continuation_value,
-          .after_conditional_activation_transition =
-              pb.Literal(xls::UBits(0, 1), body_loc),
-      });
+      if (conditional_barrier_scope_stack.size() == 1 ||
+          conditional_barrier_scope_stack.back().has_activation_barrier) {
+        conditional_barrier_scope_stack.push_back(ConditionalBarrierScope{
+            .value_by_continuation_value =
+                conditional_barrier_scope_stack.back()
+                    .value_by_continuation_value,
+            .after_conditional_activation_transition =
+                pb.Literal(xls::UBits(0, 1), body_loc),
+            .has_activation_barrier = true,
+        });
+      }
+      XLSCC_CHECK_GT(conditional_barrier_scope_stack.size(), 1L, body_loc);
+      ConditionalBarrierScope& scope = conditional_barrier_scope_stack.back();
+      scope.after_conditional_activation_transition =
+          pb.Literal(xls::UBits(0, 1), body_loc);
+      scope.has_activation_barrier = true;
 
       // Reference state values after the barrier (within the scope).
       // State elements should be applied before begin slice invoke.
