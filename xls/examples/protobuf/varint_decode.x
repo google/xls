@@ -1,4 +1,3 @@
-
 // Copyright 2023 The XLS Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -28,7 +27,7 @@ pub fn varint_decode_u32
 
     let (chunks, last_chunk, _saw_last_chunk) =
         for (i, (chunks, last_chunk, saw_last_chunk)): (u32, (u7[NUM_BYTES], LenType, bool)) in
-            u32:0..NUM_BYTES {
+            0..NUM_BYTES {
             let current_byte = bytes[i];
             let lsbs = current_byte as u7;
             let msb = current_byte[-1:];
@@ -37,28 +36,28 @@ pub fn varint_decode_u32
             } else {
                 (update(chunks, i, lsbs), i as LenType, !msb)
             }
-        }((u7[NUM_BYTES]:[u7:0, ...], LenType:0, bool:0));
+        }((u7[NUM_BYTES]:[0, ...], LenType:0, bool:0));
 
     // TODO(google/xls#1110): enable when quickcheck works with side-effecting ops
     // if !saw_last_chunk { fail!("did_not_see_last_chunk", ()) } else { () };
     // trace_fmt!("chunks = {}, last_chunk = {}", chunks, last_chunk);
 
-    const FLATTENED_CHUNK_BITS = NUM_BYTES * u32:7;
+    const FLATTENED_CHUNK_BITS = NUM_BYTES * 7;
     type FlattenedChunkType = uN[FLATTENED_CHUNK_BITS];
     let flattened: FlattenedChunkType =
-        for (i, flattened): (u32, FlattenedChunkType) in u32:0..NUM_BYTES {
-            flattened | ((chunks[i] as FlattenedChunkType) << (u32:7 * i))
+        for (i, flattened): (u32, FlattenedChunkType) in 0..NUM_BYTES {
+            flattened | ((chunks[i] as FlattenedChunkType) << (7 * i))
         }(zero!<FlattenedChunkType>());
     // trace_fmt!("flattened = {}", flattened);
-    const NUM_EXTRA_BITS = FLATTENED_CHUNK_BITS - u32:32;
-    let _msbs = (flattened >> u32:32) as uN[NUM_EXTRA_BITS];
+    const NUM_EXTRA_BITS = FLATTENED_CHUNK_BITS - 32;
+    let _msbs = (flattened >> 32) as uN[NUM_EXTRA_BITS];
 
     // TODO(google/xls#1110): enable when quickcheck works with side-effecting ops
     // if msbs != uN[NUM_EXTRA_BITS]:0 {
     //   fail!("did_not_fit_in_u32", ())
     // } else { () };
 
-    (flattened as u32, last_chunk + u3:1)
+    (flattened as u32, last_chunk + 1)
 }
 
 #[test]

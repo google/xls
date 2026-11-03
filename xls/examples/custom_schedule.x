@@ -29,7 +29,7 @@ impl Accumulator {
     fn new
         (data_in: chan<uN[8]> in, activate: chan<uN[1]> in, data_out: chan<uN[256]> out,
          old_state: chan<uN[256]> out) -> Self {
-        Self { data_in, activate, data_out, old_state, acc: uN[256]:0 }
+        Self { data_in, activate, data_out, old_state, acc: 0 }
     }
 
     fn next(self) {

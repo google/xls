@@ -26,7 +26,7 @@ proc main {
 
 impl main {
     fn new(req: chan<u32> out, resp: chan<u32> in) -> Self {
-        Self { req, resp, state: u32:0 }
+        Self { req, resp, state: 0 }
     }
 
     fn next(self) {
@@ -34,6 +34,6 @@ impl main {
         let request = state * state;
         let tok = send(join(), self.req, request);
         let (tok, _response) = recv(tok, self.resp);
-        write(self.state, state + u32:1);
+        write(self.state, state + 1);
     }
 }

@@ -24,12 +24,12 @@ proc producer {
 
 impl producer {
     fn new(input_s: chan<u32> out) -> Self {
-        Self { s: input_s, i: u32:0 }
+        Self { s: input_s, i: 0 }
     }
 
     fn next(self) {
         let i = read(self.i);
-        let foo = i + u32:1;
+        let foo = i + 1;
         let tok = send(join(), self.s, foo);
         write(self.i, foo);
     }
@@ -42,7 +42,7 @@ proc consumer<N: u32> {
 
 impl consumer<N> {
     fn new(input_r: chan<u32> in) -> Self {
-        Self { r: input_r, i: u32:0 }
+        Self { r: input_r, i: 0 }
     }
 
     fn next(self) {
@@ -56,9 +56,9 @@ proc main {}
 
 impl main {
     fn new() -> Self {
-        let (s, r) = chan<u32, u32:1>("my_chan");
+        let (s, r) = chan<u32, 1>("my_chan");
         producer::new(s).spawn();
-        consumer<u32:2>::new(r).spawn();
+        consumer<2>::new(r).spawn();
         Self {}
     }
 }

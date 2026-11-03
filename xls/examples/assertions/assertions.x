@@ -19,17 +19,17 @@
 // diff tests using the `*_update_golden` build targets or via `dev_tools/rebuild_golden_files.sh`.
 
 fn func_0<N: u32>(x: bits[N]) -> bits[N] {
-    const_assert!(N == u32:32);
-    assert!(x < u32:5, "x_less_than_5");
+    const_assert!(N == 32);
+    assert!(x < 5, "x_less_than_5");
 
-    x + u32:10
+    x + 10
 }
 
 fn main(y: u32) -> u32 {
-    if y < u32:10 {
-        func_0<u32:32>(y) + u32:20
-    } else if y < u32:20 {
-        func_0<u32:32>(y - u32:10)
+    if y < 10 {
+        func_0<32>(y) + 20
+    } else if y < 20 {
+        func_0<32>(y - 10)
     } else {
         fail!("y_ge_than_21", u32:0)
     }
@@ -37,9 +37,9 @@ fn main(y: u32) -> u32 {
 
 #[test]
 fn assertion_test_ok() {
-    assert_eq(main(u32:4), u32:34);
-    assert_eq(main(u32:10), u32:10);
-    assert_eq(main(u32:14), u32:14);
+    assert_eq(main(4), u32:34);
+    assert_eq(main(10), u32:10);
+    assert_eq(main(14), u32:14);
 }
 // Enable once https://github.com/google/xls/issues/481 is resolved.
 //

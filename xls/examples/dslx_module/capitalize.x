@@ -1,4 +1,3 @@
-
 // Copyright 2023 The XLS Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -20,68 +19,57 @@ const LOWERCASE_Z = u8:122;
 
 // Converts all letters in the input string to uppercase.
 pub fn capitalize<N: u32>(x: u8[N]) -> u8[N] {
-  let cap_distance = 'a' - 'A';
+    let cap_distance = 'a' - 'A';
 
-  let result = for (i, result) : (u32, u8[N]) in u32:0..N {
-    let element =
-        if x[i] >= LOWERCASE_A && x[i] <= LOWERCASE_Z {
-          x[i] - cap_distance
-        } else {
-          x[i]
-        };
+    let result = for (i, result): (u32, u8[N]) in 0..N {
+        let element =
+            if x[i] >= LOWERCASE_A && x[i] <= LOWERCASE_Z { x[i] - cap_distance } else { x[i] };
 
-    let result = update(result, i, element);
+        let result = update(result, i, element);
+        result
+    }(x);
+
     result
-  }(x);
-
-  result
 }
 
 // Converts consecutive letters in the input string to alternate cases:
 // uppercase, then lowercase, then uppercase, etc., as if spoken in a mocking
 // manner by a somewhat anthropomorphic yellow sea sponge.
 pub fn sponge_capitalize<N: u32>(x: u8[N]) -> u8[N] {
-  let cap_distance = 'a' - 'A';
+    let cap_distance = 'a' - 'A';
 
-  let do_cap = true;
-  let result = for (i, (result, do_cap)) : (u32, (u8[N], u1)) in u32:0..N {
-    let input_is_cap = x[i] >= u8:65 && x[i] <= u8:90;
-    let input_is_lower = x[i] >= u8:97 && x[i] <= u8:122;
-    let capital = x[i] - cap_distance;
-    let lower = x[i] + cap_distance;
+    let do_cap = true;
+    let result = for (i, (result, do_cap)): (u32, (u8[N], u1)) in 0..N {
+        let input_is_cap = x[i] >= 65 && x[i] <= 90;
+        let input_is_lower = x[i] >= 97 && x[i] <= 122;
+        let capital = x[i] - cap_distance;
+        let lower = x[i] + cap_distance;
 
-    let element =
-        if do_cap && input_is_lower {
-          capital
+        let element = if do_cap && input_is_lower {
+            capital
         } else {
-          if !do_cap && input_is_cap { lower }
-          else { x[i] }
+            if !do_cap && input_is_cap { lower } else { x[i] }
         };
-    let do_cap =
-        if input_is_lower || input_is_cap { !do_cap } else { do_cap };
+        let do_cap = if input_is_lower || input_is_cap { !do_cap } else { do_cap };
 
-    let result = update(result, i, element);
-    (result, do_cap)
-  }((x, do_cap));
+        let result = update(result, i, element);
+        (result, do_cap)
+    }((x, do_cap));
 
-  result.0
+    result.0
 }
 
 #[test]
-fn cap_test() {
-  assert_eq("HELLO FRIENDS", capitalize("HeLlO fRiEnDs"));
-}
+fn cap_test() { assert_eq("HELLO FRIENDS", capitalize("HeLlO fRiEnDs")); }
 
 #[test]
 fn sponge_cap_test() {
-  assert_eq(
-      sponge_capitalize("You shouldn't process strings in hardware"),
-      "YoU sHoUlDn'T pRoCeSs StRiNgS iN hArDwArE");
+    assert_eq(
+        sponge_capitalize("You shouldn\'t process strings in hardware"),
+        "YoU sHoUlDn\'T pRoCeSs StRiNgS iN hArDwArE");
 }
 
 #[test]
 fn escape_sequences_test() {
-  assert_eq(
-      "H\t\tE\tLLO\nFR\u{beef}IENDS",
-      capitalize("H\t\te\tLlO\nfR\u{beef}iEnDs"));
+    assert_eq("H\t\tE\tLLO\nFR\xeb\xbb\xafIENDS", capitalize("H\t\te\tLlO\nfR\xeb\xbb\xafiEnDs"));
 }

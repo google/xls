@@ -27,13 +27,13 @@ const DELAY = u32:2048;
 
 const INIT_DATA = u32:3;
 
-const LOGDELAY = std::clog2(DELAY + u32:1);
+const LOGDELAY = std::clog2(DELAY + 1);
 
 struct DelayState { initial_output_count: uN[LOGDELAY], occupancy: uN[LOGDELAY] }
 
-fn increment<N: u32>(x: uN[N]) -> uN[N] { x + uN[N]:1 }
+fn increment<N: u32>(x: uN[N]) -> uN[N] { x + 1 }
 
-fn decrement<N: u32>(x: uN[N]) -> uN[N] { x - uN[N]:1 }
+fn decrement<N: u32>(x: uN[N]) -> uN[N] { x - 1 }
 
 fn max(x: u32, y: u32) -> u32 { if x > y { x } else { y } }
 
@@ -64,8 +64,8 @@ impl Delay {
         let state = read(self.state);
         trace_fmt!("state = {}", state);
         let init_done = eq(state.initial_output_count, DELAY);
-        let (recv_tok, input_data, data_in_valid) = recv_if_non_blocking(
-            join(), self.data_in, !eq(state.occupancy, DELAY), uN[DATA_WIDTH]:0);
+        let (recv_tok, input_data, data_in_valid) =
+            recv_if_non_blocking(join(), self.data_in, !eq(state.occupancy, DELAY), 0);
         let send_tok = send_if(recv_tok, self.loopback_push, data_in_valid, input_data);
         let (recv_tok, loopback_data, loopback_valid) =
             recv_if_non_blocking(join(), self.loopback_pop, init_done, INIT_DATA as uN[DATA_WIDTH]);
@@ -105,17 +105,17 @@ impl DelayTest {
 
     fn next(self) {
         // Check that the first DELAY outputs are INIT_DATA.
-        let tok = for (_, tok): (u32, token) in u32:0..DELAY {
+        let tok = for (_, tok): (u32, token) in 0..DELAY {
             let (tok, value) = recv(tok, self.data_in);
             assert_eq(value, INIT_DATA);
             tok
         }(join());
         // Queue up a bunch of inputs.
-        let tok = for (i, tok): (u32, token) in u32:0..u32:2 * DELAY {
+        let tok = for (i, tok): (u32, token) in 0..2 * DELAY {
             send(tok, self.data_out, i)
         }(tok);
         // Check the outputs.
-        let tok = for (i, tok): (u32, token) in u32:0..u32:2 * DELAY {
+        let tok = for (i, tok): (u32, token) in 0..2 * DELAY {
             let (tok, value) = recv(tok, self.data_in);
             assert_eq(value, i);
             tok

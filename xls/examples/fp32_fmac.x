@@ -29,7 +29,7 @@ impl fp32_fmac {
     fn new
         (input_a: chan<F32> in, input_b: chan<F32> in, reset: chan<bool> in, output: chan<F32> out)
         -> Self {
-        apfloat_fmac::fmac<u32:8, u32:23>::new(input_a, input_b, reset, output).spawn();
+        apfloat_fmac::fmac<8, 23>::new(input_a, input_b, reset, output).spawn();
         Self {}
     }
 

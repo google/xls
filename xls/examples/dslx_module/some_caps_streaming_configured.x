@@ -18,7 +18,7 @@
 // A specialization of some_caps
 import xls.examples.dslx_module.some_caps_streaming;
 
-const REAL_LENGTH: u32 = u32:8;
+const REAL_LENGTH: u32 = 8;
 
 // Note: Until the advent of proc-scoped channels this example will only work on
 // unopt-ir JIT because opt_main will optimize-away the spawned proc since it
