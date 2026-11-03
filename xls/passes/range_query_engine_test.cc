@@ -887,8 +887,8 @@ void DynamicBitSliceIsCorrect(const IntervalSet& x_intervals,
                             BitsLTT(start.node(), start_intervals.Intervals()));
   XLS_ASSERT_OK(engine.Populate(f));
 
-  x_intervals.ForEachElement([&](const Bits& x_bits) -> bool {
-    start_intervals.ForEachElement([&](const Bits& start_bits) -> bool {
+  for (const Bits& x_bits : x_intervals.Values()) {
+    for (const Bits& start_bits : start_intervals.Values()) {
       const int64_t shift_amount =
           bits_ops::UnsignedBitsToSaturatedInt64(start_bits);
       Bits out(4);
@@ -897,10 +897,8 @@ void DynamicBitSliceIsCorrect(const IntervalSet& x_intervals,
                   .Slice(0, /*width=*/4);
       }
       EXPECT_TRUE(engine.GetIntervalSetTree(expr.node()).Get({}).Covers(out));
-      return false;
-    });
-    return false;
-  });
+    }
+  }
 }
 
 FUZZ_TEST(RangeQueryEngineFuzzTest, DynamicBitSliceIsCorrect)
