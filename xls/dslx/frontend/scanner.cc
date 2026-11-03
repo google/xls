@@ -359,6 +359,13 @@ std::optional<CommentData> Scanner::TryPopComment(bool allow_multiline) {
     CHECK(token.GetValue().has_value());
     return CommentData{.span = token.span(), .text = token.GetValue().value()};
   }
+  if (!AtEof() && PeekChar() == '/' && PeekChar2OrNull() == '*') {
+    DropChar(2);
+    absl::StatusOr<Token> token = PopBlockComment(start_pos);
+    if (token.ok()) {
+      return CommentData{.span = token->span(), .text = token->GetValue().value()};
+    }
+  }
   return std::nullopt;
 }
 
@@ -375,6 +382,13 @@ absl::StatusOr<std::optional<Token>> Scanner::TryPopWhitespaceOrComment() {
     DropChar(2);
     Token token = PopComment(start_pos, /* allow_multiline= */ false);
     return token;
+  }
+  if (PeekChar() == '/' && PeekChar2OrNull() == '*') {
+    DropChar(2);
+    absl::StatusOr<Token> token = PopBlockComment(start_pos);
+    if (token.ok()) {
+      return token.value();
+    }
   }
   return std::nullopt;
 }
