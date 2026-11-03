@@ -25,3 +25,25 @@ fn test_fn() {
     let x = main();
     assert_eq(x, u32:35)
 }
+
+#[test]
+fn wide_negative_start() {
+    for (i, _) in sN[65]:-1..0 {
+        assert_eq(i, -1)
+    }(())
+}
+
+#[test]
+fn signed_range_crossing_zero() {
+    let count = for (_, acc): (s4, u32) in s4:-8..s4:7 {
+        acc + u32:1
+    }(u32:0);
+    assert_eq(count, u32:15);
+}
+
+#[test]
+fn wide_range_array() {
+    let start = uN[74]:0x1_ffff_ffff_ffff_ffff;
+    let end = uN[74]:0x2_0000_0000_0000_0000;
+    assert_eq(start..=end, [start, end]);
+}

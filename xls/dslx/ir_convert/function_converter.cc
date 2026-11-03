@@ -75,6 +75,7 @@
 #include "xls/dslx/type_system_v2/import_utils.h"
 #include "xls/dslx/warning_collector.h"
 #include "xls/ir/bits.h"
+#include "xls/ir/bits_ops.h"
 #include "xls/ir/channel.h"
 #include "xls/ir/fileno.h"
 #include "xls/ir/foreign_function.h"
@@ -1515,29 +1516,25 @@ absl::StatusOr<FunctionConverter::RangeData> FunctionConverter::GetRangeData(
     return error();
   }
 
-  XLS_ASSIGN_OR_RETURN(int64_t start_int, start_value.GetBitValueViaSign());
-  XLS_ASSIGN_OR_RETURN(int64_t bit_width, start_value.GetBitCount());
-
+  XLS_ASSIGN_OR_RETURN(Bits start_bits, start_value.GetBits());
   XLS_ASSIGN_OR_RETURN(InterpValue start_gt_limit, start_value.Gt(limit_value));
   if (start_gt_limit.IsTrue()) {
-    return RangeData{start_int, 0, bit_width};
+    return RangeData{std::move(start_bits), 0};
   }
 
   XLS_ASSIGN_OR_RETURN(InterpValue trip_count, limit_value.Sub(start_value));
   if (inclusive_end) {
-    trip_count = InterpValue::MakeUnsigned(trip_count.GetBitsOrDie());
+    XLS_ASSIGN_OR_RETURN(Bits bits, trip_count.GetBits());
+    trip_count = InterpValue::MakeUnsigned(std::move(bits));
     XLS_ASSIGN_OR_RETURN(trip_count,
                          trip_count.IncrementZeroExtendIfOverflow());
   }
-  XLS_RET_CHECK(trip_count.IsBits());
-  int64_t trip_count_int;
-  if (trip_count.IsSigned()) {
-    XLS_ASSIGN_OR_RETURN(trip_count_int, trip_count.GetBitValueViaSign());
-  } else {
-    XLS_ASSIGN_OR_RETURN(trip_count_int, trip_count.GetBitValueViaSign());
-  }
-
-  return RangeData{start_int, trip_count_int, bit_width};
+  // The distance between ordered endpoints is unsigned, even for a signed
+  // range that crosses zero.
+  XLS_ASSIGN_OR_RETURN(Bits trip_count_bits, trip_count.GetBits());
+  XLS_ASSIGN_OR_RETURN(int64_t trip_count_int,
+                       trip_count_bits.UnsignedToInt64());
+  return RangeData{std::move(start_bits), trip_count_int};
 }
 
 absl::StatusOr<BValue> FunctionConverter::HandleRangedForInductionVariable(
@@ -1593,15 +1590,11 @@ absl::Status FunctionConverter::HandleForLoopCarry(
     const For* node, FunctionConverter& body_converter,
     const std::optional<RangeData>& range_data, BValue loop_index,
     const PatternTree& ivar, AstNode* carry_node) {
-  // IR `counted_for` ops only support a trip count, not a set of iterables, so
-  // we need to add an offset to that trip count/index to support nonzero loop
-  // start indices; e.g. `for (i, accum) in 1..10` we actually iterate from 0 to
-  // 9 and add the offset of 1 to the index.
+  // The IR counted_for index starts at zero. Add the DSLX range start at the
+  // induction variable's width to get the value used by the loop body.
   if (range_data.has_value()) {
-    Value index_offset =
-        Value(UBits(range_data->start_value, range_data->bit_width));
     BValue offset_literal =
-        body_converter.function_builder_->Literal(index_offset);
+        body_converter.function_builder_->Literal(range_data->start_value);
     BValue offset_sum =
         body_converter.function_builder_->Add(loop_index, offset_literal);
 
@@ -3269,26 +3262,17 @@ absl::Status FunctionConverter::HandleRange(const Range* node) {
   auto maybe_type = current_type_info_->GetItem(node);
   XLS_RET_CHECK(maybe_type.has_value());
   auto* array_type = dynamic_cast<ArrayType*>(maybe_type.value());
-  if (array_type == nullptr) {
-    return absl::InvalidArgumentError(
-        "Range expressions must resolve to array-of-bits type.");
-  }
-  std::optional<BitsLikeProperties> bits_like =
-      GetBitsLike(array_type->element_type());
-  if (!bits_like.has_value()) {
+  if (array_type == nullptr || !IsBitsLike(array_type->element_type())) {
     return absl::InvalidArgumentError(
         "Range expressions must resolve to array-of-bits type.");
   }
 
-  XLS_ASSIGN_OR_RETURN(bool is_signed, bits_like->is_signed.GetAsBool());
   XLS_ASSIGN_OR_RETURN(RangeData range_data, GetRangeData(node));
   std::vector<Value> elements;
-  for (int i = 0; i < range_data.trip_count; i++) {
-    Value value =
-        is_signed
-            ? Value(SBits(i + range_data.start_value, range_data.bit_width))
-            : Value(UBits(i + range_data.start_value, range_data.bit_width));
-    elements.push_back(value);
+  Bits value = std::move(range_data.start_value);
+  for (int64_t i = 0; i < range_data.trip_count; ++i) {
+    elements.emplace_back(value);
+    value = bits_ops::Increment(std::move(value));
   }
 
   XLS_ASSIGN_OR_RETURN(Value array, Value::Array(elements));
