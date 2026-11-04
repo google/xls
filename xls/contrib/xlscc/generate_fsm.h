@@ -265,6 +265,8 @@ class NewFSMGenerator : public GeneratorBase {
   struct ConditionalBarrierScope {
     ContinuationValueBValMap value_by_continuation_value;
     TrackedBValue after_conditional_activation_transition;
+    bool has_activation_barrier = false;
+    absl::flat_hash_set<const ContinuationValue*> propagate_values;
   };
 
   // Sort by Node ID and StateElement name for determinism.
@@ -317,6 +319,18 @@ class NewFSMGenerator : public GeneratorBase {
       const absl::flat_hash_map<const ContinuationValue*, TrackedBValue>&
           state_element_by_continuation_value,
       std::vector<ConditionalBarrierScope>& conditional_barrier_scope_stack);
+
+  void AssignBValToContinuationValue(
+      const ContinuationValue* value, TrackedBValue bval,
+      std::vector<ConditionalBarrierScope>& conditional_barrier_scope_stack);
+
+  void ExtractAndAssignContinuationOutputs(
+      const GeneratedFunctionSlice& slice, int64_t slice_index,
+      TrackedBValue ret_tup, TrackedBValue slice_active,
+      const absl::flat_hash_map<const ContinuationValue*, TrackedBValue>&
+          state_element_by_continuation_value,
+      std::vector<ConditionalBarrierScope>& conditional_barrier_scope_stack,
+      xls::ProcBuilder& pb, const xls::SourceInfo& body_loc);
 
   struct BarrierScopeMask {
     // scope includes start_slice, but not end_slice

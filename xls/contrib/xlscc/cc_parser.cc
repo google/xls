@@ -1534,6 +1534,8 @@ __xlscc_trace_stream_type __xlscc_trace_stream;
 template<bool conditional>
 void __xlscc_activation_barrier() { }
 
+void __xlscc_barrier_scope() { }
+
 bool __xlscc_on_reset = false;
 
 // Returns bits for 32.32 fixed point representation
