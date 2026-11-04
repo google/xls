@@ -255,8 +255,17 @@ absl::StatusOr<bool> SimplifyBitSlice(BitSlice* bit_slice, int64_t opt_level,
     VLOG(3) << absl::StreamFormat(
         "Replacing bitslice(concat(...)) => concat(bitslice(), ...): %s",
         bit_slice->GetName());
-    XLS_RETURN_IF_ERROR(
-        bit_slice->ReplaceUsesWithNew<Concat>(new_operands).status());
+    // Preserve `concat`'s source location (and its assigned name if `bit_slice`
+    // is unnamed, such as a synthetic narrowing slice) on the narrowed concat,
+    // rather than using `ReplaceUsesWithNew` which would overwrite them with
+    // `bit_slice`'s location and name.
+    XLS_ASSIGN_OR_RETURN(Concat * new_concat,
+                         bit_slice->function_base()->MakeNode<Concat>(
+                             concat->loc(), new_operands));
+    XLS_RETURN_IF_ERROR(bit_slice->ReplaceUsesWith(new_concat));
+    if (!new_concat->HasAssignedName() && concat->HasAssignedName()) {
+      new_concat->SetName(concat->GetNameView());
+    }
     return true;
   }
 
@@ -413,16 +422,26 @@ absl::StatusOr<bool> SimplifyBitSlice(BitSlice* bit_slice, int64_t opt_level,
     Node* shift = operand;
     Node* to_shift = shift->operand(0);
     Node* shift_amount = shift->operand(1);
+    // Attach `to_shift->loc()` to the hoisted slice and `shift->loc()` to the
+    // narrowed shift (rather than `bit_slice->loc()`, which may be empty if
+    // created by a narrowing pass or point to a downstream consumer) so each
+    // narrowed upstream node retains its original source location as the slice
+    // propagates up the graph.
     XLS_ASSIGN_OR_RETURN(
         Node * sliced_to_shift,
-        make_bit_slice(operand->loc(), to_shift, bit_slice->start(),
+        make_bit_slice(to_shift->loc(), to_shift, bit_slice->start(),
                        bit_slice->width()));
     VLOG(3) << absl::StreamFormat(
         "Replacing bitslice(shift(x, y)) => shift(bitslice(x), y): %s",
         bit_slice->GetName());
-    XLS_ASSIGN_OR_RETURN(BinOp * new_shift,
-                         bit_slice->ReplaceUsesWithNew<BinOp>(
-                             sliced_to_shift, shift_amount, shift->op()));
+    XLS_ASSIGN_OR_RETURN(
+        BinOp * new_shift,
+        bit_slice->function_base()->MakeNode<BinOp>(
+            shift->loc(), sliced_to_shift, shift_amount, shift->op()));
+    XLS_RETURN_IF_ERROR(bit_slice->ReplaceUsesWith(new_shift));
+    if (!new_shift->HasAssignedName() && shift->HasAssignedName()) {
+      new_shift->SetName(shift->GetNameView());
+    }
     std::vector<Node*> users(operand->users().begin(), operand->users().end());
     for (Node* user : users) {
       if (user == bit_slice) {
@@ -481,12 +500,16 @@ absl::StatusOr<bool> SimplifyBitSlice(BitSlice* bit_slice, int64_t opt_level,
     // Operand 0 is the selector in all Select/PrioritySelect/OneHotSelect
     // operations and is unchanged.
     new_operands.push_back(select->operand(0));
-    // The remaining operands are the cases and should all be sliced.
+    // The remaining operands are the cases and should all be sliced. Use each
+    // case operand's `loc()` (matching the bitwise/arithmetic hoisting above)
+    // rather than `bit_slice->loc()` so that as the hoisted slices propagate
+    // into each arm, they preserve that arm's source location rather than
+    // stamping the downstream (or synthetic) slice's location onto every case.
     for (int64_t i = 1; i < select->operand_count(); ++i) {
       XLS_ASSIGN_OR_RETURN(
           Node * sliced_operand,
-          make_bit_slice(operand->loc(), select->operand(i), bit_slice->start(),
-                         bit_slice->width()));
+          make_bit_slice(select->operand(i)->loc(), select->operand(i),
+                         bit_slice->start(), bit_slice->width()));
 
       new_operands.push_back(sliced_operand);
     }

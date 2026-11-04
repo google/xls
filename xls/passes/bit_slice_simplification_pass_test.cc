@@ -32,11 +32,13 @@
 #include "xls/interpreter/function_interpreter.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/events.h"
+#include "xls/ir/fileno.h"
 #include "xls/ir/function.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/ir_matcher.h"
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/nodes.h"
+#include "xls/ir/source_location.h"
 #include "xls/ir/value.h"
 #include "xls/passes/dce_pass.h"
 #include "xls/passes/optimization_pass.h"
@@ -54,6 +56,7 @@ using ::absl_testing::IsOkAndHolds;
 using ::xls::solvers::ScopedVerifyEquivalence;
 
 using ::testing::AllOf;
+using ::testing::ElementsAre;
 
 class BitSliceSimplificationPassTest : public IrTestBase {
  protected:
@@ -1247,6 +1250,76 @@ TEST_F(
               m::ZeroExt(
                   m::BitSlice(m::Param("to_slice"), /*start=*/25, /*width=*/5)),
           }));
+}
+
+TEST_F(BitSliceSimplificationPassTest, HoistedSlicesPreserveSourceLocations) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+     fn f(s: bits[1], a: bits[16], b: bits[16], c: bits[32], amt: bits[32]) -> (bits[16], bits[10]) {
+        concat_ab: bits[32] = concat(a, b, pos=[(0,10,1)])
+        not_c: bits[32] = not(c, pos=[(0,15,1)])
+        shll_c: bits[32] = shll(not_c, amt, pos=[(0,20,1)])
+        sel_val: bits[32] = sel(s, cases=[concat_ab, c], pos=[(0,30,1)])
+        sliced_sel: bits[16] = bit_slice(sel_val, start=0, width=16, pos=[(0,40,1)])
+        sliced_shift: bits[10] = bit_slice(shll_c, start=0, width=10, pos=[(0,50,1)])
+        ret result: (bits[16], bits[10]) = tuple(sliced_sel, sliced_shift)
+     }
+  )",
+                                                       p.get()));
+  ASSERT_THAT(Run(f), IsOkAndHolds(true));
+
+  Node* narrowed_sel = f->return_value()->operand(0);
+  ASSERT_THAT(narrowed_sel,
+              m::Select(m::Param("s"),
+                        /*cases=*/{m::Concat(m::Param("b")),
+                                   m::BitSlice(m::Param("c"), 0, 16)}));
+  EXPECT_THAT(narrowed_sel->loc().locations,
+              ElementsAre(SourceLocation(Fileno(0), Lineno(30), Colno(1))));
+  // The narrowed concat in case 0 should preserve concat_ab's source location.
+  EXPECT_THAT(narrowed_sel->operand(1)->loc().locations,
+              ElementsAre(SourceLocation(Fileno(0), Lineno(10), Colno(1))));
+
+  Node* narrowed_shift = f->return_value()->operand(1);
+  ASSERT_THAT(narrowed_shift, m::Shll(m::BitSlice(m::Not(m::Param("c")), 0, 10),
+                                      m::Param("amt")));
+  EXPECT_THAT(narrowed_shift->loc().locations,
+              ElementsAre(SourceLocation(Fileno(0), Lineno(20), Colno(1))));
+  EXPECT_THAT(narrowed_shift->operand(0)->loc().locations,
+              ElementsAre(SourceLocation(Fileno(0), Lineno(15), Colno(1))));
+}
+
+TEST_F(BitSliceSimplificationPassTest, HoistedSlicesPreserveNodeNames) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+     fn f(s: bits[1], a: bits[3], b: bits[16], c: bits[13], d: bits[32], amt: bits[32]) -> (bits[29], bits[10], bits[16]) {
+        m_padded: bits[32] = concat(a, b, c)
+        sel.10: bits[32] = sel(s, cases=[m_padded, d])
+        bit_slice.11: bits[29] = bit_slice(sel.10, start=0, width=29)
+        named_shift: bits[32] = shll(d, amt)
+        bit_slice.12: bits[10] = bit_slice(named_shift, start=0, width=10)
+        other_concat: bits[32] = concat(a, b, c)
+        explicitly_named_slice: bits[16] = bit_slice(other_concat, start=13, width=16)
+        ret result: (bits[29], bits[10], bits[16]) = tuple(bit_slice.11, bit_slice.12, explicitly_named_slice)
+     }
+  )",
+                                                       p.get()));
+  ASSERT_THAT(Run(f), IsOkAndHolds(true));
+
+  Node* narrowed_sel = f->return_value()->operand(0);
+  ASSERT_THAT(narrowed_sel,
+              m::Select(m::Param("s"),
+                        /*cases=*/{m::Concat(m::Param("b"), m::Param("c")),
+                                   m::BitSlice(m::Param("d"), 0, 29)}));
+  EXPECT_EQ(narrowed_sel->operand(1)->GetName(), "m_padded__1");
+
+  Node* narrowed_shift = f->return_value()->operand(1);
+  ASSERT_THAT(narrowed_shift,
+              m::Shll(m::BitSlice(m::Param("d"), 0, 10), m::Param("amt")));
+  EXPECT_EQ(narrowed_shift->GetName(), "named_shift__1");
+
+  Node* named_slice = f->return_value()->operand(2);
+  ASSERT_THAT(named_slice, m::Concat(m::Param("b")));
+  EXPECT_EQ(named_slice->GetName(), "explicitly_named_slice");
 }
 
 void IrFuzzBitSliceSimplification(FuzzPackageWithArgs fuzz_package_with_args) {
