@@ -1214,6 +1214,115 @@ absl::Status AddOneShotLogic(Connector& connector, ScheduledBlock* block,
                                incoming_valid_location);
 }
 
+// Adds logic to ensure that a non-blocking receive that observes an empty
+// channel during a stall remains empty for the rest of the activation.
+//
+// Once a stage's inputs are valid, an active non-blocking receive immediately
+// observes whether the channel is valid or empty, even if the stage cannot
+// advance in that cycle. If the channel is empty (`!incoming_valid`) and the
+// stage stalls, data arriving in a later cycle of the stall would otherwise:
+//   1. flip the receive's combinational `(data, valid)` outputs mid-activation,
+//      and
+//   2. be consumed when the stage finally commits (`stage_done`), dropping the
+//      input if downstream logic already acted on the earlier `valid = 0`.
+//
+// To prevent this, we latch `latched_empty` when an active receive sees an
+// empty channel in a non-advancing cycle, clear it when `stage_done` asserts,
+// and gate the receive's predicate with `!latched_empty`.
+absl::Status AddOneShotLogicForNonBlockingReceive(Receive* receive,
+                                                  int64_t stage_index,
+                                                  const Connector& connector,
+                                                  ScheduledBlock* block) {
+  XLS_RET_CHECK(!receive->is_blocking());
+  XLS_RET_CHECK(connector.valid.has_value());
+
+  // Without a reset, the "latched_empty" register below could power up set,
+  // which would silently ignore the next receive on this channel.
+  if (!block->GetResetPort().has_value()) {
+    return absl::InvalidArgumentError(absl::StrFormat(
+        "Block `%s` must have a reset signal for non-blocking receive "
+        "one-shot logic, which is needed for `%s`.",
+        block->name(), receive->GetName()));
+  }
+
+  Stage& stage = block->stages()[stage_index];
+  Node* incoming_valid = *connector.valid;
+  std::optional<Node*> predicate = receive->predicate();
+  if (predicate.has_value()) {
+    XLS_ASSIGN_OR_RETURN(
+        predicate,
+        MakeStagedUseIfNeeded(*predicate, stage_index, block, receive->loc()));
+  }
+
+  // Add the "latched_empty" register.
+  XLS_ASSIGN_OR_RETURN(
+      Register * latched_empty_reg,
+      block->AddRegisterWithZeroResetValue(
+          absl::StrCat("__", receive->GetName(), "_latched_empty_reg"),
+          block->package()->GetBitsType(1)));
+  XLS_ASSIGN_OR_RETURN(
+      Node * latched_empty,
+      block->MakeNodeWithName<RegisterRead>(
+          receive->loc(), latched_empty_reg,
+          absl::StrCat("__", receive->GetName(), "_latched_empty")));
+  XLS_ASSIGN_OR_RETURN(
+      Node * not_latched_empty,
+      block->MakeNode<UnOp>(receive->loc(), latched_empty, Op::kNot));
+
+  // Gate the receive's predicate with `!latched_empty` so that once it has
+  // observed an empty channel, the receive is suppressed (with `valid = 0`,
+  // `data = 0`, `ready = 0`) until the stage advances.
+  //
+  // This works because a non-blocking receive with its predicate off behaves
+  // exactly like a non-blocking receive with its predicate on and an empty
+  // channel.
+  Node* active_predicate = not_latched_empty;
+  if (predicate.has_value()) {
+    XLS_ASSIGN_OR_RETURN(
+        active_predicate,
+        block->MakeNodeInStage<NaryOp>(
+            stage_index, receive->loc(),
+            absl::MakeConstSpan({*predicate, not_latched_empty}), Op::kAnd));
+  }
+  XLS_RETURN_IF_ERROR(receive->SetPredicate(active_predicate));
+
+  // Add the `RegisterWrite` for "latched_empty": set to 1 when the receive is
+  // active and sees an empty channel, and reset to 0 when `stage_done` is
+  // asserted.
+  XLS_ASSIGN_OR_RETURN(
+      Node * not_incoming_valid,
+      block->MakeNode<UnOp>(receive->loc(), incoming_valid, Op::kNot));
+  absl::InlinedVector<Node*, 4> empty_read_conditions(
+      {stage.inputs_valid(), stage.active_inputs_valid(), not_incoming_valid});
+  if (predicate.has_value()) {
+    empty_read_conditions.push_back(*predicate);
+  }
+  XLS_ASSIGN_OR_RETURN(
+      Node * empty_read,
+      block->MakeNode<NaryOp>(receive->loc(), empty_read_conditions, Op::kAnd));
+
+  XLS_ASSIGN_OR_RETURN(Node * stage_done,
+                       block->GetOrCreateStageDone(stage_index));
+  XLS_ASSIGN_OR_RETURN(
+      Node * not_stage_done,
+      block->MakeNode<UnOp>(receive->loc(), stage_done, Op::kNot));
+  XLS_ASSIGN_OR_RETURN(
+      Node * latched_empty_data,
+      block->MakeNode<NaryOp>(receive->loc(),
+                              absl::MakeConstSpan({empty_read, not_stage_done}),
+                              Op::kAnd));
+  XLS_ASSIGN_OR_RETURN(
+      Node * latched_empty_load_enable,
+      block->MakeNode<NaryOp>(receive->loc(),
+                              absl::MakeConstSpan({empty_read, stage_done}),
+                              Op::kOr));
+  return block
+      ->MakeNode<RegisterWrite>(receive->loc(), latched_empty_data,
+                                latched_empty_load_enable,
+                                block->GetResetPort(), latched_empty_reg)
+      .status();
+}
+
 // Returns the set of all names of channels used for RAMs.
 // These channels are handled specially by RamRewritePass and should be excluded
 // from some codegen logic (especially I/O flopping).
@@ -1687,49 +1796,166 @@ absl::Status AddIOFlopsForConnector(Connector& connector, ChannelRef channel,
       absl::StrFormat("Unknown channel direction %d", connector.direction));
 }
 
+// Returns whether `stage` might stall waiting for an active input (e.g., a
+// blocking receive on a channel with a valid signal, or waiting for a previous
+// activation to write a state element).
+absl::StatusOr<bool> StageCanStallOnInput(
+    const Stage& stage,
+    const absl::flat_hash_map<DirectedChannelRef, Connector>& connections) {
+  if (!IsLiteralUnsignedOne(stage.active_inputs_valid())) {
+    return true;
+  }
+  for (Node* node : stage.active_inputs()) {
+    if (!node->Is<Receive>() || !node->As<Receive>()->is_blocking()) {
+      continue;
+    }
+    XLS_ASSIGN_OR_RETURN(ChannelRef channel,
+                         node->As<Receive>()->GetChannelRef());
+    auto it = connections.find({channel, ChannelDirection::kReceive});
+    XLS_RET_CHECK(it != connections.end());
+    if (it->second.valid.has_value()) {
+      return true;
+    }
+  }
+  return false;
+}
+
+// Returns whether `stage` might stall waiting for an active output (e.g., a
+// send on a channel with a ready signal).
+absl::StatusOr<bool> StageCanStallOnOutput(
+    const Stage& stage,
+    const absl::flat_hash_map<DirectedChannelRef, Connector>& connections) {
+  if (!IsLiteralUnsignedOne(stage.active_outputs_ready())) {
+    return true;
+  }
+  for (Node* node : stage.active_outputs()) {
+    if (!node->Is<Send>()) {
+      continue;
+    }
+    XLS_ASSIGN_OR_RETURN(ChannelRef channel, node->As<Send>()->GetChannelRef());
+    auto it = connections.find({channel, ChannelDirection::kSend});
+    XLS_RET_CHECK(it != connections.end());
+    if (it->second.ready.has_value()) {
+      return true;
+    }
+  }
+  return false;
+}
+
 // Returns the index of the last stage that can stall, i.e., that might be
 // unable to complete in a cycle where it holds a valid activation; returns
-// std::nullopt if no stage can stall. A stage can stall if it has a blocking
-// receive on a channel with a valid signal, a send on a channel with a ready
-// signal, or some other condition already folded into its
-// `active_inputs_valid` or `active_outputs_ready` signal (e.g., waiting for a
-// previous activation to write a state element).
+// std::nullopt if no stage can stall.
 absl::StatusOr<std::optional<int64_t>> LastStageThatCanStall(
+    ScheduledBlock* block,
+    const absl::flat_hash_map<DirectedChannelRef, Connector>& connections) {
+  for (int64_t stage_index = block->stages().size() - 1; stage_index >= 0;
+       --stage_index) {
+    const Stage& stage = block->stages()[stage_index];
+    XLS_ASSIGN_OR_RETURN(bool input_stall,
+                         StageCanStallOnInput(stage, connections));
+    XLS_ASSIGN_OR_RETURN(bool output_stall,
+                         StageCanStallOnOutput(stage, connections));
+    if (input_stall || output_stall) {
+      return stage_index;
+    }
+  }
+  return std::nullopt;
+}
+
+// Sends and non-blocking receives act as soon as their stage's inputs are
+// valid, without waiting for their stage to be able to advance. If the stage
+// stalls after they act—either because an output in the same stage isn't ready
+// yet, or because a later stage is stalled—we need "one-shot" logic to keep
+// them from acting again before the stage advances:
+//
+// - A completed send must be suppressed so it doesn't fire a second time.
+//   (Since a send already waits for its own `ready` signal, a same-stage output
+//   stall requires another streaming send that isn't mutually exclusive with
+//   it.)
+// - A non-blocking receive that observed an empty channel must latch that empty
+//   result so data arriving mid-stall isn't seen mid-activation or consumed
+//   when the stage commits.
+//
+// TODO: do the same-stage send analysis on a per-stage basis, and apply it
+// per-channel.
+absl::StatusOr<bool> AddOneShotLogicIfNeeded(
     ScheduledBlock* block,
     const absl::btree_map<DirectedChannelRef, std::vector<Node*>,
                           DirectedNameLessThan>& io_ops,
-    const absl::flat_hash_map<DirectedChannelRef, Connector>& connections) {
-  std::optional<int64_t> last_stage;
-  auto note_stage_can_stall = [&](int64_t stage_index) {
-    if (!last_stage.has_value() || stage_index > *last_stage) {
-      last_stage = stage_index;
-    }
-  };
-
-  for (int64_t stage_index = 0; stage_index < block->stages().size();
-       ++stage_index) {
-    const Stage& stage = block->stages()[stage_index];
-    if (!IsLiteralUnsignedOne(stage.active_inputs_valid()) ||
-        !IsLiteralUnsignedOne(stage.active_outputs_ready())) {
-      note_stage_can_stall(stage_index);
-    }
+    absl::flat_hash_map<DirectedChannelRef, Connector>& connections,
+    const BlockConversionPassOptions& options) {
+  bool needs_one_shot_logic = false;
+  const int64_t outgoing_channel_count =
+      absl::c_count_if(io_ops, [](const auto& channel_and_io_ops) {
+        return channel_and_io_ops.first.second == ChannelDirection::kSend;
+      });
+  if (outgoing_channel_count > 1) {
+    XLS_ASSIGN_OR_RETURN(bool outputs_mutually_exclusive,
+                         AreStreamingOutputsMutuallyExclusive(block));
+    needs_one_shot_logic = !outputs_mutually_exclusive;
   }
+  if (options.codegen_options.generate_combinational()) {
+    if (needs_one_shot_logic) {
+      return absl::UnimplementedError(absl::StrFormat(
+          "Proc combinational generator only supports streaming output "
+          "channels which can be determined to be mutually exclusive, got %d "
+          "output channels which were not proven to be mutually exclusive",
+          outgoing_channel_count));
+    }
+    return false;
+  }
+
+  bool changed = false;
+  XLS_ASSIGN_OR_RETURN(std::optional<int64_t> last_stage_that_can_stall,
+                       LastStageThatCanStall(block, connections));
+  auto can_later_stage_stall = [&](int64_t stage_index) {
+    return last_stage_that_can_stall.has_value() &&
+           stage_index < *last_stage_that_can_stall;
+  };
   for (const auto& [directed_channel, io_ops_for_channel] : io_ops) {
+    if (ChannelRefKind(directed_channel.first) != ChannelKind::kStreaming) {
+      continue;
+    }
     auto it = connections.find(directed_channel);
     XLS_RET_CHECK(it != connections.end());
-    const Connector& connector = it->second;
-    for (Node* io_op : io_ops_for_channel) {
-      const bool can_stall = io_op->Is<Send>()
-                                 ? connector.ready.has_value()
-                                 : io_op->As<Receive>()->is_blocking() &&
-                                       connector.valid.has_value();
-      if (can_stall) {
-        XLS_ASSIGN_OR_RETURN(int64_t stage_index, block->GetStageIndex(io_op));
-        note_stage_can_stall(stage_index);
+    Connector& connector = it->second;
+    if (!connector.valid.has_value()) {
+      continue;
+    }
+
+    if (directed_channel.second == ChannelDirection::kSend) {
+      bool later_stage_can_stall = false;
+      for (Node* send : io_ops_for_channel) {
+        XLS_ASSIGN_OR_RETURN(int64_t stage_index, block->GetStageIndex(send));
+        later_stage_can_stall |= can_later_stage_stall(stage_index);
+      }
+      if (needs_one_shot_logic || later_stage_can_stall) {
+        XLS_RETURN_IF_ERROR(AddOneShotLogic(
+            connector, block, options, ChannelRefName(directed_channel.first)));
+        changed = true;
+      }
+      continue;
+    }
+
+    CHECK_EQ(directed_channel.second, ChannelDirection::kReceive);
+    for (Node* node : io_ops_for_channel) {
+      Receive* receive = node->As<Receive>();
+      if (receive->is_blocking()) {
+        continue;
+      }
+      XLS_ASSIGN_OR_RETURN(int64_t stage_index, block->GetStageIndex(receive));
+      XLS_ASSIGN_OR_RETURN(
+          bool same_stage_can_stall_on_output,
+          StageCanStallOnOutput(block->stages()[stage_index], connections));
+      if (same_stage_can_stall_on_output ||
+          can_later_stage_stall(stage_index)) {
+        XLS_RETURN_IF_ERROR(AddOneShotLogicForNonBlockingReceive(
+            receive, stage_index, connector, block));
+        changed = true;
       }
     }
   }
-  return last_stage;
+  return changed;
 }
 
 absl::StatusOr<bool> LowerIoToPorts(
@@ -1751,65 +1977,8 @@ absl::StatusOr<bool> LowerIoToPorts(
     io_ops[directed_channel].push_back(node);
   }
 
-  bool changed = false;
-
-  // A send's valid signal doesn't depend on whether its stage can advance; if
-  // the send completes in a cycle where its stage doesn't advance, it would
-  // fire again in a later cycle. To prevent this, we add "one-shot" logic that
-  // suppresses the send until its stage advances. A send needs this if:
-  //
-  // 1. another send in the same stage might not be ready yet. We add one-shot
-  //    logic to every streaming send unless all streaming sends are provably
-  //    mutually exclusive.
-  // 2. a later stage can stall, which keeps the send's stage from advancing.
-  //
-  // TODO: do the analysis for (1) on a per-stage basis, and apply it
-  // per-channel.
-  bool needs_one_shot_logic = false;
-  const int64_t outgoing_channel_count =
-      absl::c_count_if(io_ops, [](const auto& channel_and_io_ops) {
-        return channel_and_io_ops.first.second == ChannelDirection::kSend;
-      });
-  if (outgoing_channel_count > 1) {
-    XLS_ASSIGN_OR_RETURN(bool outputs_mutually_exclusive,
-                         AreStreamingOutputsMutuallyExclusive(block));
-    needs_one_shot_logic = !outputs_mutually_exclusive;
-  }
-  if (needs_one_shot_logic &&
-      options.codegen_options.generate_combinational()) {
-    return absl::UnimplementedError(absl::StrFormat(
-        "Proc combinational generator only supports streaming output "
-        "channels which can be determined to be mutually exclusive, got %d "
-        "output channels which were not proven to be mutually exclusive",
-        outgoing_channel_count));
-  }
-  XLS_ASSIGN_OR_RETURN(std::optional<int64_t> last_stage_that_can_stall,
-                       LastStageThatCanStall(block, io_ops, connections));
-  for (const auto& [directed_channel, io_ops_for_channel] : io_ops) {
-    if (directed_channel.second != ChannelDirection::kSend ||
-        ChannelRefKind(directed_channel.first) != ChannelKind::kStreaming) {
-      continue;
-    }
-    auto it = connections.find(directed_channel);
-    XLS_RET_CHECK(it != connections.end());
-    Connector& connector = it->second;
-
-    bool later_stage_can_stall = false;
-    if (last_stage_that_can_stall.has_value() && connector.valid.has_value()) {
-      for (Node* send : io_ops_for_channel) {
-        XLS_ASSIGN_OR_RETURN(int64_t stage_index, block->GetStageIndex(send));
-        if (stage_index < *last_stage_that_can_stall) {
-          later_stage_can_stall = true;
-        }
-      }
-    }
-    if (!needs_one_shot_logic && !later_stage_can_stall) {
-      continue;
-    }
-    XLS_RETURN_IF_ERROR(AddOneShotLogic(
-        connector, block, options, ChannelRefName(directed_channel.first)));
-    changed = true;
-  }
+  XLS_ASSIGN_OR_RETURN(bool changed, AddOneShotLogicIfNeeded(
+                                         block, io_ops, connections, options));
 
   for (const auto& [directed_channel, io_ops_for_channel] : io_ops) {
     auto it = connections.find(directed_channel);

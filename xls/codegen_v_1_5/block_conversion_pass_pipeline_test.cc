@@ -1044,6 +1044,110 @@ TEST_F(BlockConversionTest, SendBeforeStateStallIsNotRepeated) {
   }
 }
 
+TEST_F(BlockConversionTest,
+       NonBlockingReceiveDuringStallDoesNotTearOrDropInput) {
+  // Stage 0 performs a non-blocking receive on `nb_in`, selects `nb_data` if
+  // valid (else 0), and sends that value on `early_out`. Stage 1 receives a
+  // stalling input on `stall_in` and sends the same selected value on
+  // `late_out`.
+  //
+  // If `nb_in` is empty when Stage 0 begins a stalled activation (so
+  // `early_out` sends 0), and data arrives on `nb_in` before Stage 0 can
+  // advance, Stage 0 must not switch its decision mid-activation (which would
+  // send the new data on `late_out` while `early_out` already sent 0) or drop
+  // the arriving input when Stage 0 finally commits.
+  for (bool zero_latency_input : {false, true}) {
+    SCOPED_TRACE(absl::StrCat("zero_latency_input=", zero_latency_input));
+    auto p = CreatePackage();
+    Type* u32 = p->GetBitsType(32);
+    XLS_ASSERT_OK_AND_ASSIGN(
+        Channel * nb_in,
+        p->CreateStreamingChannel("nb_in", ChannelOps::kReceiveOnly, u32));
+    XLS_ASSERT_OK_AND_ASSIGN(
+        Channel * stall_in,
+        p->CreateStreamingChannel("stall_in", ChannelOps::kReceiveOnly, u32));
+    XLS_ASSERT_OK_AND_ASSIGN(
+        Channel * early_out,
+        p->CreateStreamingChannel("early_out", ChannelOps::kSendOnly, u32));
+    XLS_ASSERT_OK_AND_ASSIGN(
+        Channel * late_out,
+        p->CreateStreamingChannel("late_out", ChannelOps::kSendOnly, u32));
+
+    ProcBuilder b(TestName(), p.get());
+    BValue tkn = b.Literal(Value::Token());
+    BValue nb_recv = b.ReceiveNonBlocking(nb_in, tkn);
+    BValue nb_tkn = b.TupleIndex(nb_recv, 0);
+    BValue nb_data = b.TupleIndex(nb_recv, 1);
+    BValue nb_valid = b.TupleIndex(nb_recv, 2);
+    BValue chosen = b.Select(nb_valid, {b.Literal(UBits(0, 32)), nb_data});
+    BValue early_send = b.Send(early_out, nb_tkn, chosen);
+    BValue stall_recv =
+        b.Receive(stall_in, b.MinDelay(early_send, /*delay=*/1));
+    BValue stall_tkn = b.TupleIndex(stall_recv, 0);
+    b.Send(late_out, stall_tkn, chosen);
+    XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, b.Build());
+
+    CodegenOptions options = codegen_options();
+    options.flop_inputs(zero_latency_input).flop_outputs(false);
+    if (zero_latency_input) {
+      options.flop_inputs_kind(CodegenOptions::IOKind::kZeroLatencyBuffer);
+    }
+    options.reset("rst", false, false, false);
+    options.streaming_channel_data_suffix("_data");
+    options.streaming_channel_valid_suffix("_valid");
+    options.streaming_channel_ready_suffix("_ready");
+    XLS_ASSERT_OK_AND_ASSIGN(
+        Block * block,
+        ConvertToBlock(proc, options, SchedulingOptions().pipeline_stages(2)));
+
+    constexpr int64_t kNbInputCount = 50;
+    std::vector<uint64_t> nb_inputs(kNbInputCount);
+    for (int64_t i = 0; i < kNbInputCount; ++i) {
+      nb_inputs[i] = i + 1;
+    }
+    std::vector<ChannelSource> sources{
+        ChannelSource("nb_in_data", "nb_in_valid", "nb_in_ready", 0.3, block),
+        ChannelSource("stall_in_data", "stall_in_valid", "stall_in_ready", 0.2,
+                      block),
+    };
+    XLS_ASSERT_OK(sources[0].SetDataSequence(nb_inputs));
+    XLS_ASSERT_OK(sources[1].SetDataSequence(std::vector<uint64_t>(500, 0)));
+
+    std::vector<ChannelSink> sinks{
+        ChannelSink(
+            "early_out_data", "early_out_valid", "early_out_ready", 1.0, block,
+            /*reset_behavior=*/ChannelSink::BehaviorDuringReset::kIgnoreValid),
+        ChannelSink(
+            "late_out_data", "late_out_valid", "late_out_ready", 0.5, block,
+            /*reset_behavior=*/ChannelSink::BehaviorDuringReset::kIgnoreValid),
+    };
+    std::vector<absl::flat_hash_map<std::string, uint64_t>> inputs(
+        2000, {{"rst", 0}});
+    XLS_ASSERT_OK(SetSignalsOverCycles(0, 4, {{"rst", 1}}, inputs));
+    XLS_ASSERT_OK(InterpretChannelizedSequentialBlockWithUint64(
+                      block, absl::MakeSpan(sources), absl::MakeSpan(sinks),
+                      inputs, options.reset())
+                      .status());
+
+    XLS_ASSERT_OK_AND_ASSIGN(std::vector<uint64_t> early_outputs,
+                             sinks[0].GetOutputSequenceAsUint64());
+    XLS_ASSERT_OK_AND_ASSIGN(std::vector<uint64_t> late_outputs,
+                             sinks[1].GetOutputSequenceAsUint64());
+    ASSERT_GE(early_outputs.size(), late_outputs.size());
+    for (int64_t i = 0; i < late_outputs.size(); ++i) {
+      EXPECT_EQ(early_outputs[i], late_outputs[i]) << "at activation " << i;
+    }
+
+    std::vector<uint64_t> received_nb_values;
+    for (uint64_t v : late_outputs) {
+      if (v != 0) {
+        received_nb_values.push_back(v);
+      }
+    }
+    EXPECT_EQ(received_nb_values, nb_inputs);
+  }
+}
+
 TEST_F(BlockConversionTest, ChannelDefaultSuffixName) {
   const std::string ir_text = R"(package test
 
