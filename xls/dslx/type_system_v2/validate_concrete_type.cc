@@ -790,8 +790,15 @@ class TypeValidator : public AstNodeVisitorWithDefault {
 
   absl::Status ValidateUpdateInvocation(const Invocation& invocation,
                                         const FunctionType& signature) {
-    const Type& first = *signature.params()[0];
-    const ArrayType& array_type = first.AsArray();
+    const Type& array_type = *signature.params()[0];
+    if (!array_type.IsArray() || IsBitsLike(array_type)) {
+      return TypeInferenceErrorStatus(
+          invocation.args()[0]->span(), &array_type,
+          absl::Substitute("`update` requires an array as its first argument; "
+                           "got `$0`",
+                           array_type.ToString()),
+          file_table_);
+    }
     const Type& index_type = *signature.params()[1];
 
     // 1. index must be tuple of uNs or scalar uN
@@ -811,17 +818,15 @@ class TypeValidator : public AstNodeVisitorWithDefault {
         index_type.IsTuple() ? index_type.AsTuple().size() : 1;
     const Type* element_type = &array_type;
     for (int64_t i = 0; i < index_dimensions; ++i) {
-      if (element_type->IsArray()) {
-        element_type = &element_type->AsArray().element_type();
-      } else {
+      if (!element_type->IsArray() || IsBitsLike(*element_type)) {
         return TypeInferenceErrorStatus(
             invocation.span(), &index_type,
             absl::Substitute("Array dimension in `update` expected to be "
-                             "larger than the number of indices ($0); got $1",
-                             index_dimensions,
-                             array_type.GetAllDims().size() - 1),
+                             "at least the number of indices ($0); got $1",
+                             index_dimensions, i),
             file_table_);
       }
+      element_type = &element_type->AsArray().element_type();
     }
 
     // 3. Base types must match
