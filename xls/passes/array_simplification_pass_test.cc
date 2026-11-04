@@ -14,6 +14,7 @@
 
 #include "xls/passes/array_simplification_pass.h"
 
+#include <cstdint>
 #include <memory>
 #include <utility>
 
@@ -33,6 +34,7 @@
 #include "xls/ir/ir_parser.h"
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/nodes.h"
+#include "xls/ir/op.h"
 #include "xls/ir/package.h"
 #include "xls/ir/source_location.h"
 #include "xls/ir/value.h"
@@ -54,23 +56,22 @@ using ::xls::solvers::ScopedVerifyEquivalence;
 
 class ArraySimplificationPassTest : public IrTestBase {
  protected:
-  absl::StatusOr<bool> Run(Function* f) {
+  absl::StatusOr<bool> Run(Function* f, int64_t opt_level = kMaxOptLevel) {
     PassResults results;
+    OptimizationPassOptions options;
+    options.opt_level = opt_level;
     bool changed = false;
     bool changed_this_iteration = true;
     while (changed_this_iteration) {
-      XLS_ASSIGN_OR_RETURN(
-          changed_this_iteration,
-          ArraySimplificationPass().RunOnFunctionBase(
-              f, OptimizationPassOptions(), &results, context_));
+      XLS_ASSIGN_OR_RETURN(changed_this_iteration,
+                           ArraySimplificationPass().RunOnFunctionBase(
+                               f, options, &results, context_));
       // Run dce and constant folding to clean things up.
       XLS_RETURN_IF_ERROR(ConstantFoldingPass()
-                              .RunOnFunctionBase(f, OptimizationPassOptions(),
-                                                 &results, context_)
+                              .RunOnFunctionBase(f, options, &results, context_)
                               .status());
       XLS_RETURN_IF_ERROR(DeadCodeEliminationPass()
-                              .RunOnFunctionBase(f, OptimizationPassOptions(),
-                                                 &results, context_)
+                              .RunOnFunctionBase(f, options, &results, context_)
                               .status());
       changed = changed || changed_this_iteration;
     }
@@ -2012,6 +2013,237 @@ TEST_F(ArraySimplificationPassTest, SimplifySelectOfArraysWithOneHotSelect) {
                                        {m::Param("a"), m::Param("c")}),
                        m::OneHotSelect(m::Param("selector"),
                                        {m::Param("b"), m::Param("d")})));
+}
+
+TEST_F(ArraySimplificationPassTest,
+       ConstantIndexedPrioritySelectOverLargeArray) {
+  Package* p = GetPackage();
+  FunctionBuilder fb(TestName(), p);
+  Type* u17 = p->GetBitsType(17);
+  Type* arr_t = p->GetArrayType(5, u17);
+  BValue a = fb.Param("a", arr_t);
+  BValue b = fb.Param("b", arr_t);
+  BValue def = fb.Param("def", arr_t);
+  BValue sel = fb.Param("sel", p->GetBitsType(2));
+  BValue psel = fb.PrioritySelect(sel, {a, b}, def);
+  BValue e1 = fb.ArrayIndex(psel, {fb.Literal(UBits(1, 4))});
+  BValue e3 = fb.ArrayIndex(psel, {fb.Literal(UBits(3, 4))});
+  fb.Tuple({e1, e3});
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ScopedVerifyEquivalence sve(f);
+  ASSERT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(
+      f->return_value(),
+      m::Tuple(
+          m::PrioritySelect(m::Param("sel"),
+                            /*cases=*/
+                            {m::ArrayIndex(m::Param("a"), {m::Literal(1)}),
+                             m::ArrayIndex(m::Param("b"), {m::Literal(1)})},
+                            /*default_value=*/
+                            m::ArrayIndex(m::Param("def"), {m::Literal(1)})),
+          m::PrioritySelect(m::Param("sel"),
+                            /*cases=*/
+                            {m::ArrayIndex(m::Param("a"), {m::Literal(3)}),
+                             m::ArrayIndex(m::Param("b"), {m::Literal(3)})},
+                            /*default_value=*/
+                            m::ArrayIndex(m::Param("def"), {m::Literal(3)}))));
+}
+
+TEST_F(ArraySimplificationPassTest, ConstantIndexedSelectWidthSweep) {
+  for (int64_t width : {0, 1, 2, 3, 17, 33, 65}) {
+    auto p = CreatePackage();
+    FunctionBuilder fb(TestName(), p.get());
+    Type* elem_t = p->GetBitsType(width);
+    Type* arr_t = p->GetArrayType(6, elem_t);
+    BValue a = fb.Param("a", arr_t);
+    BValue b = fb.Param("b", arr_t);
+    BValue c = fb.Param("c", arr_t);
+    BValue sel = fb.Param("sel", p->GetBitsType(2));
+    BValue mux = fb.Select(sel, {a, b}, c);
+    BValue e0 = fb.ArrayIndex(mux, {fb.Literal(UBits(0, 8))});
+    BValue e4 = fb.ArrayIndex(mux, {fb.Literal(UBits(4, 8))});
+    fb.Tuple({e0, e4});
+    XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+    ScopedVerifyEquivalence sve(f);
+    ASSERT_THAT(Run(f), IsOkAndHolds(true)) << "width=" << width;
+    for (Node* node : f->nodes()) {
+      if (node->OpIn({Op::kSel, Op::kPrioritySel, Op::kOneHotSel})) {
+        EXPECT_FALSE(node->GetType()->IsArray()) << "width=" << width;
+      }
+    }
+  }
+}
+
+TEST_F(ArraySimplificationPassTest, ConstantIndexedSelectOobWideIndex) {
+  Package* p = GetPackage();
+  FunctionBuilder fb(TestName(), p);
+  Type* u33 = p->GetBitsType(33);
+  Type* arr_t = p->GetArrayType(5, u33);
+  BValue a = fb.Param("a", arr_t);
+  BValue b = fb.Param("b", arr_t);
+  BValue sel = fb.Param("sel", p->GetBitsType(1));
+  BValue mux = fb.Select(sel, {a, b});
+  Bits wide_oob = Bits::AllOnes(100);
+  BValue e_oob = fb.ArrayIndex(mux, {fb.Literal(wide_oob)});
+  BValue e_last = fb.ArrayIndex(mux, {fb.Literal(UBits(4, 8))});
+  fb.Add(e_oob, e_last);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ScopedVerifyEquivalence sve(f);
+  ASSERT_THAT(Run(f), IsOkAndHolds(true));
+  int64_t select_count = 0;
+  for (Node* node : f->nodes()) {
+    if (node->Is<Select>()) {
+      ++select_count;
+      EXPECT_EQ(node->GetType(), u33);
+    }
+  }
+  // Both index 4 and wide OOB clamp to index 4 and share a single scalar mux.
+  EXPECT_EQ(select_count, 1);
+}
+
+TEST_F(ArraySimplificationPassTest,
+       ConstantIndexedOneHotSelectZeroAndMultiHot) {
+  Package* p = GetPackage();
+  FunctionBuilder fb(TestName(), p);
+  Type* u3 = p->GetBitsType(3);
+  Type* arr_t = p->GetArrayType(5, u3);
+  BValue a = fb.Param("a", arr_t);
+  BValue b = fb.Param("b", arr_t);
+  BValue c = fb.Param("c", arr_t);
+  // Arbitrary 3-bit selector: may be zero-hot or multi-hot.
+  BValue sel = fb.Param("sel", p->GetBitsType(3));
+  BValue ohs = fb.OneHotSelect(sel, {a, b, c});
+  BValue e2 = fb.ArrayIndex(ohs, {fb.Literal(UBits(2, 4))});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(e2));
+  ScopedVerifyEquivalence sve(f);
+  ASSERT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::OneHotSelect(m::Param("sel"),
+                              {m::ArrayIndex(m::Param("a"), {m::Literal(2)}),
+                               m::ArrayIndex(m::Param("b"), {m::Literal(2)}),
+                               m::ArrayIndex(m::Param("c"), {m::Literal(2)})}));
+}
+
+TEST_F(ArraySimplificationPassTest, ConstantIndexedSelect2DPartialConstant) {
+  Package* p = GetPackage();
+  FunctionBuilder fb(TestName(), p);
+  Type* u17 = p->GetBitsType(17);
+  Type* inner_t = p->GetArrayType(5, u17);
+  Type* outer_t = p->GetArrayType(5, inner_t);
+  BValue a = fb.Param("a", outer_t);
+  BValue b = fb.Param("b", outer_t);
+  BValue sel = fb.Param("sel", p->GetBitsType(1));
+  BValue dyn_j0 = fb.Param("dyn_j0", p->GetBitsType(4));
+  BValue dyn_j1 = fb.Param("dyn_j1", p->GetBitsType(4));
+  BValue mux = fb.Select(sel, {a, b});
+  BValue r0 = fb.ArrayIndex(mux, {fb.Literal(UBits(2, 4)), dyn_j0});
+  BValue r1 = fb.ArrayIndex(mux, {fb.Literal(UBits(2, 4)), dyn_j1});
+  fb.Tuple({r0, r1});
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ScopedVerifyEquivalence sve(f);
+  ASSERT_THAT(Run(f), IsOkAndHolds(true));
+  auto shared_inner_mux = m::Select(
+      m::Param("sel"), {m::ArrayIndex(m::Param("a"), {m::Literal(2)}),
+                        m::ArrayIndex(m::Param("b"), {m::Literal(2)})});
+  EXPECT_THAT(f->return_value(),
+              m::Tuple(m::ArrayIndex(shared_inner_mux, {m::Param("dyn_j0")}),
+                       m::ArrayIndex(shared_inner_mux, {m::Param("dyn_j1")})));
+}
+
+TEST_F(ArraySimplificationPassTest,
+       ConstantIndexedSelectSkippedWhenMixedWithNonIndexUser) {
+  Package* p = GetPackage();
+  FunctionBuilder fb(TestName(), p);
+  Type* u17 = p->GetBitsType(17);
+  Type* arr_t = p->GetArrayType(5, u17);
+  BValue a = fb.Param("a", arr_t);
+  BValue b = fb.Param("b", arr_t);
+  BValue sel = fb.Param("sel", p->GetBitsType(1));
+  BValue mux = fb.Select(sel, {a, b});
+  BValue e0 = fb.ArrayIndex(mux, {fb.Literal(UBits(0, 4))});
+  // Returning `mux` alongside `e0` means `mux` is not exclusively consumed by
+  // constant-index ArrayIndex ops and must not be split when size > 3.
+  fb.Tuple({mux, e0});
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ScopedVerifyEquivalence sve(f);
+  ASSERT_THAT(Run(f), IsOkAndHolds(false));
+}
+
+TEST_F(ArraySimplificationPassTest, ConstantIndexedSelectDisabledAtOptLevel2) {
+  Package* p = GetPackage();
+  FunctionBuilder fb(TestName(), p);
+  Type* u17 = p->GetBitsType(17);
+  Type* arr_t = p->GetArrayType(5, u17);
+  BValue a = fb.Param("a", arr_t);
+  BValue b = fb.Param("b", arr_t);
+  BValue sel = fb.Param("sel", p->GetBitsType(1));
+  BValue mux = fb.Select(sel, {a, b});
+  BValue e0 = fb.ArrayIndex(mux, {fb.Literal(UBits(0, 4))});
+  BValue e3 = fb.ArrayIndex(mux, {fb.Literal(UBits(3, 4))});
+  fb.Tuple({e0, e3});
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ScopedVerifyEquivalence sve(f);
+  ASSERT_THAT(Run(f, /*opt_level=*/2), IsOkAndHolds(false));
+}
+
+TEST_F(ArraySimplificationPassTest, ConstantIndexedSelectWithLiteralArrayArm) {
+  Package* p = GetPackage();
+  FunctionBuilder fb(TestName(), p);
+  Type* u17 = p->GetBitsType(17);
+  Type* arr_t = p->GetArrayType(5, u17);
+  BValue param_arr = fb.Param("param_arr", arr_t);
+  XLS_ASSERT_OK_AND_ASSIGN(Value lit_val,
+                           Value::UBitsArray({10, 20, 30, 40, 50}, 17));
+  BValue literal_arr = fb.Literal(lit_val);
+  BValue sel = fb.Param("sel", p->GetBitsType(1));
+  BValue mux = fb.Select(sel, {param_arr, literal_arr});
+  BValue e1 = fb.ArrayIndex(mux, {fb.Literal(UBits(1, 4))});
+  BValue e4 = fb.ArrayIndex(mux, {fb.Literal(UBits(4, 4))});
+  fb.Tuple({e1, e4});
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ScopedVerifyEquivalence sve(f);
+  ASSERT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(
+      f->return_value(),
+      m::Tuple(m::Select(m::Param("sel"),
+                         {m::ArrayIndex(m::Param("param_arr"), {m::Literal(1)}),
+                          m::Literal(UBits(20, 17))}),
+               m::Select(m::Param("sel"),
+                         {m::ArrayIndex(m::Param("param_arr"), {m::Literal(4)}),
+                          m::Literal(UBits(50, 17))})));
+}
+
+TEST_F(ArraySimplificationPassTest, ConstantIndexedSelectSizeOneWithOobIndex) {
+  Package* p = GetPackage();
+  FunctionBuilder fb(TestName(), p);
+  Type* u17 = p->GetBitsType(17);
+  Type* arr_t = p->GetArrayType(1, u17);
+  BValue a = fb.Param("a", arr_t);
+  BValue b = fb.Param("b", arr_t);
+  BValue sel = fb.Param("sel", p->GetBitsType(1));
+  BValue mux = fb.Select(sel, {a, b});
+  BValue e0 = fb.ArrayIndex(mux, {fb.Literal(UBits(0, 1))});
+  BValue e_oob = fb.ArrayIndex(mux, {fb.Literal(UBits(1, 1))});
+  fb.Add(e0, e_oob);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ScopedVerifyEquivalence sve(f);
+  ASSERT_THAT(Run(f), IsOkAndHolds(true));
+  auto scalar_sel = m::Select(m::Param("sel"),
+                              {m::ArrayIndex(m::Param("a"), {m::Literal(0)}),
+                               m::ArrayIndex(m::Param("b"), {m::Literal(0)})});
+  EXPECT_THAT(f->return_value(), m::Add(scalar_sel, scalar_sel));
+  for (Node* node : f->nodes()) {
+    if (node->Is<Select>()) {
+      EXPECT_EQ(node->GetType(), u17);
+    }
+  }
 }
 
 void IrFuzzArraySimplification(FuzzPackageWithArgs fuzz_package_with_args) {
