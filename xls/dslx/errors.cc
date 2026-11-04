@@ -45,9 +45,13 @@ absl::Status TypeInferenceErrorStatusInternal(
   if (type_or_annotation != nullptr) {
     type_str = type_or_annotation->ToString() + " ";
   }
-  return absl::InvalidArgumentError(
-      absl::StrFormat("TypeInferenceError: %s %s%s", span.ToString(file_table),
-                      type_str, message));
+
+  absl::Status status = absl::InvalidArgumentError(
+      absl::StrFormat("TypeInferenceError: %s%s", type_str, message));
+  StatusPayloadProto payload;
+  *payload.add_spans() = ToProto(span, file_table);
+  SetStatusPayload(status, payload);
+  return status;
 }
 
 }  // namespace
