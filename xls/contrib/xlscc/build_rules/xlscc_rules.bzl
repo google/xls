@@ -214,6 +214,7 @@ def _xls_cc_ir_impl(ctx):
         "max_unroll_iters",
         "print_optimization_warnings",
         "debug_write_function_slice_graph_path",
+        "fsm_state_element_sharing_criteria",
     )
 
     xlscc_args = append_default_to_args(
