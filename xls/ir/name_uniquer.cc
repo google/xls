@@ -22,10 +22,12 @@
 
 #include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/ascii.h"
 #include "absl/strings/numbers.h"
 #include "absl/strings/str_cat.h"
 #include "xls/common/status/ret_check.h"
+#include "xls/common/status/status_macros.h"
 
 namespace xls {
 
@@ -136,10 +138,11 @@ absl::Status NameUniquer::ReserveIdentifier(std::string_view sv) {
   std::string_view root;
   std::optional<int64_t> suffix = ParseNumericSuffix(sv, separator_, &root);
   if (suffix) {
-    XLS_RET_CHECK_EQ(generated_names_[root].generator.RegisterId(*suffix),
-                     *suffix)
+    XLS_RET_CHECK(!generated_names_[root].generator.IsUsed(*suffix))
         << "Identifier '" << sv
         << "' is already in use with suffix: " << *suffix;
+    XLS_RET_CHECK_EQ(generated_names_[root].generator.RegisterId(*suffix),
+                     *suffix);
   } else {
     XLS_RET_CHECK(!generated_names_.contains(sv) ||
                   !generated_names_[sv].bare_prefix_taken)
@@ -150,7 +153,8 @@ absl::Status NameUniquer::ReserveIdentifier(std::string_view sv) {
 }
 
 absl::Status NameUniquer::ReleaseIdentifier(std::string_view sv) {
-  if (auto it = generated_names_.find(sv); it != generated_names_.end()) {
+  if (auto it = generated_names_.find(sv);
+      it != generated_names_.end() && it->second.bare_prefix_taken) {
     // this is an unadorned name.
     it->second.bare_prefix_taken = false;
     return absl::OkStatus();
@@ -165,6 +169,85 @@ absl::Status NameUniquer::ReleaseIdentifier(std::string_view sv) {
       << "Name '" << sv
       << "' was not a bare identifier and didn't have a numeric suffix?";
   return it->second.generator.Release(*suffix);
+}
+
+std::optional<std::string> NameUniquer::GetOriginalName(
+    std::string_view sv) const {
+  std::string_view root;
+  std::optional<int64_t> suffix = ParseNumericSuffix(sv, separator_, &root);
+  if (!suffix.has_value()) {
+    return std::nullopt;
+  }
+  auto it = generated_names_.find(root);
+  if (it == generated_names_.end()) {
+    return std::nullopt;
+  }
+  std::optional<std::optional<int64_t>> orig_id =
+      it->second.generator.GetOriginalId(*suffix);
+  if (!orig_id.has_value() || *orig_id == *suffix) {
+    return std::nullopt;
+  }
+  if (!orig_id->has_value()) {
+    return std::string(root);
+  }
+  return absl::StrCat(root, separator_, **orig_id);
+}
+
+bool NameUniquer::IsNameAvailable(std::string_view sv) const {
+  std::string_view root;
+  std::optional<int64_t> suffix = ParseNumericSuffix(sv, separator_, &root);
+  if (suffix.has_value()) {
+    auto it = generated_names_.find(root);
+    if (it == generated_names_.end()) {
+      return true;
+    }
+    return !it->second.generator.IsUsed(*suffix);
+  }
+  auto it = generated_names_.find(sv);
+  if (it == generated_names_.end()) {
+    return true;
+  }
+  return !it->second.bare_prefix_taken;
+}
+
+absl::StatusOr<std::optional<std::string>>
+NameUniquer::TryReclaimUnqualifiedName(std::string_view sv) {
+  if (auto it = generated_names_.find(sv);
+      it != generated_names_.end() && it->second.bare_prefix_taken) {
+    // This is an unadorned name; it was not uniquified.
+    return std::nullopt;
+  }
+  std::string_view root;
+  std::optional<int64_t> suffix = ParseNumericSuffix(sv, separator_, &root);
+  XLS_RET_CHECK(suffix.has_value())
+      << "Name '" << sv
+      << "' was not a bare identifier and didn't have a numeric suffix?";
+  auto it = generated_names_.find(root);
+  XLS_RET_CHECK(it != generated_names_.end())
+      << "Name '" << sv
+      << "' was not a bare identifier and didn't have a numeric suffix?";
+  PrefixTracker& tracker = it->second;
+  std::optional<std::optional<int64_t>> orig_id =
+      tracker.generator.GetOriginalId(*suffix);
+  XLS_RET_CHECK(orig_id.has_value()) << *suffix << " is not marked as in use";
+  if (*orig_id == *suffix) {
+    return std::nullopt;
+  }
+  if (!orig_id->has_value()) {
+    if (tracker.bare_prefix_taken) {
+      return std::nullopt;
+    }
+    XLS_RETURN_IF_ERROR(tracker.generator.Release(*suffix));
+    tracker.bare_prefix_taken = true;
+    return std::string(root);
+  }
+  int64_t target_id = **orig_id;
+  if (tracker.generator.IsUsed(target_id)) {
+    return std::nullopt;
+  }
+  XLS_RETURN_IF_ERROR(tracker.generator.Release(*suffix));
+  XLS_RET_CHECK_EQ(tracker.generator.RegisterId(target_id), target_id);
+  return absl::StrCat(root, separator_, target_id);
 }
 
 absl::Status NameUniquer::SequentialIdGenerator::Release(int64_t id) {
