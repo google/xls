@@ -427,6 +427,16 @@ xls_dslx_opt_ir(
     tags = ["optonly"],
 )
 
+xls_dslx_opt_ir(
+    name = "sha256_scaled",
+    srcs = ["sha256_scaled.x"],
+    dslx_top = "main",
+    ir_conv_args = {"lower_to_proc_scoped_channels": "true"},
+    ir_file = "sha256_scaled.ir",
+    opt_ir_file = "sha256_scaled.opt.ir",
+    tags = ["optonly"],
+)
+
 xls_dslx_test(
     name = "sha256_dslx_test",
     srcs = ["sha256.x"],
@@ -1204,6 +1214,12 @@ xls_dslx_test(
     name = "bitonic_sort_dslx_test",
     srcs = ["bitonic_sort.x"],
     dslx_test_args = {"compare": "jit"},
+)
+
+xls_dslx_opt_ir(
+    name = "bitonic_sort",
+    dslx_top = "bitonic_sort_u32_8",
+    library = ":bitonic_sort_dslx",
 )
 
 xls_dslx_library(
