@@ -356,6 +356,17 @@ TEST_F(DecomposeDataflowPassTest, ArrayIndexNarrowSelectorRegression) {
   EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
 }
 
+TEST_F(DecomposeDataflowPassTest, ArraySliceOverflowRegression) {
+  auto p = CreatePackage();
+  FunctionBuilder fb("f", p.get());
+  BValue x = fb.Param("x", p->GetArrayType(4, p->GetBitsType(8)));
+  BValue y = fb.Param("y", p->GetBitsType(8));
+  fb.ArraySlice(x, y, /*width=*/4);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ScopedVerifyEquivalence sve(f);
+  EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
+}
+
 void IrFuzzDecomposeDataflow(FuzzPackageWithArgs fuzz_package_with_args) {
   OptimizationCompoundPass pass("test_pass", "test_pass");
   pass.Add<DecomposeDataflowPass>();
