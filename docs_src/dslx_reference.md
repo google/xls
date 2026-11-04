@@ -1706,6 +1706,64 @@ let result = for (i, array) in u32:0..8 {
 }(u4[8]:[0, ...]);
 ```
 
+### `unroll_for!` Expression
+
+`unroll_for!` has the same syntax as a `for` expression, but the loop is
+unrolled while the module is type checked: the body is copied once per element
+of the iterable, and each copy sees its index as a compile-time constant. The
+form `const for` is an equivalent spelling.
+
+```dslx-snippet
+unroll_for! (index, accumulator) [: (type-of-index, type-of-accumulator)] in iterable {
+   body-expression
+} (initial-accumulator-value)
+```
+
+Because the loop is unrolled at type-checking time:
+
+*   The iterable must be a compile-time constant, such as `u32:0..u32:4`, a
+    range bounded by a parametric (`u32:0..N`), or a constant array. A bound
+    that is only known at runtime, such as a function parameter, is a type
+    error (`... is not constexpr`).
+*   In each unrolled copy the index is a constant, so the body can use it where
+    a constant is required, for example to index an array of channels or to
+    size a type. If the initial accumulator and the body are constant too, the
+    result of the whole loop is a constant and can be bound with `const`.
+
+As with `for`, the pattern must be a two-element `(index, accumulator)` tuple,
+and the loop evaluates to the final accumulator value:
+
+```dslx-snippet
+let sum = unroll_for! (i, acc): (u32, u32) in u32:0..u32:4 {
+  acc + i
+}(u32:0);  // sum == u32:6
+```
+
+When the loop is only needed for its side effects, use `()` as the
+accumulator. For example, a proc can receive from every channel of a channel
+array:
+
+```dslx-snippet
+unroll_for! (i, ()): (u32, ()) in u32:0..u32:4 {
+  let (_, v) = recv(token(), inputs[i]);
+  trace_fmt!("input {}: {}", i, v);
+}(());
+```
+
+Loops can be nested. Since the outer index is a constant, an inner loop may
+even use it as a bound (`u32:0..row`). A common use is spawning a grid of procs:
+
+```dslx-snippet
+unroll_for! (row, ()): (u32, ()) in u32:0..ROWS {
+  unroll_for! (col, ()): (u32, ()) in u32:0..COLS {
+    Node::new(input_consumers[row][col], output_producers[row][col]).spawn();
+  }(());
+}(());
+```
+
+See [channel arrays and loop-based spawning](./tutorials/how_to_use_procs.md#channel-arrays-and-loop-based-spawning)
+for a complete example.
+
 ### Lambda Expressions
 
 DSLX provides support for lambda expressions, which are most useful within `map`
