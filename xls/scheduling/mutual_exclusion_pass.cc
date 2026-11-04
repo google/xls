@@ -69,47 +69,6 @@ namespace xls {
 
 namespace {
 
-// A helper to avoid doing the time-consuming z3 initialization until the solver
-// is actually required. Many designs have no channels that need mutex analysis.
-//
-// TODO(allight): This might be generally useful enough to move it (or something
-// with a similar function) to the solvers namespace.
-class LazySolver {
- public:
-  LazySolver(FunctionBase* f, solvers::SolverKind solver_kind, int64_t limit)
-      : f_(f), solver_kind_(solver_kind), limit_(limit) {}
-
-  absl::StatusOr<solvers::SolverInstance*> Instance() const {
-    if (!instance_) {
-      XLS_ASSIGN_OR_RETURN(solver_, solvers::CreateSolver(solver_kind_));
-      XLS_ASSIGN_OR_RETURN(instance_, solver_->CreateSolverInstance(
-                                          f_, /*allow_unsupported=*/true));
-    }
-    return instance_.get();
-  }
-
-  absl::StatusOr<absl::Span<const solvers::PredicateOfNode>> Assumptions()
-      const {
-    if (!assumptions_.has_value()) {
-      if (f_->IsProc()) {
-        XLS_ASSIGN_OR_RETURN(assumptions_,
-                             GetProcStateAssumptions(f_->AsProcOrDie()));
-      }
-    }
-    return *assumptions_;
-  }
-
-  int64_t limit() const { return limit_; }
-
- private:
-  FunctionBase* f_;
-  solvers::SolverKind solver_kind_;
-  int64_t limit_;
-  mutable std::unique_ptr<solvers::Solver> solver_;
-  mutable std::unique_ptr<solvers::SolverInstance> instance_;
-  mutable std::optional<std::vector<solvers::PredicateOfNode>> assumptions_;
-};
-
 // This stores a mapping from nodes in a FunctionBase to 1-bit nodes that are
 // the "predicate" of that node. The idea is that it should always be sound to
 // replace a node `N` that has predicate `P` with `gate(P, N)` (where `gate` is
@@ -148,7 +107,9 @@ class Predicates {
   // For all `P` and `Q`,
   // `QueryMutuallyExclusive(P, Q) == QueryMutuallyExclusive(Q, P)`.
   absl::StatusOr<std::optional<bool>> QueryMutuallyExclusive(
-      const LazySolver& lazy_solver, Node* pred_a, Node* pred_b);
+      solvers::SolverInstance* solver,
+      absl::Span<const solvers::PredicateOfNode> assumptions, int64_t limit,
+      Node* pred_a, Node* pred_b);
 
   // Returns all neighbors of the given predicate in the mutual exclusion graph.
   // The return value of `MutualExclusionNeighbors(P)` should be all `Q` such
@@ -390,8 +351,9 @@ absl::StatusOr<NodeRelation> ComputeMergableEffects(FunctionBase* f) {
 // size 1 including only themselves.
 // A merge class is a set of nodes that are all jointly mutually exclusive.
 absl::StatusOr<std::vector<absl::flat_hash_set<Node*>>> ComputeMergeClasses(
-    Predicates* p, LazySolver& lazy_solver, FunctionBase* f,
-    const ScheduleCycleMap& scm) {
+    Predicates* p, solvers::SolverInstance* solver_instance,
+    absl::Span<const solvers::PredicateOfNode> assumptions, int64_t limit,
+    FunctionBase* f, const ScheduleCycleMap& scm) {
   XLS_ASSIGN_OR_RETURN(NodeRelation mergable_effects,
                        ComputeMergableEffects(f));
   if (mergable_effects.empty()) {
@@ -440,7 +402,8 @@ absl::StatusOr<std::vector<absl::flat_hash_set<Node*>>> ComputeMergeClasses(
         continue;
       }
       XLS_ASSIGN_OR_RETURN(std::optional<bool> mutex,
-                           p->QueryMutuallyExclusive(lazy_solver, px, py));
+                           p->QueryMutuallyExclusive(
+                               solver_instance, assumptions, limit, px, py));
       if (mutex == std::make_optional(true)) {
         neighborhoods[x].insert(y);
         neighborhoods[y].insert(x);
@@ -920,7 +883,9 @@ absl::Status Predicates::MarkUnknownMutuallyExclusive(Node* pred_a,
 }
 
 absl::StatusOr<std::optional<bool>> Predicates::QueryMutuallyExclusive(
-    const LazySolver& lazy_solver, Node* pred_a, Node* pred_b) {
+    solvers::SolverInstance* solver,
+    absl::Span<const solvers::PredicateOfNode> assumptions, int64_t limit,
+    Node* pred_a, Node* pred_b) {
   if (pred_a == pred_b) {
     // Never mutex with yourself.
     return false;
@@ -932,8 +897,6 @@ absl::StatusOr<std::optional<bool>> Predicates::QueryMutuallyExclusive(
   }
 
   // Actually do the mutex calculations
-  XLS_ASSIGN_OR_RETURN(solvers::SolverInstance * solver,
-                       lazy_solver.Instance());
   XLS_ASSIGN_OR_RETURN(
       absl::flat_hash_set<ChannelRef> channels_a,
       GetControlledProvenMutuallyExclusiveChannels(pred_a, *this));
@@ -945,7 +908,6 @@ absl::StatusOr<std::optional<bool>> Predicates::QueryMutuallyExclusive(
   // NB We could check if a or b is always false but since we do this lazily
   // theres no benefit there.
 
-  int64_t limit = lazy_solver.limit();
   if (required_for_compilation) {
     VLOG(1) << "Removing solver's limit for mutex check on "
             << pred_a->GetName() << " and " << pred_b->GetName()
@@ -957,8 +919,6 @@ absl::StatusOr<std::optional<bool>> Predicates::QueryMutuallyExclusive(
     timer.emplace();
   }
   VLOG(2) << "START: Checking mutex between " << pred_a << " and " << pred_b;
-  XLS_ASSIGN_OR_RETURN(absl::Span<const solvers::PredicateOfNode> assumptions,
-                       lazy_solver.Assumptions());
 
   solvers::SolverLimit solver_limit;
   if (limit > 0) {
@@ -1101,9 +1061,23 @@ absl::StatusOr<bool> MutualExclusionPass::RunOnFunctionBaseInternal(
 
   Predicates p;
   XLS_RETURN_IF_ERROR(AddSendReceivePredicates(&p, f));
-  LazySolver solver(f, options.scheduling_options.solver_kind(), limit);
+  XLS_ASSIGN_OR_RETURN(
+      std::unique_ptr<solvers::Solver> solver,
+      solvers::CreateSolver(options.scheduling_options.solver_kind()));
+  XLS_ASSIGN_OR_RETURN(
+      std::unique_ptr<solvers::SolverInstance> solver_instance,
+      solver->CreateSolverInstance(
+          f, {.allow_unsupported = true, .pre_translate = false}));
+
+  std::vector<solvers::PredicateOfNode> assumptions;
+  if (f->IsProc()) {
+    XLS_ASSIGN_OR_RETURN(assumptions,
+                         GetProcStateAssumptions(f->AsProcOrDie()));
+  }
+
   XLS_ASSIGN_OR_RETURN(std::vector<absl::flat_hash_set<Node*>> merge_classes,
-                       ComputeMergeClasses(&p, solver, f, scm));
+                       ComputeMergeClasses(&p, solver_instance.get(),
+                                           assumptions, limit, f, scm));
 
   if (VLOG_IS_ON(3)) {
     for (const absl::flat_hash_set<Node*>& merge_class : merge_classes) {
