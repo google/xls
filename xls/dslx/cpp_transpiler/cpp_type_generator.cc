@@ -40,6 +40,7 @@
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/interp_value.h"
+#include "xls/dslx/type_system/type.h"
 #include "xls/dslx/type_system/type_info.h"
 
 namespace xls::dslx {
@@ -493,13 +494,40 @@ class StructCppTypeGenerator : public CppTypeGenerator {
       const StructDef* struct_def, TypeInfo* type_info, ImportData* import_data,
       std::string_view parent_namespaces) {
     std::vector<std::unique_ptr<CppEmitter>> member_emitters;
-    for (const auto* m : struct_def->members()) {
-      XLS_ASSIGN_OR_RETURN(
-          std::unique_ptr<CppEmitter> emitter,
-          CppEmitter::Create(m->type(), m->type()->ToString(), type_info,
-                             import_data, parent_namespaces));
-      member_emitters.push_back(std::move(emitter));
+
+    if (struct_def->IsParametric()) {
+      // For parametric structs the AST member type annotations still reference
+      // parametric names (e.g. `u8[BSIZE]`). We must use the type-checked
+      // StructType from TypeInfo, which has all parametrics resolved to
+      // concrete values.
+      auto struct_type_or = type_info->GetItemAs<StructType>(struct_def);
+      if (!struct_type_or.ok()) {
+        return absl::UnimplementedError(absl::StrFormat(
+            "Parametric struct '%s' cannot be transpiled without a concrete "
+            "instantiation. Please instantiate all parametric bindings "
+            "(issue #445).",
+            struct_def->identifier()));
+      }
+      const StructType& struct_type = *struct_type_or.value();
+      for (int64_t i = 0; i < struct_type.size(); ++i) {
+        const Type& member_type = struct_type.GetMemberType(i);
+        XLS_ASSIGN_OR_RETURN(
+            std::unique_ptr<CppEmitter> emitter,
+            CppEmitter::CreateFromType(
+                member_type, member_type.ToString(), type_info, import_data,
+                parent_namespaces));
+        member_emitters.push_back(std::move(emitter));
+      }
+    } else {
+      for (const auto* m : struct_def->members()) {
+        XLS_ASSIGN_OR_RETURN(
+            std::unique_ptr<CppEmitter> emitter,
+            CppEmitter::Create(m->type(), m->type()->ToString(), type_info,
+                               import_data, parent_namespaces));
+        member_emitters.push_back(std::move(emitter));
+      }
     }
+
     return std::make_unique<StructCppTypeGenerator>(
         DslxTypeNameToCpp(struct_def->identifier()), struct_def->identifier(),
         struct_def, std::move(member_emitters));

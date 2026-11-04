@@ -22,6 +22,7 @@
 
 #include "absl/status/statusor.h"
 #include "absl/strings/ascii.h"
+#include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
@@ -111,10 +112,29 @@ namespace {
   std::vector<std::string> source;
 
   for (const TypeDefinition& def : module->GetTypeDefinitions()) {
-    XLS_ASSIGN_OR_RETURN(
-        std::unique_ptr<CppTypeGenerator> generator,
-        CppTypeGenerator::Create(def, type_info, import_data, namespaces));
-    XLS_ASSIGN_OR_RETURN(CppSource result, generator->GetCppSource());
+    auto generator_or =
+        CppTypeGenerator::Create(def, type_info, import_data, namespaces);
+    if (!generator_or.ok()) {
+      // Gracefully skip type definitions that cannot be transpiled (e.g.
+      // parametric structs without a concrete instantiation — see issue #445).
+      // Non-parametric errors are still fatal.
+      bool is_parametric = false;
+      if (const StructDef* sd = std::get_if<StructDef>(&def)) {
+        is_parametric = sd->IsParametric();
+      }
+      if (is_parametric &&
+          absl::StrContains(generator_or.status().message(),
+                            "Parametric struct")) {
+        // Skip it silently — the type-checked TypeInfo may still have
+        // instantiated versions of this struct that get picked up via
+        // type references elsewhere. Users who only define a parametric
+        // template without instantiations will see this skipped.
+        continue;
+      }
+      return generator_or.status();
+    }
+    XLS_ASSIGN_OR_RETURN(CppSource result,
+                         generator_or.value()->GetCppSource());
     header.push_back(result.header);
     source.push_back(result.source);
   }
