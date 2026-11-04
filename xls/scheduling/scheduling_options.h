@@ -253,6 +253,18 @@ class RecvsFirstSendsLastConstraint {
   }
 };
 
+// When this is present, peek operation will be scheduled in the same cycle
+// as receive on the same channel.
+class PeekWithReceiveConstraint {
+ public:
+  PeekWithReceiveConstraint() = default;
+  friend std::ostream& operator<<(
+      std::ostream& os, const PeekWithReceiveConstraint& constraint) {
+    os << "PeekWithReceiveConstraint";
+    return os;
+  }
+};
+
 // When this is present, state backedges will be forced to span over at most II
 // cycles.
 class BackedgeConstraint {
@@ -330,7 +342,8 @@ class SameChannelConstraint {
 using SchedulingConstraint =
     std::variant<IOConstraint, NodeInCycleConstraint, DifferenceConstraint,
                  RecvsFirstSendsLastConstraint, BackedgeConstraint,
-                 SendThenRecvConstraint, SameChannelConstraint>;
+                 SendThenRecvConstraint, SameChannelConstraint,
+                 PeekWithReceiveConstraint>;
 
 template <typename Sink>
 void AbslStringify(Sink& sink, const SchedulingConstraint& constraint) {
@@ -402,6 +415,7 @@ class SchedulingOptions {
             BackedgeConstraint(),
             SendThenRecvConstraint(/*minimum_latency=*/1),
             SameChannelConstraint(/*minimum_latency=*/1),
+            PeekWithReceiveConstraint(),
         }),
         use_fdo_(false),
         fdo_iteration_number_(5),

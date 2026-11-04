@@ -219,12 +219,10 @@ class StageToBlockCloner : public ProcToBlockClonerBase {
     for (const Node* node : topo_sort_nodes) {
       Node* block_node = nullptr;
 
-      if (node->Is<ChannelNode>()) {
-        if (node->Is<Receive>()) {
-          XLS_ASSIGN_OR_RETURN(block_node, HandleReceiveNode(node));
-        } else {
-          XLS_ASSIGN_OR_RETURN(block_node, HandleSendNode(node));
-        }
+      if (node->Is<Receive>()) {
+        XLS_ASSIGN_OR_RETURN(block_node, HandleReceiveNode(node));
+      } else if (node->Is<Send>()){
+        XLS_ASSIGN_OR_RETURN(block_node, HandleSendNode(node));
       } else {
         XLS_ASSIGN_OR_RETURN(block_node, HandleGeneralNode(node));
       }

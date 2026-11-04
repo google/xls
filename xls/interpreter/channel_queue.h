@@ -43,6 +43,10 @@ class ChannelQueueCallback {
   ChannelQueueCallback() = default;
   virtual ~ChannelQueueCallback() = default;
 
+  // Called when a value is peeked from the channel.
+  virtual void PeekValue(ChannelInstance* channel_instance,
+                         const Value& value) = 0;
+
   // Called when a value is read from the channel.
   virtual void ReadValue(ChannelInstance* channel_instance,
                          const Value& value) = 0;
@@ -87,6 +91,10 @@ class ChannelQueue {
   // Writes the given value on to the channel.
   absl::Status Write(const Value& value);
 
+  // Peeks and returns a value from the channel without dropping it
+  // from the queue. Returns an std::nullopt if the channel is empty.
+  std::optional<Value> Peek();
+
   // Reads and returns a value from the channel. Returns an std::nullopt if
   // the channel is empty.
   std::optional<Value> Read();
@@ -102,6 +110,11 @@ class ChannelQueue {
   }
 
  protected:
+  void CallPeekCallbacks(const Value& value) const {
+    for (const std::unique_ptr<ChannelQueueCallback>& callback : callbacks_) {
+      callback->PeekValue(channel_instance(), value);
+    }
+  }
   void CallReadCallbacks(const Value& value) const {
     for (const std::unique_ptr<ChannelQueueCallback>& callback : callbacks_) {
       callback->ReadValue(channel_instance(), value);
@@ -118,6 +131,8 @@ class ChannelQueue {
   virtual int64_t GetSizeInternal() const ABSL_SHARED_LOCKS_REQUIRED(mutex_);
   virtual void WriteInternal(const Value& value)
       ABSL_SHARED_LOCKS_REQUIRED(mutex_);
+  virtual std::optional<Value> PeekInternal()
+      ABSL_SHARED_LOCKS_REQUIRED(mutex_);
   virtual std::optional<Value> ReadInternal()
       ABSL_SHARED_LOCKS_REQUIRED(mutex_);
   ChannelInstance* channel_instance_;
@@ -127,6 +142,7 @@ class ChannelQueue {
   // TODO(meheff): 2022/09/27 Fix this, potentially by obviating the need for
   // the thread-unsafe version of the queue.
   std::optional<GeneratorFn> generator_ ABSL_GUARDED_BY_FIXME(mutex_);
+  bool peeked_generator_value_ = false ABSL_GUARDED_BY_FIXME(mutex_);
 
   std::vector<std::unique_ptr<ChannelQueueCallback>> callbacks_;
 };

@@ -56,7 +56,7 @@ namespace xls::dslx {
 //   affect scheduling, here called its "last delaying operation", and
 // - the earliest stage the operation that produced this value could have
 //   legally been scheduled into, here called its "min stage".
-enum class LastDelayingOp : uint8_t { kNone, kSend, kRecv };
+enum class LastDelayingOp : uint8_t { kNone, kSend, kRecv, kPeek };
 
 struct TypedExpr {
   Expr* expr;

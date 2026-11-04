@@ -73,6 +73,8 @@ class SDCSchedulingModel {
       const SendThenRecvConstraint& constraint);
   absl::Status AddSameChannelConstraint(
       const SameChannelConstraint& constraint);
+  absl::Status AddPeekWithReceiveConstraint(
+      const PeekWithReceiveConstraint& constraint);
 
   void SetClockPeriod(int64_t clock_period_ps);
 

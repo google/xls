@@ -65,6 +65,11 @@ void RecordAssertion(InstanceContext* thiz, const char* msg,
   events->AddAssertMessage(msg);
 }
 
+bool QueuePeekWrapper(InstanceContext* thiz, int64_t queue_index,
+                      uint8_t* buffer) {
+  return thiz->channel_queues[queue_index]->PeekRaw(buffer);
+}
+
 bool QueueReceiveWrapper(InstanceContext* thiz, int64_t queue_index,
                          uint8_t* buffer) {
   return thiz->channel_queues[queue_index]->ReadRaw(buffer);
@@ -118,6 +123,7 @@ InstanceContextVTable::InstanceContextVTable()
       record_trace(&RecordTrace),
       create_trace_buffer(&CreateTraceBuffer),
       record_assertion(&RecordAssertion),
+      queue_peek_wrapper(&QueuePeekWrapper),
       queue_receive_wrapper(&QueueReceiveWrapper),
       queue_send_wrapper(&QueueSendWrapper),
       record_active_next_value(&RecordActiveNextValue),
