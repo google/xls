@@ -132,9 +132,9 @@ class BinaryDecisionDiagram {
 
   // Returns the BDD node with the given index.
   const BddNode& GetNode(BddNodeIndex node_index) const {
-    CHECK_GT(nodes_.size(), node_index.value()) << "bad index";
-    const auto& e = nodes_.at(node_index.value());
-    CHECK(!IsFreeNode(e)) << "Got a free list index at " << node_index;
+    DCHECK_GT(nodes_.size(), node_index.value()) << "bad index";
+    const auto& e = nodes_[node_index.value()];
+    DCHECK(!IsFreeNode(e)) << "Got a free list index at " << node_index;
     return e;
   }
 
