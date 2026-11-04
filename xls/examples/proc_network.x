@@ -30,8 +30,8 @@ impl A_proc {
 
     fn next(self) {
         let (tok, data_1) = recv(join(), self.ext);
-        let (tok, data_2, _) = recv_non_blocking(join(), self.inp, s32:0);
-        send(tok, self.output, data_1 + data_2 + s32:1);
+        let (tok, data_2, _) = recv_non_blocking(join(), self.inp, 0);
+        send(tok, self.output, data_1 + data_2 + 1);
     }
 }
 
@@ -48,7 +48,7 @@ impl B_proc {
 
     fn next(self) {
         let (tok, data) = recv(join(), self.inp);
-        send(tok, self.output, data + s32:100);
+        send(tok, self.output, data + 100);
     }
 }
 
@@ -65,8 +65,8 @@ impl C_proc {
 
     fn next(self) {
         let (tok, data) = recv(join(), self.inp);
-        send(tok, self.output, data + s32:10000);
-        send(tok, self.ext, data + s32:10000);
+        send(tok, self.output, data + 10000);
+        send(tok, self.ext, data + 10000);
     }
 }
 
@@ -123,7 +123,7 @@ impl Testing {
     }
 
     fn next(self) {
-        let tok = send(join(), self.ext_send, s32:0);
+        let tok = send(join(), self.ext_send, 0);
         let (tok, data) = recv(tok, self.ext_recv);
         assert_eq(data, s32:10301);
         send(tok, self.terminator, true);

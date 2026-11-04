@@ -46,7 +46,7 @@ impl PassthroughTest {
     fn new(terminator: chan<bool> out) -> Self {
         let (data_s, data_r) = chan<u32>("data");
         Passthrough::new(data_r, data_s).spawn();
-        Self { terminator, data_s, data_r, count: u32:10 }
+        Self { terminator, data_s, data_r, count: 10 }
     }
 
     fn next(self) {
@@ -57,7 +57,7 @@ impl PassthroughTest {
         let (tok, received_data) = recv(tok, self.data_r);
 
         assert_eq(data_to_send, received_data);
-        send_if(tok, self.terminator, count == u32:0, true);
-        write(self.count, count - u32:1);
+        send_if(tok, self.terminator, count == 0, true);
+        write(self.count, count - 1);
     }
 }

@@ -83,7 +83,7 @@ struct ReorderQueueState<T_WIDTH: u32, BUFFER_SIZE: u32, INDEX_WIDTH: u32> {
 }
 
 pub proc reorder_queue<T_WIDTH: u32, BUFFER_SIZE: u32,
-                       TAG_WIDTH: u32 = {u32:1 + std::flog2(BUFFER_SIZE - u32:1)},
+                       TAG_WIDTH: u32 = {1 + std::flog2(BUFFER_SIZE - 1)},
                        Tag: type = uN[TAG_WIDTH], T: type = uN[T_WIDTH]> {
     ch_in: chan<(Tag, T)> in,
     ch_out: chan<T> out,
@@ -99,9 +99,7 @@ impl reorder_queue<T_WIDTH, BUFFER_SIZE, TAG_WIDTH, Tag, T> {
             ch_out,
             state: ReorderQueueState {
                 head: HeadPosition { tag: Tag:0, generation_parity: u1:0 },
-                buffer: Entry[BUFFER_SIZE]:[
-                    Entry { data: zero!<T>(), generation_parity: u1:1 }, ...
-                ],
+                buffer: Entry[BUFFER_SIZE]:[Entry { data: zero!<T>(), generation_parity: 1 }, ...],
             },
         }
     }
@@ -153,7 +151,7 @@ impl reorder_queue<T_WIDTH, BUFFER_SIZE, TAG_WIDTH, Tag, T> {
                 HeadPosition { tag: Tag:0, generation_parity: !state.head.generation_parity }
             } else {
                 HeadPosition {
-                    tag: state.head.tag + Tag:1,
+                    tag: state.head.tag + 1,
                     generation_parity: state.head.generation_parity,
                 }
             }
@@ -239,7 +237,7 @@ impl reorder_queue_test {
     }
 
     fn next(self) {
-        let tok = for (i, tok) in u32:0..TEST_LENGTH {
+        let tok = for (i, tok) in 0..TEST_LENGTH {
             trace_fmt!("tick: {}", i);
             let send_tok = send_if(
                 tok, self.to_queue, TEST_TICKS[i].send, (TEST_TICKS[i].tag, TEST_TICKS[i].data));

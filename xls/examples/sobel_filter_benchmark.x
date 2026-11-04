@@ -1,4 +1,3 @@
-
 // Copyright 2023 The XLS Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -13,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-
 // Floating point sobel filter implementation (fixed-point is TODO).
 // A sobel filter, used in image and video processing, applies stencils
 // on an image to sharpen edges.
@@ -24,8 +22,7 @@ import float32;
 
 type F32 = float32::F32;
 
-fn apply_stencil_float32_8x8(
-    in_img: F32[64],
-    row_idx:u32, col_idx:u32, stencil: F32[3][3]) -> F32 {
-  sobel_filter::apply_stencil_float32<u32:8, u32:8>(in_img, row_idx, col_idx, stencil)
+fn apply_stencil_float32_8x8
+    (in_img: F32[64], row_idx: u32, col_idx: u32, stencil: F32[3][3]) -> F32 {
+    sobel_filter::apply_stencil_float32<8, 8>(in_img, row_idx, col_idx, stencil)
 }

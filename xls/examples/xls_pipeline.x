@@ -45,7 +45,7 @@ proc state_proc {
 
 impl state_proc {
     fn new(state_value_w: chan<u32> out, next_state_r: chan<u32> in) -> Self {
-        Self { state_value_w, next_state_r, state: (u32:0, bool:true) }
+        Self { state_value_w, next_state_r, state: (u32:0, true) }
     }
 
     fn next(self) {
@@ -59,7 +59,7 @@ impl state_proc {
         // BlockIR as this channel needs to be marked as not having backpressure
         // to prevent a combinational loop.
         let (_, next_state_data, next_state_data_valid) =
-            recv_non_blocking(join(), self.next_state_r, u32:0);
+            recv_non_blocking(join(), self.next_state_r, 0);
 
         let next_x = if next_state_data_valid { next_state_data } else { x };
         let next_full = next_state_data_valid;
@@ -179,9 +179,9 @@ impl xls_pipeline_test {
     fn next(self) {
         let tok = join();
 
-        let tok = send(tok, self.input_w, u32:1);
-        let tok = send(tok, self.input_w, u32:2);
-        let tok = send(tok, self.input_w, u32:3);
+        let tok = send(tok, self.input_w, 1);
+        let tok = send(tok, self.input_w, 2);
+        let tok = send(tok, self.input_w, 3);
 
         let (tok, val_0) = recv(tok, self.output_r);
         let (tok, val_1) = recv(tok, self.output_r);

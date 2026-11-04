@@ -1,4 +1,3 @@
-
 // Copyright 2024 The XLS Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -13,6 +12,4 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-fn f_func(x: u32, y: u32) -> u32 {
-  x*x+y*y
-}
+fn f_func(x: u32, y: u32) -> u32 { x * x + y * y }

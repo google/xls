@@ -56,7 +56,7 @@ impl Memory {
     }
 }
 
-const TEST_WRITE_VALUE: u32 = u32:0xcafe600d;
+const TEST_WRITE_VALUE: u32 = 0xcafe600d;
 
 #[test]
 proc MemoryTest {
@@ -77,17 +77,17 @@ impl MemoryTest {
         let tok = join();
 
         // Read will yield default value in memory.
-        let read_req = MemReq { is_write: false, address: u32:12, wdata: u32:0 };
+        let read_req = MemReq { is_write: false, address: 12, wdata: 0 };
         let tok = send(tok, self.cmd_out, read_req);
         let (tok, value) = recv(tok, self.read_data_in);
         assert_eq(value, DEFAULT_VALUE);
 
         // Write value to a particular address...
-        let write_req = MemReq { is_write: true, address: u32:12, wdata: TEST_WRITE_VALUE };
+        let write_req = MemReq { is_write: true, address: 12, wdata: TEST_WRITE_VALUE };
         let tok = send(tok, self.cmd_out, write_req);
 
         // ... and expect it to be retrieved
-        let read_req = MemReq { is_write: false, address: u32:12, wdata: u32:0 };
+        let read_req = MemReq { is_write: false, address: 12, wdata: 0 };
         let tok = send(tok, self.cmd_out, read_req);
         let (tok, value) = recv(tok, self.read_data_in);
         assert_eq(value, TEST_WRITE_VALUE);

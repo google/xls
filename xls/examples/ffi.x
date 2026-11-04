@@ -48,7 +48,7 @@
     )")]
 fn divmod<A_WIDTH: u32, B_WIDTH: u32>
     (a: bits[A_WIDTH], b: bits[B_WIDTH]) -> ((bits[A_WIDTH], bits[B_WIDTH]), bool) {
-    if b == u32:0 { ((a, b), true) } else { ((a / b, a % b), false) }
+    if b == 0 { ((a, b), true) } else { ((a / b, a % b), false) }
 }
 
 fn main(dividend: u32, divisor: u32) -> ((u32, u32), bool) { divmod(dividend, divisor) }

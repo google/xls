@@ -1,4 +1,3 @@
-
 // Copyright 2020 The XLS Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -33,9 +32,9 @@ import std;
 // The total amount of of bits required is provided by the largest multiplication
 // which is c * x ** 3. The amount of bits required is
 // 23 + 51 = 74.
-fn main(x: sN[17], a: sN[23], b: sN[23], c: sN[23]) ->sN[74] {
-    let x2: sN[34] = std::smul(x, x); // 1:1:32
-    let x3: sN[51] = std::smul(x2, x); // 1:2:48
+fn main(x: sN[17], a: sN[23], b: sN[23], c: sN[23]) -> sN[74] {
+    let x2: sN[34] = std::smul(x, x);  // 1:1:32
+    let x3: sN[51] = std::smul(x2, x);  // 1:2:48
 
     // Before summing it to the final value, we need shift it
     // left to match the fractional point. This is 50 - (16 + 2) = 32

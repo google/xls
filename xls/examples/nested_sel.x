@@ -1,4 +1,3 @@
-
 // Copyright 2023 The XLS Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,14 +14,12 @@
 
 // Small nested-select microbenchmark.
 
-fn mysel(cond: bool, x: u8, y: u8) -> u8 {
-  if cond { x } else { y }
-}
+fn mysel(cond: bool, x: u8, y: u8) -> u8 { if cond { x } else { y } }
 
 fn main(p: u8, v: u8, w: u8, x: u8, y: u8, z: u8) -> u8 {
-  let p_gt_32 = p > u8:32;
-  let p_eq_7 = p == u8:7;
-  let p_eq_6 = p == u8:6;
-  let p_le_3 = p <= u8:3;
-  mysel(p_le_3, v, mysel(p_eq_6, w, mysel(p_eq_7, x, mysel(p_gt_32, y, z))))
+    let p_gt_32 = p > 32;
+    let p_eq_7 = p == 7;
+    let p_eq_6 = p == 6;
+    let p_le_3 = p <= 3;
+    mysel(p_le_3, v, mysel(p_eq_6, w, mysel(p_eq_7, x, mysel(p_gt_32, y, z))))
 }

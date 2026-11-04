@@ -15,33 +15,31 @@
 // From `ProcWithUnconvertibleConfigGivesUsefulError` IR converter test
 // as an example of proc that cannot be converted to IR.
 proc Generator {
-  out_ch: chan<u32> out;
-  val: u32;
+    out_ch: chan<u32> out;
+    val: u32;
 
-  init {()}
-  config(out_ch: chan<u32> out, val: u32, val2: u32) {
-    (out_ch, val + val2)
-  }
-  next(state: ()) {
-    send(join(), out_ch, val);
-  }
+    config(out_ch: chan<u32> out, val: u32, val2: u32) { (out_ch, val + val2) }
+
+    init { () }
+
+    next(state: ()) { send(join(), out_ch, val); }
 }
 
 #[test_proc]
 proc Testing {
-  terminator: chan<bool> out;
-  response: chan<u32> in;
+    terminator: chan<bool> out;
+    response: chan<u32> in;
 
-  init {  }
+    config(terminator: chan<bool> out) {
+        let (s, r) = chan<u32, 1>("test_chan");
+        spawn Generator(s, 66, 99);
+        (terminator, r)
+    }
 
-  config(terminator: chan<bool> out){
-    let (s, r) = chan<u32, u32:1>("test_chan");
-    spawn Generator(s, u32:66, u32:99);
-    (terminator, r)
-  }
+    init {  }
 
-  next(state: ()) {
-    let (tok, data) = recv(join(), response);
-    send(tok, terminator, true);
-  }
+    next(state: ()) {
+        let (tok, data) = recv(join(), response);
+        send(tok, terminator, true);
+    }
 }

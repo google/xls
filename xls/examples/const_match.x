@@ -23,7 +23,7 @@ fn const_match_literal_bool(a: u32, b: u32) -> u32 {
 }
 
 #[test]
-fn test_const_match_literal_bool() { assert_eq(const_match_literal_bool(u32:1, u32:2), u32:2); }
+fn test_const_match_literal_bool() { assert_eq(const_match_literal_bool(1, 2), u32:2); }
 
 fn const_match_const_bool(a: u32, b: u32) -> u32 {
     const A = true;
@@ -34,7 +34,7 @@ fn const_match_const_bool(a: u32, b: u32) -> u32 {
 }
 
 #[test]
-fn test_const_match_const_bool() { assert_eq(const_match_const_bool(u32:1, u32:2), u32:1); }
+fn test_const_match_const_bool() { assert_eq(const_match_const_bool(1, 2), u32:1); }
 
 fn const_match_param_bool_case1<A: bool>(a: u32, b: u32) -> u32 {
     const match A {
@@ -54,19 +54,19 @@ fn const_match_param_bool_case2<A: u32>(a: u32, b: u32) -> u32 {
 
 #[test]
 fn test_const_match_param_bool() {
-    assert_eq(const_match_param_bool_case1<false>(u32:1, u32:2), u32:2);
-    assert_eq(const_match_param_bool_case2<u32:5>(u32:1, u32:2), u32:1);
+    assert_eq(const_match_param_bool_case1<false>(1, 2), u32:2);
+    assert_eq(const_match_param_bool_case2<5>(1, 2), u32:1);
 }
 
 type ComplexType = (u32, (u32, u32, u32));
 
 fn const_match_tuple<A: ComplexType>() -> u32 {
     match A {
-        (u32:1, (u32:3, ..)) => u32:0,
-        (u32:2, (u32:2, _, _)) => u32:1,
-        (u32:1, ..) => u32:2,
-        (u32:3, (x, u32:1, u32:1)) => x,
-        _ => u32:4,
+        (1, (3, ..)) => 0,
+        (2, (2, _, _)) => 1,
+        (1, ..) => 2,
+        (3, (x, 1, 1)) => x,
+        _ => 4,
     }
 }
 
@@ -94,24 +94,24 @@ fn const_match_typecheck<A: bool>(a: u32, b: u16) -> u32 {
 
 #[test]
 fn test_const_match_typecheck() {
-    assert_eq(const_match_typecheck<true>(u32:1, u16:2), u32:1);
-    assert_eq(const_match_typecheck<false>(u32:1, u16:2), u32:2);
+    assert_eq(const_match_typecheck<true>(1, 2), u32:1);
+    assert_eq(const_match_typecheck<false>(1, 2), u32:2);
 }
 
 fn const_match_types<A: u32>() -> u32 {
     const B = u32:9;
     const match A {
-        u32:0..u32:3 => u32:0,
-        u32:4 => u32:1,
-        u32:5 | u32:6 | u32:7 => u32:2,
-        u32:8 => u32::MAX,
-        B => u32:800,
-        _ => u32:1000,
+        0..3 => 0,
+        4 => 1,
+        5 | 6 | 7 => 2,
+        8 => u32::MAX,
+        B => 800,
+        _ => 1000,
     }
 }
 
 #[test]
-fn test_const_match_types() { assert_eq(const_match_types<u32:8>(), u32::MAX); }
+fn test_const_match_types() { assert_eq(const_match_types<8>(), u32::MAX); }
 
 proc Falsy {
     req_r: chan<()> in,
@@ -191,12 +191,11 @@ fn main() -> (u32, u32, u32, u32, u32, u32, u32, u32, u32, u32, u32) {
     const TUPLE4 = (u32:3, (u32:3, u32:1, u32:1));
     const TUPLE5 = (u32:5, (u32:2, u32:3, u32:4));
     (
-        const_match_literal_bool(u32:1, u32:2), const_match_const_bool(u32:1, u32:2),
-        const_match_param_bool_case1<false>(u32:1, u32:2),
-        const_match_param_bool_case2<u32:6>(u32:1, u32:2), const_match_tuple<TUPLE1>(),
-        const_match_tuple<TUPLE2>(), const_match_tuple<TUPLE3>(), const_match_tuple<TUPLE4>(),
-        const_match_tuple<TUPLE5>(), const_match_typecheck<true>(u32:1, u16:2),
-        const_match_typecheck<false>(u32:1, u16:2),
+        const_match_literal_bool(1, 2), const_match_const_bool(1, 2),
+        const_match_param_bool_case1<false>(1, 2), const_match_param_bool_case2<6>(1, 2),
+        const_match_tuple<TUPLE1>(), const_match_tuple<TUPLE2>(), const_match_tuple<TUPLE3>(),
+        const_match_tuple<TUPLE4>(), const_match_tuple<TUPLE5>(), const_match_typecheck<true>(1, 2),
+        const_match_typecheck<false>(1, 2),
     )
 }
 
