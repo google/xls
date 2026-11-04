@@ -2008,8 +2008,8 @@ fn f() -> u32[2][3] {
 }
 )"),
       StatusIs(absl::StatusCode::kInvalidArgument,
-               HasSubstr("Array dimension in `update` expected to be larger "
-                         "than the number of indices (3); got 2")));
+               HasSubstr("Array dimension in `update` expected to be at least "
+                         "the number of indices (3); got 2")));
 }
 
 TEST_F(TypecheckV2Test, UpdateBuiltinTypeMismatch) {
