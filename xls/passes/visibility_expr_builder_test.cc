@@ -930,5 +930,58 @@ TEST_F(VisibilityExprBuilderTest,
               m::Or(m::Param("y1"), m::And(m::Param("y2"), m::Param("a"))));
 }
 
+TEST_F(VisibilityExprBuilderTest,
+       GetAreaAndDelayOfVisibilityExprRespectsSinks) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* u1 = p->GetBitsType(1);
+  Type* u32 = p->GetBitsType(32);
+  BValue x = fb.Param("x", u32);
+  BValue y = fb.Param("y", u32);
+  BValue c0 = fb.Param("c0", u1);
+  BValue c1 = fb.Param("c1", u1);
+  BValue inner_sel = fb.Select(c0, {y, x});
+  BValue outer_sel = fb.Select(c1, {y, inner_sel});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(outer_sel));
+
+  NodeForwardDependencyAnalysis nda;
+  XLS_ASSERT_OK(nda.Attach(f).status());
+  LazyPostDominatorAnalysis post_dom;
+  XLS_ASSERT_OK(post_dom.Attach(f).status());
+  std::unique_ptr<BddQueryEngine> bdd_engine = BddQueryEngine::MakeDefault();
+  XLS_ASSERT_OK(bdd_engine->Populate(f).status());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto operand_visibility,
+      OperandVisibilityAnalysis::Create(&nda, bdd_engine.get()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto visibility, VisibilityAnalysis::Create(&operand_visibility,
+                                                  bdd_engine.get(), &post_dom));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto conditional_edges,
+      visibility->GetEdgesForMutuallyExclusiveVisibilityExpr(x.node(),
+                                                             {y.node()}, -1));
+
+  XLS_ASSERT_OK_AND_ASSIGN(AreaEstimator * ae, GetAreaEstimator("unit"));
+  XLS_ASSERT_OK_AND_ASSIGN(DelayEstimator * de, GetDelayEstimator("unit"));
+  BitProvenanceAnalysis bpa;
+  VisibilityEstimator estimator(f->nodes_reversed().begin()->id(),
+                                bdd_engine.get(), nda, bpa, ae, de);
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      VisibilityEstimator::AreaDelay without_sinks,
+      estimator.GetAreaAndDelayOfVisibilityExpr(x.node(), conditional_edges));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      VisibilityEstimator::AreaDelay with_sink,
+      estimator.GetAreaAndDelayOfVisibilityExpr(x.node(), conditional_edges,
+                                                /*sinks=*/{inner_sel.node()}));
+
+  EXPECT_EQ(without_sinks.area, 3.0);
+  EXPECT_EQ(without_sinks.delay, 2);
+  EXPECT_EQ(with_sink.area, 1.0);
+  EXPECT_EQ(with_sink.delay, 1);
+  EXPECT_LT(with_sink.area, without_sinks.area);
+  EXPECT_LT(with_sink.delay, without_sinks.delay);
+}
+
 }  // namespace
 }  // namespace xls

@@ -620,10 +620,11 @@ absl::StatusOr<VisibilityEstimator::AreaDelay>
 VisibilityEstimator::GetAreaAndDelayOfVisibilityExpr(
     Node* node,
     const absl::flat_hash_set<OperandVisibilityAnalysis::OperandNode>&
-        conditional_edges) {
-  XLS_ASSIGN_OR_RETURN(Node * visibility_expr,
-                       BuildVisibilityIRExpr(TmpFunc(), node, conditional_edges,
-                                             /*sinks=*/{}));
+        conditional_edges,
+    const absl::flat_hash_set<Node*>& sinks) {
+  XLS_ASSIGN_OR_RETURN(
+      Node * visibility_expr,
+      BuildVisibilityIRExpr(TmpFunc(), node, conditional_edges, sinks));
   double area = area_analysis_.GetAreaThroughToNode(visibility_expr);
   int64_t delay = *delay_analysis_.GetInfo(visibility_expr);
   return VisibilityEstimator::AreaDelay{area, delay};

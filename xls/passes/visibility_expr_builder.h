@@ -198,7 +198,8 @@ class VisibilityEstimator : public VisibilityBuilder {
   absl::StatusOr<AreaDelay> GetAreaAndDelayOfVisibilityExpr(
       Node* node,
       const absl::flat_hash_set<OperandVisibilityAnalysis::OperandNode>&
-          conditional_edges);
+          conditional_edges,
+      const absl::flat_hash_set<Node*>& sinks = {});
 };
 
 }  // namespace xls
