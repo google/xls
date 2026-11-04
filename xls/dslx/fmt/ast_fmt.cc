@@ -2570,6 +2570,11 @@ DocRef Formatter::FormatFunction(const Function& n, bool is_test) {
   if (fuzz_test_attr.has_value()) {
     fn_pieces.push_back(FormatAttribute(**fuzz_test_attr));
   }
+  std::optional<const Attribute*> tabulate_attr =
+      GetAttribute(&n, AttributeKind::kTabulate);
+  if (tabulate_attr.has_value()) {
+    fn_pieces.push_back(FormatAttribute(**tabulate_attr));
+  }
 
   if (n.extern_verilog_module().has_value()) {
     auto code_template = (*n.extern_verilog_module()).code_template();

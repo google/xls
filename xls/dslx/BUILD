@@ -756,6 +756,79 @@ cc_binary(
     ],
 )
 
+cc_library(
+    name = "tabulate",
+    srcs = ["tabulate.cc"],
+    hdrs = ["tabulate.h"],
+    deps = [
+        ":import_data",
+        ":interp_value",
+        ":parse_and_typecheck",
+        "//xls/common:attribute_data",
+        "//xls/common/status:ret_check",
+        "//xls/common/status:status_macros",
+        "//xls/dslx/bytecode",
+        "//xls/dslx/bytecode:bytecode_emitter",
+        "//xls/dslx/bytecode:bytecode_interpreter",
+        "//xls/dslx/frontend:ast",
+        "//xls/dslx/frontend:module",
+        "//xls/dslx/type_system:type",
+        "//xls/dslx/type_system:type_info",
+        "//xls/ir:format_preference",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/strings:str_format",
+        "@abseil-cpp//absl/types:span",
+    ],
+)
+
+cc_test(
+    name = "tabulate_test",
+    srcs = ["tabulate_test.cc"],
+    deps = [
+        ":create_import_data",
+        ":import_data",
+        ":parse_and_typecheck",
+        ":tabulate",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/common/status:status_macros",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:status_matchers",
+        "@abseil-cpp//absl/status:statusor",
+        "@googletest//:gtest",
+    ],
+)
+
+cc_binary(
+    name = "dslx_to_md_main",
+    srcs = ["dslx_to_md_main.cc"],
+    visibility = ["//xls:xls_users"],
+    deps = [
+        ":command_line_utils",
+        ":create_import_data",
+        ":default_dslx_stdlib_path",
+        ":error_printer",
+        ":import_data",
+        ":parse_and_typecheck",
+        ":tabulate",
+        ":virtualizable_file_system",
+        ":warning_collector",
+        ":warning_kind",
+        "//xls/common:exit_status",
+        "//xls/common:init_xls",
+        "//xls/common/file:filesystem",
+        "//xls/common/status:status_macros",
+        "@abseil-cpp//absl/flags:flag",
+        "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/types:span",
+    ],
+)
+
 cc_binary(
     name = "prove_quickcheck_main",
     srcs = ["prove_quickcheck_main.cc"],

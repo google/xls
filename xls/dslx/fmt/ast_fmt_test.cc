@@ -4666,5 +4666,13 @@ fn main() {}
 )");
 }
 
+TEST_F(ModuleFmtTest, TabulateAttribute) {
+  DoFmt(R"(#[tabulate]
+pub fn f(x: u4) -> u4 {
+    x
+}
+)");
+}
+
 }  // namespace
 }  // namespace xls::dslx

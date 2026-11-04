@@ -5982,4 +5982,41 @@ TEST_F(ParserTest, LambdaInUserFnWithMalformedSignature) {
                        HasSubstr("must only contain types")));
 }
 
+TEST_F(ParserTest, TabulateAttributeSuccess) {
+  constexpr std::string_view kProgram = R"(#[tabulate]
+pub fn f(x: u4) -> u4 {
+    x
+})";
+  std::unique_ptr<Module> module = ExpectParsesSuccessfully(kProgram);
+  ASSERT_NE(module, nullptr);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
+                           module->GetMemberOrError<Function>("f"));
+  ASSERT_EQ(f->attributes().size(), 1);
+  EXPECT_EQ(f->attributes()[0]->attribute_kind(), AttributeKind::kTabulate);
+  EXPECT_TRUE(f->attributes()[0]->args().empty());
+  EXPECT_EQ(f->ToString(), kProgram);
+}
+
+TEST_F(ParserTest, TabulateAttributeUnexpectedArgFailure) {
+  constexpr std::string_view kProgram = R"(
+#[tabulate(unknown_key = "foo")]
+fn f(x: u4) -> u4 {
+  x
+})";
+  EXPECT_THAT(Parse(kProgram),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("#[tabulate] does not take any arguments.")));
+}
+
+TEST_F(ParserTest, TabulateAttributeOnStructFailure) {
+  constexpr std::string_view kProgram = R"(
+#[tabulate]
+struct S {
+  x: u32,
+})";
+  EXPECT_THAT(Parse(kProgram),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("#[tabulate] is only valid on a function.")));
+}
+
 }  // namespace xls::dslx

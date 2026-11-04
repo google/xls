@@ -431,6 +431,12 @@ TEST_F(AstTest, AttributeToStringExternVerilogStringLiteral) {
   EXPECT_EQ(attr->ToString(), "#[extern_verilog(\"my_module\")]");
 }
 
+TEST_F(AstTest, AttributeToStringTabulate) {
+  Attribute* attr = m.Make<Attribute>(
+      fake_span, std::nullopt, AttributeData(AttributeKind::kTabulate, {}));
+  EXPECT_EQ(attr->ToString(), "#[tabulate]");
+}
+
 TEST_F(AstTest, IsIrrefutablePatternWithRestOfTuple) {
   NameDef* x =
       m.Make<NameDef>(fake_span, std::string("x"), /*definer=*/nullptr);

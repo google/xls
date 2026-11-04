@@ -37,6 +37,7 @@ enum class AttributeKind : uint8_t {
   kFuzzTest,
   kFuzzDomain,
   kTrivialNext,
+  kTabulate,
 };
 
 // Converts an AttributeKind to a string, e.g., "fuzz_test"

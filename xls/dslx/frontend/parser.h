@@ -695,6 +695,7 @@ class Parser : public TokenParser {
       const Attribute& attribute);
 
   absl::Status ValidateFuzzTestAttribute(const Attribute& attribute);
+  absl::Status ValidateTabulateAttribute(const Attribute& attribute);
 
   // Parses a "spawn" statement, which creates & initializes a proc.
   absl::StatusOr<Spawn*> ParseSpawn(Bindings& bindings);

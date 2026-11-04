@@ -241,6 +241,7 @@ absl::StatusOr<AttributeKind> ParseAttributeKind(Token token,
       {"fuzz_domain", AttributeKind::kFuzzDomain},
       {"channel_strictness", AttributeKind::kChannelStrictness},
       {"channel_flow_control", AttributeKind::kChannelFlowControl},
+      {"tabulate", AttributeKind::kTabulate},
   };
 
   const auto it = map->find(token.GetStringValue());
@@ -989,6 +990,14 @@ absl::Status Parser::ValidateFuzzTestAttribute(const Attribute& attribute) {
   return absl::OkStatus();
 }
 
+absl::Status Parser::ValidateTabulateAttribute(const Attribute& attribute) {
+  if (!attribute.args().empty()) {
+    return ParseErrorStatus(*attribute.GetSpan(),
+                            "#[tabulate] does not take any arguments.");
+  }
+  return absl::OkStatus();
+}
+
 absl::Status Parser::UnsupportedAttributeError(const Attribute& attribute) {
   Span span = *attribute.GetSpan();
   switch (attribute.attribute_kind()) {
@@ -1001,6 +1010,7 @@ absl::Status Parser::UnsupportedAttributeError(const Attribute& attribute) {
     case AttributeKind::kExternVerilog:
     case AttributeKind::kQuickcheck:
     case AttributeKind::kFuzzTest:
+    case AttributeKind::kTabulate:
       return ParseErrorStatus(
           span,
           absl::StrCat(attribute.ToString(), " is only valid on a function."));
@@ -1110,6 +1120,10 @@ absl::StatusOr<ModuleMember> Parser::ApplyFunctionAttributes(
                              GetQuickCheckTestCases(*next));
         break;
       }
+
+      case AttributeKind::kTabulate:
+        XLS_RETURN_IF_ERROR(ValidateTabulateAttribute(*next));
+        break;
 
       default:
         return UnsupportedAttributeError(*next);

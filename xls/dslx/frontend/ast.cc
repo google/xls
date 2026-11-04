@@ -2781,6 +2781,11 @@ std::string Function::ToString() const {
     annotation_str = absl::StrFormat("#[extern_verilog(\"%s\")]\n",
                                      extern_verilog_module_->code_template());
   }
+  if (std::optional<const Attribute*> tabulate_attr =
+          GetAttribute(this, AttributeKind::kTabulate);
+      tabulate_attr.has_value()) {
+    absl::StrAppend(&annotation_str, (*tabulate_attr)->ToString(), "\n");
+  }
   return absl::StrFormat("%s%sfn %s%s(%s)%s%s", annotation_str, pub_str,
                          name_def_->ToString(), parametric_str, params_str,
                          return_type_str, is_stub_ ? ";" : body_->ToString());
