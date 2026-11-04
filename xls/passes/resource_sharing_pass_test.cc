@@ -68,8 +68,8 @@ namespace {
 using ::absl_testing::IsOkAndHolds;
 using ::absl_testing::StatusIs;
 using ::testing::ElementsAre;
+using ::testing::Field;
 using ::testing::HasSubstr;
-using ::testing::Pair;
 using ::testing::UnorderedElementsAre;
 using ::xls::solvers::ScopedVerifyEquivalence;
 
@@ -133,11 +133,10 @@ TEST_F(ResourceSharingPassTest, CatchesCyclesBeforeTransforming) {
   VisibilityEdges edges = {
       OperandVisibilityAnalysis::OperandNode(X.node(), sel.node()),
       OperandVisibilityAnalysis::OperandNode(Y.node(), sel.node())};
-  std::vector<std::pair<Node*, VisibilityEdges>> from_X = {
-      std::make_pair(X.node(), edges)};
+  std::vector<NaryFoldingAction::NodeVisibility> from_X = {
+      {.node = X.node(), .edges = edges, .sinks = {sel.node()}}};
   auto fold_X_into_Y = std::make_unique<NaryFoldingAction>(
-      std::move(from_X), Y.node(), edges, /*area_saved=*/0.0,
-      /*sinks=*/absl::flat_hash_set<Node*>{sel.node()});
+      std::move(from_X), Y.node(), edges, /*area_saved=*/0.0);
   std::vector<std::unique_ptr<NaryFoldingAction>> folding_actions_to_perform;
   folding_actions_to_perform.push_back(std::move(fold_X_into_Y));
 
@@ -173,11 +172,10 @@ TEST_F(ResourceSharingPassTest,
       OperandVisibilityAnalysis::OperandNode(B1.node(), sel.node())};
   VisibilityEdges edges_A0 = {
       OperandVisibilityAnalysis::OperandNode(B0.node(), sel.node())};
-  std::vector<std::pair<Node*, VisibilityEdges>> from_1 = {
-      std::make_pair(A1.node(), edges_A1)};
+  std::vector<NaryFoldingAction::NodeVisibility> from_1 = {
+      {.node = A1.node(), .edges = edges_A1, .sinks = {sel.node()}}};
   auto fold_1 = std::make_unique<NaryFoldingAction>(
-      std::move(from_1), A0.node(), edges_A0, /*area_saved=*/1.0,
-      /*sinks=*/absl::flat_hash_set<Node*>{sel.node()});
+      std::move(from_1), A0.node(), edges_A0, /*area_saved=*/1.0);
 
   // Action 2: Fold A0 into A2.
   // Without precomputing visibility expressions, the visibility of A0, now
@@ -185,11 +183,10 @@ TEST_F(ResourceSharingPassTest,
   // the previous folding action.
   VisibilityEdges edges_A2 = {
       OperandVisibilityAnalysis::OperandNode(A2.node(), sel.node())};
-  std::vector<std::pair<Node*, VisibilityEdges>> from_2 = {
-      std::make_pair(A0.node(), edges_A0)};
+  std::vector<NaryFoldingAction::NodeVisibility> from_2 = {
+      {.node = A0.node(), .edges = edges_A0, .sinks = {sel.node()}}};
   auto fold_2 = std::make_unique<NaryFoldingAction>(
-      std::move(from_2), A2.node(), edges_A2, /*area_saved=*/1.0,
-      /*sinks=*/absl::flat_hash_set<Node*>{sel.node()});
+      std::move(from_2), A2.node(), edges_A2, /*area_saved=*/1.0);
 
   ScopedVerifyEquivalence check_equivalent(f, absl::Seconds(1));
   std::vector<std::unique_ptr<NaryFoldingAction>> folding_actions_to_perform;
@@ -225,21 +222,19 @@ TEST_F(ResourceSharingPassTest,
       OperandVisibilityAnalysis::OperandNode(B1.node(), sel.node())};
   VisibilityEdges edges_A0 = {
       OperandVisibilityAnalysis::OperandNode(B0.node(), sel.node())};
-  std::vector<std::pair<Node*, VisibilityEdges>> from_1 = {
-      std::make_pair(A1.node(), edges_A1)};
+  std::vector<NaryFoldingAction::NodeVisibility> from_1 = {
+      {.node = A1.node(), .edges = edges_A1, .sinks = {sel.node()}}};
   auto fold_1 = std::make_unique<NaryFoldingAction>(
-      std::move(from_1), A0.node(), edges_A0, /*area_saved=*/1.0,
-      /*sinks=*/absl::flat_hash_set<Node*>{sel.node()});
+      std::move(from_1), A0.node(), edges_A0, /*area_saved=*/1.0);
 
   // Action 2: Fold A2 into A1, which action 1 has already folded into A0, so
   // action 2 is skipped.
   VisibilityEdges edges_A2 = {
       OperandVisibilityAnalysis::OperandNode(A2.node(), sel.node())};
-  std::vector<std::pair<Node*, VisibilityEdges>> from_2 = {
-      std::make_pair(A2.node(), edges_A2)};
+  std::vector<NaryFoldingAction::NodeVisibility> from_2 = {
+      {.node = A2.node(), .edges = edges_A2, .sinks = {sel.node()}}};
   auto fold_2 = std::make_unique<NaryFoldingAction>(
-      std::move(from_2), A1.node(), edges_A1, /*area_saved=*/1.0,
-      /*sinks=*/absl::flat_hash_set<Node*>{sel.node()});
+      std::move(from_2), A1.node(), edges_A1, /*area_saved=*/1.0);
 
   ScopedVerifyEquivalence check_equivalent(f, absl::Seconds(1));
   const NaryFoldingAction* performed_folding = fold_1.get();
@@ -302,9 +297,10 @@ TEST_F(
           {add_low, sub_mid, add_high, sub_highest, from_mid, from_high})));
 
   auto make_action = [&](Node* target, Node* source = nullptr) {
-    std::vector<std::pair<Node*, VisibilityEdges>> sources;
+    std::vector<NaryFoldingAction::NodeVisibility> sources;
     if (source != nullptr) {
-      sources.push_back({source, {}});
+      sources.push_back(NaryFoldingAction::NodeVisibility{
+          .node = source, .edges = {}, .sinks = {}});
     }
     return std::make_unique<NaryFoldingAction>(
         std::move(sources), target, VisibilityEdges{}, /*area_saved=*/0.0);
@@ -444,8 +440,9 @@ TEST_F(ResourceSharingPassTest,
   EXPECT_EQ(actions1[0]->GetTo(), d.node());
   EXPECT_EQ(actions1[0]->GetNumberOfFroms(), 2);
   EXPECT_THAT(actions1[0]->GetFrom(),
-              UnorderedElementsAre(Pair(a.node(), testing::_),
-                                   Pair(b.node(), testing::_)));
+              UnorderedElementsAre(
+                  Field(&NaryFoldingAction::NodeVisibility::node, a.node()),
+                  Field(&NaryFoldingAction::NodeVisibility::node, b.node())));
 
   // Add the identity equivalence mapping so the full nary folding is allowed.
   mapper.Register<IdentityEquivalenceMapping>();
@@ -460,9 +457,10 @@ TEST_F(ResourceSharingPassTest,
   EXPECT_EQ(actions2[0]->GetTo(), d.node());
   EXPECT_EQ(actions2[0]->GetNumberOfFroms(), 3);
   EXPECT_THAT(actions2[0]->GetFrom(),
-              UnorderedElementsAre(Pair(a.node(), testing::_),
-                                   Pair(b.node(), testing::_),
-                                   Pair(c.node(), testing::_)));
+              UnorderedElementsAre(
+                  Field(&NaryFoldingAction::NodeVisibility::node, a.node()),
+                  Field(&NaryFoldingAction::NodeVisibility::node, b.node()),
+                  Field(&NaryFoldingAction::NodeVisibility::node, c.node())));
 }
 
 class BitWidthMockAreaEstimator : public AreaEstimator {
@@ -599,6 +597,84 @@ TEST_F(ResourceSharingPassTest,
   EXPECT_EQ(absl::c_count_if(
                 f->nodes(), [](Node* node) { return node->op() == Op::kShll; }),
             1);
+}
+
+// Verify that sink nodes from one source's folding action are not applied when
+// evaluating visibility for another source. Here, mul_c has a second use in
+// aux_out, so prematurely stopping visibility traversal at main_out's select
+// would corrupt mul_c's visibility and cause a miscompile.
+TEST_F(ResourceSharingPassTest, NaryFoldDoesNotApplyOtherSourcesSinks) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue s = fb.Param("s", p->GetBitsType(3));
+  BValue a = fb.Param("a", p->GetBitsType(2));
+  BValue b = fb.Param("b", p->GetBitsType(1));
+  BValue c = fb.Param("c", p->GetBitsType(1));
+  BValue zero = fb.Literal(UBits(0, 2));
+  BValue mul_a = fb.UMul(a, a, /*result_width=*/2);
+  BValue mul_b = fb.UMul(b, b, /*result_width=*/2);
+  BValue mul_c = fb.UMul(c, c, /*result_width=*/2);
+  BValue main_out = fb.PrioritySelect(s, {mul_a, mul_b, mul_c}, zero);
+  BValue aux_out = fb.PrioritySelect(s, {zero, zero, zero}, mul_c);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Function * f, fb.BuildWithReturnValue(fb.Tuple({main_out, aux_out})));
+
+  ScopedVerifyEquivalence sve(f);
+  EXPECT_THAT(ResourceSharingPassRunner::RunPass(f), IsOkAndHolds(true));
+  EXPECT_EQ(NumberOfMultiplications(f), 1);
+}
+
+// Verify that when an n-ary fold falls back from single-select binary edges to
+// general visibility edges, binary sinks are dropped. Otherwise, traversal
+// stops at s1 and misses downstream conditions (e.g. the and-gate selector),
+// under-constraining visibility and causing a miscompile.
+TEST_F(ResourceSharingPassTest,
+       NaryFoldDoesNotPreserveBinarySinksWhenFallingBackToGeneralEdges) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue s = fb.Param("s", p->GetBitsType(1));
+  BValue x = fb.Param("x", p->GetBitsType(1));
+  BValue a = fb.Param("a", p->GetBitsType(3));
+  BValue b = fb.Param("b", p->GetBitsType(1));
+  BValue c = fb.Param("c", p->GetBitsType(3));
+  BValue mul_a = fb.UMul(a, a, /*result_width=*/2);
+  BValue mul_b = fb.UMul(b, b, /*result_width=*/2);
+  BValue mul_c = fb.UMul(c, c, /*result_width=*/2);
+  BValue nx = fb.Not(x);
+  BValue nx_ext = fb.SignExtend(nx, /*new_bit_count=*/2);
+  BValue x_ext = fb.SignExtend(x, /*new_bit_count=*/2);
+  BValue s1 = fb.PrioritySelect(s, {mul_a}, mul_c);
+  BValue r1 = fb.And(s1, x_ext);
+  BValue r2 = fb.And(mul_b, nx_ext);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
+                           fb.BuildWithReturnValue(fb.Tuple({r1, r2})));
+
+  ScopedVerifyEquivalence sve(f);
+  EXPECT_THAT(ResourceSharingPassRunner::RunPass(f), IsOkAndHolds(true));
+  EXPECT_EQ(NumberOfMultiplications(f), 1);
+}
+
+// Verify that the reverse action constructed in ComputeFoldableActions uses its
+// own source's select node as its sink rather than copying the forward
+// action's sink.
+TEST_F(ResourceSharingPassTest,
+       ReverseBinaryFoldingActionUsesItsOwnSourceSelectAsSink) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue s = fb.Param("s", p->GetBitsType(2));
+  BValue a = fb.Param("a", p->GetBitsType(4));
+  BValue b = fb.Param("b", p->GetBitsType(4));
+  BValue zero = fb.Literal(UBits(0, 4));
+  BValue mul_a = fb.UMul(a, a, /*result_width=*/4);
+  BValue mul_b = fb.UMul(b, b, /*result_width=*/4);
+  BValue out_1 = fb.PrioritySelect(s, {zero, mul_a}, zero);
+  BValue out_2 = fb.PrioritySelect(s, {mul_b, zero}, zero);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
+                           fb.BuildWithReturnValue(fb.Tuple({out_1, out_2})));
+
+  ScopedVerifyEquivalence sve(f);
+  EXPECT_THAT(ResourceSharingPassRunner::RunPass(f), IsOkAndHolds(true));
+  EXPECT_EQ(NumberOfMultiplications(f), 1);
 }
 
 void IrFuzzResourceSharing(FuzzPackageWithArgs fuzz_package_with_args) {
