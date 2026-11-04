@@ -8625,6 +8625,384 @@ impl Top {
   ExpectIr(conv.DumpIr());
 }
 
+// A child proc with one io object of each direction.
+constexpr std::string_view kIoLoopbackProc = R"(#![feature(io_objects)]
+proc Loopback { input: Source<u32>, output: Sink<u32> }
+impl Loopback { fn new() -> Self { Loopback {} } fn next(self) {} }
+)";
+
+// `Top` binds each of its members to an end of one spawned `Loopback`.
+constexpr std::string_view kIoTopBindsLoopback = R"(
+proc Top { to_child: Sink<u32>, from_child: Source<u32> }
+impl Top {
+  fn new() -> Self {
+    let top = Top {};
+    let c = Loopback::new();
+    top.to_child.bind(c.input);
+    c.output.bind(top.from_child);
+    c.spawn();
+    top
+  }
+  fn next(self) {}
+}
+)";
+
+TEST_F(IrConverterTest, ProcDefBindsLoopback) {
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string ir,
+      ConvertModuleForTest(absl::StrCat(kIoLoopbackProc, kIoTopBindsLoopback)));
+  ExpectIr(ir);
+}
+
+// Verify that the same IR is produced for explicit `chan`s as for implicit
+// ones.
+TEST_F(IrConverterTest, ProcDefBindMatchesExplicitChannelDecl) {
+  constexpr std::string_view kExplicit = R"(
+proc Loopback { input: chan<u32> in, output: chan<u32> out }
+impl Loopback {
+  fn new(input: chan<u32> in, output: chan<u32> out) -> Self {
+    Loopback { input, output }
+  }
+  fn next(self) {}
+}
+proc Top { to_child: chan<u32> out, from_child: chan<u32> in }
+impl Top {
+  fn new() -> Self {
+    let (to_child_out, to_child_in) = chan<u32>("to_child");
+    let (from_child_out, from_child_in) = chan<u32>("from_child");
+    Loopback::new(to_child_in, from_child_out).spawn();
+    Top { to_child: to_child_out, from_child: from_child_in }
+  }
+  fn next(self) {}
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string io_ir,
+      ConvertModuleForTest(absl::StrCat(kIoLoopbackProc, kIoTopBindsLoopback)));
+  XLS_ASSERT_OK_AND_ASSIGN(std::string explicit_ir,
+                           ConvertModuleForTest(kExplicit));
+  EXPECT_EQ(io_ir, explicit_ir);
+}
+
+TEST_F(IrConverterTest, ProcDefBindsTwoSpawnsGetDistinctChannels) {
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string ir, ConvertModuleForTest(absl::StrCat(kIoLoopbackProc, R"(
+proc Top {
+  to_a: Sink<u32>, from_a: Source<u32>, to_b: Sink<u32>, from_b: Source<u32>
+}
+impl Top {
+  fn new() -> Self {
+    let top = Top {};
+    let a = Loopback::new();
+    let b = Loopback::new();
+    top.to_a.bind(a.input);
+    a.output.bind(top.from_a);
+    top.to_b.bind(b.input);
+    b.output.bind(top.from_b);
+    a.spawn();
+    b.spawn();
+    top
+  }
+  fn next(self) {}
+}
+)")));
+  ExpectIr(ir);
+}
+
+TEST_F(IrConverterTest, ProcDefBindsChildToChild) {
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string ir, ConvertModuleForTest(absl::StrCat(kIoLoopbackProc, R"(
+proc Top {}
+impl Top {
+  fn new() -> Self {
+    let a = Loopback::new();
+    let b = Loopback::new();
+    a.output.bind(b.input);
+    b.output.bind(a.input);
+    a.spawn();
+    b.spawn();
+    Top {}
+  }
+  fn next(self) {}
+}
+)")));
+  ExpectIr(ir);
+}
+
+TEST_F(IrConverterTest, ProcDefBindsInsideSpawnedChild) {
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string ir, ConvertModuleForTest(
+                          absl::StrCat(kIoLoopbackProc, kIoTopBindsLoopback, R"(
+proc Main {}
+impl Main {
+  fn new() -> Self {
+    Top::new().spawn();
+    Main {}
+  }
+  fn next(self) {}
+}
+)")));
+  ExpectIr(ir);
+}
+
+TEST_F(IrConverterTest, ProcDefBindsParametricChild) {
+  XLS_ASSERT_OK_AND_ASSIGN(std::string ir, ConvertModuleForTest(R"(
+#![feature(io_objects)]
+proc Loopback<N: u32> { input: Source<uN[N]>, output: Sink<uN[N]> }
+impl Loopback<N> {
+  fn new() -> Self { Loopback<N> {} }
+  fn next(self) {}
+}
+proc Top {
+  to_a: Sink<u8>, from_a: Source<u8>, to_b: Sink<u16>, from_b: Source<u16>
+}
+impl Top {
+  fn new() -> Self {
+    let top = Top {};
+    let a = Loopback<8>::new();
+    let b = Loopback<16>::new();
+    top.to_a.bind(a.input);
+    a.output.bind(top.from_a);
+    top.to_b.bind(b.input);
+    b.output.bind(top.from_b);
+    a.spawn();
+    b.spawn();
+    top
+  }
+  fn next(self) {}
+}
+)"));
+  ExpectIr(ir);
+}
+
+TEST_F(IrConverterTest, ProcDefBindsParametricChildToChild) {
+  XLS_ASSERT_OK_AND_ASSIGN(std::string ir, ConvertModuleForTest(R"(
+#![feature(io_objects)]
+proc Loopback<N: u32> { input: Source<uN[N]>, output: Sink<uN[N]> }
+impl Loopback<N> {
+  fn new() -> Self { Loopback<N> {} }
+  fn next(self) {}
+}
+proc Top {}
+impl Top {
+  fn new() -> Self {
+    let a = Loopback<8>::new();
+    let b = Loopback<8>::new();
+    a.output.bind(b.input);
+    b.output.bind(a.input);
+    a.spawn();
+    b.spawn();
+    Top {}
+  }
+  fn next(self) {}
+}
+)"));
+  ExpectIr(ir);
+}
+
+TEST_F(IrConverterTest, ProcDefUnboundChildIoObjectIsError) {
+  EXPECT_THAT(
+      ConvertModuleForTest(absl::StrCat(kIoLoopbackProc, R"(
+proc Top {}
+impl Top {
+  fn new() -> Self {
+    Loopback::new().spawn();
+    Top {}
+  }
+  fn next(self) {}
+}
+)")),
+      StatusIs(absl::StatusCode::kInternal,
+               HasSubstr("Io object `input` of `Loopback` spawned by `Top` is "
+                         "not bound.")));
+}
+
+// A child proc with a 2-element io object array of each direction.
+constexpr std::string_view kIoLoopbackArrayProc = R"(#![feature(io_objects)]
+proc LoopbackArray { ins: Source<u32>[2], outs: Sink<u32>[2] }
+impl LoopbackArray {
+  fn new() -> Self { LoopbackArray {} }
+  fn next(self) {}
+}
+)";
+
+// `Top` binds each of its array members to an end of one spawned
+// `LoopbackArray`.
+constexpr std::string_view kIoTopBindsLoopbackArray = R"(
+proc Top { to_child: Sink<u32>[2], from_child: Source<u32>[2] }
+impl Top {
+  fn new() -> Self {
+    let top = Top {};
+    let c = LoopbackArray::new();
+    const for (i, _) in u32:0..2 {
+      top.to_child[i].bind(c.ins[i]);
+      c.outs[i].bind(top.from_child[i]);
+    }(());
+    c.spawn();
+    top
+  }
+  fn next(self) {}
+}
+)";
+
+TEST_F(IrConverterTest, ProcDefBindsChannelArray) {
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string ir, ConvertModuleForTest(absl::StrCat(
+                          kIoLoopbackArrayProc, kIoTopBindsLoopbackArray)));
+  ExpectIr(ir);
+}
+
+TEST_F(IrConverterTest, ProcDefBindsChildArrayToChildArray) {
+  XLS_ASSERT_OK_AND_ASSIGN(std::string ir, ConvertModuleForTest(absl::StrCat(
+                                               kIoLoopbackArrayProc, R"(
+proc Top {}
+impl Top {
+  fn new() -> Self {
+    let a = LoopbackArray::new();
+    let b = LoopbackArray::new();
+    const for (i, _) in u32:0..2 {
+      a.outs[i].bind(b.ins[i]);
+      b.outs[i].bind(a.ins[i]);
+    }(());
+    a.spawn();
+    b.spawn();
+    Top {}
+  }
+  fn next(self) {}
+}
+)")));
+  ExpectIr(ir);
+}
+
+TEST_F(IrConverterTest, ProcDefBinds2DChannelArray) {
+  XLS_ASSERT_OK_AND_ASSIGN(std::string ir, ConvertModuleForTest(absl::StrCat(
+                                               kIoLoopbackArrayProc, R"(
+proc Top { to_child: Sink<u32>[2][2], from_child: Source<u32>[2][2] }
+impl Top {
+  fn new() -> Self {
+    let top = Top {};
+    const for (i, _) in u32:0..2 {
+      let c = LoopbackArray::new();
+      const for (j, _) in u32:0..2 {
+        top.to_child[i][j].bind(c.ins[j]);
+        c.outs[j].bind(top.from_child[i][j]);
+      }(());
+      c.spawn();
+    }(());
+    top
+  }
+  fn next(self) {}
+}
+)")));
+  ExpectIr(ir);
+}
+
+TEST_F(IrConverterTest, ProcDefBindArrayMatchesExplicitChannelDecl) {
+  constexpr std::string_view kExplicit = R"(
+proc LoopbackArray { ins: chan<u32>[2] in, outs: chan<u32>[2] out }
+impl LoopbackArray {
+  fn new(ins: chan<u32>[2] in, outs: chan<u32>[2] out) -> Self {
+    LoopbackArray { ins, outs }
+  }
+  fn next(self) {}
+}
+proc Top { to_child: chan<u32>[2] out, from_child: chan<u32>[2] in }
+impl Top {
+  fn new() -> Self {
+    let (to_child_out, to_child_in) = chan<u32>[2]("to_child");
+    let (from_child_out, from_child_in) = chan<u32>[2]("from_child");
+    LoopbackArray::new(to_child_in, from_child_out).spawn();
+    Top { to_child: to_child_out, from_child: from_child_in }
+  }
+  fn next(self) {}
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string io_ir, ConvertModuleForTest(absl::StrCat(
+                             kIoLoopbackArrayProc, kIoTopBindsLoopbackArray)));
+  XLS_ASSERT_OK_AND_ASSIGN(std::string explicit_ir,
+                           ConvertModuleForTest(kExplicit));
+  EXPECT_EQ(io_ir, explicit_ir);
+}
+
+TEST_F(IrConverterTest, ProcDefBindsOwnMembers) {
+  XLS_ASSERT_OK_AND_ASSIGN(std::string ir, ConvertModuleForTest(R"(
+#![feature(io_objects)]
+proc Top { snk: Sink<u32>, src: Source<u32> }
+impl Top {
+  fn new() -> Self {
+    let top = Top {};
+    top.snk.bind(top.src);
+    top
+  }
+  fn next(self) {}
+}
+)"));
+  ExpectIr(ir);
+}
+
+// Binding a proc's own `Sink` array to its own `Source` array creates one
+// channel per element, with no duplicate channels or boundary interfaces.
+TEST_F(IrConverterTest, ProcDefBindsOwnMemberArrays) {
+  XLS_ASSERT_OK_AND_ASSIGN(std::string ir, ConvertModuleForTest(R"(
+#![feature(io_objects)]
+proc Top { snk: Sink<u32>[2], src: Source<u32>[2] }
+impl Top {
+  fn new() -> Self {
+    let top = Top {};
+    const for (i, _) in u32:0..2 {
+      top.snk[i].bind(top.src[i]);
+    }(());
+    top
+  }
+  fn next(self) {}
+}
+)"));
+  ExpectIr(ir);
+}
+
+// Verify that no `_src__*` channels are created due the order of the bind
+// calls. The channels should be `_a`, `_src`, and `_to_child`.
+TEST_F(IrConverterTest, ProcDefBindsArrayMixingExistingAndNewChannels) {
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string ir, ConvertModuleForTest(absl::StrCat(kIoLoopbackProc, R"(
+proc Top { a: Sink<u32>, src: Source<u32>[2], to_child: Sink<u32> }
+impl Top {
+  fn new() -> Self {
+    let top = Top {};
+    let c = Loopback::new();
+    top.a.bind(top.src[0]);
+    c.output.bind(top.src[1]);
+    top.to_child.bind(c.input);
+    c.spawn();
+    top
+  }
+  fn next(self) {}
+}
+)")));
+  ExpectIr(ir);
+}
+
+TEST_F(IrConverterTest, ProcDefPartiallyBoundChannelArrayIsError) {
+  EXPECT_THAT(ConvertModuleForTest(absl::StrCat(kIoLoopbackProc, R"(
+proc Top { to_child: Sink<u32>[2], from_child: Source<u32> }
+impl Top {
+  fn new() -> Self {
+    let top = Top {};
+    let c = Loopback::new();
+    top.to_child[0].bind(c.input);
+    c.output.bind(top.from_child);
+    c.spawn();
+    top
+  }
+  fn next(self) {}
+}
+)")),
+              StatusIs(absl::StatusCode::kInternal,
+                       HasSubstr("Io object `to_child` of `Top` is only "
+                                 "partially bound.")));
+}
+
 TEST_F(IrConverterTest, ConvertFilesToPackageWithSourceAndSinkMembers) {
   constexpr std::string_view kModule = R"(#![feature(io_objects)]
 proc Top {
