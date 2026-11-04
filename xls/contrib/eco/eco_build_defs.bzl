@@ -35,33 +35,31 @@ def _dslx_ir_diff_impl(ctx):
     patch_out = ctx.actions.declare_file(ctx.label.name + ".patch.bin")
     report_out = ctx.actions.declare_file(ctx.label.name + ".report.txt")
 
-    ged_args = []
+    ged_args = ctx.actions.args()
     if ctx.attr.timeout >= 0:
-        ged_args.append("--timeout=" + str(ctx.attr.timeout))
+        ged_args.add("--timeout=" + str(ctx.attr.timeout))
     if ctx.attr.mcs == False:
-        ged_args.append("--use_mcs=false")
+        ged_args.add("--use_mcs=false")
     if ctx.attr.mcs_cutoff >= 0:
-        ged_args.append("--mcs_cutoff=" + str(ctx.attr.mcs_cutoff))
+        ged_args.add("--mcs_cutoff=" + str(ctx.attr.mcs_cutoff))
     if ctx.attr.mcs_optimal == False:
-        ged_args.append("--mcs_optimal=false")
+        ged_args.add("--mcs_optimal=false")
     if ctx.attr.mcs_timeout >= 0:
-        ged_args.append("--mcs_timeout=" + str(ctx.attr.mcs_timeout))
-    ged_args.append("--report=" + report_out.path)
+        ged_args.add("--mcs_timeout=" + str(ctx.attr.mcs_timeout))
+    ged_args.add(report_out, format = "--report=%s")
 
     ged_runfiles = ctx.attr.ged_main[DefaultInfo].default_runfiles.files.to_list()
     outputs = [patch_out, report_out]
 
-    ged_args += [
-        "--before_ir=" + before_ir.path,
-        "--after_ir=" + after_ir.path,
-        "--patch=" + patch_out.path,
-    ]
+    ged_args.add(before_ir, format = "--before_ir=%s")
+    ged_args.add(after_ir, format = "--after_ir=%s")
+    ged_args.add(patch_out, format = "--patch=%s")
     ctx.actions.run(
         inputs = [before_ir, after_ir] + ctx.files.ged_main + ged_runfiles,
         outputs = outputs,
         tools = [ctx.executable.ged_main],
         mnemonic = "GedMain",
-        arguments = ged_args,
+        arguments = [ged_args],
         executable = ctx.executable.ged_main,
         use_default_shell_env = True,
     )
@@ -199,11 +197,10 @@ def _xls_patch_ir_impl(ctx):
     patch_ir_runfiles = ctx.attr.patch_ir_main[DefaultInfo].default_runfiles.files.to_list()
 
     inputs = [ir_file, patch_file] + ctx.files.patch_ir_main + patch_ir_runfiles
-    args = [
-        "--input_ir_path=" + ir_file.path,
-        "--input_patch_path=" + patch_file.path,
-        "--output_ir_path=" + output_ir.path,
-    ]
+    args = ctx.actions.args()
+    args.add(ir_file, format = "--input_ir_path=%s")
+    args.add(patch_file, format = "--input_patch_path=%s")
+    args.add(output_ir, format = "--output_ir_path=%s")
 
     schedule_file = None
     if ctx.attr.schedule:
@@ -212,13 +209,13 @@ def _xls_patch_ir_impl(ctx):
             fail("xls_patch_ir: expected exactly one file from 'schedule'")
         schedule_file = schedule_files[0]
         inputs.append(schedule_file)
-        args.append("--input_schedule_path=" + schedule_file.path)
+        args.add(schedule_file, format = "--input_schedule_path=%s")
 
     ctx.actions.run(
         inputs = inputs,
         outputs = [output_ir],
         executable = ctx.executable.patch_ir_main,
-        arguments = args,
+        arguments = [args],
         mnemonic = "PatchIr",
         use_default_shell_env = True,
     )
@@ -226,26 +223,27 @@ def _xls_patch_ir_impl(ctx):
     check_inputs = [output_ir, after_ir]
     check_inputs += ctx.attr.check_ir_main[DefaultInfo].default_runfiles.files.to_list()
     check_inputs += ctx.files.check_ir_main
-    check_flags = [
-        "--match_exit_code=0",
-        "--mismatch_exit_code=1",
-    ]
+    check_args = ctx.actions.args()
+    check_args.add(output_ir)
+    check_args.add(after_ir)
+    check_args.add("--match_exit_code=0")
+    check_args.add("--mismatch_exit_code=1")
     if ctx.attr.check_activation_count >= 0:
-        check_flags.append("--activation_count=" + str(ctx.attr.check_activation_count))
+        check_args.add("--activation_count=" + str(ctx.attr.check_activation_count))
     if ctx.attr.check_top:
-        check_flags.append("--top=" + ctx.attr.check_top)
+        check_args.add("--top=" + ctx.attr.check_top)
     if ctx.attr.check_timeout >= 0:
-        check_flags.append("--timeout=" + str(ctx.attr.check_timeout) + "s")
+        check_args.add("--timeout=" + str(ctx.attr.check_timeout) + "s")
 
     equivalence_report = ctx.actions.declare_file(ctx.label.name + ".equiv.report")
-    check_flags.append("--equivalence_report_path=" + equivalence_report.path)
+    check_args.add(equivalence_report, format = "--equivalence_report_path=%s")
 
     ctx.actions.run(
         inputs = check_inputs,
         outputs = [equivalence_report],
         executable = ctx.executable.check_ir_main,
         mnemonic = "CheckIrEquivalence",
-        arguments = [output_ir.path, after_ir.path] + check_flags,
+        arguments = [check_args],
     )
 
     return [
