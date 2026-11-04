@@ -14,7 +14,10 @@
 
 load("//xls/contrib/eco:eco_build_defs.bzl", "xls_dslx_ir_diff", "xls_patch_ir")
 
-package(default_visibility = ["//xls:xls_internal"])
+package(
+    default_applicable_licenses = ["//:license"],
+    default_visibility = ["//xls:xls_internal"],
+)
 
 # TODO(xls-eco): Expand the benchmark suite — complete FIR/ZSTD hybrid coverage
 # and add larger industrial-scale IRs (5k-50k nodes) to characterize the hybrid
