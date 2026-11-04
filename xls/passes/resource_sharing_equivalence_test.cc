@@ -74,6 +74,11 @@ class FakeAreaEstimator : public AreaEstimator {
     if (node->op() == Op::kSub) {
       return 100.0 * node->BitCountOrDie();
     }
+    if (node->OpIn({Op::kUMul, Op::kSMul})) {
+      return 20.0 * node->operand(0)->BitCountOrDie() *
+                 node->operand(1)->BitCountOrDie() +
+             (node->op() == Op::kSMul ? 7.0 : 0.0) + node->BitCountOrDie();
+    }
     return 1.0;
   }
 };
@@ -1307,6 +1312,20 @@ TEST_F(ResourceSharingEquivalenceTest, CloneEquivalenceMapping) {
   eq_mapping_clone(sle16.node(), sub0.node());
   eq_mapping_clone(ult0.node(), sub0.node());
   eq_mapping_clone(ult0.node(), sub16.node());
+  // MulEquivalenceMapping
+  {
+    FunctionBuilder fb_mul("mul_clone", p.get());
+    BValue ma = fb_mul.Param("ma", p->GetBitsType(16));
+    BValue mb = fb_mul.Param("mb", p->GetBitsType(16));
+    BValue mc = fb_mul.Param("mc", p->GetBitsType(17));
+    BValue umul16 = fb_mul.UMul(ma, mb, 32);
+    BValue smul16 = fb_mul.SMul(ma, mb, 32);
+    BValue smul_16_17 = fb_mul.SMul(ma, mc, 33);
+    BValue smul_17_16 = fb_mul.SMul(mc, ma, 33);
+    XLS_ASSERT_OK(fb_mul.BuildWithReturnValue(umul16).status());
+    eq_mapping_clone(umul16.node(), smul16.node());
+    eq_mapping_clone(smul_17_16.node(), smul_16_17.node());
+  }
 }
 
 TEST_F(ResourceSharingEquivalenceTest, ApplyToOperandsReusesExistingNodes) {
@@ -1407,6 +1426,240 @@ TEST_F(ResourceSharingEquivalenceTest,
         mapping.ApplyToOperands(f, smul16.node()->operands()));
     EXPECT_THAT(coerced, ElementsAre(m::SignExt(m::Param("a16")),
                                      m::SignExt(m::Param("b16"))));
+  }
+}
+
+TEST_F(ResourceSharingEquivalenceTest, MulEquivalenceMappingMixedSignAndSwap) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue a16 = fb.Param("a16", p->GetBitsType(16));
+  BValue b16 = fb.Param("b16", p->GetBitsType(16));
+  BValue a17 = fb.Param("a17", p->GetBitsType(17));
+  BValue a15 = fb.Param("a15", p->GetBitsType(15));
+  BValue a8 = fb.Param("a8", p->GetBitsType(8));
+  BValue b8 = fb.Param("b8", p->GetBitsType(8));
+
+  BValue umul16_32 = fb.UMul(a16, b16, 32);
+  BValue smul16_32 = fb.SMul(a16, b16, 32);
+  BValue umul16_16 = fb.UMul(a16, b16, 16);
+  BValue smul16_16 = fb.SMul(a16, b16, 16);
+  BValue smul_16_17 = fb.SMul(a16, a17, 32);
+  BValue smul_17_16 = fb.SMul(a17, b16, 32);
+  BValue umul_15_16 = fb.UMul(a15, b16, 32);
+  BValue umul_16_15 = fb.UMul(a16, a15, 32);
+  BValue smul8_16 = fb.SMul(a8, b8, 16);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(umul16_32));
+  FakeAreaEstimator area_estimator;
+
+  auto verify_mapped_node = [&](Node* node, const EquivalenceMapping& mapping) {
+    XLS_ASSERT_OK(f->set_return_value(node));
+    ScopedVerifyEquivalence sve(f);
+    XLS_ASSERT_OK_AND_ASSIGN(std::vector<Node*> coerced,
+                             mapping.ApplyToOperands(f, node->operands()));
+    XLS_ASSERT_OK_AND_ASSIGN(Node * unified,
+                             mapping.dst()->CloneInNewFunction(coerced, f));
+    XLS_ASSERT_OK_AND_ASSIGN(Node * out, mapping.ApplyToOutput(f, unified));
+    XLS_ASSERT_OK(f->set_return_value(out));
+  };
+
+  // umul(16, 16) -> 32 mapped to smul(16, 16) -> 32 widens dst to smul(17, 17).
+  {
+    XLS_ASSERT_OK_AND_ASSIGN(std::optional<NodeToMappings> mappings,
+                             GetNodeEquivalenceMapper().ComputeMappings(
+                                 {umul16_32.node()}, smul16_32.node()));
+    ASSERT_TRUE(mappings.has_value());
+    EXPECT_THAT(*mappings, UnorderedElementsAre(Key(umul16_32.node()),
+                                                Key(smul16_32.node())));
+    const EquivalenceMapping& src_map = *mappings->at(umul16_32.node());
+    const EquivalenceMapping& dst_map = *mappings->at(smul16_32.node());
+    EXPECT_EQ(src_map.dst()->op(), Op::kSMul);
+    EXPECT_EQ(src_map.dst()->operand(0)->BitCountOrDie(), 17);
+    EXPECT_EQ(src_map.dst()->operand(1)->BitCountOrDie(), 17);
+    EXPECT_EQ(src_map.dst()->BitCountOrDie(), 32);
+    EXPECT_THAT(src_map.RequiresOperandTransformation(), IsOkAndHolds(true));
+    EXPECT_THAT(src_map.RequiresOutputTransformation(), IsOkAndHolds(false));
+
+    XLS_ASSERT_OK_AND_ASSIGN(
+        double src_overhead,
+        src_map.EstimateAreaOverhead(
+            area_estimator, umul16_32.node()->operands(), umul16_32.node()));
+    EXPECT_GT(src_overhead, 0.0);
+    XLS_ASSERT_OK_AND_ASSIGN(
+        double dst_overhead,
+        dst_map.EstimateAreaOverhead(
+            area_estimator, smul16_32.node()->operands(), smul16_32.node()));
+    EXPECT_EQ(dst_overhead, 0.0);
+
+    verify_mapped_node(umul16_32.node(), src_map);
+    verify_mapped_node(smul16_32.node(), dst_map);
+  }
+
+  // smul(16, 16) -> 32 mapped to umul(16, 16) -> 32 promotes dst to
+  // smul(17, 17) while zero-extending the original umul dst and sign-extending
+  // smul src.
+  {
+    XLS_ASSERT_OK_AND_ASSIGN(std::optional<NodeToMappings> mappings,
+                             GetNodeEquivalenceMapper().ComputeMappings(
+                                 {smul16_32.node()}, umul16_32.node()));
+    ASSERT_TRUE(mappings.has_value());
+    verify_mapped_node(smul16_32.node(), *mappings->at(smul16_32.node()));
+    verify_mapped_node(umul16_32.node(), *mappings->at(umul16_32.node()));
+  }
+
+  // Low-half umul(16, 16) -> 16 mapped to smul(16, 16) -> 16 needs zero
+  // widening (16x16 signed and unsigned products agree modulo 2^16).
+  {
+    XLS_ASSERT_OK_AND_ASSIGN(std::optional<NodeToMappings> mappings,
+                             GetNodeEquivalenceMapper().ComputeMappings(
+                                 {umul16_16.node()}, smul16_16.node()));
+    ASSERT_TRUE(mappings.has_value());
+    EXPECT_THAT(*mappings, UnorderedElementsAre(Key(umul16_16.node())));
+    const EquivalenceMapping& src_map = *mappings->at(umul16_16.node());
+    EXPECT_EQ(src_map.dst(), smul16_16.node());
+    EXPECT_THAT(src_map.RequiresOperandTransformation(), IsOkAndHolds(false));
+    EXPECT_THAT(src_map.RequiresOutputTransformation(), IsOkAndHolds(false));
+    verify_mapped_node(umul16_16.node(), src_map);
+  }
+
+  // Commutative operand swap: smul(17, 16) -> smul(16, 17) without widening.
+  {
+    XLS_ASSERT_OK_AND_ASSIGN(std::optional<NodeToMappings> mappings,
+                             GetNodeEquivalenceMapper().ComputeMappings(
+                                 {smul_17_16.node()}, smul_16_17.node()));
+    ASSERT_TRUE(mappings.has_value());
+    EXPECT_THAT(*mappings, UnorderedElementsAre(Key(smul_17_16.node())));
+    const EquivalenceMapping& src_map = *mappings->at(smul_17_16.node());
+    EXPECT_EQ(src_map.dst(), smul_16_17.node());
+    EXPECT_THAT(src_map.RequiresOperandTransformation(), IsOkAndHolds(true));
+    verify_mapped_node(smul_17_16.node(), src_map);
+  }
+
+  // N-ary commutative alignment: {umul(15, 16), umul(16, 15)} -> smul(16, 16)
+  // aligns onto smul(16, 17) rather than smul(17, 17).
+  {
+    XLS_ASSERT_OK_AND_ASSIGN(
+        std::optional<NodeToMappings> mappings,
+        GetNodeEquivalenceMapper().ComputeMappings(
+            {umul_15_16.node(), umul_16_15.node()}, smul16_32.node()));
+    ASSERT_TRUE(mappings.has_value());
+    Node* unified_dst = mappings->at(umul_15_16.node())->dst();
+    EXPECT_EQ(unified_dst->operand(0)->BitCountOrDie() +
+                  unified_dst->operand(1)->BitCountOrDie(),
+              33);
+    verify_mapped_node(umul_15_16.node(), *mappings->at(umul_15_16.node()));
+    verify_mapped_node(umul_16_15.node(), *mappings->at(umul_16_15.node()));
+    verify_mapped_node(smul16_32.node(), *mappings->at(smul16_32.node()));
+  }
+
+  // Negative cases: wide -> narrow operands or wider output on equal operands.
+  {
+    XLS_ASSERT_OK_AND_ASSIGN(std::optional<NodeToMappings> wide_to_narrow,
+                             GetNodeEquivalenceMapper().ComputeMappings(
+                                 {umul16_32.node()}, smul8_16.node()));
+    EXPECT_FALSE(wide_to_narrow.has_value());
+
+    XLS_ASSERT_OK_AND_ASSIGN(std::optional<NodeToMappings> wider_out_on_tie,
+                             GetNodeEquivalenceMapper().ComputeMappings(
+                                 {umul16_32.node()}, smul16_16.node()));
+    EXPECT_FALSE(wider_out_on_tie.has_value());
+  }
+}
+
+TEST_F(ResourceSharingEquivalenceTest, MulEquivalenceMappingWidthSweep) {
+  // Symbolic Z3 verification across W in {0, 1, 2, 3, 17} and R < 2W, R == 2W,
+  // R > 2W.
+  for (int64_t w :
+       {int64_t{0}, int64_t{1}, int64_t{2}, int64_t{3}, int64_t{17}}) {
+    std::vector<int64_t> out_widths;
+    if (w == 0) {
+      out_widths = {0, 1, 4};
+    } else {
+      out_widths = {w, 2 * w - 1, 2 * w, 2 * w + 3};
+    }
+    for (int64_t r : out_widths) {
+      auto p = CreatePackage();
+      FunctionBuilder fb("sweep_fn", p.get());
+      BValue x = fb.Param("x", p->GetBitsType(w));
+      BValue y = fb.Param("y", p->GetBitsType(w));
+      BValue um = fb.UMul(x, y, r);
+      BValue sm = fb.SMul(x, y, r);
+      XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(um));
+
+      XLS_ASSERT_OK_AND_ASSIGN(
+          std::optional<NodeToMappings> mappings,
+          GetNodeEquivalenceMapper().ComputeMappings({um.node()}, sm.node()));
+      ASSERT_TRUE(mappings.has_value()) << "w=" << w << " r=" << r;
+      for (Node* n : {um.node(), sm.node()}) {
+        auto it = mappings->find(n);
+        if (it == mappings->end()) {
+          continue;
+        }
+        XLS_ASSERT_OK(f->set_return_value(n));
+        ScopedVerifyEquivalence sve(f);
+        XLS_ASSERT_OK_AND_ASSIGN(std::vector<Node*> coerced,
+                                 it->second->ApplyToOperands(f, n->operands()));
+        XLS_ASSERT_OK_AND_ASSIGN(
+            Node * unified, it->second->dst()->CloneInNewFunction(coerced, f));
+        XLS_ASSERT_OK_AND_ASSIGN(Node * out,
+                                 it->second->ApplyToOutput(f, unified));
+        XLS_ASSERT_OK(f->set_return_value(out));
+      }
+    }
+  }
+
+  // Multi-word boundary + symbolic low-bit verification for W in {33, 65} and
+  // R < 2W, R == 2W, R > 2W (covers 0, 1, SMAX, SMIN, UMAX, and signed/unsigned
+  // small variations).
+  for (int64_t w : {int64_t{33}, int64_t{65}}) {
+    for (int64_t r : {w + 5, 2 * w, 2 * w + 4}) {
+      auto p = CreatePackage();
+      FunctionBuilder fb("wide_sweep_fn", p.get());
+      BValue sel_x = fb.Param("sel_x", p->GetBitsType(3));
+      BValue sel_y = fb.Param("sel_y", p->GetBitsType(3));
+      BValue small_x = fb.Param("small_x", p->GetBitsType(3));
+      BValue small_y = fb.Param("small_y", p->GetBitsType(3));
+      BValue empty = fb.Param("empty", p->GetBitsType(0));
+
+      BValue zero = fb.ZeroExtend(empty, w);
+      BValue umax = fb.Not(zero);
+      BValue one = fb.ZeroExtend(fb.BitSlice(umax, 0, 1), w);
+      BValue smax = fb.ZeroExtend(fb.BitSlice(umax, 0, w - 1), w);
+      BValue smin = fb.Not(smax);
+      BValue x =
+          fb.Select(sel_x,
+                    {zero, one, smax, smin, umax, fb.ZeroExtend(small_x, w),
+                     fb.SignExtend(small_x, w)},
+                    /*default_value=*/umax);
+      BValue y =
+          fb.Select(sel_y,
+                    {zero, one, smax, smin, umax, fb.ZeroExtend(small_y, w),
+                     fb.SignExtend(small_y, w)},
+                    /*default_value=*/smin);
+      BValue um = fb.UMul(x, y, r);
+      BValue sm = fb.SMul(x, y, r);
+      XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(um));
+
+      XLS_ASSERT_OK_AND_ASSIGN(
+          std::optional<NodeToMappings> mappings,
+          GetNodeEquivalenceMapper().ComputeMappings({um.node()}, sm.node()));
+      ASSERT_TRUE(mappings.has_value()) << "w=" << w << " r=" << r;
+      for (Node* n : {um.node(), sm.node()}) {
+        auto it = mappings->find(n);
+        if (it == mappings->end()) {
+          continue;
+        }
+        XLS_ASSERT_OK(f->set_return_value(n));
+        ScopedVerifyEquivalence sve(f);
+        XLS_ASSERT_OK_AND_ASSIGN(std::vector<Node*> coerced,
+                                 it->second->ApplyToOperands(f, n->operands()));
+        XLS_ASSERT_OK_AND_ASSIGN(
+            Node * unified, it->second->dst()->CloneInNewFunction(coerced, f));
+        XLS_ASSERT_OK_AND_ASSIGN(Node * out,
+                                 it->second->ApplyToOutput(f, unified));
+        XLS_ASSERT_OK(f->set_return_value(out));
+      }
+    }
   }
 }
 

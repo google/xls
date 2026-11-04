@@ -15,6 +15,7 @@
 #include "xls/passes/resource_sharing_equivalence.h"
 
 #include <algorithm>
+#include <cstddef>
 #include <cstdint>
 #include <functional>
 #include <memory>
@@ -105,6 +106,9 @@ absl::StatusOr<Node*> ExtendIf(FunctionBase* f, Node* node,
   XLS_RET_CHECK_LE(node->BitCountOrDie(), target_width);
   if (node->BitCountOrDie() == target_width) {
     return node;
+  }
+  if (node->BitCountOrDie() == 0) {
+    ext_op = Op::kZeroExt;
   }
   for (Node* user : node->users()) {
     if (user->function_base() == f && user->op() == ext_op &&
@@ -558,6 +562,223 @@ absl::StatusOr<PackageAndNode> CreateModifiedShiftPackage(
       });
 }
 
+absl::StatusOr<PackageAndNode> CreateModifiedMulPackage(Op target_op,
+                                                        int64_t lhs_width,
+                                                        int64_t rhs_width,
+                                                        int64_t result_width) {
+  return CreateModifiedDstAndPackage(
+      [target_op, lhs_width, rhs_width, result_width](
+          Package* p, FunctionBuilder& fb) -> BValue {
+        Type* lhs_ty = p->GetBitsType(lhs_width);
+        Type* rhs_ty = p->GetBitsType(rhs_width);
+        return fb.AddArithOp(target_op, fb.Param("a", lhs_ty),
+                             fb.Param("b", rhs_ty), result_width);
+      });
+}
+
+// `MulEquivalenceMapping` handles folding between multiplication operations
+// (`umul` and `smul`), including mixed signedness, commutative operand
+// alignment for asymmetric widths, and differing output bitwidths.
+//
+// Mathematical foundation:
+//   - An unsigned W-bit value u has exact signed value in [0, 2^W - 1] when
+//     zero-extended to (W + 1) bits (or W bits if the required output width R
+//     satisfies R <= W, since u - u_{W-1}*2^W === u (mod 2^R)).
+//   - A signed V-bit value s preserves its exact integer value under sign
+//     extension to any width >= V.
+//   - Multiplication is commutative (x * y == y * x), so asymmetric operand
+//     widths (W0, W1) can be swapped to align with (D0, D1) without widening.
+class MulEquivalenceMapping : public EquivalenceMapping {
+ public:
+  static absl::StatusOr<std::optional<NodeToMappings>> TryCreate(
+      absl::Span<Node* const> sources, Node* dst) {
+    auto is_bits_mul = [](Node* node) {
+      return node->OpIn({Op::kUMul, Op::kSMul}) && node->operand_count() == 2 &&
+             node->GetType()->IsBits() &&
+             BothBitsTyped(node->operand(0), node->operand(1));
+    };
+    if (sources.empty() || !is_bits_mul(dst)) {
+      return std::nullopt;
+    }
+
+    const int64_t d_w0 = dst->operand(0)->BitCountOrDie();
+    const int64_t d_w1 = dst->operand(1)->BitCountOrDie();
+    const int64_t d_min = std::min(d_w0, d_w1);
+    const int64_t d_max = std::max(d_w0, d_w1);
+    bool all_covered_by_bitwidth_ext = true;
+    bool has_signed = dst->op() == Op::kSMul;
+    for (Node* src : sources) {
+      if (!is_bits_mul(src)) {
+        return std::nullopt;
+      }
+      if (!(src->op() == dst->op() && LessThanOrEqualBitwidth(src, dst))) {
+        all_covered_by_bitwidth_ext = false;
+      }
+      const int64_t s_w0 = src->operand(0)->BitCountOrDie();
+      const int64_t s_w1 = src->operand(1)->BitCountOrDie();
+      const int64_t s_min = std::min(s_w0, s_w1);
+      const int64_t s_max = std::max(s_w0, s_w1);
+      if (s_min > d_min || s_max > d_max) {
+        return std::nullopt;
+      }
+      if (s_min == d_min && s_max == d_max &&
+          src->BitCountOrDie() > dst->BitCountOrDie()) {
+        return std::nullopt;
+      }
+      if (src->op() == Op::kSMul) {
+        has_signed = true;
+      }
+    }
+    if (all_covered_by_bitwidth_ext) {
+      return std::nullopt;
+    }
+
+    Op target_op = has_signed ? Op::kSMul : Op::kUMul;
+    auto req_width = [target_op](Node* node, int idx) -> int64_t {
+      int64_t w = node->operand(idx)->BitCountOrDie();
+      if (target_op == Op::kSMul && node->op() == Op::kUMul && w > 0 &&
+          node->BitCountOrDie() > w) {
+        return w + 1;
+      }
+      return w;
+    };
+
+    int64_t target_w0 = req_width(dst, 0);
+    int64_t target_w1 = req_width(dst, 1);
+    int64_t target_out = dst->BitCountOrDie();
+    std::vector<bool> swap_for_src;
+    swap_for_src.reserve(sources.size());
+    for (Node* src : sources) {
+      int64_t r0 = req_width(src, 0);
+      int64_t r1 = req_width(src, 1);
+      int64_t unswapped_sum = std::max(target_w0, r0) + std::max(target_w1, r1);
+      int64_t swapped_sum = std::max(target_w0, r1) + std::max(target_w1, r0);
+      bool swap_src = swapped_sum < unswapped_sum;
+      swap_for_src.push_back(swap_src);
+      if (swap_src) {
+        std::swap(r0, r1);
+      }
+      target_w0 = std::max(target_w0, r0);
+      target_w1 = std::max(target_w1, r1);
+      target_out = std::max(target_out, src->BitCountOrDie());
+    }
+
+    bool needs_modified_dst = (target_op != dst->op()) ||
+                              (target_w0 != dst->operand(0)->BitCountOrDie()) ||
+                              (target_w1 != dst->operand(1)->BitCountOrDie()) ||
+                              (target_out != dst->BitCountOrDie());
+    if (!needs_modified_dst) {
+      NodeToMappings mappings;
+      mappings.reserve(sources.size());
+      for (size_t i = 0; i < sources.size(); ++i) {
+        mappings[sources[i]] = std::make_unique<MulEquivalenceMapping>(
+            sources[i], dst, /*tmp_package=*/nullptr, /*orig_dst=*/dst,
+            swap_for_src[i]);
+      }
+      return mappings;
+    }
+
+    XLS_ASSIGN_OR_RETURN(
+        PackageAndNode p_and_mul,
+        CreateModifiedMulPackage(target_op, target_w0, target_w1, target_out));
+    NodeToMappings mappings;
+    mappings.reserve(sources.size() + 1);
+    for (size_t i = 0; i < sources.size(); ++i) {
+      mappings[sources[i]] = std::make_unique<MulEquivalenceMapping>(
+          sources[i], p_and_mul.node, p_and_mul.package, /*orig_dst=*/dst,
+          swap_for_src[i]);
+    }
+    mappings[dst] = std::make_unique<MulEquivalenceMapping>(
+        dst, p_and_mul.node, p_and_mul.package, /*orig_dst=*/dst,
+        /*swap_operands=*/false);
+    return mappings;
+  }
+
+  MulEquivalenceMapping(Node* src, Node* dst,
+                        std::shared_ptr<Package> tmp_package = nullptr,
+                        std::optional<Node*> orig_dst = std::nullopt,
+                        bool swap_operands = false)
+      : EquivalenceMapping(src, dst, std::move(tmp_package)),
+        orig_dst_(orig_dst.value_or(dst)),
+        swap_operands_(swap_operands) {}
+
+  absl::StatusOr<std::unique_ptr<EquivalenceMapping>> Clone(
+      absl::optional_ref<const absl::flat_hash_map<Node*, Node*>>
+          original_node_to_clone) const override {
+    XLS_ASSIGN_OR_RETURN(Node * new_src, MapNode(src_, original_node_to_clone));
+    XLS_ASSIGN_OR_RETURN(Node * new_dst, MapNode(dst_, original_node_to_clone));
+    XLS_ASSIGN_OR_RETURN(Node * new_orig_dst,
+                         MapNode(orig_dst_, original_node_to_clone));
+    return std::make_unique<MulEquivalenceMapping>(
+        new_src, new_dst, tmp_package_, new_orig_dst, swap_operands_);
+  }
+
+  absl::StatusOr<bool> RequiresOperandTransformation() const override {
+    if (swap_operands_) {
+      return true;
+    }
+    return src_->operand(0)->BitCountOrDie() <
+               dst_->operand(0)->BitCountOrDie() ||
+           src_->operand(1)->BitCountOrDie() <
+               dst_->operand(1)->BitCountOrDie();
+  }
+
+  absl::StatusOr<bool> RequiresOutputTransformation() const override {
+    return src_->BitCountOrDie() < dst_->BitCountOrDie();
+  }
+
+  absl::StatusOr<std::vector<Node*>> ApplyToOperands(
+      FunctionBase* f, absl::Span<Node* const> src_operands) const override {
+    XLS_RET_CHECK_EQ(src_operands.size(), 2);
+    Node* op0 = src_operands[0];
+    Node* op1 = src_operands[1];
+    XLS_RET_CHECK(BothBitsTyped(op0, op1));
+    if (swap_operands_) {
+      std::swap(op0, op1);
+    }
+    Node* dst_lhs = dst_->operand(0);
+    Node* dst_rhs = dst_->operand(1);
+    XLS_RET_CHECK(BothBitsTyped(dst_lhs, dst_rhs));
+    Op ext_op = src_->op() == Op::kSMul ? Op::kSignExt : Op::kZeroExt;
+    XLS_ASSIGN_OR_RETURN(op0,
+                         ExtendIf(f, op0, dst_lhs->BitCountOrDie(), ext_op));
+    XLS_ASSIGN_OR_RETURN(op1,
+                         ExtendIf(f, op1, dst_rhs->BitCountOrDie(), ext_op));
+    return std::vector<Node*>{op0, op1};
+  }
+
+  absl::StatusOr<Node*> ApplyToOutput(FunctionBase* f,
+                                      Node* dst_output) const override {
+    XLS_RET_CHECK(BothBitsTyped(src_, dst_output));
+    XLS_RET_CHECK_LE(src_->BitCountOrDie(), dst_output->BitCountOrDie());
+    if (src_->BitCountOrDie() < dst_output->BitCountOrDie()) {
+      return f->MakeNode<BitSlice>(dst_output->loc(), dst_output,
+                                   /*start=*/0,
+                                   /*width=*/src_->BitCountOrDie());
+    }
+    return dst_output;
+  }
+
+  absl::StatusOr<double> EstimateAreaOverhead(
+      const AreaEstimator& area_estimator, absl::Span<Node* const> operands,
+      Node* output) const override {
+    if (dst_ != orig_dst_ && src_ != orig_dst_) {
+      XLS_ASSIGN_OR_RETURN(
+          double dst_area,
+          area_estimator.GetOperationAreaInSquareMicrons(dst_));
+      XLS_ASSIGN_OR_RETURN(
+          double orig_dst_area,
+          area_estimator.GetOperationAreaInSquareMicrons(orig_dst_));
+      return std::max(0.0, dst_area - orig_dst_area);
+    }
+    return 0.0;
+  }
+
+ private:
+  Node* orig_dst_;
+  bool swap_operands_;
+};
+
 // `CompareToArithEquivalenceMapping` handles folding comparison operations
 // into subtraction nodes then taking the msb.
 //
@@ -1005,6 +1226,7 @@ NodeEquivalenceMapper& GetNodeEquivalenceMapper() {
   [[maybe_unused]] static const bool initialized = [&] {
     m->Register<IdentityEquivalenceMapping>();
     m->Register<BitwidthExtendingEquivalenceMapping>();
+    m->Register<MulEquivalenceMapping>();
     m->Register<AddSubEquivalenceMapping>();
     m->Register<ComparatorEquivalenceMapping>();
     m->Register<CompareToArithEquivalenceMapping>();
