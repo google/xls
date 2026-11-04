@@ -442,17 +442,9 @@ class FunctionConverter {
   absl::StatusOr<std::vector<const NameDef*>> HandleForLexicalScope(
       const For* node, FunctionConverter& body_converter);
 
-  // Runs conversion on the body block of `node`, placing the built IR into
-  // `body_converter`.
-  //
-  // This encapsulates any token threading that has to happen if the body is
-  // implicit-token calling convention.
-  //
-  // Returns the `init` BValue (which is also appropriately adapted for the
-  // calling convention).
-  absl::StatusOr<BValue> HandleForBody(const For* node,
-                                       FunctionConverter& body_converter,
-                                       int64_t trip_count);
+  // Converts the loop body and returns its result, wrapping it with the token
+  // and activation predicate for the implicit-token calling convention.
+  absl::StatusOr<BValue> HandleForBody(const For* node);
 
   absl::Status HandleIndex(const Index* node);
   absl::Status HandleInvocation(const Invocation* node);
