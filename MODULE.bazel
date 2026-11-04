@@ -206,24 +206,24 @@ git_override(
 
 git_override(
     module_name = "openroad",
-    commit = "d046747ad39bfc5e032eb5c548ad8dfb441e228b",
+    commit = "ba3e120bb9f2b602641b4fe3e1491d2eea638806",
     init_submodules = True,
-    patch_strip = 1,
-    # Redirects OpenROAD's @slang placeholder repository path from "bazel" to "."
-    # to resolve the bzlmod dependency graph. We don't actually depend on the @slang alias.
-    patches = [
-        "//dependency_support/openroad:slang_path.patch",
-    ],
     remote = "https://github.com/The-OpenROAD-Project/OpenROAD.git",
 )
 
-# qt-bazel is a transitive dependency from OpenROAD (used for GUI support).
-# Since overrides are root-honored only in Bzlmod, we must mirror this override in
+# qt-bazel and sv-elab are transitive dependencies from OpenROAD.
+# Since overrides are root-honored only in Bzlmod, we must mirror these overrides in
 # our root MODULE.bazel so that Bzlmod can resolve the dependency graph.
 git_override(
     module_name = "qt-bazel",
-    commit = "886104974c2fd72439f2c33b5deebf0fe4649df7",
+    commit = "c3319f9e7735c67d47c7dfcc4a135bb91080f1a3",
     remote = "https://github.com/The-OpenROAD-Project/qt_bazel_prebuilts",
+)
+
+git_override(
+    module_name = "sv-elab",
+    commit = "3e152133b9c22b7883a6a03d483ed35e8c74aba5",
+    remote = "https://github.com/povik/sv-elab.git",
 )
 
 # TODO: mikex - Remove this override once fixed upstream in https://registry.bazel.build/modules/sv-lang.
