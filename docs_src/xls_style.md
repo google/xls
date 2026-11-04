@@ -137,6 +137,13 @@ in the XLS project, with the relevant Google style guides
     //   ...
     ```
 
+### Determinism
+
+-   Prefer "determinism by construction". Unless too difficult, prefer authoring
+    APIs accepting or returning collections with deterministic iteration order.
+    For example, prefer absl::btree_set (coupled with a deterministic comparer)
+    to absl::flat_hash_set.
+
 ### IR nodes
 
 #### Class Hierarchy and OOP Design
