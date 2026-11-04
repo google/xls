@@ -823,17 +823,20 @@ class ShiftEquivalenceMapping : public EquivalenceMapping {
     if (!bit_typed_two_op_shift(dst)) {
       return std::nullopt;
     }
+    bool has_cross_op_source = false;
     bool needs_msb_padding = false;
     int64_t target_shift_width = dst->operand(1)->BitCountOrDie();
     for (Node* src : sources) {
-      // We gain nothing by handling edge case where src and dst have same op.
-      if (!bit_typed_two_op_shift(src) || src->op() == dst->op()) {
+      if (!bit_typed_two_op_shift(src)) {
         return std::nullopt;
       }
       // Cannot shift a value that is a larger bit width.
       if (src->BitCountOrDie() > dst->BitCountOrDie() ||
           src->operand(0)->BitCountOrDie() > dst->operand(0)->BitCountOrDie()) {
         return std::nullopt;
+      }
+      if (src->op() != dst->op()) {
+        has_cross_op_source = true;
       }
       if (dst->op() == Op::kShra) {
         // The destination must be 0-padded if the source is not shra and the
@@ -849,23 +852,41 @@ class ShiftEquivalenceMapping : public EquivalenceMapping {
 
     bool needs_shift_amt_wider =
         target_shift_width > dst->operand(1)->BitCountOrDie();
-    bool needs_dst_wider = needs_msb_padding || needs_shift_amt_wider;
-
-    if (!needs_dst_wider) {
-      return ComputeMappingsSourcesToDest<ShiftEquivalenceMapping>(sources,
-                                                                   dst);
+    // Pure same-op groups without cross-op shifts or shift-amount widening are
+    // handled by Identity or BitwidthExtendingEquivalenceMapping.
+    if (!has_cross_op_source && !needs_shift_amt_wider) {
+      return std::nullopt;
     }
 
-    int64_t target_val_width =
-        dst->operand(0)->BitCountOrDie() + (needs_msb_padding ? 1 : 0);
-    XLS_ASSIGN_OR_RETURN(
-        (PackageAndNode p_and_dst),
-        CreateModifiedShiftPackage(dst, target_val_width, target_shift_width));
-    NodeToMappings mappings =
-        ComputeMappingsSourcesToDest<ShiftEquivalenceMapping>(
-            sources, p_and_dst.node, p_and_dst.package);
-    mappings[dst] = std::make_unique<BitwidthExtendingEquivalenceMapping>(
-        dst, p_and_dst.node, p_and_dst.package);
+    bool needs_dst_wider = needs_msb_padding || needs_shift_amt_wider;
+
+    Node* effective_dst = dst;
+    std::shared_ptr<Package> tmp_pkg = nullptr;
+    if (needs_dst_wider) {
+      int64_t target_val_width =
+          dst->operand(0)->BitCountOrDie() + (needs_msb_padding ? 1 : 0);
+      XLS_ASSIGN_OR_RETURN((PackageAndNode p_and_dst),
+                           CreateModifiedShiftPackage(dst, target_val_width,
+                                                      target_shift_width));
+      effective_dst = p_and_dst.node;
+      tmp_pkg = p_and_dst.package;
+    }
+
+    NodeToMappings mappings;
+    mappings.reserve(sources.size() + (needs_dst_wider ? 1 : 0));
+    for (Node* src : sources) {
+      if (src->op() == dst->op()) {
+        mappings[src] = std::make_unique<BitwidthExtendingEquivalenceMapping>(
+            src, effective_dst, tmp_pkg);
+      } else {
+        mappings[src] = std::make_unique<ShiftEquivalenceMapping>(
+            src, effective_dst, tmp_pkg);
+      }
+    }
+    if (needs_dst_wider) {
+      mappings[dst] = std::make_unique<BitwidthExtendingEquivalenceMapping>(
+          dst, effective_dst, tmp_pkg);
+    }
     return mappings;
   }
 
