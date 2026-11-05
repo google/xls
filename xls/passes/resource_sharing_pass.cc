@@ -17,6 +17,7 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <cstddef>
 #include <cstdint>
 #include <functional>
 #include <iterator>
@@ -284,21 +285,19 @@ ResourceSharingPass::ComputeMutualExclusionAnalysis(
   return mutual_exclusivity;
 }
 
-absl::StatusOr<std::unique_ptr<BinaryFoldingAction>>
-ResourceSharingPass::GetFoldableActionForMutuallyExclusiveNodes(
+namespace {
+
+struct ComputedVisibilityEdges {
+  FoldingAction::VisibilityEdges from_edges;
+  FoldingAction::VisibilityEdges to_edges;
+  absl::flat_hash_set<Node*> sinks;
+};
+
+absl::StatusOr<std::optional<ComputedVisibilityEdges>>
+ComputeVisibilityEdgesForMutuallyExclusiveNodes(
     Node* from_node, Node* to_node,
     const ResourceSharingPass::VisibilityAnalyses& visibility,
     int64_t max_edges_to_handle) {
-  // CanTarget and ShouldTarget have already been vetted, so all that is left
-  // is to see if the types and bit widths are compatible
-
-  XLS_ASSIGN_OR_RETURN(
-      std::optional<NodeToMappings> mappings,
-      GetNodeEquivalenceMapper().ComputeMappings({from_node}, to_node));
-  if (!mappings.has_value()) {
-    return nullptr;
-  }
-
   absl::flat_hash_set<OperandVisibilityAnalysis::OperandNode> from_edges;
   absl::flat_hash_set<OperandVisibilityAnalysis::OperandNode> to_edges;
   absl::flat_hash_set<Node*> sinks;
@@ -344,7 +343,7 @@ ResourceSharingPass::GetFoldableActionForMutuallyExclusiveNodes(
     // allows for. In this case, it isn't practical to fold.
     VLOG(4) << "Cannot determine visibility expression necessary to fold: "
             << from_node << " into: " << to_node;
-    return nullptr;
+    return std::nullopt;
   }
 
   // Ensure that none of the visibility edge nodes (the selectors) depend on
@@ -353,23 +352,109 @@ ResourceSharingPass::GetFoldableActionForMutuallyExclusiveNodes(
     if (visibility.nda->IsDependent(edge.node, from_node) ||
         visibility.nda->IsDependent(edge.node, to_node)) {
       VLOG(4) << "Visibility edge node depends on folded node: " << edge.node;
-      return nullptr;
+      return std::nullopt;
     }
   }
   for (const auto& edge : to_edges) {
     if (visibility.nda->IsDependent(edge.node, from_node) ||
         visibility.nda->IsDependent(edge.node, to_node)) {
       VLOG(4) << "Visibility edge node depends on folded node: " << edge.node;
-      return nullptr;
+      return std::nullopt;
     }
+  }
+
+  return ComputedVisibilityEdges{
+      .from_edges = std::move(from_edges),
+      .to_edges = std::move(to_edges),
+      .sinks = std::move(sinks),
+  };
+}
+
+}  // namespace
+
+absl::StatusOr<bool> ResourceSharingPass::PopulateVisibilityEdges(
+    BinaryFoldingAction* action, const VisibilityAnalyses& visibility,
+    int64_t max_edges_to_handle, const FoldingGraph* folding_graph) {
+  if (!action->GetFromVisibilityEdges().empty() &&
+      !action->GetToVisibilityEdges().empty()) {
+    return true;
+  }
+
+  XLS_ASSIGN_OR_RETURN(
+      std::optional<ComputedVisibilityEdges> computed,
+      ComputeVisibilityEdgesForMutuallyExclusiveNodes(
+          action->GetFrom(), action->GetTo(), visibility, max_edges_to_handle));
+  if (!computed.has_value()) {
+    return false;
+  }
+
+  if (folding_graph != nullptr) {
+    BinaryFoldingAction* reverse_action =
+        folding_graph->GetEdge(action->GetTo(), action->GetFrom());
+    if (reverse_action != nullptr &&
+        reverse_action->GetFromVisibilityEdges().empty()) {
+      reverse_action->SetVisibilityEdges(computed->to_edges,
+                                         computed->from_edges, computed->sinks);
+    }
+  }
+
+  action->SetVisibilityEdges(std::move(computed->from_edges),
+                             std::move(computed->to_edges),
+                             std::move(computed->sinks));
+  XLS_RET_CHECK(!action->GetFromVisibilityEdges().empty());
+  XLS_RET_CHECK(!action->GetToVisibilityEdges().empty());
+  return true;
+}
+
+absl::Status ResourceSharingPass::FilterCanPopulateVisibility(
+    std::vector<BinaryFoldingAction*>& folds,
+    const VisibilityAnalyses& visibility, int64_t max_edges_to_handle,
+    const FoldingGraph* folding_graph) {
+  std::vector<BinaryFoldingAction*> valid_folds;
+  valid_folds.reserve(folds.size());
+  for (BinaryFoldingAction* action : folds) {
+    XLS_ASSIGN_OR_RETURN(
+        bool has_valid_edges,
+        PopulateVisibilityEdges(action, visibility, max_edges_to_handle,
+                                folding_graph));
+    if (has_valid_edges) {
+      valid_folds.push_back(action);
+    }
+  }
+  folds = std::move(valid_folds);
+  return absl::OkStatus();
+}
+
+absl::StatusOr<std::unique_ptr<BinaryFoldingAction>>
+ResourceSharingPass::GetFoldableActionForMutuallyExclusiveNodes(
+    Node* from_node, Node* to_node,
+    const ResourceSharingPass::VisibilityAnalyses& visibility,
+    int64_t max_edges_to_handle) {
+  // CanTarget and ShouldTarget have already been vetted, so all that is left
+  // is to see if the types and bit widths are compatible
+
+  XLS_ASSIGN_OR_RETURN(
+      std::optional<NodeToMappings> mappings,
+      GetNodeEquivalenceMapper().ComputeMappings({from_node}, to_node));
+  if (!mappings.has_value()) {
+    return nullptr;
+  }
+
+  XLS_ASSIGN_OR_RETURN(
+      std::optional<ComputedVisibilityEdges> computed,
+      ComputeVisibilityEdgesForMutuallyExclusiveNodes(
+          from_node, to_node, visibility, max_edges_to_handle));
+  if (!computed.has_value()) {
+    return nullptr;
   }
 
   VLOG(4) << "Adding folding action: " << from_node << " into " << to_node;
   // Only n-ary foldings are evaluated with area saving thresholds, so we
   // defer computing area saved until then
   return std::make_unique<BinaryFoldingAction>(
-      from_node, to_node, std::move(from_edges), std::move(to_edges), 0.0,
-      std::move(*mappings), std::move(sinks));
+      from_node, to_node, std::move(computed->from_edges),
+      std::move(computed->to_edges), 0.0, std::move(*mappings),
+      std::move(computed->sinks));
 }
 
 absl::StatusOr<std::vector<std::unique_ptr<BinaryFoldingAction>>>
@@ -380,41 +465,26 @@ ResourceSharingPass::ComputeFoldableActions(
     const ResourceSharingPass::Config& config) {
   std::vector<std::unique_ptr<BinaryFoldingAction>> foldable_actions;
   for (const auto& [one_node, other_node] : mutual_exclusivity) {
+    // Defer visibility edge calculation until candidate selection: leave
+    // `from_edges`, `to_edges`, and `sinks` empty on each BinaryFoldingAction.
     XLS_ASSIGN_OR_RETURN(
-        std::unique_ptr<BinaryFoldingAction> fold_one_into_other,
-        GetFoldableActionForMutuallyExclusiveNodes(
-            one_node, other_node, visibility, config.max_edges_to_handle));
+        std::optional<NodeToMappings> mappings_one_to_other,
+        GetNodeEquivalenceMapper().ComputeMappings({one_node}, other_node));
+    XLS_ASSIGN_OR_RETURN(
+        std::optional<NodeToMappings> mappings_other_to_one,
+        GetNodeEquivalenceMapper().ComputeMappings({other_node}, one_node));
 
-    if (fold_one_into_other) {
-      // Directly construct the reverse folding action to avoid recomputing
-      // visibility expressions.
-      XLS_ASSIGN_OR_RETURN(
-          std::optional<NodeToMappings> mappings,
-          GetNodeEquivalenceMapper().ComputeMappings({other_node}, one_node));
-      if (mappings.has_value()) {
-        absl::flat_hash_set<Node*> reverse_sinks;
-        if (!fold_one_into_other->GetSinks().empty()) {
-          reverse_sinks = {
-              visibility.single_select.GetInfo(other_node)->select};
-        }
-        auto fold_other_into_one = std::make_unique<BinaryFoldingAction>(
-            other_node, one_node, fold_one_into_other->GetToVisibilityEdges(),
-            fold_one_into_other->GetFromVisibilityEdges(),
-            fold_one_into_other->area_saved(), std::move(*mappings),
-            std::move(reverse_sinks));
-        foldable_actions.push_back(std::move(fold_other_into_one));
-      }
-      foldable_actions.push_back(std::move(fold_one_into_other));
-      continue;
+    if (mappings_other_to_one.has_value()) {
+      foldable_actions.push_back(std::make_unique<BinaryFoldingAction>(
+          other_node, one_node, /*from_edges=*/FoldingAction::VisibilityEdges{},
+          /*to_edges=*/FoldingAction::VisibilityEdges{}, /*area_saved=*/0.0,
+          std::move(*mappings_other_to_one)));
     }
-
-    // There is no visibility to reuse, try folding in the other direction.
-    XLS_ASSIGN_OR_RETURN(
-        std::unique_ptr<BinaryFoldingAction> fold_other_into_one,
-        GetFoldableActionForMutuallyExclusiveNodes(
-            other_node, one_node, visibility, config.max_edges_to_handle));
-    if (fold_other_into_one) {
-      foldable_actions.push_back(std::move(fold_other_into_one));
+    if (mappings_one_to_other.has_value()) {
+      foldable_actions.push_back(std::make_unique<BinaryFoldingAction>(
+          one_node, other_node, /*from_edges=*/FoldingAction::VisibilityEdges{},
+          /*to_edges=*/FoldingAction::VisibilityEdges{}, /*area_saved=*/0.0,
+          std::move(*mappings_one_to_other)));
     }
   }
 
@@ -507,6 +577,7 @@ ResourceSharingPass::MakeNaryFoldingAction(
     // there is only one other node, we use the binary folding's edges.
     if (is_mut_excl_with_analysis(visibility.single_select) ||
         rest_of_others.size() == 1) {
+      XLS_RET_CHECK(!binary_folding->GetFromVisibilityEdges().empty());
       edges = binary_folding->GetFromVisibilityEdges();
       if (!edges.empty()) {
         sinks = binary_folding->GetSinks();
@@ -534,6 +605,7 @@ ResourceSharingPass::MakeNaryFoldingAction(
     }
   }
   XLS_RET_CHECK_GT(froms.size(), 0);
+  XLS_RET_CHECK(!subset_of_edges_to_n[0]->GetToVisibilityEdges().empty());
   std::unique_ptr<NaryFoldingAction> new_action =
       std::make_unique<NaryFoldingAction>(
           std::move(froms), subset_of_edges_to_n[0]->GetTo(),
@@ -588,6 +660,12 @@ SelectFoldingActionsBasedOnCliques(
       area_saved += binary_folding->area_saved();
     }
     absl::c_sort(folds, GreaterBitwidthComparator);
+
+    XLS_RETURN_IF_ERROR(ResourceSharingPass::FilterCanPopulateVisibility(
+        folds, visibility, config.max_edges_to_handle, folding_graph));
+    if (folds.empty()) {
+      continue;
+    }
 
     // Confirm equivalence mapping can handle the sources simultaneously.
     XLS_ASSIGN_OR_RETURN(
@@ -694,13 +772,20 @@ absl::StatusOr<NaryFoldEstimate> SelectSubsetOfFolds(
     const CriticalPathDelayAnalysis& critical_path_delay,
     VisibilityEstimator* visibility_estimator, double min_area,
     int64_t max_delay_spread, uint64_t max_delay_increase,
-    const ResourceSharingPass::Config& config) {
-  std::vector<BinaryFoldingAction*> subset_of_folds;
-  subset_of_folds.reserve(possible_folds.size());
-  double area_saved = 0;
-  double total_spread = 0;
-  int64_t max_selector_delay_increase = 0;
+    const ResourceSharingPass::Config& config,
+    const FoldingGraph& folding_graph,
+    const ResourceSharingPass::VisibilityAnalyses& visibility) {
+  struct CandidateFold {
+    BinaryFoldingAction* folding;
+    double ideal_area_saved;
+    double delay_spread;
+  };
+  std::vector<CandidateFold> candidates;
+  candidates.reserve(possible_folds.size());
   absl::flat_hash_map<Node*, std::vector<double>> dest_to_input_select_areas;
+
+  // Before visibility analysis: Filter binary candidates using upper bound area
+  // savings (zero selector overhead) and delay spread.
   for (BinaryFoldingAction* folding : possible_folds) {
     // Get the source of the binary folding
     Node* from = folding->GetFrom();
@@ -710,6 +795,11 @@ absl::StatusOr<NaryFoldEstimate> SelectSubsetOfFolds(
     XLS_ASSIGN_OR_RETURN(double area_of_from,
                          area_estimator.GetOperationAreaInSquareMicrons(from));
     VLOG(4) << "          Area of the source " << area_of_from;
+    if (area_of_from < min_area) {
+      VLOG(4) << "            Excluding the current source of the folding "
+                 "action because its raw area is below min_area";
+      continue;
+    }
 
     // Estimate the area overhead that will be paid to forward inputs of
     // the destination of the folding.
@@ -729,13 +819,6 @@ absl::StatusOr<NaryFoldEstimate> SelectSubsetOfFolds(
     }
     const std::vector<double>& area_input_select = it_cache->second;
 
-    // Estimate the area the selector takes up: all instructions that did not
-    // already exist in determining which source or destination is being used.
-    XLS_ASSIGN_OR_RETURN(
-        VisibilityEstimator::AreaDelay selector_cost,
-        visibility_estimator->GetAreaAndDelayOfVisibilityExpr(
-            folding->GetFrom(), folding->GetFromVisibilityEdges()));
-
     // Estimate the area overhead that will be paid to forward all inputs to
     // the destination of the current binary folding.
     double input_mux_overhead = 0.0;
@@ -745,7 +828,6 @@ absl::StatusOr<NaryFoldEstimate> SelectSubsetOfFolds(
         input_mux_overhead += area_input_select[op_idx];
       }
     }
-    double area_selects_overhead = input_mux_overhead + selector_cost.area;
 
     // Add overhead incurred by mapping operands and output
     // e.g. negation when folding between add/sub
@@ -754,10 +836,66 @@ absl::StatusOr<NaryFoldEstimate> SelectSubsetOfFolds(
     XLS_ASSIGN_OR_RETURN(double mapping_overhead,
                          it->second->EstimateAreaOverhead(
                              area_estimator, from->operands(), from));
-    double area_overhead = area_selects_overhead + mapping_overhead;
 
-    // Compute the net area saved
-    double area_saved_by_current_folding = area_of_from - area_overhead;
+    // Upper bound on area saved before accounting for selector area cost.
+    double ideal_area_saved =
+        area_of_from - (input_mux_overhead + mapping_overhead);
+    if (ideal_area_saved < min_area) {
+      VLOG(4) << "            Excluding the current source of the folding "
+                 "action because it does not generate enough benefits even "
+                 "without selector overhead";
+      continue;
+    }
+
+    double delay_spread = GetDelaySpread(folding, critical_path_delay);
+    if (delay_spread > max_delay_spread) {
+      VLOG(4) << "            Excluding the current source of the folding "
+                 "action because binary fold delay spread is too large: "
+              << delay_spread << " > " << max_delay_spread;
+      continue;
+    }
+
+    candidates.push_back(CandidateFold{
+        .folding = folding,
+        .ideal_area_saved = ideal_area_saved,
+        .delay_spread = delay_spread,
+    });
+  }
+
+  // After visibility analysis: evaluate selector area and total delay spread
+  // across the actual selected subset.
+  std::vector<BinaryFoldingAction*> subset_of_folds;
+  subset_of_folds.reserve(candidates.size());
+  double area_saved = 0;
+  double total_spread = 0;
+  int64_t max_selector_delay_increase = 0;
+  for (const CandidateFold& candidate : candidates) {
+    BinaryFoldingAction* folding = candidate.folding;
+    if (total_spread + candidate.delay_spread > max_delay_spread) {
+      VLOG(4) << "            Excluding the current source of the folding "
+                 "action because delay spread is too large: "
+              << total_spread + candidate.delay_spread << " > "
+              << max_delay_spread;
+      continue;
+    }
+
+    XLS_ASSIGN_OR_RETURN(
+        bool has_valid_edges,
+        ResourceSharingPass::PopulateVisibilityEdges(
+            folding, visibility, config.max_edges_to_handle, &folding_graph));
+    if (!has_valid_edges) {
+      continue;
+    }
+
+    // Estimate the area the selector takes up: all instructions that did not
+    // already exist in determining which source or destination is being used.
+    XLS_ASSIGN_OR_RETURN(
+        VisibilityEstimator::AreaDelay selector_cost,
+        visibility_estimator->GetAreaAndDelayOfVisibilityExpr(
+            folding->GetFrom(), folding->GetFromVisibilityEdges()));
+
+    double area_saved_by_current_folding =
+        candidate.ideal_area_saved - selector_cost.area;
     VLOG(4) << "          Potential area savings: "
             << area_saved_by_current_folding;
     if (area_saved_by_current_folding < min_area) {
@@ -766,14 +904,7 @@ absl::StatusOr<NaryFoldEstimate> SelectSubsetOfFolds(
       continue;
     }
 
-    double delay_spread = GetDelaySpread(folding, critical_path_delay);
-    if (total_spread + delay_spread > max_delay_spread) {
-      VLOG(4) << "            Excluding the current source of the folding "
-                 "action because delay spread is too large: "
-              << total_spread + delay_spread << " > " << max_delay_spread;
-      continue;
-    }
-    total_spread += delay_spread;
+    total_spread += candidate.delay_spread;
 
     uint64_t delay_increase =
         GetDelayIncrease(critical_path_delay, subset_of_folds, folding);
@@ -885,7 +1016,11 @@ ListOfAllFoldingActionsWithDestination(
                           critical_path_delay, visibility_estimator,
                           -std::numeric_limits<double>::infinity(),
                           std::numeric_limits<int64_t>::max(),
-                          std::numeric_limits<uint64_t>::max(), config));
+                          std::numeric_limits<uint64_t>::max(), config,
+                          *folding_graph, visibility));
+  if (estimate.folds.empty()) {
+    return potential_folding_actions_to_perform;
+  }
 
   // Create mappings for selected foldings. This is guaranteed to be valid
   // because the full subsets_of_edges_to_n was checked for compatibility.
@@ -999,11 +1134,11 @@ ListOfFoldingActionsWithDestination(
            "which will generate a profitable outcome";
     XLS_ASSIGN_OR_RETURN(
         NaryFoldEstimate estimate,
-        SelectSubsetOfFolds(subsets_of_edges_to_n[i], area_estimator,
-                            critical_path_delay, visibility_estimator,
-                            config.min_area_savings,
-                            config.max_delay_spread_squared,
-                            config.max_delay_increase_per_fold, config));
+        SelectSubsetOfFolds(
+            subsets_of_edges_to_n[i], area_estimator, critical_path_delay,
+            visibility_estimator, config.min_area_savings,
+            config.max_delay_spread_squared, config.max_delay_increase_per_fold,
+            config, *folding_graph, visibility));
 
     if (estimate.folds.empty()) {
       VLOG(4)
@@ -1442,6 +1577,15 @@ ResourceSharingPass::LegalizeBinaryFoldingActions(
   bool modified = false;
   std::vector<std::unique_ptr<NaryFoldingAction>> folding_actions_to_perform;
   for (auto& [to, edges_to_dest] : edges_selected_by_destination) {
+    size_t original_size = edges_to_dest.size();
+    XLS_RETURN_IF_ERROR(FilterCanPopulateVisibility(
+        edges_to_dest, visibility, config.max_edges_to_handle));
+    if (edges_to_dest.size() != original_size) {
+      modified = true;
+    }
+    if (edges_to_dest.empty()) {
+      continue;
+    }
     XLS_ASSIGN_OR_RETURN(std::optional<NodeToMappings> mappings,
                          CompatibleNaryMappings(edges_to_dest, mapper));
     if (!mappings.has_value()) {
@@ -1822,7 +1966,6 @@ SelectRandomlyFoldingActions(
   for (auto& [destination, indexes] : indexes_of_selected_edges) {
     XLS_RET_CHECK_GT(indexes.size(), 0);
 
-    NodeToMappings final_mappings;
     double area_saved = 0.0;
     for (uint64_t index : indexes) {
       // Fetch the edge
@@ -1837,15 +1980,22 @@ SelectRandomlyFoldingActions(
           ResourceSharingPass::CompatibleNaryMappings(folds, edge, eq_mapper));
       folds.push_back(edge);
       area_saved += edge->area_saved();
-      final_mappings = std::move(mappings.value());
     }
-    XLS_RET_CHECK_NE(folds.size(), 0);
+    XLS_RETURN_IF_ERROR(ResourceSharingPass::FilterCanPopulateVisibility(
+        folds, visibility, config.max_edges_to_handle, folding_graph));
+    if (folds.empty()) {
+      continue;
+    }
+    XLS_ASSIGN_OR_RETURN(
+        std::optional<NodeToMappings> final_mappings,
+        ResourceSharingPass::CompatibleNaryMappings(folds, eq_mapper));
+    XLS_RET_CHECK(final_mappings.has_value());
 
     // Create a single n-ary folding action
     std::unique_ptr<NaryFoldingAction> new_action;
     XLS_ASSIGN_OR_RETURN(new_action, ResourceSharingPass::MakeNaryFoldingAction(
                                          folds, area_saved, visibility,
-                                         std::move(final_mappings), config));
+                                         std::move(*final_mappings), config));
 
     // Add the new n-ary folding action to the list of actions to perform
     folding_actions_to_perform.push_back(std::move(new_action));

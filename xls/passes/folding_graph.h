@@ -102,6 +102,10 @@ class FoldingAction {
         area_saved_(area_saved),
         mappings_(std::move(mappings)) {}
 
+  void SetToVisibilityEdges(VisibilityEdges to_edges) {
+    to_edges_ = std::move(to_edges);
+  }
+
  private:
   Node* to_;
   VisibilityEdges to_edges_;
@@ -146,6 +150,13 @@ class BinaryFoldingAction : public FoldingAction {
   const VisibilityEdges& GetFromVisibilityEdges() const { return from_edges_; }
 
   const absl::flat_hash_set<Node*>& GetSinks() const { return sinks_; }
+
+  void SetVisibilityEdges(VisibilityEdges from_edges, VisibilityEdges to_edges,
+                          absl::flat_hash_set<Node*> sinks = {}) {
+    from_edges_ = std::move(from_edges);
+    sinks_ = std::move(sinks);
+    SetToVisibilityEdges(std::move(to_edges));
+  }
 
   std::string GetName() const {
     return absl::StrCat(from_->GetName(), "->", GetTo()->GetName());

@@ -425,6 +425,18 @@ class ResourceSharingPass : public OptimizationFunctionBasePass {
       absl::Span<BinaryFoldingAction* const> binary_folds,
       const NodeEquivalenceMapper& mapper);
 
+  // Populates `action`'s visibility edges if empty, also populating the reverse
+  // folding action in `folding_graph`. Returns true if visibility succeeded.
+  static absl::StatusOr<bool> PopulateVisibilityEdges(
+      BinaryFoldingAction* action, const VisibilityAnalyses& visibility,
+      int64_t max_edges_to_handle, const FoldingGraph* folding_graph = nullptr);
+
+  // Filters `edges` in place, keeping those whose visibility can be populated.
+  static absl::Status FilterCanPopulateVisibility(
+      std::vector<BinaryFoldingAction*>& folds,
+      const VisibilityAnalyses& visibility, int64_t max_edges_to_handle,
+      const FoldingGraph* folding_graph = nullptr);
+
   // MakeNaryFoldingActions creates a single n-ary folding action from as many
   // of the provided binary foldings as possible, given our understanding of the
   // visibility of these nodes. It is possible that one of the binary foldings
@@ -620,7 +632,9 @@ absl::StatusOr<NaryFoldEstimate> SelectSubsetOfFolds(
     const CriticalPathDelayAnalysis& critical_path_delay,
     VisibilityEstimator* visibility_estimator, double min_area,
     int64_t max_delay_spread, uint64_t max_delay_increase,
-    const ResourceSharingPass::Config& config);
+    const ResourceSharingPass::Config& config,
+    const FoldingGraph& folding_graph,
+    const ResourceSharingPass::VisibilityAnalyses& visibility);
 
 // Estimates the area of a negation operation for a node, typically used when
 // mapping between addition and subtraction during resource sharing.

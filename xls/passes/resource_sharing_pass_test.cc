@@ -517,6 +517,11 @@ TEST_F(ResourceSharingPassTest, SelectSubsetOfFoldsEachInputMuxEstimated) {
   VisibilityEstimator visibility_estimator(
       f->node_count(), &bdd_engine, nda, bpa, &area_estimator, delay_estimator);
 
+  XLS_ASSERT_OK_AND_ASSIGN(ResourceSharingPass::VisibilityAnalyses visibility,
+                           ResourceSharingPass::VisibilityAnalyses::Create(
+                               f, ResourceSharingPass::kDefaultConfig));
+  FoldingGraph folding_graph(f, {});
+
   // The shifted value is the same, so only the 6-bit shift amount needs muxing.
   absl::flat_hash_map<Node*, std::unique_ptr<EquivalenceMapping>> mappings;
   mappings[shift0.node()] = std::make_unique<IdentityEquivalenceMapping>(
@@ -526,6 +531,13 @@ TEST_F(ResourceSharingPassTest, SelectSubsetOfFoldsEachInputMuxEstimated) {
                            /*to_edges=*/FoldingAction::VisibilityEdges(),
                            /*area_saved=*/0.0, std::move(mappings));
   std::vector<BinaryFoldingAction*> folds = {&fold};
+  XLS_ASSERT_OK_AND_ASSIGN(
+      bool has_valid_edges,
+      ResourceSharingPass::PopulateVisibilityEdges(
+          &fold, visibility,
+          ResourceSharingPass::kDefaultConfig.max_edges_to_handle,
+          &folding_graph));
+  ASSERT_TRUE(has_valid_edges);
 
   XLS_ASSERT_OK_AND_ASSIGN(VisibilityEstimator::AreaDelay selector_cost,
                            visibility_estimator.GetAreaAndDelayOfVisibilityExpr(
@@ -544,7 +556,7 @@ TEST_F(ResourceSharingPassTest, SelectSubsetOfFoldsEachInputMuxEstimated) {
           /*min_area=*/expected_area_saved,
           /*max_delay_spread=*/std::numeric_limits<int64_t>::max(),
           /*max_delay_increase=*/std::numeric_limits<uint64_t>::max(),
-          ResourceSharingPass::kDefaultConfig));
+          ResourceSharingPass::kDefaultConfig, folding_graph, visibility));
   EXPECT_EQ(estimate_accepted.folds.size(), 1);
   EXPECT_DOUBLE_EQ(estimate_accepted.area_saved, expected_area_saved);
 
@@ -556,7 +568,7 @@ TEST_F(ResourceSharingPassTest, SelectSubsetOfFoldsEachInputMuxEstimated) {
           /*min_area=*/expected_area_saved + 1.0,
           /*max_delay_spread=*/std::numeric_limits<int64_t>::max(),
           /*max_delay_increase=*/std::numeric_limits<uint64_t>::max(),
-          ResourceSharingPass::kDefaultConfig));
+          ResourceSharingPass::kDefaultConfig, folding_graph, visibility));
   EXPECT_TRUE(estimate_rejected.folds.empty());
   EXPECT_DOUBLE_EQ(estimate_rejected.area_saved, 0.0);
 }

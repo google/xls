@@ -1512,6 +1512,10 @@ inline absl::StatusOr<bool> ApplyBinaryFoldings(
     std::vector<BinaryFoldingAction*> selected_folds, Function* f,
     const ResourceSharingPass::VisibilityAnalyses& visibilities) {
   XLS_RET_CHECK(!selected_folds.empty());
+  XLS_RETURN_IF_ERROR(ResourceSharingPass::FilterCanPopulateVisibility(
+      selected_folds, visibilities,
+      ResourceSharingPass::kDefaultConfig.max_edges_to_handle));
+  XLS_RET_CHECK(!selected_folds.empty());
   std::vector<Node*> sources;
   sources.reserve(selected_folds.size());
   for (const auto& fold : selected_folds) {
