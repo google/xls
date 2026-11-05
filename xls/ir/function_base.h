@@ -391,6 +391,29 @@ class FunctionBase {
     return node_name_uniquer_.GetSanitizedUniqueName(name);
   }
 
+  // If `name` is a currently-registered uniquified node name, returns the
+  // sanitized name that was originally requested when `name` was generated.
+  // Otherwise returns `std::nullopt`.
+  std::optional<std::string> GetOriginalNodeName(std::string_view name) const {
+    return node_name_uniquer_.GetOriginalName(name);
+  }
+
+  // Returns true if `name` is not currently in use in the function's node name
+  // uniquer.
+  bool IsNodeNameAvailable(std::string_view name) const {
+    return node_name_uniquer_.IsNameAvailable(name);
+  }
+
+  // Attempts to reclaim the unqualified (originally requested) name for `name`
+  // when `name` was uniquified. If the originally requested name is now
+  // available in the function's node name uniquer, reclaims it, releases
+  // `name`, and returns the reclaimed name; otherwise leaves `name` unchanged
+  // and returns `std::nullopt`.
+  absl::StatusOr<std::optional<std::string>> TryReclaimUnqualifiedNodeName(
+      std::string_view name) {
+    return node_name_uniquer_.TryReclaimUnqualifiedName(name);
+  }
+
   // Returns whether this FunctionBase is a function, proc, or block.
   bool IsFunction() const { return kind() == Kind::kFunction; }
   bool IsProc() const { return kind() == Kind::kProc; }

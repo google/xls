@@ -39,6 +39,7 @@
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
 #include "xls/ir/package.h"
+#include "xls/ir/source_location.h"
 #include "xls/ir/value.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/pass_base.h"
@@ -459,6 +460,25 @@ TEST_F(OptimizationPipelineTest, ArrayUpdateOptimizationsConverge) {
   fb.Tuple({p0, lit_array, array_update0, array_index, array_update1});
   XLS_ASSERT_OK(fb.Build().status());
   DefaultPipelineFinishes(std::move(p));
+}
+
+TEST_F(OptimizationPipelineTest,
+       PromotesUniquifiedNameWhenCollidingNodeEliminated) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetBitsType(32));
+  BValue y = fb.Param("y", p->GetBitsType(32));
+  // Dead node takes the name "sum".
+  BValue dead_sum = fb.Add(x, y, SourceInfo(), "sum");
+  // Live return value requests "sum" and initially gets "sum__1".
+  BValue live_sum = fb.Add(x, fb.Literal(UBits(1, 32)), SourceInfo(), "sum");
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(live_sum));
+
+  EXPECT_EQ(dead_sum.node()->GetName(), "sum");
+  EXPECT_EQ(f->return_value()->GetName(), "sum__1");
+
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_EQ(f->return_value()->GetName(), "sum");
 }
 
 }  // namespace

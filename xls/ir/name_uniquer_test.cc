@@ -14,6 +14,9 @@
 
 #include "xls/ir/name_uniquer.h"
 
+#include <optional>
+#include <string>
+
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/status/status_matchers.h"
@@ -22,7 +25,9 @@ namespace xls {
 namespace {
 
 using absl_testing::IsOk;
+using absl_testing::IsOkAndHolds;
 using testing::Not;
+using testing::Optional;
 
 TEST(NameUniquerTest, SimpleUniquer) {
   NameUniquer uniquer("__");
@@ -191,6 +196,98 @@ TEST(NameUniquerTest, ReleaseIdentifier) {
   EXPECT_THAT(uniquer.ReleaseIdentifier("dne__1"), Not(IsOk()));
   // This fails because foo__123 was never generated.
   EXPECT_THAT(uniquer.ReleaseIdentifier("foo__123"), Not(IsOk()));
+}
+
+TEST(NameUniquerTest, TrackOriginalNames) {
+  NameUniquer uniquer("__", {"res1"});
+
+  // Bare names that do not collide are not uniquified.
+  EXPECT_EQ("foo", uniquer.GetSanitizedUniqueName("foo"));
+  EXPECT_EQ(uniquer.GetOriginalName("foo"), std::nullopt);
+  EXPECT_FALSE(uniquer.IsNameAvailable("foo"));
+  EXPECT_TRUE(uniquer.IsNameAvailable("foo__1"));
+
+  // Colliding bare names record "foo" as the original name.
+  EXPECT_EQ("foo__1", uniquer.GetSanitizedUniqueName("foo"));
+  EXPECT_EQ("foo__2", uniquer.GetSanitizedUniqueName("foo"));
+  EXPECT_THAT(uniquer.GetOriginalName("foo__1"), Optional(std::string("foo")));
+  EXPECT_THAT(uniquer.GetOriginalName("foo__2"), Optional(std::string("foo")));
+
+  // Directly requested suffixed names that are available are not uniquified.
+  EXPECT_EQ("bar__3", uniquer.GetSanitizedUniqueName("bar__3"));
+  EXPECT_EQ(uniquer.GetOriginalName("bar__3"), std::nullopt);
+  EXPECT_TRUE(uniquer.IsNameAvailable("bar"));
+  EXPECT_FALSE(uniquer.IsNameAvailable("bar__3"));
+
+  // Colliding suffixed names record the requested suffixed name ("bar__3").
+  EXPECT_EQ("bar__1", uniquer.GetSanitizedUniqueName("bar__3"));
+  EXPECT_THAT(uniquer.GetOriginalName("bar__1"),
+              Optional(std::string("bar__3")));
+
+  // Sanitized and reserved names record the sanitized original name.
+  EXPECT_EQ("_res1", uniquer.GetSanitizedUniqueName("res1"));
+  EXPECT_EQ("_res1__1", uniquer.GetSanitizedUniqueName("res1"));
+  EXPECT_EQ(uniquer.GetOriginalName("_res1"), std::nullopt);
+  EXPECT_THAT(uniquer.GetOriginalName("_res1__1"),
+              Optional(std::string("_res1")));
+
+  // Empty and suffix-only names use "name" as root.
+  EXPECT_EQ("name", uniquer.GetSanitizedUniqueName(""));
+  EXPECT_EQ("name__1", uniquer.GetSanitizedUniqueName(""));
+  EXPECT_THAT(uniquer.GetOriginalName("name__1"),
+              Optional(std::string("name")));
+
+  // Releasing a uniquified identifier clears its original name entry.
+  EXPECT_THAT(uniquer.ReleaseIdentifier("foo__1"), IsOk());
+  EXPECT_EQ(uniquer.GetOriginalName("foo__1"), std::nullopt);
+  EXPECT_TRUE(uniquer.IsNameAvailable("foo__1"));
+
+  // Reset clears all tracked state.
+  uniquer.Reset();
+  EXPECT_EQ(uniquer.GetOriginalName("foo__2"), std::nullopt);
+  EXPECT_TRUE(uniquer.IsNameAvailable("foo"));
+}
+
+TEST(NameUniquerTest, TryReclaimUnqualifiedName) {
+  NameUniquer uniquer("__");
+
+  EXPECT_EQ("foo", uniquer.GetSanitizedUniqueName("foo"));
+  EXPECT_EQ("foo__1", uniquer.GetSanitizedUniqueName("foo"));
+  EXPECT_EQ("foo__2", uniquer.GetSanitizedUniqueName("foo"));
+  // Request "foo__1" while it is taken by the second "foo" -> gets "foo__3".
+  EXPECT_EQ("foo__3", uniquer.GetSanitizedUniqueName("foo__1"));
+
+  // While "foo" is still taken, neither "foo" nor "foo__1" can be reclaimed.
+  EXPECT_THAT(uniquer.TryReclaimUnqualifiedName("foo"),
+              IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(uniquer.TryReclaimUnqualifiedName("foo__1"),
+              IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(uniquer.TryReclaimUnqualifiedName("foo__3"),
+              IsOkAndHolds(std::nullopt));
+
+  // Release "foo". Now "foo__1" can reclaim "foo".
+  EXPECT_THAT(uniquer.ReleaseIdentifier("foo"), IsOk());
+  EXPECT_THAT(uniquer.TryReclaimUnqualifiedName("foo__1"),
+              IsOkAndHolds(Optional(std::string("foo"))));
+  EXPECT_FALSE(uniquer.IsNameAvailable("foo"));
+  EXPECT_TRUE(uniquer.IsNameAvailable("foo__1"));
+  EXPECT_EQ(uniquer.GetOriginalName("foo"), std::nullopt);
+
+  // "foo" is now taken by the promoted node, so "foo__2" cannot reclaim it.
+  EXPECT_THAT(uniquer.TryReclaimUnqualifiedName("foo__2"),
+              IsOkAndHolds(std::nullopt));
+
+  // Because "foo__1" was freed when it reclaimed "foo", "foo__3" (which
+  // originally requested "foo__1") can now reclaim "foo__1"!
+  EXPECT_THAT(uniquer.TryReclaimUnqualifiedName("foo__3"),
+              IsOkAndHolds(Optional(std::string("foo__1"))));
+  EXPECT_FALSE(uniquer.IsNameAvailable("foo__1"));
+  EXPECT_TRUE(uniquer.IsNameAvailable("foo__3"));
+  EXPECT_EQ(uniquer.GetOriginalName("foo__1"), std::nullopt);
+
+  // Reclaiming an unregistered identifier returns an error.
+  EXPECT_THAT(uniquer.TryReclaimUnqualifiedName("foo__3"), Not(IsOk()));
+  EXPECT_THAT(uniquer.TryReclaimUnqualifiedName("dne"), Not(IsOk()));
 }
 
 }  // namespace
