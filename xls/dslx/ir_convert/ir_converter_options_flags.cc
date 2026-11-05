@@ -48,6 +48,9 @@ ABSL_FLAG(
 
 ABSL_RETIRED_FLAG(bool, emit_fail_as_assert, true,
                   "Use --emit_assert instead.");
+ABSL_FLAG(
+    bool, emit_positions, true,
+    "Feature flag for emitting positions in the DSL as an positions IR op.");
 ABSL_FLAG(bool, emit_assert, true,
           "Feature flag for emitting fail!() and assert!() in the DSL as an "
           "assert IR op.");
@@ -153,6 +156,7 @@ absl::StatusOr<bool> SetOptionsFromFlags(IrConverterOptionsFlagsProto& proto) {
   POPULATE_FLAG_IF_SPECIFIED(lower_to_proc_scoped_channels);
   POPULATE_FLAG(force_implicit_token_calling_convention);
   POPULATE_REPEATED_FLAG(configured_values);
+  POPULATE_FLAG(emit_positions);
   POPULATE_FLAG(emit_assert);
   POPULATE_FLAG(emit_trace);
   POPULATE_FLAG(emit_cover);

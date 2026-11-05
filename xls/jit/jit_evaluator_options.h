@@ -89,6 +89,14 @@ class JitEvaluatorOptions {
   }
   bool enable_llvm_coverage() const { return enable_llvm_coverage_; }
 
+  JitEvaluatorOptions& set_max_trace_verbosity(int64_t value) {
+    max_trace_verbosity_ = value;
+    return *this;
+  }
+  int64_t max_trace_verbosity() const {
+    return max_trace_verbosity_;
+  }
+
  private:
   int64_t opt_level_ = LlvmCompiler::kDefaultOptLevel;
   std::string symbol_salt_;
@@ -98,6 +106,7 @@ class JitEvaluatorOptions {
   bool generate_skeleton_ = false;
   bool generate_only_unopt_llvm_ir_ = false;
   bool enable_llvm_coverage_ = false;
+  int64_t max_trace_verbosity_ = 0;
 };
 
 }  // namespace xls

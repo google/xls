@@ -212,6 +212,10 @@ class FunctionJit {
     return absl::OkStatus();
   }
   bool SupportsObservers() const { return has_observer_callbacks_; }
+  void SetMaxTraceVerbosity(int64_t value) { max_trace_verbosity_ = value; }
+  int64_t max_trace_verbosity() const {
+    return max_trace_verbosity_;
+  }
 
  private:
   struct InterfaceMetadata {
@@ -234,13 +238,15 @@ class FunctionJit {
   FunctionJit(InterfaceMetadata&& metadata, std::unique_ptr<OrcJit>&& orc_jit,
               JittedFunctionBase&& jitted_function_base,
               bool has_observer_callbacks,
-              std::unique_ptr<JitRuntime>&& runtime)
+              std::unique_ptr<JitRuntime>&& runtime,
+              int64_t max_trace_verbosity = 0)
       : metadata_(std::move(metadata)),
         orc_jit_(std::move(orc_jit)),
         jitted_function_base_(std::move(jitted_function_base)),
         arg_buffers_(jitted_function_base_.CreateInputBuffer()),
         result_buffers_(jitted_function_base_.CreateOutputBuffer()),
         temp_buffer_(jitted_function_base_.CreateTempBuffer()),
+        max_trace_verbosity_(max_trace_verbosity),
         jit_runtime_(std::move(runtime)),
         has_observer_callbacks_(has_observer_callbacks) {}
 
@@ -319,8 +325,11 @@ class FunctionJit {
   // thread safe.
   JitTempBuffer temp_buffer_;
 
+  int64_t max_trace_verbosity_ = 0;
+
   // Context callbacks.
-  InstanceContext callbacks_ = InstanceContext::CreateForFunc();
+  InstanceContext callbacks_ =
+      InstanceContext::CreateForFunc(max_trace_verbosity_);
 
   std::unique_ptr<JitRuntime> jit_runtime_;
 

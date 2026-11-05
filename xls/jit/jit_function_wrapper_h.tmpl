@@ -12,7 +12,8 @@ namespace {{ wrapped.namespace }} {
 
 class {{ wrapped.class_name }} final : public xls::BaseFunctionJitWrapper {
  public:
-  static absl::StatusOr<std::unique_ptr<{{ wrapped.class_name }}>> Create();
+  static absl::StatusOr<std::unique_ptr<{{ wrapped.class_name }}>> Create(
+    const xls::EvaluatorOptions& options = xls::EvaluatorOptions());
 
   absl::StatusOr<xls::Value> Run(
     {{ wrapped.params | map(attribute="value_arg") | join(", ") }});

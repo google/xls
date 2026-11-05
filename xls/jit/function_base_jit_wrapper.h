@@ -79,7 +79,8 @@ class BaseFunctionJitWrapper {
   static absl::StatusOr<std::unique_ptr<RealType>> Create(
       std::string_view function_name,
       absl::Span<uint8_t const> aot_entrypoints_proto_bin,
-      JitFunctionType unpacked_entrypoint, JitFunctionType packed_entrypoint)
+      JitFunctionType unpacked_entrypoint, JitFunctionType packed_entrypoint,
+      const EvaluatorOptions& options)
     requires(std::is_base_of_v<BaseFunctionJitWrapper, RealType>)
   {
     AotPackageEntrypointsProto proto;
@@ -92,9 +93,10 @@ class BaseFunctionJitWrapper {
     const AotEntrypointProto& entrypoint_proto = proto.entrypoint(0);
     XLS_RET_CHECK_EQ(entrypoint_proto.type(), AotEntrypointProto::FUNCTION);
     XLS_RET_CHECK(entrypoint_proto.has_function_metadata());
-    XLS_ASSIGN_OR_RETURN(auto jit, FunctionJit::CreateFromAot(
-                                       proto.entrypoint(0), proto.data_layout(),
-                                       unpacked_entrypoint, packed_entrypoint));
+    XLS_ASSIGN_OR_RETURN(auto jit,
+                         FunctionJit::CreateFromAot(
+                             proto.entrypoint(0), proto.data_layout(),
+                             unpacked_entrypoint, packed_entrypoint, options));
 
     auto res = std::unique_ptr<RealType>(
         new RealType(std::move(jit),
