@@ -421,7 +421,7 @@ class FunctionConverter {
   // for loop, e.g. when we have a pattern like: `for (i, accum) in 1..10` this
   // handles the `ivar` named `i`.
   absl::StatusOr<BValue> HandleRangedForInductionVariable(
-      const For* node, FunctionConverter& body_converter,
+      bool has_offset, FunctionConverter& body_converter,
       const PatternTree& ivar);
 
   // Helpers that adds a parameter for the loop carried accumulator value.
