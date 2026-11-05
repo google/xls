@@ -206,14 +206,8 @@ git_override(
 
 git_override(
     module_name = "openroad",
-    commit = "d046747ad39bfc5e032eb5c548ad8dfb441e228b",
+    commit = "80a6c68e15351faf64a33f63ed03a3f5acfbc2a3",
     init_submodules = True,
-    patch_strip = 1,
-    # Redirects OpenROAD's @slang placeholder repository path from "bazel" to "."
-    # to resolve the bzlmod dependency graph. We don't actually depend on the @slang alias.
-    patches = [
-        "//dependency_support/openroad:slang_path.patch",
-    ],
     remote = "https://github.com/The-OpenROAD-Project/OpenROAD.git",
 )
 
@@ -222,7 +216,7 @@ git_override(
 # our root MODULE.bazel so that Bzlmod can resolve the dependency graph.
 git_override(
     module_name = "qt-bazel",
-    commit = "886104974c2fd72439f2c33b5deebf0fe4649df7",
+    commit = "c3319f9e7735c67d47c7dfcc4a135bb91080f1a3",
     remote = "https://github.com/The-OpenROAD-Project/qt_bazel_prebuilts",
 )
 
@@ -265,24 +259,12 @@ single_version_override(
     version = "33.5",
 )
 
-# Force all Boost sub-modules to use the same ABI-compatible version (1.89.0.bcr.2).
-# This is required because sv-lang transitively requests boost.unordered 1.87.0
-# (compatibility level 108700), while OpenROAD requests 1.89.0.bcr.2 (compatibility
-# level 0). Bzlmod's Minimal Version Selection cannot automatically resolve this
-# compatibility level mismatch.
+# fuzztest@20260629.0 depends on flatbuffers@25.12.19, whose MODULE.bazel passes
+# the removed root_package attribute to aspect_rules_js@3.5.1 npm_translate_lock.
+# flatbuffers@25.12.19.bcr.1 removes that attribute.
 single_version_override(
-    module_name = "boost.unordered",
-    version = "1.89.0.bcr.2",
-)
-
-single_version_override(
-    module_name = "boost.multiprecision",
-    version = "1.89.0.bcr.2",
-)
-
-single_version_override(
-    module_name = "boost.serialization",
-    version = "1.89.0.bcr.2",
+    module_name = "flatbuffers",
+    version = "25.12.19.bcr.1",
 )
 
 # Dev dependencies
@@ -317,8 +299,8 @@ single_version_override(
 )
 
 single_version_override(
-    module_name = "m4",
-    version = "1.4.21.bcr.4",
+    module_name = "readline",
+    version = "8.3.bcr.1",
 )
 
 single_version_override(
