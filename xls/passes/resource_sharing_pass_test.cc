@@ -527,9 +527,10 @@ TEST_F(ResourceSharingPassTest, SelectSubsetOfFoldsEachInputMuxEstimated) {
                            /*area_saved=*/0.0, std::move(mappings));
   std::vector<BinaryFoldingAction*> folds = {&fold};
 
-  XLS_ASSERT_OK_AND_ASSIGN(VisibilityEstimator::AreaDelay selector_cost,
-                           visibility_estimator.GetAreaAndDelayOfVisibilityExpr(
-                               fold.GetFrom(), fold.GetFromVisibilityEdges()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      VisibilityEstimator::AreaDelay selector_cost,
+      visibility_estimator.GetAreaAndDelayOfVisibilityExpr(
+          fold.GetFrom(), fold.GetFromVisibilityEdges(), fold.GetSinks()));
   XLS_ASSERT_OK_AND_ASSIGN(
       double area_shift0,
       area_estimator.GetOperationAreaInSquareMicrons(shift0.node()));

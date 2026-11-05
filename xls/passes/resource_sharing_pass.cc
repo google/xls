@@ -734,7 +734,8 @@ absl::StatusOr<NaryFoldEstimate> SelectSubsetOfFolds(
     XLS_ASSIGN_OR_RETURN(
         VisibilityEstimator::AreaDelay selector_cost,
         visibility_estimator->GetAreaAndDelayOfVisibilityExpr(
-            folding->GetFrom(), folding->GetFromVisibilityEdges()));
+            folding->GetFrom(), folding->GetFromVisibilityEdges(),
+            folding->GetSinks()));
 
     // Estimate the area overhead that will be paid to forward all inputs to
     // the destination of the current binary folding.

@@ -5504,6 +5504,7 @@ cc_test(
         "//xls/ir:ir_test_base",
         "//xls/ir:op",
         "//xls/visualization:math_notation",
+        "@abseil-cpp//absl/container:flat_hash_set",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/status:statusor",
         "@googletest//:gtest",

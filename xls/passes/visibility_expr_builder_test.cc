@@ -21,6 +21,7 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/container/flat_hash_set.h"
 #include "absl/log/log.h"
 #include "absl/status/statusor.h"
 #include "xls/common/status/matchers.h"
@@ -52,9 +53,9 @@ namespace {
 class VisibilityExprBuilderTest : public IrTestBase {
  protected:
   absl::StatusOr<std::pair<Node*, VisibilityEstimator::AreaDelay>>
-  BuildDefaultVisibilityExpr(
-      Function* f, Node* node,
-      std::vector<Node*> mutually_exclusive_requirements) {
+  BuildDefaultVisibilityExpr(Function* f, Node* node,
+                             std::vector<Node*> mutually_exclusive_requirements,
+                             const absl::flat_hash_set<Node*>& sinks = {}) {
     NodeForwardDependencyAnalysis nda;
     XLS_RETURN_IF_ERROR(nda.Attach(f).status());
     LazyPostDominatorAnalysis post_dom;
@@ -82,12 +83,11 @@ class VisibilityExprBuilderTest : public IrTestBase {
     BitProvenanceAnalysis bpa;
     VisibilityEstimator estimator(last_node_id, bdd_engine.get(), nda, bpa, ae,
                                   de);
-    XLS_ASSIGN_OR_RETURN(
-        Node * expr, estimator.BuildVisibilityIRExpr(f, node, conditional_edges,
-                                                     /*sinks=*/{}));
-    XLS_ASSIGN_OR_RETURN(
-        auto area_delay,
-        estimator.GetAreaAndDelayOfVisibilityExpr(node, conditional_edges));
+    XLS_ASSIGN_OR_RETURN(Node * expr, estimator.BuildVisibilityIRExpr(
+                                          f, node, conditional_edges, sinks));
+    XLS_ASSIGN_OR_RETURN(auto area_delay,
+                         estimator.GetAreaAndDelayOfVisibilityExpr(
+                             node, conditional_edges, sinks));
     return std::make_pair(expr, area_delay);
   }
 };
@@ -928,6 +928,33 @@ TEST_F(VisibilityExprBuilderTest,
                                f, x.node(), conditional_edges, /*sinks=*/{}));
   EXPECT_THAT(unconstrained_expr,
               m::Or(m::Param("y1"), m::And(m::Param("y2"), m::Param("a"))));
+}
+
+TEST_F(VisibilityExprBuilderTest,
+       GetAreaAndDelayOfVisibilityExprRespectsSinks) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* u1 = p->GetBitsType(1);
+  Type* u32 = p->GetBitsType(32);
+  BValue x = fb.Param("x", u32);
+  BValue y = fb.Param("y", u32);
+  BValue s0 = fb.Param("s0", u1);
+  BValue s1 = fb.Param("s1", u1);
+  BValue inner_sel = fb.Select(s0, {y, x});
+  BValue outer_sel = fb.Select(s1, {y, inner_sel});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(outer_sel));
+
+  std::pair<Node*, VisibilityEstimator::AreaDelay> without_sinks;
+  XLS_ASSERT_OK_AND_ASSIGN(without_sinks,
+                           BuildDefaultVisibilityExpr(f, x.node(), {y.node()}));
+
+  std::pair<Node*, VisibilityEstimator::AreaDelay> with_sink;
+  XLS_ASSERT_OK_AND_ASSIGN(
+      with_sink,
+      BuildDefaultVisibilityExpr(f, x.node(), {y.node()}, {inner_sel.node()}));
+
+  EXPECT_LT(with_sink.second.area, without_sinks.second.area);
+  EXPECT_LT(with_sink.second.delay, without_sinks.second.delay);
 }
 
 }  // namespace
