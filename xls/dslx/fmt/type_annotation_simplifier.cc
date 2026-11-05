@@ -460,9 +460,15 @@ class TypeAnnotationSimplifier : public Formatter {
   DocRef FormatExpr(const Expr& n, bool suppress_parens) override {
     // Apply any per-expression `type_inferred` override registered by an
     // enclosing AST node handler.
+    std::optional<ScopedContext> scoped;
     if (auto it = expr_overrides_.find(&n); it != expr_overrides_.end()) {
-      ScopedContext scoped(*this, it->second.type_inferred);
-      return Formatter::FormatExpr(n, suppress_parens);
+      scoped.emplace(*this, it->second.type_inferred);
+    }
+    // Drop parentheses surrounding a `type_annotation:literal` expression iff
+    // its type annotation is dropped.
+    if (const auto* num = dynamic_cast<const Number*>(&n);
+        num != nullptr && ShouldDropTypeAnnotation(*num)) {
+      suppress_parens = true;
     }
     return Formatter::FormatExpr(n, suppress_parens);
   }
@@ -484,8 +490,7 @@ class TypeAnnotationSimplifier : public Formatter {
       num_text = arena().MakeText(n.text());
     }
 
-    if (n.type_annotation() != nullptr && !type_inferred_ &&
-        n.number_kind() != NumberKind::kBool) {
+    if (n.type_annotation() != nullptr && !ShouldDropTypeAnnotation(n)) {
       return ConcatNGroup(arena(), {FormatTypeAnnotation(*n.type_annotation()),
                                     arena().colon(), num_text});
     }
@@ -822,6 +827,11 @@ class TypeAnnotationSimplifier : public Formatter {
   }
 
  private:
+  bool ShouldDropTypeAnnotation(const Number& n) const {
+    return n.type_annotation() != nullptr &&
+           (type_inferred_ || n.number_kind() == NumberKind::kBool);
+  }
+
   // Finds the module in `type_info_` which is the version of `n` before any
   // cloning after type inference.
   std::optional<const Module*> FindOriginalModule(const Module& n) const {

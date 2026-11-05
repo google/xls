@@ -267,6 +267,10 @@ pub const TYPED_SUM: u32 = u32:1 + u32:2;
 pub const SHIFT_BOTH_LITERALS = u32:1 << u32:2;
 pub const SHIFT_IN_TYPED_DECL: u32 = u32:1 << u32:2;
 pub const SHIFT_NON_LITERAL_LHS = ADDR_W << u32:2;
+pub const PAREN_TYPED_LIT_DROPPED = ADDR_W & !(u32:1);
+pub const PAREN_TYPED_LIT_KEPT = !(u32:1);
+pub const PAREN_UNTYPED_LIT_KEPT = ADDR_W & !(1);
+pub const PAREN_BINOP_KEPT = ADDR_W & !(u32:1 + u32:2);
 
 const_assert!((u32:1 << (ADDR_W / u32:2)) <= u32:32);
 )";
@@ -279,6 +283,10 @@ pub const TYPED_SUM: u32 = 1 + 2;
 pub const SHIFT_BOTH_LITERALS = u32:1 << 2;
 pub const SHIFT_IN_TYPED_DECL: u32 = u32:1 << 2;
 pub const SHIFT_NON_LITERAL_LHS = ADDR_W << 2;
+pub const PAREN_TYPED_LIT_DROPPED = ADDR_W & !1;
+pub const PAREN_TYPED_LIT_KEPT = !(u32:1);
+pub const PAREN_UNTYPED_LIT_KEPT = ADDR_W & !(1);
+pub const PAREN_BINOP_KEPT = ADDR_W & !(1 + 2);
 
 const_assert!((u32:1 << (ADDR_W / 2)) <= 32);
 )";
