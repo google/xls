@@ -366,6 +366,16 @@ struct xls_dslx_type_info* xls_dslx_typechecked_module_get_type_info(
   return reinterpret_cast<xls_dslx_type_info*>(cpp_type_info);
 }
 
+struct xls_dslx_module* xls_dslx_type_info_get_imported_module(
+    struct xls_dslx_type_info* type_info, struct xls_dslx_import* import) {
+  auto* cpp_type_info = reinterpret_cast<xls::dslx::TypeInfo*>(type_info);
+  auto* cpp_import = reinterpret_cast<xls::dslx::Import*>(import);
+  auto imported = cpp_type_info->GetImported(cpp_import);
+  return imported.has_value()
+             ? reinterpret_cast<xls_dslx_module*>(imported->module)
+             : nullptr;
+}
+
 struct xls_dslx_type_info* xls_dslx_type_info_get_imported_type_info(
     struct xls_dslx_type_info* type_info, struct xls_dslx_module* module) {
   auto* cpp_type_info = reinterpret_cast<xls::dslx::TypeInfo*>(type_info);
