@@ -672,8 +672,18 @@ TYPED_TEST_P(ResourceSharingPassTestBase, NotPossibleFolding3) {
   // Create the function
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(select));
 
-  // We expect the transformation to be not applicable
-  EXPECT_THAT(this->Run(f), IsOkAndHolds(false));
+  // Mixed-sign 32x32->32 SMul and UMul can be shared via MulEquivalenceMapping.
+  EXPECT_THAT(this->Run(f), IsOkAndHolds(true));
+  EXPECT_EQ(NumberOfMultiplications(f), 1);
+
+  InterpretAndCheck(f, {1, 0, 0, 2, 3}, 5);
+  InterpretAndCheck(f, {0, -2, -3, 0, 0}, 6);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      InterpreterResult<Value> neg_res,
+      InterpretFunction(
+          f, {Value(UBits(0, 32)), Value(SBits(-2, 32)), Value(UBits(3, 32)),
+              Value(UBits(0, 32)), Value(UBits(0, 32))}));
+  EXPECT_EQ(neg_res.value, Value(SBits(-6, 32)));
 }
 
 TYPED_TEST_P(ResourceSharingPassTestBase, NotPossibleFolding4) {
