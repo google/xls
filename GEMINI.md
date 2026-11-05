@@ -1,35 +1,45 @@
-## XLS (Accelerated Hardware Synthesis)
+# XLS (Accelerated Hardware Synthesis)
 
-This file provides a context for the XLS project.
+This file provides context and agent instructions for the XLS project.
 
-**Core Information:**
+## Overview & Repository Layout
 
-*   **What is XLS:** XLS is a 'Mid-Level' Synthesis toolchain for hardware
-    development. It is similar and has some of the same goals as High-level
-    Synthesis (HLS) tools however it operates at a generally lower level. It
-    aims to improve development velocity, quality, reliability, and security.
-*   **Open Source:** The core XLS toolchain and base libraries are open-sourced
-    under an Apache2 license and hosted on GitHub at
-    [https://github.com/google/xls](https://github.com/google/xls). The open
-    source documentation is at
-    [https://google.github.io/xls/](https://google.github.io/xls/).
-*   **Bugs:** Public bugs are tracked on
+*   **What is XLS:** XLS is a "Mid-Level" Synthesis toolchain for hardware
+    development. It shares goals with High-Level Synthesis (HLS) tools but
+    operates at a lower level to improve development velocity, quality,
+    reliability, and security.
+*   **Open-Source Repository:** The core XLS toolchain and base libraries are
+    open-sourced under the Apache 2.0 license at
+    [https://github.com/google/xls](https://github.com/google/xls) with
+    documentation at
+    [https://google.github.io/xls/](https://google.github.io/xls/) (see
+    `README.md` for directory layout and `CONTRIBUTING.md` for contribution
+    guidelines).
+*   **Bug Tracking:** Public bugs are tracked on
     [GitHub Issues](https://github.com/google/xls/issues).
 
-**Style Guides:**
+## Building, Testing & Development Workflow
 
-*   **Google C++ Style Guide:** Always follow the Google C++ Style Guide
-    (https://google.github.io/styleguide/cppguide.html) for all C++ code. This
-    is the authoritative style guide.
-*   **Other Google Style Guides:** Follow other relevant Google style guides for
-    other languages (e.g., https://google.github.io/styleguide/pyguide.html for
-    Python, https://google.github.io/styleguide/shellguide.html for shell
-    scripts).
-*   **XLS Style Guide:** In cases where the Google style guides are ambiguous or
-    do not cover a specific situation, consult the XLS Style Guide
-    (https://google.github.io/xls/style_guide, `docs_src/xls_style.md`) for
-    additional guidance. However, the Google style guides always take
-    precedence.
+*   **Build Tool:** Use `bazelisk` (or `bazel`) for building and testing the
+    open-source repository (configured in `.bazelrc`, with optional local
+    overrides in `user.bazelrc`; see `docs_src/build_system.md` and
+    `docs_src/bazel_rules_macros.md`).
+*   **CI & Testing:** GitHub Actions runs continuous integration for the
+    open-source repository (`.github/workflows/`).
+*   **Closing GitHub Issues:** Use keywords like `Fixes google/xls#NNN` in the
+    commit message.
+
+## Style Guides & Code Conventions
+
+*   **Google Style Guides (Authoritative):** Always follow the Google C++ Style
+    Guide (https://google.github.io/styleguide/cppguide.html) for C++ and the
+    corresponding Google style guides for other languages (e.g.,
+    https://google.github.io/styleguide/pyguide.html for Python,
+    https://google.github.io/styleguide/shellguide.html for shell scripts).
+    Google style guides always take precedence.
+*   **XLS Style Guide:** Where Google style guides are ambiguous or silent,
+    follow the XLS Style Guide (https://google.github.io/xls/xls_style/,
+    `docs_src/xls_style.md`).
 *   **Optional Non-Owning References (`absl::optional_ref`):** Use
     `absl::optional_ref<T>` instead of `std::optional<T*>` (or nullable `T*`)
     when passing or returning an optional non-owning reference to a type that is
@@ -48,21 +58,12 @@ This file provides a context for the XLS project.
         `absl::optional_ref` and `std::optional` variables; name variables after
         their underlying value or role.
 
-**Development Workflow:**
+## Documentation
 
-*   **Build Tool:** Use `bazelisk` for building and testing the open source
-    version.
-*   To close GitHub issues, use keywords like `Fixes google/xls#NNN` in the
-    commit message.
-
-**Testing:**
-
-*   **GitHub Actions:** CI for the open-source repo.
-
-**Documentation:**
-
-*   Docs are in `docs_src` and rendered with `mkdocs` at
+*   **Locations:** Documentation sources live in `docs_src/` and are rendered
+    with `mkdocs` (`mkdocs.yml`) at
     [https://google.github.io/xls/](https://google.github.io/xls/).
-*   Documentation on DSLX (the standard XLS frontend language) can be found at
-    `docs_src/dslx_reference.md` and `docs_src/dslx_std.md`, along with some
-    useful tutorials under `docs_src/tutorials/`.
+*   **DSLX Reference & Tutorials:** Documentation for DSLX (the XLS frontend
+    language) is at `docs_src/dslx_reference.md` and `docs_src/dslx_std.md`,
+    with tutorials under `docs_src/tutorials/` (in particular,
+    `docs_src/tutorials/what_is_a_proc.md` for DSLX procs).
