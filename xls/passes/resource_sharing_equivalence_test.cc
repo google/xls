@@ -1410,5 +1410,121 @@ TEST_F(ResourceSharingEquivalenceTest,
   }
 }
 
+TEST_F(ResourceSharingEquivalenceTest,
+       ShiftEquivalenceMappingMixedNarySameAndCrossOp) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetBitsType(8));
+  BValue s3 = fb.Param("s3", p->GetBitsType(3));
+  BValue s8 = fb.Param("s8", p->GetBitsType(8));
+
+  BValue shll_s3 = fb.Shll(x, s3);
+  BValue shrl_s3 = fb.Shrl(x, s3);
+  BValue shra_s3 = fb.Shra(x, s3);
+  BValue shll_s8 = fb.Shll(x, s8);
+  BValue shrl_s8 = fb.Shrl(x, s8);
+  BValue shra_s8 = fb.Shra(x, s8);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(shra_s8));
+  FakeAreaEstimator area_estimator;
+
+  // Mixed N-ary group targeting shra_s8: includes same-op shra_s3 alongside
+  // cross-op shll/shrl sources.
+  {
+    std::vector<Node*> sources = {shll_s3.node(), shrl_s3.node(),
+                                  shra_s3.node(), shll_s8.node(),
+                                  shrl_s8.node()};
+    XLS_ASSERT_OK_AND_ASSIGN(
+        std::optional<NodeToMappings> mappings,
+        GetNodeEquivalenceMapper().ComputeMappings(sources, shra_s8.node()));
+    ASSERT_TRUE(mappings.has_value());
+
+    // Same-op source shra_s3 must map via BitwidthExtendingEquivalenceMapping
+    // (0 XOR overhead, SignExt on value, ZeroExt on shift amount).
+    const EquivalenceMapping& same_op_map = *mappings->at(shra_s3.node());
+    EXPECT_EQ(same_op_map.dst()->op(), Op::kShra);
+    EXPECT_EQ(same_op_map.dst()->operand(0)->BitCountOrDie(), 9);
+    EXPECT_EQ(same_op_map.dst()->operand(1)->BitCountOrDie(), 8);
+    XLS_ASSERT_OK_AND_ASSIGN(
+        double same_op_overhead,
+        same_op_map.EstimateAreaOverhead(
+            area_estimator, shra_s3.node()->operands(), shra_s3.node()));
+    EXPECT_EQ(same_op_overhead, 0.0);
+    XLS_ASSERT_OK_AND_ASSIGN(
+        std::vector<Node*> coerced_shra_s3,
+        same_op_map.ApplyToOperands(f, shra_s3.node()->operands()));
+    EXPECT_THAT(coerced_shra_s3, ElementsAre(m::SignExt(m::Param("x")),
+                                             m::ZeroExt(m::Param("s3"))));
+
+    // Verify formal equivalence for every source and the widened dst.
+    std::vector<Node*> all_nodes = sources;
+    all_nodes.push_back(shra_s8.node());
+    for (Node* n : all_nodes) {
+      const EquivalenceMapping& mapping = *mappings->at(n);
+      XLS_ASSERT_OK(f->set_return_value(n));
+      ScopedVerifyEquivalence sve(f);
+      XLS_ASSERT_OK_AND_ASSIGN(std::vector<Node*> coerced,
+                               mapping.ApplyToOperands(f, n->operands()));
+      XLS_ASSERT_OK_AND_ASSIGN(Node * unified,
+                               mapping.dst()->CloneInNewFunction(coerced, f));
+      XLS_ASSERT_OK_AND_ASSIGN(Node * out, mapping.ApplyToOutput(f, unified));
+      XLS_ASSERT_OK(f->set_return_value(out));
+    }
+  }
+
+  // Same-op wider shift-amount binary edge {shra_s8} -> shra_s3 and full mixed
+  // N-ary group {shll_s3, shrl_s3, shll_s8, shrl_s8, shra_s8} -> shra_s3.
+  {
+    XLS_ASSERT_OK_AND_ASSIGN(std::optional<NodeToMappings> binary_mappings,
+                             GetNodeEquivalenceMapper().ComputeMappings(
+                                 {shra_s8.node()}, shra_s3.node()));
+    ASSERT_TRUE(binary_mappings.has_value());
+    EXPECT_EQ(binary_mappings->at(shra_s8.node())->dst()->op(), Op::kShra);
+    EXPECT_EQ(
+        binary_mappings->at(shra_s8.node())->dst()->operand(0)->BitCountOrDie(),
+        8);
+    EXPECT_EQ(
+        binary_mappings->at(shra_s8.node())->dst()->operand(1)->BitCountOrDie(),
+        8);
+    for (Node* n : {shra_s8.node(), shra_s3.node()}) {
+      const EquivalenceMapping& mapping = *binary_mappings->at(n);
+      XLS_ASSERT_OK(f->set_return_value(n));
+      ScopedVerifyEquivalence sve(f);
+      XLS_ASSERT_OK_AND_ASSIGN(std::vector<Node*> coerced,
+                               mapping.ApplyToOperands(f, n->operands()));
+      XLS_ASSERT_OK_AND_ASSIGN(Node * unified,
+                               mapping.dst()->CloneInNewFunction(coerced, f));
+      XLS_ASSERT_OK_AND_ASSIGN(Node * out, mapping.ApplyToOutput(f, unified));
+      XLS_ASSERT_OK(f->set_return_value(out));
+    }
+
+    std::vector<Node*> sources = {shll_s3.node(), shrl_s3.node(),
+                                  shll_s8.node(), shrl_s8.node(),
+                                  shra_s8.node()};
+    XLS_ASSERT_OK_AND_ASSIGN(
+        std::optional<NodeToMappings> mappings,
+        GetNodeEquivalenceMapper().ComputeMappings(sources, shra_s3.node()));
+    ASSERT_TRUE(mappings.has_value());
+    EXPECT_EQ(mappings->at(shra_s8.node())->dst()->op(), Op::kShra);
+    EXPECT_EQ(mappings->at(shra_s8.node())->dst()->operand(0)->BitCountOrDie(),
+              9);
+    EXPECT_EQ(mappings->at(shra_s8.node())->dst()->operand(1)->BitCountOrDie(),
+              8);
+
+    std::vector<Node*> all_nodes = sources;
+    all_nodes.push_back(shra_s3.node());
+    for (Node* n : all_nodes) {
+      const EquivalenceMapping& mapping = *mappings->at(n);
+      XLS_ASSERT_OK(f->set_return_value(n));
+      ScopedVerifyEquivalence sve(f);
+      XLS_ASSERT_OK_AND_ASSIGN(std::vector<Node*> coerced,
+                               mapping.ApplyToOperands(f, n->operands()));
+      XLS_ASSERT_OK_AND_ASSIGN(Node * unified,
+                               mapping.dst()->CloneInNewFunction(coerced, f));
+      XLS_ASSERT_OK_AND_ASSIGN(Node * out, mapping.ApplyToOutput(f, unified));
+      XLS_ASSERT_OK(f->set_return_value(out));
+    }
+  }
+}
+
 }  // namespace
 }  // namespace xls
