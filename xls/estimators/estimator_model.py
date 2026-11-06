@@ -15,9 +15,9 @@
 # pylint: disable=g-long-lambda
 """Estimator model for XLS operations.
 
-The estimator model estimates a metric (e.g., latency) of XLS operations when
-synthesized in hardware. The estimator model can both generates C++ code to
-compute the metric as well as provide metric estimates in Python.
+The estimator model estimates a metric (e.g., latency or area) of XLS operations
+when synthesized in hardware, and compiles fitted model parameters into a
+CompiledEstimatorModel protobuf for C++ evaluation.
 """
 
 import abc
@@ -81,28 +81,15 @@ class Estimator(metaclass=abc.ABCMeta):
     self.metric = metric
 
   @abc.abstractmethod
-  def cpp_estimation_code(self, node_identifier: str) -> str:
-    """Returns the sequence of C++ statements which compute the metric.
-
-    Args:
-      node_identifier: The string identifier of the Node* value whose metric is
-        being estimated.
-
-    Returns:
-      Sequence of C++ statements to compute the metric. In C++ code, the metric
-        should be returned as an int64_t for delay, and double for area.
-      For example, a C++ code for delay could be written as follows,
-
-        if (node->BitCountOrDie() == 1) { return 0; }
-        return 2 * node->operand_count();
-    """
-    raise NotImplementedError
-
-  @abc.abstractmethod
   def operation_estimation(
       self, operation: estimator_model_pb2.Operation
   ) -> Union[int, float]:
     """Returns the estimated metric for the given operation."""
+    raise NotImplementedError
+
+  @abc.abstractmethod
+  def to_compiled_proto(self) -> estimator_model_pb2.CompiledEstimator:
+    """Returns a CompiledEstimator proto representing this estimator."""
     raise NotImplementedError
 
 
@@ -113,13 +100,13 @@ class FixedEstimator(Estimator):
     super().__init__(op, metric)
     self.constant = constant
 
-  def cpp_estimation_code(self, node_identifier: str) -> str:
-    return 'return {};'.format(self.constant)
-
   def operation_estimation(
       self, operation: estimator_model_pb2.Operation
   ) -> Union[int, float]:
     return self.constant
+
+  def to_compiled_proto(self) -> estimator_model_pb2.CompiledEstimator:
+    return estimator_model_pb2.CompiledEstimator(fixed=int(self.constant))
 
 
 class AliasEstimator(Estimator):
@@ -135,23 +122,13 @@ class AliasEstimator(Estimator):
     super().__init__(op, metric)
     self.aliased_op = aliased_op
 
-  def cpp_estimation_code(self, node_identifier: str) -> str:
-    aliased_op_name = self.aliased_op.lstrip('k')
-    if self.metric == Metric.DELAY_METRIC:
-      metric_name = 'Delay'
-    elif self.metric == Metric.AREA_METRIC:
-      metric_name = 'Area'
-    else:
-      raise NotImplementedError(
-          'OpModel.cpp_estimation_function_name for metric'
-          f' "{self.metric}" is not supported!'
-      )
-    return f'return {aliased_op_name}{metric_name}({node_identifier});'
-
   def operation_estimation(
       self, operation: estimator_model_pb2.Operation
   ) -> Union[int, float]:
     raise NotImplementedError
+
+  def to_compiled_proto(self) -> estimator_model_pb2.CompiledEstimator:
+    return estimator_model_pb2.CompiledEstimator(alias_op=self.aliased_op)
 
 
 def estimator_factor_description(
@@ -255,87 +232,6 @@ def _operation_estimator_expression(
 
   assert expression.HasField('constant')
   return expression.constant
-
-
-def _estimator_factor_cpp_expression(
-    factor: estimator_model_pb2.EstimatorFactor, node_identifier: str
-) -> str:
-  """Returns a C++ expression which computes a estimator factor of an XLS Node*.
-
-  Args:
-    factor: The estimator factor to extract.
-    node_identifier: The identifier of the xls::Node* to extract the factor
-      from.
-
-  Returns:
-    C++ expression computing the estimator factor of a node. For example, if
-    the estimator factor is OPERAND_COUNT, the method might return:
-    'node->operand_count()'.
-  """
-  e = estimator_model_pb2.EstimatorFactor.Source
-  return {
-      e.RESULT_BIT_COUNT: lambda: '{}->GetType()->GetFlatBitCount()'.format(
-          node_identifier
-      ),
-      e.OPERAND_BIT_COUNT: lambda: (
-          '{}->operand({})->GetType()->GetFlatBitCount()'.format(
-              node_identifier, factor.operand_number
-          )
-      ),
-      e.OPERAND_COUNT: lambda: '{}->operand_count()'.format(node_identifier),
-      e.OPERAND_ELEMENT_COUNT: lambda: (
-          '{}->operand({})->GetType()->AsArrayOrDie()->size()'.format(
-              node_identifier, factor.operand_number
-          )
-      ),
-      e.OPERAND_ELEMENT_BIT_COUNT: lambda: '{}->operand({})->GetType()->AsArrayOrDie()->element_type()->GetFlatBitCount()'.format(
-          node_identifier, factor.operand_number
-      ),
-  }[factor.source]()
-
-
-def _estimator_expression_cpp_expression(
-    expression: estimator_model_pb2.EstimatorExpression, node_identifier: str
-) -> str:
-  """Returns a C++ expression which computes an estimator expression of an XLS Node*.
-
-  Args:
-    expression: The expression to extract.
-    node_identifier: The identifier of the xls::Node* to extract the factor
-      from.
-
-  Returns:
-    C++ expression computing the estimator expression of a node.
-  """
-  if expression.HasField('bin_op'):
-    assert expression.HasField('lhs_expression')
-    assert expression.HasField('rhs_expression')
-    lhs_value = _estimator_expression_cpp_expression(
-        expression.lhs_expression, node_identifier
-    )
-    rhs_value = _estimator_expression_cpp_expression(
-        expression.rhs_expression, node_identifier
-    )
-    e = estimator_model_pb2.EstimatorExpression.BinaryOperation
-    return {
-        e.ADD: lambda: '({} + {})'.format(lhs_value, rhs_value),
-        e.DIVIDE: lambda: '({lhs} / ({rhs} < 1.0 ? 1.0 : {rhs}))'.format(
-            lhs=lhs_value, rhs=rhs_value
-        ),
-        e.MAX: lambda: 'std::max({}, {})'.format(lhs_value, rhs_value),
-        e.MIN: lambda: 'std::min({}, {})'.format(lhs_value, rhs_value),
-        e.MULTIPLY: lambda: '({} * {})'.format(lhs_value, rhs_value),
-        e.POWER: lambda: 'pow({}, {})'.format(lhs_value, rhs_value),
-        e.SUB: lambda: '({} - {})'.format(lhs_value, rhs_value),
-    }[expression.bin_op]()
-
-  if expression.HasField('factor'):
-    return 'static_cast<float>({})'.format(
-        _estimator_factor_cpp_expression(expression.factor, node_identifier)
-    )
-
-  assert expression.HasField('constant')
-  return 'static_cast<float>({})'.format(expression.constant)
 
 
 @dataclasses.dataclass
@@ -616,26 +512,20 @@ class RegressionEstimator(Estimator):
     """Returns the estimation with estimator expressions passed in as floats."""
     return self.estimator_function(xargs)
 
-  def cpp_estimation_code(self, node_identifier: str) -> str:
-    terms = [repr(float(self.params[0]))]
-    for i, expression in enumerate(self.estimator_expressions):
-      e_str = _estimator_expression_cpp_expression(expression, node_identifier)
-      terms.append('{!r} * {}'.format(float(self.params[2 * i + 1]), e_str))
-      terms.append(
-          '{w!r} * std::log2(std::max(1.0, static_cast<double>({e})))'.format(
-              w=float(self.params[2 * i + 2]), e=e_str
-          )
-      )
-    terms_str = ' + '.join(terms)
-    if self.metric == Metric.DELAY_METRIC:
-      return f'return std::round({terms_str});'
-    elif self.metric == Metric.AREA_METRIC:
-      return f'return {terms_str};'
-    else:
-      raise NotImplementedError(
-          f'RegressionEstimator.cpp_estimation_code for metric "{self.metric}"'
-          ' is not supported!'
-      )
+  def to_compiled_proto(self) -> estimator_model_pb2.CompiledEstimator:
+    return estimator_model_pb2.CompiledEstimator(
+        regression=estimator_model_pb2.CompiledEstimator.Regression(
+            constant=float(self.params[0]),
+            terms=[
+                estimator_model_pb2.CompiledEstimator.Regression.Term(
+                    expression=expression,
+                    linear=float(self.params[2 * i + 1]),
+                    log2=float(self.params[2 * i + 2]),
+                )
+                for i, expression in enumerate(self.estimator_expressions)
+            ],
+        )
+    )
 
 
 class AreaRegressionEstimator(RegressionEstimator):
@@ -750,32 +640,23 @@ class AreaRegressionEstimator(RegressionEstimator):
 
     return f, params.flatten()
 
-  def cpp_estimation_code(self, node_identifier: str) -> str:
+  def to_compiled_proto(self) -> estimator_model_pb2.CompiledEstimator:
     num_expressions = len(self.estimator_expressions)
-    terms = [repr(float(self.params[0]))]
-    for i, expression in enumerate(self.estimator_expressions):
-      expression_str = _estimator_expression_cpp_expression(
-          expression, node_identifier
-      )
-      x_square_coeff = float(self.params[num_expressions * 0 + 1 + i])
-      x_logx_coeff = float(self.params[num_expressions * 1 + 1 + i])
-      x_coeff = float(self.params[num_expressions * 2 + 1 + i])
-      logx_coeff = float(self.params[num_expressions * 3 + 1 + i])
-      terms.append(
-          f'{repr(x_square_coeff)} * {expression_str} * {expression_str}'
-      )
-      terms.append(
-          f'{repr(x_logx_coeff)} * {expression_str} *'
-          f' std::log2(std::max(1.0, static_cast<double>({expression_str})))'
-      )
-      terms.append(f'{repr(x_coeff)} * {expression_str}')
-      terms.append(
-          f'{repr(logx_coeff)} * std::log2(std::max(1.0,'
-          f' static_cast<double>({expression_str})))'
-      )
-
-    terms_str = ' + '.join(terms)
-    return f'return {terms_str};'
+    return estimator_model_pb2.CompiledEstimator(
+        area_regression=estimator_model_pb2.CompiledEstimator.AreaRegression(
+            constant=float(self.params[0]),
+            terms=[
+                estimator_model_pb2.CompiledEstimator.AreaRegression.Term(
+                    expression=expression,
+                    square=float(self.params[num_expressions * 0 + 1 + i]),
+                    linear_log2=float(self.params[num_expressions * 1 + 1 + i]),
+                    linear=float(self.params[num_expressions * 2 + 1 + i]),
+                    log2=float(self.params[num_expressions * 3 + 1 + i]),
+                )
+                for i, expression in enumerate(self.estimator_expressions)
+            ],
+        )
+    )
 
 
 class BoundingBoxEstimator(Estimator):
@@ -801,31 +682,6 @@ class BoundingBoxEstimator(Estimator):
           RawDataPoint.from_data_point_proto(metric, dp, factors)
       )
 
-  def cpp_estimation_code(self, node_identifier: str) -> str:
-    lines = []
-    for raw_data_point in self.raw_data_points:
-      test_expr_terms = []
-      for i, x_value in enumerate(raw_data_point.factors):
-        test_expr_terms.append(
-            '%s <= %d'
-            % (
-                _estimator_factor_cpp_expression(
-                    self.estimator_factors[i], node_identifier
-                ),
-                x_value,
-            )
-        )
-      lines.append(
-          'if (%s) { return %d; }'
-          % (' && '.join(test_expr_terms), raw_data_point.measurement)
-      )
-    lines.append(
-        'return absl::UnimplementedError('
-        f'"Unhandled node for {str(self.metric.value)} estimation: " '
-        '+ {}->ToStringWithOperandTypes());'.format(node_identifier)
-    )
-    return '\n'.join(lines)
-
   def operation_estimation(
       self, operation: estimator_model_pb2.Operation
   ) -> Union[int, float]:
@@ -842,6 +698,41 @@ class BoundingBoxEstimator(Estimator):
       if all(a <= b for (a, b) in zip(xargs, x_values)):
         return raw_data_point.measurement
     raise Error('Operation outside bounding box')
+
+  def to_compiled_proto(self) -> estimator_model_pb2.CompiledEstimator:
+    points = []
+    for dp in self.raw_data_points:
+      bounds = [
+          estimator_model_pb2.CompiledEstimator.BoundingBox.FactorBound(
+              factor=factor,
+              max_value=int(max_val),
+          )
+          for factor, max_val in zip(self.estimator_factors, dp.factors)
+      ]
+      if self.metric == Metric.DELAY_METRIC:
+        points.append(
+            estimator_model_pb2.CompiledEstimator.BoundingBox.Point(
+                bounds=bounds,
+                delay_ps=int(dp.measurement),
+            )
+        )
+      elif self.metric == Metric.AREA_METRIC:
+        points.append(
+            estimator_model_pb2.CompiledEstimator.BoundingBox.Point(
+                bounds=bounds,
+                area_sq_microns=float(dp.measurement),
+            )
+        )
+      else:
+        raise NotImplementedError(
+            f'BoundingBoxEstimator.to_compiled_proto for metric "{self.metric}"'
+            ' is not supported!'
+        )
+    return estimator_model_pb2.CompiledEstimator(
+        bounding_box=estimator_model_pb2.CompiledEstimator.BoundingBox(
+            points=points,
+        )
+    )
 
 
 class LogicalEffortEstimator(Estimator):
@@ -866,19 +757,12 @@ class LogicalEffortEstimator(Estimator):
   ) -> Union[int, float]:
     raise NotImplementedError
 
-  def cpp_estimation_code(self, node_identifier: str) -> str:
-    lines = []
-    lines.append(
-        'absl::StatusOr<int64_t> delay_in_ps = '
-        'DelayEstimator::GetLogicalEffortDelayInPs({}, {});'.format(
-            node_identifier, self.tau_in_ps
+  def to_compiled_proto(self) -> estimator_model_pb2.CompiledEstimator:
+    return estimator_model_pb2.CompiledEstimator(
+        logical_effort=estimator_model_pb2.LogicalEffortEstimator(
+            tau_in_ps=self.tau_in_ps
         )
     )
-    lines.append('if (delay_in_ps.ok()) {')
-    lines.append('  return delay_in_ps.value();')
-    lines.append('}')
-    lines.append('return delay_in_ps.status();')
-    return '\n'.join(lines)
 
 
 def _estimator_from_proto(
@@ -1038,99 +922,28 @@ class OpModel:
         self.op, self.metric, proto.estimator, data_points
     )
 
-  def cpp_estimation_function(self) -> str:
-    """Return a C++ function which estimates a metric for an operation."""
-    metric_return_type = {
-        Metric.DELAY_METRIC: 'int64_t',
-        Metric.AREA_METRIC: 'double',
-    }[self.metric]
-
-    lines = []
-    lines.append(
-        f'absl::StatusOr<{metric_return_type}>'
-        f' {self.cpp_estimation_function_name()}(Node* node) {{'
-    )
-    nonliteral_operands_tracked = False
+  def to_compiled_proto(self) -> estimator_model_pb2.CompiledOpModel:
+    """Returns a CompiledOpModel proto representing this OpModel."""
+    specializations = []
     for (kind, details), estimator in self.specializations.items():
-      if kind == estimator_model_pb2.SpecializationKind.OPERANDS_IDENTICAL:
-        cond = (
-            'std::all_of(node->operands().begin(), node->operands().end(), '
-            '[&](Node* n) { return n == node->operand(0); })'
+      spec = estimator_model_pb2.CompiledOpModel.Specialization(
+          kind=kind,
+          estimator=estimator.to_compiled_proto(),
+      )
+      if details and details.literal_operand_details:
+        lit_details = details.literal_operand_details
+        spec.details.literal_operand_details.allowed_nonliteral_operand.extend(
+            sorted(lit_details.allowed_nonliteral_operands)
         )
-      elif kind == estimator_model_pb2.SpecializationKind.HAS_LITERAL_OPERAND:
-        cond = (
-            'std::any_of(node->operands().begin(), node->operands().end(), '
-            '[](Node* n) { return n->Is<Literal>(); })'
+        spec.details.literal_operand_details.required_literal_operand.extend(
+            sorted(lit_details.required_literal_operands)
         )
-        if details and details.literal_operand_details:
-          literal_operand_details = details.literal_operand_details
-          if literal_operand_details.required_literal_operands:
-            cond = ' && '.join([
-                f'node->operand({i})->Is<Literal>()'
-                for i in literal_operand_details.required_literal_operands
-            ])
-          if literal_operand_details.allowed_nonliteral_operands:
-            if not nonliteral_operands_tracked:
-              lines.extend([
-                  (
-                      f'absl::flat_hash_set<{metric_return_type}>'
-                      ' nonliteral_operands;'
-                  ),
-                  'for (int64_t i = 0; i < node->operands().size(); ++i) {',
-                  '  if (!node->operand(i)->Is<Literal>()) { ',
-                  '    nonliteral_operands.insert(i);',
-                  '  }',
-                  '}',
-              ])
-              nonliteral_operands_tracked = True
-            cond += (
-                ' && std::all_of('
-                'nonliteral_operands.begin(), '
-                'nonliteral_operands.end(), '
-                '[&](int64_t i) {{ '
-                '  return {};'
-                '}})'
-            ).format(
-                ' || '.join(
-                    f'i == {operand}'
-                    for operand in literal_operand_details.allowed_nonliteral_operands
-                )
-            )
-      else:
-        raise NotImplementedError
-      lines.append('if (%s) {' % cond)
-      lines.append(estimator.cpp_estimation_code('node'))
-      lines.append('}')
-    lines.append(self.estimator.cpp_estimation_code('node'))
-    lines.append('}')
-    return '\n'.join(lines)
-
-  def cpp_estimation_function_name(self) -> str:
-    if self.metric == Metric.DELAY_METRIC:
-      suffix = 'Delay'
-    elif self.metric == Metric.AREA_METRIC:
-      suffix = 'Area'
-    else:
-      raise NotImplementedError(
-          'OpModel.cpp_estimation_function_name for metric'
-          f' "{self.metric}" is not supported!'
-      )
-    return self.op.lstrip('k') + suffix
-
-  def cpp_estimation_function_declaration(self) -> str:
-    if self.metric == Metric.DELAY_METRIC:
-      return 'absl::StatusOr<int64_t> {}(Node* node);'.format(
-          self.cpp_estimation_function_name()
-      )
-    elif self.metric == Metric.AREA_METRIC:
-      return 'absl::StatusOr<double> {}(Node* node);'.format(
-          self.cpp_estimation_function_name()
-      )
-    else:
-      raise NotImplementedError(
-          'OpModel.cpp_estimation_function_declaration for metric'
-          f' "{self.metric}" is not supported!'
-      )
+      specializations.append(spec)
+    return estimator_model_pb2.CompiledOpModel(
+        op=self.op,
+        estimator=self.estimator.to_compiled_proto(),
+        specializations=specializations,
+    )
 
 
 class EstimatorModel:
@@ -1169,3 +982,16 @@ class EstimatorModel:
 
   def get_metric(self) -> Metric:
     return self.metric
+
+  def to_compiled_proto(
+      self, one_bit_register_area: Optional[float] = None
+  ) -> estimator_model_pb2.CompiledEstimatorModel:
+    """Returns a CompiledEstimatorModel proto representing this model."""
+    compiled = estimator_model_pb2.CompiledEstimatorModel(
+        metric=Metric.to_metric_proto(self.metric),
+        op_models=[self.op_model(op).to_compiled_proto() for op in self.ops()],
+    )
+    if one_bit_register_area is not None:
+      compiled.one_bit_register_area = one_bit_register_area
+    return compiled
+

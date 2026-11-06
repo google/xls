@@ -22,9 +22,11 @@ fi
 
 TEST_TARGETS=($(bazel query "kind('(py_test|cc_test)', $TEST_TARGET_PATTERN)" --keep_going || true))
 
+# Run pre-computed estimator proto updates before building/testing TEST_TARGETS so downstream golden tests use the newly fitted models.
+PRECOMPUTED_UPDATE_TARGETS=($(bazel query "filter('.*_precomputed_up_to_date_test_update_golden$', kind(_xls_update_golden, $UPDATE_TARGET_PATTERN))" --keep_going || true))
 # Run frozen file sha256 updates first so downstream consumers of the frozen files can build.
 FROZEN_UPDATE_TARGETS=($(bazel query "attr(target_name, '.*_frozen$', kind(_xls_update_sha256, $UPDATE_TARGET_PATTERN))" --keep_going || true))
-OTHER_RUN_TARGETS=($(bazel query "(kind(_xls_update_golden, $UPDATE_TARGET_PATTERN) + kind(_xls_update_sha256, $UPDATE_TARGET_PATTERN)) except attr(target_name, '.*_frozen$', kind(_xls_update_sha256, $UPDATE_TARGET_PATTERN))" --keep_going || true))
+OTHER_RUN_TARGETS=($(bazel query "(kind(_xls_update_golden, $UPDATE_TARGET_PATTERN) + kind(_xls_update_sha256, $UPDATE_TARGET_PATTERN)) except (attr(target_name, '.*_frozen$', kind(_xls_update_sha256, $UPDATE_TARGET_PATTERN)) + filter('.*_precomputed_up_to_date_test_update_golden$', kind(_xls_update_golden, $UPDATE_TARGET_PATTERN)))" --keep_going || true))
 RUN_TARGETS=("${FROZEN_UPDATE_TARGETS[@]}" "${OTHER_RUN_TARGETS[@]}")
 
 if [[ ! -f "$(pwd)/WORKSPACE" ]]
@@ -33,19 +35,25 @@ then
   exit 1
 fi
 
-# Some dependencies do not build properly with --spawn_strategy=standalone so
-# build the targets normally first.
-bazel build -c opt --keep_going ${TEST_TARGETS[@]}
+for target in "${PRECOMPUTED_UPDATE_TARGETS[@]}"; do
+  bazel run -c opt "$target"
+done
 
-bazel test -c opt \
-  --test_strategy=standalone \
-  --spawn_strategy=standalone \
-  ${TEST_TARGETS[@]} \
-  --test_arg=--test_update_golden_files \
-  --test_arg=--xls_source_dir="$(pwd)"/xls/ \
-  --test_arg=--alsologtostderr \
-  --nocache_test_results \
-  --test_output=errors || true
+if [[ ${#TEST_TARGETS[@]} -gt 0 ]]; then
+  # Some dependencies do not build properly with --spawn_strategy=standalone so
+  # build the targets normally first.
+  bazel build -c opt --keep_going ${TEST_TARGETS[@]}
+
+  bazel test -c opt \
+    --test_strategy=standalone \
+    --spawn_strategy=standalone \
+    ${TEST_TARGETS[@]} \
+    --test_arg=--test_update_golden_files \
+    --test_arg=--xls_source_dir="$(pwd)"/xls/ \
+    --test_arg=--alsologtostderr \
+    --nocache_test_results \
+    --test_output=errors || true
+fi
 
 # bazel run can't run multiple targets
 # TODO(allight): It would be nice to run these all in parallel.

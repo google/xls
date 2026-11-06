@@ -21,11 +21,14 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
+#include "google/protobuf/text_format.h"
 #include "xls/common/status/matchers.h"
+#include "xls/estimators/estimator_model.pb.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/ir_test_base.h"
@@ -390,6 +393,95 @@ TEST_F(DelayEstimatorTest, DelayAnnotator) {
   EXPECT_EQ(annotator.NodeAnnotation(b.node()).suffix, "[10ps (+10ps)]");
   EXPECT_EQ(annotator.NodeAnnotation(add.node()).suffix, "[20ps (+10ps)]");
   EXPECT_EQ(annotator.NodeAnnotation(neg.node()).suffix, "[30ps (+10ps)]");
+}
+
+TEST_F(DelayEstimatorTest, ProtoDelayEstimator) {
+  estimator_model::CompiledEstimatorModel model_proto;
+  QCHECK(google::protobuf::TextFormat::ParseFromString(
+      R"pb(
+        metric: DELAY_METRIC
+        op_models {
+          op: "kAdd"
+          estimator {
+            regression {
+              constant: 10.0
+              terms {
+                expression { factor { source: RESULT_BIT_COUNT } }
+                linear: 2.0
+                log2: 0.0
+              }
+            }
+          }
+          specializations {
+            kind: OPERANDS_IDENTICAL
+            estimator { fixed: 5 }
+          }
+        }
+        op_models {
+          op: "kSub"
+          estimator { alias_op: "kAdd" }
+        }
+        op_models {
+          op: "kAndReduce"
+          estimator { logical_effort { tau_in_ps: 10 } }
+        }
+        op_models {
+          op: "kUMul"
+          estimator {
+            bounding_box {
+              points {
+                bounds {
+                  factor { source: RESULT_BIT_COUNT }
+                  max_value: 8
+                }
+                delay_ps: 40
+              }
+              points {
+                bounds {
+                  factor { source: RESULT_BIT_COUNT }
+                  max_value: 16
+                }
+                delay_ps: 120
+              }
+            }
+          }
+        }
+      )pb",
+      &model_proto));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<ProtoDelayEstimator> estimator,
+      ProtoDelayEstimator::Create("test_proto", model_proto));
+
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue a = fb.Param("a", p->GetBitsType(8));
+  BValue b = fb.Param("b", p->GetBitsType(8));
+  BValue add_diff = fb.Add(a, b);
+  BValue add_same = fb.Add(a, a);
+  BValue sub_diff = fb.Subtract(a, b);
+  BValue sub_same = fb.Subtract(a, a);
+  BValue and_reduce = fb.AndReduce(fb.Param("c", p->GetBitsType(10)));
+  BValue umul_8 = fb.UMul(a, b, 8);
+  BValue umul_32 = fb.UMul(a, b, 32);
+  BValue neg = fb.Negate(a);
+  XLS_ASSERT_OK(fb.Build().status());
+
+  EXPECT_THAT(estimator->GetOperationDelayInPs(add_diff.node()),
+              IsOkAndHolds(26));
+  EXPECT_THAT(estimator->GetOperationDelayInPs(add_same.node()),
+              IsOkAndHolds(5));
+  EXPECT_THAT(estimator->GetOperationDelayInPs(sub_diff.node()),
+              IsOkAndHolds(26));
+  EXPECT_THAT(estimator->GetOperationDelayInPs(sub_same.node()),
+              IsOkAndHolds(5));
+  EXPECT_THAT(estimator->GetOperationDelayInPs(and_reduce.node()),
+              IsOkAndHolds(50));
+  EXPECT_THAT(estimator->GetOperationDelayInPs(umul_8.node()),
+              IsOkAndHolds(40));
+  EXPECT_THAT(estimator->GetOperationDelayInPs(umul_32.node()),
+              StatusIs(absl::StatusCode::kUnimplemented));
+  EXPECT_THAT(estimator->GetOperationDelayInPs(neg.node()),
+              StatusIs(absl::StatusCode::kUnimplemented));
 }
 
 }  // namespace xls

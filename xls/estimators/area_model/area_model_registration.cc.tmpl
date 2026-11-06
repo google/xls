@@ -1,0 +1,14 @@
+// {WARNING}
+
+#include "{HEADER}"
+#include "absl/log/check.h"
+#include "xls/common/module_initializer.h"
+#include "xls/estimators/area_model/area_estimator.h"
+
+namespace xls {
+
+XLS_REGISTER_MODULE_INITIALIZER(area_model_{MODEL_NAME}, {
+  CHECK_OK(RegisterProtobufAreaEstimator("{MODEL_NAME}", {ACCESS_FN}()));
+});
+
+}  // namespace xls

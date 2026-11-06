@@ -43,11 +43,20 @@ estimator_model_group(
     ],
 )
 
+# To create a precomputed estimator file for a new delay model:
+# 1. Create an empty file at `computed_estimators/<model_name>.textproto`.
+# 2. Set `precomputed_proto = "computed_estimators/<model_name>.textproto"` on
+#    the `delay_model` target.
+# 3. Run `./xls/dev_tools/rebuild_golden_files.sh` (or run the
+#    `:<target_name>_precomputed_up_to_date_test_update_golden` target) to
+#    populate the file.
+
 delay_model(
     name = "model_unit",
     srcs = ["unit.textproto"],
     model_name = "unit",
     precedence = "kLow",
+    precomputed_proto = "computed_estimators/unit.textproto",
 )
 
 delay_model(
@@ -55,6 +64,7 @@ delay_model(
     srcs = ["asap7.textproto"],
     model_name = "asap7",
     precedence = "kMedium",
+    precomputed_proto = "computed_estimators/asap7.textproto",
 )
 
 delay_model(
@@ -62,4 +72,5 @@ delay_model(
     srcs = ["sky130.textproto"],
     model_name = "sky130",
     precedence = "kMedium",
+    precomputed_proto = "computed_estimators/sky130.textproto",
 )
