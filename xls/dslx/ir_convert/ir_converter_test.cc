@@ -205,6 +205,18 @@ fn f() {
                              }));
 }
 
+TEST_F(IrConverterTest, LetTupleBindingRestOfTupleBeforeSiblingTuple) {
+  constexpr std::string_view program = R"(
+pub fn main(x: u8, y: u8) -> u8 {
+  let ((.., a), (b, c)) = ((x, x, y), (x, y));
+  a + b + c
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
+                           ConvertOneFunctionForTest(program, "main"));
+  ExpectIr(converted);
+}
+
 TEST_F(IrConverterTest, LetTupleBindingWildcardNested) {
   constexpr std::string_view program =
       R"(fn f() -> u32 {
