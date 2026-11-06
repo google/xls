@@ -19,8 +19,11 @@
 #include <string_view>
 #include <vector>
 
+#include "absl/base/attributes.h"
+#include "absl/base/nullability.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/types/span.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/node.h"
 #include "xls/passes/optimization_pass.h"
@@ -37,6 +40,9 @@ struct SelectChainElement {
   Node* selector;
   std::vector<Node*> cases;
   std::vector<TreeBitLocation> bit_locations;
+
+  friend bool operator==(const SelectChainElement& lhs,
+                         const SelectChainElement& rhs) = default;
 };
 
 struct SelectNodeChain {
@@ -45,6 +51,64 @@ struct SelectNodeChain {
   // Indicates the presence of a default node that will be reached when all
   // selectors in the chain are false.
   std::optional<Node*> final_default;
+
+  friend bool operator==(const SelectNodeChain& lhs,
+                         const SelectNodeChain& rhs) = default;
+};
+
+// A view into a single contiguous subchain of a SelectNodeChain.
+// The no-transform case is represented by a nullopt subchain_span.
+class CollapseSelectSubspan {
+ public:
+  // Constructs a no-op subspan for `chain`. Does not take ownership of
+  // `chain`, which must refer to a non-empty `SelectNodeChain` that outlives
+  // this object.
+  explicit CollapseSelectSubspan(const SelectNodeChain* absl_nonnull chain
+                                     ABSL_ATTRIBUTE_LIFETIME_BOUND,
+                                 std::nullopt_t = std::nullopt);
+
+  // Constructs a subspan viewing `subchain_span`, which must be a non-empty
+  // contiguous slice of `chain->chain_nodes`. Does not take ownership of
+  // `chain` or `subchain_span`'s underlying elements, which must outlive this
+  // object.
+  explicit CollapseSelectSubspan(
+      const SelectNodeChain* absl_nonnull chain ABSL_ATTRIBUTE_LIFETIME_BOUND,
+      absl::Span<const SelectChainElement> subchain_span
+          ABSL_ATTRIBUTE_LIFETIME_BOUND,
+      std::optional<Node*> final_default = std::nullopt);
+
+  CollapseSelectSubspan(const CollapseSelectSubspan&) = default;
+  CollapseSelectSubspan& operator=(const CollapseSelectSubspan&) = default;
+
+  bool IsNoopCase() const { return subchain_span_.empty(); }
+
+  const SelectNodeChain& chain() const { return *chain_; }
+
+  absl::Span<const SelectChainElement> subchain_span() const {
+    return subchain_span_;
+  }
+
+  std::optional<Node*> final_default() const { return final_default_; }
+
+  // Returns the root (first) node of the parent SelectNodeChain,
+  // regardless of where `subchain_span()` starts or whether `IsNoopCase()` is
+  // true.
+  Node* GetChainRootNode() const { return chain_->chain_nodes.front().node; }
+
+  // Creates a new SelectNodeChain corresponding to the subspan.
+  // Returns an error if the subchain span is not set (i.e. the no-transform
+  // case).
+  absl::StatusOr<SelectNodeChain> GetSubchain() const;
+
+  // Two CollapseSelectSubspans are equal if they have equal parent chains,
+  // subchain spans, and final defaults.
+  friend bool operator==(const CollapseSelectSubspan& lhs,
+                         const CollapseSelectSubspan& rhs);
+
+ private:
+  const SelectNodeChain* absl_nonnull chain_;
+  absl::Span<const SelectChainElement> subchain_span_;
+  std::optional<Node*> final_default_;
 };
 
 // Obtains all select node chains in the given function, sorted by root node
@@ -53,13 +117,23 @@ absl::StatusOr<std::vector<SelectNodeChain>> GetSelectNodeChains(
     FunctionBase* fb, OptimizationContext& context,
     const QueryEngine& query_engine);
 
+// Obtains all valid contiguous node subchains of the given select chain,
+// with the no-transform case as the first element. Does not take ownership of
+// `chain`, which must outlive the returned subspans.
+absl::StatusOr<std::vector<CollapseSelectSubspan>>
+GetValidCollapseSelectSubspans(const SelectNodeChain* absl_nonnull chain
+                                   ABSL_ATTRIBUTE_LIFETIME_BOUND,
+                               const QueryEngine& query_engine);
+
 // Returns the best subchain of the given chain to collapse based on heuristic
-// profitability, or nullopt if no subchain is profitable to collapse.
-// Currently this is determined to be the largest connected sequence of cases,
-// breaking ties in favor of subchains closer to the root (first) node in the
-// chain.
-absl::StatusOr<std::optional<SelectNodeChain>> DetermineBestSelectSubchain(
-    const SelectNodeChain& chain, const QueryEngine& query_engine);
+// profitability, or a no-transform CollapseSelectSubspan if no subchain is
+// profitable to collapse. Currently this is determined to be the largest
+// connected sequence of cases, breaking ties in favor of subchains closer to
+// the root (first) node in the chain. Does not take ownership of `chain`,
+// which must outlive the returned subspan.
+absl::StatusOr<CollapseSelectSubspan> DetermineBestSelectSubchain(
+    const SelectNodeChain* absl_nonnull chain ABSL_ATTRIBUTE_LIFETIME_BOUND,
+    const QueryEngine& query_engine);
 
 // Performs the transform to collapse the given select node chain into a
 // single one_hot select.
