@@ -37,6 +37,25 @@ If you would like to propose additional clarifications, please open an Issue or
 Discussion; broad PRs that amount to de-facto style changes without a decision
 on the accompanying Issue or Discussion will be closed.
 
+### Formatting C++ code
+
+C++ code should be formatted with
+[clang-format](https://clang.llvm.org/docs/ClangFormat.html). The file
+`.clang-format` in the top source directory selects Google style with a few
+local settings, and is picked up automatically by clang-format. To format only
+the lines you changed relative to `main`, use `git clang-format` (shipped with
+clang-format):
+
+```console
+proj/xls$ git clang-format origin/main
+```
+
+To format whole files in-place instead:
+
+```console
+proj/xls$ clang-format -i xls/path/to/file.cc xls/path/to/file.h
+```
+
 ## Code reviews
 
 All submissions, including submissions by project members, require review. We
