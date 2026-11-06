@@ -275,6 +275,12 @@ class Scanner {
   // continuing comment on the next line.
   Token PopComment(const Pos& start_pos, bool allow_multiline);
 
+  // Pops a C++ style block comment (/* ... */). Pops all characters from the
+  // current position until the closing */. It handles nested block and single
+  // comment comments. It does not combine multiple lines like PopComment
+  // when allow_multiline = true.
+  absl::StatusOr<Token> PopBlockComment(const Pos& start_pos);
+
   // Pops all the whitespace characters and returns them as a token. This is
   // useful e.g. in syntax-highlighting mode where we want whitespace and
   // comments to be preserved in the token stream.

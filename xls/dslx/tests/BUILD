@@ -286,6 +286,22 @@ dslx_lang_test(
 dslx_lang_test(name = "comments")
 
 dslx_lang_test(
+    name = "block_comments",
+    benchmark_ir = False,
+    # Block comments not supported in autofmt yet
+    test_autofmt = False,
+    evaluate_ir = False,
+)
+
+dslx_lang_test(
+    name = "block_comments_nested",
+    benchmark_ir = False,
+    # Block comments not supported in autofmt yet
+    test_autofmt = False,
+    evaluate_ir = False,
+)
+
+dslx_lang_test(
     name = "compound_eq",
     # Compound eq not supported yet in z3.
     test_ir_equivalence = False,

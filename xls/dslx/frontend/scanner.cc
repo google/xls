@@ -105,6 +105,37 @@ Token Scanner::PopComment(const Pos& start_pos, bool allow_multiline) {
   return Token(TokenKind::kComment, Span(start_pos, end_pos), chars);
 }
 
+absl::StatusOr<Token> Scanner::PopBlockComment(const Pos& start_pos) {
+  std::string chars;
+  Pos end_pos = GetPos();
+  int nested_depth = 0;
+  char extra_char = '\0';
+  while (!AtCharEof()) {
+    end_pos = GetPos();
+    char c = PopChar();
+    if (c == '*' && !AtCharEof() && PeekChar() == '/') {
+      extra_char = PopChar();
+      if (nested_depth > 0) {
+        nested_depth--;
+      } else {
+        return Token(TokenKind::kBlockComment, Span(start_pos, end_pos), chars);
+      }
+    }
+    if (c == '/' && !AtCharEof() && PeekChar() == '*') {
+      extra_char = PopChar();
+      nested_depth++;
+    }
+    chars.append(1, c);
+    if (extra_char != '\0') {
+      chars.append(1, extra_char);
+      extra_char = '\0';
+    }
+  }
+  return ScanErrorStatus(
+      Span(start_pos, GetPos()),
+      "Unclosed block comment.");
+}
+
 absl::StatusOr<Token> Scanner::PopWhitespace(const Pos& start_pos) {
   CHECK(AtWhitespace());
   std::string chars;
@@ -328,6 +359,13 @@ std::optional<CommentData> Scanner::TryPopComment(bool allow_multiline) {
     CHECK(token.GetValue().has_value());
     return CommentData{.span = token.span(), .text = token.GetValue().value()};
   }
+  if (!AtEof() && PeekChar() == '/' && PeekChar2OrNull() == '*') {
+    DropChar(2);
+    absl::StatusOr<Token> token = PopBlockComment(start_pos);
+    if (token.ok()) {
+      return CommentData{.span = token->span(), .text = token->GetValue().value()};
+    }
+  }
   return std::nullopt;
 }
 
@@ -344,6 +382,13 @@ absl::StatusOr<std::optional<Token>> Scanner::TryPopWhitespaceOrComment() {
     DropChar(2);
     Token token = PopComment(start_pos, /* allow_multiline= */ false);
     return token;
+  }
+  if (PeekChar() == '/' && PeekChar2OrNull() == '*') {
+    DropChar(2);
+    absl::StatusOr<Token> token = PopBlockComment(start_pos);
+    if (token.ok()) {
+      return token.value();
+    }
   }
   return std::nullopt;
 }
