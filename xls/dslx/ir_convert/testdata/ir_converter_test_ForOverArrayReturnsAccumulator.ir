@@ -1,0 +1,14 @@
+package test_module
+
+file_number 0 "test_module.x"
+
+fn ____test_module__main_counted_for_0_body(__index: bits[32] id=4, acc: bits[1] id=5, __indexable: bits[1][1] id=6) -> bits[1] {
+  array_index.7: bits[1] = array_index(__indexable, indices=[__index], id=7)
+  ret acc: bits[1] = param(name=acc, id=5)
+}
+
+top fn __test_module__main(x: bits[1] id=1) -> bits[1] {
+  literal.2: bits[1] = literal(value=0, id=2)
+  array.3: bits[1][1] = array(x, id=3)
+  ret counted_for.8: bits[1] = counted_for(literal.2, trip_count=1, stride=1, body=____test_module__main_counted_for_0_body, invariant_args=[array.3], id=8)
+}
