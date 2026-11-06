@@ -927,7 +927,10 @@ pytype_strict_contrib_test(
 pytype_strict_contrib_test(
     name = "interpreter_test",
     srcs = ["interpreter_test.py"],
-    data = [":interpreter_main"],
+    data = [
+        ":interpreter_main",
+        "//xls/dslx/tests:cannot_lower_to_ir.x",
+    ],
     deps = [
         "//xls/common:runfiles",
         "//xls/common:test_base",

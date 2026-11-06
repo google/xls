@@ -1418,3 +1418,21 @@ xls_dslx_test(
     evaluator = "ir-jit",
     library = ":new_style_proc_spawn_test_dslx",
 )
+
+xls_dslx_library(
+    name = "cannot_lower_to_ir_dslx",
+    srcs = ["cannot_lower_to_ir.x"],
+)
+
+# This is a test that passes the DSLX interpreter but can't be converted to IR,
+# so early IR conversion feedback is disabled ('lower_to_ir' flag). The
+# corresponding failure when 'lower_to_ir' is enabled is tested on this file in
+# //xls/dslx:interpreter_test (test_lower_to_ir_check).
+xls_dslx_test(
+    name = "cannot_lower_to_ir_test",
+    dslx_test_args = {
+        "lower_to_ir": "false",
+        "convert_tests": "true",
+    },
+    library = ":cannot_lower_to_ir_dslx",
+)

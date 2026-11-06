@@ -969,46 +969,15 @@ class OutOfTreeInterpreterTest(test_base.TestCase):
 
   def test_lower_to_ir_check(self):
     """Tests performing an early feedback IR conversion test."""
-    program = """
-    proc Generator {
-      out_ch: chan<u32> out;
-      val: u32;
-
-      init {()}
-      config(out_ch: chan<u32> out, val: u32, val2: u32) {
-        (out_ch, val + val2)
-      }
-      next(state: ()) {
-        send(join(), out_ch, val);
-      }
-    }
-
-    #[test_proc]
-    proc Testing {
-      terminator: chan<bool> out;
-      response: chan<u32> in;
-
-      init {  }
-
-      config(terminator: chan<bool> out){
-        let (s, r) = chan<u32, u32:1>("test_chan");
-        spawn Generator(s, u32:66, u32:99);
-        (terminator, r)
-      }
-
-      next(state: ()) {
-        let (tok, data) = recv(join(), response);
-        send(tok, terminator, true);
-      }
-    }
-    """
-    temp_file = self.create_tempfile(content=program)
+    cannot_lower_to_ir_path = runfiles.get_path(
+        'xls/dslx/tests/cannot_lower_to_ir.x'
+    )
     # Note: we have to supply `env` to avoid the Python testbridge setting
     # seeping in.
     p = subp.run(
         [
             self.interpreter_path.full_path,
-            temp_file.full_path,
+            cannot_lower_to_ir_path,
             '--lower_to_ir',
             'true',
         ],

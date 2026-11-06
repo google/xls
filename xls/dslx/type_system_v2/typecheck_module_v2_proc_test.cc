@@ -572,6 +572,48 @@ impl P {
                     "possible to evaluate at compile time.")));
 }
 
+TEST(TypecheckV2ProcTest, SpawnProcWithImplNonConstexprMemberInitFails) {
+  EXPECT_THAT(
+      R"(
+#![feature(explicit_state_access)]
+
+proc Generator {
+  out_ch: chan<u32> out,
+  val: u32,
+}
+
+impl Generator {
+  fn new(out_ch: chan<u32> out, val: u32, val2: u32) -> Self {
+    Self { out_ch, val: val + val2 }
+  }
+
+  fn next(self) { send(join(), self.out_ch, read(self.val)); }
+}
+
+#[test_proc]
+proc Testing {
+  terminator: chan<bool> out;
+  response: chan<u32> in;
+
+  init {  }
+
+  config(terminator: chan<bool> out) {
+    let (s, r) = chan<u32, u32:1>("test_chan");
+    Generator::new(s, u32:66, u32:99).spawn();
+    (terminator, r)
+  }
+
+  next(state: ()) {
+    let (tok, _data) = recv(join(), response);
+    send(tok, terminator, true);
+  }
+}
+)",
+      TypecheckFails(
+          HasSubstr("Initializer for member `val` of proc `Generator` must be "
+                    "possible to evaluate at compile time.")));
+}
+
 TEST(TypecheckV2ProcTest, ParametricProcDef) {
   EXPECT_THAT(
       R"(
