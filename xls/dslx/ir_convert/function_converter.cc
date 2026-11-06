@@ -1541,7 +1541,7 @@ absl::StatusOr<FunctionConverter::RangeData> FunctionConverter::GetRangeData(
 }
 
 absl::StatusOr<BValue> FunctionConverter::HandleRangedForInductionVariable(
-    const For* node, FunctionConverter& body_converter,
+    bool has_offset, FunctionConverter& body_converter,
     const PatternTree& ivar_node) {
   return absl::visit(
       Visitor{
@@ -1549,7 +1549,10 @@ absl::StatusOr<BValue> FunctionConverter::HandleRangedForInductionVariable(
             XLS_RET_CHECK_NE(name_def, nullptr);
             XLS_ASSIGN_OR_RETURN(xls::Type * ivar_type,
                                  ResolveTypeToIr(name_def));
-            return body_converter.AddParam(name_def->identifier(), ivar_type);
+            // For a nonzero start the DSLX name belongs to the adjusted index.
+            // Name the raw counter once all source names are known.
+            return body_converter.AddParam(
+                has_offset ? "" : name_def->identifier(), ivar_type);
           },
           [&](WildcardPattern* ivar) -> absl::StatusOr<BValue> {
             XLS_ASSIGN_OR_RETURN(xls::Type * ivar_type, ResolveTypeToIr(ivar));
@@ -1852,7 +1855,8 @@ absl::Status FunctionConverter::HandleFor(const For* node) {
   BValue ivar_value;
   if (range_data.has_value()) {
     XLS_ASSIGN_OR_RETURN(ivar_value, HandleRangedForInductionVariable(
-                                         node, body_converter, ivar_node));
+                                         range_data->start_value != 0,
+                                         body_converter, ivar_node));
     XLS_RETURN_IF_ERROR(HandleForLoopCarry(node, body_converter, range_data,
                                            ivar_value, ivar_node, carry_node));
   } else {
@@ -1882,6 +1886,17 @@ absl::Status FunctionConverter::HandleFor(const For* node) {
   // Convert the for-loop body block into its IR (function) form.
   XLS_ASSIGN_OR_RETURN(BValue init,
                        HandleForBody(node, body_converter, trip_count));
+
+  if (range_data.has_value() && range_data->start_value != 0 &&
+      std::holds_alternative<NameDef*>(ivar_node)) {
+    NameDef* binder = std::get<NameDef*>(ivar_node);
+    XLS_ASSIGN_OR_RETURN(BValue adjusted_index, body_converter.Use(binder));
+    adjusted_index.SetName(binder->identifier());
+    // SetName uniquifies the synthetic name against the source bindings.
+    ivar_value.SetName("xls_iteration");
+    body_converter.function_proto_.value()->mutable_parameters(0)->set_name(
+        ivar_value.GetName());
+  }
 
   // Now the body has been built up, we can get the IR function for it.
   XLS_ASSIGN_OR_RETURN(xls::Function * ir_body_function,
