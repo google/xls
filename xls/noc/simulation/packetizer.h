@@ -30,7 +30,7 @@
 #include "xls/noc/simulation/flit.h"
 
 // This file contains classes used to represent and build a packet, along
-// with auxilary functions to convert packets to flits (depacketize) and
+// with auxiliary functions to convert packets to flits (depacketize) and
 // flits back to packets (packetize).
 //
 // These classes assume that all flits and phits are of equivalent size.
@@ -105,7 +105,7 @@ class DataPacketBuilder {
 // Represents a depacketizer that converts a packet into a sequence of flits.
 //
 // The max_packet_bit_count should be both
-//   1) The maximum packet payload accpeted by this DePacketizer
+//   1) The maximum packet payload accepted by this DePacketizer
 //   2) The maximum packet payload accepted by any destination this
 //      source will sent to.
 //

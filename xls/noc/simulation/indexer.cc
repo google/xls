@@ -77,7 +77,7 @@ absl::Status PortIndexMapBuilder::SetPortIndex(PortId port_id,
                                                int64_t index) {
   if (!nc_to_ports_.contains(port_id.GetNetworkComponentId())) {
     // Add a new nc to the indexer.
-    // Initialze VirtualChannelOrder with all present VCs and
+    // Initialize VirtualChannelOrder with all present VCs and
     // their corresponding index to -1.
     nc_to_ports_.insert({port_id.GetNetworkComponentId(), PortOrder()});
   }
@@ -237,7 +237,7 @@ absl::Status VirtualChannelIndexMapBuilder::SetVirtualChannelIndex(
     PortId port_id, PortParam port_param, int64_t orig_index, int64_t index) {
   if (!port_to_vcs_.contains(port_id)) {
     // Add a new port to the indexer.
-    // Initialze VirtualChannelOrder with all present VCs and
+    // Initialize VirtualChannelOrder with all present VCs and
     // their corresponding index to -1.
     port_to_vcs_.insert({port_id, VirtualChannelOrder()});
     VirtualChannelOrder& vc_order = port_to_vcs_[port_id];
