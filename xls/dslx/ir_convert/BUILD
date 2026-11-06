@@ -438,6 +438,7 @@ cc_library(
         "//xls/dslx/type_system_v2:import_utils",
         "//xls/ir",
         "//xls/ir:bits",
+        "//xls/ir:bits_ops",
         "//xls/ir:channel",
         "//xls/ir:foreign_function",
         "//xls/ir:format_strings",
