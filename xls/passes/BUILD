@@ -1303,6 +1303,7 @@ cc_library(
         "//xls/common/status:status_macros",
         "//xls/estimators/area_model:area_estimator",
         "//xls/ir",
+        "//xls/ir:bits",
         "//xls/ir:function_builder",
         "//xls/ir:node_util",
         "//xls/ir:op",

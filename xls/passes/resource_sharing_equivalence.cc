@@ -38,6 +38,7 @@
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/estimators/area_model/area_estimator.h"
+#include "xls/ir/bits.h"
 #include "xls/ir/function.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/function_builder.h"
@@ -47,6 +48,7 @@
 #include "xls/ir/op.h"
 #include "xls/ir/package.h"
 #include "xls/ir/source_location.h"
+#include "xls/ir/topo_sort.h"
 #include "xls/ir/type.h"
 
 namespace xls {
@@ -963,6 +965,189 @@ class ShiftEquivalenceMapping : public EquivalenceMapping {
   }
 };
 
+// Builds the 4 multiply and adder tree decomposition for a W bit multiply using
+// four W/4 bit inputs a, b, c, d, where X = (a ++ b) and Y = (c ++ d).
+// Returns 2^(2Q) * ac + 2^Q * (ad + bc) + bd.
+BValue BuildDecomposedMulAdderTree(FunctionBuilder& fb, BValue a, BValue b,
+                                   BValue c, BValue d, int64_t width,
+                                   bool is_signed) {
+  int64_t half_width = width / 2;
+  int64_t quarter_width = width / 4;
+  auto mul = [&](BValue lhs, BValue rhs) {
+    return is_signed ? fb.SMul(lhs, rhs, half_width)
+                     : fb.UMul(lhs, rhs, half_width);
+  };
+  auto ext = [&](BValue val) {
+    return is_signed ? fb.SignExtend(val, width) : fb.ZeroExtend(val, width);
+  };
+  BValue mul_bd = mul(b, d);
+  BValue mul_ad = mul(a, d);
+  BValue mul_bc = mul(b, c);
+  BValue mul_ac = mul(a, c);
+
+  BValue quarter_w = fb.Literal(UBits(quarter_width, 32));
+  BValue half_w = fb.Literal(UBits(half_width, 32));
+  BValue sh_ac = fb.Shll(ext(mul_ac), half_w);
+  BValue sh_ad = fb.Shll(ext(mul_ad), quarter_w);
+  BValue sh_bc = fb.Shll(ext(mul_bc), quarter_w);
+  BValue add_middle = fb.Add(sh_ad, sh_bc);
+  BValue add_ends = fb.Add(sh_ac, ext(mul_bd));
+  return fb.Add(add_ends, add_middle);
+}
+
+// Decomposes umul(X, Y), output width 4*Q, into four half width umul:
+//   Assuming X = 2^Q * a + b and Y = 2^Q * c + d
+//   Result: 2^(2Q) * ac + 2^Q * (ad + bc) + bd
+absl::StatusOr<PackageAndNode> CreateDecomposedUMulPackage(int64_t width) {
+  int64_t quarter_width = width / 4;
+  return CreateModifiedDstAndPackage(
+      [width, quarter_width](Package* p, FunctionBuilder& fb) -> BValue {
+        Type* quarter_ty = p->GetBitsType(quarter_width);
+        BValue a = fb.Param("a", quarter_ty);
+        BValue b = fb.Param("b", quarter_ty);
+        BValue c = fb.Param("c", quarter_ty);
+        BValue d = fb.Param("d", quarter_ty);
+        return BuildDecomposedMulAdderTree(fb, a, b, c, d, width,
+                                           /*is_signed=*/false);
+      });
+}
+
+// Decomposes smul(X, Y), output width 4*Q, into four half width smul:
+//
+// Leverage this identity, where Sx is a signed value, Ux is the same bits
+// interpreted as an unsigned value:
+//   X = 2^Q * Sa + Ub = 2^Q * Sa + Sb + 2^Q * msb(b)
+//   which is a consequence of Ub = Sb + 2^Q * msb(b), i.e. the signed
+//   interpretation subtracted 2^(Q-1) * msb(b) instead of adding it as Ub does.
+//
+// Expanding X * Y with four half width signed multiplies:
+//   X * Y = (2^Q * Sa + Sb + 2^Q * msb(b)) * (2^Q * Sc + Sd + 2^Q * msb(d))
+//   = 2^(2Q) * Sac + 2^Q * (Sad + Sbc) + Sbd + 2^Q * (
+//       2^Q * Sa * msb(d) + 2^Q * Sc * msb(b)
+//       + Sb * msb(d) + Sd * msb(b) + 2^Q * msb(b) * msb(d))
+//   = 2^(2Q) * Sac + 2^Q * (Sad + Sbc) + Sbd + 2^Q * (
+//       X * msb(d) + Y * msb(b) - 2^Q * msb(b) * msb(d))
+absl::StatusOr<PackageAndNode> CreateDecomposedSMulPackage(int64_t width) {
+  int64_t half_width = width / 2;
+  int64_t quarter_width = width / 4;
+  return CreateModifiedDstAndPackage([width, half_width, quarter_width](
+                                         Package* p,
+                                         FunctionBuilder& fb) -> BValue {
+    Type* quarter_ty = p->GetBitsType(quarter_width);
+    BValue a = fb.Param("a", quarter_ty);
+    BValue b = fb.Param("b", quarter_ty);
+    BValue c = fb.Param("c", quarter_ty);
+    BValue d = fb.Param("d", quarter_ty);
+    BValue x = fb.Concat({a, b});
+    BValue y = fb.Concat({c, d});
+
+    // Four half width multiplies and adder tree on ac, ad, bc, and bd
+    // terms.
+    BValue main_part = BuildDecomposedMulAdderTree(fb, a, b, c, d, width,
+                                                   /*is_signed=*/true);
+
+    // Correction terms because of using Sb and Sd instead of Ub and Ud.
+    BValue msb_b = fb.BitSlice(b, quarter_width - 1, 1);
+    BValue msb_d = fb.BitSlice(d, quarter_width - 1, 1);
+    BValue zero_q = fb.Literal(UBits(0, quarter_width));
+    BValue sh_x = fb.Concat({fb.SignExtend(x, width - quarter_width), zero_q});
+    BValue sh_y = fb.Concat({fb.SignExtend(y, width - quarter_width), zero_q});
+    BValue zero = fb.Literal(UBits(0, width));
+    BValue corr_x_msb_d = fb.Select(msb_d, /*cases=*/{zero, sh_x});
+    BValue corr_y_msb_b = fb.Select(msb_b, /*cases=*/{zero, sh_y});
+    BValue corr_msb_b_and_d = fb.ZeroExtend(
+        fb.Concat({fb.And(msb_b, msb_d), fb.Literal(UBits(0, half_width))}),
+        width);
+    BValue sum_corrs =
+        fb.Subtract(fb.Add(corr_x_msb_d, corr_y_msb_b), corr_msb_b_and_d);
+    return fb.Add(main_part, sum_corrs);
+  });
+}
+
+// `MultiplySplitterEquivalenceMapping` decomposes a W-bit unsigned or signed
+// multiply of two (W/2)-bit operands into four (W/4)x(W/4)->(W/2) unsigned or
+// signed multiplies combined with shifts and additions.
+class MultiplySplitterEquivalenceMapping : public EquivalenceMapping {
+ public:
+  static absl::StatusOr<std::shared_ptr<EquivalenceMapping>>
+  TryCreateDecomposition(Node* node) {
+    if (!node->OpIn({Op::kUMul, Op::kSMul}) || node->operand_count() != 2 ||
+        !node->GetType()->IsBits()) {
+      return nullptr;
+    }
+    // Require bit width to be a multiple of 4.
+    int64_t width = node->BitCountOrDie();
+    if (width < 4 || width % 4 != 0) {
+      return nullptr;
+    }
+    Node* lhs = node->operand(0);
+    Node* rhs = node->operand(1);
+    if (!BothBitsTyped(lhs, rhs)) {
+      return nullptr;
+    }
+    int64_t half_width = width / 2;
+    if (lhs->BitCountOrDie() > half_width ||
+        rhs->BitCountOrDie() > half_width) {
+      return nullptr;
+    }
+    XLS_ASSIGN_OR_RETURN(PackageAndNode p_and_dst,
+                         node->op() == Op::kSMul
+                             ? CreateDecomposedSMulPackage(width)
+                             : CreateDecomposedUMulPackage(width));
+    return std::make_shared<MultiplySplitterEquivalenceMapping>(
+        node, p_and_dst.node, std::move(p_and_dst.package));
+  }
+
+  using EquivalenceMapping::EquivalenceMapping;
+
+  absl::StatusOr<std::unique_ptr<EquivalenceMapping>> Clone(
+      absl::optional_ref<const absl::flat_hash_map<Node*, Node*>>
+          original_node_to_clone) const override {
+    return CloneEqMapping(this, original_node_to_clone);
+  }
+
+  absl::StatusOr<bool> RequiresOperandTransformation() const override {
+    return true;
+  }
+
+  absl::StatusOr<bool> RequiresOutputTransformation() const override {
+    return false;
+  }
+
+  absl::StatusOr<std::vector<Node*>> ApplyToOperands(
+      FunctionBase* f, absl::Span<Node* const> src_operands) const override {
+    XLS_RET_CHECK_EQ(src_operands.size(), 2);
+    Node* lhs = src_operands[0];
+    Node* rhs = src_operands[1];
+    XLS_RET_CHECK(BothBitsTyped(lhs, rhs));
+    int64_t width = src_->BitCountOrDie();
+    int64_t half_width = width / 2;
+    int64_t quarter_width = half_width / 2;
+
+    Op ext_op = src_->op() == Op::kSMul ? Op::kSignExt : Op::kZeroExt;
+    XLS_ASSIGN_OR_RETURN(lhs, ExtendIf(f, lhs, half_width, ext_op));
+    XLS_ASSIGN_OR_RETURN(rhs, ExtendIf(f, rhs, half_width, ext_op));
+
+    // Splits LHS=(a ++ b) and RHS=(c ++ d) into a, b, c, and d.
+    XLS_ASSIGN_OR_RETURN(Node * a,
+                         FindOrMakeBitSlice(lhs, /*start=*/quarter_width,
+                                            /*width=*/quarter_width));
+    XLS_ASSIGN_OR_RETURN(Node * b, FindOrMakeBitSlice(lhs, /*start=*/0,
+                                                      /*width=*/quarter_width));
+    XLS_ASSIGN_OR_RETURN(Node * c,
+                         FindOrMakeBitSlice(rhs, /*start=*/quarter_width,
+                                            /*width=*/quarter_width));
+    XLS_ASSIGN_OR_RETURN(Node * d, FindOrMakeBitSlice(rhs, /*start=*/0,
+                                                      /*width=*/quarter_width));
+    return std::vector<Node*>{a, b, c, d};
+  }
+
+  absl::StatusOr<Node*> ApplyToOutput(FunctionBase* f,
+                                      Node* dst_output) const override {
+    return dst_output;
+  }
+};
+
 }  // namespace
 
 absl::StatusOr<Node*> EquivalenceMapping::MapNode(
@@ -986,6 +1171,12 @@ void NodeEquivalenceMapper::Register(Factory factory) {
   factories_.push_back(factory);
 }
 
+void NodeEquivalenceMapper::RegisterDecomposition(
+    DecompositionFactory factory) {
+  absl::MutexLock lock(mutex_);
+  decomposition_factories_.push_back(factory);
+}
+
 absl::StatusOr<std::optional<NodeToMappings>>
 NodeEquivalenceMapper::ComputeMappings(absl::Span<Node* const> sources,
                                        Node* dst) const {
@@ -1000,6 +1191,20 @@ NodeEquivalenceMapper::ComputeMappings(absl::Span<Node* const> sources,
   return std::nullopt;
 }
 
+absl::StatusOr<std::vector<std::shared_ptr<EquivalenceMapping>>>
+NodeEquivalenceMapper::ComputeDecompositions(Node* node) const {
+  absl::MutexLock lock(mutex_);
+  std::vector<std::shared_ptr<EquivalenceMapping>> decompositions;
+  for (DecompositionFactory factory : decomposition_factories_) {
+    XLS_ASSIGN_OR_RETURN(std::shared_ptr<EquivalenceMapping> decomp,
+                         factory(node));
+    if (decomp != nullptr) {
+      decompositions.push_back(std::move(decomp));
+    }
+  }
+  return decompositions;
+}
+
 NodeEquivalenceMapper& GetNodeEquivalenceMapper() {
   static absl::NoDestructor<NodeEquivalenceMapper> m;
   [[maybe_unused]] static const bool initialized = [&] {
@@ -1009,9 +1214,51 @@ NodeEquivalenceMapper& GetNodeEquivalenceMapper() {
     m->Register<ComparatorEquivalenceMapping>();
     m->Register<CompareToArithEquivalenceMapping>();
     m->Register<ShiftEquivalenceMapping>();
+    m->RegisterDecomposition<MultiplySplitterEquivalenceMapping>();
     return true;
   }();
   return *m;
+}
+
+absl::StatusOr<Node*> CloneWithMapping(Node* node,
+                                       const EquivalenceMapping& mapping) {
+  FunctionBase* f = node->function_base();
+  XLS_ASSIGN_OR_RETURN(std::vector<Node*> converted_operands,
+                       mapping.ApplyToOperands(f, node->operands()));
+  FunctionBase* dst_fn = mapping.dst()->function_base();
+  if (dst_fn == f) {
+    XLS_ASSIGN_OR_RETURN(Node * unified_node, mapping.dst()->CloneInNewFunction(
+                                                  converted_operands, f));
+    return mapping.ApplyToOutput(f, unified_node);
+  }
+
+  // NOTE: The temporary function containing the destination node and its
+  // dependencies has one parameter per operand of the source node.
+  XLS_RET_CHECK_EQ(dst_fn->params().size(), converted_operands.size());
+  absl::flat_hash_map<Node*, Node*> cloned_map;
+  for (int64_t i = 0; i < converted_operands.size(); ++i) {
+    cloned_map[dst_fn->params()[i]] = converted_operands[i];
+  }
+
+  XLS_ASSIGN_OR_RETURN(std::vector<Node*> topo_sort, TopoSort(dst_fn));
+  for (Node* part : topo_sort) {
+    if (part->Is<Param>()) {
+      continue;
+    }
+    std::vector<Node*> new_ops;
+    new_ops.reserve(part->operand_count());
+    for (Node* op : part->operands()) {
+      auto it = cloned_map.find(op);
+      XLS_RET_CHECK(it != cloned_map.end());
+      new_ops.push_back(it->second);
+    }
+    XLS_ASSIGN_OR_RETURN(cloned_map[part],
+                         part->CloneInNewFunction(new_ops, f));
+  }
+
+  auto it = cloned_map.find(mapping.dst());
+  XLS_RET_CHECK(it != cloned_map.end());
+  return mapping.ApplyToOutput(f, it->second);
 }
 
 }  // namespace xls

@@ -136,6 +136,8 @@ class NodeEquivalenceMapper {
   using Factory = absl::StatusOr<std::optional<
       absl::flat_hash_map<Node*, std::unique_ptr<EquivalenceMapping>>>> (*)(
       absl::Span<Node* const> sources, Node* dst);
+  using DecompositionFactory =
+      absl::StatusOr<std::shared_ptr<EquivalenceMapping>> (*)(Node* node);
 
   NodeEquivalenceMapper() = default;
   ~NodeEquivalenceMapper() = default;
@@ -158,6 +160,17 @@ class NodeEquivalenceMapper {
     Register(&EqMapping::TryCreate);
   }
 
+  // Registers a mapping's `TryCreateDecomposition` factory.
+  void RegisterDecomposition(DecompositionFactory factory);
+
+  // Registers a new decomposition `EquivalenceMapping` implementation.
+  template <typename EqMapping>
+  void RegisterDecomposition() {
+    static_assert(std::is_base_of_v<EquivalenceMapping, EqMapping>,
+                  "EqMapping must be a subclass of EquivalenceMapping");
+    RegisterDecomposition(&EqMapping::TryCreateDecomposition);
+  }
+
   // Returns an `EquivalenceMapping` map if `sources` can be mapped to `dst`
   // using any registered `EquivalenceMapping` implementation, or `std::nullopt`
   // if no mapping applies. The map contains mappings for every source AND for
@@ -166,9 +179,15 @@ class NodeEquivalenceMapper {
       absl::flat_hash_map<Node*, std::unique_ptr<EquivalenceMapping>>>>
   ComputeMappings(absl::Span<Node* const> sources, Node* dst) const;
 
+  // Returns all valid decompositions.
+  absl::StatusOr<std::vector<std::shared_ptr<EquivalenceMapping>>>
+  ComputeDecompositions(Node* node) const;
+
  private:
   mutable absl::Mutex mutex_;
   std::vector<Factory> factories_ ABSL_GUARDED_BY(mutex_);
+  std::vector<DecompositionFactory> decomposition_factories_
+      ABSL_GUARDED_BY(mutex_);
 };
 
 // Returns the global singleton `NodeEquivalenceMapper`.
@@ -193,6 +212,13 @@ ComputeMappingsSourcesToDest(absl::Span<Node* const> sources, Node* dst,
   }
   return mappings;
 }
+
+// Clones the following into the function containing `node`:
+//   - The operands of `node` modified by ApplyToOperands.
+//   - The destination node, along with its dependencies contained in the
+//     mapping's temporary package, modified by ApplyToOutput.
+absl::StatusOr<Node*> CloneWithMapping(Node* node,
+                                       const EquivalenceMapping& mapping);
 
 // `IdentityEquivalenceMapping` handles nodes with identical ops and bit widths.
 // This mapping is exposed for ease of default mapping in constructors.

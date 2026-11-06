@@ -44,11 +44,15 @@ namespace {
 
 using ::absl_testing::IsOkAndHolds;
 using ::absl_testing::StatusIs;
+using ::testing::AllOf;
 using ::testing::ElementsAre;
-using ::xls::solvers::ScopedVerifyEquivalence;
-namespace m = ::xls::op_matchers;
 using ::testing::Key;
+using ::testing::Pointee;
+using ::testing::Property;
 using ::testing::UnorderedElementsAre;
+using ::xls::solvers::ScopedVerifyEquivalence;
+
+namespace m = ::xls::op_matchers;
 
 using NodeToMappings =
     absl::flat_hash_map<Node*, std::unique_ptr<EquivalenceMapping>>;
@@ -80,17 +84,13 @@ class FakeAreaEstimator : public AreaEstimator {
 
 // Applies `mapping` to `src` and uses ScopedVerifyEquivalence to confirm the
 // mapped node is equivalent to `src`.
-absl::StatusOr<Node*> VerifyEquivalence(Function* f, Node* src, Node* dst,
+absl::StatusOr<Node*> VerifyEquivalence(Function* f, Node* src,
                                         const EquivalenceMapping& mapping) {
   XLS_RETURN_IF_ERROR(f->set_return_value(src));
   ScopedVerifyEquivalence sve(f);
-  XLS_ASSIGN_OR_RETURN(std::vector<Node*> coerced,
-                       mapping.ApplyToOperands(f, src->operands()));
-  XLS_ASSIGN_OR_RETURN(Node * unified_node,
-                       dst->CloneInNewFunction(coerced, f));
-  XLS_ASSIGN_OR_RETURN(Node * output, mapping.ApplyToOutput(f, unified_node));
-  XLS_RETURN_IF_ERROR(f->set_return_value(output));
-  return output;
+  XLS_ASSIGN_OR_RETURN(Node * mapped, CloneWithMapping(src, mapping));
+  XLS_RETURN_IF_ERROR(f->set_return_value(mapped));
+  return mapped;
 }
 
 TEST_F(ResourceSharingEquivalenceTest, IdentityEquivalenceMapping) {
@@ -164,9 +164,8 @@ TEST_F(ResourceSharingEquivalenceTest, BitwidthExtendingEquivalenceMapping) {
         mapping->ApplyToOperands(f, mul_narrow.node()->operands()));
     EXPECT_THAT(coerced, ElementsAre(m::ZeroExt(m::Param("a")),
                                      m::ZeroExt(m::Param("b"))));
-    XLS_ASSERT_OK_AND_ASSIGN(
-        Node * output,
-        VerifyEquivalence(f, mul_narrow.node(), mul_wide.node(), *mapping));
+    XLS_ASSERT_OK_AND_ASSIGN(Node * output,
+                             VerifyEquivalence(f, mul_narrow.node(), *mapping));
     EXPECT_THAT(output, m::BitSlice(m::UMul(m::ZeroExt(), m::ZeroExt()),
                                     /*start=*/0, /*width=*/16));
   }
@@ -186,8 +185,7 @@ TEST_F(ResourceSharingEquivalenceTest, BitwidthExtendingEquivalenceMapping) {
     EXPECT_THAT(coerced, ElementsAre(m::SignExt(m::Param("a")),
                                      m::SignExt(m::Param("b"))));
     XLS_ASSERT_OK_AND_ASSIGN(
-        Node * output,
-        VerifyEquivalence(f, smul_narrow.node(), smul_wide.node(), *mapping));
+        Node * output, VerifyEquivalence(f, smul_narrow.node(), *mapping));
     EXPECT_THAT(output, m::BitSlice(m::SMul(m::SignExt(), m::SignExt()),
                                     /*start=*/0, /*width=*/16));
   }
@@ -229,9 +227,8 @@ TEST_F(ResourceSharingEquivalenceTest, AddSubEquivalenceMapping) {
         std::vector<Node*> coerced,
         mapping->ApplyToOperands(f, add32.node()->operands()));
     EXPECT_THAT(coerced, ElementsAre(m::Param("a"), m::Neg(m::Param("b"))));
-    XLS_ASSERT_OK_AND_ASSIGN(
-        Node * output,
-        VerifyEquivalence(f, add32.node(), sub32.node(), *mapping));
+    XLS_ASSERT_OK_AND_ASSIGN(Node * output,
+                             VerifyEquivalence(f, add32.node(), *mapping));
     EXPECT_THAT(output, m::Sub(m::Param("a"), m::Neg(m::Param("b"))));
   }
 
@@ -255,9 +252,8 @@ TEST_F(ResourceSharingEquivalenceTest, AddSubEquivalenceMapping) {
         std::vector<Node*> coerced,
         mapping->ApplyToOperands(f, add_neg.node()->operands()));
     EXPECT_THAT(coerced, ElementsAre(m::Param("a"), m::Param("b")));
-    XLS_ASSERT_OK_AND_ASSIGN(
-        Node * output,
-        VerifyEquivalence(f, add_neg.node(), sub32.node(), *mapping));
+    XLS_ASSERT_OK_AND_ASSIGN(Node * output,
+                             VerifyEquivalence(f, add_neg.node(), *mapping));
     EXPECT_THAT(output, m::Sub(m::Param("a"), m::Param("b")));
   }
 
@@ -277,9 +273,8 @@ TEST_F(ResourceSharingEquivalenceTest, AddSubEquivalenceMapping) {
         mapping->ApplyToOperands(f, add16.node()->operands()));
     EXPECT_THAT(coerced, ElementsAre(m::ZeroExt(m::Param("a16")),
                                      m::ZeroExt(m::Neg(m::Param("b16")))));
-    XLS_ASSERT_OK_AND_ASSIGN(
-        Node * output,
-        VerifyEquivalence(f, add16.node(), sub32.node(), *mapping));
+    XLS_ASSERT_OK_AND_ASSIGN(Node * output,
+                             VerifyEquivalence(f, add16.node(), *mapping));
     EXPECT_THAT(output,
                 m::BitSlice(m::Sub(m::ZeroExt(), m::ZeroExt(m::Neg())), 0, 16));
   }
@@ -339,9 +334,8 @@ TEST_F(ResourceSharingEquivalenceTest, ShiftEquivalenceMapping) {
         std::vector<Node*> coerced,
         mapping->ApplyToOperands(f, shll.node()->operands()));
     EXPECT_THAT(coerced, ElementsAre(rev_x, m::Param("s")));
-    XLS_ASSERT_OK_AND_ASSIGN(
-        Node * output,
-        VerifyEquivalence(f, shll.node(), shrl.node(), *mapping));
+    XLS_ASSERT_OK_AND_ASSIGN(Node * output,
+                             VerifyEquivalence(f, shll.node(), *mapping));
     EXPECT_THAT(output, m::Reverse(m::Shrl(rev_x, m::Param("s"))));
   }
 
@@ -367,9 +361,8 @@ TEST_F(ResourceSharingEquivalenceTest, ShiftEquivalenceMapping) {
         std::vector<Node*> coerced,
         mapping->ApplyToOperands(f, shrl.node()->operands()));
     EXPECT_THAT(coerced, ElementsAre(rev_x, m::Param("s")));
-    XLS_ASSERT_OK_AND_ASSIGN(
-        Node * output,
-        VerifyEquivalence(f, shrl.node(), shll.node(), *mapping));
+    XLS_ASSERT_OK_AND_ASSIGN(Node * output,
+                             VerifyEquivalence(f, shrl.node(), *mapping));
     EXPECT_THAT(output, m::Reverse(m::Shll(rev_x, m::Param("s"))));
   }
 }
@@ -411,9 +404,8 @@ TEST_F(ResourceSharingEquivalenceTest, ArithShiftEquivalenceMapping) {
         std::vector<Node*> coerced,
         mapping->ApplyToOperands(f, shra.node()->operands()));
     EXPECT_THAT(coerced, ElementsAre(x_xor_msb, m::Param("s")));
-    XLS_ASSERT_OK_AND_ASSIGN(
-        Node * output,
-        VerifyEquivalence(f, shra.node(), shrl.node(), *mapping));
+    XLS_ASSERT_OK_AND_ASSIGN(Node * output,
+                             VerifyEquivalence(f, shra.node(), *mapping));
     EXPECT_THAT(output, m::Xor(m::Shrl(x_xor_msb, m::Param("s")), msb_mask));
   }
 
@@ -439,9 +431,8 @@ TEST_F(ResourceSharingEquivalenceTest, ArithShiftEquivalenceMapping) {
         std::vector<Node*> coerced,
         mapping->ApplyToOperands(f, shra.node()->operands()));
     EXPECT_THAT(coerced, ElementsAre(rev_x_xor_msb, m::Param("s")));
-    XLS_ASSERT_OK_AND_ASSIGN(
-        Node * output,
-        VerifyEquivalence(f, shra.node(), shll.node(), *mapping));
+    XLS_ASSERT_OK_AND_ASSIGN(Node * output,
+                             VerifyEquivalence(f, shra.node(), *mapping));
     EXPECT_THAT(
         output,
         m::Xor(m::Reverse(m::Shll(rev_x_xor_msb, m::Param("s"))), msb_mask));
@@ -487,9 +478,8 @@ TEST_F(ResourceSharingEquivalenceTest, ArithShiftEquivalenceMappingWidening) {
         std::vector<Node*> coerced,
         mapping->ApplyToOperands(f, shra4.node()->operands()));
     EXPECT_THAT(coerced, ElementsAre(m::ZeroExt(x_xor_msb), m::Param("s")));
-    XLS_ASSERT_OK_AND_ASSIGN(
-        Node * output,
-        VerifyEquivalence(f, shra4.node(), shrl8.node(), *mapping));
+    XLS_ASSERT_OK_AND_ASSIGN(Node * output,
+                             VerifyEquivalence(f, shra4.node(), *mapping));
     EXPECT_THAT(output, m::Xor(m::BitSlice(m::Shrl(m::ZeroExt(), m::Param("s")),
                                            /*start=*/0, /*width=*/4),
                                msb_mask));
@@ -504,8 +494,7 @@ TEST_F(ResourceSharingEquivalenceTest, ArithShiftEquivalenceMappingWidening) {
     const std::unique_ptr<EquivalenceMapping>& mapping =
         mappings->at(shra4.node());
 
-    XLS_ASSERT_OK(
-        VerifyEquivalence(f, shra4.node(), shll8.node(), *mapping).status());
+    XLS_ASSERT_OK(VerifyEquivalence(f, shra4.node(), *mapping).status());
   }
 
   // shll (4-bit) -> shrl (8-bit) widening
@@ -517,8 +506,7 @@ TEST_F(ResourceSharingEquivalenceTest, ArithShiftEquivalenceMappingWidening) {
     const std::unique_ptr<EquivalenceMapping>& mapping =
         mappings->at(shll4.node());
 
-    XLS_ASSERT_OK(
-        VerifyEquivalence(f, shll4.node(), shrl8.node(), *mapping).status());
+    XLS_ASSERT_OK(VerifyEquivalence(f, shll4.node(), *mapping).status());
   }
 
   // shrl (4-bit) -> shll (8-bit) widening
@@ -530,8 +518,7 @@ TEST_F(ResourceSharingEquivalenceTest, ArithShiftEquivalenceMappingWidening) {
     const std::unique_ptr<EquivalenceMapping>& mapping =
         mappings->at(shrl4.node());
 
-    XLS_ASSERT_OK(
-        VerifyEquivalence(f, shrl4.node(), shll8.node(), *mapping).status());
+    XLS_ASSERT_OK(VerifyEquivalence(f, shrl4.node(), *mapping).status());
   }
 
   // shrl (4-bit) -> shra (8-bit) widening
@@ -549,9 +536,8 @@ TEST_F(ResourceSharingEquivalenceTest, ArithShiftEquivalenceMappingWidening) {
         std::vector<Node*> coerced,
         mapping->ApplyToOperands(f, shrl4.node()->operands()));
     EXPECT_THAT(coerced, ElementsAre(m::ZeroExt(m::Param("x")), m::Param("s")));
-    XLS_ASSERT_OK_AND_ASSIGN(
-        Node * output,
-        VerifyEquivalence(f, shrl4.node(), shra8.node(), *mapping));
+    XLS_ASSERT_OK_AND_ASSIGN(Node * output,
+                             VerifyEquivalence(f, shrl4.node(), *mapping));
     EXPECT_THAT(output, m::BitSlice(m::Shra(m::ZeroExt(), m::Param("s")),
                                     /*start=*/0, /*width=*/4));
   }
@@ -571,9 +557,8 @@ TEST_F(ResourceSharingEquivalenceTest, ArithShiftEquivalenceMappingWidening) {
         std::vector<Node*> coerced,
         mapping->ApplyToOperands(f, shll4.node()->operands()));
     EXPECT_THAT(coerced, ElementsAre(m::ZeroExt(rev_x), m::Param("s")));
-    XLS_ASSERT_OK_AND_ASSIGN(
-        Node * output,
-        VerifyEquivalence(f, shll4.node(), shra8.node(), *mapping));
+    XLS_ASSERT_OK_AND_ASSIGN(Node * output,
+                             VerifyEquivalence(f, shll4.node(), *mapping));
     EXPECT_THAT(output, m::Reverse(m::BitSlice(
                             m::Shra(m::ZeroExt(rev_x), m::Param("s")),
                             /*start=*/0, /*width=*/4)));
@@ -1107,12 +1092,12 @@ TEST_F(ResourceSharingEquivalenceTest, CompareToArithEquivalenceMapping) {
     ASSERT_TRUE(mappings.has_value());
     EXPECT_THAT(*mappings,
                 UnorderedElementsAre(Key(ult16.node()), Key(slt32.node())));
-    XLS_ASSERT_OK(VerifyEquivalence(f, ult16.node(), sub32.node(),
-                                    *mappings->at(ult16.node()))
-                      .status());
-    XLS_ASSERT_OK(VerifyEquivalence(f, slt32.node(), sub32.node(),
-                                    *mappings->at(slt32.node()))
-                      .status());
+    XLS_ASSERT_OK(
+        VerifyEquivalence(f, ult16.node(), *mappings->at(ult16.node()))
+            .status());
+    XLS_ASSERT_OK(
+        VerifyEquivalence(f, slt32.node(), *mappings->at(slt32.node()))
+            .status());
   }
 
   // Incompatible compare-to-arith mappings
@@ -1239,6 +1224,46 @@ TEST_F(ResourceSharingEquivalenceTest,
   }
 }
 
+TEST_F(ResourceSharingEquivalenceTest, MultiplySplitterEquivalenceMapping) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue a4 = fb.Param("a4", p->GetBitsType(4));
+  BValue b4 = fb.Param("b4", p->GetBitsType(4));
+  BValue a3 = fb.Param("a3", p->GetBitsType(3));
+  BValue b2 = fb.Param("b2", p->GetBitsType(2));
+  BValue umul8 = fb.UMul(a3, b2, /*result_width=*/8);
+  BValue smul8 = fb.SMul(a4, b4, /*result_width=*/8);
+  BValue umul4 = fb.UMul(a4, b4, /*result_width=*/4);
+  BValue smul4 = fb.SMul(a3, b2, /*result_width=*/4);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(umul8));
+
+  // Too small width to decompose:
+  EXPECT_THAT(GetNodeEquivalenceMapper().ComputeDecompositions(umul4.node()),
+              IsOkAndHolds(testing::IsEmpty()));
+  EXPECT_THAT(GetNodeEquivalenceMapper().ComputeDecompositions(smul4.node()),
+              IsOkAndHolds(testing::IsEmpty()));
+
+  // 8 bit umul decomposes into four 4 bit umul parts.
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::vector<std::shared_ptr<EquivalenceMapping>> umul_decompositions,
+      GetNodeEquivalenceMapper().ComputeDecompositions(umul8.node()));
+  ASSERT_EQ(umul_decompositions.size(), 1);
+  EXPECT_THAT(
+      umul_decompositions[0],
+      Pointee(AllOf(Property(&EquivalenceMapping::RequiresOperandTransformation,
+                             IsOkAndHolds(true)),
+                    Property(&EquivalenceMapping::RequiresOutputTransformation,
+                             IsOkAndHolds(false)))));
+  XLS_ASSERT_OK(VerifyEquivalence(f, umul8.node(), *umul_decompositions[0]));
+
+  // 8 bit smul decomposes into four 4 bit smul parts.
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::vector<std::shared_ptr<EquivalenceMapping>> smul_decompositions,
+      GetNodeEquivalenceMapper().ComputeDecompositions(smul8.node()));
+  ASSERT_EQ(smul_decompositions.size(), 1);
+  XLS_ASSERT_OK(VerifyEquivalence(f, smul8.node(), *smul_decompositions[0]));
+}
+
 TEST_F(ResourceSharingEquivalenceTest, CloneEquivalenceMapping) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
@@ -1307,6 +1332,28 @@ TEST_F(ResourceSharingEquivalenceTest, CloneEquivalenceMapping) {
   eq_mapping_clone(sle16.node(), sub0.node());
   eq_mapping_clone(ult0.node(), sub0.node());
   eq_mapping_clone(ult0.node(), sub16.node());
+}
+
+TEST_F(ResourceSharingEquivalenceTest, CloneMultiplySplitter) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue a16 = fb.Param("a16", p->GetBitsType(16));
+  BValue b16 = fb.Param("b16", p->GetBitsType(16));
+  BValue umul32 = fb.UMul(a16, b16, /*result_width=*/32);
+  BValue smul32 = fb.SMul(a16, b16, /*result_width=*/32);
+  XLS_ASSERT_OK(fb.BuildWithReturnValue(umul32).status());
+
+  for (Node* node : {umul32.node(), smul32.node()}) {
+    XLS_ASSERT_OK_AND_ASSIGN(
+        std::vector<std::shared_ptr<EquivalenceMapping>> decomp_mappings,
+        GetNodeEquivalenceMapper().ComputeDecompositions(node));
+    ASSERT_EQ(decomp_mappings.size(), 1);
+    EXPECT_THAT(
+        decomp_mappings[0]->Clone(std::nullopt),
+        IsOkAndHolds(Pointee(AllOf(
+            Property(&EquivalenceMapping::src, node),
+            Property(&EquivalenceMapping::dst, decomp_mappings[0]->dst())))));
+  }
 }
 
 TEST_F(ResourceSharingEquivalenceTest, ApplyToOperandsReusesExistingNodes) {
