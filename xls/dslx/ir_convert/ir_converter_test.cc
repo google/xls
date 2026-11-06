@@ -990,6 +990,14 @@ fn main(x: u10, y: u10) -> u10 {
   ExpectIr(converted);
 }
 
+TEST_F(IrConverterTest, DecodeWideResult) {
+  constexpr std::string_view program =
+      "pub fn main(x: u1) -> u3 { decode<u3>(x) }";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
+                           ConvertOneFunctionForTest(program, "main"));
+  ExpectIr(converted);
+}
+
 TEST_F(IrConverterTest, OneHotSelSplat) {
   constexpr std::string_view program =
       R"(

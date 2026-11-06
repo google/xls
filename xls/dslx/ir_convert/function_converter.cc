@@ -43,6 +43,7 @@
 #include "absl/types/span.h"
 #include "absl/types/variant.h"
 #include "xls/common/attribute_data.h"
+#include "xls/common/math_util.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/common/visitor.h"
@@ -5259,6 +5260,13 @@ absl::Status FunctionConverter::HandleBuiltinDecode(const Invocation* node) {
   const int64_t width = return_type->AsBitsOrDie()->bit_count();
 
   Def(node, [&](const SourceInfo& loc) {
+    // IR decode can only produce bits that the input can select.
+    const int64_t max_decode_width =
+        SaturatingLeftShift(int64_t{1}, input.BitCountOrDie()).result;
+    if (width > max_decode_width) {
+      return function_builder_->ZeroExtend(
+          function_builder_->Decode(input, max_decode_width, loc), width, loc);
+    }
     return function_builder_->Decode(input, width, loc);
   });
   return absl::OkStatus();

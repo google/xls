@@ -412,6 +412,7 @@ cc_library(
         ":proc_config_ir_converter",
         ":proc_scoped_channel_scope",
         "//xls/common:attribute_data",
+        "//xls/common:math_util",
         "//xls/common:visitor",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
