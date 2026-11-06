@@ -21,7 +21,7 @@ common:ci --lockfile_mode=error
 # Tell that this is an oss ci run. NB This only disables it on the every-cl run.
 build:ci --copt="-DXLS_IS_CI_RUN=1"
 
-build --cxxopt "-Wno-deprecated-attributes"
+build --cxxopt "-Wno-deprecated-attributes" --host_cxxopt "-Wno-deprecated-attributes"
 
 # Disable automatic generation of __init__.py files. This allows
 # namespace packages (such as `google`) to work correctly.
@@ -66,6 +66,9 @@ build --copt "-Wno-unknown-pragmas"    --host_copt "-Wno-unknown-pragmas"
 build --copt "-Wno-missing-field-initializers" --host_copt "-Wno-missing-field-initializers"
 build --copt "-Wno-bitwise-instead-of-logical" --host_copt "-Wno-bitwise-instead-of-logical"
 build --copt "-Wno-nullability-completeness"   --host_copt "-Wno-nullability-completeness"
+build --copt "-Wno-unused-function"            --host_copt "-Wno-unused-function"
+build --copt "-Wno-unused-template"            --host_copt "-Wno-unused-template"
+build --copt "-Wno-defaulted-function-deleted" --host_copt "-Wno-defaulted-function-deleted"
 
 # For 3rd party code: Disable warnings entirely.
 # They are not actionable and just create noise.
