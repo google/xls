@@ -1175,6 +1175,12 @@ TEST(TypecheckV2BuiltinTest, UpdateMustBeArrayType) {
               TypecheckFails(HasTypeMismatch("(u8, u8)", "Any[N]")));
 }
 
+TEST(TypecheckV2BuiltinTest, UpdateRejectsBitsAsArray) {
+  EXPECT_THAT(R"(fn main(a: bits[1]) -> u1 { update(a, (), a) })",
+              TypecheckFails(HasSubstr(
+                  "`update` requires an array as its first argument")));
+}
+
 TEST(TypecheckV2BuiltinTest, UpdateValueTypeMustMatch) {
   EXPECT_THAT(R"(const Y = update([u8:1, u8:2, u8:3], u8:2, u9:42);)",
               TypecheckFails(HasTypeMismatch("uN[8]", "uN[9]")));
@@ -1184,7 +1190,12 @@ TEST(TypecheckV2BuiltinTest, Update1DIndexAndValueDimensionMismatch) {
   EXPECT_THAT(
       R"(const Y = update([u8:1, u8:2, u8:3], (u8:1, u8:0), u8:42);)",
       TypecheckFails(HasSubstr(
-          R"(Array dimension in `update` expected to be larger than the number of indices (2); got 1)")));
+          R"(Array dimension in `update` expected to be at least the number of indices (2); got 1)")));
+}
+
+TEST(TypecheckV2BuiltinTest, UpdateTooManyIndicesIntoArrayOfTuples) {
+  EXPECT_THAT(R"(const Y = update([()], (u1:0, u1:0), ());)",
+              TypecheckFails(HasSubstr("number of indices (2); got 1")));
 }
 
 TEST(TypecheckV2BuiltinTest, Update1DValueDimensionMismatch) {
@@ -1292,7 +1303,7 @@ TEST(TypecheckV2BuiltinTest, Update2DMismatchIndex) {
   EXPECT_THAT(
       R"(const Y = update([[u8:1, u8:2], [u8:3, u8:4]], (u32:0, u32:1, u32:1), [u8:42, u8:43]);)",
       TypecheckFails(HasSubstr(
-          R"(Array dimension in `update` expected to be larger than the number of indices (3); got 2)")));
+          R"(Array dimension in `update` expected to be at least the number of indices (3); got 2)")));
 }
 
 TEST(TypecheckV2BuiltinTest, Update2DIndexScalar) {

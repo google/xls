@@ -5424,21 +5424,25 @@ absl::Status FunctionConverter::HandleBuiltinSMulp(const Invocation* node) {
 absl::Status FunctionConverter::HandleBuiltinUpdate(const Invocation* node) {
   XLS_RET_CHECK_EQ(node->args().size(), 3);
   XLS_ASSIGN_OR_RETURN(BValue arg, Use(node->args()[0]));
+  XLS_ASSIGN_OR_RETURN(BValue index, Use(node->args()[1]));
+  XLS_ASSIGN_OR_RETURN(BValue new_value, Use(node->args()[2]));
   std::vector<BValue> indices;
-  if (node->args()[1]->kind() == AstNodeKind::kXlsTuple) {
-    for (auto c : node->args()[1]->GetChildren(false)) {
-      XLS_ASSIGN_OR_RETURN(BValue index, Use(c));
-      indices.push_back(index);
+  if (index.GetType()->IsTuple()) {
+    XLS_ASSIGN_OR_RETURN(xls::TupleType * tuple_type,
+                         index.GetType()->AsTuple());
+    SourceInfo loc = ToSourceInfo(node->args()[1]->span());
+    for (int64_t i = 0; i < tuple_type->size(); ++i) {
+      indices.push_back(function_builder_->TupleIndex(index, i, loc));
     }
   } else {
-    XLS_ASSIGN_OR_RETURN(BValue index, Use(node->args()[1]));
     indices.push_back(index);
   }
-  XLS_ASSIGN_OR_RETURN(BValue new_value, Use(node->args()[2]));
-  Def(node, [&](const SourceInfo& loc) {
-    return function_builder_->ArrayUpdate(arg, new_value, indices, loc);
-  });
-  return absl::OkStatus();
+  return DefWithStatus(node,
+                       [&](const SourceInfo& loc) {
+                         return function_builder_->ArrayUpdate(arg, new_value,
+                                                               indices, loc);
+                       })
+      .status();
 }
 
 absl::Status FunctionConverter::HandleBuiltinUMulp(const Invocation* node) {
