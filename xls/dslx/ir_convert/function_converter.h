@@ -604,9 +604,6 @@ class FunctionConverter {
 
   absl::Status HandleProcDefSpawn(ProcDefInstance* instance);
 
-  // Dereferences the type definition to a struct or impl-style proc definition.
-  absl::StatusOr<StructDefBase*> DerefStructOrProc(TypeDefinition node);
-
   // Derefences the type definition to a enum definition.
   absl::StatusOr<EnumDef*> DerefEnum(TypeDefinition node);
 

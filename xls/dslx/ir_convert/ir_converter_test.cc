@@ -4378,6 +4378,60 @@ TEST_F(IrConverterTest, SimpleImplMethod) {
   ExpectIr(converted);
 }
 
+TEST_F(IrConverterTest, ImplMethodSelfStructInstance) {
+  constexpr std::string_view program = R"(
+  struct Counter { count: u8 }
+
+  impl Counter {
+    pub fn bump(self) -> Self { Self { count: self.count + u8:1 } }
+  }
+
+  fn top_fn(c: Counter) -> Counter {
+    c.bump()
+  }
+  )";
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
+                           ConvertModuleForTest(program));
+  ExpectIr(converted);
+}
+
+TEST_F(IrConverterTest, ImplMethodSelfSplatStructInstance) {
+  constexpr std::string_view program = R"(
+  struct Counter { count: u8, other: u16 }
+
+  impl Counter {
+    pub fn bump(self) -> Self { Self { count: self.count + u8:1, ..self } }
+  }
+
+  fn top_fn(c: Counter) -> Counter {
+    c.bump()
+  }
+  )";
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
+                           ConvertModuleForTest(program));
+  ExpectIr(converted);
+}
+
+TEST_F(IrConverterTest, ParametricImplMethodSelfStructInstance) {
+  constexpr std::string_view program = R"(
+  struct Counter<N: u32> { count: uN[N] }
+
+  impl Counter<N> {
+    pub fn bump(self) -> Self { Self { count: self.count + uN[N]:1 } }
+  }
+
+  fn top_fn(c: Counter<8>) -> Counter<8> {
+    c.bump()
+  }
+  )";
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
+                           ConvertModuleForTest(program));
+  ExpectIr(converted);
+}
+
 TEST_F(IrConverterTest, MethodUsingStructParametric) {
   constexpr std::string_view program = R"(
   struct F<N: u32> {}
