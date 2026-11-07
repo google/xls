@@ -2262,11 +2262,17 @@ absl::Status IrBuilderVisitor::HandleCountedFor(CountedFor* counted_for) {
   XLS_ASSIGN_OR_RETURN(llvm::Function * body, GetFunction(counted_for->body()));
 
   // Create a buffer to hold the loop state and write in the initial value.
+  // The state is copied with memcpy rather than with a first-class load/store
+  // of the state type: LLVM lowers aggregate loads/stores element by element,
+  // so compile time and memory grow super-linearly with the size of
+  // array/tuple loop states.
   llvm::Type* state_type = type_converter()->ConvertToLlvmType(
       counted_for->initial_value()->GetType());
+  int64_t state_size = type_converter()->GetTypeByteSize(
+      counted_for->initial_value()->GetType());
   AllocaBuffer loop_state_buffer = node_context.CreateAlloca(state_type);
-  node_context.entry_builder().CreateStore(node_context.LoadOperand(0),
-                                           loop_state_buffer.value());
+  LlvmMemcpy(loop_state_buffer.value(), node_context.GetOperandPtr(0),
+             state_size, node_context.entry_builder());
 
   std::vector<llvm::Value*> invariant_arg_buffers;
   for (int64_t i = 1; i < counted_for->operand_count(); ++i) {
@@ -2305,12 +2311,11 @@ absl::Status IrBuilderVisitor::HandleCountedFor(CountedFor* counted_for) {
                    node_context.GetJitRuntimeArg(), loop.body_builder())
           .status());
   index_buffer.CleanUp(loop.body_builder());
-  // TODO(meheff): 2022/09/09 Rather than loading the state and storing it in
-  // the state buffer for the next iteration, simply swap the state and
-  // next-state buffer pointers passed to the loop body function.
-  llvm::Value* next_state =
-      loop.body_builder().CreateLoad(state_type, next_state_buffer.value());
-  loop.body_builder().CreateStore(next_state, loop_state_buffer.value());
+  // TODO(meheff): 2022/09/09 Rather than copying the next state into the state
+  // buffer for the next iteration, simply swap the state and next-state buffer
+  // pointers passed to the loop body function.
+  LlvmMemcpy(loop_state_buffer.value(), next_state_buffer.value(), state_size,
+             loop.body_builder());
   next_state_buffer.CleanUp(loop.body_builder());
 
   loop.Finalize();

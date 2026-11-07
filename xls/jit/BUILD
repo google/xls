@@ -612,6 +612,7 @@ cc_test(
         "//xls/ir:ir_parser",
         "//xls/ir:type",
         "//xls/ir:value",
+        "//xls/ir:value_utils",
         "//xls/ir:value_view",
         "//xls/ir:xls_type_cc_proto",
         "@abseil-cpp//absl/container:flat_hash_map",
@@ -628,6 +629,7 @@ cc_test(
         "@abseil-cpp//absl/types:optional_ref",
         "@abseil-cpp//absl/types:span",
         "@googletest//:gtest",
+        "@llvm-project//llvm:Support",
         "@llvm-project//llvm:ir_headers",
     ],
 )
