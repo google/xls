@@ -1412,5 +1412,54 @@ fn test2() -> u32 {
 )"));
 }
 
+TEST(TypecheckV2FunctionTest, ChainedLetDagFeedingParametricInvocations) {
+  EXPECT_THAT(
+      R"(
+fn id(x: u32) -> u32 { x }
+
+fn compute(arr: u32[4], seed: u32) -> u32[4] {
+  let x0 = seed;
+  let x1 = (x0 ^ x0) + (x0 ^ x0);
+  let x2 = (x1 ^ x1) + (x0 ^ x1);
+  let x3 = (x2 ^ x2) + (x1 ^ x2);
+  let x4 = (x3 ^ x3) + (x2 ^ x3);
+  let x5 = (x4 ^ x4) + (x3 ^ x4);
+  let x6 = (x5 ^ x5) + (x4 ^ x5);
+  let x7 = (x6 ^ x6) + (x5 ^ x6);
+  let x8 = (x7 ^ x7) + (x6 ^ x7);
+  let x9 = (x8 ^ x8) + (x7 ^ x8);
+  let x10 = (x9 ^ x9) + (x8 ^ x9);
+  let x11 = (x10 ^ x10) + (x9 ^ x10);
+  let x12 = (x11 ^ x11) + (x10 ^ x11);
+  let x13 = (x12 ^ x12) + (x11 ^ x12);
+  let x14 = (x13 ^ x13) + (x12 ^ x13);
+  let x15 = (x14 ^ x14) + (x13 ^ x14);
+  let x16 = (x15 ^ x15) + (x14 ^ x15);
+  let x17 = (x16 ^ x16) + (x15 ^ x16);
+  let x18 = (x17 ^ x17) + (x16 ^ x17);
+  let x19 = (x18 ^ x18) + (x17 ^ x18);
+  let x20 = (x19 ^ x19) + (x18 ^ x19);
+  let x21 = (x20 ^ x20) + (x19 ^ x20);
+  let x22 = (x21 ^ x21) + (x20 ^ x21);
+  let x23 = (x22 ^ x22) + (x21 ^ x22);
+  let x24 = (x23 ^ x23) + (x22 ^ x23);
+  let x25 = (x24 ^ x24) + (x23 ^ x24);
+  let x26 = (x25 ^ x25) + (x24 ^ x25);
+  let x27 = (x26 ^ x26) + (x25 ^ x26);
+  let x28 = (x27 ^ x27) + (x26 ^ x27);
+  let x29 = (x28 ^ x28) + (x27 ^ x28);
+  let x30 = (x29 ^ x29) + (x28 ^ x29);
+  let x31 = (x30 ^ x30) + (x29 ^ x30);
+  let a0 = update(arr, u32:0, id(x31));
+  let a1 = update(a0, u32:1, id(x31 ^ x30));
+  let a2 = update(a1, u32:2, id(x31 ^ x29));
+  let res = update(a2, u32:3, id(x31 ^ x28));
+  res
+}
+)",
+      TypecheckSucceeds(HasNodeWithType(
+          "let res = update(a2, u32:3, id(x31 ^ x28));", "uN[32][4]")));
+}
+
 }  // namespace
 }  // namespace xls::dslx

@@ -491,9 +491,15 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
   absl::Status ConvertConstantsReferencedUnder(
       const AstNode* node,
       std::optional<const ParametricContext*> parametric_context) {
+    if (!converted_constants_referenced_under_[parametric_context]
+             .insert(node)
+             .second) {
+      return absl::OkStatus();
+    }
     std::vector<std::pair<const NameRef*, const NameDef*>> references;
     XLS_ASSIGN_OR_RETURN(references,
                          CollectReferencedUnder(node, /*want_types=*/true));
+    XLS_ASSIGN_OR_RETURN(TypeInfo * ti, GetTypeInfo(parametric_context));
     for (const auto& [name_ref, name_def] : references) {
       // Avoid the callee node, because its conversion is done explicitly upon
       // function resolution during the conversion of the invocation, and we
@@ -506,8 +512,6 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
           absl::down_cast<const Invocation*>(node)->callee() == name_ref) {
         continue;
       }
-
-      XLS_ASSIGN_OR_RETURN(TypeInfo * ti, GetTypeInfo(parametric_context));
 
       // If the name already has a constexpr value, it will not pose a problem.
       if (ti->GetConstExprOption(name_def).has_value()) {
@@ -528,6 +532,14 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
       // cannot be done before loop unrolling or compile-time branch selection.
       if (decl != nullptr && (decl->kind() == AstNodeKind::kConstantDef ||
                               decl->kind() == AstNodeKind::kLet)) {
+        // If `decl` has already been converted in this parametric context, its
+        // constexpr value (if any) has already been evaluated and noted; for
+        // non-constexpr `let` bindings, `GetConstExprOption` remains nullopt
+        // after conversion, so avoid re-walking `decl` and its dependency DAG.
+        if (ti->GetItem(decl).has_value() ||
+            converted_subtrees_[parametric_context].contains(decl)) {
+          continue;
+        }
         if (!IsInDescendantLoopOrConstControlFlow(node, decl)) {
           XLS_RETURN_IF_ERROR(
               ConvertConstantsReferencedUnder(decl, parametric_context));
@@ -3646,6 +3658,9 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
   absl::flat_hash_map<std::optional<const ParametricContext*>,
                       absl::flat_hash_set<const AstNode*>>
       converted_subtrees_;
+  absl::flat_hash_map<std::optional<const ParametricContext*>,
+                      absl::flat_hash_set<const AstNode*>>
+      converted_constants_referenced_under_;
   absl::flat_hash_map<std::optional<const ParametricContext*>,
                       absl::flat_hash_set<const Invocation*>>
       converted_invocations_;
