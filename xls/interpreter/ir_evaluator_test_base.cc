@@ -2281,6 +2281,83 @@ top fn main() -> bits[32] {
               IsOkAndHolds(Value(UBits(expected, 32))));
 }
 
+// A counted_for whose loop state is a large tuple-wrapped array (far too big
+// for a stack alloca in the JIT) updated at a dynamic index on each iteration.
+// Exercises trip counts of zero, one, even and odd to cover all the ways the
+// loop state can flow between the state buffers.
+TEST_P(IrEvaluatorTestBase, InterpretCountedForLargeArrayState) {
+  constexpr int64_t kArraySize = 1000;
+  constexpr std::string_view ir_text = R"(
+package test
+
+fn body(i: bits[32], st: (bits[1], bits[64][$0]), idx: bits[32][$1]) -> (bits[1], bits[64][$0]) {
+  flag: bits[1] = tuple_index(st, index=0)
+  arr: bits[64][$0] = tuple_index(st, index=1)
+  element_index: bits[32] = array_index(idx, indices=[i])
+  old: bits[64] = array_index(arr, indices=[element_index])
+  i_ext: bits[64] = zero_ext(i, new_bit_count=64)
+  one: bits[64] = literal(value=1)
+  new_val: bits[64] = add(old, i_ext)
+  new_plus_one: bits[64] = add(new_val, one)
+  updated: bits[64][$0] = array_update(arr, new_plus_one, indices=[element_index])
+  not_flag: bits[1] = not(flag)
+  ret result: (bits[1], bits[64][$0]) = tuple(not_flag, updated)
+}
+
+top fn main(arr: bits[64][$0], idx: bits[32][$1]) -> (bits[1], bits[64][$0]) {
+  zero: bits[1] = literal(value=0)
+  init_state: (bits[1], bits[64][$0]) = tuple(zero, arr)
+  ret counted_for.1: (bits[1], bits[64][$0]) = counted_for(init_state, trip_count=$2, stride=1, body=body, invariant_args=[idx])
+}
+)";
+  for (int64_t trip_count : {0, 1, 2, 7, 8}) {
+    // The IR requires a non-empty index array so always allocate at least one
+    // element.
+    const int64_t idx_size = std::max<int64_t>(trip_count, 1);
+    std::string formatted_ir =
+        absl::Substitute(ir_text, kArraySize, idx_size, trip_count);
+    XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
+                             Parser::ParsePackage(formatted_ir));
+    XLS_ASSERT_OK(VerifyPackage(package.get()));
+    XLS_ASSERT_OK_AND_ASSIGN(Function * function, package->GetTopAsFunction());
+
+    std::vector<uint64_t> expected_array(kArraySize, 0);
+    std::vector<Value> initial_elements;
+    initial_elements.reserve(kArraySize);
+    for (int64_t i = 0; i < kArraySize; ++i) {
+      initial_elements.push_back(Value(UBits(i, 64)));
+      expected_array[i] = i;
+    }
+    // Repeatedly write a handful of distinct indices (including one repeated
+    // index) so that the state carried between iterations matters.
+    std::vector<Value> index_elements;
+    index_elements.reserve(idx_size);
+    for (int64_t i = 0; i < idx_size; ++i) {
+      int64_t index = (i % 2 == 0) ? 17 : (kArraySize - 1 - i);
+      index_elements.push_back(Value(UBits(index, 32)));
+      if (i < trip_count) {
+        expected_array[index] += i + 1;
+      }
+    }
+    std::vector<Value> expected_elements;
+    expected_elements.reserve(kArraySize);
+    for (uint64_t element : expected_array) {
+      expected_elements.push_back(Value(UBits(element, 64)));
+    }
+
+    XLS_ASSERT_OK_AND_ASSIGN(Value initial_array,
+                             Value::Array(initial_elements));
+    XLS_ASSERT_OK_AND_ASSIGN(Value index_array, Value::Array(index_elements));
+    XLS_ASSERT_OK_AND_ASSIGN(Value expected_array_value,
+                             Value::Array(expected_elements));
+    Value expected =
+        Value::Tuple({Value(UBits(trip_count % 2, 1)), expected_array_value});
+    EXPECT_THAT(RunWithNoEvents(function, {initial_array, index_array}),
+                IsOkAndHolds(expected))
+        << "trip_count = " << trip_count;
+  }
+}
+
 TEST_P(IrEvaluatorTestBase, InterpretTuple) {
   Package package("my_package");
   XLS_ASSERT_OK_AND_ASSIGN(Function * function,

@@ -2260,21 +2260,44 @@ absl::Status IrBuilderVisitor::HandleCountedFor(CountedFor* counted_for) {
                                         counted_for->invariant_args().size())),
           /*include_wrapper_args=*/true));
   XLS_ASSIGN_OR_RETURN(llvm::Function * body, GetFunction(counted_for->body()));
+  llvm::IRBuilder<>& b = node_context.entry_builder();
 
-  // Create a buffer to hold the loop state and write in the initial value.
+  // The loop state is held in two buffers which are ping-ponged between
+  // iterations: the body function reads the state from one buffer and writes
+  // the next state into the other. The buffer pointers are carried across
+  // iterations as loop-carried values (phis) and swapped on every iteration so
+  // that no copy of the state is required between iterations.
+  //
+  // Note: the state is only ever moved around with memcpy, never as an LLVM
+  // first-class aggregate value (load/store of the whole state type). LLVM
+  // scalarizes aggregate loads/stores of small-ish arrays and all structs
+  // element-by-element (InstCombine, SROA) which results in super-linear
+  // compile time and memory usage for large array-typed loop states.
   llvm::Type* state_type = type_converter()->ConvertToLlvmType(
       counted_for->initial_value()->GetType());
-  AllocaBuffer loop_state_buffer = node_context.CreateAlloca(state_type);
-  node_context.entry_builder().CreateStore(node_context.LoadOperand(0),
-                                           loop_state_buffer.value());
+  int64_t state_size = type_converter()->GetTypeByteSize(
+      counted_for->initial_value()->GetType());
+  AllocaBuffer state_buffer_a = node_context.CreateAlloca(state_type);
+  AllocaBuffer state_buffer_b = node_context.CreateAlloca(state_type);
+  LlvmMemcpy(state_buffer_a.value(), node_context.GetOperandPtr(0), state_size,
+             b);
 
   std::vector<llvm::Value*> invariant_arg_buffers;
   for (int64_t i = 1; i < counted_for->operand_count(); ++i) {
     invariant_arg_buffers.push_back(node_context.GetOperandPtr(i));
   }
 
-  LlvmIrLoop loop(counted_for->trip_count(), node_context.entry_builder(),
-                  counted_for->stride());
+  constexpr std::string_view kStateBufferName = "state_buffer";
+  constexpr std::string_view kNextStateBufferName = "next_state_buffer";
+  LlvmIrLoop loop(
+      counted_for->trip_count(), b, counted_for->stride(),
+      /*insert_before=*/nullptr,
+      {LoopCarriedValue{std::string(kStateBufferName), state_buffer_a.value()},
+       LoopCarriedValue{std::string(kNextStateBufferName),
+                        state_buffer_b.value()}});
+  llvm::Value* state_buffer = loop.GetLoopCarriedValue(kStateBufferName);
+  llvm::Value* next_state_buffer =
+      loop.GetLoopCarriedValue(kNextStateBufferName);
 
   llvm::Type* index_type = type_converter()->ConvertToLlvmType(
       counted_for->body()->param(0)->GetType());
@@ -2291,33 +2314,35 @@ absl::Status IrBuilderVisitor::HandleCountedFor(CountedFor* counted_for) {
   //      InvT_0 invariant_arg_0, ... , InvT_n invariant_arg_n)
   std::vector<llvm::Value*> input_arg_ptrs;
   input_arg_ptrs.push_back(index_buffer.value());
-  input_arg_ptrs.push_back(loop_state_buffer.value());
+  input_arg_ptrs.push_back(state_buffer);
   input_arg_ptrs.insert(input_arg_ptrs.end(), invariant_arg_buffers.begin(),
                         invariant_arg_buffers.end());
 
-  AllocaBuffer next_state_buffer =
-      node_context.CreateAlloca(loop.body_builder(), state_type);
-  XLS_RETURN_IF_ERROR(
-      CallFunction(body, input_arg_ptrs, {next_state_buffer.value()},
-                   node_context.GetTempBufferArg(),
-                   node_context.GetInterpreterEventsArg(),
-                   node_context.GetInstanceContextArg(),
-                   node_context.GetJitRuntimeArg(), loop.body_builder())
-          .status());
+  XLS_RETURN_IF_ERROR(CallFunction(body, input_arg_ptrs, {next_state_buffer},
+                                   node_context.GetTempBufferArg(),
+                                   node_context.GetInterpreterEventsArg(),
+                                   node_context.GetInstanceContextArg(),
+                                   node_context.GetJitRuntimeArg(),
+                                   loop.body_builder())
+                          .status());
   index_buffer.CleanUp(loop.body_builder());
-  // TODO(meheff): 2022/09/09 Rather than loading the state and storing it in
-  // the state buffer for the next iteration, simply swap the state and
-  // next-state buffer pointers passed to the loop body function.
-  llvm::Value* next_state =
-      loop.body_builder().CreateLoad(state_type, next_state_buffer.value());
-  loop.body_builder().CreateStore(next_state, loop_state_buffer.value());
-  next_state_buffer.CleanUp(loop.body_builder());
 
-  loop.Finalize();
+  // Swap the buffers for the next iteration.
+  loop.Finalize(/*final_body_block_builder=*/std::nullopt,
+                {{std::string(kStateBufferName), next_state_buffer},
+                 {std::string(kNextStateBufferName), state_buffer}});
 
-  return FinalizeNodeIrContextWithAllocaValue(std::move(node_context),
-                                              std::move(loop_state_buffer),
-                                              &loop.exit_builder());
+  // After the loop exits, the final state is in `state_buffer` (which is
+  // defined in the preheader and thus available in the exit block). Copy it to
+  // the output and release both buffers.
+  node_context.FinalizeWithPointerToValue(
+      state_buffer, loop.exit_builder(), /*return_value=*/std::nullopt,
+      /*result_type=*/std::nullopt, [&](llvm::IRBuilder<>& pre_ret) {
+        state_buffer_a.CleanUp(pre_ret);
+        state_buffer_b.CleanUp(pre_ret);
+      });
+  node_context_.emplace(std::move(node_context));
+  return absl::OkStatus();
 }
 
 absl::Status IrBuilderVisitor::HandleCover(Cover* cover) {
