@@ -311,6 +311,16 @@ const_assert!(F2.to_bits() == (u32:5 ++ u8:60 ++ u64:12345));
 )"));
 }
 
+TEST(TypecheckV2TraitTest, ToBitsWithNestedEmptyTuple) {
+  XLS_ASSERT_OK(TypecheckV2(R"(
+#[derive(ToBits)]
+struct Foo { a: ((), bool) }
+
+const_assert!(Foo { a: ((), true) }.to_bits() == u1:1);
+const_assert!(Foo { a: ((), false) }.to_bits() == u1:0);
+)"));
+}
+
 TEST(TypecheckV2TraitTest, ToBitsWithEnum) {
   XLS_ASSERT_OK(TypecheckV2(R"(
 enum E : u8 {
@@ -340,6 +350,16 @@ struct Foo {
 const F = Foo {a: 5, b: [5, 6, 7]};
 
 const_assert!(F.to_bits() == (u32:5 ++ u8:5 ++ u8:6 ++ u8:7));
+)"));
+}
+
+TEST(TypecheckV2TraitTest, ToBitsWithArrayOfSingletonTuples) {
+  XLS_ASSERT_OK(TypecheckV2(R"(
+#[derive(ToBits)]
+struct Foo { a: (bool,)[2] }
+
+const F = Foo { a: [(true,), (false,)] };
+const_assert!(F.to_bits() == u2:0b10);
 )"));
 }
 
