@@ -160,7 +160,7 @@ absl::Status PrintPositionalError(absl::Span<const Span> error_spans,
   // be told explicitly if color error messages are ok.
   std::string msg{error_message};
   if (!isatty(fileno(stderr)) || color == PositionalErrorColor::kNoColor) {
-    RE2::GlobalReplace(&msg, "\33\\[\\d+m", "");
+    RE2::GlobalReplace(&msg, "\33\\[[0-9;]*m", "");
   }
 
   ColorSpec color_spec;
