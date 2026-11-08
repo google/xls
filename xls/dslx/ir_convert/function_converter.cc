@@ -2421,7 +2421,7 @@ absl::Status FunctionConverter::HandleUdfInvocation(const Invocation* node,
     args = new_args;
   }
 
-  Def(node, [&](const SourceInfo& loc) {
+  auto invoke = [&](const SourceInfo& loc) {
     BValue result = function_builder_->Invoke(args, f, loc);
     if (!callee_requires_implicit_token) {
       return result;
@@ -2433,8 +2433,8 @@ absl::Status FunctionConverter::HandleUdfInvocation(const Invocation* node,
     BValue result_token = function_builder_->TupleIndex(result, 0);
     implicit_token_data_->control_tokens.push_back(result_token);
     return function_builder_->TupleIndex(result, 1);
-  });
-  return absl::OkStatus();
+  };
+  return DefWithStatus(node, invoke).status();
 }
 
 absl::StatusOr<FunctionConverter::AssertionLabelData>

@@ -930,6 +930,25 @@ let (h, g, f) = (g, f, e);
 Note that type annotations can still be added and be used for program
 understanding, as they they will be checked by DSLX.
 
+When a local `let` binds an unannotated integer literal, a function parameter
+can constrain the type of the binding. For example, this happens when the
+binding and call are in the same block and the name is passed directly to a
+non-parametric function defined in the module. All uses of the name share one
+type. Passing it directly to functions that require different types is a type
+error.
+
+```dslx
+fn take_s8(x: s8) -> s8 { x }
+
+fn widen() -> u16 {
+    let x = 0xff;
+    let _y = take_s8(x);
+    x as u16
+}
+
+const_assert!(widen() == u16:65535);
+```
+
 ### Type Inference Details
 
 #### Type Inference Background

@@ -913,6 +913,57 @@ fn caller() -> u32 {
   ExpectIr(converted);
 }
 
+TEST_F(IrConverterTest, InvokeInfersLocalLiteralArgumentWidth) {
+  constexpr std::string_view program = R"(
+fn take8(n: u8) -> u8 { n }
+fn f() -> u8 { let tiny = 1; take8(tiny) }
+const_assert!(f() + u8:1 == u8:2);
+)";
+  EXPECT_THAT(ConvertOneFunctionForTest(program, "f"),
+              IsOkAndHolds(HasSubstr("tiny: bits[8] = literal(value=1,")));
+}
+
+TEST_F(IrConverterTest, InvokeInfersLocalLiteralTypeForOtherUses) {
+  constexpr std::string_view program = R"(
+fn take_s8(x: s8) -> s8 { x }
+fn low_bit(x: u8) -> bool { x as u1 }
+
+fn widen() -> u16 {
+  let x = 0xff;
+  let _y = take_s8(x);
+  x as u16
+}
+
+fn complement() -> u8 {
+  let x = 1;
+  const_assert!(low_bit(x));
+  (!x) as u8
+}
+
+#[test]
+fn test_widen() { assert_eq(widen(), u16:65535); }
+#[test]
+fn test_complement() { assert_eq(complement(), u8:254); }
+)";
+  RunComparator run_comparator(CompareMode::kInterpreter);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TestResultData result,
+      ParseAndTest(program, "test_module", "test_module.x",
+                   ParseAndTestOptions{.run_comparator = &run_comparator}));
+  EXPECT_EQ(result.result(), TestResult::kAllPassed);
+}
+
+TEST_F(IrConverterTest, InvokeReportsArgumentWidthMismatch) {
+  // Typechecking currently accepts this alias chain with a u1 operand for u8.
+  constexpr std::string_view program = R"(
+fn take8(n: u8) -> u8 { n }
+fn f() -> u8 { let tiny = 1; let copy = tiny; take8(copy) }
+)";
+  EXPECT_THAT(ConvertOneFunctionForTest(program, "f"),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("to have type bits[8], has type bits[1]")));
+}
+
 TEST_F(IrConverterTest, CastOfAdd) {
   constexpr std::string_view program =
       R"(
