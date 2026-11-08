@@ -293,6 +293,28 @@ fn main() {
       TypecheckFails(HasSizeMismatch("uN[1]", "uN[32]")));
 }
 
+TEST(TypecheckV2Test, LambdaUsesCapturedLiteralAtItsInferredWidth) {
+  EXPECT_THAT(R"(
+fn sample(xs: u2[2]) -> u2[2] {
+  let bias = 3;
+  map(xs, |x| x + bias)
+}
+const RESULT = sample([u2:0, u2:1]);
+const_assert!(RESULT == [u2:3, u2:0]);
+)",
+              TypecheckSucceeds(HasNodeWithType("RESULT", "uN[2][2]")));
+}
+
+TEST(TypecheckV2Test, LambdaCannotResizeCapturedLiteral) {
+  EXPECT_THAT(R"(
+fn sample(xs: u8[2]) -> u8[2] {
+  let bias = 3;
+  map(xs, |x| x + bias)
+}
+)",
+              TypecheckFails(HasSizeMismatch("uN[2]", "uN[8]")));
+}
+
 TEST(TypecheckV2Test, LambdaGeneratedValueAsType) {
   EXPECT_THAT(R"(
 const X = u32:3;
@@ -369,6 +391,18 @@ fn main(x: u32) -> u32 {
 const_assert!(main(2) == 3);
 )",
       TypecheckSucceeds(HasNodeWithType("main", "(uN[32]) -> uN[32]")));
+}
+
+TEST(TypecheckV2Test, LambdaWithInferredTupleResultAndCapture) {
+  EXPECT_THAT(
+      R"(
+fn pairs(xs: u8[2], bias: u16) -> (u8, u16)[2] {
+  map(xs, |x| (x, bias))
+}
+const PAIRS = pairs([u8:1, u8:2], u16:300);
+const_assert!(PAIRS == [(u8:1, u16:300), (u8:2, u16:300)]);
+)",
+      TypecheckSucceeds(HasNodeWithType("PAIRS", "(uN[8], uN[16])[2]")));
 }
 
 TEST(TypecheckV2Test, LambdaWithImplicitParam) {

@@ -208,6 +208,21 @@ class TypeValidator : public AstNodeVisitorWithDefault {
     return DefaultHandler(ref);
   }
 
+  absl::Status HandleAttr(const Attr* attr) override {
+    std::optional<const Type*> lhs_type = ti_.GetItem(attr->lhs());
+    if (lhs_type.has_value() && (*lhs_type)->IsStruct()) {
+      // A field read must have the type stored in the instantiated struct,
+      // even if its initializer was an unsized literal.
+      auto member_type =
+          (*lhs_type)->AsStruct().GetMemberTypeByName(attr->attr());
+      if (member_type.has_value() && *type_ != *member_type) {
+        return TypeMismatchErrorStatus(*type_, *member_type, attr->span(),
+                                       attr->lhs()->span(), file_table_);
+      }
+    }
+    return DefaultHandler(attr);
+  }
+
   absl::Status HandleBinop(const Binop* binop) override {
     if ((GetBinopSameTypeKinds().contains(binop->binop_kind()) ||
          GetBinopShifts().contains(binop->binop_kind())) &&

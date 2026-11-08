@@ -253,12 +253,18 @@ class NarrowVisitor final : public DfsVisitorWithDefault {
         ternary->AsView(), [](const TernaryVector& ternary_vector) -> Value {
           return Value(ternary_ops::ToKnownBitsValues(ternary_vector));
         });
-    XLS_ASSIGN_OR_RETURN(Value value, LeafTypeTreeToValue(value_ltt.AsView()));
-    XLS_RETURN_IF_ERROR(replace_with(value));
+    absl::StatusOr<Value> value = LeafTypeTreeToValue(value_ltt.AsView());
+    if (absl::IsUnimplemented(value.status())) {
+      // A fully known aggregate can contain an empty array, which Value
+      // cannot represent as a literal.
+      return false;
+    }
+    XLS_RETURN_IF_ERROR(value.status());
+    XLS_RETURN_IF_ERROR(replace_with(*value));
     VLOG(3) << absl::StreamFormat(
         "Range analysis found precise value for %s == %s %s, replacing with "
         "literal\n",
-        to_replace->GetName(), value.ToString(), context);
+        to_replace->GetName(), value->ToString(), context);
     XLS_RETURN_IF_ERROR(Change());
     return true;
   }
