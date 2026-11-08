@@ -959,5 +959,76 @@ TEST_F(PassBaseTest, IdempotentPassTracking) {
               )pb")));
 }
 
+// A compound pass that changed the IR must not discard the redundancy
+// information established by the passes nested inside it that ran *after* the
+// last change; otherwise every fixed-point iteration after a change re-runs
+// every pass instead of only those that could observe new IR.
+TEST_F(PassBaseTest, CompoundPassDoesNotClearRedundancyOfTrailingPasses) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  fb.Literal(UBits(0, 64));
+  XLS_ASSERT_OK(fb.Build());
+
+  OptimizationFixedPointCompoundPass fixedpoint("fixedpoint", "fixedpoint");
+  {
+    // Wrap the inner compound the same way the real pipeline does (opt-level
+    // capped compound passes); the wrapper must report itself as compound too.
+    auto inner = std::make_unique<
+        internal::DynamicCapOptLevel<OptimizationCompoundPass>>(
+        /*level=*/2, "inner", "inner");
+    // Changes the IR on the first iteration only.
+    inner->inner_pass()->Add<MutatingIdempotentPass>(/*nodes_to_add=*/1);
+    // Never changes the IR; after its first (no-op) run following the last
+    // change it is known-redundant until the IR changes again.
+    inner->inner_pass()->Add<MutatingIdempotentPass>(/*nodes_to_add=*/0);
+    fixedpoint.AddOwned(std::move(inner));
+  }
+
+  PassResults results;
+  OptimizationContext context;
+  OptimizationPassOptions options;
+  EXPECT_THAT(fixedpoint.Run(p.get(), options, &results, context),
+              IsOkAndHolds(true));
+  EXPECT_THAT(results.ToProto(),
+              proto_testing::Partially(proto_testing::EqualsProto(R"pb(
+                pass_metrics {
+                  pass_name: "fixedpoint"
+                  changed: 1
+                  fixed_point_iterations: 2
+                  # Iteration 1.
+                  nested_results {
+                    pass_name: "inner"
+                    changed: 1
+                    nested_results {
+                      pass_name: "mutating_idempotent"
+                      changed: 1
+                      skip_reason: SKIP_REASON_NOT_SKIPPED
+                    }
+                    nested_results {
+                      pass_name: "mutating_idempotent"
+                      changed: 0
+                      skip_reason: SKIP_REASON_NOT_SKIPPED
+                    }
+                  }
+                  # Iteration 2: nothing changed since either pass last ran, so
+                  # both are skipped.
+                  nested_results {
+                    pass_name: "inner"
+                    changed: 0
+                    nested_results {
+                      pass_name: "mutating_idempotent"
+                      changed: 0
+                      skip_reason: SKIP_REASON_KNOWN_REDUNDANT
+                    }
+                    nested_results {
+                      pass_name: "mutating_idempotent"
+                      changed: 0
+                      skip_reason: SKIP_REASON_KNOWN_REDUNDANT
+                    }
+                  }
+                }
+              )pb")));
+}
+
 }  // namespace
 }  // namespace xls
