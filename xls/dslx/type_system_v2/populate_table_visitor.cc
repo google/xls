@@ -761,26 +761,28 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
     return table_.SetTypeAnnotation(node, any_type);
   }
 
-  // Recursively handles a tuple pattern, propagating the unified type of the
-  // tree downward to children (i.e. the children's types are element types of
-  // the tree's type variable). This function sets the root-level type to be a
-  // tuple of `Any` types, the rationale being that a tuple pattern itself does
-  // not provide any top-level type information but the allowable size of the
-  // tuple. A tuple pattern must be used in a context where this tuple of `Any`
-  // will get unified against a source of actual type information.
+  // Preserve the shape of every tuple in the pattern. Leaves get their
+  // types from the matched value, and `..` can match any number of elements.
+  TupleTypeAnnotation* MakeTuplePatternAnnotation(const TuplePattern* node) {
+    std::vector<TypeAnnotation*> member_types;
+    member_types.reserve(node->members().size());
+    for (const PatternTree& child : node->members()) {
+      if (const auto* tuple = std::get_if<TuplePattern*>(&child)) {
+        member_types.push_back(MakeTuplePatternAnnotation(*tuple));
+      } else {
+        member_types.push_back(
+            module_.Make<AnyTypeAnnotation>(IsRestOfTupleLeaf(child)));
+      }
+    }
+    return module_.Make<TupleTypeAnnotation>(node->span(),
+                                             std::move(member_types));
+  }
+
   absl::Status HandleTuplePattern(const TuplePattern* node) override {
     VLOG(5) << "HandleTuplePattern: " << node->ToString();
-    std::vector<TypeAnnotation*> member_types;
     const NameRef* variable = *table_.GetTypeVariable(node);
-
-    for (int i = 0; i < node->members().size(); i++) {
-      const PatternTree& child = node->members()[i];
-      member_types.push_back(
-          module_.Make<AnyTypeAnnotation>(IsRestOfTupleLeaf(child)));
-    }
-    TupleTypeAnnotation* tuple_annotation =
-        module_.Make<TupleTypeAnnotation>(node->span(), member_types);
-    XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(node, tuple_annotation));
+    XLS_RETURN_IF_ERROR(
+        table_.SetTypeAnnotation(node, MakeTuplePatternAnnotation(node)));
     return HandleTuplePatternChildren(
         node, module_.Make<TypeVariableTypeAnnotation>(variable));
   }
