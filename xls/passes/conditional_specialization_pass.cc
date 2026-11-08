@@ -28,6 +28,7 @@
 #include "absl/container/btree_map.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
+#include "absl/hash/hash.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
@@ -909,6 +910,60 @@ class ImpliedConditionCache {
   absl::flat_hash_map<Condition, std::unique_ptr<ConditionSet>> cache_;
 };
 
+// Memoizes `QueryEngine::SpecializeGiven` by the *contents* of a ConditionSet.
+//
+// Specializing the (BDD-backed) query engine is expensive: every interval
+// condition is lowered to comparator BDDs and all assumptions are conjoined.
+// The pass asks for a specialized engine once per (node, operand) edge, but the
+// condition sets of neighbouring edges are overwhelmingly identical (all
+// non-select-arm operands of a node share the node's set, and sets propagate
+// unchanged through long chains of single-user nodes), so on large graphs
+// almost all of that work is repeated. On a ~600k node design this accounted
+// for roughly half of the pass's runtime.
+//
+// The cached engines capture BDD node indices of the condition nodes, so the
+// cache must be dropped whenever the IR is mutated (which can change those
+// nodes' BDDs) or the BDD is garbage collected.
+class SpecializedQueryEngineCache {
+ public:
+  explicit SpecializedQueryEngineCache(const QueryEngine& base_engine)
+      : base_engine_(base_engine) {}
+
+  const QueryEngine& Get(const ConditionSet& condition_set) {
+    absl::Span<const Condition> key = condition_set.conditions();
+    if (auto it = cache_.find(key); it != cache_.end()) {
+      return *it->second;
+    }
+    auto [it, _] = cache_.emplace(
+        std::vector<Condition>(key.begin(), key.end()),
+        base_engine_.SpecializeGiven(condition_set.GetAsGivens()));
+    return *it->second;
+  }
+
+  // Must be called whenever the IR is mutated or the BDD is garbage collected.
+  void Clear() { cache_.clear(); }
+
+ private:
+  struct ConditionsHash {
+    using is_transparent = void;
+    size_t operator()(absl::Span<const Condition> conditions) const {
+      return absl::HashOf(conditions);
+    }
+  };
+  struct ConditionsEq {
+    using is_transparent = void;
+    bool operator()(absl::Span<const Condition> a,
+                    absl::Span<const Condition> b) const {
+      return absl::c_equal(a, b);
+    }
+  };
+
+  const QueryEngine& base_engine_;
+  absl::flat_hash_map<std::vector<Condition>, std::unique_ptr<QueryEngine>,
+                      ConditionsHash, ConditionsEq>
+      cache_;
+};
+
 absl::StatusOr<bool> EliminateNoopNext(FunctionBase* f) {
   std::vector<Next*> to_remove;
   for (Node* n : f->nodes()) {
@@ -969,6 +1024,7 @@ absl::StatusOr<bool> ConditionalSpecializationPass::RunOnFunctionBaseInternal(
   XLS_ASSIGN_OR_RETURN(std::vector<Node*> topo_sort_nodes, context.TopoSort(f));
   ConditionMap condition_map(topo_sort_nodes);
   ImpliedConditionCache condition_cache(topo_sort_nodes, &query_engine);
+  SpecializedQueryEngineCache specialized_engines(query_engine);
 
   std::optional<absl::flat_hash_map<Node*, absl::flat_hash_set<Node*>>>
       affected_by;
@@ -992,6 +1048,8 @@ absl::StatusOr<bool> ConditionalSpecializationPass::RunOnFunctionBaseInternal(
             kBddGcThreshold) {
       time_since_last_gc = 0;
       XLS_RETURN_IF_ERROR((*bdd_query_engine)->MaybePerformGarbageCollection());
+      // GC may have renumbered BDD nodes captured by the cached engines.
+      specialized_engines.Clear();
     }
     ConditionSet& set = condition_map.GetNodeConditionSet(node);
     VLOG(4) << absl::StreamFormat("Considering node %s: %s", node->GetName(),
@@ -1268,6 +1326,7 @@ absl::StatusOr<bool> ConditionalSpecializationPass::RunOnFunctionBaseInternal(
                            NaryAndIfNeeded(f, access_conditions));
       XLS_RETURN_IF_ERROR(state_read->SetPredicate(new_predicate));
       changed = true;
+      specialized_engines.Clear();
     }
 
     // Now specialize any operands (if possible) based on the conditions.
@@ -1341,8 +1400,11 @@ absl::StatusOr<bool> ConditionalSpecializationPass::RunOnFunctionBaseInternal(
         continue;
       }
 
-      std::unique_ptr<QueryEngine> specialized_query_engine =
-          query_engine.SpecializeGiven(edge_set().GetAsGivens());
+      // NB: `specialized_query_engine` is owned by `specialized_engines` and
+      // is invalidated by `specialized_engines.Clear()`, so it must not be used
+      // after any IR mutation below (all of which `continue`/`break` out).
+      const QueryEngine* specialized_query_engine =
+          &specialized_engines.Get(edge_set());
 
       // First check to see if the condition set directly implies a value for
       // the operand. If so replace with the implied value.
@@ -1373,6 +1435,7 @@ absl::StatusOr<bool> ConditionalSpecializationPass::RunOnFunctionBaseInternal(
                 f->MakeNode<Literal>(node->loc(), Value(replacement_value)));
             XLS_RETURN_IF_ERROR(node->ReplaceUsesWith(replacement));
             changed = true;
+            specialized_engines.Clear();
             break;
           }
         }
@@ -1385,6 +1448,7 @@ absl::StatusOr<bool> ConditionalSpecializationPass::RunOnFunctionBaseInternal(
             f->MakeNode<Literal>(operand->loc(), Value(implied_value.value())));
         XLS_RETURN_IF_ERROR(node->ReplaceOperandNumber(operand_no, literal));
         changed = true;
+        specialized_engines.Clear();
         continue;
       }
 
@@ -1551,6 +1615,7 @@ absl::StatusOr<bool> ConditionalSpecializationPass::RunOnFunctionBaseInternal(
           XLS_RETURN_IF_ERROR(
               node->ReplaceOperandNumber(operand_no, replacement.value()));
           changed = true;
+          specialized_engines.Clear();
         }
       }
     }

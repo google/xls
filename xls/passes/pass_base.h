@@ -271,6 +271,7 @@ struct PassInfo {
   std::string_view name;
   std::optional<std::string> redundancy_signature;
   bool is_idempotent = false;
+  bool is_compound = false;
 };
 
 // RAII helper for holding pass invocation information. It holds and tracks pass
@@ -296,7 +297,16 @@ class ScopedPassInvocation {
     if (invocation_.ir_changed()) {
       VLOG(1) << absl::StrFormat("Metrics: %s",
                                  invocation_.metrics().ToString());
-      results_->ClearKnownRedundantPasses();
+      // Only leaf passes actually mutate the IR; a compound pass reports
+      // `changed` if any of its nested passes changed the IR, and each of
+      // those nested changes already cleared the known-redundant set at the
+      // moment it happened. Clearing again here would discard the redundancy
+      // information legitimately established by the nested passes that ran
+      // *after* the last change, forcing the next fixed-point iteration to
+      // re-run every pass instead of only those that could observe new IR.
+      if (!pass_info_.is_compound) {
+        results_->ClearKnownRedundantPasses();
+      }
       if (pass_info_.is_idempotent &&
           pass_info_.redundancy_signature.has_value()) {
         results_->AddKnownRedundantPass(*pass_info_.redundancy_signature);
@@ -440,6 +450,7 @@ class PassBase {
             .name = base_short_name,
             .redundancy_signature = redundancy_signature,
             .is_idempotent = IsIdempotent(),
+            .is_compound = IsCompound(),
         },
         ir);
     VLOG(2) << absl::StreamFormat("Running %s [pass #%d]", long_name(),
@@ -630,6 +641,10 @@ class WrapperPassBase : public PassBase<OptionsT, ContextT...> {
   std::string_view base_short_name() const final {
     return base_->base_short_name();
   }
+
+  // A wrapper is compound iff the pass it wraps is; it adds no behavior of its
+  // own that would make it a leaf (its RunInternal just delegates).
+  bool IsCompound() const override { return base_->IsCompound(); }
 
   void AddInvariantCheckerPtr(
       const PassBase<OptionsT, ContextT...>::InvariantChecker* checker)

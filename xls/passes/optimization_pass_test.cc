@@ -515,9 +515,11 @@ TEST(PassesTest, CapOptLevelWithCompoundPassAndInvariantChecker) {
   ASSERT_THAT(passes.Run(p.get(), OptimizationPassOptions(), &res, ctx),
               IsOkAndHolds(true));
 
-  // The invariant checker runs at the beginning of each compound pass and after
-  // each pass which changes the IR.
-  EXPECT_EQ(checker->run_count(), 6);
+  // The invariant checker runs at the beginning of each compound pass (2) and
+  // after each leaf pass which changes the IR (3). The opt-level wrapper around
+  // the inner compound pass is itself compound, so it does not re-run the
+  // checkers after the inner compound pass already ran them.
+  EXPECT_EQ(checker->run_count(), 5);
 }
 
 TEST(PassesTest, OptLevelIsAtLeast) {
@@ -588,8 +590,10 @@ TEST(PassesTest, OptLevelIsAtLeastWithCompoundPassAndInvariantChecker) {
                            &res, ctx),
                 IsOkAndHolds(true));
 
-    // The inner pass ran so the checker should have run after each pass.
-    EXPECT_EQ(checker->run_count(), 6);
+    // The inner pass ran so the checker should have run at the start of each
+    // compound pass (2) and after each changing leaf pass (3); the wrapper
+    // around the inner compound pass does not re-run it.
+    EXPECT_EQ(checker->run_count(), 5);
   }
 }
 
