@@ -1,0 +1,10 @@
+package test_module
+
+file_number 0 "test_module.x"
+
+top fn __test_module__f() -> (bits[16], bits[16], bits[16]) {
+  PACKED: bits[16] = literal(value=65535, id=2)
+  ELEMENT: bits[16] = literal(value=65535, id=1)
+  ROUND_TRIP: bits[16] = literal(value=241, id=3)
+  ret tuple.4: (bits[16], bits[16], bits[16]) = tuple(PACKED, ELEMENT, ROUND_TRIP, id=4)
+}

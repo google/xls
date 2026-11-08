@@ -843,14 +843,12 @@ absl::Status BytecodeInterpreter::EvalCast(const Bytecode& bytecode,
       return absl::InvalidArgumentError(
           "Array types can only be cast to bits.");
     }
-    XLS_ASSIGN_OR_RETURN(InterpValue converted, from_value.Flatten());
-
-    // Soundness check that the "to" type has the same number of bits as our new
-    // flattened value.
-    XLS_RET_CHECK_EQ(converted.GetBitCount().value(),
-                     to_bits_like->size.GetAsInt64().value());
-
-    stack_.Push(converted);
+    XLS_ASSIGN_OR_RETURN(InterpValue flattened, from_value.Flatten());
+    XLS_ASSIGN_OR_RETURN(Bits bits, flattened.GetBits());
+    XLS_ASSIGN_OR_RETURN(int64_t bit_count, to_bits_like->size.GetAsInt64());
+    XLS_RET_CHECK_EQ(bits.bit_count(), bit_count);
+    XLS_ASSIGN_OR_RETURN(bool is_signed, to_bits_like->is_signed.GetAsBool());
+    stack_.Push(InterpValue::MakeBits(is_signed, std::move(bits)));
     return absl::OkStatus();
   }
 
