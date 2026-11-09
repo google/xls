@@ -182,9 +182,8 @@ class FunctionConverter {
   // Contains/returns the pertinent information about a range expression (either
   // a Range node or the range() builtin).
   struct RangeData {
-    int64_t start_value;
+    Bits start_value;
     int64_t trip_count;
-    int64_t bit_width;
   };
 
   const FileTable& file_table() const { return import_data_->file_table(); }

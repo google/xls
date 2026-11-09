@@ -870,6 +870,13 @@ dslx_lang_test(
 
 dslx_lang_test(name = "for_nonzero_start")
 
+# Force the test bodies to run on the IR interpreter.
+xls_dslx_test(
+    name = "for_nonzero_start_ir_test",
+    evaluator = "ir-interpreter",
+    library = ":for_nonzero_start_dslx",
+)
+
 dslx_lang_test(name = "for_sans_type_annotation")
 
 dslx_lang_test(name = "nil_tuple_accumulator")
