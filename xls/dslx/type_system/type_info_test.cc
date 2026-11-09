@@ -108,6 +108,51 @@ const TUPLE = E::Tuple(u32:0);
   }
 }
 
+TEST(TypeInfoTest, BoundConstructionFollowsCallerContextAndParentLookup) {
+  FileTable file_table;
+  Scanner scanner(file_table, file_table.GetOrCreate("test.x"), R"(
+    #![feature(generics)]
+    struct A { x: u8, y: u8 }
+    struct B { y: u8, x: u8 }
+    fn make<T: type>() -> T { T { y: u8:2, x: u8:1 } }
+)");
+  Parser parser("test", &scanner);
+  XLS_ASSERT_OK_AND_ASSIGN(auto module, parser.ParseModule());
+  XLS_ASSERT_OK_AND_ASSIGN(StructDef * a,
+                           module->GetMemberOrError<StructDef>("A"));
+  XLS_ASSERT_OK_AND_ASSIGN(StructDef * b,
+                           module->GetMemberOrError<StructDef>("B"));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * make,
+                           module->GetMemberOrError<Function>("make"));
+  const auto* expression = absl::down_cast<const StructInstance*>(
+      ToAstNode(make->body()->statements()[0]->wrapped()));
+  const BoundConstruction bound_a(expression, a,
+                                  NamedFieldCorrespondence{1, 0});
+  const BoundConstruction bound_b(expression, b,
+                                  NamedFieldCorrespondence{0, 1});
+  TypeInfoOwner owner;
+  XLS_ASSERT_OK_AND_ASSIGN(TypeInfo * root,
+                           owner.New(file_table, TypeInfo::kRootName));
+  XLS_ASSERT_OK_AND_ASSIGN(TypeInfo * caller_a,
+                           owner.New(file_table, "caller_a", root));
+  XLS_ASSERT_OK_AND_ASSIGN(TypeInfo * caller_b,
+                           owner.New(file_table, "caller_b", root));
+  XLS_ASSERT_OK_AND_ASSIGN(TypeInfo * nested,
+                           owner.New(file_table, "nested", caller_a));
+  caller_a->SetBoundConstruction(expression, &bound_a);
+  caller_b->SetBoundConstruction(expression, &bound_b);
+  EXPECT_EQ(root->GetBoundConstruction(expression), std::nullopt);
+  ASSERT_EQ(nested->GetBoundConstruction(expression), &bound_a);
+  ASSERT_EQ(caller_b->GetBoundConstruction(expression), &bound_b);
+  EXPECT_EQ((*nested->GetBoundConstruction(expression))->GetMember(0),
+            expression->members()[1].second);
+  EXPECT_EQ((*caller_b->GetBoundConstruction(expression))->GetMember(0),
+            expression->members()[0].second);
+  nested->SetBoundConstruction(expression, &bound_b);
+  EXPECT_EQ(nested->GetBoundConstruction(expression), &bound_b);
+  EXPECT_EQ(caller_a->GetBoundConstruction(expression), &bound_a);
+}
+
 // Tests our internal-error reporting path if a bad parametric environment is
 // given when building up the type information.
 TEST(TypeInfoTest, AddingBadCallerEnvGivesError) {

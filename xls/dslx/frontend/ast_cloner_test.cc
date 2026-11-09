@@ -2346,7 +2346,7 @@ struct Point {
   EXPECT_EQ(annotation->ToString(), clone->ToString());
 }
 
-TEST(AstClonerTest, DeclaredMemberInSubtree) {
+TEST(AstClonerTest, ConstructionOriginAndDeclaredMemberInSubtree) {
   FileTable file_table;
   XLS_ASSERT_OK_AND_ASSIGN(
       auto module,
@@ -2359,6 +2359,7 @@ TEST(AstClonerTest, DeclaredMemberInSubtree) {
   auto* instance = absl::down_cast<StructInstance*>(value->value());
   auto* aggregate =
       instance->struct_ref()->AsAnnotation<TypeRefTypeAnnotation>();
+  aggregate->set_construction_origin(instance);
   auto* member =
       module->Make<DeclaredMemberTypeAnnotation>(Span::Fake(), aggregate, s, 0);
   auto* operand =
@@ -2372,6 +2373,8 @@ TEST(AstClonerTest, DeclaredMemberInSubtree) {
       cloned_instance->struct_ref()->AsAnnotation<TypeRefTypeAnnotation>();
   auto* cloned_member =
       absl::down_cast<DeclaredMemberTypeAnnotation*>(pairs.at(member));
+  EXPECT_EQ(cloned_aggregate->construction_origin(), cloned_instance);
+  EXPECT_EQ(aggregate->construction_origin(), instance);
   EXPECT_EQ(cloned_member->aggregate_type(), cloned_aggregate);
   EXPECT_EQ(std::get<const StructDefBase*>(cloned_member->declaration()),
             pairs.at(s));
@@ -2382,7 +2385,7 @@ TEST(AstClonerTest, DeclaredMemberInSubtree) {
   EXPECT_NE(pairs.at(operand), operand);
 }
 
-TEST(AstClonerTest, ModuleCloneRemapsSumDeclaration) {
+TEST(AstClonerTest, ModuleCloneRemapsForwardOriginAndSumDeclaration) {
   FileTable file_table;
   XLS_ASSERT_OK_AND_ASSIGN(auto module,
                            ParseModule(R"(enum E { Some(u32) }
@@ -2397,6 +2400,7 @@ const VALUE = E::Some(u32:1);
                            module->GetMemberOrError<ConstantDef>("VALUE"));
   auto* aggregate =
       alias->type_annotation().AsAnnotation<TypeRefTypeAnnotation>();
+  aggregate->set_construction_origin(value->value());
   auto* projection = module->Make<DeclaredMemberTypeAnnotation>(
       Span::Fake(), aggregate, sum->variants()[0], 0);
   auto* name = module->Make<NameDef>(Span::Fake(), "Projection", nullptr);
@@ -2413,6 +2417,8 @@ const VALUE = E::Some(u32:1);
                                      : CloneModule(*module));
     XLS_ASSERT_OK_AND_ASSIGN(TypeAlias * cloned_alias,
                              clone->GetMemberOrError<TypeAlias>("Alias"));
+    XLS_ASSERT_OK_AND_ASSIGN(ConstantDef * cloned_value,
+                             clone->GetMemberOrError<ConstantDef>("VALUE"));
     XLS_ASSERT_OK_AND_ASSIGN(SumDef * cloned_sum,
                              clone->GetMemberOrError<SumDef>("E"));
     XLS_ASSERT_OK_AND_ASSIGN(TypeAlias * cloned_projection_alias,
@@ -2422,10 +2428,12 @@ const VALUE = E::Some(u32:1);
     const auto* cloned_projection =
         cloned_projection_alias->type_annotation()
             .AsAnnotation<DeclaredMemberTypeAnnotation>();
+    EXPECT_EQ(cloned_aggregate->construction_origin(), cloned_value->value());
     EXPECT_EQ(cloned_projection->aggregate_type(), cloned_aggregate);
     EXPECT_EQ(std::get<const SumVariant*>(cloned_projection->declaration()),
               cloned_sum->variants()[0]);
   }
+  EXPECT_EQ(aggregate->construction_origin(), value->value());
 }
 
 TEST(AstClonerTest, AnnotationReplacementsKeepBorrowedReferences) {
@@ -2441,6 +2449,7 @@ TEST(AstClonerTest, AnnotationReplacementsKeepBorrowedReferences) {
   auto* instance = absl::down_cast<StructInstance*>(value->value());
   auto* aggregate =
       instance->struct_ref()->AsAnnotation<TypeRefTypeAnnotation>();
+  aggregate->set_construction_origin(instance);
   auto* member =
       module->Make<DeclaredMemberTypeAnnotation>(Span::Fake(), aggregate, s, 0);
   absl::down_cast<Number*>(instance->GetUnorderedMembers()[0].second)
@@ -2463,10 +2472,11 @@ TEST(AstClonerTest, AnnotationReplacementsKeepBorrowedReferences) {
       absl::down_cast<StructInstance*>(cloned_value->value());
   EXPECT_NE(cloned_instance, instance);
   EXPECT_EQ(cloned_instance->struct_ref(), aggregate);
+  EXPECT_EQ(aggregate->construction_origin(), instance);
   EXPECT_EQ(std::get<const StructDefBase*>(member->declaration()), s);
 }
 
-TEST(AstClonerTest, DeclaredMemberClonePreservesExternalDeclaration) {
+TEST(AstClonerTest, DeclaredMemberClonePreservesExternalDeclarationAndOrigin) {
   FileTable file_table;
   XLS_ASSERT_OK_AND_ASSIGN(
       auto external,
@@ -2474,16 +2484,19 @@ TEST(AstClonerTest, DeclaredMemberClonePreservesExternalDeclaration) {
                   "ext", file_table));
   XLS_ASSERT_OK_AND_ASSIGN(SumDef * sum,
                            external->GetMemberOrError<SumDef>("E"));
+  XLS_ASSERT_OK_AND_ASSIGN(ConstantDef * value,
+                           external->GetMemberOrError<ConstantDef>("VALUE"));
   Module local("local", std::nullopt, file_table);
   auto* aggregate = local.Make<TypeRefTypeAnnotation>(
       Span::Fake(), local.Make<TypeRef>(Span::Fake(), sum),
-      std::vector<ExprOrType>{});
+      std::vector<ExprOrType>{}, value->value());
   auto* member = local.Make<DeclaredMemberTypeAnnotation>(
       Span::Fake(), aggregate, sum->variants()[0], 0);
   XLS_ASSERT_OK_AND_ASSIGN(auto* clone, CloneNode(member));
   const auto* cloned_aggregate =
       clone->aggregate_type()->AsAnnotation<TypeRefTypeAnnotation>();
   EXPECT_NE(cloned_aggregate, aggregate);
+  EXPECT_EQ(cloned_aggregate->construction_origin(), value->value());
   EXPECT_EQ(std::get<SumDef*>(cloned_aggregate->type_ref()->type_definition()),
             sum);
   EXPECT_EQ(std::get<const SumVariant*>(clone->declaration()),

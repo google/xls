@@ -592,10 +592,10 @@ class TupleTypeAnnotation : public TypeAnnotation {
 // cast type targets, etc.) we wrap that up in the TypeAnnotation AST construct
 // using this type.
 //
-// If a `TypeRefTypeAnnotation` originates as the type of a `StructInstance`
-// node, then it may capture that node as its `instantiator`, indicating that
-// the types of the actual member expressions in that instance should be used to
-// infer any implicit parametrics.
+// If a `TypeRefTypeAnnotation` originates as the type of an aggregate instance
+// node, then it may capture that node as its origin, indicating that the
+// types of the actual payload expressions should be used to infer any implicit
+// parametrics.
 class TypeRefTypeAnnotation : public TypeAnnotation {
  public:
   static constexpr TypeAnnotationKind kAnnotationKind =
@@ -604,7 +604,7 @@ class TypeRefTypeAnnotation : public TypeAnnotation {
   TypeRefTypeAnnotation(
       Module* owner, Span span, TypeRef* type_ref,
       std::vector<ExprOrType> parametrics,
-      std::optional<const StructInstanceBase*> instantiator = std::nullopt);
+      std::optional<const Expr*> construction_origin = std::nullopt);
 
   ~TypeRefTypeAnnotation() override;
 
@@ -623,14 +623,18 @@ class TypeRefTypeAnnotation : public TypeAnnotation {
 
   const std::vector<ExprOrType>& parametrics() const { return parametrics_; }
 
-  std::optional<const StructInstanceBase*> instantiator() const {
-    return instantiator_;
+  std::optional<const Expr*> construction_origin() const {
+    return construction_origin_;
+  }
+  // Used after cloning to remap this borrowed reference with the complete map.
+  void set_construction_origin(std::optional<const Expr*> origin) {
+    construction_origin_ = origin;
   }
 
  private:
   TypeRef* type_ref_;
   std::vector<ExprOrType> parametrics_;
-  std::optional<const StructInstanceBase*> instantiator_;
+  std::optional<const Expr*> construction_origin_;
 };
 
 // A type annotation that is a reference to a type variable created either by

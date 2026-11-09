@@ -328,6 +328,13 @@ class TypeInfo {
   bool IsSumConstructor(const Invocation* node) const;
   bool IsSumConstructor(const ColonRef* node) const;
 
+  // Borrows a compilation-lifetime record owned by the inference table. The
+  // local entry describes this TypeInfo's caller context and shadows parents.
+  void SetBoundConstruction(const Expr* expression,
+                            const BoundConstruction* construction);
+  std::optional<const BoundConstruction*> GetBoundConstruction(
+      const Expr* expression) const;
+
   // Sets the type info for the given proc when typechecked at top-level (i.e.,
   // not via an instantiation). Can only be called on the module root TypeInfo.
   absl::Status SetTopLevelProcTypeInfo(const Proc* p, TypeInfo* ti);
@@ -643,6 +650,8 @@ class TypeInfo {
 
   absl::flat_hash_map<const ColonRef*, ResolvedColonRefSubject>
       resolved_colon_ref_subjects_;
+  absl::flat_hash_map<const Expr*, const BoundConstruction*>
+      bound_constructions_;
 
   TypeInfo* parent_;  // Note: may be nullptr.
 };

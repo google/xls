@@ -125,11 +125,11 @@ class TypeRefUnwrapper : public AstNodeVisitorWithDefault {
               ? std::nullopt
               : std::make_optional(resolved.first_annotation);
       suffix.parameter_annotation_ = resolved.parameter_annotation;
-      suffix.instantiator_ = resolved.instantiator;
       suffix.type_variable_type_annotation_ =
           resolved.last_type_variable == nullptr
               ? std::nullopt
               : std::make_optional(resolved.last_type_variable);
+      suffix.construction_origin_ = resolved.construction_origin;
     } else {
       suffix.mutable_import_data_ = mutable_import_data_;
       suffix.typecheck_imported_module_ = typecheck_imported_module_;
@@ -145,7 +145,7 @@ class TypeRefUnwrapper : public AstNodeVisitorWithDefault {
                 .parameter_annotation = suffix.parameter_annotation_,
                 .last_type_variable =
                     suffix.type_variable_type_annotation_.value_or(nullptr),
-                .instantiator = suffix.instantiator_});
+                .construction_origin = suffix.construction_origin_});
       }
     }
     if (parameter_annotation_ != nullptr &&
@@ -161,8 +161,8 @@ class TypeRefUnwrapper : public AstNodeVisitorWithDefault {
     if (suffix.type_variable_type_annotation_.has_value()) {
       type_variable_type_annotation_ = suffix.type_variable_type_annotation_;
     }
-    if (!instantiator_.has_value()) {
-      instantiator_ = suffix.instantiator_;
+    if (!construction_origin_.has_value()) {
+      construction_origin_ = suffix.construction_origin_;
     }
     type_def_ = suffix.type_def_;
     is_generic_ = suffix.is_generic_;
@@ -190,8 +190,8 @@ class TypeRefUnwrapper : public AstNodeVisitorWithDefault {
     if (!annotation->parametrics().empty()) {
       parameter_annotation_ = annotation;
     }
-    if (!instantiator_.has_value()) {
-      instantiator_ = annotation->instantiator();
+    if (!construction_origin_.has_value()) {
+      construction_origin_ = annotation->construction_origin();
     }
     return ToAstNode(annotation->type_ref()->type_definition())->Accept(this);
   }
@@ -268,7 +268,7 @@ class TypeRefUnwrapper : public AstNodeVisitorWithDefault {
                    ? absl::down_cast<StructDefBase*>(ToAstNode(*type_def_))
                    : nullptr,
         .parametrics = GetParametrics(),
-        .instantiator = instantiator_,
+        .construction_origin = construction_origin_,
         .type_ref_type_annotation = type_ref_type_annotation_,
         .is_generic = is_generic_,
     };
@@ -286,7 +286,8 @@ class TypeRefUnwrapper : public AstNodeVisitorWithDefault {
       return std::nullopt;
     }
     return SumRef{.def = std::get<SumDef*>(*type_def_),
-                  .parametrics = GetParametrics()};
+                  .parametrics = GetParametrics(),
+                  .construction_origin = construction_origin_};
   }
 
  private:
@@ -318,7 +319,7 @@ class TypeRefUnwrapper : public AstNodeVisitorWithDefault {
   std::optional<const TypeVariableTypeAnnotation*>
       type_variable_type_annotation_;
 
-  std::optional<const StructInstanceBase*> instantiator_;
+  std::optional<const Expr*> construction_origin_;
   bool is_generic_ = false;
 };
 
@@ -423,6 +424,16 @@ absl::StatusOr<std::optional<SumConstructorRef>> ResolveSumConstructor(
   return ResolveSumConstructor(
       std::get<ColonRef*>(type_ref_annotation->type_ref()->type_definition()),
       import_data);
+}
+
+absl::Status UnsupportedGenericSumConstructorError(
+    const ColonRef& ref, const FileTable& file_table) {
+  return TypeInferenceErrorStatus(
+      ref.span(), nullptr,
+      absl::Substitute("Sum constructor `$0` through a generic type is not "
+                       "supported yet.",
+                       ref.ToString()),
+      file_table);
 }
 
 const Expr* SumConstructorView::expression() const { return expression_; }

@@ -36,7 +36,7 @@ struct ResolvedTypeAlias {
   const TypeRefTypeAnnotation* first_annotation = nullptr;
   const TypeRefTypeAnnotation* parameter_annotation = nullptr;
   const TypeVariableTypeAnnotation* last_type_variable = nullptr;
-  std::optional<const StructInstanceBase*> instantiator;
+  std::optional<const Expr*> construction_origin;
 };
 
 // Owned by ImportData for the lifetime of its AST corpus. Cache only successful

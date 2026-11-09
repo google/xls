@@ -269,7 +269,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
       VLOG(5) << "Next node: " << node->ToString();
       if (const auto* invocation = dynamic_cast<const Invocation*>(node);
           invocation != nullptr &&
-          !table_.IsSumConstructor(invocation)) {
+          !HasSumConstructionBinding(invocation, parametric_context)) {
         XLS_RETURN_IF_ERROR(ConvertInvocation(
             invocation, parametric_context,
             /*short_circuit_if_duplicate=*/!filter_param_type_annotations));
@@ -1394,6 +1394,29 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
       return type.status();
     }
 
+    // A generic `T { ... }` has no declaration to bind during population.
+    // Keep its correspondence in the caller context that resolved T.
+    if (const auto* instance = dynamic_cast<const StructInstanceBase*>(node);
+        instance != nullptr &&
+        !table_.GetBoundConstruction(instance, parametric_context)
+             .has_value()) {
+      const auto* struct_type =
+          dynamic_cast<const StructTypeBase*>(type->get());
+      if (struct_type == nullptr) {
+        return TypeInferenceErrorStatus(
+            instance->span(), type->get(),
+            absl::Substitute(
+                "Attempted to instantiate non-struct type `$0` as a struct.",
+                (*type)->ToString()),
+            file_table_);
+      } else {
+        XLS_RETURN_IF_ERROR(
+            GetOrCreateStructConstruction(
+                instance, struct_type->struct_def_base(), parametric_context)
+                .status());
+      }
+    }
+
     if (node->kind() == AstNodeKind::kXlsTuple ||
         node->kind() == AstNodeKind::kArray) {
       XLS_ASSIGN_OR_RETURN(const TypeAnnotation* resolved_annotation,
@@ -1446,8 +1469,9 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
     if (const auto* expression = dynamic_cast<const Expr*>(node);
         expression != nullptr) {
       const std::optional<const BoundConstruction*> construction =
-          table_.GetBoundConstruction(expression);
+          table_.GetBoundConstruction(expression, parametric_context);
       if (construction.has_value()) {
+        ti->SetBoundConstruction(expression, *construction);
         if (std::holds_alternative<const SumVariant*>(
                 (*construction)->declaration())) {
           // Flattening skips the original callee reference. Publish its
@@ -2245,6 +2269,84 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
       std::optional<const ParametricContext*> parametric_context) {
     return Concretize(annotation, parametric_context,
                       /*needs_conversion_before_eval=*/false, std::nullopt);
+  }
+
+  bool HasSumConstructionBinding(
+      const Expr* expression,
+      std::optional<const ParametricContext*> parametric_context) const {
+    const std::optional<const BoundConstruction*> construction =
+        table_.GetBoundConstruction(expression, parametric_context);
+    return construction.has_value() &&
+           std::holds_alternative<const SumVariant*>(
+               (*construction)->declaration());
+  }
+
+  // Check the substitutions used by CloneParametricExprOrType, including type
+  // variables and tuple indices hidden from GetChildren(), and aliases used as
+  // member subjects. TypeRef declaration edges stay unexpanded, as in the
+  // preserving cloner.
+  absl::StatusOr<bool> NeedsParametricSubstitution(
+      const AstNode* root,
+      const absl::flat_hash_map<const NameDef*, ExprOrType>&
+          resolved_parametrics) {
+    std::vector<const AstNode*> pending;
+    if (!resolved_parametrics.empty()) {
+      pending.push_back(root);
+    }
+    bool needs_substitution = false;
+    while (!pending.empty() && !needs_substitution) {
+      const AstNode* node = pending.back();
+      pending.pop_back();
+      const NameRef* name_ref = nullptr;
+      const NameDef* name_def = nullptr;
+      if (node->kind() == AstNodeKind::kNameRef) {
+        name_ref = absl::down_cast<const NameRef*>(node);
+      } else if (const auto* type_variable =
+                     dynamic_cast<const TypeVariableTypeAnnotation*>(node);
+                 type_variable != nullptr) {
+        name_ref = type_variable->type_variable();
+      } else if (const auto* type_ref =
+                     dynamic_cast<const TypeRefTypeAnnotation*>(node);
+                 type_ref != nullptr) {
+        const TypeDefinition& definition =
+            type_ref->type_ref()->type_definition();
+        if (std::holds_alternative<TypeAlias*>(definition)) {
+          name_def = &std::get<TypeAlias*>(definition)->name_def();
+        }
+      } else if (node->kind() == AstNodeKind::kColonRef) {
+        XLS_ASSIGN_OR_RETURN(
+            std::optional<const TypeVariableTypeAnnotation*> subject,
+            GetTypeVariableTypeAnnotationForSubject(
+                absl::down_cast<const ColonRef*>(node), import_data_));
+        if (subject.has_value()) {
+          name_ref = (*subject)->type_variable();
+        }
+      } else if (const auto* element_type =
+                     dynamic_cast<const ElementTypeAnnotation*>(node);
+                 element_type != nullptr) {
+        if (element_type->tuple_index().has_value()) {
+          pending.push_back(*element_type->tuple_index());
+        }
+      } else if (node->kind() == AstNodeKind::kNameDef) {
+        const auto* definition = absl::down_cast<const NameDef*>(node);
+        if (definition->definer() != nullptr &&
+            definition->definer()->kind() == AstNodeKind::kTypeAnnotation) {
+          pending.push_back(definition->definer());
+        }
+      }
+      if (name_ref != nullptr &&
+          std::holds_alternative<const NameDef*>(name_ref->name_def())) {
+        name_def = std::get<const NameDef*>(name_ref->name_def());
+      }
+      needs_substitution =
+          name_def != nullptr && resolved_parametrics.contains(name_def);
+      if (!needs_substitution) {
+        for (const AstNode* child : node->GetChildren(/*want_types=*/true)) {
+          pending.push_back(child);
+        }
+      }
+    }
+    return needs_substitution;
   }
 
   // Specialize an expression or its expected type without copying declaration
@@ -3214,6 +3316,213 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
     return absl::OkStatus();
   }
 
+  // Resolves aggregate bindings in declaration order. Before evaluating a
+  // default, infer earlier bindings so both value and type defaults can use
+  // them. Adapters supply member evidence and retain their own context caches.
+  // Binding types use the cached aggregate context when available; defaults
+  // and payload evidence are evaluated in the parent context.
+  absl::StatusOr<std::vector<ExprOrType>> ResolveAggregateParametrics(
+      Module& module, const Span& span,
+      std::optional<const ParametricContext*> parent_context,
+      std::optional<const ParametricContext*> concretize_context,
+      const std::vector<ParametricBinding*>& formal_bindings,
+      const std::vector<InterpValue>& explicit_parametrics,
+      absl::Span<const TypeAnnotation* const> formal_member_types,
+      absl::Span<Expr* const> actual_member_exprs, TypeInfo* instance_type_info,
+      TypeInfo* actual_arg_ti,
+      absl::FunctionRef<absl::Status()> check_inference_evidence) {
+    absl::flat_hash_map<const NameDef*, ExprOrType> resolved_parametrics;
+    auto set_value = [&](const ParametricBinding* binding,
+                         const InterpValue& value) -> absl::Status {
+      if (binding->type_annotation()->IsAnnotation<GenericTypeAnnotation>()) {
+        XLS_ASSIGN_OR_RETURN(const TypeAnnotation* type,
+                             value.GetTypeReference());
+        resolved_parametrics.emplace(binding->name_def(),
+                                     const_cast<TypeAnnotation*>(type));
+      } else {
+        XLS_ASSIGN_OR_RETURN(
+            const TypeAnnotation* binding_annotation,
+            GetParametricFreeType(binding->type_annotation(),
+                                  resolved_parametrics,
+                                  /*real_self_type=*/std::nullopt,
+                                  /*clone_if_no_parametrics=*/false));
+        if (IsTvtaToGeneric(binding->type_annotation())) {
+          XLS_RETURN_IF_ERROR(
+              table_.AddTypeAnnotationToVariableForParametricContext(
+                  concretize_context,
+                  binding->type_annotation()
+                      ->AsAnnotation<TypeVariableTypeAnnotation>()
+                      ->type_variable(),
+                  binding_annotation));
+        }
+        XLS_ASSIGN_OR_RETURN(
+            std::unique_ptr<Type> binding_type,
+            Concretize(binding_annotation, concretize_context));
+        XLS_RETURN_IF_ERROR(
+            ValidateAggregateParametricValue(value, *binding_type, span));
+        instance_type_info->SetItem(binding->name_def(), *binding_type);
+        // An annotation being unified may come from another module. New
+        // literals need a span in the module that owns those literals.
+        const Span& local_span =
+            binding->owner() == &module ? binding->span() : module.span();
+        XLS_ASSIGN_OR_RETURN(Expr * value_expr,
+                             MakeTypeCheckedNumberOrEnumValue(
+                                 module, table_, local_span, value,
+                                 binding_annotation, *binding_type));
+        resolved_parametrics.emplace(binding->name_def(), value_expr);
+      }
+      instance_type_info->NoteConstExpr(binding->name_def(), value);
+      return absl::OkStatus();
+    };
+
+    absl::flat_hash_set<const ParametricBinding*> implicit_parametrics;
+    auto infer_pending_implicit_parametrics = [&]() -> absl::Status {
+      if (implicit_parametrics.empty()) {
+        return absl::OkStatus();
+      } else {
+        XLS_RETURN_IF_ERROR(check_inference_evidence());
+        XLS_ASSIGN_OR_RETURN(
+            (absl::flat_hash_map<std::string, InterpValue> new_values),
+            InferImplicitParametrics(
+                span, parent_context, /*target_context=*/std::nullopt,
+                formal_bindings, implicit_parametrics, formal_member_types,
+                actual_member_exprs, instance_type_info, actual_arg_ti,
+                [&](const Expr* actual_arg) {
+                  if (const auto* invocation =
+                          dynamic_cast<const Invocation*>(actual_arg);
+                      invocation != nullptr &&
+                      !HasSumConstructionBinding(invocation, parent_context)) {
+                    return ConvertSubtree(actual_arg, std::nullopt,
+                                          parent_context);
+                  } else {
+                    return absl::OkStatus();
+                  }
+                }));
+        for (int i : GetBindingIndicesWithGenericTvtasLast(formal_bindings)) {
+          const ParametricBinding* binding = formal_bindings[i];
+          if (implicit_parametrics.contains(binding)) {
+            XLS_RETURN_IF_ERROR(
+                set_value(binding, new_values.at(binding->identifier())));
+          }
+        }
+        implicit_parametrics.clear();
+        return absl::OkStatus();
+      }
+    };
+
+    for (int i : GetBindingIndicesWithGenericTvtasLast(formal_bindings)) {
+      const ParametricBinding* binding = formal_bindings[i];
+      if (i < explicit_parametrics.size()) {
+        if (IsTvtaToGeneric(binding->type_annotation())) {
+          XLS_RETURN_IF_ERROR(infer_pending_implicit_parametrics());
+        }
+        XLS_RETURN_IF_ERROR(set_value(binding, explicit_parametrics[i]));
+      } else if (binding->default_expr_or_type().has_value()) {
+        XLS_RETURN_IF_ERROR(infer_pending_implicit_parametrics());
+        const ExprOrType default_value = *binding->default_expr_or_type();
+        if (std::holds_alternative<Expr*>(default_value)) {
+          Expr* default_expr = std::get<Expr*>(default_value);
+          const TypeAnnotation* binding_annotation = binding->type_annotation();
+          XLS_ASSIGN_OR_RETURN(
+              bool substitute_default,
+              NeedsParametricSubstitution(default_expr, resolved_parametrics));
+          XLS_ASSIGN_OR_RETURN(bool substitute_annotation,
+                               NeedsParametricSubstitution(
+                                   binding_annotation, resolved_parametrics));
+          if (substitute_default || substitute_annotation) {
+            XLS_ASSIGN_OR_RETURN(ExprOrType cloned_annotation,
+                                 CloneParametricExprOrType(
+                                     binding->type_annotation(), parent_context,
+                                     resolved_parametrics));
+            binding_annotation = std::get<TypeAnnotation*>(cloned_annotation);
+            XLS_ASSIGN_OR_RETURN(
+                ExprOrType cloned_default,
+                CloneParametricExprOrType(default_value, parent_context,
+                                          resolved_parametrics));
+            default_expr = std::get<Expr*>(cloned_default);
+            // A raw clone has no declaration constraints. Restore the binding's
+            // expected type before population adds the expression's own types,
+            // so an untyped default retains the binding's width.
+            XLS_ASSIGN_OR_RETURN(const NameRef* default_type_variable,
+                                 table_.DefineInternalVariable(
+                                     InferenceVariableKind::kType, default_expr,
+                                     "instantiated_parametric_default"));
+            XLS_RETURN_IF_ERROR(
+                table_.SetTypeVariable(default_expr, default_type_variable));
+            XLS_RETURN_IF_ERROR(
+                table_.SetTypeAnnotation(default_expr, binding_annotation));
+            std::unique_ptr<PopulateTableVisitor> visitor =
+                CreatePopulateTableVisitor(
+                    &module_, &table_, &import_data_,
+                    /*typecheck_imported_module=*/nullptr);
+            XLS_RETURN_IF_ERROR(
+                visitor->PopulateFromTypeAnnotation(binding_annotation));
+            XLS_RETURN_IF_ERROR(visitor->PopulateFromExpr(default_expr));
+          }
+          // An unchanged default keeps its declaration constraints and identity
+          // so the existing constexpr cache can reuse its value.
+          // Conversion uses the caller context; aggregate binding storage may
+          // use a TypeInfo with a different ancestry.
+          XLS_ASSIGN_OR_RETURN(
+              InterpValue value,
+              evaluator_->Evaluate(ParametricContextScopedExpr(
+                  parent_context, binding_annotation, default_expr)));
+          XLS_RETURN_IF_ERROR(set_value(binding, value));
+        } else {
+          XLS_ASSIGN_OR_RETURN(
+              const TypeAnnotation* default_type,
+              GetParametricFreeType(std::get<TypeAnnotation*>(default_value),
+                                    resolved_parametrics,
+                                    /*real_self_type=*/std::nullopt,
+                                    /*clone_if_no_parametrics=*/false));
+          XLS_ASSIGN_OR_RETURN(
+              const TypeAnnotation* cleansed_type,
+              CleanseGenericTypeArgument(parent_context, *instance_type_info,
+                                         default_type));
+          XLS_RETURN_IF_ERROR(set_value(
+              binding, InterpValue::MakeTypeReference(cleansed_type)));
+        }
+      } else {
+        implicit_parametrics.insert(binding);
+      }
+    }
+    XLS_RETURN_IF_ERROR(infer_pending_implicit_parametrics());
+
+    std::vector<ExprOrType> result;
+    result.reserve(formal_bindings.size());
+    for (const ParametricBinding* binding : formal_bindings) {
+      result.push_back(resolved_parametrics.at(binding->name_def()));
+    }
+    return result;
+  }
+
+  absl::StatusOr<const BoundConstruction*> GetOrCreateStructConstruction(
+      const StructInstanceBase* instance, const StructDefBase& def,
+      std::optional<const ParametricContext*> parent_context) {
+    const std::optional<const BoundConstruction*> existing =
+        table_.GetBoundConstruction(instance, parent_context);
+    if (existing.has_value()) {
+      XLS_RET_CHECK((*existing)->declaration() == AggregateDeclaration(&def));
+      return *existing;
+    } else {
+      const auto* struct_def = dynamic_cast<const StructDef*>(&def);
+      const bool allows_missing_members =
+          struct_def != nullptr && struct_def->is_domain_struct();
+      XLS_ASSIGN_OR_RETURN(
+          NamedFieldCorrespondence correspondence,
+          ValidateAndBindNamedMembers(
+              instance->span(), instance->members(), def.named_fields(),
+              def.identifier(), /*is_struct=*/true,
+              instance->requires_all_members() && !allows_missing_members,
+              file_table_,
+              /*allow_default_io_members=*/def.kind() ==
+                  AstNodeKind::kProcDef));
+      return table_.RegisterBoundConstruction(
+          BoundConstruction(instance, &def, std::move(correspondence)),
+          parent_context);
+    }
+  }
+
   absl::StatusOr<const TypeAnnotation*> InstantiateParametricStruct(
       Module& module, const Span& span,
       std::optional<const ParametricContext*> parent_context,
@@ -3225,12 +3534,6 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
             << explicit_parametrics.size()
             << " explicit parametrics from module: " << module.name();
 
-    // The goal here is to come up with a complete parametric value `Expr`
-    // vector, which has a value for every formal binding, by inferring or
-    // defaulting whichever ones are not explicit. The algorithm is the same as
-    // for parametric function invocations, and the differences are in the
-    // logistics. We build this as a map, `resolved_parametrics`, and convert it
-    // to a vector at the end.
     XLS_ASSIGN_OR_RETURN(TypeInfo * instance_parent_ti,
                          GetTypeInfo(parent_context));
     XLS_ASSIGN_OR_RETURN(TypeInfo * actual_arg_ti, GetTypeInfo(parent_context));
@@ -3259,116 +3562,48 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
               file_table_, absl::StrCat("struct_", def.identifier()),
               instance_parent_ti));
     }
-    ParametricBindings bindings(def.parametric_bindings());
-    absl::flat_hash_map<std::string, ExprOrType> resolved_parametrics;
-    auto set_value = [&](const ParametricBinding* binding,
-                         InterpValue value) -> absl::Status {
-      if (binding->type_annotation()->IsAnnotation<GenericTypeAnnotation>()) {
-        XLS_ASSIGN_OR_RETURN(const TypeAnnotation* type,
-                             value.GetTypeReference());
-        resolved_parametrics.emplace(binding->identifier(),
-                                     const_cast<TypeAnnotation*>(type));
-        instance_type_info->NoteConstExpr(binding->name_def(), value);
-        return absl::OkStatus();
-      }
-      const TypeAnnotation* value_type_annotation = binding->type_annotation();
-      if (IsTvtaToGeneric(value_type_annotation)) {
-        const NameRef* type_variable =
-            value_type_annotation->AsAnnotation<TypeVariableTypeAnnotation>()
-                ->type_variable();
-        ExprOrType resolved_type =
-            resolved_parametrics.at(type_variable->identifier());
-        XLS_RET_CHECK(std::holds_alternative<TypeAnnotation*>(resolved_type));
-        value_type_annotation = const_cast<const TypeAnnotation*>(
-            std::get<TypeAnnotation*>(resolved_type));
-        XLS_RETURN_IF_ERROR(
-            table_.AddTypeAnnotationToVariableForParametricContext(
-                concretize_context, type_variable, value_type_annotation));
-      }
-      XLS_ASSIGN_OR_RETURN(
-          std::unique_ptr<Type> binding_type,
-          Concretize(binding->type_annotation(), concretize_context));
-      instance_type_info->SetItem(binding->name_def(), *binding_type);
-      instance_type_info->NoteConstExpr(binding->name_def(), value);
-      // We need a span that is local to the module we are creating AST nodes
-      // in. This callback can be invoked while unifying type annotations that
-      // originate in a different file/module (e.g. due to cloning during type
-      // resolution), so we cannot assume the caller-provided `span` is in
-      // `module`.
-      const Span& span =
-          binding->owner() == &module ? binding->span() : module.span();
-      XLS_ASSIGN_OR_RETURN(Expr * value_expr,
-                           MakeTypeCheckedNumberOrEnumValue(
-                               module, table_, span, value,
-                               value_type_annotation, *binding_type.get()));
-      resolved_parametrics.emplace(binding->identifier(), value_expr);
-      return absl::OkStatus();
-    };
-    absl::flat_hash_set<const ParametricBinding*> implicit_parametrics;
     std::vector<const TypeAnnotation*> formal_member_types;
     std::vector<Expr*> actual_member_exprs;
     if (instantiator_node.has_value()) {
-      absl::flat_hash_map<std::string, Expr*> actual_member_exprs_by_name;
-      for (const auto& [name, expr] :
-           (*instantiator_node)->GetUnorderedMembers()) {
-        actual_member_exprs_by_name.emplace(name, expr);
-      }
-
-      // If there are "splatted" members, i.e., implied copies from members of
-      // an existing struct, we need synthetic longhand member initializers for
-      // parametric inference.
-      if (actual_member_exprs_by_name.size() != def.members().size() &&
-          (*instantiator_node)->kind() == AstNodeKind::kSplatStructInstance) {
-        const auto* splat =
-            absl::down_cast<const SplatStructInstance*>(*instantiator_node);
-        for (const StructMemberNode* member : def.members()) {
-          if (!actual_member_exprs_by_name.contains(member->name())) {
-            XLS_ASSIGN_OR_RETURN(
-                Expr * initializer,
-                CreateInitializerForSplattedStructMember(*splat, *member));
-            actual_member_exprs_by_name.emplace(member->name(), initializer);
-          }
+      XLS_ASSIGN_OR_RETURN(const BoundConstruction* construction,
+                           GetOrCreateStructConstruction(*instantiator_node,
+                                                         def, parent_context));
+      for (int64_t i = 0; i < construction->member_count(); ++i) {
+        const StructMemberNode* member = def.members()[i];
+        const std::optional<const Expr*> actual = construction->GetMember(i);
+        if (actual.has_value()) {
+          formal_member_types.push_back(member->type());
+          actual_member_exprs.push_back(const_cast<Expr*>(*actual));
+        } else if (const auto* splat = dynamic_cast<const SplatStructInstance*>(
+                       *instantiator_node);
+                   splat != nullptr) {
+          // Omission remains explicit in the lexical binding. Synthetic
+          // initializers supply only the separate splat inference evidence.
+          XLS_ASSIGN_OR_RETURN(
+              Expr * initializer,
+              CreateInitializerForSplattedStructMember(*splat, *member));
+          formal_member_types.push_back(member->type());
+          actual_member_exprs.push_back(initializer);
         }
       }
-
-      // At this point we should have an `Expr` per formal member of the struct
-      // definition, except for io object members of a proc, which may be
-      // omitted because they are default-initialized. Omitted members do not
-      // take part in parametric inference.
-      for (const StructMemberNode* member : def.members()) {
-        const auto it = actual_member_exprs_by_name.find(member->name());
-        if (it == actual_member_exprs_by_name.end()) {
-          XLS_RET_CHECK(def.kind() == AstNodeKind::kProcDef &&
-                        IsIoObjectAnnotation(member->type()))
-              << "Missing initializer for member `" << member->name() << "`";
-          continue;
-        }
-        formal_member_types.push_back(member->type());
-        actual_member_exprs.push_back(it->second);
-      }
-
-      // Add formal and actual types for parametric values as well. They may be
-      // required for inference.
+      // Explicit value parameters can provide evidence for the generic types
+      // used in their annotations.
       XLS_ASSIGN_OR_RETURN(
           std::optional<StructOrProcRef> struct_or_proc_ref,
           GetStructOrProcRef((*instantiator_node)->struct_ref(), import_data_));
       XLS_RET_CHECK(struct_or_proc_ref.has_value());
-      for (int i = 0; i < (*struct_or_proc_ref).parametrics.size(); i++) {
-        ExprOrType parametric_val = (*struct_or_proc_ref).parametrics[i];
-        if (std::holds_alternative<Expr*>(parametric_val)) {
-          formal_member_types.push_back((*struct_or_proc_ref)
-                                            .def->parametric_bindings()[i]
-                                            ->type_annotation());
-          actual_member_exprs.push_back(std::get<Expr*>(parametric_val));
+      for (int i = 0; i < struct_or_proc_ref->parametrics.size(); ++i) {
+        ExprOrType parametric = struct_or_proc_ref->parametrics[i];
+        if (std::holds_alternative<Expr*>(parametric)) {
+          formal_member_types.push_back(
+              struct_or_proc_ref->def->parametric_bindings()[i]
+                  ->type_annotation());
+          actual_member_exprs.push_back(std::get<Expr*>(parametric));
         }
       }
     }
 
-    auto infer_pending_implicit_parametrics = [&]() -> absl::Status {
-      VLOG(6) << "Infer implicit parametrics: " << implicit_parametrics.size();
-      if (implicit_parametrics.empty()) {
-        return absl::OkStatus();
-      }
+    auto check_inference_evidence = [&]() -> absl::Status {
       if (!instantiator_node.has_value()) {
         return TypeInferenceErrorStatus(
             span, /*type=*/nullptr,
@@ -3378,76 +3613,19 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
                 "parametrics are only allowed in struct instance expressions.",
                 def.identifier()),
             file_table_);
-      }
-
-      absl::flat_hash_map<std::string, InterpValue> new_values;
-      XLS_ASSIGN_OR_RETURN(
-          new_values,
-          InferImplicitParametrics(
-              span, parent_context, /*target_context=*/std::nullopt,
-              def.parametric_bindings(), implicit_parametrics,
-              formal_member_types, actual_member_exprs, instance_type_info,
-              actual_arg_ti, [&](const Expr* actual_arg) {
-                // Invocation arguments within a struct need to be converted
-                // prior to use.
-                if (const auto* invocation = dynamic_cast<const Invocation*>(actual_arg);
-                    invocation != nullptr && !table_.IsSumConstructor(invocation)) {
-                  return ConvertSubtree(actual_arg, std::nullopt,
-                                        parent_context);
-                }
-                return absl::OkStatus();
-              }));
-
-      implicit_parametrics.clear();
-      for (const auto& [name, value] : new_values) {
-        XLS_RETURN_IF_ERROR(set_value(bindings.at(name), value));
-      }
-      return absl::OkStatus();
-    };
-    for (int i : GetBindingIndicesWithGenericTvtasLast(def.parametric_bindings())) {
-      const ParametricBinding* binding = def.parametric_bindings()[i];
-      if (i < explicit_parametrics.size()) {
-        if (IsTvtaToGeneric(binding->type_annotation())) {
-          XLS_RETURN_IF_ERROR(infer_pending_implicit_parametrics());
-        }
-        XLS_RETURN_IF_ERROR(set_value(binding, explicit_parametrics[i]));
-      } else if (binding->default_expr_or_type().has_value() &&
-                 std::holds_alternative<Expr*>(
-                     *binding->default_expr_or_type())) {
-        XLS_RETURN_IF_ERROR(infer_pending_implicit_parametrics());
-        XLS_ASSIGN_OR_RETURN(
-            InterpValue value,
-            evaluator_->Evaluate(
-                parent_context, instance_type_info, binding->type_annotation(),
-                std::get<Expr*>(*binding->default_expr_or_type())));
-        XLS_RETURN_IF_ERROR(set_value(binding, value));
-      } else if (binding->type_annotation()
-                     ->IsAnnotation<GenericTypeAnnotation>() &&
-                 binding->default_expr_or_type().has_value() &&
-                 std::holds_alternative<TypeAnnotation*>(
-                     *binding->default_expr_or_type())) {
-        XLS_RETURN_IF_ERROR(infer_pending_implicit_parametrics());
-        const TypeAnnotation* default_type =
-            std::get<TypeAnnotation*>(*binding->default_expr_or_type());
-        XLS_ASSIGN_OR_RETURN(
-            const TypeAnnotation* cleansed_type,
-            CleanseGenericTypeArgument(parent_context, *instance_type_info,
-                                       default_type));
-        XLS_RETURN_IF_ERROR(
-            set_value(binding, InterpValue::MakeTypeReference(cleansed_type)));
       } else {
-        implicit_parametrics.insert(binding);
+        return absl::OkStatus();
       }
-    }
-    XLS_RETURN_IF_ERROR(infer_pending_implicit_parametrics());
-    std::vector<ExprOrType> resolved_parametrics_vector;
-    resolved_parametrics_vector.reserve(def.parametric_bindings().size());
-    for (const ParametricBinding* binding : def.parametric_bindings()) {
-      resolved_parametrics_vector.push_back(
-          resolved_parametrics.at(binding->identifier()));
-    }
+    };
+    XLS_ASSIGN_OR_RETURN(
+        std::vector<ExprOrType> resolved_parametrics,
+        ResolveAggregateParametrics(
+            module, span, parent_context, concretize_context,
+            def.parametric_bindings(), explicit_parametrics,
+            formal_member_types, actual_member_exprs, instance_type_info,
+            actual_arg_ti, check_inference_evidence));
     return CreateStructOrProcAnnotation(
-        module_, const_cast<StructDefBase*>(&def), resolved_parametrics_vector,
+        module_, const_cast<StructDefBase*>(&def), resolved_parametrics,
         instantiator_node);
   }
 
@@ -3455,74 +3633,72 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
       Module& module, const Span& span,
       std::optional<const ParametricContext*> parent_context,
       const SumDef& sum_def,
-      const std::vector<InterpValue>& explicit_parametrics) override {
-    const auto& formal_bindings = sum_def.parametric_bindings();
-    if (explicit_parametrics.size() != formal_bindings.size()) {
-      return TypeInferenceErrorStatus(
-          span, nullptr,
-          absl::Substitute("Reference to parametric sum type `$0` must have all "
-                           "parametrics specified in this context.",
-                           sum_def.identifier()),
-          file_table_);
-    }
+      const std::vector<InterpValue>& explicit_parametrics,
+      absl::Span<const SumConstructorExpr> instantiator_nodes) override {
+    VLOG(6) << "Instantiate parametric sum `" << sum_def.identifier()
+            << "` with parent context: " << ToString(parent_context) << " and "
+            << explicit_parametrics.size()
+            << " explicit parametrics from module: " << module.name();
+
     XLS_ASSIGN_OR_RETURN(TypeInfo * instance_parent_ti,
                          GetTypeInfo(parent_context));
+    XLS_ASSIGN_OR_RETURN(TypeInfo * actual_arg_ti, GetTypeInfo(parent_context));
     XLS_ASSIGN_OR_RETURN(
         TypeInfo * instance_type_info,
         import_data_.type_info_owner().New(
             file_table_, absl::StrCat("sum_", sum_def.identifier()),
             instance_parent_ti));
 
-    absl::flat_hash_map<const NameDef*, ExprOrType> resolved_parametrics;
-    for (int i : GetBindingIndicesWithGenericTvtasLast(formal_bindings)) {
-      const ParametricBinding* binding = formal_bindings[i];
-      const InterpValue& value = explicit_parametrics[i];
-      if (binding->type_annotation()->IsAnnotation<GenericTypeAnnotation>()) {
-        XLS_ASSIGN_OR_RETURN(const TypeAnnotation* type,
-                             value.GetTypeReference());
-        resolved_parametrics.emplace(binding->name_def(),
-                                     const_cast<TypeAnnotation*>(type));
-      } else {
-        XLS_ASSIGN_OR_RETURN(
-            const TypeAnnotation* binding_annotation,
-            GetParametricFreeType(binding->type_annotation(),
-                                  resolved_parametrics,
-                                  /*real_self_type=*/std::nullopt,
-                                  /*clone_if_no_parametrics=*/false));
-        if (IsTvtaToGeneric(binding->type_annotation())) {
-          XLS_RETURN_IF_ERROR(
-              table_.AddTypeAnnotationToVariableForParametricContext(
-                  parent_context,
-                  binding->type_annotation()
-                      ->AsAnnotation<TypeVariableTypeAnnotation>()
-                      ->type_variable(),
-                  binding_annotation));
-        }
-        XLS_ASSIGN_OR_RETURN(
-            std::unique_ptr<Type> binding_type,
-            Concretize(binding_annotation, parent_context));
-        XLS_RETURN_IF_ERROR(
-            ValidateAggregateParametricValue(value, *binding_type, span));
-        instance_type_info->SetItem(binding->name_def(), *binding_type);
-        // An annotation being unified may come from another module. New
-        // literals need a span in the module that owns those literals.
-        const Span& local_span =
-            binding->owner() == &module ? binding->span() : module.span();
-        XLS_ASSIGN_OR_RETURN(Expr * value_expr,
-                             MakeTypeCheckedNumberOrEnumValue(
-                                 module, table_, local_span, value,
-                                 binding_annotation, *binding_type));
-        resolved_parametrics.emplace(binding->name_def(), value_expr);
+    std::vector<const TypeAnnotation*> formal_member_types;
+    std::vector<Expr*> actual_member_exprs;
+    for (SumConstructorExpr expression : instantiator_nodes) {
+      const std::optional<const BoundConstruction*> construction =
+          table_.GetBoundConstruction(expression, parent_context);
+      XLS_RET_CHECK(construction.has_value());
+      XLS_RET_CHECK(std::holds_alternative<const SumVariant*>(
+          (*construction)->declaration()));
+      const SumVariant* variant =
+          std::get<const SumVariant*>((*construction)->declaration());
+      XLS_RET_CHECK_EQ(variant->parent(), &sum_def);
+      for (int64_t i = 0; i < (*construction)->member_count(); ++i) {
+        const std::optional<const Expr*> actual = (*construction)->GetMember(i);
+        XLS_RET_CHECK(actual.has_value());
+        formal_member_types.push_back(
+            variant->is_tuple() ? variant->tuple_members()[i]
+                                : variant->struct_members()[i]->type());
+        actual_member_exprs.push_back(const_cast<Expr*>(*actual));
       }
-      instance_type_info->NoteConstExpr(binding->name_def(), value);
     }
-    std::vector<ExprOrType> result;
-    result.reserve(formal_bindings.size());
-    for (const ParametricBinding* binding : formal_bindings) {
-      result.push_back(resolved_parametrics.at(binding->name_def()));
-    }
+
+    auto check_inference_evidence = [&]() -> absl::Status {
+      if (formal_member_types.empty()) {
+        return TypeInferenceErrorStatus(
+            span, /*type=*/nullptr,
+            absl::Substitute(
+                "Reference to parametric sum type `$0` must have all "
+                "parametrics specified when its constructor supplies no "
+                "payload evidence.",
+                sum_def.identifier()),
+            file_table_);
+      } else {
+        return absl::OkStatus();
+      }
+    };
+    XLS_ASSIGN_OR_RETURN(
+        std::vector<ExprOrType> resolved_parametrics,
+        ResolveAggregateParametrics(
+            module, span, parent_context, /*concretize_context=*/parent_context,
+            sum_def.parametric_bindings(), explicit_parametrics,
+            formal_member_types, actual_member_exprs, instance_type_info,
+            actual_arg_ti, check_inference_evidence));
+    // All parameters are resolved now, so one constructor suffices to retain
+    // provenance without discarding inference evidence.
+    const std::optional<SumConstructorExpr> instantiator_node =
+        instantiator_nodes.empty()
+            ? std::nullopt
+            : std::make_optional(instantiator_nodes.back());
     return CreateSumAnnotation(module_, const_cast<SumDef*>(&sum_def),
-                               std::move(result));
+                               resolved_parametrics, instantiator_node);
   }
 
   // Creates a member initializer `Expr` for a splatted member of a struct

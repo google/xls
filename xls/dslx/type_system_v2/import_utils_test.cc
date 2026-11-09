@@ -88,6 +88,20 @@ const SY = SB { value: u16:0 };
                            module->GetMemberOrError<TypeAlias>("B"));
   XLS_ASSERT_OK_AND_ASSIGN(auto* struct_alias,
                            module->GetMemberOrError<TypeAlias>("SB"));
+  for (const char* name : {"X", "Y"}) {
+    XLS_ASSERT_OK_AND_ASSIGN(auto* constant, module->GetConstantDef(name));
+    const auto* origin = dynamic_cast<const Invocation*>(constant->value());
+    ASSERT_NE(origin, nullptr);
+    auto* reference = module->Make<TypeRef>(origin->span(), sum_alias);
+    auto* annotation = module->Make<TypeRefTypeAnnotation>(
+        origin->span(), reference, std::vector<ExprOrType>{}, origin);
+    XLS_ASSERT_OK_AND_ASSIGN(auto resolved, GetSumRef(annotation, import_data));
+    ASSERT_TRUE(resolved.has_value());
+    EXPECT_EQ(resolved->construction_origin, origin);
+    const auto* reconstructed = CreateSumAnnotation(*module, *resolved)
+                                    ->AsAnnotation<TypeRefTypeAnnotation>();
+    EXPECT_EQ(reconstructed->construction_origin(), origin);
+  }
   for (const char* name : {"SX", "SY"}) {
     XLS_ASSERT_OK_AND_ASSIGN(auto* constant, module->GetConstantDef(name));
     const auto* origin = dynamic_cast<const StructInstance*>(constant->value());
@@ -98,11 +112,11 @@ const SY = SB { value: u16:0 };
     XLS_ASSERT_OK_AND_ASSIGN(auto resolved,
                              GetStructOrProcRef(annotation, import_data));
     ASSERT_TRUE(resolved.has_value());
-    EXPECT_EQ(resolved->instantiator, origin);
+    EXPECT_EQ(resolved->construction_origin, origin);
     EXPECT_EQ(resolved->type_ref_type_annotation, annotation);
     const auto* reconstructed = CreateStructOrProcAnnotation(*module, *resolved)
                                     ->AsAnnotation<TypeRefTypeAnnotation>();
-    EXPECT_EQ(reconstructed->instantiator(), origin);
+    EXPECT_EQ(reconstructed->construction_origin(), origin);
   }
 }
 

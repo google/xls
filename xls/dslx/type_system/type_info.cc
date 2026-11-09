@@ -961,6 +961,23 @@ bool TypeInfo::IsSumConstructor(const ColonRef* node) const {
   return subject.ok() && std::holds_alternative<SumDef*>(*subject);
 }
 
+void TypeInfo::SetBoundConstruction(const Expr* expression,
+                                    const BoundConstruction* construction) {
+  bound_constructions_[expression] = construction;
+}
+
+std::optional<const BoundConstruction*> TypeInfo::GetBoundConstruction(
+    const Expr* expression) const {
+  const auto it = bound_constructions_.find(expression);
+  if (it != bound_constructions_.end()) {
+    return it->second;
+  } else if (parent_ != nullptr) {
+    return parent_->GetBoundConstruction(expression);
+  } else {
+    return std::nullopt;
+  }
+}
+
 absl::optional_ref<const ParametricEnv> TypeInfo::GetInvocationCalleeBindings(
     const Invocation* invocation, const ParametricEnv& caller) const {
   const TypeInfo* top = GetRoot();

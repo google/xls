@@ -504,12 +504,24 @@ class InferenceTable {
   virtual absl::Status SetTypeVariable(const AstNode* node,
                                        const NameRef* type) = 0;
 
-  // Owns one binding per original constructor expression.
-  virtual const BoundConstruction* RegisterBoundConstruction(
-      BoundConstruction construction) = 0;
+  // Registers a classified ordinary function call as a type-inference
+  // prerequisite. Safe before or after SetTypeVariable, and idempotent.
+  // Constructor invocations must not be registered here.
+  virtual void RegisterInvocation(const Invocation* invocation) = 0;
 
+  // Owns one immutable binding per source use and resolving context, with
+  // stable addresses for borrowers. A context-independent binding is for a
+  // statically known target; generic targets register only after resolution.
+  // Repeated registration returns the existing record.
+  virtual const BoundConstruction* RegisterBoundConstruction(
+      BoundConstruction construction,
+      std::optional<const ParametricContext*> context = std::nullopt) = 0;
+
+  // Consults this exact caller context, then a context-independent binding.
+  // An unsuccessful lookup does not cache an unresolved generic target.
   virtual std::optional<const BoundConstruction*> GetBoundConstruction(
-      const Expr* expression) const = 0;
+      const Expr* expression,
+      std::optional<const ParametricContext*> context = std::nullopt) const = 0;
 
   // Sets the explicit type annotation associated with `node`. Not all nodes
   // have one. For example, a `Let` node like `let x:u32 = something;` has a

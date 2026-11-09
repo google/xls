@@ -656,6 +656,19 @@ absl::StatusOr<std::optional<ColonRef*>> ConvertGenericColonRefToDirect(
         colon_ref->attr());
   }
 
+  XLS_ASSIGN_OR_RETURN(std::optional<SumRef> sum_ref,
+                       GetSumRef(actual_type, import_data));
+  if (sum_ref.has_value()) {
+    return name_def->owner()->Make<ColonRef>(
+        Span::None(),
+        name_def->owner()->Make<TypeRefTypeAnnotation>(
+            Span::None(),
+            name_def->owner()->Make<TypeRef>(Span::None(),
+                                             const_cast<SumDef*>(sum_ref->def)),
+            sum_ref->parametrics),
+        colon_ref->attr());
+  }
+
   return TypeInferenceErrorStatus(
       colon_ref->span(), /*type=*/nullptr,
       absl::Substitute("Cannot resolve generic member reference "

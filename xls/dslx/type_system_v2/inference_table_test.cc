@@ -491,6 +491,163 @@ TEST_F(InferenceTableTest,
   EXPECT_EQ(std::get<UnknownNamedField>(result).source_index, 0);
 }
 
+TEST_F(InferenceTableTest,
+       BoundConstructionsKeepContextAndEquivalentUseIdentity) {
+  ParseAndInitModuleAndTable(R"(
+    #![feature(generics)]
+    struct A { x: u8, y: u8 }
+    struct B { y: u8, x: u8 }
+    fn make<T: type>() -> T { T { y: u8:2, x: u8:1 } }
+    fn main() { make<A>(); make<B>(); }
+    const STATIC = A { y: u8:2, x: u8:1 };
+)");
+  XLS_ASSERT_OK_AND_ASSIGN(StructDef * a,
+                           module_->GetMemberOrError<StructDef>("A"));
+  XLS_ASSERT_OK_AND_ASSIGN(StructDef * b,
+                           module_->GetMemberOrError<StructDef>("B"));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * make,
+                           module_->GetMemberOrError<Function>("make"));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * main,
+                           module_->GetMemberOrError<Function>("main"));
+  const auto* expression = absl::down_cast<const StructInstance*>(
+      ToAstNode(make->body()->statements()[0]->wrapped()));
+  XLS_ASSERT_OK(
+      table_->DefineParametricVariable(*make->parametric_bindings()[0]));
+  std::vector<const ParametricContext*> contexts;
+  for (const Statement* statement : main->body()->statements()) {
+    const auto* invocation =
+        absl::down_cast<const Invocation*>(ToAstNode(statement->wrapped()));
+    XLS_ASSERT_OK_AND_ASSIGN(
+        const ParametricContext* context,
+        table_->AddParametricInvocation(*invocation, *make, main, std::nullopt,
+                                        std::nullopt, CreateTypeInfo()));
+    contexts.push_back(context);
+  }
+  EXPECT_EQ(table_->GetBoundConstruction(expression, contexts[0]),
+            std::nullopt);
+  XLS_ASSERT_OK_AND_ASSIGN(AstNode * clone,
+                           table_->Clone(expression, &NoopCloneReplacer));
+  const auto* equivalent = absl::down_cast<const Expr*>(clone);
+  const BoundConstruction* bound_a = table_->RegisterBoundConstruction(
+      BoundConstruction(expression, a, NamedFieldCorrespondence{1, 0}),
+      contexts[0]);
+  const BoundConstruction* bound_b = table_->RegisterBoundConstruction(
+      BoundConstruction(equivalent, b, NamedFieldCorrespondence{0, 1}),
+      contexts[1]);
+  EXPECT_NE(bound_a, bound_b);
+  EXPECT_EQ(table_->GetBoundConstruction(expression), std::nullopt);
+  EXPECT_EQ(table_->GetBoundConstruction(equivalent, contexts[0]), bound_a);
+  EXPECT_EQ(table_->GetBoundConstruction(expression, contexts[1]), bound_b);
+  EXPECT_EQ(bound_b->expression(), expression);
+  EXPECT_EQ(bound_a->GetMember(0), expression->members()[1].second);
+  EXPECT_EQ(bound_b->GetMember(0), expression->members()[0].second);
+
+  XLS_ASSERT_OK_AND_ASSIGN(ConstantDef * constant,
+                           module_->GetConstantDef("STATIC"));
+  const BoundConstruction* static_binding = table_->RegisterBoundConstruction(
+      BoundConstruction(constant->value(), a, NamedFieldCorrespondence{1, 0}));
+  EXPECT_EQ(table_->GetBoundConstruction(constant->value(), contexts[1]),
+            static_binding);
+  // Fresh syntax gets fresh records; growing the owning maps cannot move any
+  // earlier record borrowed by a TypeInfo or a solver.
+  for (int i = 0; i < 64; ++i) {
+    XLS_ASSERT_OK_AND_ASSIGN(
+        AstNode * fresh,
+        CloneAst(constant->value(), &PreserveTypeDefinitionsReplacer));
+    const auto* fresh_expression = absl::down_cast<const Expr*>(fresh);
+    EXPECT_EQ(table_->GetBoundConstruction(fresh_expression), std::nullopt);
+    EXPECT_NE(table_->RegisterBoundConstruction(BoundConstruction(
+                  fresh_expression, a, NamedFieldCorrespondence{1, 0})),
+              static_binding);
+  }
+  EXPECT_EQ(table_->GetBoundConstruction(expression, contexts[0]), bound_a);
+  EXPECT_EQ(table_->GetBoundConstruction(constant->value()), static_binding);
+  EXPECT_EQ(bound_a->GetMember(0), expression->members()[1].second);
+  EXPECT_EQ(table_->RegisterBoundConstruction(BoundConstruction(
+                constant->value(), a, NamedFieldCorrespondence{1, 0})),
+            static_binding);
+}
+
+TEST_F(InferenceTableTest,
+       OnlyRegisteredCallsFeedVariablesAndFollowReassignment) {
+  ParseAndInitModuleAndTable(R"(
+    enum E { Tuple(u32) }
+    fn f() -> u32 { u32:0 }
+    fn main() { f(); f(); E::Tuple(f()) }
+)");
+  XLS_ASSERT_OK_AND_ASSIGN(Function * main,
+                           module_->GetMemberOrError<Function>("main"));
+  const auto* first = absl::down_cast<const Invocation*>(
+      ToAstNode(main->body()->statements()[0]->wrapped()));
+  const auto* second = absl::down_cast<const Invocation*>(
+      ToAstNode(main->body()->statements()[1]->wrapped()));
+  const auto* constructor = absl::down_cast<const Invocation*>(
+      ToAstNode(main->body()->statements()[2]->wrapped()));
+  const auto* payload_call =
+      absl::down_cast<const Invocation*>(constructor->args()[0]);
+  XLS_ASSERT_OK_AND_ASSIGN(SumDef * sum,
+                           module_->GetMemberOrError<SumDef>("E"));
+  const BoundConstruction* bound = table_->RegisterBoundConstruction(
+      BoundConstruction(constructor, sum->variants()[0]));
+  EXPECT_EQ(bound->GetMember(0), payload_call);
+  EXPECT_EQ(payload_call->parent(), constructor);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      const NameRef* t0,
+      table_->DefineInternalVariable(InferenceVariableKind::kType, main, "T0"));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      const NameRef* t1,
+      table_->DefineInternalVariable(InferenceVariableKind::kType, main, "T1"));
+  XLS_ASSERT_OK(table_->SetTypeVariable(first, t0));
+  XLS_ASSERT_OK(table_->SetTypeVariable(constructor, t0));
+  XLS_ASSERT_OK_AND_ASSIGN(auto calls,
+                           table_->GetInvocationsFeedingTypeVariable(t0));
+  EXPECT_THAT(calls, ElementsAre());
+  const TypeAnnotation* annotation =
+      CreateU32Annotation(*module_, Span::Fake());
+  table_->SetCachedUnifiedTypeForVariable(std::nullopt, t0, {}, annotation);
+  table_->RegisterInvocation(first);
+  EXPECT_EQ(table_->GetCachedUnifiedTypeForVariable(std::nullopt, t0),
+            std::nullopt);
+  table_->RegisterInvocation(second);
+  XLS_ASSERT_OK(table_->SetTypeVariable(second, t0));
+  table_->RegisterInvocation(payload_call);
+  XLS_ASSERT_OK(table_->SetTypeVariable(payload_call, t0));
+  table_->RegisterInvocation(first);
+  XLS_ASSERT_OK(table_->SetTypeAnnotation(first, annotation));
+  XLS_ASSERT_OK_AND_ASSIGN(calls,
+                           table_->GetInvocationsFeedingTypeVariable(t0));
+  EXPECT_THAT(calls, ElementsAre(first, second, payload_call));
+
+  table_->SetCachedUnifiedTypeForVariable(std::nullopt, t0, {}, annotation);
+  table_->SetCachedUnifiedTypeForVariable(std::nullopt, t1, {}, annotation);
+  XLS_ASSERT_OK(table_->SetTypeVariable(first, t1));
+  EXPECT_EQ(table_->GetCachedUnifiedTypeForVariable(std::nullopt, t0),
+            std::nullopt);
+  EXPECT_EQ(table_->GetCachedUnifiedTypeForVariable(std::nullopt, t1),
+            std::nullopt);
+  XLS_ASSERT_OK_AND_ASSIGN(calls,
+                           table_->GetInvocationsFeedingTypeVariable(t0));
+  EXPECT_THAT(calls, ElementsAre(second, payload_call));
+  XLS_ASSERT_OK(table_->SetTypeVariable(first, t0));
+  XLS_ASSERT_OK_AND_ASSIGN(calls,
+                           table_->GetInvocationsFeedingTypeVariable(t0));
+  EXPECT_THAT(calls, ElementsAre(first, second, payload_call));
+
+  XLS_ASSERT_OK_AND_ASSIGN(AstNode * clone,
+                           table_->Clone(first, &NoopCloneReplacer));
+  const auto* cloned_call = absl::down_cast<const Invocation*>(clone);
+  XLS_ASSERT_OK_AND_ASSIGN(calls,
+                           table_->GetInvocationsFeedingTypeVariable(t0));
+  EXPECT_THAT(calls, ElementsAre(first, second, payload_call, cloned_call));
+  XLS_ASSERT_OK(table_->SetTypeVariable(cloned_call, t1));
+  XLS_ASSERT_OK_AND_ASSIGN(calls,
+                           table_->GetInvocationsFeedingTypeVariable(t1));
+  EXPECT_THAT(calls, ElementsAre(cloned_call));
+  XLS_ASSERT_OK_AND_ASSIGN(calls,
+                           table_->GetInvocationsFeedingTypeVariable(t0));
+  EXPECT_THAT(calls, ElementsAre(first, second, payload_call));
+}
+
 TEST_F(InferenceTableTest, SimpleCaching) {
   NameDef* x = module_->Make<NameDef>(Span::Fake(), "x", /*definer=*/nullptr);
   XLS_ASSERT_OK_AND_ASSIGN(
