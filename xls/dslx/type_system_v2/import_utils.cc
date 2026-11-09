@@ -33,6 +33,7 @@
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/ast_node_visitor_with_default.h"
 #include "xls/dslx/frontend/ast_utils.h"
+#include "xls/dslx/frontend/bindings.h"
 #include "xls/dslx/frontend/builtin_stubs_utils.h"
 #include "xls/dslx/frontend/module.h"
 #include "xls/dslx/frontend/pos.h"
@@ -40,14 +41,41 @@
 #include "xls/dslx/import_routines.h"
 #include "xls/dslx/type_system/type.h"
 #include "xls/dslx/type_system/type_info.h"
+#include "xls/dslx/type_system_v2/declaration_resolution_cache.h"
 #include "xls/dslx/type_system_v2/type_annotation_utils.h"
 
 namespace xls::dslx {
 namespace {
 
+// Resolve the indexed use path against already-loaded modules.
+absl::StatusOr<std::optional<ModuleMember>> GetLoadedUseMember(
+    const UseTreeEntry* entry, const ImportData& import_data) {
+  const UseSubject* subject = entry->owner()->GetUseSubject(entry);
+  if (subject == nullptr) {
+    return std::nullopt;
+  }
+  auto identifiers = subject->identifiers();
+  absl::StatusOr<ModuleInfo*> module =
+      import_data.Get(ImportTokens::FromSpan(identifiers));
+  if (module.ok()) {
+    return std::nullopt;
+  } else if (identifiers.size() > 1) {
+    XLS_ASSIGN_OR_RETURN(ModuleInfo * imported_module,
+                         import_data.Get(ImportTokens::FromSpan(
+                             identifiers.first(identifiers.size() - 1))));
+    std::optional<ModuleMember> imported_member =
+        imported_module->module().GetMember(subject->name_def().identifier());
+    XLS_RET_CHECK(imported_member.has_value());
+    return imported_member;
+  } else {
+    return module.status();
+  }
+}
+
 // Recursive visitor that unwraps a possible chain of type aliasing leading to a
-// struct, impl-style proc, or enum def. After visiting a subtree, the result
-// can be obtained by calling `GetStructOrProcRef` or `GetEnumDef`.
+// struct, impl-style proc, sum, or enum def. After visiting a subtree, the
+// result can be obtained by calling `GetStructOrProcRef`, `GetSumRef`, or
+// `GetEnumDef`.
 class TypeRefUnwrapper : public AstNodeVisitorWithDefault {
  public:
   explicit TypeRefUnwrapper(const ImportData& import_data,
@@ -85,7 +113,62 @@ class TypeRefUnwrapper : public AstNodeVisitorWithDefault {
   }
 
   absl::Status HandleTypeAlias(const TypeAlias* alias) override {
-    return alias->type_annotation().Accept(this);
+    auto& aliases = import_data_.declaration_resolution_cache().aliases;
+    TypeRefUnwrapper suffix(import_data_, include_generic_);
+    absl::Status suffix_status;
+    auto it = aliases.find(alias);
+    if (it != aliases.end()) {
+      const ResolvedTypeAlias& resolved = it->second;
+      suffix.type_def_ = resolved.definition;
+      suffix.type_ref_type_annotation_ =
+          resolved.first_annotation == nullptr
+              ? std::nullopt
+              : std::make_optional(resolved.first_annotation);
+      suffix.parameter_annotation_ = resolved.parameter_annotation;
+      suffix.instantiator_ = resolved.instantiator;
+      suffix.type_variable_type_annotation_ =
+          resolved.last_type_variable == nullptr
+              ? std::nullopt
+              : std::make_optional(resolved.last_type_variable);
+    } else {
+      suffix.mutable_import_data_ = mutable_import_data_;
+      suffix.typecheck_imported_module_ = typecheck_imported_module_;
+      suffix_status = alias->type_annotation().Accept(&suffix);
+      if (suffix_status.ok() && suffix.type_def_.has_value() &&
+          !suffix.is_generic_) {
+        aliases.emplace(
+            alias,
+            ResolvedTypeAlias{
+                .definition = *suffix.type_def_,
+                .first_annotation =
+                    suffix.type_ref_type_annotation_.value_or(nullptr),
+                .parameter_annotation = suffix.parameter_annotation_,
+                .last_type_variable =
+                    suffix.type_variable_type_annotation_.value_or(nullptr),
+                .instantiator = suffix.instantiator_});
+      }
+    }
+    if (parameter_annotation_ != nullptr &&
+        suffix.parameter_annotation_ != nullptr) {
+      return MultipleParametricValuesError(suffix.parameter_annotation_);
+    }
+    if (!type_ref_type_annotation_.has_value()) {
+      type_ref_type_annotation_ = suffix.type_ref_type_annotation_;
+    }
+    if (suffix.parameter_annotation_ != nullptr) {
+      parameter_annotation_ = suffix.parameter_annotation_;
+    }
+    if (suffix.type_variable_type_annotation_.has_value()) {
+      type_variable_type_annotation_ = suffix.type_variable_type_annotation_;
+    }
+    if (!instantiator_.has_value()) {
+      instantiator_ = suffix.instantiator_;
+    }
+    type_def_ = suffix.type_def_;
+    is_generic_ = suffix.is_generic_;
+    // Preserve the earliest duplicate-parameter diagnostic even if resolving
+    // the suffix in isolation failed at a later annotation.
+    return suffix_status;
   }
 
   absl::Status HandleTypeVariableTypeAnnotation(
@@ -96,20 +179,16 @@ class TypeRefUnwrapper : public AstNodeVisitorWithDefault {
 
   absl::Status HandleTypeRefTypeAnnotation(
       const TypeRefTypeAnnotation* annotation) override {
-    if (!annotation->parametrics().empty() && !parametrics_.empty()) {
-      return TypeInferenceErrorStatus(
-          annotation->span(), /* type= */ nullptr,
-          absl::StrFormat(
-              "Parametric values defined multiple times for annotation: `%s`",
-              annotation->ToString()),
-          import_data_.file_table());
+    if (!annotation->parametrics().empty() &&
+        parameter_annotation_ != nullptr) {
+      return MultipleParametricValuesError(annotation);
     }
 
     if (!type_ref_type_annotation_.has_value()) {
       type_ref_type_annotation_ = annotation;
     }
     if (!annotation->parametrics().empty()) {
-      parametrics_ = annotation->parametrics();
+      parameter_annotation_ = annotation;
     }
     if (!instantiator_.has_value()) {
       instantiator_ = annotation->instantiator();
@@ -146,6 +225,11 @@ class TypeRefUnwrapper : public AstNodeVisitorWithDefault {
     return absl::OkStatus();
   }
 
+  absl::Status HandleSumDef(const SumDef* def) override {
+    type_def_ = const_cast<SumDef*>(def);
+    return absl::OkStatus();
+  }
+
   absl::Status HandleNameDef(const NameDef* name_def) override {
     if (name_def->definer() != nullptr) {
       return name_def->definer()->Accept(this);
@@ -155,6 +239,16 @@ class TypeRefUnwrapper : public AstNodeVisitorWithDefault {
 
   absl::Status HandleNameRef(const NameRef* name_ref) override {
     return ToAstNode(name_ref->name_def())->Accept(this);
+  }
+
+  absl::Status HandleUseTreeEntry(const UseTreeEntry* entry) override {
+    XLS_ASSIGN_OR_RETURN(std::optional<ModuleMember> member,
+                         GetLoadedUseMember(entry, import_data_));
+    if (member.has_value()) {
+      return ToAstNode(*member)->Accept(this);
+    } else {
+      return absl::OkStatus();
+    }
   }
 
   std::optional<const TypeVariableTypeAnnotation*>
@@ -173,7 +267,7 @@ class TypeRefUnwrapper : public AstNodeVisitorWithDefault {
         .def = type_def_.has_value()
                    ? absl::down_cast<StructDefBase*>(ToAstNode(*type_def_))
                    : nullptr,
-        .parametrics = parametrics_,
+        .parametrics = GetParametrics(),
         .instantiator = instantiator_,
         .type_ref_type_annotation = type_ref_type_annotation_,
         .is_generic = is_generic_,
@@ -186,14 +280,39 @@ class TypeRefUnwrapper : public AstNodeVisitorWithDefault {
                : std::nullopt;
   }
 
+  std::optional<SumRef> GetSumRef() {
+    if (!type_def_.has_value() ||
+        !std::holds_alternative<SumDef*>(*type_def_)) {
+      return std::nullopt;
+    }
+    return SumRef{.def = std::get<SumDef*>(*type_def_),
+                  .parametrics = GetParametrics()};
+  }
+
  private:
+  absl::Status MultipleParametricValuesError(
+      const TypeRefTypeAnnotation* annotation) const {
+    return TypeInferenceErrorStatus(
+        annotation->span(), /*type=*/nullptr,
+        absl::StrFormat(
+            "Parametric values defined multiple times for annotation: `%s`",
+            annotation->ToString()),
+        import_data_.file_table());
+  }
+
+  std::vector<ExprOrType> GetParametrics() const {
+    return parameter_annotation_ == nullptr
+               ? std::vector<ExprOrType>{}
+               : parameter_annotation_->parametrics();
+  }
+
   ImportData* mutable_import_data_;
   const ImportData& import_data_;
   bool include_generic_;
   std::optional<TypecheckModuleFn> typecheck_imported_module_;
 
   // These fields get populated as we visit nodes.
-  std::vector<ExprOrType> parametrics_;
+  const TypeRefTypeAnnotation* parameter_annotation_ = nullptr;
   std::optional<TypeDefinition> type_def_;
   std::optional<const TypeRefTypeAnnotation*> type_ref_type_annotation_;
   std::optional<const TypeVariableTypeAnnotation*>
@@ -202,6 +321,13 @@ class TypeRefUnwrapper : public AstNodeVisitorWithDefault {
   std::optional<const StructInstanceBase*> instantiator_;
   bool is_generic_ = false;
 };
+
+absl::StatusOr<std::optional<SumRef>> GetSumRefForSubject(
+    const ColonRef* ref, const ImportData& import_data) {
+  TypeRefUnwrapper unwrapper(import_data);
+  XLS_RETURN_IF_ERROR(ToAstNode(ref->subject())->Accept(&unwrapper));
+  return unwrapper.GetSumRef();
+}
 
 }  // namespace
 
@@ -232,6 +358,16 @@ absl::StatusOr<std::optional<StructOrProcRef>> GetStructOrProcRef(
   return unwrapper.GetStructOrProcRef();
 }
 
+absl::StatusOr<std::optional<SumRef>> GetSumRef(
+    const TypeAnnotation* annotation, const ImportData& import_data) {
+  if (!annotation->IsAnnotation<TypeRefTypeAnnotation>()) {
+    return std::nullopt;
+  }
+  TypeRefUnwrapper unwrapper(import_data);
+  XLS_RETURN_IF_ERROR(annotation->Accept(&unwrapper));
+  return unwrapper.GetSumRef();
+}
+
 absl::StatusOr<std::optional<StructOrProcRef>> GetStructOrProcRefForSubject(
     const ColonRef* ref, const ImportData& import_data) {
   TypeRefUnwrapper unwrapper(import_data);
@@ -247,6 +383,80 @@ GetTypeVariableTypeAnnotationForSubject(const ColonRef* ref,
   return unwrapper.GetTypeVariableTypeAnnotation();
 }
 
+absl::StatusOr<std::optional<SumConstructorRef>> ResolveSumConstructor(
+    const ColonRef* colon_ref, const ImportData& import_data) {
+  auto& constructors = import_data.declaration_resolution_cache().constructors;
+  auto cached = constructors.find(colon_ref);
+  if (cached != constructors.end()) {
+    return cached->second;
+  }
+  XLS_ASSIGN_OR_RETURN(std::optional<SumRef> sum_ref,
+                       GetSumRefForSubject(colon_ref, import_data));
+  if (!sum_ref.has_value()) {
+    return std::nullopt;
+  }
+  std::optional<const SumVariant*> variant =
+      sum_ref->def->GetVariant(colon_ref->attr());
+  if (!variant.has_value()) {
+    return TypeInferenceErrorStatus(
+        colon_ref->span(), nullptr,
+        absl::StrFormat("Sum '%s' has no constructor '%s'.",
+                        sum_ref->def->identifier(), colon_ref->attr()),
+        import_data.file_table());
+  }
+  SumConstructorRef result{.sum_ref = *sum_ref, .variant = *variant};
+  constructors.emplace(colon_ref, result);
+  return result;
+}
+
+absl::StatusOr<std::optional<SumConstructorRef>> ResolveSumConstructor(
+    const TypeAnnotation* annotation, const ImportData& import_data) {
+  if (!annotation->IsAnnotation<TypeRefTypeAnnotation>()) {
+    return std::nullopt;
+  }
+  const auto* type_ref_annotation =
+      annotation->AsAnnotation<TypeRefTypeAnnotation>();
+  if (!std::holds_alternative<ColonRef*>(
+          type_ref_annotation->type_ref()->type_definition())) {
+    return std::nullopt;
+  }
+  return ResolveSumConstructor(
+      std::get<ColonRef*>(type_ref_annotation->type_ref()->type_definition()),
+      import_data);
+}
+
+absl::StatusOr<std::optional<SumConstructorRef>> ResolveSumConstructor(
+    const Invocation* invocation, const ImportData& import_data) {
+  if (const auto* constructor =
+          dynamic_cast<const ColonRef*>(invocation->callee())) {
+    if (!invocation->explicit_parametrics().empty()) {
+      XLS_ASSIGN_OR_RETURN(std::optional<SumRef> sum_ref,
+                           GetSumRefForSubject(constructor, import_data));
+      if (sum_ref.has_value()) {
+        return ParseErrorStatus(
+            invocation->span(),
+            "Explicit parametrics belong on the sum type, not the "
+            "constructor; use `Name<T>::Variant(...)`.",
+            import_data.file_table());
+      }
+    }
+    XLS_ASSIGN_OR_RETURN(std::optional<SumConstructorRef> resolved,
+                         ResolveSumConstructor(constructor, import_data));
+    if (resolved.has_value()) {
+      if (!resolved->variant->is_tuple()) {
+        return TypeInferenceErrorStatus(
+            invocation->span(), nullptr,
+            absl::Substitute("Constructor `$0` is not callable here.",
+                             constructor->ToString()),
+            import_data.file_table());
+      }
+    }
+    return resolved;
+  } else {
+    return std::nullopt;
+  }
+}
+
 absl::StatusOr<absl::optional_ref<ModuleInfo>> GetImportedModuleInfo(
     const ColonRef* colon_ref, const ImportData& import_data) {
   std::optional<ImportSubject> subject = colon_ref->ResolveImportSubject();
@@ -255,8 +465,9 @@ absl::StatusOr<absl::optional_ref<ModuleInfo>> GetImportedModuleInfo(
     XLS_ASSIGN_OR_RETURN(ModuleInfo * module_info,
                          import_data.Get(ImportTokens(import->subject())));
     return *module_info;
+  } else {
+    return std::nullopt;
   }
-  return std::nullopt;
 }
 
 absl::StatusOr<absl::optional_ref<ModuleInfo>> GetImportedModuleInfo(
@@ -274,14 +485,14 @@ absl::StatusOr<absl::optional_ref<ModuleInfo>> GetImportedModuleInfo(
     }
     XLS_ASSIGN_OR_RETURN(ModuleInfo * module_info, import_data.Get(tokens));
     return *module_info;
+  } else {
+    return std::nullopt;
   }
-  return std::nullopt;
 }
 
 absl::StatusOr<ModuleMember> GetPublicModuleMember(
     const Module& module, const ColonRef* node, const FileTable& file_table) {
-  std::optional<const ModuleMember*> member =
-      module.FindMemberWithName(node->attr());
+  std::optional<ModuleMember> member = module.GetMember(node->attr());
   if (!member.has_value()) {
     return TypeInferenceErrorStatus(
         node->span(), nullptr,
@@ -290,7 +501,7 @@ absl::StatusOr<ModuleMember> GetPublicModuleMember(
                         node->ToString()),
         file_table);
   }
-  if (!IsPublic(**member)) {
+  if (!IsPublic(*member)) {
     return TypeInferenceErrorStatus(
         node->span(), nullptr,
         absl::StrFormat("Attempted to refer to a module member %s that "
@@ -298,7 +509,7 @@ absl::StatusOr<ModuleMember> GetPublicModuleMember(
                         node->ToString()),
         file_table);
   }
-  return **member;
+  return *member;
 }
 
 absl::StatusOr<std::optional<StructOrProcRef>> GetStructOrProcRef(
@@ -306,6 +517,13 @@ absl::StatusOr<std::optional<StructOrProcRef>> GetStructOrProcRef(
   TypeRefUnwrapper unwrapper(import_data);
   XLS_RETURN_IF_ERROR(colon_ref->Accept(&unwrapper));
   return unwrapper.GetStructOrProcRef();
+}
+
+absl::StatusOr<std::optional<SumRef>> GetSumRef(const ColonRef* colon_ref,
+                                                const ImportData& import_data) {
+  TypeRefUnwrapper unwrapper(import_data);
+  XLS_RETURN_IF_ERROR(colon_ref->Accept(&unwrapper));
+  return unwrapper.GetSumRef();
 }
 
 absl::StatusOr<std::optional<const StructDefBase*>> GetStructOrProcDef(
@@ -359,6 +577,13 @@ absl::StatusOr<std::optional<const EnumDef*>> GetEnumDef(
   TypeRefUnwrapper unwrapper(import_data);
   XLS_RETURN_IF_ERROR(annotation->Accept(&unwrapper));
   return unwrapper.GetEnumDef();
+}
+
+absl::StatusOr<std::optional<const SumDef*>> GetSumDef(
+    const TypeAnnotation* annotation, const ImportData& import_data) {
+  XLS_ASSIGN_OR_RETURN(std::optional<SumRef> sum_ref,
+                       GetSumRef(annotation, import_data));
+  return sum_ref.has_value() ? std::make_optional(sum_ref->def) : std::nullopt;
 }
 
 bool IsImport(const ColonRef* colon_ref) {
