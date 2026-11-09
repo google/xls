@@ -118,14 +118,6 @@ absl::Status IrConversionErrorStatus(const std::optional<Span>& span,
       span ? span->ToString(file_table) : "<no span>", message));
 }
 
-absl::StatusOr<TypeDefinition> ToTypeDefinition(
-    const TypeAnnotation* type_annotation) {
-  auto* type_ref_type_annotation =
-      dynamic_cast<const TypeRefTypeAnnotation*>(type_annotation);
-  XLS_RET_CHECK_NE(type_annotation, nullptr);
-  return type_ref_type_annotation->type_ref()->type_definition();
-}
-
 // TODO: https://github.com/google/xls/issues/4125 - This is brittle but
 // preserves the pre-existing behavior of explicit state access. We need to
 // replace string keys with `StateElement` keys.
@@ -4741,12 +4733,16 @@ absl::Status FunctionConverter::HandleSplatStructInstance(
     XLS_ASSIGN_OR_RETURN(updates[item.first], Use(item.second));
   }
 
-  XLS_ASSIGN_OR_RETURN(TypeDefinition type_definition,
-                       ToTypeDefinition(node->struct_ref()));
-  XLS_ASSIGN_OR_RETURN(StructDefBase * def, DerefStructOrProc(type_definition));
+  // Note: we resolve the struct definition via type info rather than by
+  // inspecting `node->struct_ref()` directly, since the latter may be a
+  // `SelfTypeAnnotation` (e.g. `Self { .. }` inside an `impl`) or a type alias
+  // rather than a direct reference to the struct.
+  XLS_ASSIGN_OR_RETURN(StructTypeBase * struct_type,
+                       current_type_info_->GetItemAs<StructTypeBase>(node));
+  const StructDefBase& def = struct_type->struct_def_base();
   std::vector<BValue> members;
-  for (int64_t i = 0; i < def->members().size(); ++i) {
-    const std::string& k = def->GetMemberName(i);
+  for (int64_t i = 0; i < def.size(); ++i) {
+    const std::string& k = def.GetMemberName(i);
     if (auto it = updates.find(k); it != updates.end()) {
       members.push_back(it->second);
     } else {
@@ -4763,11 +4759,13 @@ absl::Status FunctionConverter::HandleSplatStructInstance(
 absl::Status FunctionConverter::HandleStructInstance(
     const StructInstance* node) {
   std::vector<BValue> operands;
-  XLS_ASSIGN_OR_RETURN(TypeDefinition type_definition,
-                       ToTypeDefinition(node->struct_ref()));
-  XLS_ASSIGN_OR_RETURN(StructDefBase * def, DerefStructOrProc(type_definition));
+  // See note in HandleSplatStructInstance regarding why we go through type info
+  // here instead of `node->struct_ref()`.
+  XLS_ASSIGN_OR_RETURN(StructTypeBase * struct_type,
+                       current_type_info_->GetItemAs<StructTypeBase>(node));
+  const StructDefBase& def = struct_type->struct_def_base();
   std::vector<Value> const_operands;
-  for (const auto& [_, member_expr] : node->GetOrderedMembers(def)) {
+  for (const auto& [_, member_expr] : node->GetOrderedMembers(&def)) {
     VLOG(10) << "Visiting member expr " << member_expr->ToString();
     XLS_RETURN_IF_ERROR(Visit(member_expr));
     XLS_ASSIGN_OR_RETURN(BValue operand, Use(member_expr));
@@ -5553,14 +5551,6 @@ FunctionConverter::DerefStructOrEnum(TypeDefinition node) {
                        imported_mod->GetTypeDefinition(colon_ref->attr()));
   // Recurse to resolve the typedef within the imported module.
   return DerefStructOrEnum(td);
-}
-
-absl::StatusOr<StructDefBase*> FunctionConverter::DerefStructOrProc(
-    TypeDefinition node) {
-  XLS_ASSIGN_OR_RETURN(DerefVariant v, DerefStructOrEnum(node));
-  XLS_RET_CHECK(std::holds_alternative<StructDef*>(v) ||
-                std::holds_alternative<ProcDef*>(v));
-  return absl::down_cast<StructDefBase*>(ToAstNode(v));
 }
 
 absl::StatusOr<EnumDef*> FunctionConverter::DerefEnum(TypeDefinition node) {
