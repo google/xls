@@ -719,6 +719,7 @@ class AstCloner : public AstNodeVisitor {
   }
 
   absl::Status HandleModule(const Module* n) override {
+    source_module_ = n;
     for (const ModuleMember member : n->top()) {
       ModuleMember new_member;
       XLS_RETURN_IF_ERROR(absl::visit(
@@ -792,13 +793,16 @@ class AstCloner : public AstNodeVisitor {
   }
 
   absl::Status HandleNameRef(const NameRef* n) override {
-    // If it's a ref to a cloned def, then point it to the cloned def.
-    // Otherwise, it may be a ref to a def that is outside the scope being
-    // cloned.
     AnyNameDef new_name_def;
     if (std::holds_alternative<const NameDef*>(n->name_def())) {
       const NameDef* old_def = std::get<const NameDef*>(n->name_def());
-      auto it = old_to_new_.find(old_def);
+      // A whole-module clone owns local definitions even when traversal reaches
+      // a reference first, e.g. a proc member used by its next function.
+      if (source_module_ != nullptr && old_def->owner() == source_module_ &&
+          !old_to_new_.contains(old_def)) {
+        XLS_RETURN_IF_ERROR(ReplaceOrVisit(old_def));
+      }
+      const auto it = old_to_new_.find(old_def);
       if (it != old_to_new_.end()) {
         new_name_def = absl::down_cast<NameDef*>(it->second);
       } else {
@@ -1094,6 +1098,13 @@ class AstCloner : public AstNodeVisitor {
           new_struct_def->set_extern_type_name(*n->extern_type_name());
         }
         new_struct_def->set_is_domain_struct(n->is_domain_struct());
+        if (n->is_domain_struct()) {
+          // Generated domains refer back to the struct whose members determine
+          // the domain. It may appear later in the module's member order.
+          XLS_RETURN_IF_ERROR(ReplaceOrVisit(n->name_def()->definer()));
+          new_struct_def->name_def()->set_definer(
+              old_to_new_.at(n->name_def()->definer()));
+        }
       }
     }
     return status;
@@ -1607,6 +1618,8 @@ class AstCloner : public AstNodeVisitor {
   }
 
   std::optional<Module*> const module_;
+  // Set only for whole-module clones; narrow clones can borrow captured names.
+  const Module* source_module_ = nullptr;
   CloneReplacer replacer_;
   absl::flat_hash_map<const AstNode*, AstNode*> old_to_new_;
 };
@@ -1664,6 +1677,20 @@ void CollectUseTreeEntries(const UseTreeEntry& entry,
     CollectUseTreeEntries(*absl::down_cast<UseTreeEntry*>(child),
                           removed_nodes);
   }
+}
+
+absl::StatusOr<std::unique_ptr<Module>> CloneModuleMetadata(
+    const Module& module) {
+  auto clone = std::make_unique<Module>(module.name(), module.fs_path(),
+                                        *module.file_table());
+  if (std::optional<Span> span = module.GetSpan(); span.has_value()) {
+    clone->set_span(*span);
+  }
+  for (const ModuleAttribute& attribute : module.attributes()) {
+    clone->AddAttribute(attribute, module.GetAttributeSpan());
+  }
+  clone->SetConfiguredValuesMap(module.configured_values());
+  return clone;
 }
 
 }  // namespace
@@ -1747,15 +1774,8 @@ absl::StatusOr<AstNode*> CloneAst(const AstNode* root, CloneReplacer replacer) {
 
 absl::StatusOr<std::unique_ptr<Module>> CloneModule(const Module& module,
                                                     CloneReplacer replacer) {
-  auto new_module = std::make_unique<Module>(module.name(), module.fs_path(),
-                                             *module.file_table());
-  if (std::optional<Span> span = module.GetSpan(); span.has_value()) {
-    new_module->set_span(*span);
-  }
-  std::optional<Span> attribute_span = module.GetAttributeSpan();
-  for (const ModuleAttribute& dir : module.attributes()) {
-    new_module->AddAttribute(dir, attribute_span);
-  }
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<Module> new_module,
+                       CloneModuleMetadata(module));
   AstCloner cloner(new_module.get(), std::move(replacer));
   XLS_RETURN_IF_ERROR(module.Accept(&cloner));
   return new_module;
@@ -1791,15 +1811,8 @@ absl::StatusOr<std::unique_ptr<Module>> CloneModuleRemovingMembers(
     }
   }
 
-  auto new_module = std::make_unique<Module>(module.name(), module.fs_path(),
-                                             *module.file_table());
-  if (std::optional<Span> span = module.GetSpan(); span.has_value()) {
-    new_module->set_span(*span);
-  }
-  std::optional<Span> attribute_span = module.GetAttributeSpan();
-  for (const ModuleAttribute& attribute : module.attributes()) {
-    new_module->AddAttribute(attribute, attribute_span);
-  }
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<Module> new_module,
+                       CloneModuleMetadata(module));
 
   absl::flat_hash_map<const AstNode*, AstNode*> global_map;
 

@@ -164,6 +164,9 @@ XLS_DSLX_AST_NODE_EACH(FORWARD_DECL)
 class StructDefBase;
 class StructInstanceBase;
 
+using AggregateDeclaration =
+    std::variant<const StructDefBase*, const SumVariant*>;
+
 // Helper type (abstract base) for double dispatch on AST nodes.
 class AstNodeVisitor {
  public:
@@ -3487,6 +3490,7 @@ class SumDef : public AstNode {
   }
 
   bool HasVariant(std::string_view target) const;
+  std::optional<int64_t> GetVariantIndex(std::string_view target) const;
   std::optional<SumVariant*> GetVariant(std::string_view target);
   std::optional<const SumVariant*> GetVariant(std::string_view target) const;
 
@@ -3503,6 +3507,7 @@ class SumDef : public AstNode {
   TypeAnnotation* tag_type_annotation_;
   std::vector<ParametricBinding*> parametric_bindings_;
   std::vector<SumVariant*> variants_;
+  absl::flat_hash_map<std::string, int64_t> variant_indices_;
   bool is_public_;
   std::optional<std::string> extern_type_name_;
 };

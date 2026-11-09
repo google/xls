@@ -2953,6 +2953,159 @@ fn f(x: Option<u32>) -> Option<u32> {
   EXPECT_TRUE(std::holds_alternative<SumDef*>(*maybe_member.value()));
 }
 
+TEST_F(ParserTest, ParametricSemanticSumNamedConstructor) {
+  constexpr std::string_view kProgram = R"(#![feature(generics)]
+
+enum E<A: u32, B: u32> {
+    V { x: uN[A], y: uN[B] },
+}
+const X = E<u32:8>::V { y: u16:2, x: u8:1 };
+)";
+  XLS_EXPECT_OK(Parse(kProgram));
+}
+
+TEST_F(ParserTest, ImportedParametricSemanticSumNamedConstructor) {
+  constexpr std::string_view kProgram = R"(#![feature(generics)]
+
+import imported;
+const X = imported::E<u32:8>::V { y: u16:2, x: u8:1 };
+)";
+  XLS_EXPECT_OK(Parse(kProgram));
+}
+
+TEST_F(ParserTest, ParametricSemanticSumMatchSubjectPreservesBraces) {
+  constexpr std::string_view kProgram = R"(#![feature(generics)]
+
+enum E<N: u32> {
+    Unit,
+    V(uN[N]),
+}
+fn f() -> u32 {
+    match E<u32:8>::Unit {
+        E::Unit => u32:1,
+        _ => u32:0,
+    }
+}
+)";
+  XLS_EXPECT_OK(Parse(kProgram));
+}
+
+TEST_F(ParserTest, ImportedParametricSemanticSumMatchSubjectPreservesBraces) {
+  constexpr std::string_view kProgram = R"(#![feature(generics)]
+
+import imported;
+fn f() -> u32 {
+    const match imported::E<u32:8>::Unit {
+        _ => u32:0,
+    }
+}
+)";
+  XLS_EXPECT_OK(Parse(kProgram));
+}
+
+TEST_F(ParserTest, ParametricSemanticSumMatchSubjectWithNoArms) {
+  constexpr std::string_view kProgram = R"(#![feature(generics)]
+
+enum E<N: u32> {
+    Unit,
+    V(uN[N]),
+}
+fn f() {
+    match E<u32:8>::Unit {}
+}
+)";
+  // Exhaustiveness is checked after parsing. These braces belong to the match.
+  XLS_EXPECT_OK(Parse(kProgram));
+}
+
+TEST_F(ParserTest, MatchRequiresParenthesesAroundBracedLiteralSubjects) {
+  const std::string prelude = R"(#![feature(generics)]
+import imported;
+struct S<N: u32> { x: uN[N] }
+enum E<N: u32> { V { x: uN[N] } }
+fn f(x: u8, base: imported::S) -> u32 { )";
+  for (const std::string literal :
+       {"S<u32:8> { x: u8:1 }", "imported::S<u32:8> { x: u8:1 }",
+        "E<u32:8>::V { x: u8:1 }", "imported::E<u32:8>::V { x: u8:1 }",
+        "imported::Empty {}", "imported::S { x }", "imported::S { ..base }",
+        "S<u32:8> { x: u8:1 }.x"}) {
+    for (const std::string keyword : {"match", "const match"}) {
+      SCOPED_TRACE(keyword + " " + literal);
+      const std::string prefix = prelude + keyword + " ";
+      const std::string suffix = " { _ => u32:0 } }";
+      EXPECT_THAT(Parse(prefix + literal + suffix),
+                  StatusIs(absl::StatusCode::kInvalidArgument));
+      XLS_EXPECT_OK(Parse(prefix + "(" + literal + ")" + suffix));
+    }
+  }
+}
+
+TEST_F(ParserTest, MatchOnSelfAssociatedConstant) {
+  XLS_EXPECT_OK(Parse(R"(
+struct S {}
+impl S {
+    const LIMIT = u32:4;
+    fn f() {
+        let x = match Self::LIMIT { n => n };
+        const match Self::LIMIT {}
+    }
+}
+)"));
+}
+
+TEST_F(ParserTest, MatchRestrictsBracedLiteralAfterNegatedConditional) {
+  for (const std::string conditional : {"if", "const if"}) {
+    SCOPED_TRACE(conditional);
+    const std::string prefix = "struct S { x: bool } fn f() { match !" +
+                               conditional +
+                               " true { false } else { true } || ";
+    const std::string suffix = ".x { _ => u32:0 } }";
+    EXPECT_THAT(Parse(prefix + "S { x: true }" + suffix),
+                StatusIs(absl::StatusCode::kInvalidArgument));
+    XLS_EXPECT_OK(Parse(prefix + "(S { x: true })" + suffix));
+  }
+}
+
+TEST_F(ParserTest, MatchAllowsBracedLiteralsInBlocksAndCallArguments) {
+  XLS_EXPECT_OK(Parse(R"(
+struct S { x: u32 }
+enum E { V { x: u32 }, Tuple(u32) }
+fn id(e: E) -> E { e }
+fn f() {
+    let x = match (S { x: u32:1 }).x { n => n };
+    let a = match { E::V { x } } { _ => u32:0 };
+    let b = const match id(E::V { x: u32:1 }) { _ => a };
+    match E::Tuple(b) { E::Tuple(n) => n, _ => u32:0 }
+}
+)"));
+}
+
+TEST_F(ParserTest, EmptyMatchArmsLeaveOuterContinuations) {
+  const std::vector<std::pair<std::string_view, AstNodeKind>> continuations = {
+      {"+ u32:1", AstNodeKind::kBinop},
+      {"as u32", AstNodeKind::kCast},
+      {".member", AstNodeKind::kAttr},
+      {"[u32:0]", AstNodeKind::kIndex},
+  };
+  for (const auto& [suffix, kind] : continuations) {
+    std::string program = "import imported; fn f() { match imported::ZERO {} " +
+                          std::string(suffix) + " }";
+    SCOPED_TRACE(program);
+    XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> module, Parse(program));
+    XLS_ASSERT_OK_AND_ASSIGN(Function * f,
+                             module->GetMemberOrError<Function>("f"));
+    Expr* expression =
+        std::get<Expr*>(f->body()->statements().back()->wrapped());
+    ASSERT_EQ(expression->kind(), kind);
+    std::vector<AstNode*> children = expression->GetChildren(false);
+    ASSERT_FALSE(children.empty());
+    auto* match = dynamic_cast<Match*>(children.front());
+    ASSERT_NE(match, nullptr);
+    EXPECT_TRUE(match->arms().empty());
+    EXPECT_EQ(match->matched()->ToString(), "imported::ZERO");
+  }
+}
+
 TEST_F(ParserTest, SemanticSumSupportsExplicitDiscriminants) {
   std::unique_ptr<Module> module = RoundTrip(R"(enum Message : u3 {
     Idle() = 0,
@@ -3975,6 +4128,15 @@ TEST_F(ParserTest, ForInWithColonRefAsRangeLimit) {
     x
 }(i))",
                 {"m", "i"});
+}
+
+TEST_F(ParserTest, ForIterableAllowsFieldOfStructLiteral) {
+  XLS_EXPECT_OK(Parse(R"(
+struct S { limit: u32 }
+fn f() {
+    for (i, acc) in u32:0..S { limit: u32:4 }.limit { acc + i }(u32:0)
+}
+)"));
 }
 
 TEST_F(ParserTest, ForExpressionAsRhsOfBinop) {

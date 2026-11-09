@@ -1996,6 +1996,20 @@ fn f(x: Option) -> Option {
 )");
 }
 
+TEST_F(ModuleFmtTest, ParenthesizedMatchSubjectFormatsAndReparses) {
+  const std::string input = R"(enum E { V { x: u32 } }
+fn f() { match (E::V{x:u32:1}) { _ => u32:0 } }
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> module,
+                           ParseModule(input, "fake.x", "fake", file_table_));
+  AllErrorsFilesystem vfs;
+  Comments comments = Comments::Create({});
+  XLS_ASSERT_OK_AND_ASSIGN(std::string formatted,
+                           AutoFmt(vfs, *module, comments, input));
+  EXPECT_THAT(formatted, HasSubstr("match (E::V { x: u32:1 }) {"));
+  XLS_EXPECT_OK(ParseModule(formatted, "fake.x", "fake", file_table_));
+}
+
 TEST_F(ModuleFmtTest, SemanticSumCommentsAroundVariants) {
   DoFmt(R"(enum Option {
     // Before the first variant.

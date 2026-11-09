@@ -18,6 +18,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <variant>
 #include <vector>
 
 #include "gmock/gmock.h"
@@ -35,6 +36,7 @@ namespace {
 
 using ::absl_testing::IsOkAndHolds;
 using ::absl_testing::StatusIs;
+using ::testing::ElementsAre;
 using ::testing::HasSubstr;
 
 class AstTest : public testing::Test {
@@ -55,6 +57,103 @@ TEST_F(AstTest, ModuleWithConstant) {
   XLS_ASSERT_OK(m.AddTop(constant_def, /*make_collision_error=*/nullptr));
 
   EXPECT_EQ(m.ToString(), "const MOL = 42;");
+}
+
+TEST_F(AstTest, IndexedModuleMembersPreserveVisibilityAndInsertionOrder) {
+  auto make_constant = [&](std::string name, bool is_public) {
+    auto* name_def = m.Make<NameDef>(fake_span, name, nullptr);
+    auto* value = m.Make<Number>(fake_span, "0", NumberKind::kOther, nullptr);
+    auto* constant =
+        m.Make<ConstantDef>(fake_span, name_def, nullptr, value, is_public);
+    name_def->set_definer(constant);
+    return constant;
+  };
+  ConstantDef* first = make_constant("PRIVATE", false);
+  ConstantDef* last = make_constant("PUBLIC", true);
+  XLS_ASSERT_OK(m.AddTop(last, nullptr));
+  XLS_ASSERT_OK(m.InsertTopBefore(last, first));
+
+  EXPECT_EQ(m.GetMember("PRIVATE"), ModuleMember(first));
+  EXPECT_EQ(m.GetMember("PUBLIC"), ModuleMember(last));
+  EXPECT_EQ(m.GetMember("missing"), std::nullopt);
+  EXPECT_EQ(m.GetMember<ConstantDef>("PRIVATE"), first);
+  EXPECT_FALSE(IsPublic(*m.GetMember("PRIVATE")));
+  EXPECT_TRUE(IsPublic(*m.GetMember("PUBLIC")));
+  EXPECT_THAT(m.top(), ElementsAre(ModuleMember(first), ModuleMember(last)));
+  ASSERT_TRUE(m.FindMemberWithName("PRIVATE").has_value());
+  EXPECT_EQ(*m.FindMemberWithName("PRIVATE"), &m.top()[0]);
+}
+
+TEST_F(AstTest, IndexedUseSubjectsPreserveGroupedPaths) {
+  auto make_leaf = [&](std::string name) {
+    auto* name_def = m.Make<NameDef>(fake_span, name, nullptr);
+    auto* leaf = m.Make<UseTreeEntry>(name_def, fake_span);
+    name_def->set_definer(leaf);
+    return leaf;
+  };
+  UseTreeEntry* first = make_leaf("First");
+  UseTreeEntry* last = make_leaf("Last");
+  UseTreeEntry* other = make_leaf("Other");
+  auto* group = m.Make<UseTreeEntry>(UseInteriorEntry("nested", {first, last}),
+                                     fake_span);
+  auto* root = m.Make<UseTreeEntry>(UseInteriorEntry("library", {group, other}),
+                                    fake_span);
+  auto* use = m.Make<Use>(fake_span, *root);
+  XLS_ASSERT_OK(m.AddTop(use, nullptr));
+
+  ASSERT_NE(m.GetUseSubject(first), nullptr);
+  EXPECT_THAT(m.GetUseSubject(first)->identifiers(),
+              ElementsAre("library", "nested", "First"));
+  ASSERT_NE(m.GetUseSubject(last), nullptr);
+  EXPECT_THAT(m.GetUseSubject(last)->identifiers(),
+              ElementsAre("library", "nested", "Last"));
+  ASSERT_NE(m.GetUseSubject(other), nullptr);
+  EXPECT_THAT(m.GetUseSubject(other)->identifiers(),
+              ElementsAre("library", "Other"));
+  EXPECT_EQ(&m.GetUseSubject(last)->use_tree_entry(), last);
+  EXPECT_EQ(&m.GetUseSubject(last)->name_def(), *last->GetLeafNameDef());
+  EXPECT_EQ(m.GetMember("First"), ModuleMember(use));
+  EXPECT_EQ(m.GetMember("Last"), ModuleMember(use));
+  EXPECT_EQ(m.GetMember("Other"), ModuleMember(use));
+  EXPECT_EQ(m.GetUseSubject(group), nullptr);
+
+  // A rejected declaration must not make its leaf visible in either index.
+  UseTreeEntry* duplicate = make_leaf("Last");
+  auto* rejected = m.Make<Use>(fake_span, *duplicate);
+  EXPECT_THAT(m.AddTop(rejected, nullptr),
+              StatusIs(absl::StatusCode::kInvalidArgument));
+  EXPECT_EQ(m.GetUseSubject(duplicate), nullptr);
+  EXPECT_EQ(m.GetMember("Last"), ModuleMember(use));
+}
+
+TEST_F(AstTest, SumVariantLookupPreservesDeclarationOrder) {
+  auto make_variant = [&](std::string name) {
+    auto* name_def = m.Make<NameDef>(fake_span, name, nullptr);
+    auto* variant = m.Make<SumVariant>(fake_span, name_def, std::monostate{});
+    name_def->set_definer(variant);
+    return variant;
+  };
+  SumVariant* first = make_variant("Zebra");
+  SumVariant* last = make_variant("Ant");
+  auto* sum =
+      m.Make<SumDef>(fake_span, m.Make<NameDef>(fake_span, "E", nullptr),
+                     std::vector<ParametricBinding*>{},
+                     std::vector<SumVariant*>{first, last}, false);
+  const SumDef* const_sum = sum;
+
+  EXPECT_THAT(sum->variants(), ElementsAre(first, last));
+  EXPECT_EQ(sum->GetVariant("Zebra"), first);
+  EXPECT_EQ(sum->GetVariant("Ant"), last);
+  EXPECT_EQ(sum->GetVariant("missing"), std::nullopt);
+  EXPECT_EQ(const_sum->GetVariant("Zebra"), first);
+  EXPECT_EQ(const_sum->GetVariant("Ant"), last);
+  EXPECT_EQ(const_sum->GetVariant("missing"), std::nullopt);
+  EXPECT_TRUE(sum->HasVariant("Zebra"));
+  EXPECT_TRUE(sum->HasVariant("Ant"));
+  EXPECT_FALSE(sum->HasVariant("missing"));
+  EXPECT_EQ(sum->GetVariantIndex("Zebra"), 0);
+  EXPECT_EQ(sum->GetVariantIndex("Ant"), 1);
+  EXPECT_EQ(sum->GetVariantIndex("missing"), std::nullopt);
 }
 
 TEST_F(AstTest, ModuleWithStructAndImpl) {

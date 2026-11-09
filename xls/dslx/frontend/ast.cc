@@ -1733,7 +1733,11 @@ SumDef::SumDef(Module* owner, Span span, NameDef* name_def,
       tag_type_annotation_(tag_type_annotation),
       parametric_bindings_(std::move(parametric_bindings)),
       variants_(std::move(variants)),
-      is_public_(is_public) {}
+      is_public_(is_public) {
+  for (int64_t i = 0; i < variants_.size(); ++i) {
+    variant_indices_.try_emplace(variants_[i]->identifier(), i);
+  }
+}
 
 SumDef::~SumDef() = default;
 
@@ -1752,29 +1756,35 @@ std::vector<AstNode*> SumDef::GetChildren(bool want_types) const {
 }
 
 bool SumDef::HasVariant(std::string_view target) const {
-  return std::any_of(variants_.begin(), variants_.end(),
-                     [&](const SumVariant* variant) {
-                       return variant->identifier() == target;
-                     });
+  return variant_indices_.contains(target);
+}
+
+std::optional<int64_t> SumDef::GetVariantIndex(std::string_view target) const {
+  auto it = variant_indices_.find(target);
+  if (it == variant_indices_.end()) {
+    return std::nullopt;
+  } else {
+    return it->second;
+  }
 }
 
 std::optional<SumVariant*> SumDef::GetVariant(std::string_view target) {
-  for (SumVariant* variant : variants_) {
-    if (variant->identifier() == target) {
-      return variant;
-    }
+  if (std::optional<int64_t> index = GetVariantIndex(target);
+      index.has_value()) {
+    return variants_[*index];
+  } else {
+    return std::nullopt;
   }
-  return std::nullopt;
 }
 
 std::optional<const SumVariant*> SumDef::GetVariant(
     std::string_view target) const {
-  for (const SumVariant* variant : variants_) {
-    if (variant->identifier() == target) {
-      return variant;
-    }
+  if (std::optional<int64_t> index = GetVariantIndex(target);
+      index.has_value()) {
+    return variants_[*index];
+  } else {
+    return std::nullopt;
   }
-  return std::nullopt;
 }
 
 std::string SumDef::ToString() const {

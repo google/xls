@@ -29,7 +29,6 @@
 #include "absl/base/attributes.h"
 #include "absl/base/nullability.h"
 #include "absl/container/flat_hash_map.h"
-#include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -72,6 +71,9 @@ enum class ExprRestriction : uint8_t {
   kNone = 0,
   kNoStructLiteral = 1,
   kNoConst = 2,
+  // A match subject reserves the opening brace for the arms, including when
+  // a local struct literal would otherwise be followed by a dot.
+  kMatchSubject = 4,
 };
 
 // Flag set of ExprRestriction values.
@@ -328,6 +330,12 @@ class Parser : public TokenParser {
   absl::StatusOr<ColonRef*> ParseColonRef(Bindings& bindings,
                                           ColonRef::Subject subject,
                                           const Span& subject_span);
+
+  // Parses a colon reference and a following named payload, when permitted.
+  // Precondition: token cursor should be over a double colon '::' token.
+  absl::StatusOr<Expr*> ParseColonRefOrStructInstance(
+      Bindings& bindings, ColonRef::Subject subject, const Span& subject_span,
+      ExprRestrictions restrictions);
 
   absl::StatusOr<Expr*> ParseCastOrEnumRefOrStructInstanceOrToken(
       Bindings& bindings, ExprRestrictions restrictions);
