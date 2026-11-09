@@ -3719,11 +3719,10 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
       const SplatStructInstance& instance, const StructMemberNode& member) {
     Expr* splatted = instance.splatted();
     if (splatted->kind() == AstNodeKind::kInvocation) {
-      // If the splatted node is an invocation, clone it to preserve the
-      // parentage of the original invocation node.
-      XLS_ASSIGN_OR_RETURN(AstNode * clone, table_.Clone(instance.splatted(),
-                                                         &NoopCloneReplacer));
-      splatted = absl::down_cast<Expr*>(clone);
+      // The synthetic member access needs its own AST child to preserve the
+      // call's original parent. Only the source call feeds type inference.
+      XLS_ASSIGN_OR_RETURN(
+          splatted, CloneNode(splatted, &PreserveTypeDefinitionsReplacer));
     }
     Expr* expr = module_.Make<Attr>(instance.span(), splatted, member.name());
     XLS_ASSIGN_OR_RETURN(

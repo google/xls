@@ -313,13 +313,13 @@ TEST(TypecheckV2Test, SnAnnotationWithMissingBitCountFails) {
       TypecheckFails(HasSubstr("`sN` requires a specified bit count.")));
 }
 
-TEST(TypecheckV2Test, TupleBitCountFailsWithMissingBitCount) {
+TEST(TypecheckV2Test, TupleBitCountFailsWithWidthTypeMismatch) {
   EXPECT_THAT(
       R"(
 const W = (1, 2);
 const A = sN[W][1]:[[0, 1]];
 )",
-      TypecheckFails(HasSubstr("`sN` requires a specified bit count.")));
+      TypecheckFails(HasTypeMismatch("(uN[1], uN[2])", "u32")));
 }
 
 TEST(TypecheckV2Test, TupleBitCountAndMismatchedValueFailsWithValueMismatch) {

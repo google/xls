@@ -1190,9 +1190,11 @@ fn s_factory<A: u32, B: u32>(a: uN[A], b: uN[B]) -> S<A, B> {
 }
 const X = s_factory<16, 32>(4, 5);
 const Y = S { field: 3, ..X };
+const Z = S { field: 3, ..s_factory<8, 24>(4, 5) };
 )",
       TypecheckSucceeds(
-          HasNodeWithType("Y", "S { field: uN[16], field2: uN[32] }")));
+          AllOf(HasNodeWithType("Y", "S { field: uN[16], field2: uN[32] }"),
+                HasNodeWithType("Z", "S { field: uN[8], field2: uN[24] }"))));
 }
 
 TEST(TypecheckV2StructTest,
