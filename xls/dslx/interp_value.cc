@@ -1505,17 +1505,13 @@ absl::StatusOr<std::vector<InterpValue>> InterpValue::ExpandRange() const {
   XLS_RET_CHECK(is_range());
   const RangeData& range = *std::get<std::shared_ptr<RangeData>>(payload_);
   std::vector<InterpValue> elements;
-  InterpValue cur = range.start;
   XLS_ASSIGN_OR_RETURN(int64_t len, GetLength());
   elements.reserve(len);
 
-  XLS_ASSIGN_OR_RETURN(int64_t cur_bits, cur.GetBitCount());
-  InterpValue one(cur.IsSigned() ? InterpValue::MakeSBits(cur_bits, 1)
-                                 : InterpValue::MakeUBits(cur_bits, 1));
-
+  XLS_ASSIGN_OR_RETURN(Bits cur, range.start.GetBits());
   for (int64_t i = 0; i < len; ++i) {
-    elements.push_back(cur);
-    XLS_ASSIGN_OR_RETURN(cur, cur.Add(one));
+    elements.push_back(MakeBits(range.start.IsSigned(), cur));
+    cur = bits_ops::Increment(std::move(cur));
   }
   return elements;
 }

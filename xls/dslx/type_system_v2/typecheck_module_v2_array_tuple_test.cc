@@ -1820,6 +1820,15 @@ const_assert!(X == s32[1]:[2147483647]);
       TypecheckSucceeds(HasNodeWithType("X", "sN[32][1]")));
 }
 
+TEST(TypecheckV2Test, IndexInclusiveSignedOneBitRange) {
+  EXPECT_THAT(
+      R"(
+const ZERO = (sN[1]:0..=sN[1]:0)[u32:0];
+const_assert!(ZERO == sN[1]:0);
+)",
+      TypecheckSucceeds(HasNodeWithType("ZERO", "sN[1]")));
+}
+
 TEST(TypecheckV2Test, RangeExprInclusiveEndConstant) {
   EXPECT_THAT(
       R"(
