@@ -1383,6 +1383,9 @@ std::string Debug_OpName(const IOOp& op) {
                ActivationBarrierType::kConditionalEnd) {
       op_type_name = "barrier_end";
     } else if (op.activation_barrier_type ==
+               ActivationBarrierType::kConditionalScopeStart) {
+      op_type_name = "barrier_scope_start";
+    } else if (op.activation_barrier_type ==
                ActivationBarrierType::kUnconditional) {
       op_type_name = "barrier_uncond";
     }
