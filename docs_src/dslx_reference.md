@@ -717,6 +717,61 @@ fn test_type_checker_error() {
 }
 ```
 
+#### Impl Blocks
+
+An `impl` block attaches constants, type aliases, and functions to a struct.
+Inside the block, `Self` refers to the struct type.
+
+```dslx
+struct Point { x: u32, y: u32 }
+
+impl Point {
+    const NUM_DIMS = u32:2;
+
+    fn zero() -> Self { Point { x: u32:0, y: u32:0 } }
+
+    fn area(self) -> u32 { self.x * self.y }
+}
+
+#[test]
+fn test_impl() {
+    assert_eq(Point::NUM_DIMS, u32:2);
+    assert_eq(Point::zero(), Point { x: u32:0, y: u32:0 });
+    let p = Point { x: u32:2, y: u32:4 };
+    assert_eq(p.area(), u32:8);
+}
+```
+
+*   Constants and functions without a `self` parameter are accessed through the
+    struct name, e.g. `Point::NUM_DIMS` and `Point::zero()`.
+*   Functions whose first parameter is `self` (shorthand for `self: Self`) are
+    instance methods. They must be called on a value, e.g. `p.area()`;
+    `Point::area(p)` is an error.
+*   Within the `impl`, its constants can be referenced by their bare name, and
+    other methods can be called as `self.method()`.
+*   A struct can have at most one `impl` block, and `impl` can only be defined
+    for a struct (or a
+    [`proc`](#communicating-sequential-processes-aka-procs)).
+*   Members of a public struct defined in another module are accessed the same
+    way, e.g. `imported::Point::zero()`.
+
+The `impl` for a [parametric struct](#parametric-structs) names the struct's
+parametrics, which are then in scope for all of its members. Functions in an
+`impl` can also have parametrics of their own.
+
+```dslx
+struct Foo<N: u32> {}
+
+impl Foo<N> {
+    const N_PLUS_1 = N + u32:1;
+}
+
+fn foo<N: u32>() -> u32 { Foo<N>::N_PLUS_1 }
+
+#[test]
+fn test_foo32() { assert_eq(foo<u32:32>(), u32:33); }
+```
+
 ### Array Type
 
 Arrays can be constructed via bracket notation. All values that make up the
