@@ -18,6 +18,7 @@
 #include "gtest/gtest.h"
 #include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
+#include "absl/strings/substitute.h"
 #include "xls/common/status/matchers.h"
 #include "xls/dslx/create_import_data.h"
 #include "xls/dslx/import_data.h"
@@ -127,6 +128,28 @@ enum MyEnum : u8 {
 }
 )",
       TypecheckFails(HasSizeMismatch("u9", "u8")));
+}
+
+TEST(TypecheckV2Test, EnumOrderingComparisonFails) {
+  constexpr std::string_view kProgram = R"(
+enum E : u2 { A = 0, B = 1 }
+fn compare(a: E, b: E) -> bool { a $0 b }
+)";
+  for (std::string_view op : {"<", "<=", ">", ">="}) {
+    EXPECT_THAT(
+        absl::Substitute(kProgram, op),
+        TypecheckFails(HasSubstr(absl::Substitute(
+            "Operator '$0' requires bits-typed operands, got E.", op))));
+  }
+}
+
+TEST(TypecheckV2Test, EnumEqualityAndOrderingAfterCast) {
+  XLS_EXPECT_OK(TypecheckV2(R"(
+enum E : s2 { LOW = -1, HIGH = 1 }
+const_assert!(E::LOW == E::LOW);
+const_assert!(E::LOW != E::HIGH);
+const_assert!((E::LOW as s2) < (E::HIGH as s2));
+)"));
 }
 
 TEST(TypecheckV2Test, EnumInvalidType) {

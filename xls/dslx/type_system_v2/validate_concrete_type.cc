@@ -209,15 +209,30 @@ class TypeValidator : public AstNodeVisitorWithDefault {
   }
 
   absl::Status HandleBinop(const Binop* binop) override {
-    if ((GetBinopSameTypeKinds().contains(binop->binop_kind()) ||
-         GetBinopShifts().contains(binop->binop_kind())) &&
+    const BinopKind kind = binop->binop_kind();
+    if (GetBinopComparisonKinds().contains(kind) && kind != BinopKind::kEq &&
+        kind != BinopKind::kNe) {
+      // Both operands have the same type, while the result is always bool.
+      XLS_ASSIGN_OR_RETURN(const Type* operand_type,
+                           ti_.GetItemOrError(binop->lhs()));
+      if (!IsBitsLike(*operand_type)) {
+        return TypeInferenceErrorStatus(
+            binop->op_span(), nullptr,
+            absl::StrFormat(
+                "Operator '%s' requires bits-typed operands, got %s.",
+                BinopKindFormat(kind), operand_type->ToString()),
+            file_table_);
+      }
+    }
+    if ((GetBinopSameTypeKinds().contains(kind) ||
+         GetBinopShifts().contains(kind)) &&
         !IsBitsLike(*type_)) {
       return TypeInferenceErrorStatus(
           binop->span(), type_,
           "Binary operations can only be applied to bits-typed operands.",
           file_table_);
     }
-    if (GetBinopLogicalKinds().contains(binop->binop_kind()) &&
+    if (GetBinopLogicalKinds().contains(kind) &&
         !IsBitsLikeWithNBitsAndSignedness(*type_, false, 1)) {
       return TypeInferenceErrorStatus(binop->span(), type_,
                                       "Logical binary operations can only be "
@@ -225,10 +240,10 @@ class TypeValidator : public AstNodeVisitorWithDefault {
                                       file_table_);
     }
     // Confirm that the shift amount is unsigned and fits in the lhs type.
-    if (GetBinopShifts().contains(binop->binop_kind())) {
+    if (GetBinopShifts().contains(kind)) {
       XLS_RETURN_IF_ERROR(ValidateBinopShift(*binop));
     }
-    if (binop->binop_kind() == BinopKind::kConcat) {
+    if (kind == BinopKind::kConcat) {
       return ValidateConcatOperandTypes(*binop);
     }
     return DefaultHandler(binop);

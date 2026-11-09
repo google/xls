@@ -1309,8 +1309,10 @@ shift-right (logical).
 
 ### Comparison Expressions
 
-For comparison expressions, the types of both operands must match. However these
-operations return a result of type `bits[1]`, aka `bool`.
+Comparison expressions require operands of the same type and return `bool`
+(`bits[1]`). Ordering operators (`<`, `<=`, `>`, `>=`) require bits-typed
+operands. To order numeric enum values, cast both operands to the enum's
+underlying integer type.
 
 -   equal (`==`)
 -   not-equal (`!=`)
