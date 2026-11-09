@@ -1087,6 +1087,7 @@ cc_test(
         "//xls/dslx/type_system:typecheck_test_utils",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:status_matchers",
+        "@abseil-cpp//absl/strings",
         "@googletest//:gtest",
     ],
 )
