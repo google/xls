@@ -717,6 +717,38 @@ fn test_type_checker_error() {
 }
 ```
 
+#### Default Values
+
+A struct can provide a default value through the builtin `Default` trait, either
+by defining `fn default() -> Self` in its `impl` or with `#[derive(Default)]`.
+A derived `default` initializes struct-typed fields, including structs nested
+inside composite types such as arrays and tuples, with `FieldType::default()`,
+and all other fields with zero. Unlike [`zero!<T>`](./dslx_std.md#zerot), this
+preserves custom defaults of nested structs:
+
+```dslx
+struct Address { base: u32 }
+
+impl Address {
+    fn default() -> Self { Address { base: u32:0x1000 } }
+}
+
+#[derive(Default)]
+struct Config { width: u32, address: Address, history: Address[2] }
+
+#[test]
+fn test_default() {
+    let config = Config::default();
+    assert_eq(config.width, u32:0);
+    assert_eq(config.address.base, u32:0x1000);
+    assert_eq(config.history[1].base, u32:0x1000);
+    assert_eq(zero!<Config>().address.base, u32:0);
+}
+```
+
+Deriving `Default` fails if a field is, or contains, an enum or a struct without
+a `default`.
+
 ### Array Type
 
 Arrays can be constructed via bracket notation. All values that make up the

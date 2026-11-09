@@ -187,6 +187,8 @@ struct MutableParametricContextData {
   absl::flat_hash_map<const InferenceVariable*,
                       std::vector<const TypeAnnotation*>>
       type_annotations_per_type_variable;
+  absl::flat_hash_map<const ColonRef*, const AstNode*>
+      contextual_colon_ref_targets;
   absl::flat_hash_map<const Invocation*, const Function*> callees;
 };
 
@@ -692,6 +694,26 @@ class InferenceTableImpl : public InferenceTable {
     const auto it = colon_ref_targets_.find(colon_ref);
     return it == colon_ref_targets_.end() ? std::nullopt
                                           : std::make_optional(it->second);
+  }
+
+  void SetContextualColonRefTarget(
+      const ColonRef* colon_ref,
+      const ParametricContext* parametric_struct_context,
+      const AstNode* target) override {
+    mutable_parametric_context_data_
+        .at(parametric_struct_context)
+        .contextual_colon_ref_targets[colon_ref] = target;
+  }
+
+  std::optional<const AstNode*> GetContextualColonRefTarget(
+      const ColonRef* colon_ref,
+      const ParametricContext* parametric_struct_context) const override {
+    const auto& targets = mutable_parametric_context_data_
+                              .at(parametric_struct_context)
+                              .contextual_colon_ref_targets;
+    const auto it = targets.find(colon_ref);
+    return it == targets.end() ? std::nullopt
+                               : std::make_optional(it->second);
   }
 
   void SetCalleeInCallerContext(
