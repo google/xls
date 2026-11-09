@@ -933,6 +933,26 @@ TEST(TypecheckV2Test, TupleCountMismatch) {
               TypecheckFails(HasSubstr("a 5-element tuple to 2 values")));
 }
 
+TEST(TypecheckV2Test, NestedTuplePatternOnScalar) {
+  EXPECT_THAT(R"(
+fn f(x: (u8, u8)) -> u8 {
+  let ((a), b) = x;
+  a + b
+}
+)",
+              TypecheckFails(HasTypeMismatch("(Any,)", "u8")));
+}
+
+TEST(TypecheckV2Test, NestedEmptyTuplePatternOnScalar) {
+  EXPECT_THAT(R"(
+fn f(x: (u8, u8)) -> u8 {
+  let ((), b) = x;
+  b
+}
+)",
+              TypecheckFails(HasTypeMismatch("()", "u8")));
+}
+
 TEST(TypecheckV2Test, RestOfTupleCountMismatch) {
   EXPECT_THAT(R"(
  fn main() {
