@@ -806,9 +806,9 @@ cc_library(
 )
 
 cc_library(
-    name = "fuzz_domain_rewriter",
-    srcs = ["fuzz_domain_rewriter.cc"],
-    hdrs = ["fuzz_domain_rewriter.h"],
+    name = "domain_struct_rewriter",
+    srcs = ["domain_struct_rewriter.cc"],
+    hdrs = ["domain_struct_rewriter.h"],
     deps = [
         ":ast",
         ":ast_node",
@@ -839,7 +839,7 @@ cc_library(
         ":ast_utils",
         ":bindings",
         ":builtin_stubs_utils",
-        ":fuzz_domain_rewriter",
+        ":domain_struct_rewriter",
         ":lambda_rewriter",
         ":module",
         ":pos",
@@ -932,8 +932,8 @@ cc_library(
 )
 
 cc_test(
-    name = "fuzz_domain_rewriter_test",
-    srcs = ["fuzz_domain_rewriter_test.cc"],
+    name = "domain_struct_rewriter_test",
+    srcs = ["domain_struct_rewriter_test.cc"],
     deps = [
         ":ast",
         "//xls/common:xls_gunit_main",

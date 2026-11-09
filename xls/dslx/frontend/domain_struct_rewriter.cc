@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "xls/dslx/frontend/fuzz_domain_rewriter.h"
+#include "xls/dslx/frontend/domain_struct_rewriter.h"
 
 #include <optional>
 #include <string>
@@ -155,9 +155,9 @@ class StructInstanceCompleter : public AstNodeRecursiveVisitor {
 
   absl::Status HandleFuzzTestFunction(const FuzzTestFunction* node) override {
     if (node->domains().has_value()) {
-      is_inside_fuzz_test_domain_ = true;
+      is_inside_domain_attr_ = true;
       XLS_RETURN_IF_ERROR((*node->domains())->Accept(this));
-      is_inside_fuzz_test_domain_ = false;
+      is_inside_domain_attr_ = false;
     }
     // Don't need to recurse into the function body, as the struct completion
     // doesn't apply there.
@@ -183,7 +183,7 @@ class StructInstanceCompleter : public AstNodeRecursiveVisitor {
         absl::down_cast<const StructDef*>(struct_or_proc_ref->def);
     bool is_domain_struct = struct_def->is_domain_struct();
     if (!is_domain_struct) {
-      is_domain_struct = is_inside_fuzz_test_domain_;
+      is_domain_struct = is_inside_domain_attr_;
     }
     if (!is_domain_struct) {
       return absl::OkStatus();
@@ -205,9 +205,8 @@ class StructInstanceCompleter : public AstNodeRecursiveVisitor {
   }
 
  private:
-  // True if `node` is inside a fuzz_test function's domain
-  // expression.
-  bool is_inside_fuzz_test_domain_ = false;
+  // True if `node` is inside a `domains` attribute expression.
+  bool is_inside_domain_attr_ = false;
 
   Module& module_;
   const ImportData& import_data_;

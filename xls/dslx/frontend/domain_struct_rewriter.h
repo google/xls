@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef XLS_DSLX_FRONTEND_FUZZ_DOMAIN_REWRITER_H_
-#define XLS_DSLX_FRONTEND_FUZZ_DOMAIN_REWRITER_H_
+#ifndef XLS_DSLX_FRONTEND_DOMAIN_STRUCT_REWRITER_H_
+#define XLS_DSLX_FRONTEND_DOMAIN_STRUCT_REWRITER_H_
 
 #include "absl/status/status.h"
 #include "xls/dslx/frontend/module.h"
@@ -21,10 +21,10 @@
 
 namespace xls::dslx {
 
-// Walks the module and populates all empty fuzz domain structs with members
-// derived from their original structs.
+// Walks the module and populates all empty domain structs with members derived
+// from their original structs, and completes partial domain struct instances.
 absl::Status RewriteDomainStructs(Module& module, ImportData& import_data);
 
 }  // namespace xls::dslx
 
-#endif  // XLS_DSLX_FRONTEND_FUZZ_DOMAIN_REWRITER_H_
+#endif  // XLS_DSLX_FRONTEND_DOMAIN_STRUCT_REWRITER_H_

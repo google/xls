@@ -26,7 +26,7 @@
 namespace xls::dslx {
 namespace {
 
-TEST(FuzzDomainRewriterTest, RewriteBasicStructDomain) {
+TEST(DomainStructRewriterTest, RewriteBasicStructDomain) {
   constexpr std::string_view kProgram = R"(
 #[fuzz_domain("MyStructDomain")]
 struct MyStruct {
@@ -47,7 +47,7 @@ struct MyStruct {
 })");
 }
 
-TEST(FuzzDomainRewriterTest, RewriteNestedStructDomain) {
+TEST(DomainStructRewriterTest, RewriteNestedStructDomain) {
   constexpr std::string_view kProgram = R"(
 #[fuzz_domain("InnerDomain")]
 struct Inner {
@@ -72,7 +72,7 @@ struct Outer {
 })");
 }
 
-TEST(FuzzDomainRewriterTest, RewriteStructInstanceDomain) {
+TEST(DomainStructRewriterTest, RewriteStructInstanceDomain) {
   constexpr std::string_view kProgram = R"(
 #[fuzz_domain("MyStructDomain")]
 struct MyStruct {

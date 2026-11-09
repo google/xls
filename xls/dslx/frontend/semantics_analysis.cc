@@ -43,7 +43,7 @@
 #include "xls/dslx/frontend/ast_utils.h"
 #include "xls/dslx/frontend/bindings.h"
 #include "xls/dslx/frontend/builtin_stubs_utils.h"
-#include "xls/dslx/frontend/fuzz_domain_rewriter.h"
+#include "xls/dslx/frontend/domain_struct_rewriter.h"
 #include "xls/dslx/frontend/lambda_rewriter.h"
 #include "xls/dslx/frontend/module.h"
 #include "xls/dslx/frontend/pos.h"
