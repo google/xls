@@ -425,6 +425,51 @@ absl::StatusOr<std::optional<SumConstructorRef>> ResolveSumConstructor(
       import_data);
 }
 
+const Expr* SumConstructorView::expression() const { return expression_; }
+
+const ColonRef* SumConstructorView::constructor_ref() const {
+  if (const auto* ref = dynamic_cast<const ColonRef*>(expression_)) {
+    return ref;
+  } else if (const auto* invocation =
+                 dynamic_cast<const Invocation*>(expression_)) {
+    return absl::down_cast<const ColonRef*>(invocation->callee());
+  } else {
+    const auto* instance =
+        absl::down_cast<const StructInstanceBase*>(expression_);
+    const auto* annotation =
+        instance->struct_ref()->AsAnnotation<TypeRefTypeAnnotation>();
+    return std::get<ColonRef*>(annotation->type_ref()->type_definition());
+  }
+}
+
+SumVariant::PayloadShape SumConstructorView::payload_shape() const {
+  if (dynamic_cast<const ColonRef*>(expression_) != nullptr) {
+    return SumVariant::PayloadShape::kUnit;
+  } else if (dynamic_cast<const Invocation*>(expression_) != nullptr) {
+    return SumVariant::PayloadShape::kTuple;
+  } else {
+    return SumVariant::PayloadShape::kStruct;
+  }
+}
+
+absl::Span<Expr* const> SumConstructorView::tuple_args() const {
+  if (const auto* invocation = dynamic_cast<const Invocation*>(expression_)) {
+    return invocation->args();
+  } else {
+    return {};
+  }
+}
+
+absl::Span<const std::pair<std::string, Expr*>>
+SumConstructorView::struct_args() const {
+  if (const auto* instance =
+          dynamic_cast<const StructInstanceBase*>(expression_)) {
+    return instance->GetUnorderedMembers();
+  } else {
+    return {};
+  }
+}
+
 absl::StatusOr<std::optional<SumConstructorRef>> ResolveSumConstructor(
     const Invocation* invocation, const ImportData& import_data) {
   if (const auto* constructor =
@@ -455,6 +500,37 @@ absl::StatusOr<std::optional<SumConstructorRef>> ResolveSumConstructor(
   } else {
     return std::nullopt;
   }
+}
+
+absl::StatusOr<std::optional<SumConstructorRef>> ResolveSumConstructor(
+    const StructInstanceBase* instance, const ImportData& import_data) {
+  XLS_ASSIGN_OR_RETURN(
+      std::optional<SumConstructorRef> resolved,
+      ResolveSumConstructor(instance->struct_ref(), import_data));
+  if (resolved.has_value()) {
+    const auto* annotation =
+        instance->struct_ref()->AsAnnotation<TypeRefTypeAnnotation>();
+    if (!annotation->parametrics().empty()) {
+      return ParseErrorStatus(
+          instance->span(),
+          "Explicit parametrics belong on the sum type, not the "
+          "constructor; use `Name<T>::Variant { ... }`.",
+          import_data.file_table());
+    } else if (!resolved->variant->is_struct()) {
+      return TypeInferenceErrorStatusForAnnotation(
+          instance->span(), instance->struct_ref(),
+          absl::Substitute(
+              "Attempted to instantiate non-struct type `$0` as a struct.",
+              instance->struct_ref()->ToString()),
+          import_data.file_table());
+    } else if (dynamic_cast<const SplatStructInstance*>(instance) != nullptr) {
+      return TypeInferenceErrorStatusForAnnotation(
+          instance->span(), instance->struct_ref(),
+          "Struct-style sum constructors do not support splat syntax.",
+          import_data.file_table());
+    }
+  }
+  return resolved;
 }
 
 absl::StatusOr<absl::optional_ref<ModuleInfo>> GetImportedModuleInfo(

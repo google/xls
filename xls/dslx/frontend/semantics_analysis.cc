@@ -241,11 +241,21 @@ void WarnOnSystemVerilogKeywordStructMemberName(
 // be flagged.
 class SideEffectExpressionFinder : public AstNodeVisitorWithDefault {
  public:
-  SideEffectExpressionFinder() : has_side_effect_(false) {}
+  explicit SideEffectExpressionFinder(const ImportData& import_data)
+      : import_data_(import_data), has_side_effect_(false) {}
 
   absl::Status HandleInvocation(const Invocation* node) override {
-    has_side_effect_ = true;
-    return absl::OkStatus();
+    XLS_ASSIGN_OR_RETURN(std::optional<SumConstructorRef> constructor,
+                         ResolveSumConstructor(node, import_data_));
+    if (constructor.has_value()) {
+      for (const Expr* arg : node->args()) {
+        XLS_RETURN_IF_ERROR(arg->Accept(this));
+      }
+      return absl::OkStatus();
+    } else {
+      has_side_effect_ = true;
+      return absl::OkStatus();
+    }
   }
 
   absl::Status HandleSpawn(const Spawn* node) override {
@@ -272,6 +282,7 @@ class SideEffectExpressionFinder : public AstNodeVisitorWithDefault {
   bool HasSideEffect() const { return has_side_effect_; }
 
  private:
+  const ImportData& import_data_;
   bool has_side_effect_;
 };
 
@@ -315,10 +326,11 @@ class AddSpawnTraitToProcDefs : public AstNodeRecursiveVisitor {
 class PreTypecheckPass : public AstNodeRecursiveVisitor {
  public:
   PreTypecheckPass(WarningCollector& warning_collector,
-                   const FileTable& file_table)
+                   const ImportData& import_data)
       : AstNodeRecursiveVisitor(/*want_types=*/true),
         warning_collector_(warning_collector),
-        file_table_(file_table) {}
+        file_table_(import_data.file_table()),
+        import_data_(import_data) {}
 
   absl::Status HandleStatementBlock(const StatementBlock* node) override {
     for (size_t i = 0; i < node->statements().size(); ++i) {
@@ -343,7 +355,7 @@ class PreTypecheckPass : public AstNodeRecursiveVisitor {
           (i != node->statements().size() - 1 || node->trailing_semi());
 
       if (should_check_useless_expression) {
-        SideEffectExpressionFinder visitor;
+        SideEffectExpressionFinder visitor(import_data_);
         XLS_RETURN_IF_ERROR(s->Accept(&visitor));
         if (!visitor.HasSideEffect()) {
           warning_collector_.Add(
@@ -532,6 +544,7 @@ class PreTypecheckPass : public AstNodeRecursiveVisitor {
   WarningCollector& warning_collector_;
 
   const FileTable& file_table_;
+  const ImportData& import_data_;
   bool in_legacy_proc_ = false;
 };
 
@@ -797,7 +810,7 @@ absl::Status SemanticsAnalysis::RunPreTypeCheckPass(
   if (suppress_warnings_) {
     return absl::OkStatus();
   }
-  PreTypecheckPass pass(warning_collector, import_data.file_table());
+  PreTypecheckPass pass(warning_collector, import_data);
 
   for (const ModuleMember& top : module.top()) {
     if (const Function* const* func = std::get_if<Function*>(&top)) {

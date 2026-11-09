@@ -49,6 +49,7 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/constexpr_evaluator.h"
 #include "xls/dslx/errors.h"
+#include "xls/dslx/frontend/aggregate_construction.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/ast_cloner.h"
 #include "xls/dslx/frontend/ast_node.h"
@@ -259,16 +260,18 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
     XLS_ASSIGN_OR_RETURN(
         std::vector<const AstNode*> nodes,
         FlattenInTypeOrder(
-            import_data_, node,
+            import_data_, table_, node,
             /*include_parametric_entities=*/parametric_context.has_value() &&
                 (node == function ||
                  (node->parent() != nullptr &&
                   node->parent()->kind() == AstNodeKind::kImpl))));
     for (const AstNode* node : nodes) {
       VLOG(5) << "Next node: " << node->ToString();
-      if (node->kind() == AstNodeKind::kInvocation) {
+      if (const auto* invocation = dynamic_cast<const Invocation*>(node);
+          invocation != nullptr &&
+          !table_.IsSumConstructor(invocation)) {
         XLS_RETURN_IF_ERROR(ConvertInvocation(
-            absl::down_cast<const Invocation*>(node), parametric_context,
+            invocation, parametric_context,
             /*short_circuit_if_duplicate=*/!filter_param_type_annotations));
       } else if (node->kind() == AstNodeKind::kProc &&
                  !IsProcAtTopOfTypeInfoStack(
@@ -1373,7 +1376,6 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
       VLOG(5) << "No type information for: " << node->ToString();
       return absl::OkStatus();
     }
-
     absl::StatusOr<std::unique_ptr<Type>> type =
         Concretize(*annotation, parametric_context,
                    /*needs_conversion_before_eval=*/node->kind() !=
@@ -1439,6 +1441,23 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
       ti->SetItem(node, meta_type);
     } else {
       ti->SetItem(node, **type);
+    }
+
+    if (const auto* expression = dynamic_cast<const Expr*>(node);
+        expression != nullptr) {
+      const std::optional<const BoundConstruction*> construction =
+          table_.GetBoundConstruction(expression);
+      if (construction.has_value()) {
+        if (std::holds_alternative<const SumVariant*>(
+                (*construction)->declaration())) {
+          // Flattening skips the original callee reference. Publish its
+          // selected target here before constant collection uses that metadata.
+          XLS_RET_CHECK((*type)->IsSum());
+          ti->SetResolvedColonRefSubject(
+              SumConstructorView(expression).constructor_ref(),
+              const_cast<SumDef*>(&(*type)->AsSum().nominal_type()));
+        }
+      }
     }
 
     if (IsComparisonRequiringImplicitToken(node, *ti)) {
@@ -1714,6 +1733,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
       const std::vector<ExprOrType>& actual_parametrics,
       const Span& error_span) {
     absl::flat_hash_map<std::string, InterpValue> values;
+    absl::flat_hash_map<const NameDef*, ExprOrType> prior_arguments;
     CHECK_GE(struct_def.parametric_bindings().size(),
              actual_parametrics.size());
     std::vector<std::string> missing_parametric_names;
@@ -1731,14 +1751,26 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
         }
         continue;
       }
-      ExprOrType parametric = actual_parametrics[i];
+      XLS_ASSIGN_OR_RETURN(
+          ExprOrType parametric,
+          NormalizeParametricArgument(*binding, actual_parametrics[i], table_,
+                                      file_table_));
       if (std::holds_alternative<Expr*>(parametric)) {
         VLOG(6) << "Actual parametric: " << binding->identifier()
                 << " expr: " << std::get<Expr*>(parametric)->ToString();
+        XLS_ASSIGN_OR_RETURN(
+            const TypeAnnotation* binding_annotation,
+            GetParametricFreeType(binding->type_annotation(), prior_arguments,
+                                  /*real_self_type=*/std::nullopt,
+                                  /*clone_if_no_parametrics=*/false));
         XLS_ASSIGN_OR_RETURN(InterpValue value,
                              evaluator_->Evaluate(ParametricContextScopedExpr(
-                                 parent_context, binding->type_annotation(),
+                                 parent_context, binding_annotation,
                                  std::get<Expr*>(parametric))));
+        XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> binding_type,
+                             Concretize(binding_annotation, parent_context));
+        XLS_RETURN_IF_ERROR(ValidateAggregateParametricValue(
+            value, *binding_type, std::get<Expr*>(parametric)->span()));
         VLOG(6) << "Actual parametric: " << binding->identifier()
                 << " value: " << value.ToString();
         if (IsTvtaToGeneric(binding->type_annotation())) {
@@ -1762,7 +1794,9 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
                                        std::get<TypeAnnotation*>(parametric)));
         values.emplace(binding->identifier(),
                        InterpValue::MakeTypeReference(type));
+        parametric = const_cast<TypeAnnotation*>(type);
       }
+      prior_arguments.emplace(binding->name_def(), parametric);
     }
     if (!missing_parametric_names.empty()) {
       return TypeInferenceErrorStatus(
@@ -3356,7 +3390,8 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
               actual_arg_ti, [&](const Expr* actual_arg) {
                 // Invocation arguments within a struct need to be converted
                 // prior to use.
-                if (actual_arg->kind() == AstNodeKind::kInvocation) {
+                if (const auto* invocation = dynamic_cast<const Invocation*>(actual_arg);
+                    invocation != nullptr && !table_.IsSumConstructor(invocation)) {
                   return ConvertSubtree(actual_arg, std::nullopt,
                                         parent_context);
                 }

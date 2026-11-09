@@ -14,10 +14,13 @@
 
 #include "xls/dslx/type_system_v2/type_annotation_resolver.h"
 
+#include <algorithm>
 #include <cstdint>
 #include <functional>
 #include <memory>
 #include <optional>
+#include <string>
+#include <string_view>
 #include <utility>
 #include <variant>
 #include <vector>
@@ -51,6 +54,7 @@
 #include "xls/dslx/type_system_v2/inference_table_converter.h"
 #include "xls/dslx/type_system_v2/inference_table_utils.h"
 #include "xls/dslx/type_system_v2/parametric_struct_instantiator.h"
+#include "xls/dslx/type_system_v2/parametric_type_annotation_utils.h"
 #include "xls/dslx/type_system_v2/simplified_type_annotation_cache.h"
 #include "xls/dslx/type_system_v2/type_annotation_filter.h"
 #include "xls/dslx/type_system_v2/type_annotation_utils.h"
@@ -61,6 +65,32 @@
 
 namespace xls::dslx {
 namespace {
+
+// Substitutes explicit sum parametrics into a payload member type using the
+// sum definition's binding order. Returns the original `member_type` for a
+// non-parametric sum or a reference with no parametric arguments.
+absl::StatusOr<const TypeAnnotation*> GetParametricFreeSumMemberType(
+    const TypeAnnotation* member_type, const SumRef& sum_ref,
+    InferenceTable& table, ImportData& import_data) {
+  if (!sum_ref.def->IsParametric() || sum_ref.parametrics.empty()) {
+    return member_type;
+  } else {
+    CHECK_GE(sum_ref.def->parametric_bindings().size(),
+             sum_ref.parametrics.size());
+    absl::flat_hash_map<const NameDef*, ExprOrType> actual_values;
+    for (int i = 0; i < sum_ref.parametrics.size(); ++i) {
+      const ParametricBinding* binding = sum_ref.def->parametric_bindings()[i];
+      XLS_ASSIGN_OR_RETURN(
+          ExprOrType argument,
+          NormalizeParametricArgument(*binding, sum_ref.parametrics[i], table,
+                                      import_data.file_table()));
+      actual_values.emplace(binding->name_def(), argument);
+    }
+    return GetParametricFreeType(member_type, actual_values, table, import_data,
+                                 /*real_self_type=*/std::nullopt,
+                                 /*clone_if_no_parametrics=*/false);
+  }
+}
 
 // A visitor that traverses a `TypeAnnotation` recursively until an annotation
 // is found of a kind which needs resolution (e.g. member or element type). If
@@ -82,6 +112,10 @@ class NeedsResolutionDetector : public AstNodeVisitorWithDefault {
   }
   absl::Status HandleMemberTypeAnnotation(
       const MemberTypeAnnotation*) override {
+    return MarkNeedsResolution();
+  }
+  absl::Status HandleDeclaredMemberTypeAnnotation(
+      const DeclaredMemberTypeAnnotation*) override {
     return MarkNeedsResolution();
   }
   absl::Status HandleElementTypeAnnotation(
@@ -603,6 +637,61 @@ class StatefulResolver : public TypeAnnotationResolver {
         filter.Chain(TypeAnnotationFilter::BlockRecursion(annotation)));
   }
 
+  // A construction projection selects a declaration slot after the enclosing
+  // nominal type has reconciled all evidence at this structural position.
+  absl::StatusOr<const TypeAnnotation*> ResolveDeclaredMemberType(
+      std::optional<const ParametricContext*> parametric_context,
+      std::optional<const AstNode*> context_node,
+      const DeclaredMemberTypeAnnotation* projection,
+      TypeAnnotationFilter filter) {
+    XLS_ASSIGN_OR_RETURN(
+        const TypeAnnotation* aggregate_type,
+        ResolveIndirectTypeAnnotations(
+            parametric_context, context_node, projection->aggregate_type(),
+            filter.Chain(TypeAnnotationFilter::BlockRecursion(projection))));
+    const int64_t index = projection->member_index();
+    const AggregateDeclaration declaration = projection->declaration();
+    if (const auto* const* def =
+            std::get_if<const StructDefBase*>(&declaration)) {
+      XLS_ASSIGN_OR_RETURN(std::optional<StructOrProcRef> ref,
+                           GetStructOrProcRef(aggregate_type, import_data_));
+      XLS_RET_CHECK(ref.has_value() && ref->def == *def);
+      XLS_RET_CHECK_GE(index, 0);
+      XLS_RET_CHECK_LT(index, (*def)->members().size());
+      const StructMemberNode* member = (*def)->members()[index];
+      if ((*def)->IsParametric()) {
+        XLS_ASSIGN_OR_RETURN(
+            parametric_context,
+            parametric_struct_instantiator_.GetOrCreateParametricStructContext(
+                parametric_context, *ref, projection));
+      }
+      return parametric_struct_instantiator_.GetParametricFreeStructMemberType(
+          parametric_context, *ref,
+          (*def)->kind() == AstNodeKind::kProcDef
+              ? member->non_state_wrapped_type()
+              : member->type());
+    } else {
+      const SumVariant* variant =
+          std::get<const SumVariant*>(projection->declaration());
+      XLS_ASSIGN_OR_RETURN(std::optional<SumRef> ref,
+                           GetSumRef(aggregate_type, import_data_));
+      XLS_RET_CHECK(ref.has_value());
+      XLS_RET_CHECK(ref->def->GetVariant(variant->identifier()) == variant);
+      XLS_RET_CHECK_GE(index, 0);
+      const TypeAnnotation* member_type;
+      if (variant->is_tuple()) {
+        XLS_RET_CHECK_LT(index, variant->tuple_members().size());
+        member_type = variant->tuple_members()[index];
+      } else {
+        XLS_RET_CHECK(variant->is_struct());
+        XLS_RET_CHECK_LT(index, variant->struct_members().size());
+        member_type = variant->struct_members()[index]->type();
+      }
+      return GetParametricFreeSumMemberType(member_type, *ref, table_,
+                                            import_data_);
+    }
+  }
+
   // Converts `member_type` into a regular `TypeAnnotation` that expresses the
   // type of the given struct member independently of the struct type. For
   // example, if `member_type` refers to `SomeStruct.foo`, and the type
@@ -1061,6 +1150,14 @@ class StatefulResolver : public TypeAnnotationResolver {
       return absl::OkStatus();
     }
 
+    absl::Status HandleDeclaredMemberTypeAnnotation(
+        const DeclaredMemberTypeAnnotation* member_type) override {
+      XLS_ASSIGN_OR_RETURN(result_, resolver_.ResolveDeclaredMemberType(
+                                        parametric_context_, context_node_,
+                                        member_type, filter_));
+      return absl::OkStatus();
+    }
+
     absl::Status HandleElementTypeAnnotation(
         const ElementTypeAnnotation* element_type) override {
       XLS_ASSIGN_OR_RETURN(result_, resolver_.ResolveElementType(
@@ -1213,7 +1310,8 @@ class StatefulResolver : public TypeAnnotationResolver {
           if (std::optional<const TypeAnnotation*> cached =
                   simplified_type_annotation_cache_.GetSimplifiedypeAnnotation(
                       std::nullopt, alias)) {
-            return const_cast<TypeAnnotation*>(*cached);
+            latest = *cached;
+            replaced_dynamic_alias = true;
           }
         }
 

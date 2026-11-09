@@ -41,5 +41,24 @@ const X = float32::flatten(float32::zero(0));
               TypecheckSucceeds(HasNodeWithType("X", "uN[32]")));
 }
 
+TEST(TypecheckV2StdlibTest, SemanticSumWithImportedParametricFloat) {
+  EXPECT_THAT(R"(
+import float32;
+
+enum OptionalPayload {
+  Missing,
+  Present(u32),
+}
+
+fn present(value: float32::F32) -> OptionalPayload {
+  OptionalPayload::Present(value.fraction as u32)
+}
+
+const X = present(float32::zero(false));
+)",
+              TypecheckSucceeds(HasNodeWithType(
+                  "X", "OptionalPayload { Missing | Present(uN[32]) }")));
+}
+
 }  // namespace
 }  // namespace xls::dslx

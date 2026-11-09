@@ -1347,7 +1347,7 @@ fn foo() {
 TEST(TypecheckV2Test, EnumValueTypeMismatch) {
   EXPECT_THAT(
       R"(
-enum MyEnum {
+enum MyEnum : u8 {
   A = u8:1,
   B = u16:2,
 }

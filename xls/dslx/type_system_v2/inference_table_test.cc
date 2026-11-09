@@ -18,18 +18,20 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <variant>
 #include <vector>
 
-#include "gmock/gmock.h"
-#include "gtest/gtest.h"
 #include "absl/base/casts.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "gmock/gmock.h"
+#include "gtest/gtest.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/create_import_data.h"
+#include "xls/dslx/frontend/aggregate_construction.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/ast_cloner.h"
 #include "xls/dslx/frontend/bindings.h"
@@ -454,6 +456,39 @@ TEST_F(InferenceTableTest, Clone) {
   EXPECT_EQ(table_->GetTypeVariable(cloned_add_node), t0);
   EXPECT_EQ(table_->GetTypeVariable(cloned_add_node->lhs()), std::nullopt);
   EXPECT_EQ(table_->GetTypeVariable(cloned_add_node->rhs()), t0);
+}
+
+TEST_F(InferenceTableTest,
+       NamedBindingUsesDeclarationSlotsAndSourceErrorOrder) {
+  ParseAndInitModuleAndTable(R"(
+    struct S { x: u8, y: u16 }
+    const VALUE = S { y: u16:2, x: u8:1 };
+)");
+  XLS_ASSERT_OK_AND_ASSIGN(StructDef * declaration,
+                           module_->GetMemberOrError<StructDef>("S"));
+  XLS_ASSERT_OK_AND_ASSIGN(ConstantDef * value,
+                           module_->GetConstantDef("VALUE"));
+  const auto* expression =
+      absl::down_cast<const StructInstance*>(value->value());
+  NamedFieldBindingResult result =
+      BindNamedFields(declaration->named_fields(), {"y", "x"});
+  ASSERT_TRUE(std::holds_alternative<NamedFieldCorrespondence>(result));
+  BoundConstruction construction(expression, declaration,
+                                 std::get<NamedFieldCorrespondence>(result));
+  EXPECT_EQ(construction.GetMember(0), expression->members()[1].second);
+  EXPECT_EQ(construction.GetMember(1), expression->members()[0].second);
+  EXPECT_EQ(expression->members()[0].second->parent(), expression);
+
+  result = BindNamedFields(declaration->named_fields(), {"y"});
+  ASSERT_TRUE(std::holds_alternative<NamedFieldCorrespondence>(result));
+  EXPECT_THAT(std::get<NamedFieldCorrespondence>(result),
+              ElementsAre(std::nullopt, 0));
+  result = BindNamedFields(declaration->named_fields(), {"y", "y", "unknown"});
+  ASSERT_TRUE(std::holds_alternative<DuplicateNamedField>(result));
+  EXPECT_EQ(std::get<DuplicateNamedField>(result).source_index, 1);
+  result = BindNamedFields(declaration->named_fields(), {"unknown", "y", "y"});
+  ASSERT_TRUE(std::holds_alternative<UnknownNamedField>(result));
+  EXPECT_EQ(std::get<UnknownNamedField>(result).source_index, 0);
 }
 
 TEST_F(InferenceTableTest, SimpleCaching) {

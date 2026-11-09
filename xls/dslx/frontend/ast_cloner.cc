@@ -45,6 +45,30 @@
 namespace xls::dslx {
 namespace {
 
+// Only annotations allocated by the cloner are eligible for reference fixup.
+// Replacer results may be borrowed from another inference use.
+using ClonedAnnotations =
+    std::vector<std::pair<const TypeAnnotation*, TypeAnnotation*>>;
+
+void RemapAnnotationReferences(
+    const ClonedAnnotations& annotations,
+    const absl::flat_hash_map<const AstNode*, AstNode*>& old_to_new) {
+  for (const auto& [original, clone] : annotations) {
+    const auto* member = original->AsAnnotation<DeclaredMemberTypeAnnotation>();
+    AggregateDeclaration declaration = std::visit(
+        [&](const auto* old) -> AggregateDeclaration {
+          if (auto it = old_to_new.find(old); it != old_to_new.end()) {
+            return absl::down_cast<decltype(old)>(it->second);
+          } else {
+            return old;
+          }
+        },
+        member->declaration());
+    clone->AsAnnotation<DeclaredMemberTypeAnnotation>()->set_declaration(
+        declaration);
+  }
+}
+
 class AstCloner : public AstNodeVisitor {
  public:
   explicit AstCloner(std::optional<Module*> module, CloneReplacer replacer)
@@ -639,10 +663,11 @@ class AstCloner : public AstNodeVisitor {
           old_to_new_.at(*n->originating_invocation()));
     }
 
-    old_to_new_[n] = module(n)->Make<Invocation>(
+    auto* cloned = module(n)->Make<Invocation>(
         n->span(), absl::down_cast<Expr*>(old_to_new_.at(n->callee())),
         new_args, CloneParametrics(n->explicit_parametrics()), n->in_parens(),
         new_originator);
+    old_to_new_[n] = cloned;
     return absl::OkStatus();
   }
 
@@ -1196,33 +1221,6 @@ class AstCloner : public AstNodeVisitor {
     return absl::OkStatus();
   }
 
-  absl::Status HandleSumInstance(const SumInstance* n) override {
-    XLS_RETURN_IF_ERROR(VisitChildren(n));
-
-    std::vector<Expr*> new_tuple_payload_args;
-    new_tuple_payload_args.reserve(n->tuple_payload_args().size());
-    for (const Expr* arg : n->tuple_payload_args()) {
-      new_tuple_payload_args.push_back(
-          absl::down_cast<Expr*>(old_to_new_.at(arg)));
-    }
-
-    std::vector<SumInstance::StructPayloadFieldArg>
-        new_struct_payload_field_args;
-    new_struct_payload_field_args.reserve(
-        n->struct_payload_field_args().size());
-    for (const auto& [name, arg] : n->struct_payload_field_args()) {
-      new_struct_payload_field_args.push_back(
-          std::make_pair(name, absl::down_cast<Expr*>(old_to_new_.at(arg))));
-    }
-
-    old_to_new_[n] = module(n)->Make<SumInstance>(
-        n->span(),
-        absl::down_cast<ColonRef*>(old_to_new_.at(n->constructor_ref())),
-        n->payload_shape(), std::move(new_tuple_payload_args),
-        std::move(new_struct_payload_field_args), n->in_parens());
-    return absl::OkStatus();
-  }
-
   absl::Status HandleConditional(const Conditional* n) override {
     XLS_RETURN_IF_ERROR(VisitChildren(n));
 
@@ -1345,19 +1343,18 @@ class AstCloner : public AstNodeVisitor {
   absl::Status HandleTypeRef(const TypeRef* n) override {
     TypeDefinition new_type_definition = n->type_definition();
 
-    // A TypeRef doesn't own its referenced type definition, so we have to
-    // explicitly visit it.
-    XLS_RETURN_IF_ERROR(absl::visit(Visitor{[&](auto* ref) -> absl::Status {
-                                      if (ref->owner() != n->owner()) {
-                                        return absl::OkStatus();
-                                      }
-                                      XLS_RETURN_IF_ERROR(ReplaceOrVisit(ref));
-                                      new_type_definition =
-                                          absl::down_cast<decltype(ref)>(
-                                              old_to_new_.at(ref));
-                                      return absl::OkStatus();
-                                    }},
-                                    n->type_definition()));
+    // A TypeRef doesn't own its referenced type definition, so explicitly visit
+    // local definitions. Imported definitions retain their nominal identity.
+    XLS_RETURN_IF_ERROR(
+        absl::visit(Visitor{[&](auto* ref) -> absl::Status {
+                      if (ref->owner() == n->owner()) {
+                        XLS_RETURN_IF_ERROR(ReplaceOrVisit(ref));
+                        new_type_definition =
+                            absl::down_cast<decltype(ref)>(old_to_new_.at(ref));
+                      }
+                      return absl::OkStatus();
+                    }},
+                    n->type_definition()));
 
     old_to_new_[n] = module(n)->Make<TypeRef>(n->span(), new_type_definition);
     return absl::OkStatus();
@@ -1392,6 +1389,19 @@ class AstCloner : public AstNodeVisitor {
         n->span(),
         absl::down_cast<const TypeAnnotation*>(old_to_new_[n->struct_type()]),
         n->member_name(), n->use_wrapped_type_if_proc_state());
+    return absl::OkStatus();
+  }
+
+  absl::Status HandleDeclaredMemberTypeAnnotation(
+      const DeclaredMemberTypeAnnotation* n) override {
+    XLS_RETURN_IF_ERROR(ReplaceOrVisit(n->aggregate_type()));
+    auto* clone = module(n)->Make<DeclaredMemberTypeAnnotation>(
+        n->span(),
+        absl::down_cast<const TypeAnnotation*>(
+            old_to_new_.at(n->aggregate_type())),
+        n->declaration(), n->member_index());
+    old_to_new_[n] = clone;
+    cloned_annotations_.emplace_back(n, clone);
     return absl::OkStatus();
   }
 
@@ -1553,6 +1563,10 @@ class AstCloner : public AstNodeVisitor {
     return old_to_new_;
   }
 
+  const ClonedAnnotations& cloned_annotations() const {
+    return cloned_annotations_;
+  }
+
  private:
   // Visits all the children of the given node, skipping those that have
   // already been processed.
@@ -1622,7 +1636,35 @@ class AstCloner : public AstNodeVisitor {
   const Module* source_module_ = nullptr;
   CloneReplacer replacer_;
   absl::flat_hash_map<const AstNode*, AstNode*> old_to_new_;
+  ClonedAnnotations cloned_annotations_;
 };
+
+absl::StatusOr<absl::flat_hash_map<const AstNode*, AstNode*>>
+CloneAstAndGetAllPairsInternal(
+    const AstNode* root, std::optional<Module*> target_module,
+    CloneReplacer replacer, ClonedAnnotations* cloned_annotations = nullptr) {
+  if (root->kind() == AstNodeKind::kModule) {
+    return absl::InvalidArgumentError("Clone a module via 'CloneModule'.");
+  }
+  Module* new_module =
+      target_module.has_value() ? *target_module : root->owner();
+  absl::flat_hash_map<const AstNode*, AstNode*> empty_old_to_new;
+  XLS_ASSIGN_OR_RETURN(std::optional<AstNode*> root_replacement,
+                       replacer(root, new_module, empty_old_to_new));
+  if (root_replacement.has_value()) {
+    return absl::flat_hash_map<const AstNode*, AstNode*>{
+        {root, *root_replacement}};
+  }
+  AstCloner cloner(target_module, std::move(replacer));
+  XLS_RETURN_IF_ERROR(root->Accept(&cloner));
+  RemapAnnotationReferences(cloner.cloned_annotations(), cloner.old_to_new());
+  if (cloned_annotations != nullptr) {
+    cloned_annotations->insert(cloned_annotations->end(),
+                               cloner.cloned_annotations().begin(),
+                               cloner.cloned_annotations().end());
+  }
+  return cloner.old_to_new();
+}
 
 absl::StatusOr<ModuleMember> MakeClonedModuleMember(
     const ModuleMember& original,
@@ -1745,21 +1787,8 @@ absl::StatusOr<absl::flat_hash_map<const AstNode*, AstNode*>>
 CloneAstAndGetAllPairs(const AstNode* root,
                        std::optional<Module*> target_module,
                        CloneReplacer replacer) {
-  if (root->kind() == AstNodeKind::kModule) {
-    return absl::InvalidArgumentError("Clone a module via 'CloneModule'.");
-  }
-  Module* new_module =
-      target_module.has_value() ? *target_module : root->owner();
-  absl::flat_hash_map<const AstNode*, AstNode*> empty_old_to_new;
-  XLS_ASSIGN_OR_RETURN(std::optional<AstNode*> root_replacement,
-                       replacer(root, new_module, empty_old_to_new));
-  if (root_replacement.has_value()) {
-    return absl::flat_hash_map<const AstNode*, AstNode*>{
-        {root, *root_replacement}};
-  }
-  AstCloner cloner(target_module, std::move(replacer));
-  XLS_RETURN_IF_ERROR(root->Accept(&cloner));
-  return cloner.old_to_new();
+  return CloneAstAndGetAllPairsInternal(root, target_module,
+                                        std::move(replacer));
 }
 
 absl::StatusOr<AstNode*> CloneAst(const AstNode* root, CloneReplacer replacer) {
@@ -1778,6 +1807,7 @@ absl::StatusOr<std::unique_ptr<Module>> CloneModule(const Module& module,
                        CloneModuleMetadata(module));
   AstCloner cloner(new_module.get(), std::move(replacer));
   XLS_RETURN_IF_ERROR(module.Accept(&cloner));
+  RemapAnnotationReferences(cloner.cloned_annotations(), cloner.old_to_new());
   return new_module;
 }
 
@@ -1815,6 +1845,7 @@ absl::StatusOr<std::unique_ptr<Module>> CloneModuleRemovingMembers(
                        CloneModuleMetadata(module));
 
   absl::flat_hash_map<const AstNode*, AstNode*> global_map;
+  ClonedAnnotations cloned_annotations;
 
   for (const ModuleMember& member : module.top()) {
     if (ShouldRemoveMember(member, nodes_to_remove_set)) {
@@ -1874,8 +1905,9 @@ absl::StatusOr<std::unique_ptr<Module>> CloneModuleRemovingMembers(
     };
 
     XLS_ASSIGN_OR_RETURN(auto old_to_new,
-                         CloneAstAndGetAllPairs(original_node, new_module.get(),
-                                                std::move(reuse_existing)));
+                         CloneAstAndGetAllPairsInternal(
+                             original_node, new_module.get(),
+                             std::move(reuse_existing), &cloned_annotations));
     global_map.insert(old_to_new.begin(), old_to_new.end());
     XLS_ASSIGN_OR_RETURN(ModuleMember cloned_member,
                          MakeClonedModuleMember(member, old_to_new));
@@ -1883,6 +1915,7 @@ absl::StatusOr<std::unique_ptr<Module>> CloneModuleRemovingMembers(
                                            /*make_collision_error=*/nullptr));
   }
 
+  RemapAnnotationReferences(cloned_annotations, global_map);
   return new_module;
 }
 

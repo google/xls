@@ -16,11 +16,14 @@
 #define XLS_DSLX_TYPE_SYSTEM_V2_IMPORT_UTILS_H_
 
 #include <optional>
+#include <string>
+#include <utility>
 #include <vector>
 
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/types/optional_ref.h"
+#include "absl/types/span.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/module.h"
 #include "xls/dslx/frontend/pos.h"
@@ -86,10 +89,32 @@ absl::StatusOr<std::optional<SumConstructorRef>> ResolveSumConstructor(
 absl::StatusOr<std::optional<SumConstructorRef>> ResolveSumConstructor(
     const TypeAnnotation* annotation, const ImportData& import_data);
 
+// A borrowed view of resolved constructor syntax. It derives the reference,
+// spelling, and payloads from the original expression without copying them.
+class SumConstructorView {
+ public:
+  explicit SumConstructorView(SumConstructorExpr expression)
+      : expression_(expression) {}
+
+  const Expr* expression() const;
+  const ColonRef* constructor_ref() const;
+  SumVariant::PayloadShape payload_shape() const;
+  absl::Span<Expr* const> tuple_args() const;
+  absl::Span<const std::pair<std::string, Expr*>> struct_args() const;
+
+ private:
+  SumConstructorExpr expression_;
+};
+
 // Resolves and validates only this invocation, without visiting its children or
 // changing the syntax tree. Imports must already be loaded.
 absl::StatusOr<std::optional<SumConstructorRef>> ResolveSumConstructor(
     const Invocation* invocation, const ImportData& import_data);
+
+// Validates only this brace-style construction, without visiting its children,
+// and returns its resolved sum variant, if any. Imports must already be loaded.
+absl::StatusOr<std::optional<SumConstructorRef>> ResolveSumConstructor(
+    const StructInstanceBase* instance, const ImportData& import_data);
 
 // Resolves the struct base definition for the struct or proc type referred to
 // by `annotation`.

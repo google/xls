@@ -25,6 +25,7 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
+#include "xls/dslx/frontend/aggregate_construction.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/ast_cloner.h"
 #include "xls/dslx/frontend/pos.h"
@@ -34,6 +35,17 @@
 #include "xls/dslx/type_system_v2/inference_table.h"
 
 namespace xls::dslx {
+
+// Binds named operands once, preserving construction diagnostics: unknown and
+// duplicate names are reported in source order, and required missing members
+// are listed alphabetically. Splat/domain callers may allow missing slots;
+// procs may omit I/O members that are default-initialized.
+absl::StatusOr<NamedFieldCorrespondence> ValidateAndBindNamedMembers(
+    const Span& span,
+    absl::Span<const std::pair<std::string, Expr*>> actual_members,
+    const NamedFields& formal_members, std::string_view aggregate_name,
+    bool is_struct, bool requires_all_members, const FileTable& file_table,
+    bool allow_default_io_members = false);
 
 // Rejects payload member types not supported by phase-one semantic sums.
 absl::Status ValidatePhase1SumPayloadMemberType(

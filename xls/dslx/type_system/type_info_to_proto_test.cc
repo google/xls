@@ -211,6 +211,50 @@ fn f() -> E { E::A }
                   ::testing::HasSubstr("Enum member value mismatch")));
 }
 
+TEST_F(TypeInfoToProtoWithBothTypecheckVersionsTest, MakeSumFunction) {
+  std::string program = R"(
+enum Option {
+  None,
+  Some(u32),
+}
+fn f() -> Option { Option::None }
+)";
+  DoRun(program);
+}
+
+TEST_F(TypeInfoToProtoWithBothTypecheckVersionsTest,
+       RejectsReorderedSumVariantsInToHumanString) {
+  std::string program = R"(
+enum Option {
+  None,
+  Some(u32),
+}
+fn f() -> Option { Option::None }
+)";
+
+  ImportData import_data = CreateImportDataForTest();
+  TypeInfoProto tip;
+  DoRun(program, &tip, &import_data);
+
+  int mutated_nodes = 0;
+  for (AstNodeTypeInfoProto& node : *tip.mutable_nodes()) {
+    if (!node.has_type() || !node.type().has_sum_type()) {
+      continue;
+    }
+    SumTypeProto* sum_type = node.mutable_type()->mutable_sum_type();
+    if (!sum_type->has_sum_def_span()) {
+      continue;
+    }
+    ASSERT_EQ(sum_type->variants_size(), 2);
+    sum_type->mutable_variants()->SwapElements(0, 1);
+    ++mutated_nodes;
+  }
+  ASSERT_GT(mutated_nodes, 0);
+
+  EXPECT_THAT(ToHumanString(tip, import_data, import_data.file_table()),
+              absl_testing::StatusIs(absl::StatusCode::kInvalidArgument));
+}
+
 TEST_F(TypeInfoToProtoWithBothTypecheckVersionsTest,
        SemanticSumEmptyPayloadShapes) {
   std::string program = R"(
@@ -222,7 +266,9 @@ enum E {
   Point { x: u32 },
 }
 
-fn f(x: E) -> E { x }
+fn f(x: bool) -> E {
+  if x { E::EmptyTuple() } else { E::EmptyStruct {} }
+}
 )";
 
   ImportData import_data = CreateImportDataForTest();
@@ -263,7 +309,7 @@ TEST_F(TypeInfoToProtoWithBothTypecheckVersionsTest,
   constexpr std::string_view kProgram = R"(
 enum E { None, Some(u8) }
 struct Box { item: E }
-fn f(x: (E[2],)) -> Box { Box { item: x.0[u32:0] } }
+fn f(x: (E[2],)) -> Box { Box { item: E::None } }
 )";
   ImportData import_data = CreateImportDataForTest();
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -314,6 +360,44 @@ fn f(x: (E[2],)) -> Box { Box { item: x.0[u32:0] } }
 }
 
 TEST_F(TypeInfoToProtoWithBothTypecheckVersionsTest,
+       ReadsLegacyConstructorMetadataUsingOriginalExpressionSpans) {
+  constexpr std::string_view kProgram = R"(
+enum E { Unit, Tuple(u8), Named { x: u8 } }
+fn unit() -> E { E::Unit }
+fn tuple() -> E { E::Tuple(u8:1) }
+fn named() -> E { E::Named { x: u8:2 } }
+)";
+  ImportData import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(kProgram, "fake.x", "fake", &import_data));
+  XLS_ASSERT_OK_AND_ASSIGN(TypeInfoProto proto,
+                           TypeInfoToProto(*tm.type_info, tm.module));
+  int constructors = 0;
+  for (const AstNodeTypeInfoProto& node : proto.nodes()) {
+    if (node.type().has_sum_type() &&
+        (node.kind() == AST_NODE_KIND_COLON_REF ||
+         node.kind() == AST_NODE_KIND_INVOCATION ||
+         node.kind() == AST_NODE_KIND_STRUCT_INSTANCE)) {
+      XLS_ASSERT_OK_AND_ASSIGN(
+          std::string current,
+          ToHumanString(node, import_data, import_data.file_table()));
+      AstNodeTypeInfoProto legacy = node;
+      legacy.set_kind(AST_NODE_KIND_SUM_INSTANCE);
+      XLS_ASSERT_OK_AND_ASSIGN(
+          std::string restored,
+          ToHumanString(legacy, import_data, import_data.file_table()));
+      // Only the serialized kind's name changes; source text and concrete
+      // payload types must still be recovered from the original expression.
+      EXPECT_EQ(current.substr(current.find(" :: `")),
+                restored.substr(restored.find(" :: `")));
+      ++constructors;
+    }
+  }
+  EXPECT_EQ(constructors, 3);
+}
+
+TEST_F(TypeInfoToProtoWithBothTypecheckVersionsTest,
        RejectsReorderedSumVariantsInProtoImport) {
   std::string program = R"(
 enum Option {
@@ -321,7 +405,9 @@ enum Option {
   Some(u32),
 }
 
-fn f(x: Option) -> Option { x }
+fn f(x: bool) -> Option {
+  if x { Option::None } else { Option::Some(u32:42) }
+}
 )";
 
   ImportData import_data = CreateImportDataForTest();
@@ -374,7 +460,7 @@ enum E {
   Pair { first: u8, second: u16 },
 }
 
-fn f(x: E) -> E { x }
+fn f() -> E { E::Pair { first: u8:1, second: u16:2 } }
 )";
   ImportData import_data = CreateImportDataForTest();
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -531,7 +617,7 @@ pub enum Never {}
   constexpr std::string_view kProgram = R"(
 import left;
 enum E { None, Value(left::Tag), Impossible(left::Never) }
-fn f(x: E) -> E { x }
+fn f() -> E { E::None }
 )";
   XLS_ASSERT_OK_AND_ASSIGN(
       TypecheckedModule tm,

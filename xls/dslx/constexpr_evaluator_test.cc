@@ -43,6 +43,8 @@ namespace xls::dslx {
 namespace {
 
 using ::absl_testing::IsOkAndHolds;
+using ::absl_testing::StatusIs;
+using ::testing::HasSubstr;
 
 Expr* GetSingleBodyExpr(Function* f) {
   StatementBlock* body = f->body();
@@ -72,6 +74,33 @@ absl::StatusOr<Type*> GetType(TypeInfo* ti, Expr* expr) {
     return absl::NotFoundError("");
   }
   return maybe_type.value();
+}
+
+TEST(ConstexprEvaluatorTest, SumConstructorsBeforeTypeInfoSubjectsExist) {
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<Module> module,
+      ParseModule(R"(
+enum E { Unit, Tuple(u32) }
+const UNIT = E::Unit;
+const TUPLE = E::Tuple(u32:0);
+)",
+                  "test.x", "test", import_data.file_table()));
+  TypeInfoOwner owner;
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypeInfo * type_info,
+      owner.New(import_data.file_table(), TypeInfo::kRootName));
+  for (std::string_view name : {"UNIT", "TUPLE"}) {
+    SCOPED_TRACE(name);
+    XLS_ASSERT_OK_AND_ASSIGN(ConstantDef * constant,
+                             module->GetConstantDef(name));
+    EXPECT_THAT(
+        ConstexprEvaluator::Evaluate(&import_data, type_info,
+                                     /*warning_collector=*/nullptr,
+                                     /*bindings=*/{}, constant->value()),
+        StatusIs(absl::StatusCode::kUnimplemented,
+                 HasSubstr("Semantic sum constants are not supported.")));
+  }
 }
 
 TEST(ConstexprEvaluatorTest, HandleAttrSimple) {
