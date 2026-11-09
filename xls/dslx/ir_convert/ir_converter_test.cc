@@ -8828,5 +8828,32 @@ impl Top {
                         "_east_west__1_1, _east_west__1_2, "
                         "proc=__test_module__Node__1_1_next)"));
 }
+
+TEST_F(IrConverterTest, MapParametricMapperExplicit) {
+  constexpr std::string_view kProgram = R"(
+fn identity<IDENT_N: u32>(input: uN[IDENT_N]) -> uN[IDENT_N] { input }
+fn f() -> u30[2] {
+  map([u30:5, u30:6], identity<u32:30>)
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
+                           ConvertModuleForTest(kProgram));
+  ExpectIr(converted);
+}
+
+TEST_F(IrConverterTest, MapParametricMapperExplicitReturnParametric) {
+  constexpr std::string_view kProgram = R"(
+fn mapper<IDENT_IN: u32, IDENT_OUT: u32>(input: uN[IDENT_IN]) -> uN[IDENT_OUT] {
+  zero!<uN[IDENT_OUT]>()
+}
+
+fn f() -> u31[2] {
+  map([u30:5, u30:6], mapper<u32:30, u32:31>)
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
+                           ConvertModuleForTest(kProgram));
+  ExpectIr(converted);
+}
 }  // namespace
 }  // namespace xls::dslx

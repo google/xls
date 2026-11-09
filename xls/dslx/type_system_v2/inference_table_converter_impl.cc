@@ -1122,6 +1122,9 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
       std::optional<const Function*> caller) {
     for (int i = 0; i < function_type->param_types().size(); i++) {
       const TypeAnnotation* formal_type = function_type->param_types()[i];
+      if (formal_type->IsAnnotation<FunctionTypeAnnotation>()) {
+        continue;
+      }
       const Expr* actual_param = actual_args[i];
       XLS_RETURN_IF_ERROR(
           table_.AddTypeAnnotationToVariableForParametricContext(
@@ -2096,6 +2099,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
   absl::StatusOr<const FunctionTypeAnnotation*> CreateMapperFunctionType(
       const std::optional<const Function*> caller, Invocation* invocation,
       const ParametricContext* invocation_context) {
+    table_.MarkHasFunctionalArgs(invocation);
     std::vector<ExprOrType> explicit_parametrics =
         invocation->explicit_parametrics();
     if (!explicit_parametrics.empty()) {
@@ -2150,6 +2154,8 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
         mapper =
             module_.Make<Attr>(mapper->span(), array_of_0, colon_ref->attr());
         mapper_args.clear();
+        table_.AddFunctionalArgWithoutCurriedSelf(
+            invocation, absl::down_cast<const Function*>(*target));
       }
     } else if (mapper->kind() == AstNodeKind::kAttr) {
       // This is the `map(arr, obj_not_in_arr.instance_method)` case, which is
@@ -2258,10 +2264,6 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
                                    const_cast<Invocation*>(invocation),
                                    invocation_context));
 
-      // These must be the first actual two parametrics because they're listed
-      // as the first two formals.
-      explicit_parametrics.push_back(
-          const_cast<FunctionTypeAnnotation*>(mapper_fn_type));
       explicit_parametrics.push_back(
           const_cast<TypeAnnotation*>(mapper_fn_type->return_type()));
     }

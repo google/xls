@@ -563,6 +563,25 @@ class InferenceTable {
       const Invocation* invocation,
       std::optional<const ParametricContext*> caller_context) const = 0;
 
+  // Marks `invocation` as having functional arguments, e.g. a `map` invocation
+  // whose mapper argument is a function.
+  virtual void MarkHasFunctionalArgs(const Invocation* invocation) = 0;
+
+  // Returns whether `invocation` has been marked as having functional
+  // arguments via `MarkHasFunctionalArgs`.
+  virtual bool HasFunctionalArgs(const Invocation* invocation) const = 0;
+
+  // Records that `fn`, which is passed as a functional argument to
+  // `invocation`, does not have a curried `self` parameter. This implicitly
+  // marks `invocation` as having functional arguments.
+  virtual void AddFunctionalArgWithoutCurriedSelf(const Invocation* invocation,
+                                                  const Function* fn) = 0;
+
+  // Returns whether `fn` has been recorded as a functional argument of
+  // `invocation` that does not have a curried `self` parameter.
+  virtual bool IsFunctionalArgWithoutCurriedSelf(const Invocation* invocation,
+                                                 const Function* fn) const = 0;
+
   // Returns the type variable for `node` in the table, if any.
   virtual std::optional<const NameRef*> GetTypeVariable(
       const AstNode* node) const = 0;

@@ -152,8 +152,8 @@ absl::StatusOr<TypeAnnotation*> CreateAnnotationSizedToFit(
 TypeAnnotation* CreateUnitTupleAnnotation(Module& module, const Span& span);
 
 // Creates a type annotation for the given `function`.
-FunctionTypeAnnotation* CreateFunctionTypeAnnotation(Module& module,
-                                                     const Function& function);
+FunctionTypeAnnotation* CreateFunctionTypeAnnotation(
+    Module& module, const Function& function, bool skip_first_param = false);
 
 // Returns the explicit or implied return type of `fn`.
 const TypeAnnotation* GetReturnType(Module& module, const Function& fn);

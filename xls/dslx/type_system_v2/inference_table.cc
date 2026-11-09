@@ -717,6 +717,27 @@ class InferenceTableImpl : public InferenceTable {
     return it == map.end() ? std::nullopt : std::make_optional(it->second);
   }
 
+  void MarkHasFunctionalArgs(const Invocation* invocation) override {
+    // Creates an empty entry if one does not exist yet.
+    functional_args_without_curried_self_[invocation];
+  }
+
+  bool HasFunctionalArgs(const Invocation* invocation) const override {
+    return functional_args_without_curried_self_.contains(invocation);
+  }
+
+  void AddFunctionalArgWithoutCurriedSelf(const Invocation* invocation,
+                                          const Function* fn) override {
+    functional_args_without_curried_self_[invocation].insert(fn);
+  }
+
+  bool IsFunctionalArgWithoutCurriedSelf(const Invocation* invocation,
+                                         const Function* fn) const override {
+    const auto it = functional_args_without_curried_self_.find(invocation);
+    return it != functional_args_without_curried_self_.end() &&
+           it->second.contains(fn);
+  }
+
   absl::StatusOr<AstNode*> Clone(
       const AstNode* input, CloneReplacer replacer,
       std::optional<Module*> target_module) override {
@@ -1053,6 +1074,10 @@ class InferenceTableImpl : public InferenceTable {
       invocations_feeding_type_variable_;
   absl::flat_hash_map<const Invocation*, const Function*>
       callees_with_no_caller_context_;
+  // Invocations that have functional arguments, each mapped to the set of
+  // functional arguments that do not have a curried `self` parameter.
+  absl::flat_hash_map<const Invocation*, absl::flat_hash_set<const Function*>>
+      functional_args_without_curried_self_;
   UnificationCache cache_;
 };
 
