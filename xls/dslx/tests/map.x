@@ -66,5 +66,7 @@ fn map_array_rev(x: bool, y: u8) -> bool {
 
 #[quickcheck]
 fn map_array_size(x: bool, y: u8) -> bool {
-    map([[x, !x]], array_size) == [u32:2] && map([[y], [!y]], array_size) == [u32:1, u32:1]
+    let row = [x, !x];
+    map([row], array_size) == [array_size(row)] && array_size(row) == u32:2 &&
+    map([[y], [!y]], array_size) == [u32:1, u32:1]
 }

@@ -120,11 +120,6 @@ absl::StatusOr<BValue> ReverseArray(BValue arg,
   return arg.builder()->Array(elements, array_type->element_type(), loc);
 }
 
-absl::StatusOr<BValue> ArraySize(BValue arg) {
-  XLS_ASSIGN_OR_RETURN(xls::ArrayType * array_type, arg.GetType()->AsArray());
-  return arg.builder()->Literal(UBits(array_type->size(), kUsizeBits));
-}
-
 // Returns a status that indicates an error in the IR conversion process.
 absl::Status IrConversionErrorStatus(const std::optional<Span>& span,
                                      std::string_view message,
@@ -2089,7 +2084,13 @@ absl::StatusOr<BValue> FunctionConverter::DefMapWithBuiltin(
     } else if (builtin_name == "array_rev") {
       XLS_ASSIGN_OR_RETURN(result, ReverseArray(param));
     } else if (builtin_name == "array_size") {
-      XLS_ASSIGN_OR_RETURN(result, ArraySize(param));
+      XLS_ASSIGN_OR_RETURN(const FunctionType* mapper_type,
+                           current_type_info_->GetItemAs<FunctionType>(node));
+      const Type* mapper_arg_type = mapper_type->params()[0].get();
+      XLS_ASSIGN_OR_RETURN(InterpValue size,
+                           GetElementCountAsInterpValue(mapper_arg_type));
+      XLS_ASSIGN_OR_RETURN(Value value, size.ConvertToIr());
+      result = fb.Literal(value);
     } else {
       return absl::InternalError(
           absl::StrCat("Invalid builtin name for map: ", builtin_name));
