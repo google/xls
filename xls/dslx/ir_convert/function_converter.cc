@@ -135,6 +135,15 @@ std::string GetStateElementName(const Expr* expr) {
   return expr->ToString();
 }
 
+BValue ExtendBits(BValue input, int64_t new_bit_count, bool sign_extend,
+                  const SourceInfo& loc = SourceInfo()) {
+  // A zero-width DSLX value represents zero and has no sign bit to extend.
+  if (sign_extend && input.BitCountOrDie() > 0) {
+    return input.builder()->SignExtend(input, new_bit_count, loc);
+  }
+  return input.builder()->ZeroExtend(input, new_bit_count, loc);
+}
+
 }  // namespace
 
 absl::StatusOr<xls::Function*> EmitImplicitTokenEntryWrapper(
@@ -1188,16 +1197,13 @@ absl::Status FunctionConverter::HandleCast(const Cast* node) {
     // Widening conversion -- since the bit count is going up, we need to sign
     // or zero extend -- this is done based on the signedness of the input type.
     XLS_ASSIGN_OR_RETURN(bool signed_input, IsSigned(*input_type));
-    auto bvalue_status = DefWithStatus(
-        node,
-        [this, node, new_bit_count,
-         signed_input](const SourceInfo& loc) -> absl::StatusOr<BValue> {
-          XLS_ASSIGN_OR_RETURN(BValue input, Use(node->expr()));
-          if (signed_input) {
-            return function_builder_->SignExtend(input, new_bit_count);
-          }
-          return function_builder_->ZeroExtend(input, new_bit_count);
-        });
+    auto bvalue_status =
+        DefWithStatus(node,
+                      [this, node, new_bit_count, signed_input](
+                          const SourceInfo& loc) -> absl::StatusOr<BValue> {
+                        XLS_ASSIGN_OR_RETURN(BValue input, Use(node->expr()));
+                        return ExtendBits(input, new_bit_count, signed_input);
+                      });
     XLS_RETURN_IF_ERROR(bvalue_status.status());
   }
   return absl::OkStatus();
@@ -1247,11 +1253,8 @@ absl::Status FunctionConverter::HandleBuiltinCheckedCast(
                                          /*width=*/new_bit_count);
     });
   } else {
-    Def(node, [this, arg, signed_input, new_bit_count](const SourceInfo& loc) {
-      if (signed_input) {
-        return function_builder_->SignExtend(arg, new_bit_count);
-      }
-      return function_builder_->ZeroExtend(arg, new_bit_count);
+    Def(node, [arg, signed_input, new_bit_count](const SourceInfo& loc) {
+      return ExtendBits(arg, new_bit_count, signed_input);
     });
   }
   return absl::OkStatus();
@@ -1303,11 +1306,8 @@ absl::Status FunctionConverter::HandleBuiltinWideningCast(
                        new_bit_count_ctd.value().GetBitValueViaSign());
 
   // Perform actual cast. Validity is checked during type_check.
-  Def(node, [this, arg, signed_input, new_bit_count](const SourceInfo& loc) {
-    if (signed_input) {
-      return function_builder_->SignExtend(arg, new_bit_count);
-    }
-    return function_builder_->ZeroExtend(arg, new_bit_count);
+  Def(node, [arg, signed_input, new_bit_count](const SourceInfo& loc) {
+    return ExtendBits(arg, new_bit_count, signed_input);
   });
 
   return absl::OkStatus();
@@ -5405,7 +5405,7 @@ absl::Status FunctionConverter::HandleBuiltinSignex(const Invocation* node) {
       return function_builder_->BitSlice(arg, /*start=*/0,
                                          /*width=*/new_bit_count, loc);
     }
-    return function_builder_->SignExtend(arg, new_bit_count, loc);
+    return ExtendBits(arg, new_bit_count, /*sign_extend=*/true, loc);
   });
   return absl::OkStatus();
 }

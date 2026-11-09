@@ -27,6 +27,16 @@ fn casts() {
     assert_eq(s1:-1, s1:-1 as s1);
 }
 
+fn cast_zero_width_signed(x: sN[0]) -> (uN[0], u8, u8, s8, u8) {
+    (x as uN[0], x as u8, checked_cast<u8>(x), widening_cast<s8>(x), signex(x, u8:0))
+}
+
+#[test]
+fn cast_zero_width_signed_test() {
+    assert_eq(cast_zero_width_signed(sN[0]:0), (uN[0]:0, u8:0, u8:0, s8:0, u8:0));
+    assert_eq(widening_cast<sN[0]>(sN[0]:0), sN[0]:0);
+}
+
 #[test]
 fn widening_casts() {
     // Casting to an s1.
