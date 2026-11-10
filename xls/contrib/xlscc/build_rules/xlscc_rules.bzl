@@ -462,7 +462,7 @@ _xls_cc_ir_attrs = {
     ),
     "_xlscc_tool": attr.label(
         doc = "The target of the XLSCC executable.",
-        default = Label("//xls/contrib/xlscc:xlscc"),
+        default = Label("//xls/contrib/xlscc:xlscc_tool"),
         allow_single_file = True,
         executable = True,
         cfg = "exec",

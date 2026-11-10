@@ -427,6 +427,13 @@ cc_binary(
     ],
 )
 
+label_flag(
+    name = "xlscc_tool",
+    build_setting_default = ":xlscc",
+    scope = "universal",
+    visibility = ["//xls:xls_users"],
+)
+
 pytype_strict_binary(
     name = "instrument_ir",
     srcs = ["instrument_ir.py"],
