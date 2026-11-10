@@ -491,9 +491,15 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
   absl::Status ConvertConstantsReferencedUnder(
       const AstNode* node,
       std::optional<const ParametricContext*> parametric_context) {
+    if (!converted_constants_referenced_under_[parametric_context]
+             .insert(node)
+             .second) {
+      return absl::OkStatus();
+    }
     std::vector<std::pair<const NameRef*, const NameDef*>> references;
     XLS_ASSIGN_OR_RETURN(references,
                          CollectReferencedUnder(node, /*want_types=*/true));
+    XLS_ASSIGN_OR_RETURN(TypeInfo * ti, GetTypeInfo(parametric_context));
     for (const auto& [name_ref, name_def] : references) {
       // Avoid the callee node, because its conversion is done explicitly upon
       // function resolution during the conversion of the invocation, and we
@@ -506,8 +512,6 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
           absl::down_cast<const Invocation*>(node)->callee() == name_ref) {
         continue;
       }
-
-      XLS_ASSIGN_OR_RETURN(TypeInfo * ti, GetTypeInfo(parametric_context));
 
       // If the name already has a constexpr value, it will not pose a problem.
       if (ti->GetConstExprOption(name_def).has_value()) {
@@ -528,6 +532,16 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
       // cannot be done before loop unrolling or compile-time branch selection.
       if (decl != nullptr && (decl->kind() == AstNodeKind::kConstantDef ||
                               decl->kind() == AstNodeKind::kLet)) {
+        // If `decl` already has a converted `Type` in `ti`, any constexpr value
+        // it can produce has already been evaluated and noted (for
+        // non-constexpr `let` bindings, `GetConstExprOption` remains `nullopt`
+        // even after conversion). Note that `converted_subtrees_` only records
+        // root nodes passed directly to `ConvertSubtree`, not individual
+        // `let`/`const` declarations flattened during conversion of an
+        // enclosing function or module; `ti->GetItem(decl)` covers both cases.
+        if (ti->GetItem(decl).has_value()) {
+          continue;
+        }
         if (!IsInDescendantLoopOrConstControlFlow(node, decl)) {
           XLS_RETURN_IF_ERROR(
               ConvertConstantsReferencedUnder(decl, parametric_context));
@@ -3645,9 +3659,19 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
   std::unique_ptr<ModuleTraitManager> module_trait_manager_;
   std::unique_ptr<ConstantCollector> constant_collector_;
   std::unique_ptr<FastConcretizer> fast_concretizer_;
+  // Root AST nodes already passed to `ConvertSubtree` (without parameter type
+  // annotation filtering) in a given parametric context (`std::nullopt` for
+  // module/non-parametric scope), used to avoid redundant subtree conversions.
   absl::flat_hash_map<std::optional<const ParametricContext*>,
                       absl::flat_hash_set<const AstNode*>>
       converted_subtrees_;
+  // AST nodes for which `ConvertConstantsReferencedUnder` has already
+  // pre-converted referenced enclosing `const`/`let` declarations in a given
+  // parametric context, preventing repeated reference scans and recursive DAG
+  // walks during type variable unification.
+  absl::flat_hash_map<std::optional<const ParametricContext*>,
+                      absl::flat_hash_set<const AstNode*>>
+      converted_constants_referenced_under_;
   absl::flat_hash_map<std::optional<const ParametricContext*>,
                       absl::flat_hash_set<const Invocation*>>
       converted_invocations_;

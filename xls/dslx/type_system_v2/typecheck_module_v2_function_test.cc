@@ -12,17 +12,21 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <cstdint>
 #include <filesystem>
 #include <memory>
 #include <string>
 #include <string_view>
 #include <utility>
 
+#include "benchmark/benchmark.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/container/flat_hash_map.h"
+#include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
+#include "absl/strings/str_format.h"
 #include "xls/common/status/matchers.h"
 #include "xls/dslx/create_import_data.h"
 #include "xls/dslx/import_data.h"
@@ -1411,6 +1415,80 @@ fn test2() -> u32 {
 }
 )"));
 }
+
+// Generates a DSLX module whose `compute` function chains `depth` non-constexpr
+// `let` bindings into a DAG (`x_i = (x_{i-1} ^ x_{i-1}) + (x_{i-2} ^ x_{i-1})`)
+// and feeds them into nested invocations inside parametric `update(...)` calls.
+// When `in_block_arg` is true, the `let` DAG is placed inside an unconverted
+// block argument to `update(...)` so `ConvertConstantsReferencedUnder` also
+// exercises out-of-order declaration conversion.
+std::string GenerateChainedLetDagProgram(int64_t depth,
+                                         bool in_block_arg = false) {
+  CHECK_GE(depth, 4);
+  std::string lets = "  let x0 = seed;\n  let x1 = (x0 ^ x0) + (x0 ^ x0);\n";
+  for (int64_t i = 2; i < depth; ++i) {
+    absl::StrAppendFormat(&lets, "  let x%d = (x%d ^ x%d) + (x%d ^ x%d);\n", i,
+                          i - 1, i - 1, i - 2, i - 1);
+  }
+  const int64_t last = depth - 1;
+  if (in_block_arg) {
+    return absl::StrFormat(R"(fn id(x: u32) -> u32 { x }
+
+fn compute(arr: u32[4], seed: u32) -> u32[4] {
+  let res = update(arr, u32:0, {
+%s    id(x%d ^ x%d)
+  });
+  res
+}
+)",
+                           lets, last, last - 1);
+  }
+  return absl::StrFormat(R"(fn id(x: u32) -> u32 { x }
+
+fn compute(arr: u32[4], seed: u32) -> u32[4] {
+%s  let a0 = update(arr, u32:0, id(x%d));
+  let a1 = update(a0, u32:1, id(x%d ^ x%d));
+  let a2 = update(a1, u32:2, id(x%d ^ x%d));
+  let res = update(a2, u32:3, id(x%d ^ x%d));
+  res
+}
+)",
+                         lets, last, last, last - 1, last, last - 2, last,
+                         last - 3);
+}
+
+class ChainedLetDagDepthTest : public ::testing::TestWithParam<int64_t> {};
+
+TEST_P(ChainedLetDagDepthTest, ChainedLetDagFeedingParametricInvocations) {
+  const int64_t depth = GetParam();
+  const int64_t last = depth - 1;
+  EXPECT_THAT(GenerateChainedLetDagProgram(depth, /*in_block_arg=*/false),
+              TypecheckSucceeds(HasNodeWithType(
+                  absl::StrFormat("let res = update(a2, u32:3, id(x%d ^ x%d));",
+                                  last, last - 3),
+                  "uN[32][4]")));
+}
+
+TEST_P(ChainedLetDagDepthTest,
+       ChainedLetDagInsideBlockArgOfParametricInvocation) {
+  const int64_t depth = GetParam();
+  EXPECT_THAT(GenerateChainedLetDagProgram(depth, /*in_block_arg=*/true),
+              TypecheckSucceeds(HasNodeWithType("res", "uN[32][4]")));
+}
+
+INSTANTIATE_TEST_SUITE_P(ChainedLetDagDepths, ChainedLetDagDepthTest,
+                         ::testing::Values(32, 256, 1024));
+
+void BM_ChainedLetDagFeedingParametricInvocations(benchmark::State& state) {
+  const std::string program = GenerateChainedLetDagProgram(state.range(0));
+  for (auto _ : state) {
+    XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(program));
+    benchmark::DoNotOptimize(result.tm.module);
+  }
+}
+BENCHMARK(BM_ChainedLetDagFeedingParametricInvocations)
+    ->DenseRange(4, 14, 2)
+    ->Range(16, 1024);
 
 }  // namespace
 }  // namespace xls::dslx
