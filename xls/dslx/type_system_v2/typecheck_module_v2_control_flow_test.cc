@@ -159,8 +159,9 @@ fn broken_if(a: u32) -> bool {
       TypecheckFails(HasSubstr("Unable to evaluate const conditional")));
 }
 
-TEST(TypecheckV2Test, ConstConditionalLocalConstShadowsParametric) {
-  EXPECT_THAT(R"(
+TEST(TypecheckV2Test, ConstConditionalLocalConstCannotShadowParametric) {
+  EXPECT_THAT(
+      R"(
 fn f<N: u32>() -> u32 {
   const N = N % u32:4;
   const if N == u32:0 {
@@ -170,6 +171,18 @@ fn f<N: u32>() -> u32 {
   }
 }
 const X = f<u32:4>();
+)",
+      TypecheckFails(HasSubstr("Cannot shadow parametric binding `N`")));
+}
+
+TEST(TypecheckV2Test, ConstConditionalLocalConstWithDistinctName) {
+  EXPECT_THAT(R"(
+fn f<N: u32>() -> u32 {
+  const N_MOD = N % u32:4;
+  const if N_MOD == u32:0 { u32:0 } else { u16:0 }
+}
+const X = f<u32:4>();
+const_assert!(X == u32:0);
 )",
               TypecheckSucceeds(HasNodeWithType("X", "uN[32]")));
 }

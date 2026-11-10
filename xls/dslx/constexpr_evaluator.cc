@@ -687,9 +687,7 @@ absl::StatusOr<ConstexprEnvData> MakeConstexprEnv(
     absl::StatusOr<InterpValue> const_expr =
         type_info->GetConstExpr(target_def);
     if (const_expr.ok()) {
-      // The resolved lexical binding takes precedence over a same-named
-      // parametric binding that seeded the environment.
-      env.insert_or_assign(name, const_expr.value());
+      env.insert({name, const_expr.value()});
     } else {
       non_constexpr.insert(sample_ref);
     }

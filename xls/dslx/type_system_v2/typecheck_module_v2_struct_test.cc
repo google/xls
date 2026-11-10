@@ -1694,8 +1694,7 @@ impl S<M> {
 const X = S<4>{}.add<3>();
 const Y = S<5>{}.add<6>();
 )",
-      TypecheckFails(HasSubstr(
-          "Parametric binding `M` shadows binding from struct definition")));
+      TypecheckFails(HasSubstr("Cannot shadow parametric binding `M`")));
 }
 
 TEST(TypecheckV2StructTest, ParametricInstanceMethodUsingParametricConstant) {

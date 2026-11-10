@@ -130,6 +130,9 @@ class Bindings {
     for (const auto& [k, v] : other.local_bindings_) {
       local_bindings_[k] = v;
     }
+    for (const auto& [k, v] : other.parametric_bindings_) {
+      parametric_bindings_[k] = v;
+    }
   }
 
   // The "Cronus" method. This adds a child's bindings to this object, i.e., it
@@ -158,6 +161,22 @@ class Bindings {
       }
     }
     local_bindings_[std::move(name)] = binding;
+  }
+
+  // Registers a parametric for name resolution and shadowing checks.
+  void AddParametricBinding(NameDef* name_def) {
+    Add(name_def->identifier(), name_def);
+    parametric_bindings_[name_def->identifier()] = name_def;
+  }
+
+  const NameDef* GetParametricBinding(std::string_view name) const {
+    for (const Bindings* b = this; b != nullptr; b = b->parent_) {
+      auto it = b->parametric_bindings_.find(name);
+      if (it != b->parametric_bindings_.end()) {
+        return it->second;
+      }
+    }
+    return nullptr;
   }
 
   void SetBuiltinModule(bool value) { builtin_module_ = value; }
@@ -299,6 +318,7 @@ class Bindings {
  private:
   Bindings* parent_;
   absl::flat_hash_map<std::string, BoundNode> local_bindings_;
+  absl::flat_hash_map<std::string, const NameDef*> parametric_bindings_;
 
   // Indicates that these bindings were created for a function scope -- this
   // helps us track properties that should be unique at function scope.

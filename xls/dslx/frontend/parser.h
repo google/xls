@@ -341,6 +341,9 @@ class Parser : public TokenParser {
   // As above, but does not add the parsed identifier to any set of bindings.
   absl::StatusOr<NameDef*> ParseNameDefNoBind();
 
+  absl::Status CheckForParametricShadowing(const NameDef* name_def,
+                                           const Bindings& bindings) const;
+
   // Parses a name definition and adds it to the given set of bindings.
   //
   // Wrapper around `ParseNameDefNoBind` above.
