@@ -79,6 +79,7 @@ sh_test(
     name = "benchmark_main_test",
     srcs = ["benchmark_main_test.sh"],
     data = [
+        ":benchmark_main",
         "//xls/examples:proc_network_opt_ir_benchmark",
     ],
 )

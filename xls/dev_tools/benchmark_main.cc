@@ -285,7 +285,7 @@ absl::Status PrintTotalDelay(FunctionBase* f,
 
 absl::Status PrintTotalArea(FunctionBase* f,
                             const AreaEstimator& area_estimator) {
-  int64_t total_area = 0;
+  double total_area = 0.0;
   for (Node* node : f->nodes()) {
     XLS_ASSIGN_OR_RETURN(double op_area,
                          area_estimator.GetOperationAreaInSquareMicrons(node));
