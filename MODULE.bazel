@@ -9,7 +9,7 @@ bazel_dep(name = "llvm", version = "0.8.21", dev_dependency = True)
 register_toolchains("@llvm//toolchain:all")
 
 # Python toolchain
-bazel_dep(name = "rules_python", version = "1.9.0")
+bazel_dep(name = "rules_python", version = "2.3.2")
 
 PYTHON_VERSION = "3.14"
 
