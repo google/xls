@@ -22,8 +22,10 @@
 #include <utility>
 #include <vector>
 
+#include "absl/algorithm/container.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/ascii.h"
 #include "absl/strings/numbers.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_replace.h"
@@ -52,6 +54,22 @@ static absl::StatusOr<Bits> ParseUnsignedNumberHelper(
   }
 
   if (format == FormatPreference::kUnsignedDecimal) {
+    // Fast path: the overwhelmingly common case is a short, plain decimal
+    // number (node ids, source locations, bit widths, small literals). Parsing
+    // these a digit at a time with arbitrary-precision `Bits` arithmetic is
+    // ~100x slower than native parsing and dominates IR parsing time on large
+    // packages. The all-digits check keeps this exactly as strict as the
+    // general path below (`SimpleAtoi` alone would also accept surrounding
+    // whitespace and a sign); once that holds, `SimpleAtoi` can only fail
+    // because the value does not fit in 64 bits, in which case we fall back to
+    // the general path. Invalid input also falls through so that the general
+    // path produces the error.
+    if (uint64_t value; absl::c_all_of(numeric_string, absl::ascii_isdigit) &&
+                        absl::SimpleAtoi(numeric_string, &value)) {
+      // Matches the general path, which narrows to the minimum width (zero is
+      // represented as a zero-width value).
+      return UBits(value, Bits::MinBitCountUnsigned(value));
+    }
     Bits result(UBits(0, 32));
     Bits bits_10(UBits(10, 8));
     for (int i = 0; i < numeric_string.size(); i++) {
