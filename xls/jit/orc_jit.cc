@@ -120,7 +120,12 @@ OrcJit::OrcJit(int64_t opt_level, bool include_msan,
       execution_session_(std::make_unique<UnsupportedExecutorProcessControl>()),
       object_layer_(execution_session_,
                     [](const llvm::MemoryBuffer&) {
-                      return std::make_unique<llvm::SectionMemoryManager>();
+                      // Keep .text, .rodata, and .got contiguous so AArch64
+                      // ADRP (+/-4 GiB) relocations cannot overflow and be
+                      // silently truncated (RuntimeDyldELF assert compiled out
+                      // under NDEBUG).
+                      return std::make_unique<llvm::SectionMemoryManager>(
+                          /*UnownedMM=*/nullptr, /*ReserveAlloc=*/true);
                     }),
       dylib_(execution_session_.createBareJITDylib("main")) {}
 
