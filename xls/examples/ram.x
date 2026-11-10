@@ -107,8 +107,7 @@ fn write_word<DATA_WIDTH: u32, NUM_PARTITIONS: u32>
     let expanded_mask = expand_mask<DATA_WIDTH>(mask);
     let new_word = (mem_word & !expanded_mask) | (write_value & expanded_mask);
     let new_initialization =
-        for (idx, partial_initialization): (u32, bool[NUM_PARTITIONS]) in
-            u32:0..NUM_PARTITIONS {
+        for (idx, partial_initialization): (u32, bool[NUM_PARTITIONS]) in u32:0..NUM_PARTITIONS {
             if mask[idx+:bool] {
                 update(partial_initialization, idx, true)
             } else {
@@ -489,8 +488,8 @@ u32 = {
     resp_chan: chan<RWRamResp<DATA_WIDTH>> out;
     wr_comp_chan: chan<()> out;
 
-    config(req: chan<RWRamReq<ADDR_WIDTH, DATA_WIDTH>> in,
-           resp: chan<RWRamResp<DATA_WIDTH>> out, wr_comp: chan<()> out) {
+    config(req: chan<RWRamReq<ADDR_WIDTH, DATA_WIDTH>> in, resp: chan<RWRamResp<DATA_WIDTH>> out,
+           wr_comp: chan<()> out) {
         (req, resp, wr_comp)
     }
 
@@ -589,9 +588,8 @@ u32 = {
     wr_comp_chan0: chan<()> out;
     wr_comp_chan1: chan<()> out;
 
-    config(req0: chan<RWRamReq<ADDR_WIDTH, DATA_WIDTH>> in,
-           resp0: chan<RWRamResp<DATA_WIDTH>> out, wr_comp0: chan<()> out,
-           req1: chan<RWRamReq<ADDR_WIDTH, DATA_WIDTH>> in,
+    config(req0: chan<RWRamReq<ADDR_WIDTH, DATA_WIDTH>> in, resp0: chan<RWRamResp<DATA_WIDTH>> out,
+           wr_comp0: chan<()> out, req1: chan<RWRamReq<ADDR_WIDTH, DATA_WIDTH>> in,
            resp1: chan<RWRamResp<DATA_WIDTH>> out, wr_comp1: chan<()> out) {
         (req0, req1, resp0, resp1, wr_comp0, wr_comp1)
     }
@@ -599,10 +597,10 @@ u32 = {
     init { bits[DATA_WIDTH][SIZE]:[bits[DATA_WIDTH]:0, ...] }
 
     next(state: bits[DATA_WIDTH][SIZE]) {
-        let (tok0, request0, valid0) = recv_non_blocking(
-            join(), req_chan0, zero!<RWRamReq<ADDR_WIDTH, DATA_WIDTH>>());
-        let (tok1, request1, valid1) = recv_non_blocking(
-            join(), req_chan1, zero!<RWRamReq<ADDR_WIDTH, DATA_WIDTH>>());
+        let (tok0, request0, valid0) =
+            recv_non_blocking(join(), req_chan0, zero!<RWRamReq<ADDR_WIDTH, DATA_WIDTH>>());
+        let (tok1, request1, valid1) =
+            recv_non_blocking(join(), req_chan1, zero!<RWRamReq<ADDR_WIDTH, DATA_WIDTH>>());
         let fatal_hazard = valid0 && valid1 && request0.addr == request1.addr &&
                            match SIMULTANEOUS_READ_WRITE_BEHAVIOR {
                                SimultaneousReadWriteBehavior::ASSERT_NO_CONFLICT =>

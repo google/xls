@@ -19,18 +19,19 @@ import xls.examples.parameterized.parameters;
 
 type DesignParameters = parameters::DesignParameters;
 
-fn add<INPUT_WIDTH: u32, OUTPUT_WIDTH: u32>(x: uN[INPUT_WIDTH], y: uN[INPUT_WIDTH]) -> uN[OUTPUT_WIDTH] {
+fn add<INPUT_WIDTH: u32, OUTPUT_WIDTH: u32>
+    (x: uN[INPUT_WIDTH], y: uN[INPUT_WIDTH]) -> uN[OUTPUT_WIDTH] {
     let lhs = x as uN[OUTPUT_WIDTH];
     let rhs = y as uN[OUTPUT_WIDTH];
     lhs + rhs
 }
 
 fn design_top(x: u64, y: u64) -> u64 {
-  let variant: DesignParameters = parameters::PARAMETERS.variant[0];
-  let variant_input_width: u32 = variant.input_width;
-  let variant_output_width: u32 = variant.output_width;
-  let arg_x = x as uN[variant_input_width];
-  let arg_y = y as uN[variant_input_width];
+    let variant: DesignParameters = parameters::PARAMETERS.variant[0];
+    let variant_input_width: u32 = variant.input_width;
+    let variant_output_width: u32 = variant.output_width;
+    let arg_x = x as uN[variant_input_width];
+    let arg_y = y as uN[variant_input_width];
 
-  add<variant_input_width, variant_output_width>(arg_x, arg_y) as u64
+    add<variant_input_width, variant_output_width>(arg_x, arg_y) as u64
 }

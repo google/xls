@@ -1,4 +1,3 @@
-
 // Copyright 2020 The XLS Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -67,20 +66,20 @@ fn sha256_chunk(chunk: bits[512], digest_init: Digest) -> Digest {
     ];
 
     // Compute the digest using the "w" table over 64 "rounds".
-    let (a, b, c, d, e, f, g, h): Digest = for (i, (a, b, c, d, e, f, g, h)): (u32, Digest) in
-        u32:0..u32:64 {
-        let S1 = std::rotr(e, u32:6) ^ std::rotr(e, u32:11) ^ std::rotr(e, u32:25);
-        let ch = (e & f) ^ ((!e) & g);
-        let temp1 = h + S1 + ch + K[i] + w[i];
-        let S0 = std::rotr(a, u32:2) ^ std::rotr(a, u32:13) ^ std::rotr(a, u32:22);
-        let maj = (a & b) ^ (a & c) ^ (b & c);
-        let temp2 = S0 + maj;
-        let (h, g, f) = (g, f, e);
-        let e = d + temp1;
-        let (d, c, b) = (c, b, a);
-        let a = temp1 + temp2;
-        (a, b, c, d, e, f, g, h)
-    }(digest_init);
+    let (a, b, c, d, e, f, g, h): Digest =
+        for (i, (a, b, c, d, e, f, g, h)): (u32, Digest) in u32:0..u32:64 {
+            let S1 = std::rotr(e, u32:6) ^ std::rotr(e, u32:11) ^ std::rotr(e, u32:25);
+            let ch = (e & f) ^ ((!e) & g);
+            let temp1 = h + S1 + ch + K[i] + w[i];
+            let S0 = std::rotr(a, u32:2) ^ std::rotr(a, u32:13) ^ std::rotr(a, u32:22);
+            let maj = (a & b) ^ (a & c) ^ (b & c);
+            let temp2 = S0 + maj;
+            let (h, g, f) = (g, f, e);
+            let e = d + temp1;
+            let (d, c, b) = (c, b, a);
+            let a = temp1 + temp2;
+            (a, b, c, d, e, f, g, h)
+        }(digest_init);
 
     // The new digest mixes together values from the original digest with the
     // derived values (a, b, c, ...) we've computed.

@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-
 // This floating point adder splits the computation into two parallel paths
 // for lower latency. Code based on papers by P.M. Seidel and G. Even:
 //   * "On the design of fast IEEE floating-point adders" (2001)
@@ -37,8 +36,8 @@ import apfloat;
 // Given two numbers a, b, returns (a + b) and incremented sum (a + b + 1)
 fn compound_adder<WIDTH: u32>(a: uN[WIDTH], b: uN[WIDTH]) -> (uN[WIDTH], uN[WIDTH]) {
     // TODO(hzeller): 2023-10-15 use an efficient implementation if synthesis
-  // tool can't deduce this.
-  (a + b, a + b + uN[WIDTH]:1)
+    // tool can't deduce this.
+    (a + b, a + b + uN[WIDTH]:1)
 }
 
 #[test]
@@ -81,16 +80,18 @@ fn sign_magnitude_difference_test() {
     // Exhaustive for u2
     for (left, _): (u2, ()) in u2:0..u2:3 {
         for (right, _): (u2, ()) in u2:0..u2:3 {
-            assert_eq(sign_magnitude_difference(left, right),
-                      ((right >= left), if right >= left { right - left } else { left - right }));
+            assert_eq(
+                sign_magnitude_difference(left, right),
+                ((right >= left), if right >= left { right - left } else { left - right }));
         }(());
     }(());
 
     // Exhaustive for u8
     for (left, _): (u8, ()) in u8:0..u8:255 {
         for (right, _): (u8, ()) in u8:0..u8:255 {
-            assert_eq(sign_magnitude_difference(left, right),
-                      ((right >= left), if right >= left { right - left } else { left - right }));
+            assert_eq(
+                sign_magnitude_difference(left, right),
+                ((right >= left), if right >= left { right - left } else { left - right }));
         }(());
     }(());
 
@@ -111,10 +112,8 @@ struct ZeroAnticipatorPrediction<SHIFT_WIDTH: u32> {
 // This can run in parallel to actually doing the difference
 // TODO(hzeller): 2023-10-20 actually do this in parallel, for now, do that sequentially
 //                and re-do the difference here to then call clz() on it.
-fn leading_zero_anticipator<WIDTH: u32,
-                            SHIFT_WIDTH: u32 = {std::clog2(WIDTH)}>(minuend: uN[WIDTH],
-                                                                    subtrahend: uN[WIDTH])
-    -> ZeroAnticipatorPrediction<SHIFT_WIDTH> {
+fn leading_zero_anticipator<WIDTH: u32, SHIFT_WIDTH: u32 = {std::clog2(WIDTH)}>
+    (minuend: uN[WIDTH], subtrahend: uN[WIDTH]) -> ZeroAnticipatorPrediction<SHIFT_WIDTH> {
     // TODO(hzeller): this should be calculated with the leading zero anticipator in parallel.
     // (Easier to implement after https://github.com/google/xls/issues/510  done)
     // For now: count zeroes after difference has arrived.
@@ -123,25 +122,32 @@ fn leading_zero_anticipator<WIDTH: u32,
     ZeroAnticipatorPrediction {
         quasinormalization_shift: clz(difference) as uN[SHIFT_WIDTH],
         is_nonzero: difference != uN[WIDTH]:0,
-        needs_correction: false  // Our pretend zero anticipator is always right.
+        needs_correction: false,
+        // Our pretend zero anticipator is always right.
     }
 }
 
 #[test]
 fn leading_zero_anticipator_test() {
-    assert_eq(ZeroAnticipatorPrediction {
-                  quasinormalization_shift: u4:5, is_nonzero: true, needs_correction: false
-    }, leading_zero_anticipator(u12:0x0ff, u12:0x08f));
-    assert_eq(ZeroAnticipatorPrediction {
-        quasinormalization_shift: u4:12, is_nonzero: false, needs_correction: false
-    }, leading_zero_anticipator(u12:0x0ff, u12:0x0ff));
+    assert_eq(
+        ZeroAnticipatorPrediction {
+            quasinormalization_shift: u4:5,
+            is_nonzero: true,
+            needs_correction: false,
+        }, leading_zero_anticipator(u12:0x0ff, u12:0x08f));
+    assert_eq(
+        ZeroAnticipatorPrediction {
+            quasinormalization_shift: u4:12,
+            is_nonzero: false,
+            needs_correction: false,
+        }, leading_zero_anticipator(u12:0x0ff, u12:0x0ff));
 }
 
 // The N-path: effective subtraction, with exponent difference {-1, 0, +1}.
 // This can result in a large cancellation.
-fn n_path<EXP_SZ: u32, FRACTION_SZ: u32>(a: apfloat::APFloat<EXP_SZ, FRACTION_SZ>,
-                                         b: apfloat::APFloat<EXP_SZ, FRACTION_SZ>)
-                                         -> (apfloat::APFloat<EXP_SZ, FRACTION_SZ>, bool) {
+fn n_path<EXP_SZ: u32, FRACTION_SZ: u32>
+    (a: apfloat::APFloat<EXP_SZ, FRACTION_SZ>, b: apfloat::APFloat<EXP_SZ, FRACTION_SZ>)
+    -> (apfloat::APFloat<EXP_SZ, FRACTION_SZ>, bool) {
     // We assume to be in the near path with exponents difference in {-1, 0, +1}
     // So we only have to look at the last two bits
     // TODO(hzeller): 2023-10-21 would using 1's complement improve speed ?
@@ -174,8 +180,8 @@ fn n_path<EXP_SZ: u32, FRACTION_SZ: u32>(a: apfloat::APFloat<EXP_SZ, FRACTION_SZ
     };
 
     // The difference uses two bits more than our significand (or FRACTION_SZ + 3)
-    let (diff_sign, diff_magnitude) = sign_magnitude_difference(minuend_significand,
-                                                                 subtrahend_significand);
+    let (diff_sign, diff_magnitude) =
+        sign_magnitude_difference(minuend_significand, subtrahend_significand);
 
     // Predict leading zeroes
     let lz_prediction = leading_zero_anticipator(minuend_significand, subtrahend_significand);
@@ -193,7 +199,7 @@ fn n_path<EXP_SZ: u32, FRACTION_SZ: u32>(a: apfloat::APFloat<EXP_SZ, FRACTION_SZ
         uN[EXP_SZ]:0
     } else {
         minuend_exponent - lz_prediction.quasinormalization_shift as uN[EXP_SZ] -
-            lz_prediction.needs_correction as uN[EXP_SZ]
+        lz_prediction.needs_correction as uN[EXP_SZ]
     };
 
     let use_far_path = !diff_sign && diff_magnitude[-1:];
@@ -316,9 +322,9 @@ fn n_path_test() {
 
 fn r_exponent_differencer
     <EXP_SZ: u32, FRACTION_SZ: u32,
-     SIGNIFICAND_WIDTH: u32              = {u32:1 + FRACTION_SZ},  // + hidden bit
+     SIGNIFICAND_WIDTH: u32 = {u32:1 + FRACTION_SZ}, // + hidden bit
      LARGEST_MEANINGFUL_SHIFT_WIDTH: u32 = {std::clog2(SIGNIFICAND_WIDTH + u32:1)},
-     UPPER_EXPONENT_WIDTH: u32           = {EXP_SZ - LARGEST_MEANINGFUL_SHIFT_WIDTH}>
+     UPPER_EXPONENT_WIDTH: u32 = {EXP_SZ - LARGEST_MEANINGFUL_SHIFT_WIDTH}>
     (a: apfloat::APFloat<EXP_SZ, FRACTION_SZ>, b: apfloat::APFloat<EXP_SZ, FRACTION_SZ>)
     -> (bool, uN[UPPER_EXPONENT_WIDTH], uN[LARGEST_MEANINGFUL_SHIFT_WIDTH], bool) {
     type ShiftableExponent = uN[LARGEST_MEANINGFUL_SHIFT_WIDTH];
@@ -326,8 +332,8 @@ fn r_exponent_differencer
 
     let (is_negative, difference) = sign_magnitude_difference(a.bexp, b.bexp);
     // Split into upper and lower half
-    let (upper, lower) = (difference[-UPPER_EXPONENT_WIDTH as s32:],
-                          difference[:-UPPER_EXPONENT_WIDTH as s32]);
+    let (upper, lower) =
+        (difference[-UPPER_EXPONENT_WIDTH as s32:], difference[:-UPPER_EXPONENT_WIDTH as s32]);
     let use_far = or_reduce(difference[1:]);
 
     (is_negative, upper, lower, use_far)
@@ -350,9 +356,9 @@ fn r_exponent_differencer_test() {
 
 // R path works on all places where large cancellation can not occur: when the exponents
 // differ at least by 2 and both signs are the same.
-fn r_path<EXP_SZ: u32, FRACTION_SZ: u32>(a: apfloat::APFloat<EXP_SZ, FRACTION_SZ>,
-                                         b: apfloat::APFloat<EXP_SZ, FRACTION_SZ>)
-                                         -> (apfloat::APFloat<EXP_SZ, FRACTION_SZ>, bool) {
+fn r_path<EXP_SZ: u32, FRACTION_SZ: u32>
+    (a: apfloat::APFloat<EXP_SZ, FRACTION_SZ>, b: apfloat::APFloat<EXP_SZ, FRACTION_SZ>)
+    -> (apfloat::APFloat<EXP_SZ, FRACTION_SZ>, bool) {
     const _SIGNIFICAND_WIDTH = FRACTION_SZ + u32:1;
 
     let (exp_diff_sign, up_diff, med_shift, use_far) = r_exponent_differencer(a, b);
@@ -378,11 +384,8 @@ fn r_path<EXP_SZ: u32, FRACTION_SZ: u32>(a: apfloat::APFloat<EXP_SZ, FRACTION_SZ
     } else {
         (u1:0b0 ++ signed_a_significand ++ u1:0b0, u2:0b00 ++ signed_a_significand)
     };
-    let preshifted_signed_smaller_significand = if exp_diff_sign {
-        preshifted_signed_a
-    } else {
-        preshifted_signed_b
-    };
+    let preshifted_signed_smaller_significand =
+        if exp_diff_sign { preshifted_signed_a } else { preshifted_signed_b };
 
     const LARGEST_ALIGNMENT_SHIFT = (u32:1 << std::clog2(FRACTION_SZ + u32:2)) - u32:1;
     const ALIGNED_SIGNIFICAND_FRACTION_BITS = LARGEST_ALIGNMENT_SHIFT + FRACTION_SZ;
@@ -390,21 +393,16 @@ fn r_path<EXP_SZ: u32, FRACTION_SZ: u32>(a: apfloat::APFloat<EXP_SZ, FRACTION_SZ
     type PaddedAlignedSignificand = sN[ALIGNED_SIGNIFICAND_FRACTION_BITS + u32:2];
     type AlignedSignificandWithRounding = uN[ALIGNED_SIGNIFICAND_FRACTION_BITS + u32:1];
 
-    let _signed_small_significand = if exp_diff_sign {
-        signed_b_significand
-    } else {
-        signed_a_significand
-    };
+    let _signed_small_significand =
+        if exp_diff_sign { signed_b_significand } else { signed_a_significand };
     let top_part_bits = uN[LARGEST_ALIGNMENT_SHIFT]:0;
     let top_part = if effective_subtraction { !top_part_bits } else { top_part_bits };
     let max_shift_aligned_small_significand = top_part ++ signed_a_significand;
 
     let padding_bits = uN[LARGEST_ALIGNMENT_SHIFT - u32:2]:0;
     let sign_adjusted_padding = if effective_subtraction { !padding_bits } else { padding_bits };
-    let padded_signed_small_significand:PaddedAlignedSignificand =
-        std::to_signed(effective_subtraction ++
-                       preshifted_signed_smaller_significand ++
-                       sign_adjusted_padding);
+    let padded_signed_small_significand: PaddedAlignedSignificand = std::to_signed(
+        effective_subtraction ++ preshifted_signed_smaller_significand ++ sign_adjusted_padding);
     let medium_shift_aligned_signed_small_significand =
         (padded_signed_small_significand >> med_shift) as AlignedSignificandWithRounding;
     let _aligned_signed_small_significand = if exponent_difference_is_big {
@@ -414,11 +412,8 @@ fn r_path<EXP_SZ: u32, FRACTION_SZ: u32>(a: apfloat::APFloat<EXP_SZ, FRACTION_SZ
     };
 
     let larger_significand = if exp_diff_sign { b_significand } else { a_significand };
-    let _preshifted_larger_significand = if effective_subtraction {
-        larger_significand ++ u1:0
-    } else {
-        u1:0 ++ larger_significand
-    };
+    let _preshifted_larger_significand =
+        if effective_subtraction { larger_significand ++ u1:0 } else { u1:0 ++ larger_significand };
 
     // Under the assumptions of the R-Path, we also know the sign of the larger input is
     // the sign of the output
@@ -461,11 +456,11 @@ fn r_path_test() {
     assert_eq(r_path(a, b), (expected, true));
 }
 
-pub fn add_seidel_even<EXP_SZ: u32, FRACTION_SZ: u32>(x: apfloat::APFloat<EXP_SZ, FRACTION_SZ>,
-                                                      y: apfloat::APFloat<EXP_SZ, FRACTION_SZ>)
-                                                      -> apfloat::APFloat<EXP_SZ, FRACTION_SZ> {
+pub fn add_seidel_even<EXP_SZ: u32, FRACTION_SZ: u32>
+    (x: apfloat::APFloat<EXP_SZ, FRACTION_SZ>, y: apfloat::APFloat<EXP_SZ, FRACTION_SZ>)
+    -> apfloat::APFloat<EXP_SZ, FRACTION_SZ> {
     let (near_result, near_says_use_far) = n_path(x, y);  // exponent -1..+1 delta; different sign.
-    let (far_result, far_says_use_far) = r_path(x, y);    // everything else
+    let (far_result, far_says_use_far) = r_path(x, y);  // everything else
 
     // Near and far path have been executed in parallel, now choose the result.
     let use_far_result = (x.sign == y.sign) || near_says_use_far || far_says_use_far;
@@ -512,7 +507,7 @@ fn add_seidel_even_test() {
 }
 
 // Simple top for evaluations
-pub fn float32_top(a: apfloat::APFloat<8, 23>, b: apfloat::APFloat<8, 23>)
-                   -> apfloat::APFloat<8, 23> {
+pub fn float32_top
+    (a: apfloat::APFloat<8, 23>, b: apfloat::APFloat<8, 23>) -> apfloat::APFloat<8, 23> {
     add_seidel_even(a, b)
 }

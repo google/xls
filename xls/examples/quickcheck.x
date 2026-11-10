@@ -1,4 +1,3 @@
-
 // Copyright 2022 The XLS Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -17,19 +16,15 @@
 
 // Reversing a value twice gets you the original value.
 #[quickcheck(test_count=50000)]
-fn prop_double_reverse(x: u32) -> bool {
-  x == rev(rev(x))
-}
+fn prop_double_reverse(x: u32) -> bool { x == rev(rev(x)) }
 
 // From https://github.com/google/xls/issues/84
 // Array concatenation is not commutative.
 #[quickcheck]
 fn prop_array_comparison_commutative(xs: u32[2], ys: u32[2]) -> bool {
-  (xs == ys) || ((xs ++ ys) != (ys ++ xs))
+    (xs == ys) || ((xs ++ ys) != (ys ++ xs))
 }
 
 // x + y != x unless y is zero.
 #[quickcheck]
-fn prop_addition_not_equal_unless_identity(x: u32, y: u32) -> bool {
-  y == u32:0 || x + y != x
-}
+fn prop_addition_not_equal_unless_identity(x: u32, y: u32) -> bool { y == u32:0 || x + y != x }

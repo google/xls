@@ -1,4 +1,3 @@
-
 // Copyright 2022 The XLS Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,15 +14,15 @@
 
 // Returns the add result, widened to reflect the carry bit.
 fn tiny_adder(x: u1, y: u1) -> u2 {
-  let lhs = x as u2;
-  let rhs = y as u2;
-  lhs + rhs
+    let lhs = x as u2;
+    let rhs = y as u2;
+    lhs + rhs
 }
 
 #[test]
 fn test_exhaustive() {
-  assert_eq(tiny_adder(u1:0, u1:0), u2:0b00);
-  assert_eq(tiny_adder(u1:0, u1:1), u2:0b01);
-  assert_eq(tiny_adder(u1:1, u1:1), u2:0b10);
-  assert_eq(tiny_adder(u1:1, u1:0), u2:0b01);
+    assert_eq(tiny_adder(u1:0, u1:0), u2:0b00);
+    assert_eq(tiny_adder(u1:0, u1:1), u2:0b01);
+    assert_eq(tiny_adder(u1:1, u1:1), u2:0b10);
+    assert_eq(tiny_adder(u1:1, u1:0), u2:0b01);
 }

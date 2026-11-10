@@ -16,17 +16,16 @@
 // find_index standard library function. This will be used as a synthesis
 // flow example to determine how well the gate-level mapping is performed.
 
-
 import std;
 
 fn find_index(x: u4[4], target: u4) -> (bool, u2) {
-  let (found, index) = std::find_index(x, target);
-  (found, index as u2)
+    let (found, index) = std::find_index(x, target);
+    (found, index as u2)
 }
 
 #[test]
 fn test_sample_values() {
-  assert_eq(find_index(u4[4]:[1, 2, 3, 4], u4:1), (true, u2:0));
-  assert_eq(find_index(u4[4]:[1, 2, 3, 4], u4:3), (true, u2:2));
-  assert_eq(find_index(u4[4]:[1, 2, 3, 4], u4:5), (false, u2:0));
+    assert_eq(find_index(u4[4]:[1, 2, 3, 4], u4:1), (true, u2:0));
+    assert_eq(find_index(u4[4]:[1, 2, 3, 4], u4:3), (true, u2:2));
+    assert_eq(find_index(u4[4]:[1, 2, 3, 4], u4:5), (false, u2:0));
 }
