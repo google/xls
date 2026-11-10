@@ -1714,9 +1714,9 @@ TEST(XlsCApiTest, DslxInspectTypeRefTypeAnnotation) {
       tempdir_path / "my_imported_module.x";
   XLS_ASSERT_OK(xls::SetFileContents(module_path, kImported));
 
-  const char kProgram[] = R"(import my_imported_module;
+  const char kProgram[] = R"(import my_imported_module as dep;
 
-type MyTypeAlias = my_imported_module::SomeType;
+type MyTypeAlias = dep::SomeType;
 type MyOtherTypeAlias = MyTypeAlias;
 )";
   const char* additional_search_paths[] = {tempdir_path.c_str()};
@@ -1766,7 +1766,18 @@ type MyOtherTypeAlias = MyTypeAlias;
         xls_dslx_type_definition_get_colon_ref(type_definition);
     xls_dslx_import* import_subject =
         xls_dslx_colon_ref_resolve_import_subject(colon_ref);
-    EXPECT_NE(import_subject, nullptr);
+    ASSERT_NE(import_subject, nullptr);
+    xls_dslx_type_info* type_info =
+        xls_dslx_typechecked_module_get_type_info(tm);
+    xls_dslx_module* imported_module =
+        xls_dslx_type_info_get_imported_module(type_info, import_subject);
+    ASSERT_NE(imported_module, nullptr);
+    char* module_name = xls_dslx_module_get_name(imported_module);
+    absl::Cleanup free_module_name([=] { xls_c_str_free(module_name); });
+    EXPECT_EQ(std::string_view{module_name}, "my_imported_module");
+    xls_dslx_type_info* imported_info =
+        xls_dslx_type_info_get_imported_type_info(type_info, imported_module);
+    EXPECT_NE(imported_info, nullptr);
 
     char* attr = xls_dslx_colon_ref_get_attr(colon_ref);
     absl::Cleanup free_attr([=] { xls_c_str_free(attr); });

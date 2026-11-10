@@ -247,6 +247,11 @@ struct xls_dslx_module* xls_dslx_typechecked_module_get_module(
 struct xls_dslx_type_info* xls_dslx_typechecked_module_get_type_info(
     struct xls_dslx_typechecked_module*);
 
+// Returns the borrowed module resolved for this import, or nullptr when the
+// given type info has no entry for that import.
+struct xls_dslx_module* xls_dslx_type_info_get_imported_module(
+    struct xls_dslx_type_info* type_info, struct xls_dslx_import* import);
+
 // Returns the imported TypeInfo associated with the given module if present
 // within the import graph rooted at `type_info`; otherwise returns nullptr.
 struct xls_dslx_type_info* xls_dslx_type_info_get_imported_type_info(
