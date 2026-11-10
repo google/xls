@@ -1589,6 +1589,23 @@ fn oob_width_slice() -> (u32, u32)[4] {
   }
 }
 
+TEST_F(BytecodeInterpreterTest, SignedOobWidthSlice) {
+  constexpr std::string_view kProgram = R"(
+fn add_to_slice(start: uN[65]) -> s8 {
+  let x = u32:0xffffffff;
+  x[start+:s8] + s8:1
+})";
+
+  const InterpValue one = InterpValue::MakeSBits(8, 1);
+  EXPECT_THAT(
+      Interpret(kProgram, "add_to_slice", {InterpValue::MakeUBits(65, 32)}),
+      IsOkAndHolds(one));
+  const InterpValue wide_start =
+      InterpValue::MakeUnsigned(Bits::PowerOfTwo(64, 65));
+  EXPECT_THAT(Interpret(kProgram, "add_to_slice", {wide_start}),
+              IsOkAndHolds(one));
+}
+
 TEST_F(BytecodeInterpreterTest, WidthSliceWithZext) {
   constexpr std::string_view kProgram = R"(
 fn width_slice() -> u32 {

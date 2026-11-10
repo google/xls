@@ -1608,7 +1608,7 @@ absl::Status BytecodeInterpreter::EvalWidthSlice(const Bytecode& bytecode) {
   XLS_ASSIGN_OR_RETURN(bool is_signed, bits_like->is_signed.GetAsBool());
   XLS_ASSIGN_OR_RETURN(int64_t width_value, bits_like->size.GetAsInt64());
 
-  InterpValue oob_value(InterpValue::MakeUBits(width_value, /*value=*/0));
+  InterpValue oob_value = InterpValue::MakeZeroValue(is_signed, width_value);
   XLS_ASSIGN_OR_RETURN(InterpValue start, Pop());
   if (!start.FitsInUint64()) {
     XLS_RETURN_IF_ERROR(Pop().status());
