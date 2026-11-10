@@ -77,7 +77,7 @@ class NetworkGraphBuilderImpl {
   // Memoizes mapping from proto naming of ports to PortIds.
   void MemoizePortNameToId(const std::string& name, PortId id);
 
-  // Retreives PortId given the proto naming of a port.
+  // Retrieves PortId given the proto naming of a port.
   absl::StatusOr<PortId> GetPortIdFromName(const std::string& name);
 
   // External reference to NetworkGraph that will be built.

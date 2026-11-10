@@ -110,18 +110,18 @@ class DistributedRoutingTable {
   // TODO(tedhong): 2020-01-25 Add indexer for input/output ports of a router
   //                          and support routing directly via indices.
 
-  // Returns mapping of vc params to local indicies.
+  // Returns mapping of vc params to local indices.
   const VirtualChannelIndexMap& GetVirtualChannelIndices() {
     return vc_indices_;
   }
 
-  // Returns mapping of ports to local indicies.
+  // Returns mapping of ports to local indices.
   const PortIndexMap& GetPortIndices() { return port_indices_; }
 
-  // Returns mapping of source network interfaces to indicies.
+  // Returns mapping of source network interfaces to indices.
   const NetworkComponentIndexMap& GetSourceIndices() { return source_indices_; }
 
-  // Returns mapping of sink network interfaces to indicies.
+  // Returns mapping of sink network interfaces to indices.
   const NetworkComponentIndexMap& GetSinkIndices() { return sink_indices_; }
 
   // Prints the routing table of the network. Used for debugging.
