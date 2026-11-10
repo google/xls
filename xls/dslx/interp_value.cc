@@ -1233,7 +1233,8 @@ absl::StatusOr<InterpValue> InterpValue::Concat(
 
 absl::StatusOr<InterpValue> InterpValue::Flatten() const {
   if (IsBits()) {
-    return *this;
+    XLS_ASSIGN_OR_RETURN(Bits bits, GetBits());
+    return MakeUnsigned(std::move(bits));
   }
   if (tag_ == InterpValueTag::kArray) {
     Bits accum;
@@ -1241,7 +1242,7 @@ absl::StatusOr<InterpValue> InterpValue::Flatten() const {
       XLS_ASSIGN_OR_RETURN(InterpValue flat, e.Flatten());
       accum = bits_ops::Concat({accum, flat.GetBitsOrDie()});
     }
-    return InterpValue(InterpValueTag::kUBits, accum);
+    return MakeUnsigned(std::move(accum));
   }
   return absl::InvalidArgumentError("Cannot flatten values with tag: " +
                                     TagToString(tag_));

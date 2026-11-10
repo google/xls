@@ -471,7 +471,11 @@ class InterpValue {
                                      const InterpValue& value) const;
   absl::StatusOr<InterpValue> Slice(const InterpValue& start,
                                     const InterpValue& length) const;
+
+  // Flattens bits or arrays of bits into unsigned bits. The first array
+  // element occupies the most significant bits.
   absl::StatusOr<InterpValue> Flatten() const;
+
   absl::StatusOr<InterpValue> Decode(int64_t new_bit_count) const;
   absl::StatusOr<InterpValue> Encode() const;
   absl::StatusOr<InterpValue> OneHot(bool lsb_prio) const;
