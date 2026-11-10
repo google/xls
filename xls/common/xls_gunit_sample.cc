@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include "benchmark/benchmark.h"
 #include "gtest/gtest.h"
 
 namespace {
@@ -19,5 +20,13 @@ namespace {
 TEST(XlsGunitSampleTest, SomeTestName) {
   // Success!
 }
+
+void BM_SampleBenchmark(benchmark::State& state) {
+  int x = 0;
+  for (auto _ : state) {
+    benchmark::DoNotOptimize(x);
+  }
+}
+BENCHMARK(BM_SampleBenchmark);
 
 }  // namespace

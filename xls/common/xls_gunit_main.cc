@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <cstdlib>
+
 #include "gtest/gtest.h"
 #include "fuzztest/init_fuzztest.h"
 #include "xls/common/benchmark_support.h"
@@ -20,7 +22,9 @@
 int main(int argc, char* argv[]) {
   xls::InitXlsForTest(argv[0], argc, argv);
   fuzztest::InitFuzzTest(&argc, &argv);
-  xls::RunSpecifiedBenchmarks();
+  if (xls::RunSpecifiedBenchmarks()) {
+    return EXIT_SUCCESS;
+  }
 
   return RUN_ALL_TESTS();
 }

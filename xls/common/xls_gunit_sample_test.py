@@ -43,6 +43,27 @@ class XlsGunitSampleTest(absltest.TestCase):
       print('Success: gunit_filter flag present', file=sys.stderr)
     self.assertIn('XlsGunitSampleTest.SomeTestName', output)
 
+  def test_default_runs_unit_tests_only(self):
+    xls_gunit_sample_path = runfiles.get_path('xls/common/xls_gunit_sample')
+    output = subprocess.check_output(
+        [xls_gunit_sample_path],
+        stderr=subprocess.STDOUT,
+        encoding='utf-8',
+    )
+    self.assertIn('XlsGunitSampleTest.SomeTestName', output)
+    self.assertNotIn('BM_SampleBenchmark', output)
+
+  def test_benchmark_filter_skips_unit_tests(self):
+    xls_gunit_sample_path = runfiles.get_path('xls/common/xls_gunit_sample')
+    output = subprocess.check_output(
+        [xls_gunit_sample_path, '--benchmark_filter=BM_SampleBenchmark'],
+        stderr=subprocess.STDOUT,
+        encoding='utf-8',
+    )
+    self.assertIn('BM_SampleBenchmark', output)
+    self.assertNotIn('XlsGunitSampleTest', output)
+    self.assertNotIn('[==========]', output)
+
 
 if __name__ == '__main__':
   absltest.main()

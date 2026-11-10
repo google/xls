@@ -22,7 +22,9 @@ namespace xls {
 
 // Helper to perform setup and execute benchmarks. Not a public API.
 // This should be called after parsing all flags and setting up googletest.
-void RunSpecifiedBenchmarks(
+// Returns true if a non-empty benchmark filter (or `default_spec`) was
+// specified and benchmarks were executed, or false otherwise.
+bool RunSpecifiedBenchmarks(
     std::optional<std::string> default_spec = std::nullopt);
 
 }  // namespace xls

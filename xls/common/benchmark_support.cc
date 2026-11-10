@@ -28,10 +28,10 @@ ABSL_FLAG(std::optional<std::string>, benchmark_filter, std::nullopt,
 
 namespace xls {
 
-void RunSpecifiedBenchmarks(std::optional<std::string> default_spec) {
+bool RunSpecifiedBenchmarks(std::optional<std::string> default_spec) {
   // Match BENCHMARK_MAIN macro definition of the benchmark MAIN function.
-  // We don't want to run benchmarks unless some are actually requested and we
-  // want to always run gtests so we can't use the standard BENCHMARK_MAIN
+  // We don't want to run benchmarks unless some are actually requested, falling
+  // back to gtests otherwise, so we can't use the standard BENCHMARK_MAIN
   // macro. This replicates the parts that configure benchmarks and run them
   // with our filters.
   int fake_argc = 1;
@@ -44,11 +44,13 @@ void RunSpecifiedBenchmarks(std::optional<std::string> default_spec) {
   if (!filter.has_value()) {
     filter = default_spec;
   }
-  if (filter.has_value()) {
+  bool ran_benchmarks = filter.has_value() && !filter->empty();
+  if (ran_benchmarks) {
     benchmark::SetBenchmarkFilter(*filter);
     benchmark::RunSpecifiedBenchmarks();
   }
   benchmark::Shutdown();
+  return ran_benchmarks;
 }
 
 }  // namespace xls

@@ -150,6 +150,7 @@ cc_test(
     srcs = ["xls_gunit_sample.cc"],
     deps = [
         ":xls_gunit_main",
+        "@google_benchmark//:benchmark",
         "@googletest//:gtest",
     ],
 )
