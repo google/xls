@@ -309,8 +309,13 @@ class BlockGenerator {
                                const CodegenOptions& options,
                                CodegenResidualData* output_residual_data) {
     // If reset is specified in the codegen options, it should match the reset
-    // behavior in the block.
-    if (options.reset().has_value()) {
+    // behavior in the block. Instantiated blocks without a reset port (e.g.,
+    // purely combinational blocks) have no behavior to match; the top block
+    // keeps the strict check.
+    const bool is_top_block = block->package()->GetTop().has_value() &&
+                              block->package()->GetTop().value() == block;
+    if (options.reset().has_value() &&
+        (is_top_block || block->GetResetPort().has_value())) {
       if (block->GetResetBehavior() != options.GetResetBehavior()) {
         return absl::InvalidArgumentError(absl::StrFormat(
             "Reset behavior specified in codegen options (%s) does not match "

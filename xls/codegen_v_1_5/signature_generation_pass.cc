@@ -68,11 +68,13 @@ absl::StatusOr<verilog::ModuleSignature> GenerateSignature(
   verilog::ModuleSignatureBuilder b(
       verilog::SanitizeVerilogIdentifier(block->name()));
 
-  // Optionally add clock and reset.
-  if (options.clock_name().has_value()) {
-    b.WithClock(options.clock_name().value());
+  // Optionally add clock and reset. Only add them when the block actually has
+  // the corresponding port; blocks without sequential logic may not (e.g.,
+  // after unused clock/reset removal).
+  if (options.clock_name().has_value() && block->GetClockPort().has_value()) {
+    b.WithClock(block->GetClockPort()->name);
   }
-  if (options.reset().has_value()) {
+  if (options.reset().has_value() && block->GetResetPort().has_value()) {
     b.WithReset(options.reset()->name(), options.reset()->asynchronous(),
                 options.reset()->active_low());
   }
@@ -87,7 +89,11 @@ absl::StatusOr<verilog::ModuleSignature> GenerateSignature(
         node->GetName() == options.reset()->name()) {
       return false;
     }
-    if (options.valid_control().has_value() &&
+    // Valid control ports are recorded in the pipeline control of the
+    // signature. A block without a clock port gets a combinational signature
+    // which has no pipeline control, so such ports stay data ports there.
+    if (block->GetClockPort().has_value() &&
+        options.valid_control().has_value() &&
         (node->GetName() == options.valid_control()->input_name() ||
          node->GetName() == options.valid_control()->output_name())) {
       return false;
@@ -235,8 +241,11 @@ absl::StatusOr<verilog::ModuleSignature> GenerateSignature(
   }
 
   VLOG(3) << absl::StreamFormat("Register levels = %d.", register_levels);
-  if (register_levels == 0 && options.generate_combinational()) {
-    // Block has no registers. The block is combinational.
+  if ((register_levels == 0 && options.generate_combinational()) ||
+      !block->GetClockPort().has_value()) {
+    // The block is combinational: it has no registers under the combinational
+    // generator, or it has no clock port at all (e.g., after unused
+    // clock/reset removal). A pipeline signature would require a clock.
     b.WithCombinationalInterface();
   } else {
     std::optional<verilog::PipelineControl> pipeline_control;
