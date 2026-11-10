@@ -108,9 +108,10 @@ absl::StatusOr<InterpValue> ResizeBitsValue(const InterpValue& from,
   if (is_checked) {
     bool does_fit = false;
 
-    if (!is_signed) {
+    // A zero-width target of either signedness can represent only zero.
+    if (!is_signed || to_bit_count == 0) {
       does_fit = !from.IsNegative() && from.FitsInNBitsUnsigned(to_bit_count);
-    } else if (is_signed && !from.IsNegative()) {
+    } else if (!from.IsNegative()) {
       does_fit = from.FitsInNBitsUnsigned(to_bit_count - 1);
     } else {  // to_bits->is_signed() && from.IsNegative()
       does_fit = from.FitsInNBitsSigned(to_bit_count);

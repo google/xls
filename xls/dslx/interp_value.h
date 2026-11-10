@@ -395,9 +395,7 @@ class InterpValue {
 
   bool IsFalse() const { return IsBool() && GetBitsOrDie().IsZero(); }
   bool IsTrue() const { return IsBool() && GetBitsOrDie().IsAllOnes(); }
-  bool IsNegative() const {
-    return IsSigned() && (GetBitsOrDie().GetFromMsb(0));
-  }
+  bool IsNegative() const { return IsSigned() && GetBitsOrDie().msb(); }
 
   bool IsSigned() const {
     CHECK(IsBits() || IsEnum());
