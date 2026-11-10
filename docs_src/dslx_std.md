@@ -803,14 +803,6 @@ which manually marked paths of a design are exercised in practice.
 The name of the cover property must begin with either a letter or underscore,
 and its remainder must consist of letters, digits, underscores, or dollar signs.
 
-Further coverage-related work is tracked in
-[google/xls#2139](https://github.com/google/xls/issues/2139) (DSLX interpreter
-code coverage reports),
-[google/xls#1126](https://github.com/google/xls/issues/1126) (collecting
-coverage in the interpreter/JIT), and
-[google/xls#499](https://github.com/google/xls/issues/499) (Cover op support in
-the JIT).
-
 ### `gate!`
 
 The `gate!` built-in is used for operand gating, with the signature:
