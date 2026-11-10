@@ -775,19 +775,30 @@ fn main(x: u32) -> u32 {
     [google/xls#436](https://github.com/google/xls/issues/436).
 
 The `cover!` built-in tracks how often some condition is satisfied. It desugars
-into SystemVerilog cover points. Its signature is:
+into a SystemVerilog `cover property` assertion. Its signature is:
 
 ```
 fn cover!<N: u32>(name: u8[N], condition: bool) -> ()
 ```
 
-Where `name` is a function-unique literal string identifying the coverpoint and
-`condition` is a boolean element. When `condition` is true, a counter with the
-given name is incremented that can be inspected upon program termination.
-Coverpoints can be used to give an indication of code "coverage", i.e., to see
-what paths of a design are exercised in practice. The name of the coverpoint
-must begin with either a letter or underscore, and its remainder must consist of
-letters, digits, underscores, or dollar signs.
+Where `name` is a function-unique literal string identifying the cover property
+and `condition` is a boolean element. When `condition` is true, a counter with
+the given name is incremented that can be inspected upon program termination.
+Cover properties can be used to give an indication of code "coverage", i.e., to
+see what paths of a design are exercised in practice. The name of the cover
+property must begin with either a letter or underscore, and its remainder must
+consist of letters, digits, underscores, or dollar signs.
+
+Note that the coverage `cover!` provides is assertion-based: it reports how
+often a specific condition you wrote down is satisfied, which is closer to
+[assertion-based coverage](https://chipverify.com/verification/assertion-coverage)
+than to fully instrumented
+[code coverage](https://chipverify.com/verification/code-coverage). Richer
+coverage modes (for example collecting coverage over a whole test run) are
+discussed in
+[google/xls#2139](https://github.com/google/xls/issues/2139),
+[google/xls#1126](https://github.com/google/xls/issues/1126) and
+[google/xls#499](https://github.com/google/xls/issues/499).
 
 ### `gate!`
 
