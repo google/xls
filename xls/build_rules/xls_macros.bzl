@@ -647,12 +647,18 @@ Examples:
     full_codegen_args.update(codegen_args)
     if "clock_period_ps" in full_codegen_args and full_codegen_args["clock_period_ps"] != "0":
         full_codegen_args.pop("pipeline_stages")
+    default_area_model = (
+        benchmark_ir_args.get("delay_model") or
+        codegen_args.get("delay_model") or
+        DEFAULT_BENCHMARK_SYNTH_AREA_MODEL
+    )
     codegen_args = full_codegen_args
 
     delay_model = codegen_args["delay_model"]
 
     full_benchmark_ir_args = dict(full_codegen_args)
     full_benchmark_ir_args.update(benchmark_ir_args)
+    full_benchmark_ir_args.setdefault("area_model", default_area_model)
 
     if standard_cells == None:
         # Use default standard cells for the given delay model.

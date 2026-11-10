@@ -411,6 +411,73 @@ xls_benchmark_ir(
     src = ":chaining_example_opt_ir",
 )
 
+sh_test(
+    name = "chaining_example_benchmark_ir_default_area_model_test",
+    srcs = ["has_arg.sh"],
+    args = [
+        "--area_model=",
+        "$(rootpath :chaining_example_benchmark_ir)",
+    ],
+    data = [":chaining_example_benchmark_ir"],
+)
+
+xls_benchmark_ir(
+    name = "chaining_example_sky130_benchmark_ir",
+    src = ":chaining_example_opt_ir",
+    benchmark_ir_args = {"delay_model": "sky130"},
+    synthesize = False,
+)
+
+sh_test(
+    name = "chaining_example_sky130_benchmark_ir_area_model_test",
+    srcs = ["has_arg.sh"],
+    args = [
+        "--area_model=sky130",
+        "$(rootpath :chaining_example_sky130_benchmark_ir)",
+    ],
+    data = [":chaining_example_sky130_benchmark_ir"],
+)
+
+xls_benchmark_ir(
+    name = "chaining_example_override_area_benchmark_ir",
+    src = ":chaining_example_opt_ir",
+    benchmark_ir_args = {
+        "area_model": "unit",
+        "delay_model": "sky130",
+    },
+    synthesize = False,
+)
+
+sh_test(
+    name = "chaining_example_override_area_benchmark_ir_test",
+    srcs = ["has_arg.sh"],
+    args = [
+        "--area_model=unit",
+        "$(rootpath :chaining_example_override_area_benchmark_ir)",
+    ],
+    data = [":chaining_example_override_area_benchmark_ir"],
+)
+
+xls_benchmark_ir(
+    name = "chaining_example_codegen_area_benchmark_ir",
+    src = ":chaining_example_opt_ir",
+    codegen_args = {
+        "area_model": "unit",
+        "delay_model": "sky130",
+    },
+    synthesize = False,
+)
+
+sh_test(
+    name = "chaining_example_codegen_area_benchmark_ir_test",
+    srcs = ["has_arg.sh"],
+    args = [
+        "--area_model=unit",
+        "$(rootpath :chaining_example_codegen_area_benchmark_ir)",
+    ],
+    data = [":chaining_example_codegen_area_benchmark_ir"],
+)
+
 ################################################################################
 # Extending the simple example with rule chaining.
 #
