@@ -18,6 +18,14 @@ fn cast_from_array(a: u2[3]) -> u6 { a as u6 }
 
 fn concat_arrays(a: u2[3], b: u2[3]) -> u2[6] { a ++ b }
 
+const WIDENED = ([u4:8, u4:3] as s8) as s16;
+
+const_assert!(WIDENED == s16:-125);
+
+const PACKED = [s4:-8, s4:-1] as u8;
+
+const_assert!(PACKED as u16 == u16:0x8f);
+
 #[test]
 fn cast_to_array_test() {
     let a_value: u6 = u6:0b011011;
