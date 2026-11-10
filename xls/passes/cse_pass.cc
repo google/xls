@@ -324,6 +324,7 @@ class CseNodeArena {
       case Op::kNext:
       case Op::kOutputPort:
       case Op::kParam:
+      case Op::kPeek:
       case Op::kReceive:
       case Op::kRecvChannelEnd:
       case Op::kRegisterRead:

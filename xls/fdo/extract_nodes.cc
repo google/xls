@@ -102,7 +102,7 @@ absl::StatusOr<std::unique_ptr<Package>> ExtractNodes(
     }
     // Hack to support viewing procs as functions.
     Node* new_node;
-    if (node->Is<Send>() || node->Is<Receive>()) {
+    if (node->Is<Send>() || node->Is<Receive>() || node->Is<Peek>()) {
       XLS_ASSIGN_OR_RETURN(
           Type * node_type,
           tmp_package->MapTypeFromOtherPackage(node->GetType()));

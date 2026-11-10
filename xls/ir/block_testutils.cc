@@ -136,6 +136,10 @@ class UnrollBlockVisitor final : public DfsVisitorWithDefault {
     return absl::FailedPreconditionError("Blocks cannot have next!");
   }
 
+  absl::Status HandlePeek(Peek* r) override {
+    return absl::FailedPreconditionError("Blocks cannot have peek!");
+  }
+
   absl::Status HandleReceive(Receive* r) override {
     return absl::FailedPreconditionError("Blocks cannot have recv!");
   }
