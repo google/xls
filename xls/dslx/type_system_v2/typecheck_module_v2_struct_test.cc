@@ -202,19 +202,23 @@ const Y = S{ x: X.x };
       TypecheckSucceeds(HasNodeWithType("Y", "S { x: uN[24] }")));
 }
 
-TEST(TypecheckV2StructTest, ForwardedStructParametricMustFitSignedType) {
-  for (const std::string width : {"u64", "uN[65]"}) {
-    SCOPED_TRACE(width);
-    const std::string declarations = R"(
+class ForwardedStructParametricTest
+    : public ::testing::TestWithParam<std::string> {};
+
+TEST_P(ForwardedStructParametricTest, MustFitSignedType) {
+  const std::string& width = GetParam();
+  const std::string declarations = R"(
 struct Inner<N: s3> {}
 struct Outer<M: )" + width + R"(> { inner: Inner<M> }
 )";
-    EXPECT_THAT(declarations + "const X = zero!<Outer<" + width + ":4>>();",
-                TypecheckFails(HasSizeMismatch("s4", "s3")));
-    XLS_EXPECT_OK(TypecheckV2(declarations + "const X = zero!<Outer<" + width +
-                              ":3>>();"));
-  }
+  EXPECT_THAT(declarations + "const X = zero!<Outer<" + width + ":4>>();",
+              TypecheckFails(HasSizeMismatch("s4", "s3")));
+  XLS_EXPECT_OK(
+      TypecheckV2(declarations + "const X = zero!<Outer<" + width + ":3>>();"));
 }
+
+INSTANTIATE_TEST_SUITE_P(SourceWidths, ForwardedStructParametricTest,
+                         ::testing::Values("u64", "uN[65]"));
 
 TEST(TypecheckV2StructTest, ForwardedStructParametricAbove64Bits) {
   EXPECT_THAT(R"(
