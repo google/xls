@@ -108,7 +108,8 @@ fuzztest::Domain<CodegenFlagsProto> CodegenFlagsDomain() {
                            {GeneratorKind::GENERATOR_KIND_PIPELINE,
                             GeneratorKind::GENERATOR_KIND_COMBINATIONAL}))
       // We don't set this field because we set "top" via the IR domain.
-      .WithFieldUnset("top");
+      .WithFieldUnset("top")
+      .WithFieldUnset("ir_dump_path");
 }
 
 fuzztest::Domain<SchedulingOptionsFlagsProto>
