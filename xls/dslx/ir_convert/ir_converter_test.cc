@@ -48,7 +48,9 @@
 #include "xls/dslx/run_routines/run_routines.h"
 #include "xls/dslx/type_system/typecheck_test_utils.h"
 #include "xls/ir/channel.h"
+#include "xls/ir/function.h"
 #include "xls/ir/ir_matcher.h"
+#include "xls/ir/package.h"
 #include "xls/ir/proc.h"
 
 namespace xls::dslx {
@@ -982,9 +984,18 @@ const MATCHED = match (1, false) {
 
 pub fn main() -> bool { MATCHED }
 )";
-  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
-                           ConvertOneFunctionForTest(program, "main"));
-  EXPECT_THAT(converted, HasSubstr("ret MATCHED: bits[1] = literal(value=1,"));
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(program, "test_module.x", "test_module", &import_data));
+  PackageConversionData conv{.package =
+                                 std::make_unique<Package>("test_module")};
+  XLS_ASSERT_OK(ConvertOneFunctionIntoPackage(tm.module, "main", &import_data,
+                                              /*parametric_env=*/nullptr,
+                                              ConvertOptions{}, &conv));
+  XLS_ASSERT_OK_AND_ASSIGN(xls::Function * main,
+                           conv.package->GetTopAsFunction());
+  EXPECT_THAT(main->return_value(), m::Literal(1, 1));
 }
 
 TEST_F(IrConverterTest, ModuleLevelConstantDims) {
