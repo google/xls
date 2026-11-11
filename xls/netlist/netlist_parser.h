@@ -733,7 +733,9 @@ absl::Status AbstractParser<EvalT>::ParseAssignDecl(
   // values.
   auto left = lhs.end();
   auto right = rhs.cend();
-  while (left-- != lhs.begin() && right-- != rhs.cbegin()) {
+  while (left != lhs.begin() && right != rhs.cbegin()) {
+    --left;
+    --right;
     if (*right == "0" || *right == "1") {
       bool bit = *right == "1";
       XLS_RETURN_IF_ERROR(module->AddAssignDecl(*left, bit));
