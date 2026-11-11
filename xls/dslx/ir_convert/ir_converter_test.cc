@@ -973,6 +973,20 @@ fn main(x0: u19, x3: u29) -> u29 {
   ExpectIr(converted);
 }
 
+TEST_F(IrConverterTest, ModuleConstantMatchInfersTupleLiteralWidth) {
+  constexpr std::string_view program = R"(
+const MATCHED = match (1, false) {
+  (u8:1, false) => true,
+  _ => false,
+};
+
+pub fn main() -> bool { MATCHED }
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
+                           ConvertOneFunctionForTest(program, "main"));
+  EXPECT_THAT(converted, HasSubstr("ret MATCHED: bits[1] = literal(value=1,"));
+}
+
 TEST_F(IrConverterTest, ModuleLevelConstantDims) {
   constexpr std::string_view program =
       R"(

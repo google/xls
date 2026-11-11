@@ -761,14 +761,24 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
     return table_.SetTypeAnnotation(node, any_type);
   }
 
-  // Preserve the shape of every tuple in the pattern. Leaves get their
-  // types from the matched value, and `..` can match any number of elements.
-  TupleTypeAnnotation* MakeTuplePatternAnnotation(const TuplePattern* node) {
+  // Preserve the shape of every tuple in the pattern and propagate numeric
+  // literal types to the matched value. `..` can match any number of elements.
+  absl::StatusOr<TupleTypeAnnotation*> MakeTuplePatternAnnotation(
+      const TuplePattern* node) {
     std::vector<TypeAnnotation*> member_types;
     member_types.reserve(node->members().size());
     for (const PatternTree& child : node->members()) {
       if (const auto* tuple = std::get_if<TuplePattern*>(&child)) {
-        member_types.push_back(MakeTuplePatternAnnotation(*tuple));
+        XLS_ASSIGN_OR_RETURN(TupleTypeAnnotation * member_type,
+                             MakeTuplePatternAnnotation(*tuple));
+        member_types.push_back(member_type);
+      } else if (const auto* number = std::get_if<Number*>(&child)) {
+        // HandleNumber records the literal's own type annotation. The type
+        // variable for this leaf also depends on the matched value's type.
+        std::optional<const TypeAnnotation*> literal_type =
+            table_.GetTypeAnnotation(*number);
+        XLS_RET_CHECK(literal_type.has_value());
+        member_types.push_back(const_cast<TypeAnnotation*>(*literal_type));
       } else {
         member_types.push_back(
             module_.Make<AnyTypeAnnotation>(IsRestOfTupleLeaf(child)));
@@ -781,10 +791,11 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
   absl::Status HandleTuplePattern(const TuplePattern* node) override {
     VLOG(5) << "HandleTuplePattern: " << node->ToString();
     const NameRef* variable = *table_.GetTypeVariable(node);
-    XLS_RETURN_IF_ERROR(
-        table_.SetTypeAnnotation(node, MakeTuplePatternAnnotation(node)));
-    return HandleTuplePatternChildren(
-        node, module_.Make<TypeVariableTypeAnnotation>(variable));
+    XLS_RETURN_IF_ERROR(HandleTuplePatternChildren(
+        node, module_.Make<TypeVariableTypeAnnotation>(variable)));
+    XLS_ASSIGN_OR_RETURN(TupleTypeAnnotation * annotation,
+                         MakeTuplePatternAnnotation(node));
+    return table_.SetTypeAnnotation(node, annotation);
   }
 
   // Handles all the children of `subtree`, with `type` being the type of
