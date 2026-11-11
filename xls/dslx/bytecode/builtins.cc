@@ -551,9 +551,14 @@ absl::Status RunBuiltinCover(const Bytecode& bytecode,
   VLOG(3) << "Executing builtin `cover!`";
   XLS_RET_CHECK_GE(stack.size(), 2);
 
-  XLS_ASSIGN_OR_RETURN(InterpValue string, stack.Pop());
   XLS_ASSIGN_OR_RETURN(InterpValue predicate, stack.Pop());
-  stack.Push(InterpValue::MakeToken());
+  XLS_ASSIGN_OR_RETURN(InterpValue label, stack.Pop());
+  XLS_RETURN_IF_ERROR(InterpValueAsString(label).status());
+  if (!predicate.IsBool()) {
+    return absl::InvalidArgumentError(absl::StrFormat(
+        "`cover!` condition must be u1/bool, got %s", predicate.ToString()));
+  }
+  stack.Push(InterpValue::MakeUnit());
 
   return absl::OkStatus();
 }

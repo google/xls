@@ -2252,6 +2252,38 @@ fn main() {
   EXPECT_TRUE(value.IsUnit());
 }
 
+TEST_F(BytecodeInterpreterTest, BuiltinCoverInFn) {
+  constexpr std::string_view kProgram = R"(
+fn main(cond: bool) -> () {
+  let () = cover!("first_label", cond);
+  cover!("second_label", !cond)
+}
+)";
+  EXPECT_THAT(Interpret(kProgram, "main", {InterpValue::MakeBool(true)}),
+              IsOkAndHolds(InterpValue::MakeUnit()));
+  EXPECT_THAT(Interpret(kProgram, "main", {InterpValue::MakeBool(false)}),
+              IsOkAndHolds(InterpValue::MakeUnit()));
+}
+
+TEST_F(BytecodeInterpreterTest, RunBuiltinCoverStackOrder) {
+  FileTable file_table;
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue label,
+                           InterpValue::MakeArray({InterpValue::MakeU8('o'),
+                                                   InterpValue::MakeU8('k')}));
+  Bytecode call_op(kFakeSpan, Bytecode::Op::kCall);
+
+  InterpreterStack valid_stack = InterpreterStack::CreateForTest(
+      file_table, {label, InterpValue::MakeBool(true)});
+  XLS_ASSERT_OK(RunBuiltinCover(call_op, valid_stack));
+  EXPECT_THAT(valid_stack.Pop(), IsOkAndHolds(InterpValue::MakeUnit()));
+  EXPECT_TRUE(valid_stack.empty());
+
+  InterpreterStack swapped_stack = InterpreterStack::CreateForTest(
+      file_table, {InterpValue::MakeBool(true), label});
+  EXPECT_THAT(RunBuiltinCover(call_op, swapped_stack),
+              StatusIs(absl::StatusCode::kInvalidArgument));
+}
+
 TEST_F(BytecodeInterpreterTest, AssertEqStructs) {
   constexpr std::string_view kProgram = R"(
 struct InnerStruct {
