@@ -42,6 +42,10 @@ using testing::Types;
 // chosen to avoid timeout with inordinately long fuzz test cases.
 static constexpr int64_t kMaxMulBytes = 100;
 
+// Maximum result width for Decode fuzz tests, chosen to avoid timeouts from
+// allocating and iterating over multi-hundred-million-bit BoxedBool vectors.
+static constexpr int32_t kMaxDecodeWidth = 10000;
+
 // Simple wrapper to avoid std::vector<bool> specialization.
 struct BoxedBool {
   bool value;
@@ -1195,15 +1199,17 @@ void DecodeMatchesReferenceITE(const Bits& a, int32_t result_width) {
 
 FUZZ_TEST(AbstractEvaluatorFuzzTest, DecodeMatchesReferenceNormal)
     .WithDomains(NonemptyBits(/*max_byte_count=*/kMaxMulBytes),
-                 fuzztest::Positive<int32_t>());
+                 fuzztest::InRange<int32_t>(1, kMaxDecodeWidth));
 
 FUZZ_TEST(AbstractEvaluatorFuzzTest, DecodeMatchesReferenceITE)
     .WithDomains(NonemptyBits(/*max_byte_count=*/kMaxMulBytes),
-                 fuzztest::Positive<int32_t>());
+                 fuzztest::InRange<int32_t>(1, kMaxDecodeWidth));
 
 TEST(AbstractEvaluatorFuzzTest, DecodeMatchesReferenceRegression) {
-  DecodeMatchesReferenceNormal(UBits(1, 1), 1054074905);
-  DecodeMatchesReferenceITE(UBits(1, 1), 1054074905);
+  DecodeMatchesReferenceNormal(UBits(1, 1), kMaxDecodeWidth);
+  DecodeMatchesReferenceITE(UBits(1, 1), kMaxDecodeWidth);
+  DecodeMatchesReferenceNormal(UBits(1, 100), kMaxDecodeWidth);
+  DecodeMatchesReferenceITE(UBits(1, 100), kMaxDecodeWidth);
 }
 
 }  // namespace
