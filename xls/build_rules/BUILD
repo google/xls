@@ -57,7 +57,10 @@ exports_files(
 )
 
 exports_files(
-    ["xls_build_defs.bzl"],
+    [
+        "check_opt_determinism.sh",
+        "xls_build_defs.bzl",
+    ],
     visibility = ["//xls:xls_users"],
 )
 
@@ -239,6 +242,7 @@ bzl_library(
         "@rules_cc//cc:core_rules",
         "@rules_hdl//synthesis:bzl",
         "@rules_hdl//verilog:providers_bzl",
+        "@rules_shell//shell:rules_bzl",
     ],
 )
 

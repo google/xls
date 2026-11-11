@@ -44,6 +44,7 @@ DEFAULT_DSLX_FMT_TARGET = _DEFAULT_DSLX_FMT_TARGET
 _DEFAULT_IR_CONVERTER_TARGET = "//xls/dslx/ir_convert:ir_converter_main"
 
 _DEFAULT_OPT_IR_TARGET = "//xls/tools:opt_main"
+DEFAULT_OPT_IR_TARGET = _DEFAULT_OPT_IR_TARGET
 
 _DEFAULT_IR_EQUIVALENCE_TARGET = "//xls/dev_tools:check_ir_equivalence_main"
 

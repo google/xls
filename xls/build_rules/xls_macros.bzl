@@ -21,6 +21,7 @@ load("@bazel_skylib//rules:diff_test.bzl", "diff_test")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_hdl//synthesis:build_defs.bzl", "benchmark_synth", "synthesize_rtl")
 load("@rules_hdl//verilog:providers.bzl", "verilog_library")
+load("@rules_shell//shell:sh_test.bzl", "sh_test")
 load(
     "//xls/build_rules:xls_codegen_rules.bzl",
     "append_xls_ir_verilog_generated_files",
@@ -45,6 +46,7 @@ load(
 )
 load(
     "//xls/build_rules:xls_ir_macros.bzl",
+    _xls_dslx_ir_macro = "xls_dslx_ir_macro",
     _xls_ir_opt_ir_macro = "xls_ir_opt_ir_macro",
 )
 load(
@@ -63,6 +65,7 @@ load(
 load(
     "//xls/build_rules:xls_toolchains.bzl",
     "DEFAULT_DSLX_FMT_TARGET",
+    "DEFAULT_OPT_IR_TARGET",
 )
 load(
     "//xls/build_rules:xls_type_check_utils.bzl",
@@ -376,6 +379,98 @@ def xls_dslx_opt_ir_macro(
         wrapped_target = name,
         enable_generated_file = enable_generated_file,
         enable_presubmit_generated_file = enable_presubmit_generated_file,
+        **kwargs
+    )
+
+def xls_dslx_opt_ir_determinism_test(
+        name,
+        dslx_top = None,
+        srcs = None,
+        deps = None,
+        library = None,
+        ir_conv_args = {},
+        configured_values = None,
+        ir_src = None,
+        opt_ir_args = {},
+        opt_main = DEFAULT_OPT_IR_TARGET,
+        **kwargs):
+    """A macro that checks that opt_main produces identical output across runs.
+
+    Converts a DSLX target to IR (unless `ir_src` is directly provided) and
+    executes `opt_main` twice in a test script to verify that the optimized IR
+    output is deterministic.
+
+    Args:
+      name: The name of the test target.
+      dslx_top: The top entity to perform the IR conversion. Required if
+        `ir_src` is not provided.
+      srcs: Top level source files for the conversion. Files must have a '.x'
+        extension.
+      deps: Dependency targets for the files in the 'srcs' argument.
+      library: A DSLX library target. Mutually exclusive with 'srcs' and 'deps'.
+      ir_conv_args: Arguments of the IR conversion tool.
+      configured_values: Dictionary (or select) of overrides for overridable
+        constants in IR conversion.
+      ir_src: Optional label of an existing '.ir' file. If omitted, an
+        `xls_dslx_ir` target named `<name>_ir` is instantiated.
+      opt_ir_args: Arguments of the IR optimizer tool (`opt_main`).
+      opt_main: Label of the optimizer binary to run.
+      **kwargs: Additional keyword arguments forwarded to `sh_test`.
+    """
+    string_type_check("name", name)
+    list_type_check("srcs", srcs, True)
+    list_type_check("deps", deps, True)
+    string_type_check("library", library, True)
+    string_type_check("dslx_top", dslx_top, True)
+    dictionary_type_check("ir_conv_args", ir_conv_args)
+    string_type_check("ir_src", ir_src, True)
+    dictionary_type_check("opt_ir_args", opt_ir_args)
+    string_type_check("opt_main", opt_main)
+
+    if ir_src == None:
+        if dslx_top == None:
+            fail("Either 'ir_src' or 'dslx_top' must be provided.")
+        ir_target_name = name + "_ir"
+        ir_kwargs = {}
+        if configured_values != None:
+            ir_kwargs["configured_values"] = configured_values
+        if "tags" in kwargs:
+            ir_kwargs["tags"] = kwargs["tags"]
+        _xls_dslx_ir_macro(
+            name = ir_target_name,
+            srcs = srcs,
+            deps = deps,
+            library = library,
+            dslx_top = dslx_top,
+            ir_conv_args = ir_conv_args,
+            enable_generated_file = False,
+            enable_presubmit_generated_file = False,
+            testonly = True,
+            visibility = ["//visibility:private"],
+            **ir_kwargs
+        )
+        ir_src = ":" + ir_target_name + ".ir"
+
+    full_opt_ir_args = dict(opt_ir_args)
+    if "delay_model" not in full_opt_ir_args:
+        full_opt_ir_args["delay_model"] = DEFAULT_BENCHMARK_SYNTH_DELAY_MODEL
+
+    opt_flags = [
+        "--{}={}".format(k, v)
+        for k, v in full_opt_ir_args.items()
+    ]
+
+    sh_test(
+        name = name,
+        srcs = [Label("//xls/build_rules:check_opt_determinism.sh")],
+        args = [
+            "$(rootpath %s)" % Label(opt_main),
+            "$(rootpath %s)" % ir_src,
+        ] + opt_flags,
+        data = [
+            Label(opt_main),
+            ir_src,
+        ],
         **kwargs
     )
 

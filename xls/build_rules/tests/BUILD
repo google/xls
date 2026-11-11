@@ -27,6 +27,7 @@ load(
     "xls_dslx_ir",
     "xls_dslx_library",
     "xls_dslx_opt_ir",
+    "xls_dslx_opt_ir_determinism_test",
     "xls_dslx_opt_ir_test",
     "xls_dslx_test",
     "xls_dslx_verilog",
@@ -305,6 +306,13 @@ xls_dslx_ir(
 
 xls_dslx_opt_ir(
     name = "add_one_dslx_opt_ir",
+    dslx_top = "main",
+    ir_conv_args = {"lower_to_proc_scoped_channels": "true"},
+    library = ":add_one_dslx",
+)
+
+xls_dslx_opt_ir_determinism_test(
+    name = "add_one_dslx_opt_ir_determinism_test",
     dslx_top = "main",
     ir_conv_args = {"lower_to_proc_scoped_channels": "true"},
     library = ":add_one_dslx",
