@@ -327,7 +327,8 @@ absl::Status BytecodeEmitter::HandleArray(const Array* node) {
 absl::Status BytecodeEmitter::HandleAttr(const Attr* node) {
   // Use the type inference result for ProcDef state elements.
   std::optional<InterpValue> const_value = type_info_->GetConstExprOption(node);
-  if (const_value.has_value() && (*const_value).IsStateElementReference()) {
+  if (const_value.has_value() && ((*const_value).IsStateElementReference() ||
+                                  (*const_value).IsFunction())) {
     Add(Bytecode::MakeLiteral(node->span(), *const_value));
     return absl::OkStatus();
   }
@@ -338,6 +339,15 @@ absl::Status BytecodeEmitter::HandleAttr(const Attr* node) {
   // Now we need the index of the attr NameRef in the struct def.
   XLS_ASSIGN_OR_RETURN(StructTypeBase * struct_type,
                        type_info_->GetItemAs<StructTypeBase>(node->lhs()));
+  if (std::optional<Function*> impl_fn =
+          struct_type->struct_def_base().GetImplFunction(node->attr());
+      impl_fn.has_value()) {
+    Add(Bytecode::MakeLiteral(node->span(),
+                              InterpValue::MakeFunction(InterpValue::UserFnData{
+                                  (*impl_fn)->owner(), *impl_fn})));
+    Add(Bytecode::MakeTupleIndex(node->span()));
+    return absl::OkStatus();
+  }
   XLS_ASSIGN_OR_RETURN(int64_t member_index,
                        struct_type->GetMemberIndex(node->attr()));
 
@@ -1013,15 +1023,25 @@ absl::Status BytecodeEmitter::HandleFor(const For* node) {
 }
 
 absl::Status BytecodeEmitter::HandleFunctionRef(const FunctionRef* node) {
+  std::optional<InterpValue> self;
   if (node->callee()->kind() == AstNodeKind::kAttr) {
     const auto* attr = absl::down_cast<const Attr*>(node->callee());
+    self = type_info_->GetConstExprOption(attr->lhs());
     // Place the struct instance on the stack as the self argument.
-    XLS_RETURN_IF_ERROR(attr->lhs()->AcceptExpr(this));
+
+    if (!self.has_value()) {
+      XLS_RETURN_IF_ERROR(attr->lhs()->AcceptExpr(this));
+    }
   }
   XLS_ASSIGN_OR_RETURN(const Function* func, type_info_->GetCallee(node));
-  Add(Bytecode::MakeLiteral(
-      node->span(),
-      InterpValue::MakeFunction(InterpValue::UserFnData{func->owner(), func})));
+  InterpValue::UserFnData user_fn_data =
+      InterpValue::UserFnData{func->owner(), func};
+  InterpValue::FnData fn_data = user_fn_data;
+  if (self.has_value()) {
+    fn_data = InterpValue::CurriedFnData{user_fn_data,
+                                         std::vector<InterpValue>{*self}};
+  }
+  Add(Bytecode::MakeLiteral(node->span(), InterpValue::MakeFunction(fn_data)));
   return absl::OkStatus();
 }
 
@@ -1185,11 +1205,18 @@ absl::Status BytecodeEmitter::HandleIndex(const Index* node) {
   return absl::OkStatus();
 }
 
-absl::Status BytecodeEmitter::PushResolvedCallee(const Invocation* invocation) {
+absl::Status BytecodeEmitter::PushResolvedCallee(
+    const Invocation* invocation, std::optional<InterpValue> self) {
   XLS_ASSIGN_OR_RETURN(const Function* func, type_info_->GetCallee(invocation));
-  Add(Bytecode::MakeLiteral(
-      invocation->span(),
-      InterpValue::MakeFunction(InterpValue::UserFnData{func->owner(), func})));
+  InterpValue::UserFnData user_fn_data =
+      InterpValue::UserFnData{func->owner(), func};
+  InterpValue::FnData fn_data = user_fn_data;
+  if (self.has_value()) {
+    fn_data = InterpValue::CurriedFnData{user_fn_data,
+                                         std::vector<InterpValue>{*self}};
+  }
+  Add(Bytecode::MakeLiteral(invocation->span(),
+                            InterpValue::MakeFunction(fn_data)));
   return absl::OkStatus();
 }
 
@@ -1271,9 +1298,13 @@ absl::Status BytecodeEmitter::HandleInvocation(const Invocation* node) {
 
   if (node->callee()->kind() == AstNodeKind::kAttr) {
     // Place the struct instance on the stack as the self argument.
-    XLS_RETURN_IF_ERROR(
-        absl::down_cast<const Attr*>(node->callee())->lhs()->AcceptExpr(this));
-    XLS_RETURN_IF_ERROR(PushResolvedCallee(node));
+    std::optional<InterpValue> self = type_info_->GetConstExprOption(
+        absl::down_cast<const Attr*>(node->callee())->lhs());
+    const auto* attr = absl::down_cast<const Attr*>(node->callee());
+    if (!self.has_value()) {
+      XLS_RETURN_IF_ERROR(attr->lhs()->AcceptExpr(this));
+    }
+    XLS_RETURN_IF_ERROR(PushResolvedCallee(node, self));
   } else if (node->callee()->kind() == AstNodeKind::kColonRef) {
     XLS_RETURN_IF_ERROR(PushResolvedCallee(node));
   } else {

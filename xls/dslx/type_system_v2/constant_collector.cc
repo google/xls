@@ -664,6 +664,12 @@ class Visitor : public AstNodeVisitorWithDefault {
       std::optional<const Function*> f =
           table_.GetCalleeInCallerContext(invocation, parametric_context_);
       XLS_RET_CHECK(f.has_value());
+      for (int i = 0; i < invocation->args().size(); ++i) {
+        const Param* param = (*f)->params()[i];
+        if (param->type_annotation()->IsAnnotation<FunctionTypeAnnotation>()) {
+          XLS_RETURN_IF_ERROR(invocation->args()[i]->Accept(this));
+        }
+      }
 
       if (IsBuiltin(*f) && (*f)->IsMethod()) {
         if ((*f)->identifier() == "bind") {
@@ -936,6 +942,20 @@ class Visitor : public AstNodeVisitorWithDefault {
         InterpValue value =
             InterpValue::MakeStateElementReference((*member)->name_def());
         ti_->NoteConstExpr(node, value);
+      }
+    }
+    if (lhs_type->IsStruct()) {
+      std::optional<Function*> impl_fn =
+          lhs_type->AsStruct().struct_def_base().GetImplFunction(node->attr());
+      if (impl_fn.has_value()) {
+        absl::StatusOr<InterpValue> curried_val = Evaluate(node->lhs());
+        if (curried_val.ok()) {
+          InterpValue val =
+              InterpValue::MakeFunction(InterpValue::CurriedFnData{
+                  InterpValue::UserFnData{(*impl_fn)->owner(), *impl_fn},
+                  {*curried_val}});
+          ti_->NoteConstExpr(node, val);
+        }
       }
     }
 

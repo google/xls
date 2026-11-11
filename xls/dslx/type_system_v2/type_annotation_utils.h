@@ -158,6 +158,10 @@ FunctionTypeAnnotation* CreateFunctionTypeAnnotation(
 // Returns the explicit or implied return type of `fn`.
 const TypeAnnotation* GetReturnType(Module& module, const Function& fn);
 
+// Returns the explicit or implied return type of `annotation`.
+const TypeAnnotation* GetReturnType(Module& module,
+                                    const FunctionTypeAnnotation& annotation);
+
 // Acts like `dynamic_cast<const ArrayTypeAnnotation*>(annotation)` but only
 // succeeds if the annotation is for a true array, as opposed to a bits-like
 // type expressed as an array (e.g. `uN` or `xN`).

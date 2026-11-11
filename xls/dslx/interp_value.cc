@@ -271,14 +271,21 @@ std::string InterpValue::ToStringInternal(bool humanize,
       return absl::StrFormat("%s:%v", enum_data.def->identifier(),
                              enum_data.value);
     }
-    case InterpValueTag::kFunction:
-      if (std::holds_alternative<Builtin>(GetFunctionOrDie())) {
+    case InterpValueTag::kFunction: {
+      FnData function = GetFunctionOrDie();
+      if (std::holds_alternative<Builtin>(function)) {
         return absl::StrCat(
             "builtin:", BuiltinToString(std::get<Builtin>(GetFunctionOrDie())));
       }
-      return absl::StrCat(
-          "function:",
-          std::get<UserFnData>(GetFunctionOrDie()).function->identifier());
+      UserFnData user_fn_data;
+      if (std::holds_alternative<CurriedFnData>(function)) {
+        CurriedFnData curried_fn_data = std::get<CurriedFnData>(function);
+        user_fn_data = curried_fn_data.user_fn_data;
+      } else {
+        user_fn_data = std::get<UserFnData>(function);
+      }
+      return absl::StrCat("function:", user_fn_data.function->identifier());
+    }
     case InterpValueTag::kToken:
       return absl::StrFormat("token:%p", GetTokenData().get());
     case InterpValueTag::kStateElementReference:

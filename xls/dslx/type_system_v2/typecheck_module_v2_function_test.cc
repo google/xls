@@ -1347,6 +1347,291 @@ const_assert!(X == imported::MyEnum::A);
   XLS_EXPECT_OK(TypecheckV2(kProgram, "main", &import_data));
 }
 
+// TODO(erinzmoore): Support this case.
+TEST(TypecheckV2FunctionTest, DISABLED_UserDefinedMapTest) {
+  XLS_EXPECT_OK(TypecheckV2(
+      R"(
+fn not_map(arr: u32[5], f: fn(u32) -> u32) -> u32[5] {
+  for (i, ret) in u32:0..5 {
+    update(ret, i, f(i))
+  } (arr)
+}
+
+fn double(i: u32) -> u32 {
+  i * 2
+}
+
+const M = not_map(u32:0..5, double);
+const_assert!(M == [0, 2, 4, 6, 8]);
+const MAP_LAMBDA = not_map(u32:0..5, |i| { i + 1 });
+const_assert!(MAP_LAMBDA == [1, 2, 3, 4, 5]);
+)"));
+}
+
+// TODO(erinzmoore): Support this case.
+TEST(TypecheckV2FunctionTest,
+     DISABLED_UserDefinedFunctionTakesFunctionAndParameters) {
+  XLS_EXPECT_OK(TypecheckV2(
+      R"(
+fn double(i: u32) -> u32 {
+  i * 2
+}
+
+struct my_struct {
+  value: u32,
+}
+
+impl my_struct {
+  fn add(self, i: u32) -> u32 {
+    i + self.value
+  }
+}
+
+fn takes_fn_and_params(f: fn(u32) -> u32, y: u16, x: u32) -> u32 {
+  f(x)
+}
+
+const STRUCT_PARAM = takes_fn_and_params(my_struct{value: 20}.add, 0, 3);
+const_assert!(STRUCT_PARAM == 23);
+
+const LAMBDA = takes_fn_and_params(|i: u32| -> u32 { i * 2 }, 0, 3);
+const_assert!(LAMBDA == 6);
+
+const FN = takes_fn_and_params(double, 0,  3);
+const_assert!(FN == 6);
+)"));
+}
+
+TEST(TypecheckV2FunctionTest, FunctionParamWithLambdaArg) {
+  EXPECT_THAT(
+      R"(
+fn apply(f: fn(u32) -> u32, x: u32) -> u32 {
+  f(x)
+}
+
+fn main() -> u32 {
+  apply(|i| -> u32 { i + 1 }, u32:5)
+}
+
+const_assert!(main() == 6);
+)",
+      TypecheckSucceeds(HasNodeWithType("main", "() -> uN[32]")));
+}
+
+TEST(TypecheckV2FunctionTest, FunctionParamWithImplicitlyTypedLambdaArg) {
+  EXPECT_THAT(
+      R"(
+fn apply(f: fn(u32) -> u32, x: u32) -> u32 {
+  f(x)
+}
+
+fn main() -> u32 {
+  const ADD = u32:1;
+  apply(|i| i + ADD, u32:5)
+}
+
+const_assert!(main() == 6);
+)",
+      TypecheckSucceeds(HasNodeWithType("main", "() -> uN[32]")));
+}
+
+// TODO(erinzmoore): Support this case.
+TEST(TypecheckV2FunctionTest, DISABLED_FunctionParamWithNamedFunctionArg) {
+  EXPECT_THAT(
+      R"(
+fn add_two(x: u32) -> u32 {
+  x + 2
+}
+
+fn apply(f: fn(u32) -> u32, x: u32) -> u32 {
+  f(x)
+}
+
+fn main() -> u32 {
+  apply(add_two, u32:5)
+}
+
+const_assert!(main() == 7);
+)",
+      TypecheckSucceeds(HasNodeWithType("main", "() -> uN[32]")));
+}
+
+// TODO(erinzmoore): Support this case.
+TEST(TypecheckV2FunctionTest, DISABLED_FunctionParamWithNoArgs) {
+  EXPECT_THAT(
+      R"(
+fn apply(f: fn() -> u32) -> u32 {
+  f()
+}
+
+fn main() -> u32 {
+  apply(|| -> u32 { u32:7 })
+}
+
+const_assert!(main() == 7);
+)",
+      TypecheckSucceeds(HasNodeWithType("main", "() -> uN[32]")));
+}
+
+TEST(TypecheckV2FunctionTest, FunctionParamWithMultipleArgs) {
+  EXPECT_THAT(
+      R"(
+fn apply(f: fn(u32, u32) -> u32, x: u32, y: u32) -> u32 {
+  f(x, y)
+}
+
+fn main() -> u32 {
+  apply(|i, j| -> u32 { i * j }, u32:3, u32:4)
+}
+
+const_assert!(main() == 12);
+)",
+      TypecheckSucceeds(HasNodeWithType("main", "() -> uN[32]")));
+}
+
+// TODO(erinzmoore): Support this case.
+TEST(TypecheckV2FunctionTest, DISABLED_MultipleFunctionParams) {
+  EXPECT_THAT(
+      R"(
+fn apply_both(f: fn(u32) -> u32, g: fn(u32) -> u32, x: u32) -> u32 {
+  g(f(x))
+}
+
+fn main() -> u32 {
+  apply_both(|i| -> u32 { i + 1 }, |i| -> u32 { i * 2 }, u32:5)
+}
+
+const_assert!(main() == 12);
+)",
+      TypecheckSucceeds(HasNodeWithType("main", "() -> uN[32]")));
+}
+
+TEST(TypecheckV2FunctionTest, FunctionParamPassedToMap) {
+  EXPECT_THAT(
+      R"(
+fn apply_to_all(f: fn(u32) -> u32) -> u32[5] {
+  map(u32:0..5, f)
+}
+
+const ARR = apply_to_all(|i| -> u32 { i + 1 });
+const_assert!(ARR == [u32:1, 2, 3, 4, 5]);
+)",
+      TypecheckSucceeds(HasNodeWithType("ARR", "uN[32][5]")));
+}
+
+TEST(TypecheckV2FunctionTest, FunctionParamWithLambdaArgAndContextCapture) {
+  EXPECT_THAT(
+      R"(
+fn apply(f: fn(u32) -> u32, x: u32) -> u32 {
+  f(x)
+}
+
+fn main(y: u32) -> u32 {
+  apply(|i| -> u32 { i + y }, u32:5)
+}
+
+const_assert!(main(u32:2) == 7);
+)",
+      TypecheckSucceeds(HasNodeWithType("main", "(uN[32]) -> uN[32]")));
+}
+
+// TODO(erinzmoore): Support this case.
+TEST(TypecheckV2FunctionTest, DISABLED_ParametricFunctionWithFunctionParam) {
+  EXPECT_THAT(
+      R"(
+fn apply<N: u32>(f: fn(uN[N]) -> uN[N], x: uN[N]) -> uN[N] {
+  f(x)
+}
+
+const ONE = apply(|i| -> u16 { i + 1 }, u16:5);
+const TWO = apply(|i| -> u24 { i + 1 }, u24:5);
+const_assert!(ONE == u16:6);
+const_assert!(TWO == u24:6);
+)",
+      TypecheckSucceeds(AllOf(HasNodeWithType("ONE", "uN[16]"),
+                              HasNodeWithType("TWO", "uN[24]"))));
+}
+
+TEST(TypecheckV2FunctionTest, FunctionParamReturningUnit) {
+  EXPECT_THAT(
+      R"(
+fn apply(f: fn(u32), x: u32) {
+  f(x)
+}
+
+fn main() {
+  apply(|i| -> () { () }, u32:5)
+}
+)",
+      TypecheckSucceeds(HasNodeWithType("main", "() -> ()")));
+}
+
+TEST(TypecheckV2FunctionTest, FunctionParamArgTypeMismatch) {
+  EXPECT_THAT(
+      R"(
+fn apply(f: fn(u32) -> u32, x: u32) -> u32 {
+  f(x)
+}
+
+fn main() -> u32 {
+  apply(|i: u16| -> u32 { i as u32 }, u32:5)
+}
+)",
+      TypecheckFails(HasSizeMismatch("u16", "u32")));
+}
+
+TEST(TypecheckV2FunctionTest, FunctionParamReturnTypeMismatch) {
+  EXPECT_THAT(
+      R"(
+fn apply(f: fn(u32) -> u32, x: u32) -> u32 {
+  f(x)
+}
+
+fn main() -> u32 {
+  apply(|i| -> u16 { i as u16 }, u32:5)
+}
+)",
+      TypecheckFails(HasSizeMismatch("u16", "u32")));
+}
+
+TEST(TypecheckV2FunctionTest, FunctionParamPassedNonFunction) {
+  EXPECT_THAT(
+      R"(
+fn apply(f: fn(u32) -> u32, x: u32) -> u32 {
+  f(x)
+}
+
+fn main() -> u32 {
+  apply(u32:1, u32:5)
+}
+)",
+      TypecheckFails(HasTypeMismatch("(u32) -> u32", "u32")));
+}
+
+TEST(TypecheckV2FunctionTest, FunctionParamArgCountMismatch) {
+  EXPECT_THAT(
+      R"(
+fn apply(f: fn(u32) -> u32, x: u32) -> u32 {
+  f(x)
+}
+
+fn main() -> u32 {
+  apply(|i, j| -> u32 { i + j }, u32:5)
+}
+)",
+      TypecheckFails(HasSubstr("Expected 1 argument(s) but got 2.")));
+}
+
+TEST(TypecheckV2FunctionTest, FunctionParamCalledWithWrongArgType) {
+  EXPECT_THAT(
+      R"(
+fn apply(f: fn(u32) -> u32, x: u16) -> u32 {
+  f(x)
+}
+)",
+      TypecheckFails(HasSizeMismatch("u16", "u32")));
+}
+
 TEST(TypecheckV2FunctionTest,
      ParametricFunctionWithAliasEnumParametricDefault) {
   XLS_EXPECT_OK(TypecheckV2(

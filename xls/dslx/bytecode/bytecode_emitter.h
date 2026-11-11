@@ -136,7 +136,9 @@ class BytecodeEmitter : public ExprVisitor {
   // Pushes the callee function that type inference resolved for the given
   // invocation. This may be sensitive to the parametric context, which is
   // captured by the current `type_info_` pointer.
-  absl::Status PushResolvedCallee(const Invocation* invocation);
+  absl::Status PushResolvedCallee(
+      const Invocation* invocation,
+      std::optional<InterpValue> self = std::nullopt);
 
   absl::StatusOr<InterpValue> HandleExternRef(const NameRef& name_ref,
                                               const NameDef& name_def,

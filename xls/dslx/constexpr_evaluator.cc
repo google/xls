@@ -348,8 +348,16 @@ absl::Status ConstexprEvaluator::HandleInvocation(const Invocation* expr) {
     // constexpr (the second must be a fn to apply).
     EVAL_AS_CONSTEXPR_OR_RETURN(expr->args()[0])
   } else {
-    // A regular invocation is constexpr iff its args are constexpr.
-    for (const auto* arg : expr->args()) {
+    // A regular invocation is constexpr iff its non-functional args are
+    // constexpr.
+    for (int i = 0; i < expr->args().size(); ++i) {
+      const Expr* arg = expr->args()[i];
+      if (arg->kind() == AstNodeKind::kNameRef) {
+        const NameRef* name_ref = dynamic_cast<const NameRef*>(arg);
+        if (name_ref->DefinerIs<Function>()) {
+          continue;
+        }
+      }
       EVAL_AS_CONSTEXPR_OR_RETURN(arg)
     }
   }
