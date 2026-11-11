@@ -219,6 +219,8 @@ class IrTranslator : public DfsVisitorWithDefault {
       const Predicate& p, Node* subject, ::bitwuzla::Term val);
 
   void NoteTranslation(Node* node, ::bitwuzla::Term term);
+  absl::Status HandleNary(NaryOp* op, ::bitwuzla::Kind kind,
+                          bool invert_result);
 
   std::unique_ptr<::bitwuzla::TermManager> owned_tm_;
   ::bitwuzla::TermManager& tm_;

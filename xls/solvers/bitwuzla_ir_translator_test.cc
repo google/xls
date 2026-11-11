@@ -62,6 +62,24 @@ TEST_F(BitwuzlaIrTranslatorTest, ZeroIsZero) {
       IsOkAndHolds(IsProvenTrue()));
 }
 
+TEST_F(BitwuzlaIrTranslatorTest, NaryNandAndNor) {
+  auto package = CreatePackage();
+  FunctionBuilder fb("f", package.get());
+  auto a = fb.Param("a", package->GetBitsType(8));
+  auto b = fb.Param("b", package->GetBitsType(8));
+  auto c = fb.Param("c", package->GetBitsType(8));
+  auto nand_res = fb.Nand({a, b, c});
+  auto nor_res = fb.Nor({a, b, c});
+  auto expected_nand = fb.Not(fb.And({a, b, c}));
+  auto expected_nor = fb.Not(fb.Or({a, b, c}));
+  auto prop =
+      fb.And(fb.Eq(nand_res, expected_nand), fb.Eq(nor_res, expected_nor));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(prop));
+  EXPECT_THAT(solver_->TryProve(f, prop.node(), Predicate::NotEqualToZero(),
+                                SolverLimit()),
+              IsOkAndHolds(IsProvenTrue()));
+}
+
 TEST_F(BitwuzlaIrTranslatorTest, AddCounterexample) {
   auto package = CreatePackage();
   FunctionBuilder b("f", package.get());

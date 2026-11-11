@@ -1036,62 +1036,43 @@ absl::Status IrTranslator::HandleULt(CompareOp* ult) {
   return absl::OkStatus();
 }
 
-absl::Status IrTranslator::HandleNaryAnd(NaryOp* and_op) {
-  if (and_op->operand_count() == 0) {
-    return absl::InvalidArgumentError("NaryAnd has no operands");
+absl::Status IrTranslator::HandleNary(NaryOp* op, Kind kind,
+                                      bool invert_result) {
+  if (op->operand_count() == 0) {
+    return absl::InvalidArgumentError(
+        absl::StrCat(OpToString(op->op()), " has no operands"));
   }
   std::vector<Term> operands;
-  operands.reserve(and_op->operand_count());
-  for (Node* n : and_op->operands()) {
+  operands.reserve(op->operand_count());
+  for (Node* n : op->operands()) {
     operands.push_back(GetTranslation(n));
   }
-  Term res =
-      operands.size() == 1 ? operands[0] : tm_.mk_term(Kind::BV_AND, operands);
-  NoteTranslation(and_op, res);
+  Term res = operands.size() == 1 ? operands[0] : tm_.mk_term(kind, operands);
+  if (invert_result) {
+    res = tm_.mk_term(Kind::BV_NOT, {res});
+  }
+  NoteTranslation(op, res);
   return absl::OkStatus();
+}
+
+absl::Status IrTranslator::HandleNaryAnd(NaryOp* and_op) {
+  return HandleNary(and_op, Kind::BV_AND, /*invert_result=*/false);
 }
 
 absl::Status IrTranslator::HandleNaryOr(NaryOp* or_op) {
-  if (or_op->operand_count() == 0) {
-    return absl::InvalidArgumentError("NaryOr has no operands");
-  }
-  std::vector<Term> operands;
-  operands.reserve(or_op->operand_count());
-  for (Node* n : or_op->operands()) {
-    operands.push_back(GetTranslation(n));
-  }
-  Term res =
-      operands.size() == 1 ? operands[0] : tm_.mk_term(Kind::BV_OR, operands);
-  NoteTranslation(or_op, res);
-  return absl::OkStatus();
+  return HandleNary(or_op, Kind::BV_OR, /*invert_result=*/false);
 }
 
 absl::Status IrTranslator::HandleNaryXor(NaryOp* xor_op) {
-  if (xor_op->operand_count() == 0) {
-    return absl::InvalidArgumentError("NaryXor has no operands");
-  }
-  std::vector<Term> operands;
-  operands.reserve(xor_op->operand_count());
-  for (Node* n : xor_op->operands()) {
-    operands.push_back(GetTranslation(n));
-  }
-  Term res =
-      operands.size() == 1 ? operands[0] : tm_.mk_term(Kind::BV_XOR, operands);
-  NoteTranslation(xor_op, res);
-  return absl::OkStatus();
+  return HandleNary(xor_op, Kind::BV_XOR, /*invert_result=*/false);
 }
 
 absl::Status IrTranslator::HandleNaryNand(NaryOp* nand_op) {
-  XLS_RETURN_IF_ERROR(HandleNaryAnd(nand_op));
-  NoteTranslation(nand_op,
-                  tm_.mk_term(Kind::BV_NOT, {GetTranslation(nand_op)}));
-  return absl::OkStatus();
+  return HandleNary(nand_op, Kind::BV_AND, /*invert_result=*/true);
 }
 
 absl::Status IrTranslator::HandleNaryNor(NaryOp* nor_op) {
-  XLS_RETURN_IF_ERROR(HandleNaryOr(nor_op));
-  NoteTranslation(nor_op, tm_.mk_term(Kind::BV_NOT, {GetTranslation(nor_op)}));
-  return absl::OkStatus();
+  return HandleNary(nor_op, Kind::BV_OR, /*invert_result=*/true);
 }
 
 absl::Status IrTranslator::HandleNot(UnOp* not_op) {
