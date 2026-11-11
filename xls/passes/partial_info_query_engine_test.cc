@@ -14,17 +14,24 @@
 
 #include "xls/passes/partial_info_query_engine.h"
 
+#include <algorithm>
 #include <cstdint>
 #include <memory>
 #include <optional>
+#include <string>
 #include <string_view>
 #include <utility>
 #include <vector>
 
+#include "benchmark/benchmark.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "xls/common/fuzzing/fuzztest.h"
+#include "absl/container/flat_hash_map.h"
 #include "absl/log/check.h"
+#include "absl/log/log.h"
+#include "absl/status/statusor.h"
+#include "absl/strings/str_cat.h"
 #include "absl/types/span.h"
 #include "cppitertools/zip.hpp"
 #include "xls/common/status/matchers.h"
@@ -40,7 +47,11 @@
 #include "xls/ir/interval_set.h"
 #include "xls/ir/interval_set_test_utils.h"
 #include "xls/ir/ir_test_base.h"
+#include "xls/ir/lsb_or_msb.h"
 #include "xls/ir/node.h"
+#include "xls/ir/nodes.h"
+#include "xls/ir/op.h"
+#include "xls/ir/package.h"
 #include "xls/ir/partial_information.h"
 #include "xls/ir/partial_ops.h"
 #include "xls/ir/ternary.h"
@@ -2342,6 +2353,638 @@ void CheckReconcileConsistency(std::shared_ptr<Package> fuzz) {
 }
 FUZZ_TEST(PartialInfoQueryEngineFuzzTest, CheckReconcileConsistency)
     .WithDomains(PackageDomainBuilder().Build());
+
+// Benchmarks of the transfer functions of the PartialInfoQueryEngine.
+//
+// Every bits-typed operation with at most 4 operands is benchmarked under each
+// of the BenchKnowledge scenarios (applied to every operand) with operands of
+// each of the kBenchWidths widths. Operations whose operands can naturally have
+// different widths (multiplies, divides, modulus, shifts & 2-operand concat)
+// are benchmarked with every pair of lhs & rhs widths.
+
+// What is known about each of the operands.
+enum class BenchKnowledge : int8_t {
+  // Nothing is known.
+  kUnconstrained,
+  // The exact value is known.
+  kPrecise,
+  // The low half of the bits are known, the high half are unknown.
+  kLowHalfKnown,
+  // The high half of the bits are known to be zero, the low half are unknown.
+  kHighHalfZero,
+  // Every other bit is known.
+  kInterleavedKnown,
+  // A single small contiguous range [2^(w/2), 2^(w/2) + 2^(w/4)].
+  kSingleRange,
+  // Four small disjoint ranges spread across the entire value space (so some
+  // are negative when interpreted as signed).
+  kMultiRange,
+  // Six disjoint intervals in the lower half of the value space combined with
+  // scattered known bits (low 2 bits zero, every third bit of the low half,
+  // and the top bit zero).
+  kRangeAndTernary,
+};
+
+struct BenchKnowledgeInfo {
+  BenchKnowledge knowledge;
+  std::string_view name;
+};
+constexpr BenchKnowledgeInfo kBenchKnowledges[] = {
+    {BenchKnowledge::kUnconstrained, "Unconstrained"},
+    {BenchKnowledge::kPrecise, "Precise"},
+    {BenchKnowledge::kLowHalfKnown, "LowHalfKnown"},
+    {BenchKnowledge::kHighHalfZero, "HighHalfZero"},
+    {BenchKnowledge::kInterleavedKnown, "InterleavedKnown"},
+    {BenchKnowledge::kSingleRange, "SingleRange"},
+    {BenchKnowledge::kMultiRange, "MultiRange"},
+    {BenchKnowledge::kRangeAndTernary, "RangeAndTernary"},
+};
+
+constexpr int kBenchWidths[] = {7,   8,   9,   32,  127, 128,
+                                129, 511, 512, 513, 1024};
+
+// A fixed, non-zero, odd, irregular bit pattern.
+bool BenchPatternBit(int64_t i) { return i % 3 != 1; }
+TernaryValue BenchPatternTernary(int64_t i) {
+  return BenchPatternBit(i) ? TernaryValue::kKnownOne
+                            : TernaryValue::kKnownZero;
+}
+
+Bits BenchPatternBits(int64_t bit_count) {
+  // Bits takes a span of bools; std::vector<bool> isn't contiguous.
+  auto raw = std::make_unique<bool[]>(bit_count);
+  for (int64_t i = 0; i < bit_count; ++i) {
+    raw[i] = BenchPatternBit(i);
+  }
+  return Bits(absl::MakeConstSpan(raw.get(), bit_count));
+}
+
+// Returns `lhs + rhs`, saturating at all-ones instead of wrapping.
+Bits BenchSaturatingAdd(const Bits& lhs, const Bits& rhs) {
+  Bits sum = bits_ops::Add(lhs, rhs);
+  return bits_ops::ULessThan(sum, lhs) ? Bits::AllOnes(lhs.bit_count()) : sum;
+}
+
+// NB Operands may be very narrow (e.g. 1-bit selectors) so all scenarios must
+// produce valid (non-impossible) information for any bit_count >= 1.
+PartialInformation BenchOperandInfo(BenchKnowledge knowledge,
+                                    int64_t bit_count) {
+  switch (knowledge) {
+    case BenchKnowledge::kUnconstrained:
+      return PartialInformation::Unconstrained(bit_count);
+    case BenchKnowledge::kPrecise:
+      return PartialInformation::Precise(BenchPatternBits(bit_count));
+    case BenchKnowledge::kLowHalfKnown: {
+      TernaryVector t(bit_count, TernaryValue::kUnknown);
+      for (int64_t i = 0; i < (bit_count + 1) / 2; ++i) {
+        t[i] = BenchPatternTernary(i);
+      }
+      return PartialInformation(std::move(t));
+    }
+    case BenchKnowledge::kHighHalfZero: {
+      TernaryVector t(bit_count, TernaryValue::kUnknown);
+      for (int64_t i = bit_count / 2; i < bit_count; ++i) {
+        t[i] = TernaryValue::kKnownZero;
+      }
+      return PartialInformation(std::move(t));
+    }
+    case BenchKnowledge::kInterleavedKnown: {
+      TernaryVector t(bit_count, TernaryValue::kUnknown);
+      for (int64_t i = 0; i < bit_count; i += 2) {
+        t[i] = BenchPatternTernary(i);
+      }
+      return PartialInformation(std::move(t));
+    }
+    case BenchKnowledge::kSingleRange: {
+      Bits lo = Bits::PowerOfTwo(bit_count / 2, bit_count);
+      Bits hi =
+          BenchSaturatingAdd(lo, Bits::PowerOfTwo(bit_count / 4, bit_count));
+      return PartialInformation(IntervalSet::Of({Interval(lo, hi)}));
+    }
+    case BenchKnowledge::kMultiRange: {
+      if (bit_count < 4) {
+        return PartialInformation(
+            IntervalSet::Of({Interval::Precise(Bits(bit_count)),
+                             Interval::Precise(Bits::AllOnes(bit_count))}));
+      }
+      std::vector<Interval> intervals;
+      Bits width = Bits::PowerOfTwo(bit_count / 4, bit_count);
+      for (int64_t k = 0; k < 4; ++k) {
+        Bits lo = bits_ops::Add(
+            bits_ops::ShiftLeftLogical(UBits(k, bit_count), bit_count - 2),
+            UBits(1, bit_count));
+        intervals.push_back(Interval(lo, BenchSaturatingAdd(lo, width)));
+      }
+      return PartialInformation(IntervalSet::Of(intervals));
+    }
+    case BenchKnowledge::kRangeAndTernary: {
+      TernaryVector t(bit_count, TernaryValue::kUnknown);
+      if (bit_count < 7) {
+        // Too narrow for anything interesting; low bit zero & top bit clear.
+        t[0] = TernaryValue::kKnownZero;
+        if (bit_count == 1) {
+          return PartialInformation(std::move(t));
+        }
+        return PartialInformation(
+            t, IntervalSet::Of(
+                   {Interval(Bits(bit_count), Bits::MaxSigned(bit_count))}));
+      }
+      // Known bits:
+      //  * The low 2 bits are zero (i.e. a multiple of 4).
+      //  * Every third bit in the rest of the low half is known (pattern).
+      //  * The top bit is zero.
+      const int64_t half = bit_count / 2;
+      t[0] = TernaryValue::kKnownZero;
+      t[1] = TernaryValue::kKnownZero;
+      for (int64_t i = 2; i < half; ++i) {
+        if (i % 3 == 2) {
+          t[i] = BenchPatternTernary(i);
+        }
+      }
+      t[bit_count - 1] = TernaryValue::kKnownZero;
+      // Six disjoint intervals at irregular offsets throughout the lower half
+      // of the value space (so consistent with the top bit being zero). Each
+      // covers 2^(w/2) consecutive values so it contains values matching
+      // every possible assignment of the low half bits, ensuring the
+      // intervals and known bits are consistent while neither subsumes the
+      // other.
+      std::vector<Interval> intervals;
+      Bits span =
+          bits_ops::Sub(Bits::PowerOfTwo(half, bit_count), UBits(1, bit_count));
+      for (int64_t k = 0; k < 6; ++k) {
+        Bits lo = bits_ops::Add(
+            bits_ops::ShiftLeftLogical(UBits(k, bit_count), bit_count - 4),
+            bits_ops::ShiftLeftLogical(UBits(k, bit_count), bit_count / 4));
+        intervals.push_back(Interval(lo, BenchSaturatingAdd(lo, span)));
+      }
+      return PartialInformation(t, IntervalSet::Of(intervals));
+    }
+  }
+  LOG(FATAL) << "Unknown knowledge";
+}
+
+TEST_F(PartialInfoQueryEngineTest, BenchOperandInfoIsValidForAllWidths) {
+  EXPECT_EQ(BenchSaturatingAdd(UBits(10, 8), UBits(20, 8)), UBits(30, 8));
+  EXPECT_EQ(BenchSaturatingAdd(UBits(250, 8), UBits(20, 8)), UBits(255, 8));
+  for (const BenchKnowledgeInfo& knowledge : kBenchKnowledges) {
+    for (int64_t width = 1; width <= 16; ++width) {
+      EXPECT_FALSE(BenchOperandInfo(knowledge.knowledge, width).IsImpossible())
+          << knowledge.name << " width=" << width;
+    }
+    for (int width : kBenchWidths) {
+      EXPECT_FALSE(BenchOperandInfo(knowledge.knowledge, width).IsImpossible())
+          << knowledge.name << " width=" << width;
+    }
+  }
+}
+
+// Measures building a fresh PartialInfoQueryEngine for the function in `fb`
+// (whose return value is the benchmarked node) where every parameter is given
+// the information described by `knowledge`, and then querying the result.
+void BenchmarkPartialInfo(benchmark::State& state, FunctionBuilder& fb,
+                          BenchKnowledge knowledge) {
+  absl::StatusOr<Function*> function = fb.Build();
+  CHECK_OK(function);
+  absl::flat_hash_map<Node*, PartialInformationTree> givens;
+  if (knowledge != BenchKnowledge::kUnconstrained) {
+    for (Param* param : (*function)->params()) {
+      PartialInformation info =
+          BenchOperandInfo(knowledge, param->BitCountOrDie());
+      CHECK(!info.IsImpossible());
+      givens.emplace(param, PartialInformationTree::CreateSingleElementTree(
+                                param->GetType(), std::move(info)));
+    }
+  }
+  for (auto _ : state) {
+    PartialInfoQueryEngine qe;
+    CHECK_OK(qe.PopulateWithGivens(*function, givens));
+    std::optional<SharedLeafTypeTree<PartialInformation>> info =
+        qe.GetInfo((*function)->return_value());
+    benchmark::DoNotOptimize(info);
+  }
+}
+
+// Single-width benchmarks: state.range(0) is the width of the data operands.
+
+void BM_PartialInfoUnaryOp(benchmark::State& state, BenchKnowledge knowledge,
+                           Op op) {
+  Package p("bench");
+  FunctionBuilder fb("bench", &p);
+  BValue x = fb.Param("x", p.GetBitsType(state.range(0)));
+  fb.AddUnOp(op, x);
+  BenchmarkPartialInfo(state, fb, knowledge);
+}
+
+void BM_PartialInfoBitwiseReductionOp(benchmark::State& state,
+                                      BenchKnowledge knowledge, Op op) {
+  Package p("bench");
+  FunctionBuilder fb("bench", &p);
+  BValue x = fb.Param("x", p.GetBitsType(state.range(0)));
+  fb.AddBitwiseReductionOp(op, x);
+  BenchmarkPartialInfo(state, fb, knowledge);
+}
+
+void BM_PartialInfoEncode(benchmark::State& state, BenchKnowledge knowledge) {
+  Package p("bench");
+  FunctionBuilder fb("bench", &p);
+  BValue x = fb.Param("x", p.GetBitsType(state.range(0)));
+  fb.Encode(x);
+  BenchmarkPartialInfo(state, fb, knowledge);
+}
+
+void BM_PartialInfoDecode(benchmark::State& state, BenchKnowledge knowledge) {
+  const int64_t width = state.range(0);
+  Package p("bench");
+  FunctionBuilder fb("bench", &p);
+  BValue x = fb.Param("x", p.GetBitsType(width));
+  fb.Decode(x, /*width=*/width);
+  BenchmarkPartialInfo(state, fb, knowledge);
+}
+
+void BM_PartialInfoOneHot(benchmark::State& state, BenchKnowledge knowledge) {
+  Package p("bench");
+  FunctionBuilder fb("bench", &p);
+  BValue x = fb.Param("x", p.GetBitsType(state.range(0)));
+  fb.OneHot(x, LsbOrMsb::kLsb);
+  BenchmarkPartialInfo(state, fb, knowledge);
+}
+
+void BM_PartialInfoSignExtend(benchmark::State& state,
+                              BenchKnowledge knowledge) {
+  const int64_t width = state.range(0);
+  Package p("bench");
+  FunctionBuilder fb("bench", &p);
+  BValue x = fb.Param("x", p.GetBitsType(width));
+  fb.SignExtend(x, /*new_bit_count=*/2 * width);
+  BenchmarkPartialInfo(state, fb, knowledge);
+}
+
+void BM_PartialInfoZeroExtend(benchmark::State& state,
+                              BenchKnowledge knowledge) {
+  const int64_t width = state.range(0);
+  Package p("bench");
+  FunctionBuilder fb("bench", &p);
+  BValue x = fb.Param("x", p.GetBitsType(width));
+  fb.ZeroExtend(x, /*new_bit_count=*/2 * width);
+  BenchmarkPartialInfo(state, fb, knowledge);
+}
+
+void BM_PartialInfoBitSlice(benchmark::State& state, BenchKnowledge knowledge) {
+  const int64_t width = state.range(0);
+  Package p("bench");
+  FunctionBuilder fb("bench", &p);
+  BValue x = fb.Param("x", p.GetBitsType(width));
+  fb.BitSlice(x, /*start=*/width / 4, /*width=*/width / 2);
+  BenchmarkPartialInfo(state, fb, knowledge);
+}
+
+void BM_PartialInfoBinaryOp(benchmark::State& state, BenchKnowledge knowledge,
+                            Op op) {
+  const int64_t width = state.range(0);
+  Package p("bench");
+  FunctionBuilder fb("bench", &p);
+  BValue x = fb.Param("x", p.GetBitsType(width));
+  BValue y = fb.Param("y", p.GetBitsType(width));
+  fb.AddBinOp(op, x, y);
+  BenchmarkPartialInfo(state, fb, knowledge);
+}
+
+void BM_PartialInfoCompareOp(benchmark::State& state, BenchKnowledge knowledge,
+                             Op op) {
+  const int64_t width = state.range(0);
+  Package p("bench");
+  FunctionBuilder fb("bench", &p);
+  BValue x = fb.Param("x", p.GetBitsType(width));
+  BValue y = fb.Param("y", p.GetBitsType(width));
+  fb.AddCompareOp(op, x, y);
+  BenchmarkPartialInfo(state, fb, knowledge);
+}
+
+void BM_PartialInfoNaryOp2(benchmark::State& state, BenchKnowledge knowledge,
+                           Op op) {
+  const int64_t width = state.range(0);
+  Package p("bench");
+  FunctionBuilder fb("bench", &p);
+  BValue a = fb.Param("a", p.GetBitsType(width));
+  BValue b = fb.Param("b", p.GetBitsType(width));
+  fb.AddNaryOp(op, {a, b});
+  BenchmarkPartialInfo(state, fb, knowledge);
+}
+
+void BM_PartialInfoNaryOp3(benchmark::State& state, BenchKnowledge knowledge,
+                           Op op) {
+  const int64_t width = state.range(0);
+  Package p("bench");
+  FunctionBuilder fb("bench", &p);
+  BValue a = fb.Param("a", p.GetBitsType(width));
+  BValue b = fb.Param("b", p.GetBitsType(width));
+  BValue c = fb.Param("c", p.GetBitsType(width));
+  fb.AddNaryOp(op, {a, b, c});
+  BenchmarkPartialInfo(state, fb, knowledge);
+}
+
+void BM_PartialInfoNaryOp4(benchmark::State& state, BenchKnowledge knowledge,
+                           Op op) {
+  const int64_t width = state.range(0);
+  Package p("bench");
+  FunctionBuilder fb("bench", &p);
+  BValue a = fb.Param("a", p.GetBitsType(width));
+  BValue b = fb.Param("b", p.GetBitsType(width));
+  BValue c = fb.Param("c", p.GetBitsType(width));
+  BValue d = fb.Param("d", p.GetBitsType(width));
+  fb.AddNaryOp(op, {a, b, c, d});
+  BenchmarkPartialInfo(state, fb, knowledge);
+}
+
+void BM_PartialInfoConcat3(benchmark::State& state, BenchKnowledge knowledge) {
+  const int64_t width = state.range(0);
+  Package p("bench");
+  FunctionBuilder fb("bench", &p);
+  BValue a = fb.Param("a", p.GetBitsType(width));
+  BValue b = fb.Param("b", p.GetBitsType(width));
+  BValue c = fb.Param("c", p.GetBitsType(width));
+  fb.Concat({a, b, c});
+  BenchmarkPartialInfo(state, fb, knowledge);
+}
+
+void BM_PartialInfoConcat4(benchmark::State& state, BenchKnowledge knowledge) {
+  const int64_t width = state.range(0);
+  Package p("bench");
+  FunctionBuilder fb("bench", &p);
+  BValue a = fb.Param("a", p.GetBitsType(width));
+  BValue b = fb.Param("b", p.GetBitsType(width));
+  BValue c = fb.Param("c", p.GetBitsType(width));
+  BValue d = fb.Param("d", p.GetBitsType(width));
+  fb.Concat({a, b, c, d});
+  BenchmarkPartialInfo(state, fb, knowledge);
+}
+
+void BM_PartialInfoGate(benchmark::State& state, BenchKnowledge knowledge) {
+  Package p("bench");
+  FunctionBuilder fb("bench", &p);
+  BValue condition = fb.Param("condition", p.GetBitsType(1));
+  BValue data = fb.Param("data", p.GetBitsType(state.range(0)));
+  fb.Gate(condition, data);
+  BenchmarkPartialInfo(state, fb, knowledge);
+}
+
+void BM_PartialInfoDynamicBitSlice(benchmark::State& state,
+                                   BenchKnowledge knowledge) {
+  const int64_t width = state.range(0);
+  Package p("bench");
+  FunctionBuilder fb("bench", &p);
+  BValue x = fb.Param("x", p.GetBitsType(width));
+  // Wide enough to index any bit (and one past the end).
+  BValue start =
+      fb.Param("start", p.GetBitsType(Bits::MinBitCountUnsigned(width)));
+  fb.DynamicBitSlice(x, start, /*width=*/width / 2);
+  BenchmarkPartialInfo(state, fb, knowledge);
+}
+
+void BM_PartialInfoBitSliceUpdate(benchmark::State& state,
+                                  BenchKnowledge knowledge) {
+  const int64_t width = state.range(0);
+  Package p("bench");
+  FunctionBuilder fb("bench", &p);
+  BValue x = fb.Param("x", p.GetBitsType(width));
+  // Wide enough to index any bit (and one past the end).
+  BValue start =
+      fb.Param("start", p.GetBitsType(Bits::MinBitCountUnsigned(width)));
+  BValue update = fb.Param("update", p.GetBitsType(width / 2));
+  fb.BitSliceUpdate(x, start, update);
+  BenchmarkPartialInfo(state, fb, knowledge);
+}
+
+void BM_PartialInfoSel(benchmark::State& state, BenchKnowledge knowledge) {
+  const int64_t width = state.range(0);
+  Package p("bench");
+  FunctionBuilder fb("bench", &p);
+  BValue selector = fb.Param("selector", p.GetBitsType(1));
+  BValue case0 = fb.Param("case0", p.GetBitsType(width));
+  BValue case1 = fb.Param("case1", p.GetBitsType(width));
+  fb.Select(selector, {case0, case1});
+  BenchmarkPartialInfo(state, fb, knowledge);
+}
+
+void BM_PartialInfoSelWithDefault(benchmark::State& state,
+                                  BenchKnowledge knowledge) {
+  const int64_t width = state.range(0);
+  Package p("bench");
+  FunctionBuilder fb("bench", &p);
+  BValue selector = fb.Param("selector", p.GetBitsType(2));
+  BValue case0 = fb.Param("case0", p.GetBitsType(width));
+  BValue case1 = fb.Param("case1", p.GetBitsType(width));
+  BValue default_value = fb.Param("default_value", p.GetBitsType(width));
+  fb.Select(selector, {case0, case1}, default_value);
+  BenchmarkPartialInfo(state, fb, knowledge);
+}
+
+void BM_PartialInfoPrioritySel(benchmark::State& state,
+                               BenchKnowledge knowledge) {
+  const int64_t width = state.range(0);
+  Package p("bench");
+  FunctionBuilder fb("bench", &p);
+  BValue selector = fb.Param("selector", p.GetBitsType(2));
+  BValue case0 = fb.Param("case0", p.GetBitsType(width));
+  BValue case1 = fb.Param("case1", p.GetBitsType(width));
+  BValue default_value = fb.Param("default_value", p.GetBitsType(width));
+  fb.PrioritySelect(selector, {case0, case1}, default_value);
+  BenchmarkPartialInfo(state, fb, knowledge);
+}
+
+void BM_PartialInfoOneHotSel(benchmark::State& state,
+                             BenchKnowledge knowledge) {
+  const int64_t width = state.range(0);
+  Package p("bench");
+  FunctionBuilder fb("bench", &p);
+  BValue selector = fb.Param("selector", p.GetBitsType(3));
+  BValue case0 = fb.Param("case0", p.GetBitsType(width));
+  BValue case1 = fb.Param("case1", p.GetBitsType(width));
+  BValue case2 = fb.Param("case2", p.GetBitsType(width));
+  fb.OneHotSelect(selector, {case0, case1, case2});
+  BenchmarkPartialInfo(state, fb, knowledge);
+}
+
+// Two-width benchmarks: state.range(0) & state.range(1) are the widths of the
+// lhs & rhs operands respectively.
+
+void BM_PartialInfoUMul(benchmark::State& state, BenchKnowledge knowledge) {
+  const int64_t lhs_width = state.range(0);
+  const int64_t rhs_width = state.range(1);
+  Package p("bench");
+  FunctionBuilder fb("bench", &p);
+  BValue lhs = fb.Param("lhs", p.GetBitsType(lhs_width));
+  BValue rhs = fb.Param("rhs", p.GetBitsType(rhs_width));
+  fb.UMul(lhs, rhs, /*result_width=*/lhs_width + rhs_width);
+  BenchmarkPartialInfo(state, fb, knowledge);
+}
+
+void BM_PartialInfoSMul(benchmark::State& state, BenchKnowledge knowledge) {
+  const int64_t lhs_width = state.range(0);
+  const int64_t rhs_width = state.range(1);
+  Package p("bench");
+  FunctionBuilder fb("bench", &p);
+  BValue lhs = fb.Param("lhs", p.GetBitsType(lhs_width));
+  BValue rhs = fb.Param("rhs", p.GetBitsType(rhs_width));
+  fb.SMul(lhs, rhs, /*result_width=*/lhs_width + rhs_width);
+  BenchmarkPartialInfo(state, fb, knowledge);
+}
+
+// Division & modulus require equal-width operands, so both operands are
+// zero-extended to the wider of the two widths.
+void BM_PartialInfoUnsignedDivOrMod(benchmark::State& state,
+                                    BenchKnowledge knowledge, Op op) {
+  const int64_t lhs_width = state.range(0);
+  const int64_t rhs_width = state.range(1);
+  const int64_t width = std::max(lhs_width, rhs_width);
+  Package p("bench");
+  FunctionBuilder fb("bench", &p);
+  BValue lhs = fb.Param("lhs", p.GetBitsType(lhs_width));
+  BValue rhs = fb.Param("rhs", p.GetBitsType(rhs_width));
+  fb.AddBinOp(op, fb.ZeroExtend(lhs, width), fb.ZeroExtend(rhs, width));
+  BenchmarkPartialInfo(state, fb, knowledge);
+}
+
+// Division & modulus require equal-width operands, so both operands are
+// sign-extended to the wider of the two widths.
+void BM_PartialInfoSignedDivOrMod(benchmark::State& state,
+                                  BenchKnowledge knowledge, Op op) {
+  const int64_t lhs_width = state.range(0);
+  const int64_t rhs_width = state.range(1);
+  const int64_t width = std::max(lhs_width, rhs_width);
+  Package p("bench");
+  FunctionBuilder fb("bench", &p);
+  BValue lhs = fb.Param("lhs", p.GetBitsType(lhs_width));
+  BValue rhs = fb.Param("rhs", p.GetBitsType(rhs_width));
+  fb.AddBinOp(op, fb.SignExtend(lhs, width), fb.SignExtend(rhs, width));
+  BenchmarkPartialInfo(state, fb, knowledge);
+}
+
+// NB The engine doesn't evaluate shifts of values wider than 256 bits (see
+// IsExpensiveToEvaluate) so those benchmarks are artificially cheap.
+void BM_PartialInfoShiftOp(benchmark::State& state, BenchKnowledge knowledge,
+                           Op op) {
+  Package p("bench");
+  FunctionBuilder fb("bench", &p);
+  BValue x = fb.Param("x", p.GetBitsType(state.range(0)));
+  BValue amount = fb.Param("amount", p.GetBitsType(state.range(1)));
+  fb.AddBinOp(op, x, amount);
+  BenchmarkPartialInfo(state, fb, knowledge);
+}
+
+void BM_PartialInfoConcat2(benchmark::State& state, BenchKnowledge knowledge) {
+  Package p("bench");
+  FunctionBuilder fb("bench", &p);
+  BValue a = fb.Param("a", p.GetBitsType(state.range(0)));
+  BValue b = fb.Param("b", p.GetBitsType(state.range(1)));
+  fb.Concat({a, b});
+  BenchmarkPartialInfo(state, fb, knowledge);
+}
+
+// Registers `fn(state, knowledge, extra_args...)` as
+// BM_PartialInfo<name>_<knowledge>/<width> for every knowledge scenario &
+// width.
+template <typename Fn, typename... ExtraArgs>
+void RegisterSingleWidthBenchmarks(std::string_view name, Fn fn,
+                                   ExtraArgs... extra_args) {
+  for (const BenchKnowledgeInfo& knowledge : kBenchKnowledges) {
+    auto* bm = benchmark::RegisterBenchmark(
+        absl::StrCat("BM_PartialInfo", name, "_", knowledge.name), fn,
+        knowledge.knowledge, extra_args...);
+    for (int width : kBenchWidths) {
+      bm->Arg(width);
+    }
+  }
+}
+
+// Registers `fn(state, knowledge, extra_args...)` as
+// BM_PartialInfo<name>_<knowledge>/<lhs width>/<rhs width> for every
+// knowledge scenario & pair of widths.
+template <typename Fn, typename... ExtraArgs>
+void RegisterTwoWidthBenchmarks(std::string_view name, Fn fn,
+                                ExtraArgs... extra_args) {
+  for (const BenchKnowledgeInfo& knowledge : kBenchKnowledges) {
+    auto* bm = benchmark::RegisterBenchmark(
+        absl::StrCat("BM_PartialInfo", name, "_", knowledge.name), fn,
+        knowledge.knowledge, extra_args...);
+    for (int lhs_width : kBenchWidths) {
+      for (int rhs_width : kBenchWidths) {
+        bm->ArgPair(lhs_width, rhs_width);
+      }
+    }
+  }
+}
+
+[[maybe_unused]] const bool kPartialInfoBenchmarksRegistered = [] {
+  RegisterSingleWidthBenchmarks("Neg", BM_PartialInfoUnaryOp, Op::kNeg);
+  RegisterSingleWidthBenchmarks("Not", BM_PartialInfoUnaryOp, Op::kNot);
+  RegisterSingleWidthBenchmarks("Reverse", BM_PartialInfoUnaryOp, Op::kReverse);
+  RegisterSingleWidthBenchmarks("AndReduce", BM_PartialInfoBitwiseReductionOp,
+                                Op::kAndReduce);
+  RegisterSingleWidthBenchmarks("OrReduce", BM_PartialInfoBitwiseReductionOp,
+                                Op::kOrReduce);
+  RegisterSingleWidthBenchmarks("XorReduce", BM_PartialInfoBitwiseReductionOp,
+                                Op::kXorReduce);
+  RegisterSingleWidthBenchmarks("Encode", BM_PartialInfoEncode);
+  RegisterSingleWidthBenchmarks("Decode", BM_PartialInfoDecode);
+  RegisterSingleWidthBenchmarks("OneHot", BM_PartialInfoOneHot);
+  RegisterSingleWidthBenchmarks("SignExtend", BM_PartialInfoSignExtend);
+  RegisterSingleWidthBenchmarks("ZeroExtend", BM_PartialInfoZeroExtend);
+  RegisterSingleWidthBenchmarks("BitSlice", BM_PartialInfoBitSlice);
+
+  RegisterSingleWidthBenchmarks("Add", BM_PartialInfoBinaryOp, Op::kAdd);
+  RegisterSingleWidthBenchmarks("Sub", BM_PartialInfoBinaryOp, Op::kSub);
+
+  RegisterSingleWidthBenchmarks("Eq", BM_PartialInfoCompareOp, Op::kEq);
+  RegisterSingleWidthBenchmarks("Ne", BM_PartialInfoCompareOp, Op::kNe);
+  RegisterSingleWidthBenchmarks("ULt", BM_PartialInfoCompareOp, Op::kULt);
+  RegisterSingleWidthBenchmarks("ULe", BM_PartialInfoCompareOp, Op::kULe);
+  RegisterSingleWidthBenchmarks("UGt", BM_PartialInfoCompareOp, Op::kUGt);
+  RegisterSingleWidthBenchmarks("UGe", BM_PartialInfoCompareOp, Op::kUGe);
+  RegisterSingleWidthBenchmarks("SLt", BM_PartialInfoCompareOp, Op::kSLt);
+  RegisterSingleWidthBenchmarks("SLe", BM_PartialInfoCompareOp, Op::kSLe);
+  RegisterSingleWidthBenchmarks("SGt", BM_PartialInfoCompareOp, Op::kSGt);
+  RegisterSingleWidthBenchmarks("SGe", BM_PartialInfoCompareOp, Op::kSGe);
+
+  RegisterSingleWidthBenchmarks("And2", BM_PartialInfoNaryOp2, Op::kAnd);
+  RegisterSingleWidthBenchmarks("Or2", BM_PartialInfoNaryOp2, Op::kOr);
+  RegisterSingleWidthBenchmarks("Xor2", BM_PartialInfoNaryOp2, Op::kXor);
+  RegisterSingleWidthBenchmarks("Nand2", BM_PartialInfoNaryOp2, Op::kNand);
+  RegisterSingleWidthBenchmarks("Nor2", BM_PartialInfoNaryOp2, Op::kNor);
+  RegisterSingleWidthBenchmarks("And3", BM_PartialInfoNaryOp3, Op::kAnd);
+  RegisterSingleWidthBenchmarks("Or3", BM_PartialInfoNaryOp3, Op::kOr);
+  RegisterSingleWidthBenchmarks("Xor3", BM_PartialInfoNaryOp3, Op::kXor);
+  RegisterSingleWidthBenchmarks("Nand3", BM_PartialInfoNaryOp3, Op::kNand);
+  RegisterSingleWidthBenchmarks("Nor3", BM_PartialInfoNaryOp3, Op::kNor);
+  RegisterSingleWidthBenchmarks("And4", BM_PartialInfoNaryOp4, Op::kAnd);
+  RegisterSingleWidthBenchmarks("Or4", BM_PartialInfoNaryOp4, Op::kOr);
+  RegisterSingleWidthBenchmarks("Xor4", BM_PartialInfoNaryOp4, Op::kXor);
+  RegisterSingleWidthBenchmarks("Nand4", BM_PartialInfoNaryOp4, Op::kNand);
+  RegisterSingleWidthBenchmarks("Nor4", BM_PartialInfoNaryOp4, Op::kNor);
+  RegisterSingleWidthBenchmarks("Concat3", BM_PartialInfoConcat3);
+  RegisterSingleWidthBenchmarks("Concat4", BM_PartialInfoConcat4);
+
+  RegisterSingleWidthBenchmarks("Gate", BM_PartialInfoGate);
+  RegisterSingleWidthBenchmarks("DynamicBitSlice",
+                                BM_PartialInfoDynamicBitSlice);
+  RegisterSingleWidthBenchmarks("BitSliceUpdate", BM_PartialInfoBitSliceUpdate);
+  RegisterSingleWidthBenchmarks("Sel", BM_PartialInfoSel);
+  RegisterSingleWidthBenchmarks("SelWithDefault", BM_PartialInfoSelWithDefault);
+  RegisterSingleWidthBenchmarks("PrioritySel", BM_PartialInfoPrioritySel);
+  RegisterSingleWidthBenchmarks("OneHotSel", BM_PartialInfoOneHotSel);
+
+  RegisterTwoWidthBenchmarks("UMul", BM_PartialInfoUMul);
+  RegisterTwoWidthBenchmarks("SMul", BM_PartialInfoSMul);
+  RegisterTwoWidthBenchmarks("UDiv", BM_PartialInfoUnsignedDivOrMod, Op::kUDiv);
+  RegisterTwoWidthBenchmarks("UMod", BM_PartialInfoUnsignedDivOrMod, Op::kUMod);
+  RegisterTwoWidthBenchmarks("SDiv", BM_PartialInfoSignedDivOrMod, Op::kSDiv);
+  RegisterTwoWidthBenchmarks("SMod", BM_PartialInfoSignedDivOrMod, Op::kSMod);
+  RegisterTwoWidthBenchmarks("Shll", BM_PartialInfoShiftOp, Op::kShll);
+  RegisterTwoWidthBenchmarks("Shrl", BM_PartialInfoShiftOp, Op::kShrl);
+  RegisterTwoWidthBenchmarks("Shra", BM_PartialInfoShiftOp, Op::kShra);
+  RegisterTwoWidthBenchmarks("Concat2", BM_PartialInfoConcat2);
+  return true;
+}();
 
 }  // namespace
 }  // namespace xls
