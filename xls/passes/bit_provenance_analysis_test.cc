@@ -441,6 +441,96 @@ TEST_F(BitProvenanceAnalysisTest, SingleSourceBitRepeatedMultipleTimes) {
                                  /*dest_bit_index_low=*/3, /*bit_width=*/1))));
 }
 
+TEST_F(BitProvenanceAnalysisTest,
+       TrimRepeatedSourceBitsDoesNotTrimDistinctSourcesAtSameBitIndex) {
+  std::unique_ptr<Package> p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* u1 = p->GetBitsType(1);
+  BValue x = fb.Param("x", u1);
+  BValue one = fb.Literal(UBits(1, 1));
+  BValue conc_nodes = fb.Concat({one, x});
+  BValue tup = fb.Param("tup", p->GetTupleType({u1, u1}));
+  BValue conc_fields =
+      fb.Concat({fb.TupleIndex(tup, 1), fb.TupleIndex(tup, 0)});
+  XLS_ASSERT_OK(
+      fb.BuildWithReturnValue(fb.Tuple({conc_nodes, conc_fields})).status());
+
+  BitProvenanceAnalysis bpa;
+  XLS_ASSERT_OK_AND_ASSIGN(LeafTypeTreeView<TreeBitSources> node_sources,
+                           bpa.GetBitSources(conc_nodes.node()));
+  EXPECT_THAT(
+      BitProvenanceAnalysis::TrimRepeatedSourceBits(node_sources).Get({}),
+      IsTreeBitSources(
+          ElementsAre(IsBitRange(x.node(), /*source_bit_index_low=*/0,
+                                 /*dest_bit_index_low=*/0, /*bit_width=*/1),
+                      IsBitRange(one.node(), /*source_bit_index_low=*/0,
+                                 /*dest_bit_index_low=*/1, /*bit_width=*/1))));
+
+  XLS_ASSERT_OK_AND_ASSIGN(LeafTypeTreeView<TreeBitSources> field_sources,
+                           bpa.GetBitSources(conc_fields.node()));
+  EXPECT_THAT(
+      BitProvenanceAnalysis::TrimRepeatedSourceBits(field_sources)
+          .Get({})
+          .ranges(),
+      ElementsAre(
+          TreeBitSources::BitRange(tup.node(), /*source_bit_index_low=*/0,
+                                   /*dest_bit_index_low=*/0, /*bit_width=*/1,
+                                   /*source_tree_index=*/{0}),
+          TreeBitSources::BitRange(tup.node(), /*source_bit_index_low=*/0,
+                                   /*dest_bit_index_low=*/1, /*bit_width=*/1,
+                                   /*source_tree_index=*/{1})));
+}
+
+TEST_F(BitProvenanceAnalysisTest,
+       TrimRepeatedSourceBitsDoesNotTrimOppositeEndOrMultiBitOuterSlices) {
+  std::unique_ptr<Package> p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetBitsType(8));
+  // Opposite-end wrap-around at MSB: {x[0:1], x[0:8]}.
+  BValue wrap_msb = fb.Concat({fb.BitSlice(x, 0, 1), fb.BitSlice(x, 0, 8)});
+  // Opposite-end wrap-around at LSB: {x[0:8], x[7:8]}.
+  BValue wrap_lsb = fb.Concat({fb.BitSlice(x, 0, 8), fb.BitSlice(x, 7, 1)});
+  // Multi-bit overlapping outer slice at MSB: {x[4:8], x[0:5]}.
+  BValue multibit_outer =
+      fb.Concat({fb.BitSlice(x, 4, 4), fb.BitSlice(x, 0, 5)});
+  XLS_ASSERT_OK(
+      fb.BuildWithReturnValue(fb.Tuple({wrap_msb, wrap_lsb, multibit_outer}))
+          .status());
+
+  BitProvenanceAnalysis bpa;
+  XLS_ASSERT_OK_AND_ASSIGN(LeafTypeTreeView<TreeBitSources> wrap_msb_sources,
+                           bpa.GetBitSources(wrap_msb.node()));
+  EXPECT_THAT(
+      BitProvenanceAnalysis::TrimRepeatedSourceBits(wrap_msb_sources).Get({}),
+      IsTreeBitSources(
+          ElementsAre(IsBitRange(x.node(), /*source_bit_index_low=*/0,
+                                 /*dest_bit_index_low=*/0, /*bit_width=*/8),
+                      IsBitRange(x.node(), /*source_bit_index_low=*/0,
+                                 /*dest_bit_index_low=*/8, /*bit_width=*/1))));
+
+  XLS_ASSERT_OK_AND_ASSIGN(LeafTypeTreeView<TreeBitSources> wrap_lsb_sources,
+                           bpa.GetBitSources(wrap_lsb.node()));
+  EXPECT_THAT(
+      BitProvenanceAnalysis::TrimRepeatedSourceBits(wrap_lsb_sources).Get({}),
+      IsTreeBitSources(
+          ElementsAre(IsBitRange(x.node(), /*source_bit_index_low=*/7,
+                                 /*dest_bit_index_low=*/0, /*bit_width=*/1),
+                      IsBitRange(x.node(), /*source_bit_index_low=*/0,
+                                 /*dest_bit_index_low=*/1, /*bit_width=*/8))));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LeafTypeTreeView<TreeBitSources> multibit_outer_sources,
+      bpa.GetBitSources(multibit_outer.node()));
+  EXPECT_THAT(
+      BitProvenanceAnalysis::TrimRepeatedSourceBits(multibit_outer_sources)
+          .Get({}),
+      IsTreeBitSources(
+          ElementsAre(IsBitRange(x.node(), /*source_bit_index_low=*/0,
+                                 /*dest_bit_index_low=*/0, /*bit_width=*/5),
+                      IsBitRange(x.node(), /*source_bit_index_low=*/4,
+                                 /*dest_bit_index_low=*/5, /*bit_width=*/4))));
+}
+
 TEST_F(BitProvenanceAnalysisTest, MaterializeTreeBitFromTuple) {
   std::unique_ptr<Package> p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());

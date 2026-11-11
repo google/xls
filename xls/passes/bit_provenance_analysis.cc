@@ -283,17 +283,23 @@ class BitProvenanceVisitor final : public DataflowVisitor<TreeBitSources> {
 
 namespace {
 
-// RepeatedSourceBit returns true if the outer bit range is a single bit that is
-// contiguous with the end of the inner bit range it is adjacent to, i.e:
-//   ranges = [(inner = source[:5]), (outer = source[5:6])] OR
-//   ranges = [(outer = source[0:1]), (inner = source[1:])]
+enum class EndBit { kLow, kHigh };
+
+// RepeatedSourceBit returns true if `outer` is a single-bit range that
+// duplicates the adjacent `end_bit` (`kLow` on the LSB side, `kHigh` on the
+// MSB side) of `inner` from the same source element, e.g.:
+//   LSB trim (`kLow`):  ranges = [(outer = source[0:1]), (inner = source[0:5])]
+//   MSB trim (`kHigh`): ranges = [(inner = source[0:5]), (outer = source[4:5])]
 bool RepeatedSourceBit(const TreeBitSources::BitRange& outer,
-                       const TreeBitSources::BitRange& inner) {
-  return outer.source_node() == outer.source_node() &&
-         outer.source_tree_index() == outer.source_tree_index() &&
-         outer.bit_width() == 1 &&
-         (outer.source_bit_index_high() == inner.source_bit_index_low() ||
-          outer.source_bit_index_low() == inner.source_bit_index_high());
+                       const TreeBitSources::BitRange& inner, EndBit end_bit) {
+  if (outer.bit_width() != 1 || outer.source_node() != inner.source_node() ||
+      outer.source_tree_index() != inner.source_tree_index()) {
+    return false;
+  }
+  int64_t expected_bit = end_bit == EndBit::kLow
+                             ? inner.source_bit_index_low()
+                             : inner.source_bit_index_high();
+  return outer.source_bit_index_low() == expected_bit;
 }
 
 }  // namespace
@@ -394,12 +400,14 @@ BitProvenanceAnalysis::TrimRepeatedSourceBits(
         int64_t trimmed_end = all_ranges.size() - 1;
         while (trimmed_start + 1 < all_ranges.size() &&
                RepeatedSourceBit(/*outer=*/all_ranges[trimmed_start],
-                                 /*inner=*/all_ranges[trimmed_start + 1])) {
+                                 /*inner=*/all_ranges[trimmed_start + 1],
+                                 EndBit::kLow)) {
           ++trimmed_start;
         }
         while (trimmed_end > trimmed_start &&
                RepeatedSourceBit(/*outer=*/all_ranges[trimmed_end],
-                                 /*inner=*/all_ranges[trimmed_end - 1])) {
+                                 /*inner=*/all_ranges[trimmed_end - 1],
+                                 EndBit::kHigh)) {
           --trimmed_end;
         }
         std::vector<TreeBitRange> remaining_ranges(
