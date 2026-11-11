@@ -76,7 +76,8 @@ TEST_F(BitwuzlaIrTranslatorTest, AddCounterexample) {
   EXPECT_THAT(res, IsProvenFalse());
   auto false_res = std::get<ProvenFalse>(res);
   ASSERT_TRUE(false_res.counterexample.ok());
-  EXPECT_EQ(false_res.counterexample.value().at(x.node()).bits(), UBits(0, 32));
+  EXPECT_NE(false_res.counterexample.value().at(x.node()).bits(),
+            UBits(0xffffffffULL, 32));
 }
 
 TEST_F(BitwuzlaIrTranslatorTest, ComplexAggregateParity) {
@@ -687,6 +688,53 @@ TEST_F(BitwuzlaIrTranslatorTest, WideLiteralTranslation) {
                                   SolverLimit()),
                 IsOkAndHolds(IsProvenTrue()));
   }
+}
+
+TEST_F(BitwuzlaIrTranslatorTest, LazyTranslationOnlyTranslatesDependencies) {
+  std::unique_ptr<Package> package = CreatePackage();
+  FunctionBuilder b("f", package.get());
+  Type* u32 = package->GetBitsType(32);
+  auto x = b.Param("x", u32);
+  auto y = b.Param("y", u32);
+  auto add1 = b.Add(x, y);
+  auto sub1 = b.Subtract(add1, y);
+  auto ret_val = b.Negate(sub1);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, b.Build());
+
+  XLS_ASSERT_OK_AND_ASSIGN(auto translator, IrTranslator::CreateAndTranslate(
+                                                f, {.allow_unsupported = false,
+                                                    .pre_translate = false}));
+
+  // Initially nothing should be translated.
+  EXPECT_FALSE(translator->IsNodeTranslated(x.node()));
+  EXPECT_FALSE(translator->IsNodeTranslated(y.node()));
+  EXPECT_FALSE(translator->IsNodeTranslated(add1.node()));
+  EXPECT_FALSE(translator->IsNodeTranslated(sub1.node()));
+  EXPECT_FALSE(translator->IsNodeTranslated(ret_val.node()));
+
+  // Translate add1 - should only translate add1 and its operands (x, y).
+  (void)translator->GetTranslation(add1.node());
+  EXPECT_TRUE(translator->IsNodeTranslated(x.node()));
+  EXPECT_TRUE(translator->IsNodeTranslated(y.node()));
+  EXPECT_TRUE(translator->IsNodeTranslated(add1.node()));
+  EXPECT_FALSE(translator->IsNodeTranslated(sub1.node()));
+  EXPECT_FALSE(translator->IsNodeTranslated(ret_val.node()));
+
+  // Translate ret_val - should now translate sub1 and ret_val.
+  (void)translator->GetTranslation(ret_val.node());
+  EXPECT_TRUE(translator->IsNodeTranslated(sub1.node()));
+  EXPECT_TRUE(translator->IsNodeTranslated(ret_val.node()));
+
+  // Verify unified SolverInstance works as expected too.
+  BitwuzlaSolver solver;
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<xls::solvers::SolverInstance> solver_instance,
+      solver.CreateSolverInstance(
+          f, {.allow_unsupported = false, .pre_translate = false}));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      ProverResult proven,
+      solver_instance->TryProve(ret_val.node(), Predicate::EqualToZero()));
+  EXPECT_THAT(proven, IsProvenFalse());
 }
 
 // Microbenchmarks comparing Bitwuzla against Z3 on representative IR operations

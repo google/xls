@@ -191,6 +191,15 @@ void AbslStringify(Sink& sink, const ProverResult& p) {
   absl::Format(&sink, "[ProvenFalse: %s]", std::get<ProvenFalse>(p).message);
 }
 
+struct SolverOptions {
+  bool allow_unsupported = false;
+  bool pre_translate = true;
+};
+
+struct ProveOptions {
+  bool produce_counterexample = true;
+};
+
 // Stateful, pre-translated solver instance bound to an XLS FunctionBase.
 class SolverInstance {
  public:
@@ -201,12 +210,14 @@ class SolverInstance {
   // Proves a node property on the pre-translated function.
   virtual absl::StatusOr<ProverResult> TryProve(
       Node* subject, const Predicate& p,
-      absl::Span<const PredicateOfNode> assumptions = {}) = 0;
+      absl::Span<const PredicateOfNode> assumptions = {},
+      const ProveOptions& options = {}) = 0;
 
   // Proves a combination of properties on the pre-translated function.
   virtual absl::StatusOr<ProverResult> TryProveCombination(
       absl::Span<const PredicateOfNode> terms, PredicateCombination combination,
-      absl::Span<const PredicateOfNode> assumptions = {}) = 0;
+      absl::Span<const PredicateOfNode> assumptions = {},
+      const ProveOptions& options = {}) = 0;
 
   // Returns solver-specific statistics if available.
   virtual absl::flat_hash_map<std::string, int64_t> GetStats() const {
@@ -223,7 +234,7 @@ class Solver {
 
   // Creates a stateful instance that caches the translated function.
   virtual absl::StatusOr<std::unique_ptr<SolverInstance>> CreateSolverInstance(
-      FunctionBase* f, bool allow_unsupported = false) = 0;
+      FunctionBase* f, const SolverOptions& options = {}) = 0;
 
   // High-level, one-off helper functions.
   virtual absl::StatusOr<ProverResult> TryProve(
