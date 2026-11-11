@@ -7,8 +7,11 @@ die () {
   exit 1
 }
 
-# Run the benchmark
-${MY_BENCHMARK_FILE} || die "Failed in ${MY_BENCHMARK_FILE}"
+# Run the benchmark and verify that block evaluation elaborates the top
+# container block (ProcName) rather than blocks()[0].
+BENCHMARK_LOG="${TEST_TMPDIR}/proc_network_benchmark.log"
+${MY_BENCHMARK_FILE} --vmodule=benchmark_main=1 --stderrthreshold=0 2> "${BENCHMARK_LOG}" || die "Failed in ${MY_BENCHMARK_FILE}"
+grep -F "Evaluating block: ProcName" "${BENCHMARK_LOG}" || die "Expected benchmark_main to evaluate top block ProcName, got: $(cat "${BENCHMARK_LOG}")"
 
 # Verify fractional square-micron area is preserved without integer truncation.
 BENCHMARK_MAIN="./xls/dev_tools/benchmark_main"
