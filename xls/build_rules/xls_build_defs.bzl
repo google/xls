@@ -69,6 +69,7 @@ load(
     "//xls/build_rules:xls_macros.bzl",
     _xls_dslx_cpp_type_library = "xls_dslx_cpp_type_library",
     _xls_dslx_fmt_test_macro = "xls_dslx_fmt_test_macro",
+    _xls_dslx_opt_ir_determinism_test = "xls_dslx_opt_ir_determinism_test",
     _xls_dslx_opt_ir_macro = "xls_dslx_opt_ir_macro",
     _xls_dslx_verilog_build_and_test = "xls_dslx_verilog_build_and_test",
     _xls_full_benchmark_ir_macro = "xls_full_benchmark_ir_macro",
@@ -120,6 +121,7 @@ xls_ir_opt_ir = _xls_ir_opt_ir_macro
 xls_ir_verilog = _xls_ir_verilog_build_and_test
 xls_benchmark_verilog = _xls_benchmark_verilog
 xls_dslx_opt_ir = _xls_dslx_opt_ir_macro
+xls_dslx_opt_ir_determinism_test = _xls_dslx_opt_ir_determinism_test
 xls_dslx_verilog = _xls_dslx_verilog_build_and_test
 xls_dslx_cpp_type_library = _xls_dslx_cpp_type_library
 xls_synthesis_metrics = _xls_synthesis_metrics
