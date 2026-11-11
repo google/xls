@@ -93,8 +93,9 @@ class FastConcretizerImpl : public FastConcretizer,
 
   absl::Status HandleFunctionTypeAnnotation(
       const FunctionTypeAnnotation* function_type) override {
-    XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> return_type,
-                         Concretize(function_type->return_type()));
+    XLS_ASSIGN_OR_RETURN(
+        std::unique_ptr<Type> return_type,
+        Concretize(GetReturnType(*function_type->owner(), *function_type)));
     std::vector<std::unique_ptr<Type>> param_types;
     param_types.reserve(function_type->param_types().size());
     for (const TypeAnnotation* param : function_type->param_types()) {

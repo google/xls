@@ -297,6 +297,13 @@ const TypeAnnotation* GetReturnType(Module& module, const Function& fn) {
              : CreateUnitTupleAnnotation(module, fn.span());
 }
 
+const TypeAnnotation* GetReturnType(Module& module,
+                                    const FunctionTypeAnnotation& annotation) {
+  return annotation.return_type() != nullptr
+             ? annotation.return_type()
+             : CreateUnitTupleAnnotation(module, annotation.span());
+}
+
 const ArrayTypeAnnotation* CastToNonBitsArrayTypeAnnotation(
     const TypeAnnotation* annotation) {
   if (!annotation->IsAnnotation<ArrayTypeAnnotation>()) {
