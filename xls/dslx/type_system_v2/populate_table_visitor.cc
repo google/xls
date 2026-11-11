@@ -446,7 +446,7 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
         // that is "negotiable".
         if (node->number_kind() == NumberKind::kOther) {
           table_.SetAnnotationFlag(annotation, TypeInferenceFlag::kMinSize);
-          if (node->IsBitPattern()) {
+          if (node->HasPrefix()) {
             table_.SetAnnotationFlag(annotation, TypeInferenceFlag::kHasPrefix);
           }
         }

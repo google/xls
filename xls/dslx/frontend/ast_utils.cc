@@ -47,6 +47,7 @@
 #include "xls/dslx/frontend/token_utils.h"
 #include "xls/dslx/interp_value.h"
 #include "xls/ir/bits.h"
+#include "xls/ir/format_preference.h"
 #include "xls/ir/number_parser.h"
 
 namespace xls::dslx {
@@ -500,12 +501,14 @@ std::optional<Number*> ConvertToNumberIfBitsLike(Module& module,
   if (!value.IsBits() && !value.IsEnum()) {
     return std::nullopt;
   }
-  // Wide values are formatted in hex. Preserve their numeric meaning when
-  // type inference checks the resulting literal against a signed type.
-  return module.Make<Number>(span, value.ToString(/*humanize=*/true),
-                             NumberKind::kOther, nullptr,
-                             /*in_parens=*/false, /*leave_span_intact=*/true,
-                             /*allow_bit_pattern=*/false);
+  // Use decimal for nonnegative bit values so a wide value's default hex
+  // spelling cannot supply the sign bit of a signed type. Negative values
+  // already have an explicit sign in the default format.
+  const FormatPreference format = value.IsBits() && !value.IsNegative()
+                                      ? FormatPreference::kUnsignedDecimal
+                                      : FormatPreference::kDefault;
+  return module.Make<Number>(span, value.ToHumanString(format),
+                             NumberKind::kOther, nullptr);
 }
 
 std::optional<const UseTreeEntry*> IsExternNameRef(const NameRef& name_ref) {

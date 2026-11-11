@@ -3546,15 +3546,13 @@ static Span MakeNumberSpan(Span expr_span,
 
 Number::Number(Module* owner, Span span, std::string text,
                NumberKind number_kind, TypeAnnotation* type_annotation,
-               bool in_parens, bool leave_span_intact, bool allow_bit_pattern)
+               bool in_parens, bool leave_span_intact)
     : Expr(owner,
            leave_span_intact ? span
                              : MakeNumberSpan(std::move(span), type_annotation),
            in_parens),
       text_(std::move(text)),
       number_kind_(number_kind),
-      is_bit_pattern_(allow_bit_pattern &&
-                      (text_.starts_with("0x") || text_.starts_with("0b"))),
       type_annotation_(type_annotation) {}
 
 Number::~Number() = default;
@@ -3601,8 +3599,7 @@ absl::StatusOr<bool> Number::FitsInType(int64_t bit_count,
       return bit_count >= CHAR_BIT;
     case NumberKind::kOther: {
       XLS_ASSIGN_OR_RETURN((auto [sign, bits]), GetSignAndMagnitude(text_));
-      if (is_signed && bits.msb() && sign != Sign::kNegative &&
-          !IsBitPattern()) {
+      if (is_signed && bits.msb() && sign == Sign::kPositive) {
         return bit_count > bits.bit_count();
       }
       return bit_count >= bits.bit_count();

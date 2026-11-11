@@ -276,6 +276,7 @@ cc_library(
         "//xls/common/status:status_macros",
         "//xls/dslx:interp_value",
         "//xls/ir:bits",
+        "//xls/ir:format_preference",
         "//xls/ir:number_parser",
         "@abseil-cpp//absl/algorithm:container",
         "@abseil-cpp//absl/base",
