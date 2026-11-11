@@ -502,6 +502,7 @@ cc_binary(
         "//xls/passes:optimization_pass",
         "//xls/passes:optimization_pass_pipeline",
         "//xls/passes:pass_base",
+        "//xls/solvers:bitwuzla_ir_translator",
         "//xls/solvers:ir_equivalence",
         "//xls/solvers:solver",
         "//xls/solvers:z3_ir_translator",
@@ -525,6 +526,7 @@ pytype_strict_contrib_test(
     deps = [
         "//xls/common:runfiles",
         "@abseil-py//absl/testing:absltest",
+        "@abseil-py//absl/testing:parameterized",
     ],
 )
 

@@ -16,9 +16,10 @@
 """Basic functionality test for check_ir_equivalence_main."""
 
 import subprocess
-from typing import Tuple, Union
+from typing import Optional, Tuple, Union
 
 from absl.testing import absltest
+from absl.testing import parameterized
 from xls.common import runfiles
 
 
@@ -128,19 +129,26 @@ top proc proc_tst(my_state: (), init={()}) {
 _CHECK_EQUIV = runfiles.get_path("xls/dev_tools/check_ir_equivalence_main")
 
 
-class CheckIrEquivalenceMainTest(absltest.TestCase):
+class CheckIrEquivalenceMainTest(parameterized.TestCase):
 
   def _check_equiv(
-      self, ir_a: str, ir_b: str, act_count: Union[None, int] = 0
+      self,
+      ir_a: str,
+      ir_b: str,
+      act_count: Union[None, int] = 0,
+      solver: Optional[str] = None,
   ) -> Tuple[bool, str, str]:
     """Returns `(success, output_message, stderr_message)`."""
+    cmd = [
+        _CHECK_EQUIV,
+        self.create_tempfile(content=ir_a).full_path,
+        self.create_tempfile(content=ir_b).full_path,
+        f"--activation_count={act_count}",
+    ]
+    if solver is not None:
+      cmd.append(f"--solver={solver}")
     res = subprocess.run(
-        [
-            _CHECK_EQUIV,
-            self.create_tempfile(content=ir_a).full_path,
-            self.create_tempfile(content=ir_b).full_path,
-            f"--activation_count={act_count}",
-        ],
+        cmd,
         check=False,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
@@ -149,30 +157,39 @@ class CheckIrEquivalenceMainTest(absltest.TestCase):
     stderr = res.stderr.decode("utf8")
     return res.returncode == 0, stdout, stderr
 
-  def test_detects_different_functions(self):
-    res, stdout, _ = self._check_equiv(ADD_IR, NOT_ADD_IR)
+  @parameterized.parameters(None, "z3", "bitwuzla")
+  def test_detects_different_functions(self, solver: Optional[str]):
+    res, stdout, _ = self._check_equiv(ADD_IR, NOT_ADD_IR, solver=solver)
     self.assertFalse(res)
     self.assertIn("Verified NOT equivalent", stdout)
 
-  def test_ignores_assert(self):
+  @parameterized.parameters(None, "z3", "bitwuzla")
+  def test_ignores_assert(self, solver: Optional[str]):
     res, stdout, _ = self._check_equiv(
-        PROC_IR_WITH_ASSERT, PROC_IR, act_count=3
+        PROC_IR_WITH_ASSERT, PROC_IR, act_count=3, solver=solver
     )
     self.assertTrue(res)
     self.assertIn("Verified equivalent", stdout)
 
-  def test_detects_equiv_functions(self):
-    res, stdout, _ = self._check_equiv(ADD_IR, NOT_NOT_ADD_IR)
+  @parameterized.parameters(None, "z3", "bitwuzla")
+  def test_detects_equiv_functions(self, solver: Optional[str]):
+    res, stdout, _ = self._check_equiv(ADD_IR, NOT_NOT_ADD_IR, solver=solver)
     self.assertTrue(res)
     self.assertIn("Verified equivalent", stdout)
 
-  def test_detects_different_procs(self):
-    res, stdout, _ = self._check_equiv(PROC_IR, NEG_PROC_IR, act_count=14)
+  @parameterized.parameters(None, "z3", "bitwuzla")
+  def test_detects_different_procs(self, solver: Optional[str]):
+    res, stdout, _ = self._check_equiv(
+        PROC_IR, NEG_PROC_IR, act_count=14, solver=solver
+    )
     self.assertFalse(res)
     self.assertIn("Verified NOT equivalent", stdout)
 
-  def test_detects_equiv_procs(self):
-    res, stdout, _ = self._check_equiv(PROC_IR, NEG_NEG_PROC_IR, act_count=14)
+  @parameterized.parameters(None, "z3", "bitwuzla")
+  def test_detects_equiv_procs(self, solver: Optional[str]):
+    res, stdout, _ = self._check_equiv(
+        PROC_IR, NEG_NEG_PROC_IR, act_count=14, solver=solver
+    )
     self.assertTrue(res)
     self.assertIn("Verified equivalent", stdout)
 

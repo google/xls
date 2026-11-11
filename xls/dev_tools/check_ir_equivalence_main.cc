@@ -82,17 +82,19 @@ ABSL_FLAG(int, mismatch_exit_code, 255,
           "Value to exit with if equivalence is not proven.");
 ABSL_FLAG(int, match_exit_code, 0,
           "Value to exit with if equivalence is not proven.");
+ABSL_FLAG(xls::solvers::SolverKind, solver, xls::solvers::SolverKind::kZ3,
+          "Solver backend to use (z3 or bitwuzla).");
 // LINT.ThenChange(//xls/build_rules/xls_ir_rules.bzl)
 
 namespace xls {
 namespace {
 
-absl::StatusOr<solvers::ProverResult> CheckFunctionEquivalence(Function* f1,
-                                                               Function* f2) {
-  return solvers::TryProveEquivalence(f1, f2);
+absl::StatusOr<solvers::ProverResult> CheckFunctionEquivalence(
+    Function* f1, Function* f2, solvers::SolverKind solver) {
+  return solvers::TryProveEquivalence(f1, f2, solver);
 }
 absl::StatusOr<solvers::ProverResult> CheckProcEquivalence(
-    Proc* p1, Proc* p2, int64_t activation_count) {
+    Proc* p1, Proc* p2, int64_t activation_count, solvers::SolverKind solver) {
   XLS_ASSIGN_OR_RETURN(
       Function * f1,
       UnrollProcToFunction(p1, activation_count, /*include_state=*/false),
@@ -101,7 +103,7 @@ absl::StatusOr<solvers::ProverResult> CheckProcEquivalence(
       Function * f2,
       UnrollProcToFunction(p2, activation_count, /*include_state=*/false),
       _ << "Unable to unroll: " << p2->DumpIr());
-  return CheckFunctionEquivalence(f1, f2);
+  return CheckFunctionEquivalence(f1, f2, solver);
 }
 
 absl::StatusOr<std::vector<std::string>> CounterexampleParams(
@@ -138,7 +140,8 @@ absl::StatusOr<std::vector<std::string>> CounterexampleParams(
 
 absl::StatusOr<bool> RealMain(const std::vector<std::string_view>& ir_paths,
                               const std::string& entry,
-                              std::optional<int64_t> activation_count) {
+                              std::optional<int64_t> activation_count,
+                              solvers::SolverKind solver) {
   auto timeout = StartTimeoutTimer();
   std::vector<std::unique_ptr<Package>> packages;
   for (const auto ir_path : ir_paths) {
@@ -187,9 +190,9 @@ absl::StatusOr<bool> RealMain(const std::vector<std::string_view>& ir_paths,
     if (!functions[1]->IsFunction()) {
       return absl::InvalidArgumentError("Both inputs must be functions");
     }
-    XLS_ASSIGN_OR_RETURN(
-        result, CheckFunctionEquivalence(functions[0]->AsFunctionOrDie(),
-                                         functions[1]->AsFunctionOrDie()));
+    XLS_ASSIGN_OR_RETURN(result, CheckFunctionEquivalence(
+                                     functions[0]->AsFunctionOrDie(),
+                                     functions[1]->AsFunctionOrDie(), solver));
   } else if (functions[0]->IsProc()) {
     if (!functions[1]->IsProc()) {
       return absl::InvalidArgumentError("Both inputs must be procs");
@@ -198,10 +201,10 @@ absl::StatusOr<bool> RealMain(const std::vector<std::string_view>& ir_paths,
       return absl::InvalidArgumentError(
           "a positive activation is required for proc equivalence checking");
     }
-    XLS_ASSIGN_OR_RETURN(
-        result,
-        CheckProcEquivalence(functions[0]->AsProcOrDie(),
-                             functions[1]->AsProcOrDie(), *activation_count));
+    XLS_ASSIGN_OR_RETURN(result,
+                         CheckProcEquivalence(functions[0]->AsProcOrDie(),
+                                              functions[1]->AsProcOrDie(),
+                                              *activation_count, solver));
   } else {
     return absl::InternalError(
         "Block equivalence checking not supported currently.");
@@ -231,7 +234,8 @@ int main(int argc, char** argv) {
       xls::InitXls(kUsage, argc, argv);
   QCHECK_EQ(positional_args.size(), 2) << "Two IR files must be specified!";
   auto result = xls::RealMain(positional_args, absl::GetFlag(FLAGS_top),
-                              absl::GetFlag(FLAGS_activation_count));
+                              absl::GetFlag(FLAGS_activation_count),
+                              absl::GetFlag(FLAGS_solver));
   if (!result.ok()) {
     return xls::ExitStatus(result.status());
   }

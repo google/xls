@@ -458,6 +458,7 @@ def get_ir_equivalence_test_cmd(
     IR_EQUIVALENCE_FLAGS = (
         "timeout",
         "activation_count",
+        "solver",
     )
 
     ir_equivalence_args = dict(ctx.attr.ir_equivalence_args)
