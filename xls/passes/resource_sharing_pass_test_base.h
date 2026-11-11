@@ -672,8 +672,10 @@ TYPED_TEST_P(ResourceSharingPassTestBase, NotPossibleFolding3) {
   // Create the function
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(select));
 
-  // We expect the transformation to be not applicable
-  EXPECT_THAT(this->Run(f), IsOkAndHolds(false));
+  // Cross-sign 32x32->32 smul and umul share a single multiplier via
+  // MulEquivalenceMapping.
+  EXPECT_THAT(this->Run(f), IsOkAndHolds(true));
+  EXPECT_EQ(NumberOfMultiplications(f), 1);
 }
 
 TYPED_TEST_P(ResourceSharingPassTestBase, NotPossibleFolding4) {
@@ -1762,6 +1764,95 @@ TYPED_TEST_P(ResourceSharingPassTestBase, MergeComparisonAndSubtract) {
               m::Select(cond.node(), /*cases=*/{sub_folded, msb}));
 }
 
+TYPED_TEST_P(ResourceSharingPassTestBase, MergeCrossSignMultiplications) {
+  // Full-precision cross-sign 16x16->32 umul + smul folds into a synthesized
+  // 17x17->32 smul.
+  auto p = this->CreatePackage();
+  FunctionBuilder fb(this->TestName(), p.get());
+  Type* u16 = p->GetBitsType(16);
+  BValue cond = fb.Param("cond", p->GetBitsType(1));
+  BValue a = fb.Param("a", u16);
+  BValue b = fb.Param("b", u16);
+  BValue c = fb.Param("c", u16);
+  BValue d = fb.Param("d", u16);
+  BValue umul = fb.UMul(a, b, 32);
+  BValue smul = fb.SMul(c, d, 32);
+  BValue sel = fb.Select(cond, {umul, smul});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(sel));
+  EXPECT_EQ(NumberOfMultiplications(f), 2);
+
+  EXPECT_THAT(this->Run(f), IsOkAndHolds(true));
+  EXPECT_EQ(NumberOfMultiplications(f), 1);
+  EXPECT_EQ(NumberOfNodes(f, {Op::kSMul}), 1);
+  EXPECT_EQ(NumberOfNodes(f, {Op::kUMul}), 0);
+
+  // Exercise MSB-set inputs (0xFFFF, 0x8000) where signed and unsigned
+  // products diverge in the upper 16 bits.
+  InterpretAndCheck(f, {0, 0xFFFF, 0x8000, 0, 0}, {1, 16, 16, 16, 16},
+                    {false, false, false, false, false}, 0x7FFF8000, 32);
+  InterpretAndCheck(f, {1, 0, 0, 0xFFFF, 0x8000}, {1, 16, 16, 16, 16},
+                    {false, false, false, false, false}, 0x00008000, 32);
+}
+
+TYPED_TEST_P(ResourceSharingPassTestBase, MergeSwappedOperandMultiplications) {
+  // Asymmetric swapped-operand 16x8->24 smul + 8x16->24 smul folds into a
+  // single 16x8->24 smul without widening to 16x16.
+  auto p = this->CreatePackage();
+  FunctionBuilder fb(this->TestName(), p.get());
+  Type* u16 = p->GetBitsType(16);
+  Type* u8 = p->GetBitsType(8);
+  BValue cond = fb.Param("cond", p->GetBitsType(1));
+  BValue a16 = fb.Param("a16", u16);
+  BValue b8 = fb.Param("b8", u8);
+  BValue c8 = fb.Param("c8", u8);
+  BValue d16 = fb.Param("d16", u16);
+  BValue smul_16_8 = fb.SMul(a16, b8, 24);
+  BValue smul_8_16 = fb.SMul(c8, d16, 24);
+  BValue sel = fb.Select(cond, {smul_16_8, smul_8_16});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(sel));
+  EXPECT_EQ(NumberOfMultiplications(f), 2);
+
+  EXPECT_THAT(this->Run(f), IsOkAndHolds(true));
+  EXPECT_EQ(NumberOfMultiplications(f), 1);
+
+  // 0x0100 * 0xFF (-1 in s8) = -0x0100 = 0xFFFF00 in 24-bit two's complement.
+  // 0xFE (-2 in s8) * 0x0100 = -0x0200 = 0xFFFE00 in 24-bit two's complement.
+  InterpretAndCheck(f, {0, 0x0100, 0xFF, 0, 0}, {1, 16, 8, 8, 16},
+                    {false, false, false, false, false}, 0xFFFF00, 24);
+  InterpretAndCheck(f, {1, 0, 0, 0xFE, 0x0100}, {1, 16, 8, 8, 16},
+                    {false, false, false, false, false}, 0xFFFE00, 24);
+}
+
+TYPED_TEST_P(ResourceSharingPassTestBase,
+             MergeCrossSignAndSwappedMultiplications) {
+  // Small cross-sign and swapped-operand multiplies verified with Z3
+  // ScopedVerifyEquivalence.
+  auto p = this->CreatePackage();
+  FunctionBuilder fb(this->TestName(), p.get());
+  Type* u6 = p->GetBitsType(6);
+  Type* u4 = p->GetBitsType(4);
+  BValue cond = fb.Param("cond", p->GetBitsType(2));
+  BValue a6 = fb.Param("a6", u6);
+  BValue b6 = fb.Param("b6", u6);
+  BValue c6 = fb.Param("c6", u6);
+  BValue d4 = fb.Param("d4", u4);
+  BValue e4 = fb.Param("e4", u4);
+  BValue f6 = fb.Param("f6", u6);
+  BValue umul_6_6 = fb.UMul(a6, b6, 12);
+  BValue smul_6_4 = fb.SMul(c6, d4, 12);
+  BValue smul_4_6 = fb.SMul(e4, f6, 12);
+  BValue sel =
+      fb.Select(cond, {umul_6_6, smul_6_4, smul_4_6}, fb.Literal(UBits(0, 12)));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(sel));
+  EXPECT_EQ(NumberOfMultiplications(f), 3);
+
+  ScopedVerifyEquivalence check_equivalent(f, absl::Seconds(10));
+  EXPECT_THAT(this->Run(f), IsOkAndHolds(true));
+  EXPECT_EQ(NumberOfMultiplications(f), 1);
+  EXPECT_EQ(NumberOfNodes(f, {Op::kSMul}), 1);
+  EXPECT_EQ(NumberOfNodes(f, {Op::kUMul}), 0);
+}
+
 REGISTER_TYPED_TEST_SUITE_P(
     ResourceSharingPassTestBase, MergeSingleUnsignedMultiplication,
     MergeSingleUnsignedMultiplication2, MergeSingleSignedMultiplication,
@@ -1777,6 +1868,8 @@ REGISTER_TYPED_TEST_SUITE_P(
     MergeSubsWithDifferentBitwidths, MergeAddsAndSubs, MergeShift,
     MergeShiftLeftAndRight, MergeShiftLogicalAndArithmetic,
     MergeAllShiftsTogether, MergeComparisonAndSubtract,
+    MergeCrossSignMultiplications, MergeSwappedOperandMultiplications,
+    MergeCrossSignAndSwappedMultiplications,
     MergeMultipliesAndAddsUsedByTwoSelects, PreventCyclesInFoldingChains,
     PreventCyclesInFoldingChainsNary, PreventCyclesInFoldingChainsIndirect);
 

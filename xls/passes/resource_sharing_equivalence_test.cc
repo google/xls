@@ -17,6 +17,8 @@
 #include <cstdint>
 #include <memory>
 #include <optional>
+#include <string>
+#include <utility>
 #include <vector>
 
 #include "gmock/gmock.h"
@@ -77,6 +79,10 @@ class FakeAreaEstimator : public AreaEstimator {
     }
     if (node->op() == Op::kSub) {
       return 100.0 * node->BitCountOrDie();
+    }
+    if (node->OpIn({Op::kUMul, Op::kSMul})) {
+      return node->operand(0)->BitCountOrDie() *
+             node->operand(1)->BitCountOrDie();
     }
     return 1.0;
   }
@@ -1271,6 +1277,7 @@ TEST_F(ResourceSharingEquivalenceTest, CloneEquivalenceMapping) {
   BValue b = fb.Param("b", p->GetBitsType(32));
   BValue a16 = fb.Param("a16", p->GetBitsType(16));
   BValue b16 = fb.Param("b16", p->GetBitsType(16));
+  BValue a17 = fb.Param("a17", p->GetBitsType(17));
   BValue add0 = fb.Add(a, b);
   BValue add1 = fb.Add(a, b);
   BValue sub0 = fb.Subtract(a, b);
@@ -1284,6 +1291,10 @@ TEST_F(ResourceSharingEquivalenceTest, CloneEquivalenceMapping) {
   BValue uge0 = fb.UGe(a, b);
   BValue ult16 = fb.ULt(a16, b16);
   BValue sle16 = fb.SLe(a16, b16);
+  BValue umul16 = fb.UMul(a16, b16, 32);
+  BValue smul16 = fb.SMul(a16, b16, 32);
+  BValue smul_16_17 = fb.SMul(a16, a17, 33);
+  BValue smul_17_16 = fb.SMul(a17, a16, 33);
   XLS_ASSERT_OK(fb.BuildWithReturnValue(add0).status());
 
   // confirm cloning does node remapping and complains when original to clone
@@ -1332,6 +1343,9 @@ TEST_F(ResourceSharingEquivalenceTest, CloneEquivalenceMapping) {
   eq_mapping_clone(sle16.node(), sub0.node());
   eq_mapping_clone(ult0.node(), sub0.node());
   eq_mapping_clone(ult0.node(), sub16.node());
+  // MulEquivalenceMapping
+  eq_mapping_clone(umul16.node(), smul16.node());
+  eq_mapping_clone(smul_17_16.node(), smul_16_17.node());
 }
 
 TEST_F(ResourceSharingEquivalenceTest, CloneMultiplySplitter) {
@@ -1456,6 +1470,314 @@ TEST_F(ResourceSharingEquivalenceTest,
                                      m::SignExt(m::Param("b16"))));
   }
 }
+
+struct MulSpec {
+  Op op;
+  int64_t lhs_width;
+  int64_t rhs_width;
+  int64_t out_width;
+};
+
+struct MulPositiveCase {
+  std::string test_name;
+  std::vector<MulSpec> sources;
+  MulSpec dst;
+  MulSpec expected_dst;
+  bool expect_dst_modified;
+  bool expect_src_op_transform;
+  bool expect_src_out_transform;
+};
+
+class MulEquivalenceMappingPositiveTest
+    : public ResourceSharingEquivalenceTest,
+      public ::testing::WithParamInterface<MulPositiveCase> {};
+
+TEST_P(MulEquivalenceMappingPositiveTest, FoldsAndPreservesEquivalence) {
+  const MulPositiveCase& tc = GetParam();
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  int64_t param_idx = 0;
+  auto build_mul = [&](const MulSpec& spec) -> Node* {
+    BValue lhs = fb.Param("lhs_" + std::to_string(param_idx),
+                          p->GetBitsType(spec.lhs_width));
+    BValue rhs = fb.Param("rhs_" + std::to_string(param_idx),
+                          p->GetBitsType(spec.rhs_width));
+    ++param_idx;
+    BValue mul = spec.op == Op::kSMul ? fb.SMul(lhs, rhs, spec.out_width)
+                                      : fb.UMul(lhs, rhs, spec.out_width);
+    return mul.node();
+  };
+
+  std::vector<Node*> sources;
+  sources.reserve(tc.sources.size());
+  for (const MulSpec& src_spec : tc.sources) {
+    sources.push_back(build_mul(src_spec));
+  }
+  Node* dst = build_mul(tc.dst);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  FakeAreaEstimator area_estimator;
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::optional<NodeToMappings> mappings,
+      GetNodeEquivalenceMapper().ComputeMappings(sources, dst));
+  ASSERT_TRUE(mappings.has_value());
+  EXPECT_EQ(mappings->contains(dst), tc.expect_dst_modified);
+  const EquivalenceMapping& first_src_map = *mappings->at(sources.front());
+  EXPECT_EQ(first_src_map.dst()->op(), tc.expected_dst.op);
+  EXPECT_EQ(first_src_map.dst()->operand(0)->BitCountOrDie(),
+            tc.expected_dst.lhs_width);
+  EXPECT_EQ(first_src_map.dst()->operand(1)->BitCountOrDie(),
+            tc.expected_dst.rhs_width);
+  EXPECT_EQ(first_src_map.dst()->BitCountOrDie(), tc.expected_dst.out_width);
+  EXPECT_THAT(first_src_map.RequiresOperandTransformation(),
+              IsOkAndHolds(tc.expect_src_op_transform));
+  EXPECT_THAT(first_src_map.RequiresOutputTransformation(),
+              IsOkAndHolds(tc.expect_src_out_transform));
+
+  for (const auto& [node, map] : *mappings) {
+    XLS_ASSERT_OK_AND_ASSIGN(
+        double overhead,
+        map->EstimateAreaOverhead(area_estimator, node->operands(), node));
+    if (tc.expect_dst_modified) {
+      EXPECT_GT(overhead, 0.0);
+    } else {
+      EXPECT_EQ(overhead, 0.0);
+    }
+    XLS_ASSERT_OK(VerifyEquivalence(f, node, *map).status());
+  }
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    MulEquivalenceMappingPositiveTests, MulEquivalenceMappingPositiveTest,
+    ::testing::ValuesIn<MulPositiveCase>({
+        // umul(16, 16)->32 to smul(16, 16)->32 widens dst to smul(17, 17).
+        {
+            .test_name = "UMulToSMulWidensDst",
+            .sources = {{Op::kUMul, 16, 16, 32}},
+            .dst = {Op::kSMul, 16, 16, 32},
+            .expected_dst = {Op::kSMul, 17, 17, 32},
+            .expect_dst_modified = true,
+            .expect_src_op_transform = true,
+            .expect_src_out_transform = false,
+        },
+        // smul(16, 16)->32 to umul(16, 16)->32 promotes dst to smul(17, 17).
+        {
+            .test_name = "SMulToUMulPromotesAndWidensDst",
+            .sources = {{Op::kSMul, 16, 16, 32}},
+            .dst = {Op::kUMul, 16, 16, 32},
+            .expected_dst = {Op::kSMul, 17, 17, 32},
+            .expect_dst_modified = true,
+            .expect_src_op_transform = true,
+            .expect_src_out_transform = false,
+        },
+        // Low-half umul(16, 16)->16 to smul(16, 16)->16 needs no widening.
+        {
+            .test_name = "LowHalfUMulToSMulNoWidening",
+            .sources = {{Op::kUMul, 16, 16, 16}},
+            .dst = {Op::kSMul, 16, 16, 16},
+            .expected_dst = {Op::kSMul, 16, 16, 16},
+            .expect_dst_modified = false,
+            .expect_src_op_transform = false,
+            .expect_src_out_transform = false,
+        },
+        // Commutative operand swap: smul(17, 16) -> smul(16, 17) without
+        // widening.
+        {
+            .test_name = "CommutativeOperandSwapNoWidening",
+            .sources = {{Op::kSMul, 17, 16, 32}},
+            .dst = {Op::kSMul, 16, 17, 32},
+            .expected_dst = {Op::kSMul, 16, 17, 32},
+            .expect_dst_modified = false,
+            .expect_src_op_transform = true,
+            .expect_src_out_transform = false,
+        },
+        // N-ary commutative alignment is order-independent onto smul(16, 17).
+        {
+            .test_name = "NaryCommutativeAlignmentNarrowFirst",
+            .sources = {{Op::kUMul, 15, 16, 32}, {Op::kUMul, 16, 15, 32}},
+            .dst = {Op::kSMul, 16, 16, 32},
+            .expected_dst = {Op::kSMul, 16, 17, 32},
+            .expect_dst_modified = true,
+            .expect_src_op_transform = true,
+            .expect_src_out_transform = false,
+        },
+        {
+            .test_name = "NaryCommutativeAlignmentWideFirst",
+            .sources = {{Op::kUMul, 16, 15, 32}, {Op::kUMul, 15, 16, 32}},
+            .dst = {Op::kSMul, 16, 16, 32},
+            .expected_dst = {Op::kSMul, 16, 17, 32},
+            .expect_dst_modified = true,
+            .expect_src_op_transform = true,
+            .expect_src_out_transform = false,
+        },
+    }),
+    [](const ::testing::TestParamInfo<MulPositiveCase>& info) {
+      return info.param.test_name;
+    });
+
+TEST_F(ResourceSharingEquivalenceTest,
+       MulEquivalenceMappingSymmetricWidthOperandTieBreaker) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue a16 = fb.Param("a16", p->GetBitsType(16));
+  BValue b16 = fb.Param("b16", p->GetBitsType(16));
+  BValue smul_swapped = fb.SMul(b16, a16, 32);
+  BValue umul = fb.UMul(a16, b16, 32);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::optional<NodeToMappings> mappings,
+                           GetNodeEquivalenceMapper().ComputeMappings(
+                               {smul_swapped.node()}, umul.node()));
+  ASSERT_TRUE(mappings.has_value());
+  const EquivalenceMapping& src_map = *mappings->at(smul_swapped.node());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::vector<Node*> coerced,
+      src_map.ApplyToOperands(f, smul_swapped.node()->operands()));
+  EXPECT_THAT(coerced, ElementsAre(m::SignExt(m::Param("a16")),
+                                   m::SignExt(m::Param("b16"))));
+  XLS_ASSERT_OK(VerifyEquivalence(f, smul_swapped.node(), src_map).status());
+}
+
+struct MulNegativeCase {
+  std::string test_name;
+  MulSpec src;
+  MulSpec dst;
+};
+
+class MulEquivalenceMappingNegativeTest
+    : public ResourceSharingEquivalenceTest,
+      public ::testing::WithParamInterface<MulNegativeCase> {};
+
+TEST_P(MulEquivalenceMappingNegativeTest, RejectsIncompatibleWidths) {
+  const MulNegativeCase& tc = GetParam();
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  auto build_mul = [&](const std::string& prefix,
+                       const MulSpec& spec) -> Node* {
+    BValue lhs = fb.Param(prefix + "_lhs", p->GetBitsType(spec.lhs_width));
+    BValue rhs = fb.Param(prefix + "_rhs", p->GetBitsType(spec.rhs_width));
+    BValue mul = spec.op == Op::kSMul ? fb.SMul(lhs, rhs, spec.out_width)
+                                      : fb.UMul(lhs, rhs, spec.out_width);
+    return mul.node();
+  };
+  Node* src = build_mul("src", tc.src);
+  Node* dst = build_mul("dst", tc.dst);
+  XLS_ASSERT_OK(fb.Build().status());
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::optional<NodeToMappings> mappings,
+      GetNodeEquivalenceMapper().ComputeMappings({src}, dst));
+  EXPECT_FALSE(mappings.has_value());
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    MulEquivalenceMappingNegativeTests, MulEquivalenceMappingNegativeTest,
+    ::testing::ValuesIn<MulNegativeCase>({
+        {
+            .test_name = "WiderOperandsAndOutputThanDst",
+            .src = {Op::kUMul, 16, 16, 32},
+            .dst = {Op::kSMul, 8, 8, 16},
+        },
+        {
+            .test_name = "WiderOutputThanDst",
+            .src = {Op::kUMul, 16, 16, 32},
+            .dst = {Op::kSMul, 16, 16, 16},
+        },
+        {
+            .test_name = "NarrowerOperandsButWiderOutputThanDst",
+            .src = {Op::kUMul, 8, 8, 16},
+            .dst = {Op::kSMul, 16, 16, 8},
+        },
+    }),
+    [](const ::testing::TestParamInfo<MulNegativeCase>& info) {
+      return info.param.test_name;
+    });
+
+class MulEquivalenceMappingWidthSweepTestBase
+    : public ResourceSharingEquivalenceTest {
+ protected:
+  // Builds a function with `src_op(src_lhs_w, src_rhs_w) -> out_w` and
+  // `dst_op(dst_lhs_w, dst_rhs_w) -> out_w`, then verifies mapping `src` to
+  // `dst` preserves equivalence.
+  void VerifyMulFolding(Op src_op, int64_t src_lhs_w, int64_t src_rhs_w,
+                        Op dst_op, int64_t dst_lhs_w, int64_t dst_rhs_w,
+                        int64_t out_w) {
+    auto p = CreatePackage();
+    FunctionBuilder fb("mul_sweep_fn", p.get());
+    BValue src_lhs = fb.Param("src_lhs", p->GetBitsType(src_lhs_w));
+    BValue src_rhs = fb.Param("src_rhs", p->GetBitsType(src_rhs_w));
+    BValue dst_lhs = fb.Param("dst_lhs", p->GetBitsType(dst_lhs_w));
+    BValue dst_rhs = fb.Param("dst_rhs", p->GetBitsType(dst_rhs_w));
+    BValue src = fb.AddArithOp(src_op, src_lhs, src_rhs, out_w);
+    BValue dst = fb.AddArithOp(dst_op, dst_lhs, dst_rhs, out_w);
+    XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(src));
+
+    XLS_ASSERT_OK_AND_ASSIGN(
+        std::optional<NodeToMappings> mappings,
+        GetNodeEquivalenceMapper().ComputeMappings({src.node()}, dst.node()));
+    ASSERT_TRUE(mappings.has_value());
+    for (const auto& [node, mapping] : *mappings) {
+      XLS_ASSERT_OK(VerifyEquivalence(f, node, *mapping).status());
+    }
+  }
+};
+
+class MulEquivalenceMappingSymmetricWidthSweepTest
+    : public MulEquivalenceMappingWidthSweepTestBase,
+      public ::testing::WithParamInterface<int64_t> {};
+
+TEST_P(MulEquivalenceMappingSymmetricWidthSweepTest,
+       FoldsUMulIntoSMulAcrossOutputWidthRegimes) {
+  const int64_t w = GetParam();
+  // Truncated to operand width (out_w == W): signed and unsigned products
+  // agree in the low W bits, so no operand widening is needed.
+  VerifyMulFolding(Op::kUMul, w, w, Op::kSMul, w, w, /*out_w=*/w);
+  // Partial high product (out_w == 2*W - 1): out_w > W when W > 1, so
+  // unsigned operands must be zero-extended to W + 1 bits.
+  if (w > 1) {
+    VerifyMulFolding(Op::kUMul, w, w, Op::kSMul, w, w, /*out_w=*/2 * w - 1);
+  }
+  // Full product (out_w == 2*W): standard W x W -> 2*W multiply.
+  VerifyMulFolding(Op::kUMul, w, w, Op::kSMul, w, w, /*out_w=*/2 * w);
+  // Over-wide output (out_w > 2*W): output is sign/zero-extended past 2*W.
+  VerifyMulFolding(Op::kUMul, w, w, Op::kSMul, w, w, /*out_w=*/2 * w + 2);
+}
+
+INSTANTIATE_TEST_SUITE_P(MulEquivalenceMappingSymmetricWidthSweepTests,
+                         MulEquivalenceMappingSymmetricWidthSweepTest,
+                         ::testing::Values(int64_t{1}, int64_t{2}, int64_t{3},
+                                           int64_t{8}));
+
+class MulEquivalenceMappingAsymmetricWidthSweepTest
+    : public MulEquivalenceMappingWidthSweepTestBase,
+      public ::testing::WithParamInterface<std::pair<int64_t, int64_t>> {};
+
+TEST_P(MulEquivalenceMappingAsymmetricWidthSweepTest,
+       FoldsAcrossOutputWidthThresholdsAndOperandOrders) {
+  const auto [w_narrow, w_wide] = GetParam();
+  // out_w == w_narrow (neither operand extended), out_w == w_wide (only
+  // narrow operand extended), and out_w == w_narrow + w_wide (both extended).
+  for (int64_t out_w : {w_narrow, w_wide, w_narrow + w_wide}) {
+    VerifyMulFolding(Op::kUMul, w_narrow, w_wide, Op::kSMul, w_narrow, w_wide,
+                     out_w);
+    VerifyMulFolding(Op::kUMul, w_wide, w_narrow, Op::kSMul, w_narrow, w_wide,
+                     out_w);
+    VerifyMulFolding(Op::kUMul, w_narrow, w_wide, Op::kSMul, w_wide, w_narrow,
+                     out_w);
+    VerifyMulFolding(Op::kSMul, w_wide, w_narrow, Op::kUMul, w_narrow, w_wide,
+                     out_w);
+    VerifyMulFolding(Op::kUMul, w_wide, w_narrow, Op::kUMul, w_narrow, w_wide,
+                     out_w);
+    VerifyMulFolding(Op::kSMul, w_wide, w_narrow, Op::kSMul, w_narrow, w_wide,
+                     out_w);
+  }
+}
+
+INSTANTIATE_TEST_SUITE_P(MulEquivalenceMappingAsymmetricWidthSweepTests,
+                         MulEquivalenceMappingAsymmetricWidthSweepTest,
+                         ::testing::Values(std::pair<int64_t, int64_t>{1, 2},
+                                           std::pair<int64_t, int64_t>{2, 3},
+                                           std::pair<int64_t, int64_t>{3, 5}));
 
 }  // namespace
 }  // namespace xls
