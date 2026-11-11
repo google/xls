@@ -377,7 +377,7 @@ class Unifier {
     std::vector<std::vector<const TypeAnnotation*>> param_types;
     param_types.resize(annotations[0]->param_types().size());
     for (const FunctionTypeAnnotation* annotation : annotations) {
-      return_types.push_back(annotation->return_type());
+      return_types.push_back(GetReturnType(*annotation->owner(), *annotation));
       if (annotation->param_types().size() !=
           annotations[0]->param_types().size()) {
         return ArgCountMismatchErrorStatus(
