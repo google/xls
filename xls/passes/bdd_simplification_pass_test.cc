@@ -115,6 +115,34 @@ TEST_F(BddSimplificationPassTest, KnownSuffixButNotReplaced) {
   EXPECT_THAT(f->return_value(), m::Concat(m::Param("x"), m::Literal(123)));
 }
 
+TEST_F(BddSimplificationPassTest,
+       KnownSuffixWiderThanFirstOperandButNotReplaced) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetBitsType(8));
+  fb.Concat({x, fb.Literal(UBits(123, 10))});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  EXPECT_THAT(Run(f), IsOkAndHolds(false));
+  EXPECT_THAT(f->return_value(), m::Concat(m::Param("x"), m::Literal(123)));
+}
+
+TEST_F(BddSimplificationPassTest,
+       KnownSuffixNarrowerThanFirstOperandButWiderThanLastLiteralIsReplaced) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetBitsType(16));
+  BValue y = fb.Param("y", p->GetBitsType(4));
+  BValue inner = fb.Concat({y, fb.Literal(UBits(0, 4))});
+  fb.Concat({x, inner, fb.Literal(UBits(0, 4))});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  solvers::ScopedVerifyEquivalence sve{f};
+  EXPECT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::Concat(m::BitSlice(), m::Literal(UBits(0, 8))));
+}
+
 TEST_F(BddSimplificationPassTest, RemoveRedundantOneHot) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());

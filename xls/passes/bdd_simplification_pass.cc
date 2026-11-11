@@ -100,7 +100,7 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
         known_prefix.clear();
       }
       if (node->operands().back()->Is<Literal>() &&
-          node->operand(0)->BitCountOrDie() >= known_suffix.size()) {
+          node->operands().back()->BitCountOrDie() >= known_suffix.size()) {
         // The known suffix is entirely coming from a literal operand of this
         // concat, don't replace the known suffix as this transformation does no
         // simplication.
