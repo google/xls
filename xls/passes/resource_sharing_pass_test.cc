@@ -13,10 +13,13 @@
 // limitations under the License.
 #include "xls/passes/resource_sharing_pass.h"
 
+#include <array>
+#include <cstddef>
 #include <cstdint>
 #include <limits>
 #include <memory>
 #include <optional>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -676,6 +679,81 @@ TEST_F(ResourceSharingPassTest,
   ScopedVerifyEquivalence sve(f);
   EXPECT_THAT(ResourceSharingPassRunner::RunPass(f), IsOkAndHolds(true));
   EXPECT_EQ(NumberOfMultiplications(f), 1);
+}
+
+TEST_F(ResourceSharingPassTest,
+       ComputeFoldingGraphIsDeterministicAcrossIrRoundTrip) {
+  std::unique_ptr<VerifiedPackage> package = CreatePackage();
+  FunctionBuilder fb(TestName(), package.get());
+  Type* u1 = package->GetBitsType(1);
+  Type* u32 = package->GetBitsType(32);
+
+  static constexpr std::array<std::string_view, 5> kXNames = {"x0", "x1", "x2",
+                                                              "x3", "x4"};
+  static constexpr std::array<std::string_view, 5> kYNames = {"y0", "y1", "y2",
+                                                              "y3", "y4"};
+  std::vector<BValue> x;
+  std::vector<BValue> y;
+  std::vector<BValue> interleaved_terms;
+  x.reserve(kXNames.size());
+  y.reserve(kYNames.size());
+  interleaved_terms.reserve(kXNames.size());
+  for (size_t i = 0; i < kXNames.size(); ++i) {
+    x.push_back(fb.Param(kXNames[i], u1));
+    y.push_back(fb.Param(kYNames[i], u1));
+    interleaved_terms.push_back(fb.And(x.back(), y.back()));
+  }
+  BValue a = fb.Param("a", u32);
+  BValue b = fb.Param("b", u32);
+
+  // Build mul_interleaved_* before mul_split_* so they get lower node IDs,
+  // while placing sel_split first in the return tuple so IR dumping places
+  // mul_split_* earlier in topological order after round-tripping.
+  // With 5 pairs of (x_i, y_i), `cond = Or_i(x_i & y_i)` stays within the
+  // OperandVisibilityAnalysis edge path limit under interleaved BDD variable
+  // order (x0, y0, ..., x4, y4) and exceeds it under split order
+  // (x0..x4, y0..y4) triggered when `split_cond = Xor(And(x), Or(y))` is
+  // evaluated first.
+  BValue cond = fb.Or(interleaved_terms);
+  BValue mul_interleaved_0 = fb.UMul(a, b, SourceInfo(), "mul_interleaved_0");
+  BValue mul_interleaved_1 = fb.UMul(b, a, SourceInfo(), "mul_interleaved_1");
+  BValue sel_interleaved =
+      fb.Select(cond, {mul_interleaved_1, mul_interleaved_0});
+
+  BValue split_cond = fb.Xor(fb.And(x), fb.Or(y));
+  BValue mul_split_0 = fb.UMul(a, a, SourceInfo(), "mul_split_0");
+  BValue mul_split_1 = fb.UMul(b, b, SourceInfo(), "mul_split_1");
+  BValue sel_split = fb.Select(split_cond, {mul_split_1, mul_split_0});
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Function * f,
+      fb.BuildWithReturnValue(fb.Tuple({sel_split, sel_interleaved})));
+
+  using EdgeIdPair = std::pair<int64_t, int64_t>;
+  auto get_edge_id_pairs =
+      [](FunctionBase* fn) -> absl::StatusOr<std::vector<EdgeIdPair>> {
+    OptimizationContext context;
+    XLS_ASSIGN_OR_RETURN(
+        ResourceSharingPass::FunctionFoldingGraph folding_graph,
+        ResourceSharingPass::ComputeFoldingGraph(
+            fn, context, [](Node* n) { return n->op() == Op::kUMul; }));
+    std::vector<EdgeIdPair> edge_ids;
+    for (BinaryFoldingAction* edge : folding_graph.graph->GetEdges()) {
+      edge_ids.emplace_back(edge->GetFrom()->id(), edge->GetTo()->id());
+    }
+    return edge_ids;
+  };
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::vector<EdgeIdPair> in_memory_edges,
+                           get_edge_id_pairs(f));
+  EXPECT_EQ(in_memory_edges.size(), 4);
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<VerifiedPackage> round_tripped_pkg,
+                           ParsePackage(package->DumpIr()));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * round_tripped_f,
+                           round_tripped_pkg->GetFunction(TestName()));
+  EXPECT_THAT(get_edge_id_pairs(round_tripped_f),
+              IsOkAndHolds(in_memory_edges));
 }
 
 void IrFuzzResourceSharing(FuzzPackageWithArgs fuzz_package_with_args) {

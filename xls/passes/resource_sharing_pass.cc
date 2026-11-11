@@ -31,6 +31,7 @@
 #include <vector>
 
 #include "absl/algorithm/container.h"
+#include "absl/container/btree_map.h"
 #include "absl/container/btree_set.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
@@ -237,13 +238,16 @@ ResourceSharingPass::ComputeMutualExclusionAnalysis(
     const VisibilityAnalyses& visibility) {
   absl::btree_set<MutuallyExclPair> mutual_exclusivity;
 
-  absl::flat_hash_map<Op, std::vector<Node*>> family_to_relevant_nodes;
+  // Iterate in deterministic family and node-ID order so lazy BDD analyses
+  // allocate variables and saturate identically across runs and IR dumps.
+  absl::btree_map<Op, std::vector<Node*>> family_to_relevant_nodes;
   for (Node* node : f->nodes()) {
     if (CanTarget(node) && should_target(node)) {
       family_to_relevant_nodes[GetEquivalenceFamily(node)].push_back(node);
     }
   }
-  for (const auto& [family, relevant_nodes] : family_to_relevant_nodes) {
+  for (auto& [family, relevant_nodes] : family_to_relevant_nodes) {
+    SortByNodeId(&relevant_nodes);
     for (auto&& nodes : iter::combinations(relevant_nodes, 2)) {
       Node* one_node = nodes[0];
       Node* other_node = nodes[1];
@@ -1434,7 +1438,8 @@ ResourceSharingPass::LegalizeBinaryFoldingActions(
     const absl::btree_set<MutuallyExclPair>& mutual_exclusivity,
     const VisibilityAnalyses& visibility, const NodeEquivalenceMapper& mapper,
     const AreaEstimator& area_estimator, const Config& config) {
-  absl::flat_hash_map<Node*, std::vector<BinaryFoldingAction*>>
+  absl::btree_map<Node*, std::vector<BinaryFoldingAction*>,
+                  Node::NodeIdLessThan>
       edges_selected_by_destination;
   for (BinaryFoldingAction* edge : edges_selected) {
     edges_selected_by_destination[edge->GetTo()].push_back(edge);
