@@ -296,6 +296,20 @@ TEST_F(OptimizationPipelineTest, MultiplyBy16StrengthReduction) {
   EXPECT_THAT(f->return_value(), m::Concat());
 }
 
+TEST_F(OptimizationPipelineTest, UModShiftedOneBitDivisorSimplified) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetBitsType(8));
+  BValue b = fb.Param("b", p->GetBitsType(1));
+  BValue divisor = fb.Shll(fb.ZeroExtend(b, 8), fb.Literal(UBits(2, 8)));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
+                           fb.BuildWithReturnValue(fb.UMod(x, divisor)));
+
+  ScopedVerifyEquivalence stays_equivalent(f, kProverTimeout);
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(f->nodes(), testing::Not(testing::Contains(m::UMod())));
+}
+
 TEST_F(OptimizationPipelineTest, LogicAbsorption) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(

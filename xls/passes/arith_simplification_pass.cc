@@ -1519,6 +1519,43 @@ absl::StatusOr<bool> MatchArithPatterns(int64_t opt_level, Node* n,
     return true;
   }
 
+  // If the only possibly-set divisor bit is at index k, the remainder is
+  // zero when that bit is clear, and the low k bits of the dividend otherwise.
+  if (n->op() == Op::kUMod) {
+    Node* divisor = n->operand(1);
+    if (auto ternary = query_engine.GetTernary(divisor); ternary.has_value()) {
+      const Bits possible_set_bits = ternary_ops::ToKnownBitsValues(
+          ternary->Get({}), /*default_set=*/true);
+      if (possible_set_bits.IsPowerOfTwo()) {
+        const int64_t k = possible_set_bits.CountTrailingZeros();
+        if (k == 0) {
+          XLS_RETURN_IF_ERROR(
+              n->ReplaceUsesWithNew<Literal>(ZeroOfType(n->GetType()))
+                  .status());
+          return true;
+        }
+        XLS_ASSIGN_OR_RETURN(BitSlice * selector,
+                             FindOrMakeBitSlice(divisor, k, /*width=*/1));
+        XLS_ASSIGN_OR_RETURN(
+            Node * truncated_lhs,
+            NarrowOrExtend(n->operand(0), /*n_is_signed=*/false, k));
+        XLS_ASSIGN_OR_RETURN(
+            Node * remainder,
+            NarrowOrExtend(truncated_lhs, /*n_is_signed=*/false,
+                           n->BitCountOrDie()));
+        XLS_ASSIGN_OR_RETURN(Node * zero,
+                             n->function_base()->MakeNode<Literal>(
+                                 n->loc(), ZeroOfType(n->GetType())));
+        XLS_RETURN_IF_ERROR(n->ReplaceUsesWithNew<Select>(
+                                 selector,
+                                 absl::MakeConstSpan({zero, remainder}),
+                                 /*default_value=*/std::nullopt)
+                                .status());
+        return true;
+      }
+    }
+  }
+
   // Convert UMod/SMod of a small constant (e.g., 13 % x) into a divide,
   // multiply, and subtract; we'll later simplify the divide into a lookup
   // table. (See MatchUnsignedDivide for how.)
