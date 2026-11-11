@@ -3295,6 +3295,7 @@ cc_test(
         "//xls/fuzzer/ir_fuzzer:ir_fuzz_test_library",
         "//xls/ir",
         "//xls/ir:bits",
+        "//xls/ir:change_listener",
         "//xls/ir:function_builder",
         "//xls/ir:ir_matcher",
         "//xls/ir:ir_test_base",
@@ -3304,6 +3305,7 @@ cc_test(
         "@abseil-cpp//absl/status:status_matchers",
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/types:span",
         "@googletest//:gtest",
     ],
 )
