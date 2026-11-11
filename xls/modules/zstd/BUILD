@@ -1710,16 +1710,18 @@ xls_dslx_test(
     library = ":fse_table_creator_dslx",
 )
 
+FSE_TABLE_CREATOR_CODEGEN_ARGS = {
+    "module_name": "FseTableCreator",
+    "delay_model": "asap7",
+    "pipeline_stages": "4",
+    "reset": "rst",
+    "use_system_verilog": "false",
+    "materialize_internal_fifos": "true",
+}
+
 xls_dslx_verilog(
     name = "fse_table_creator_verilog",
-    codegen_args = {
-        "module_name": "FseTableCreator",
-        "delay_model": "asap7",
-        "pipeline_stages": "4",
-        "reset": "rst",
-        "use_system_verilog": "false",
-        "materialize_internal_fifos": "true",
-    },
+    codegen_args = FSE_TABLE_CREATOR_CODEGEN_ARGS,
     dslx_top = "FseTableCreatorInst",
     library = ":fse_table_creator_dslx",
     verilog_file = "fse_table_creator.v",
@@ -1728,10 +1730,7 @@ xls_dslx_verilog(
 xls_benchmark_ir(
     name = "fse_table_creator_opt_ir_benchmark",
     src = ":fse_table_creator_verilog.opt.ir",
-    benchmark_ir_args = {
-        "pipeline_stages": "10",
-        "delay_model": "asap7",
-    },
+    benchmark_ir_args = FSE_TABLE_CREATOR_CODEGEN_ARGS,
     verilog_deps = ["//xls/modules/zstd/rtl:xls_fifo_wrapper_verilog_lib"],
 )
 
