@@ -823,7 +823,8 @@ class AstCloner : public AstNodeVisitor {
           old_to_new_.at(n->type_annotation()));
     }
     old_to_new_[n] = module(n)->Make<Number>(
-        n->span(), n->text(), n->number_kind(), new_type, n->in_parens());
+        n->span(), n->text(), n->number_kind(), new_type, n->in_parens(),
+        /*leave_span_intact=*/true, /*allow_bit_pattern=*/n->IsBitPattern());
     return absl::OkStatus();
   }
 

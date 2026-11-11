@@ -202,6 +202,36 @@ const Y = S{ x: X.x };
       TypecheckSucceeds(HasNodeWithType("Y", "S { x: uN[24] }")));
 }
 
+TEST(TypecheckV2StructTest, ForwardedStructParametricMustFitSignedType) {
+  for (const std::string width : {"u64", "uN[65]"}) {
+    SCOPED_TRACE(width);
+    const std::string declarations = R"(
+struct Inner<N: s3> {}
+struct Outer<M: )" + width + R"(> { inner: Inner<M> }
+)";
+    EXPECT_THAT(declarations + "const X = zero!<Outer<" + width + ":4>>();",
+                TypecheckFails(HasSizeMismatch("s4", "s3")));
+    XLS_EXPECT_OK(TypecheckV2(declarations + "const X = zero!<Outer<" + width +
+                              ":3>>();"));
+  }
+}
+
+TEST(TypecheckV2StructTest, ForwardedStructParametricAbove64Bits) {
+  EXPECT_THAT(R"(
+struct Inner<N: sN[65]> {}
+struct Outer<M: uN[65]> { inner: Inner<M> }
+const X = zero!<Outer<uN[65]:0x1_0000_0000_0000_0000>>();
+)",
+              TypecheckFails(HasSizeMismatch("sN[66]", "sN[65]")));
+}
+
+TEST(TypecheckV2StructTest, HexStructParametricCanSpecifySignedBitPattern) {
+  XLS_EXPECT_OK(TypecheckV2(R"(
+struct Inner<N: s3> {}
+const X = zero!<Inner<0x4>>();
+)"));
+}
+
 TEST(TypecheckV2StructTest, ParametricStructWithTooManyParametricsFails) {
   EXPECT_THAT(R"(
 struct S<N: u32> {}

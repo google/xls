@@ -1574,9 +1574,14 @@ enum class NumberKind : uint8_t {
 // Represents a literal number value.
 class Number : public Expr {
  public:
+  // Type checking performs semantic checks such as verifying that a literal
+  // fits its destination type, which may depend on inference or parametric
+  // bindings. The constructor marks a hex or binary spelling with no explicit
+  // sign as a raw bit pattern if `allow_bit_pattern` is true. Pass false for a
+  // synthesized numeric value to preserve its meaning regardless of spelling.
   Number(Module* owner, Span span, std::string text, NumberKind kind,
          TypeAnnotation* type, bool in_parens = false,
-         bool leave_span_intact = true);
+         bool leave_span_intact = true, bool allow_bit_pattern = true);
 
   ~Number() override;
 
@@ -1633,9 +1638,7 @@ class Number : public Expr {
     return Precedence::kStrongest;
   }
 
-  bool HasPrefix() const {
-    return text_.starts_with("0x") || text_.starts_with("0b");
-  }
+  bool IsBitPattern() const { return is_bit_pattern_; }
 
   bool IsU32Type() const {
     if (type_annotation_ == nullptr) {
@@ -1653,6 +1656,10 @@ class Number : public Expr {
 
   std::string text_;  // Will never be empty.
   NumberKind number_kind_;
+  // True if the literal's digits may supply the sign bit of a signed type.
+  // Source `s3:0x4` represents -4. A synthesized `0x4` with this flag cleared
+  // represents positive 4 and needs at least four bits in a signed type.
+  bool is_bit_pattern_;
   TypeAnnotation* type_annotation_;  // May be null.
 };
 

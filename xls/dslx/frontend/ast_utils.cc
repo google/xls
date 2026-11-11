@@ -500,8 +500,12 @@ std::optional<Number*> ConvertToNumberIfBitsLike(Module& module,
   if (!value.IsBits() && !value.IsEnum()) {
     return std::nullopt;
   }
+  // Wide values are formatted in hex. Preserve their numeric meaning when
+  // type inference checks the resulting literal against a signed type.
   return module.Make<Number>(span, value.ToString(/*humanize=*/true),
-                             NumberKind::kOther, nullptr);
+                             NumberKind::kOther, nullptr,
+                             /*in_parens=*/false, /*leave_span_intact=*/true,
+                             /*allow_bit_pattern=*/false);
 }
 
 std::optional<const UseTreeEntry*> IsExternNameRef(const NameRef& name_ref) {
