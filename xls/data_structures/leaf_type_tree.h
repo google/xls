@@ -631,7 +631,7 @@ class SharedLeafTypeTree {
 
   template <typename H>
   friend H AbslHashValue(H h, const SharedLeafTypeTree<T>& ltt) {
-    return AbslHashValue(h, ltt.AsView());
+    return H::combine(std::move(h), ltt.AsView());
   }
 
  private:

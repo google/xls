@@ -398,7 +398,7 @@ class CseNodeArena {
     CseNode* get() const { return node_; }
     template <typename H>
     friend H AbslHashValue(H h, const CseNodeHolder& c) {
-      return AbslHashValue(std::move(h), *c.node_);
+      return H::combine(std::move(h), *c.node_);
     }
     bool operator==(const CseNodeHolder& other) const {
       return *node_ == *other.node_;
