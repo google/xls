@@ -892,8 +892,11 @@ absl::Status RealMain(std::string_view path) {
     std::cout << proc_info;
 
     if (absl::GetFlag(FLAGS_run_evaluators)) {
-      XLS_RETURN_IF_ERROR(
-          RunInterpreterAndJit(package->blocks()[0].get(), "block"));
+      FunctionBase* top_block = (package->GetTop().has_value() &&
+                                 package->GetTop().value()->IsBlock())
+                                    ? package->GetTop().value()
+                                    : package->blocks()[0].get();
+      XLS_RETURN_IF_ERROR(RunInterpreterAndJit(top_block, "block"));
     }
   }
 
