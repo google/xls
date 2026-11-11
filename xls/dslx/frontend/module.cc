@@ -235,6 +235,21 @@ bool Module::IsPublicMember(const AstNode& node) const {
   return false;
 }
 
+std::optional<ModuleMember> Module::GetMember(
+    std::string_view target_name) const {
+  auto it = top_by_name_.find(target_name);
+  if (it == top_by_name_.end()) {
+    return std::nullopt;
+  } else {
+    return it->second;
+  }
+}
+
+const UseSubject* Module::GetUseSubject(const UseTreeEntry* leaf) const {
+  auto it = use_subjects_.find(leaf);
+  return it == use_subjects_.end() ? nullptr : &it->second;
+}
+
 std::optional<ModuleMember*> Module::FindMemberWithName(
     std::string_view target) {
   for (ModuleMember& member : top_) {
@@ -383,6 +398,12 @@ absl::Status Module::InsertTopAt(ModuleMember member, It insert_it) {
   top_set_.insert(ToAstNode(member));
   for (const std::string& member_name : GetMemberNames(member)) {
     top_by_name_.insert({member_name, member});
+  }
+  if (auto* use = std::get_if<Use*>(&member); use != nullptr) {
+    for (UseSubject& subject : (*use)->LinearizeToSubjects()) {
+      const UseTreeEntry* leaf = &subject.use_tree_entry();
+      use_subjects_.try_emplace(leaf, std::move(subject));
+    }
   }
   return absl::OkStatus();
 }

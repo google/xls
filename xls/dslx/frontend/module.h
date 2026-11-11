@@ -192,6 +192,16 @@ class Module : public AstNode {
                : std::make_optional(std::get<T*>(it->second));
   }
 
+  // Gets any top-level member by its bound name using the module's index.
+  // Includes private members; callers enforce visibility when importing.
+  // Unlike FindMemberWithName, the result does not borrow an entry in top().
+  std::optional<ModuleMember> GetMember(std::string_view target_name) const;
+
+  // Gets the full import path for a leaf in a top-level use declaration, or
+  // nullptr if it is not registered in this module. The returned pointer is
+  // invalidated when another use declaration is inserted.
+  const UseSubject* GetUseSubject(const UseTreeEntry* leaf) const;
+
   // Inserts a top-level member immediately after `target_member`. Behaves like
   // `AddTop` with respect to collision checks.
   absl::Status InsertTopAfter(
@@ -453,6 +463,9 @@ class Module : public AstNode {
 
   // Map of top-level module member name to the member itself.
   absl::flat_hash_map<std::string, ModuleMember> top_by_name_;
+
+  // Full paths are expanded once when the containing use declaration is added.
+  absl::flat_hash_map<const UseTreeEntry*, UseSubject> use_subjects_;
 
   // Builtin name definitions, which we common out on a per-module basis. Not
   // for any particular purpose at this time aside from cleanliness of not

@@ -216,14 +216,29 @@ bool IsExprRestrictionEnabled(ExprRestrictions restrictions,
   return (static_cast<uint64_t>(restrictions) & target_u64) != 0;
 }
 
+bool AllowsBracedStructLiteral(ExprRestrictions restrictions) {
+  return !IsExprRestrictionEnabled(restrictions,
+                                   ExprRestriction::kNoStructLiteral) &&
+         !IsExprRestrictionEnabled(restrictions,
+                                   ExprRestriction::kMatchSubject);
+}
+
 std::string ExprRestrictionsToString(ExprRestrictions restrictions) {
   if (restrictions == kNoRestrictions) {
     return "none";
   }
-  // Note: right now we only have one flag that can be in the set.
-  CHECK_EQ(static_cast<uint64_t>(restrictions),
-           static_cast<uint64_t>(ExprRestriction::kNoStructLiteral));
-  return "{no-struct-literal}";
+  std::vector<std::string_view> names;
+  if (IsExprRestrictionEnabled(restrictions,
+                               ExprRestriction::kNoStructLiteral)) {
+    names.push_back("no-struct-literal");
+  }
+  if (IsExprRestrictionEnabled(restrictions, ExprRestriction::kNoConst)) {
+    names.push_back("no-const");
+  }
+  if (IsExprRestrictionEnabled(restrictions, ExprRestriction::kMatchSubject)) {
+    names.push_back("match-subject");
+  }
+  return absl::StrCat("{", absl::StrJoin(names, ", "), "}");
 }
 
 absl::StatusOr<AttributeKind> ParseAttributeKind(Token token,
@@ -1803,6 +1818,24 @@ absl::StatusOr<ColonRef*> Parser::ParseColonRef(Bindings& bindings,
   }
 }
 
+absl::StatusOr<Expr*> Parser::ParseColonRefOrStructInstance(
+    Bindings& bindings, ColonRef::Subject subject, const Span& subject_span,
+    ExprRestrictions restrictions) {
+  XLS_ASSIGN_OR_RETURN(ColonRef * colon_ref,
+                       ParseColonRef(bindings, subject, subject_span));
+  XLS_ASSIGN_OR_RETURN(bool peek_is_obrace, PeekTokenIs(TokenKind::kOBrace));
+  if (peek_is_obrace && AllowsBracedStructLiteral(restrictions)) {
+    auto* type_ref = module_->Make<TypeRef>(colon_ref->span(), colon_ref);
+    XLS_ASSIGN_OR_RETURN(
+        TypeAnnotation * type,
+        MakeTypeRefTypeAnnotation(colon_ref->span(), type_ref,
+                                  /*dims=*/{}, /*parametrics=*/{}));
+    return ParseStructInstance(bindings, type);
+  } else {
+    return colon_ref;
+  }
+}
+
 absl::StatusOr<Expr*> Parser::ParseCastOrEnumRefOrStructInstanceOrToken(
     Bindings& bindings, ExprRestrictions restrictions) {
   VLOG(5) << "ParseCastOrEnumRefOrStructInstanceOrToken @ " << GetPos()
@@ -1814,28 +1847,16 @@ absl::StatusOr<Expr*> Parser::ParseCastOrEnumRefOrStructInstanceOrToken(
   // Handle cases like `my_mod::some_val`, where the LHS is a module name.
   if (peek_is_double_colon && !tok.IsKeyword(Keyword::kSelfType)) {
     XLS_ASSIGN_OR_RETURN(NameRef * subject, ParseNameRef(bindings, &tok));
-    XLS_ASSIGN_OR_RETURN(ColonRef * colon_ref,
-                         ParseColonRef(bindings, subject, subject->span()));
-    XLS_ASSIGN_OR_RETURN(bool peek_is_obrace, PeekTokenIs(TokenKind::kOBrace));
-    if (peek_is_obrace &&
-        !IsExprRestrictionEnabled(restrictions,
-                                  ExprRestriction::kNoStructLiteral)) {
-      auto* type_ref = module_->Make<TypeRef>(colon_ref->span(), colon_ref);
-      XLS_ASSIGN_OR_RETURN(
-          TypeAnnotation * type,
-          MakeTypeRefTypeAnnotation(colon_ref->span(), type_ref,
-                                    /*dims=*/{}, /*parametrics=*/{}));
-      return ParseStructInstance(bindings, type);
-    }
-    return colon_ref;
+    return ParseColonRefOrStructInstance(bindings, subject, subject->span(),
+                                         restrictions);
   }
 
   XLS_ASSIGN_OR_RETURN(TypeAnnotation * type,
                        ParseTypeAnnotation(bindings, tok));
 
   // After parsing the type, check again for `peek_is_double_colon` to catch
-  // accessing impl members of parametric structs (e.g.,
-  // `MyStruct<u32:5>::SOME_CONSTANT`).
+  // accessing impl members of parametric structs or sum constructors (e.g.,
+  // `MyStruct<u32:5>::SOME_CONSTANT` or `MySum<u32:5>::Variant`).
   XLS_ASSIGN_OR_RETURN(peek_is_double_colon,
                        PeekTokenIs(TokenKind::kDoubleColon));
   // Note that `type_ref` may be a number of possibilities, one of which is
@@ -1846,9 +1867,13 @@ absl::StatusOr<Expr*> Parser::ParseCastOrEnumRefOrStructInstanceOrToken(
   // or `Self::LIMIT` (via self_ref).
   if ((type_ref != nullptr || self_ref != nullptr) && peek_is_double_colon) {
     return type_ref != nullptr
-               ? ParseColonRef(bindings, type_ref, type->span())
-               : ParseColonRef(bindings, self_ref, type->span());
+               ? ParseColonRefOrStructInstance(bindings, type_ref, type->span(),
+                                               restrictions)
+               : ParseColonRefOrStructInstance(bindings, self_ref, type->span(),
+                                               restrictions);
   }
+  const bool is_match_subject =
+      IsExprRestrictionEnabled(restrictions, ExprRestriction::kMatchSubject);
   // Handle cases like `Self::LIMIT` as a value expression (e.g. inside array
   // dimensions like `uN[Self::LIMIT]`). This initially parses as a
   // TypeRefTypeAnnotation wrapping a ColonRef, but is actually a value
@@ -1863,7 +1888,7 @@ absl::StatusOr<Expr*> Parser::ParseCastOrEnumRefOrStructInstanceOrToken(
                              PeekTokenIs(TokenKind::kColon));
         XLS_ASSIGN_OR_RETURN(bool peek_is_obrace,
                              PeekTokenIs(TokenKind::kOBrace));
-        if (!peek_is_colon && !peek_is_obrace) {
+        if (!peek_is_colon && (!peek_is_obrace || is_match_subject)) {
           return std::get<ColonRef*>(def);
         }
       }
@@ -1872,11 +1897,14 @@ absl::StatusOr<Expr*> Parser::ParseCastOrEnumRefOrStructInstanceOrToken(
 
   XLS_ASSIGN_OR_RETURN(bool peek_is_obrace, PeekTokenIs(TokenKind::kOBrace));
   if (peek_is_obrace) {
-    if (!IsExprRestrictionEnabled(restrictions,
-                                  ExprRestriction::kNoStructLiteral)) {
+    if (AllowsBracedStructLiteral(restrictions)) {
       return ParseStructInstance(bindings, type);
     }
 
+    if (is_match_subject) {
+      return ParseErrorStatus(
+          type->span(), "Parenthesize the struct literal in a match subject");
+    }
     Transaction parse_struct_txn(this, &bindings);
     absl::Cleanup rollback_by_default([&parse_struct_txn] {
       if (!parse_struct_txn.completed()) {
@@ -2434,7 +2462,12 @@ absl::StatusOr<Match*> Parser::ParseMatch(Bindings& bindings, bool is_const) {
     XLS_RETURN_IF_ERROR(DropKeywordOrError(Keyword::kConst));
   }
   XLS_ASSIGN_OR_RETURN(Token match, PopKeywordOrError(Keyword::kMatch));
-  XLS_ASSIGN_OR_RETURN(Expr * matched, ParseExpression(bindings));
+  // In `match E::Unit {}`, the braces belong to the arms. A constructor
+  // with a braced payload can be written as `match (E::V { x: v }) { ... }`.
+  XLS_ASSIGN_OR_RETURN(
+      Expr * matched,
+      ParseExpression(bindings,
+                      MakeRestrictions({ExprRestriction::kMatchSubject})));
   XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kOBrace));
 
   std::vector<MatchArm*> arms;
@@ -2805,9 +2838,7 @@ absl::StatusOr<Expr*> Parser::ParseTermLhs(Bindings& outer_bindings,
     VLOG(5) << "ParseTerm, kind is identifier but not a known type";
     XLS_ASSIGN_OR_RETURN(auto name_or_colon_ref,
                          ParseNameOrColonRef(outer_bindings));
-    if (std::holds_alternative<ColonRef*>(name_or_colon_ref) &&
-        !IsExprRestrictionEnabled(restrictions,
-                                  ExprRestriction::kNoStructLiteral)) {
+    if (std::holds_alternative<ColonRef*>(name_or_colon_ref)) {
       ColonRef* colon_ref = std::get<ColonRef*>(name_or_colon_ref);
       TypeAnnotation* type = nullptr;
       TypeRef* type_ref = nullptr;
@@ -2827,11 +2858,10 @@ absl::StatusOr<Expr*> Parser::ParseTermLhs(Bindings& outer_bindings,
         VLOG(5) << "ParseTerm, kind is ColonRef then oAngle; trying parametric";
         type_ref = module_->Make<TypeRef>(colon_ref->span(), colon_ref);
 
-        // We're looking either at an imported parametric struct, an imported
-        // parametric enum comparison, or an imported parametric function call.
-        // This block only deals with parametric struct instantiation; the other
-        // possibilities are handled in different places, so we will rollback
-        // if it's not actually an imported parametric struct instantiation.
+        // An imported parametric type may be followed by an aggregate payload,
+        // a type-qualified member, or a cast. Otherwise roll back so
+        // comparisons and parametric function references/calls can be parsed
+        // normally.
         auto type_and_dims = ParseTypeRefParametricsAndDims(
             outer_bindings, colon_ref->span(), type_ref);
         if (!type_and_dims.ok()) {
@@ -2850,7 +2880,7 @@ absl::StatusOr<Expr*> Parser::ParseTermLhs(Bindings& outer_bindings,
       }
 
       XLS_ASSIGN_OR_RETURN(bool found_obrace, PeekTokenIs(TokenKind::kOBrace));
-      if (found_obrace) {
+      if (found_obrace && AllowsBracedStructLiteral(restrictions)) {
         VLOG(5) << "ParseTerm, kind is ColonRef then oBrace";
         parse_oangle_txn.Commit();
 
@@ -2871,8 +2901,9 @@ absl::StatusOr<Expr*> Parser::ParseTermLhs(Bindings& outer_bindings,
       auto* type_ref_annotation = dynamic_cast<TypeRefTypeAnnotation*>(type);
       if (type_ref_annotation != nullptr && found_double_colon) {
         parse_oangle_txn.Commit();
-        return ParseColonRef(outer_bindings, type_ref_annotation,
-                             type_ref_annotation->span());
+        return ParseColonRefOrStructInstance(
+            outer_bindings, type_ref_annotation, type_ref_annotation->span(),
+            restrictions);
       } else if (type != nullptr && found_colon) {
         VLOG(5) << "ParseTerm, kind is ColonRef then oColon";
         // Probably a literal array. Commit the parsing of the LHS so far, and
@@ -2901,24 +2932,30 @@ absl::StatusOr<Expr*> Parser::ParseTermLhs(Bindings& outer_bindings,
   } else if (peek->IsKeyword(Keyword::kFor) ||
              peek->IsKeyword(Keyword::kUnrollFor)) {  // For expression.
     XLS_ASSIGN_OR_RETURN(lhs, ParseFor(outer_bindings));
-  } else if (peek->IsKeyword(Keyword::kIf)) {  // Conditional expression.
-    XLS_ASSIGN_OR_RETURN(lhs,
-                         ParseRangeExpression(outer_bindings, kNoRestrictions));
-  } else if (peek->IsKeyword(Keyword::kConst)) {
-    XLS_ASSIGN_OR_RETURN(const Token* peek_1, PeekToken(1));
-    if (peek_1->IsKeyword(Keyword::kIf)) {  // Constexpr conditional expression
-      XLS_ASSIGN_OR_RETURN(
-          lhs, ParseRangeExpression(outer_bindings, kNoRestrictions));
-    } else if (peek_1->IsKeyword(Keyword::kFor)) {  // Const for expression
-      XLS_ASSIGN_OR_RETURN(lhs, ParseFor(outer_bindings));
-    } else if (peek_1->IsKeyword(Keyword::kMatch)) {  // Constexpr match.
-      XLS_ASSIGN_OR_RETURN(lhs, ParseMatch(outer_bindings, /*is_const=*/true));
-    } else {
-      return ParseErrorStatus(
-          peek_1->span(),
-          absl::StrFormat("Expected start of an expression; got: %s",
-                          peek_1->ToErrorString()));
+  } else if (peek->IsKeyword(Keyword::kIf) ||
+             peek->IsKeyword(Keyword::kConst)) {
+    if (peek->IsKeyword(Keyword::kConst)) {
+      XLS_ASSIGN_OR_RETURN(const Token* peek_1, PeekToken(1));
+      if (peek_1->IsKeyword(Keyword::kFor)) {
+        return ParseFor(outer_bindings);
+      }
+      if (peek_1->IsKeyword(Keyword::kMatch)) {
+        return ParseMatch(outer_bindings, /*is_const=*/true);
+      }
+      if (!peek_1->IsKeyword(Keyword::kIf)) {
+        return ParseErrorStatus(
+            peek_1->span(),
+            absl::StrFormat("Expected start of an expression; got: %s",
+                            peek_1->ToErrorString()));
+      }
     }
+    // This also parses operators following the conditional. In a match
+    // subject, those operands must still leave the arm brace for ParseMatch.
+    return ParseRangeExpression(
+        outer_bindings,
+        IsExprRestrictionEnabled(restrictions, ExprRestriction::kMatchSubject)
+            ? restrictions
+            : kNoRestrictions);
   } else {
     return ParseErrorStatus(
         peek->span(),
