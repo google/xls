@@ -73,6 +73,12 @@ class OptMainTest(parameterized.TestCase):
     # The add with zero should be eliminated.
     self.assertIn('ret x', optimized_ir)
 
+  def test_list_passes(self):
+    output = subprocess.check_output([OPT_MAIN_PATH, '--list_passes']).decode(
+        'utf-8'
+    )
+    self.assertIn('dce', output)
+
   def test_with_vlog(self):
     # Checks that enabling vlog doesn't crash.
     ir_file = self.create_tempfile(content=ADD_ZERO_IR)

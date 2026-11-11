@@ -254,14 +254,14 @@ absl::Status RealMain(std::string_view input_path) {
   return absl::OkStatus();
 }
 
-absl::StatusOr<OptimizationPassPipelineGenerator> GetGeneratorForList(
+absl::StatusOr<std::string> GetAvailablePassesStr(
     const OptFlagsProto& opt_flags) {
   OptimizationPassRegistry reg = GetOptimizationRegistry().OverridableClone();
   if (opt_flags.has_pipeline()) {
     XLS_RETURN_IF_ERROR(
         reg.RegisterPipelineProto(opt_flags.custom_registry(), "<pipeline>"));
   }
-  return GetOptimizationPipelineGenerator(reg);
+  return GetOptimizationPipelineGenerator(reg).GetAvailablePassesStr();
 }
 }  // namespace
 }  // namespace xls::tools
@@ -276,12 +276,12 @@ int main(int argc, char** argv) {
     if (!opt_flags.ok()) {
       return xls::ExitStatus(opt_flags.status());
     }
-    absl::StatusOr<xls::OptimizationPassPipelineGenerator> generator =
-        xls::tools::GetGeneratorForList(*opt_flags);
-    if (!generator.ok()) {
-      return xls::ExitStatus(generator.status());
+    absl::StatusOr<std::string> available_passes =
+        xls::tools::GetAvailablePassesStr(*opt_flags);
+    if (!available_passes.ok()) {
+      return xls::ExitStatus(available_passes.status());
     }
-    std::cout << generator->GetAvailablePassesStr();
+    std::cout << *available_passes;
     return 0;
   }
   if (absl::GetFlag(FLAGS_bisect_inject_passes).has_value() !=
