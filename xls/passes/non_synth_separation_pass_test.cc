@@ -444,6 +444,98 @@ TEST_F(NonSynthSeparationPassTest, ProcWithTokenStateElement) {
   EXPECT_THAT(ns->params(), testing::ElementsAre(m::Type("bits[32]")));
 }
 
+TEST_F(NonSynthSeparationPassTest, AlreadyNonSynthStateElementIsNotDuplicated) {
+  auto p = CreatePackage();
+  ProcBuilder pb("proc1", p.get());
+  BStateElement synth_element = pb.StateElement("synth", Value(UBits(0, 32)),
+                                                /*non_synthesizable=*/false);
+  BStateElement non_synth_element = pb.StateElement(
+      "debug_count", Value(UBits(4, 32)), /*non_synthesizable=*/true);
+  BValue synth_read = pb.StateRead(synth_element);
+  BValue non_synth_read = pb.StateRead(non_synth_element);
+  BValue sum = pb.Add(synth_read, non_synth_read);
+  pb.Assert(pb.Literal(Value::Token(), SourceInfo(), "tok"),
+            pb.ULt(sum, pb.Literal(UBits(9, 32))), "limit_exceeded");
+  pb.Next(synth_element, pb.Add(synth_read, pb.Literal(UBits(1, 32))));
+  pb.Next(non_synth_element, pb.Add(non_synth_read, pb.Literal(UBits(1, 32))));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
+
+  ScopedRecordIr sri(p.get());
+  ASSERT_THAT(RunWithDCE(p.get()), IsOkAndHolds(true));
+
+  XLS_ASSERT_OK_AND_ASSIGN(StateElement * synth_non_synth,
+                           proc->GetStateElementByName("synth_non_synth"));
+  EXPECT_TRUE(synth_non_synth->non_synthesizable());
+  EXPECT_THAT(proc->GetStateElementByName("debug_count_non_synth"),
+              StatusIs(absl::StatusCode::kNotFound));
+  EXPECT_EQ(proc->GetStateElementCount(), 3);
+  EXPECT_THAT(
+      proc->GetStateReadsByStateElement(non_synth_element.state_element()),
+      testing::ElementsAre(non_synth_read.node()));
+  EXPECT_THAT(proc->next_values(non_synth_element.state_element()),
+              testing::SizeIs(1));
+
+  XLS_ASSERT_OK_AND_ASSIGN(auto eval,
+                           CreateInterpreterSerialProcRuntime(p.get()));
+  XLS_ASSERT_OK(eval->Tick());
+  XLS_ASSERT_OK(eval->Tick());
+  XLS_ASSERT_OK(eval->Tick());
+  ASSERT_THAT(eval->Tick(),
+              StatusIs(absl::StatusCode::kAborted, "limit_exceeded"));
+}
+
+TEST_F(NonSynthSeparationPassTest,
+       UnreadAlreadyNonSynthStateElementIsNotDuplicated) {
+  auto p = CreatePackage();
+  ProcBuilder pb("proc1", p.get());
+  BStateElement non_synth_element = pb.StateElement(
+      "unread_non_synth", Value(UBits(0, 32)), /*non_synthesizable=*/true);
+  pb.Assert(pb.Literal(Value::Token()), pb.Literal(UBits(1, 1)), "");
+  pb.Next(non_synth_element, pb.Literal(Value(UBits(42, 32))));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
+
+  ScopedRecordIr sri(p.get());
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+
+  EXPECT_THAT(proc->GetStateElementByName("unread_non_synth_non_synth"),
+              StatusIs(absl::StatusCode::kNotFound));
+  EXPECT_EQ(proc->GetStateElementCount(), 1);
+  EXPECT_THAT(proc->next_values(),
+              testing::ElementsAre(
+                  m::Next(non_synth_element.state_element(), m::Literal(42))));
+}
+
+TEST_F(NonSynthSeparationPassTest,
+       AlreadyNonSynthTokenTupleStateElementIsNotDuplicated) {
+  auto p = CreatePackage();
+  ProcBuilder pb("proc1", p.get());
+  BStateElement non_synth_element = pb.StateElement(
+      "tok_and_val", Value::Tuple({Value::Token(), Value(UBits(5, 32))}),
+      /*non_synthesizable=*/true);
+  BValue state_read = pb.StateRead(non_synth_element);
+  BValue tok = pb.TupleIndex(state_read, 0);
+  BValue val = pb.TupleIndex(state_read, 1);
+  pb.Assert(tok, pb.Eq(val, pb.Literal(UBits(5, 32))), "unexpected_val");
+  pb.Next(non_synth_element,
+          pb.Tuple({tok, pb.Add(val, pb.Literal(UBits(1, 32)))}));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
+
+  ScopedRecordIr sri(p.get());
+  ASSERT_THAT(RunWithDCE(p.get()), IsOkAndHolds(true));
+
+  EXPECT_THAT(proc->GetStateElementByName("tok_and_val_non_synth"),
+              StatusIs(absl::StatusCode::kNotFound));
+  EXPECT_EQ(proc->GetStateElementCount(), 1);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * ns, p->GetFunction("non_synth_proc1"));
+  EXPECT_THAT(ns->params(), testing::ElementsAre(m::Type("(bits[32])")));
+
+  XLS_ASSERT_OK_AND_ASSIGN(auto eval,
+                           CreateInterpreterSerialProcRuntime(p.get()));
+  XLS_ASSERT_OK(eval->Tick());
+  ASSERT_THAT(eval->Tick(),
+              StatusIs(absl::StatusCode::kAborted, "unexpected_val"));
+}
+
 void IrFuzzNonSynthSeparation(FuzzPackageWithArgs fuzz_package_with_args) {
   NonSynthSeparationPass pass;
   OptimizationPassChangesOutputs(std::move(fuzz_package_with_args), pass);

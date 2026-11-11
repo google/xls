@@ -192,23 +192,27 @@ class CloneProcAsFunctionVisitor : public DfsVisitorWithDefault {
     std::string param_name = NodeNameFormat(
         "%v_param", NodeNameOr{state_read, absl::StrFormat("state_read_%d",
                                                            state_read->id())});
-    std::string nonsynth_read_name = NodeNameFormat(
-        "%v_non_synth_read",
-        NodeNameOr{state_read,
-                   absl::StrFormat("state_read_%d", state_read->id())});
-    // First clone the state-read and state element to get a non-synth element.
-    Proc* src_proc = state_read->function_base()->AsProcOrDie();
-    XLS_ASSIGN_OR_RETURN(
-        StateElement * non_synth_element,
-        GetOrAddNonSynthStateElement(src_proc, state_read->state_element()));
-    XLS_ASSIGN_OR_RETURN(
-        StateRead * non_synth_read,
-        src_proc->MakeNodeWithName<StateRead>(
-            state_read->loc(), non_synth_element, state_read->predicate(),
-            state_read->label(), nonsynth_read_name));
+    StateRead* non_synth_read = state_read;
+    if (!state_read->state_element()->non_synthesizable()) {
+      std::string nonsynth_read_name = NodeNameFormat(
+          "%v_non_synth_read",
+          NodeNameOr{state_read,
+                     absl::StrFormat("state_read_%d", state_read->id())});
+      // Clone the state-read and state element to get a non-synth element.
+      Proc* src_proc = state_read->function_base()->AsProcOrDie();
+      XLS_ASSIGN_OR_RETURN(
+          StateElement * non_synth_element,
+          GetOrAddNonSynthStateElement(src_proc, state_read->state_element()));
+      XLS_ASSIGN_OR_RETURN(
+          non_synth_read,
+          src_proc->MakeNodeWithName<StateRead>(
+              state_read->loc(), non_synth_element, state_read->predicate(),
+              state_read->label(), nonsynth_read_name));
+      XLS_RET_CHECK(non_synth_element->non_synthesizable())
+          << non_synth_element;
+      VLOG(2) << "Created non-synth element: " << non_synth_element->ToString();
+    }
     non_synth_reads_map_[state_read] = non_synth_read;
-    XLS_RET_CHECK(non_synth_element->non_synthesizable()) << non_synth_element;
-    VLOG(2) << "Created non-synth element: " << non_synth_element->ToString();
     if (!TypeHasToken(state_read->GetType())) {
       XLS_ASSIGN_OR_RETURN(
           Node * param, non_synth_function_->MakeNodeWithName<Param>(
@@ -263,7 +267,8 @@ class CloneProcAsFunctionVisitor : public DfsVisitorWithDefault {
   // Do not transfer the next node to the new function. We hook up
   // the next_value for the non-synth state element however.
   absl::Status HandleNext(Next* next) override {
-    if (next->state_element()->type()->IsToken()) {
+    if (next->state_element()->type()->IsToken() ||
+        next->state_element()->non_synthesizable()) {
       // We didn't need to copy anything so can just ignore this.
       return absl::OkStatus();
     }
@@ -303,6 +308,7 @@ class CloneProcAsFunctionVisitor : public DfsVisitorWithDefault {
  private:
   absl::StatusOr<StateElement*> GetOrAddNonSynthStateElement(
       Proc* proc, StateElement* state_element) {
+    XLS_RET_CHECK(!state_element->non_synthesizable());
     if (auto it = non_synth_element_map_.find(state_element);
         it != non_synth_element_map_.end()) {
       return it->second;
