@@ -5617,6 +5617,25 @@ TEST_F(TranslatorLogicTest, CopyAssignStructWithBoolArray) {
   Run({{"val", 2}}, 3, content);
 }
 
+TEST_F(TranslatorLogicTest, RelativeContinueLeak) {
+  std::string_view content = R"(
+      int my_package(int a) {
+        #pragma hls_unroll yes
+        for (int i = 0; i < 1; ++i) {
+          if (a) {
+            continue;
+          }
+          #pragma hls_unroll yes
+          for (int j = 0; j < 1;) {
+            {}
+            ++j;
+          }
+        }
+        return a;
+      })";
+  Run({{"a", 1}}, 1, content);
+}
+
 }  // namespace
 
 }  // namespace xlscc
