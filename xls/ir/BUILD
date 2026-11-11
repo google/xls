@@ -2437,7 +2437,7 @@ cc_test(
 cc_library(
     name = "op_list",
     hdrs = ["op_list.h"],
-    visibility = ["//visibility:private"],
+    visibility = ["//xls:xls_internal"],
 )
 
 cc_library(

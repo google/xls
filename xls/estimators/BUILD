@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
 load("@protobuf//bazel:cc_proto_library.bzl", "cc_proto_library")
 load("@protobuf//bazel:proto_library.bzl", "proto_library")
 load("@protobuf//bazel:py_proto_library.bzl", "py_proto_library")
@@ -47,9 +48,42 @@ cc_proto_library(
     deps = [":estimator_model_proto"],
 )
 
+cc_library(
+    name = "proto_estimator_utils",
+    srcs = ["proto_estimator_utils.cc"],
+    hdrs = ["proto_estimator_utils.h"],
+    deps = [
+        ":estimator_model_cc_proto",
+        "//xls/common/status:status_macros",
+        "//xls/ir",
+        "//xls/ir:op",
+        "//xls/ir:op_list",
+        "//xls/ir:type",
+        "@abseil-cpp//absl/base:no_destructor",
+        "@abseil-cpp//absl/container:flat_hash_map",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/strings:str_format",
+    ],
+)
+
 py_proto_library(
     name = "estimator_model_py_pb2",
     deps = [":estimator_model_proto"],
+)
+
+pytype_strict_binary(
+    name = "generate_compiled_estimator_model",
+    srcs = ["generate_compiled_estimator_model.py"],
+    deps = [
+        ":estimator_model",
+        ":estimator_model_py_pb2",
+        "//xls/estimators/area_model:area_model_utils",
+        "@abseil-py//absl:app",
+        "@abseil-py//absl/flags",
+        "@protobuf//:protobuf_python",
+    ],
 )
 
 pytype_strict_library(
@@ -214,5 +248,18 @@ pytype_strict_binary(
         "@abseil-py//absl/flags",
         "@abseil-py//absl/logging",
         "@xls_pip_deps//portpicker",
+    ],
+)
+
+bzl_library(
+    name = "build_defs_bzl",
+    srcs = ["build_defs.bzl"],
+    visibility = ["//xls:xls_internal"],
+    deps = [
+        "//xls/build_rules:xls_cc_embed_data_rules_bzl",
+        "//xls/build_rules:xls_diff_test_bzl",
+        "//xls/build_rules:xls_utilities_bzl",
+        "@rules_cc//cc:core_rules",
+        "@rules_cc//cc/common",
     ],
 )

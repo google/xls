@@ -19,10 +19,13 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
+#include "google/protobuf/text_format.h"
 #include "xls/common/status/matchers.h"
+#include "xls/estimators/estimator_model.pb.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/ir_test_base.h"
@@ -81,6 +84,85 @@ TEST_F(AreaEstimatorTest, AreaEstimatorManager) {
               absl_testing::IsOkAndHolds(10.0));
   EXPECT_THAT(ten_estimator->GetRegisterAreaInSquareMicrons(42),
               absl_testing::IsOkAndHolds(420.0));
+}
+
+TEST_F(AreaEstimatorTest, ProtoAreaEstimator) {
+  estimator_model::CompiledEstimatorModel model_proto;
+  QCHECK(google::protobuf::TextFormat::ParseFromString(
+      R"pb(
+        metric: AREA_METRIC
+        one_bit_register_area: 7.5
+        op_models {
+          op: "kAdd"
+          estimator {
+            area_regression {
+              constant: 1.0
+              terms {
+                expression { factor { source: RESULT_BIT_COUNT } }
+                square: 0.0
+                linear_log2: 0.0
+                linear: 2.0
+                log2: 0.0
+              }
+            }
+          }
+          specializations {
+            kind: OPERANDS_IDENTICAL
+            estimator { fixed: 3 }
+          }
+        }
+        op_models {
+          op: "kSub"
+          estimator { alias_op: "kAdd" }
+        }
+        op_models {
+          op: "kUMul"
+          estimator {
+            bounding_box {
+              points {
+                bounds {
+                  factor { source: RESULT_BIT_COUNT }
+                  max_value: 8
+                }
+                area_sq_microns: 42.5
+              }
+            }
+          }
+        }
+      )pb",
+      &model_proto));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<ProtoAreaEstimator> estimator,
+      ProtoAreaEstimator::Create("test_area", model_proto));
+  EXPECT_THAT(estimator->GetOneBitRegisterAreaInSquareMicrons(),
+              absl_testing::IsOkAndHolds(7.5));
+  EXPECT_THAT(estimator->GetRegisterAreaInSquareMicrons(4),
+              absl_testing::IsOkAndHolds(30.0));
+
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue a = fb.Param("a", p->GetBitsType(8));
+  BValue b = fb.Param("b", p->GetBitsType(8));
+  BValue add_diff = fb.Add(a, b);
+  BValue add_same = fb.Add(a, a);
+  BValue sub_diff = fb.Subtract(a, b);
+  BValue sub_same = fb.Subtract(a, a);
+  BValue umul_8 = fb.UMul(a, b, 8);
+  BValue neg = fb.Negate(a);
+  XLS_ASSERT_OK(fb.Build().status());
+
+  EXPECT_THAT(estimator->GetOperationAreaInSquareMicrons(add_diff.node()),
+              absl_testing::IsOkAndHolds(17.0));
+  EXPECT_THAT(estimator->GetOperationAreaInSquareMicrons(add_same.node()),
+              absl_testing::IsOkAndHolds(3.0));
+  EXPECT_THAT(estimator->GetOperationAreaInSquareMicrons(sub_diff.node()),
+              absl_testing::IsOkAndHolds(17.0));
+  EXPECT_THAT(estimator->GetOperationAreaInSquareMicrons(sub_same.node()),
+              absl_testing::IsOkAndHolds(3.0));
+  EXPECT_THAT(estimator->GetOperationAreaInSquareMicrons(umul_8.node()),
+              absl_testing::IsOkAndHolds(42.5));
+  EXPECT_THAT(estimator->GetOperationAreaInSquareMicrons(neg.node()),
+              absl_testing::StatusIs(absl::StatusCode::kUnimplemented));
 }
 
 }  // namespace

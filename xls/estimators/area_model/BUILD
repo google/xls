@@ -12,12 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_cc//cc:cc_test.bzl", "cc_test")
 load("@rules_hdl//dependency_support/com_google_skywater_pdk:cells_info.bzl", "for_each_sky130_cells")
 load("@rules_hdl//dependency_support/org_theopenroadproject_asap7_pdk_r1p7:cells_info.bzl", "for_each_asap7_cells")
-load("//xls/build_rules:py_oss_defs.bzl", "pytype_strict_binary", "pytype_strict_contrib_test", "pytype_strict_library")
+load("//xls/build_rules:py_oss_defs.bzl", "pytype_strict_contrib_test", "pytype_strict_library")
 load("//xls/build_rules:xls_build_defs.bzl", "xls_model_generation")
+load("//xls/estimators/area_model:build_defs.bzl", "area_model")
 
 package(
     default_applicable_licenses = ["//:license"],
@@ -36,7 +38,10 @@ cc_library(
     visibility = ["//xls:xls_users"],
     deps = [
         "//xls/common/status:status_macros",
+        "//xls/estimators:estimator_model_cc_proto",
+        "//xls/estimators:proto_estimator_utils",
         "//xls/ir",
+        "//xls/ir:op",
         "@abseil-cpp//absl/base:no_destructor",
         "@abseil-cpp//absl/container:flat_hash_map",
         "@abseil-cpp//absl/status",
@@ -54,14 +59,17 @@ cc_test(
         ":area_estimator",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
+        "//xls/estimators:estimator_model_cc_proto",
         "//xls/ir:bits",
         "//xls/ir:function_builder",
         "//xls/ir:ir_test_base",
         "//xls/ir:op",
+        "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:status_matchers",
         "@abseil-cpp//absl/status:statusor",
         "@googletest//:gtest",
+        "@protobuf",
     ],
 )
 
@@ -77,17 +85,28 @@ cc_library(
     ],
 )
 
+# Synthetic model used to test that `area_model` works without a checked-in
+# `precomputed_proto` by generating the compiled estimator proto at build time.
+area_model(
+    name = "synthetic_test_area_model",
+    testonly = True,
+    srcs = ["testdata/synthetic_test_area_model.textproto"],
+    model_name = "synthetic_test_area",
+)
+
 cc_test(
     name = "area_estimators_test",
     srcs = ["area_estimators_test.cc"],
     deps = [
         ":area_estimator",
         ":area_estimators",
+        ":synthetic_test_area_model",  # build_cleaner: keep
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/estimators/area_model/models",
         "//xls/ir:function_builder",
         "//xls/ir:ir_test_base",
+        "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:status_matchers",
         "@googletest//:gtest",
     ],
@@ -115,23 +134,8 @@ pytype_strict_contrib_test(
     ],
 )
 
-pytype_strict_binary(
-    name = "generate_area_lookup",
-    srcs = ["generate_area_lookup.py"],
-    data = ["generate_area_lookup.tmpl"],
-    deps = [
-        ":area_model_utils",
-        "//xls/common:runfiles",
-        "//xls/estimators:estimator_model",
-        "//xls/estimators:estimator_model_py_pb2",
-        "@abseil-py//absl:app",
-        "@abseil-py//absl/flags",
-        "@protobuf//:protobuf_python",
-        "@xls_pip_deps//jinja2",
-    ],
-)
-
 exports_files([
+    "area_model_registration.cc.tmpl",
     "samples.textproto",
 ])
 
@@ -189,4 +193,11 @@ xls_model_generation(
     samples_file = ":samples.textproto",
     standard_cells = "@org_theopenroadproject_asap7sc7p5t_27//:asap7-sc7p5t_rev27_rvt_4x",
     tags = ["manual"],
+)
+
+bzl_library(
+    name = "build_defs_bzl",
+    srcs = ["build_defs.bzl"],
+    visibility = ["//visibility:private"],
+    deps = ["//xls/estimators:build_defs_bzl"],
 )

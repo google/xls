@@ -71,14 +71,18 @@ class EstimatorModelTest(absltest.TestCase):
         foo.operation_estimation(_parse_operation('op: "kBar" bit_count: 123')),
         42,
     )
-    self.assertEqual(foo.cpp_estimation_code('node'), 'return 42;')
+    self.assertEqual(
+        foo.to_compiled_proto(),
+        estimator_model_pb2.CompiledEstimator(fixed=42),
+    )
 
   def test_alias_estimator(self):
     foo = estimator_model.AliasEstimator(
         'kFoo', estimator_model.Metric.DELAY_METRIC, 'kBar'
     )
     self.assertEqual(
-        foo.cpp_estimation_code('node'), """return BarDelay(node);"""
+        foo.to_compiled_proto(),
+        estimator_model_pb2.CompiledEstimator(alias_op='kBar'),
     )
 
   def test_bounding_box_estimator(self):
@@ -147,29 +151,47 @@ class EstimatorModelTest(absltest.TestCase):
         ),
         1234,
     )
-    self.assertEqualIgnoringWhitespace(
-        bar.cpp_estimation_code('node'),
-        """
-          if (node->GetType()->GetFlatBitCount() <= 3 &&
-              node->operand(0)->GetType()->GetFlatBitCount() <= 7) {
-            return 23;
-          }
-          if (node->GetType()->GetFlatBitCount() <= 12 &&
-              node->operand(0)->GetType()->GetFlatBitCount() <= 42) {
-            return 100;
-          }
-          if (node->GetType()->GetFlatBitCount() <= 32 &&
-              node->operand(0)->GetType()->GetFlatBitCount() <= 10) {
-            return 122;
-          }
-          if (node->GetType()->GetFlatBitCount() <= 64 &&
-              node->operand(0)->GetType()->GetFlatBitCount() <= 64) {
-            return 1234;
-          }
-          return absl::UnimplementedError(
-              "Unhandled node for delay estimation: " +
-              node->ToStringWithOperandTypes());
-        """,
+    self.assertEqual(
+        bar.to_compiled_proto(),
+        text_format.Parse(
+            """
+            bounding_box {
+              points {
+                bounds { factor { source: RESULT_BIT_COUNT } max_value: 3 }
+                bounds {
+                  factor { source: OPERAND_BIT_COUNT operand_number: 0 }
+                  max_value: 7
+                }
+                delay_ps: 23
+              }
+              points {
+                bounds { factor { source: RESULT_BIT_COUNT } max_value: 12 }
+                bounds {
+                  factor { source: OPERAND_BIT_COUNT operand_number: 0 }
+                  max_value: 42
+                }
+                delay_ps: 100
+              }
+              points {
+                bounds { factor { source: RESULT_BIT_COUNT } max_value: 32 }
+                bounds {
+                  factor { source: OPERAND_BIT_COUNT operand_number: 0 }
+                  max_value: 10
+                }
+                delay_ps: 122
+              }
+              points {
+                bounds { factor { source: RESULT_BIT_COUNT } max_value: 64 }
+                bounds {
+                  factor { source: OPERAND_BIT_COUNT operand_number: 0 }
+                  max_value: 64
+                }
+                delay_ps: 1234
+              }
+            }
+            """,
+            estimator_model_pb2.CompiledEstimator(),
+        ),
     )
     with self.assertRaises(estimator_model.Error) as e:
       bar.operation_estimation(
@@ -217,17 +239,9 @@ class EstimatorModelTest(absltest.TestCase):
         4200,
         delta=2,
     )
-    self.assertEqualIgnoringWhitespaceAndFloats(
-        foo.cpp_estimation_code('node'),
-        r"""
-          return std::round(
-              0.0 + 0.0 * static_cast<float>(node->GetType()->GetFlatBitCount()) +
-              0.0 *
-              std::log2(std::max(1.0, static_cast<double>(
-                  static_cast<float>(node->GetType()->GetFlatBitCount())
-              )))
-            );
-        """,
+    self.assertEqual(
+        [t.expression for t in foo.to_compiled_proto().regression.terms],
+        [result_bit_count],
     )
 
   def test_one_regression_estimator_operand_count(self):
@@ -269,15 +283,9 @@ class EstimatorModelTest(absltest.TestCase):
         18,
         delta=1,
     )
-    self.assertEqualIgnoringWhitespaceAndFloats(
-        foo.cpp_estimation_code('node'),
-        r"""
-          return std::round(
-              0.0 + 0.0 * static_cast<float>(node->operand_count()) +
-              0.0 * std::log2(std::max(1.0, static_cast<double>(
-                static_cast<float>(node->operand_count())
-              ))));
-        """,
+    self.assertEqual(
+        [t.expression for t in foo.to_compiled_proto().regression.terms],
+        [operand_count],
     )
 
   def test_two_factor_regression_estimator(self):
@@ -326,19 +334,9 @@ class EstimatorModelTest(absltest.TestCase):
         200,
         delta=50,
     )
-    self.assertEqualIgnoringWhitespaceAndFloats(
-        foo.cpp_estimation_code('node'),
-        r"""
-          return std::round(
-              0.0 + 0.0 * static_cast<float>(node->GetType()->GetFlatBitCount()) +
-              0.0 * std::log2(std::max(1.0, static_cast<double>(
-                static_cast<float>(node->GetType()->GetFlatBitCount())
-              ))) +
-              0.0 * static_cast<float>(node->operand(1)->GetType()->GetFlatBitCount()) +
-              0.0 * std::log2(std::max(1.0, static_cast<double>(
-                  static_cast<float>(node->operand(1)->GetType()->GetFlatBitCount())
-              ))));
-        """,
+    self.assertEqual(
+        [t.expression for t in foo.to_compiled_proto().regression.terms],
+        [result_bit_count, operand_bit_count],
     )
 
   def test_fixed_op_model(self):
@@ -356,11 +354,12 @@ class EstimatorModelTest(absltest.TestCase):
         ),
         42,
     )
-    self.assertEqualIgnoringWhitespace(
-        op_model.cpp_estimation_function(),
-        """absl::StatusOr<int64_t> FooDelay(Node* node) {
-             return 42;
-           }""",
+    self.assertEqual(
+        op_model.to_compiled_proto(),
+        text_format.Parse(
+            'op: "kFoo" estimator { fixed: 42 }',
+            estimator_model_pb2.CompiledOpModel(),
+        ),
     )
 
   def test_fixed_op_model_with_specialization(self):
@@ -386,17 +385,13 @@ class EstimatorModelTest(absltest.TestCase):
         ].operation_estimation(_parse_operation('op: "kBar" bit_count: 123')),
         123,
     )
-    self.assertEqualIgnoringWhitespace(
-        op_model.cpp_estimation_function(),
-        """
-          absl::StatusOr<int64_t> FooDelay(Node* node) {
-            if (std::all_of(node->operands().begin(), node->operands().end(),
-                [&](Node* n) { return n == node->operand(0); })) {
-              return 123;
-            }
-            return 42;
-          }
-        """,
+    self.assertEqual(
+        op_model.to_compiled_proto(),
+        text_format.Parse(
+            'op: "kFoo" estimator { fixed: 42 } specializations { kind:'
+            ' OPERANDS_IDENTICAL estimator { fixed: 123 } }',
+            estimator_model_pb2.CompiledOpModel(),
+        ),
     )
 
   def test_fixed_op_model_with_specialization_details(self):
@@ -433,16 +428,19 @@ class EstimatorModelTest(absltest.TestCase):
         ].operation_estimation(_parse_operation('op: "kBar" bit_count: 123')),
         123,
     )
-    self.assertEqualIgnoringWhitespace(
-        op_model.cpp_estimation_function(),
-        """
-          absl::StatusOr<int64_t> FooDelay(Node* node) {
-            if (node->operand(0)->Is<Literal>()) {
-              return 123;
-            }
-            return 42;
-          }
-        """,
+    self.assertEqual(
+        op_model.to_compiled_proto(),
+        text_format.Parse(
+            'op: "kFoo" estimator { fixed: 42 } '
+            'specializations {'
+            '  kind: HAS_LITERAL_OPERAND'
+            '  details {'
+            '    literal_operand_details { required_literal_operand: 0 }'
+            '  }'
+            '  estimator { fixed: 123 }'
+            '}',
+            estimator_model_pb2.CompiledOpModel(),
+        ),
     )
 
   def test_fixed_op_model_with_complex_specialization_details(self):
@@ -485,27 +483,24 @@ class EstimatorModelTest(absltest.TestCase):
         ].operation_estimation(_parse_operation('op: "kBar" bit_count: 123')),
         123,
     )
-    self.assertEqualIgnoringWhitespace(
-        op_model.cpp_estimation_function(),
-        """
-          absl::StatusOr<int64_t> FooDelay(Node* node) {
-            absl::flat_hash_set<int64_t> nonliteral_operands;
-            for (int64_t i = 0; i < node->operands().size(); ++i) {
-              if (!node->operand(i)->Is<Literal>()) {
-                nonliteral_operands.insert(i);
-              }
-            }
-            if (node->operand(0)->Is<Literal>() &&
-                node->operand(1)->Is<Literal>() &&
-                std::all_of(
-                  nonliteral_operands.begin(),
-                  nonliteral_operands.end(),
-                  [&](int64_t i){ return i == 2 || i == 3; })) {
-              return 123;
-            }
-            return 42;
-          }
-        """,
+    self.assertEqual(
+        op_model.to_compiled_proto(),
+        text_format.Parse(
+            'op: "kFoo" estimator { fixed: 42 } '
+            'specializations {'
+            '  kind: HAS_LITERAL_OPERAND'
+            '  details {'
+            '    literal_operand_details {'
+            '      required_literal_operand: 0'
+            '      required_literal_operand: 1'
+            '      allowed_nonliteral_operand: 2'
+            '      allowed_nonliteral_operand: 3'
+            '    }'
+            '  }'
+            '  estimator { fixed: 123 }'
+            '}',
+            estimator_model_pb2.CompiledOpModel(),
+        ),
     )
 
   def test_regression_estimator_binop_delay_expression_add(self):
@@ -568,15 +563,9 @@ class EstimatorModelTest(absltest.TestCase):
         delta=1,
     )
 
-    expression_str = r"""(static_cast<float>(node->GetType()->GetFlatBitCount())
-        + static_cast<float>(node->operand(1)->GetType()->GetFlatBitCount()))"""
-    self.assertEqualIgnoringWhitespaceAndFloats(
-        foo.cpp_estimation_code('node'),
-        r"""
-          return std::round(
-              0.0 + 0.0 * {expr} +
-              0.0 * std::log2(std::max(1.0, static_cast<double>({expr}))));
-        """.format(expr=expression_str),
+    self.assertEqual(
+        [t.expression for t in foo.to_compiled_proto().regression.terms],
+        [expression],
     )
 
   def test_regression_estimator_binop_delay_expression_sub(self):
@@ -639,15 +628,9 @@ class EstimatorModelTest(absltest.TestCase):
         delta=1,
     )
 
-    expression_str = r"""(static_cast<float>(node->GetType()->GetFlatBitCount())
-        - static_cast<float>(node->operand(1)->GetType()->GetFlatBitCount()))"""
-    self.assertEqualIgnoringWhitespaceAndFloats(
-        foo.cpp_estimation_code('node'),
-        r"""
-          return std::round(
-              0.0 + 0.0 * {expr} +
-              0.0 * std::log2(std::max(1.0, static_cast<double>({expr}))));
-        """.format(expr=expression_str),
+    self.assertEqual(
+        [t.expression for t in foo.to_compiled_proto().regression.terms],
+        [expression],
     )
 
   def test_regression_estimator_binop_delay_expression_divide(self):
@@ -711,19 +694,9 @@ class EstimatorModelTest(absltest.TestCase):
         delta=1,
     )
 
-    expression_str = r"""(static_cast<float>(node->GetType()->GetFlatBitCount())
-        / (
-          static_cast<float>(node->operand(1)->GetType()->GetFlatBitCount()) < 1.0 ?
-            1.0 :
-            static_cast<float>(node->operand(1)->GetType()->GetFlatBitCount())
-        ))"""
-    self.assertEqualIgnoringWhitespaceAndFloats(
-        foo.cpp_estimation_code('node'),
-        r"""
-          return std::round(
-              0.0 + 0.0 * {expr} +
-              0.0 * std::log2(std::max(1.0, static_cast<double>({expr}))));
-        """.format(expr=expression_str),
+    self.assertEqual(
+        [t.expression for t in foo.to_compiled_proto().regression.terms],
+        [expression],
     )
 
   def test_regression_estimator_binop_delay_expression_max(self):
@@ -786,15 +759,9 @@ class EstimatorModelTest(absltest.TestCase):
         delta=1,
     )
 
-    expression_str = r"""std::max(static_cast<float>(node->GetType()->GetFlatBitCount()),
-        static_cast<float>(node->operand(1)->GetType()->GetFlatBitCount()))"""
-    self.assertEqualIgnoringWhitespaceAndFloats(
-        foo.cpp_estimation_code('node'),
-        r"""
-          return std::round(
-              0.0 + 0.0 * {expr} +
-              0.0 * std::log2(std::max(1.0, static_cast<double>({expr}))));
-        """.format(expr=expression_str),
+    self.assertEqual(
+        [t.expression for t in foo.to_compiled_proto().regression.terms],
+        [expression],
     )
 
   def test_regression_estimator_binop_delay_expression_min(self):
@@ -857,15 +824,9 @@ class EstimatorModelTest(absltest.TestCase):
         delta=1,
     )
 
-    expression_str = r"""std::min(static_cast<float>(node->GetType()->GetFlatBitCount()),
-        static_cast<float>(node->operand(1)->GetType()->GetFlatBitCount()))"""
-    self.assertEqualIgnoringWhitespaceAndFloats(
-        foo.cpp_estimation_code('node'),
-        r"""
-          return std::round(
-              0.0 + 0.0 * {expr} +
-              0.0 * std::log2(std::max(1.0, static_cast<double>({expr}))));
-        """.format(expr=expression_str),
+    self.assertEqual(
+        [t.expression for t in foo.to_compiled_proto().regression.terms],
+        [expression],
     )
 
   def test_regression_estimator_binop_delay_expression_multiply(self):
@@ -928,15 +889,9 @@ class EstimatorModelTest(absltest.TestCase):
         delta=1,
     )
 
-    expression_str = r"""(static_cast<float>(node->GetType()->GetFlatBitCount())
-        * static_cast<float>(node->operand(1)->GetType()->GetFlatBitCount()))"""
-    self.assertEqualIgnoringWhitespaceAndFloats(
-        foo.cpp_estimation_code('node'),
-        r"""
-          return std::round(
-              0.0 + 0.0 * {expr} +
-              0.0 * std::log2(std::max(1.0, static_cast<double>({expr}))));
-        """.format(expr=expression_str),
+    self.assertEqual(
+        [t.expression for t in foo.to_compiled_proto().regression.terms],
+        [expression],
     )
 
   def test_regression_estimator_binop_delay_expression_power(self):
@@ -991,15 +946,9 @@ class EstimatorModelTest(absltest.TestCase):
         delta=1,
     )
 
-    expression_str = r"""pow(static_cast<float>(2),
-        static_cast<float>(node->GetType()->GetFlatBitCount()))"""
-    self.assertEqualIgnoringWhitespaceAndFloats(
-        foo.cpp_estimation_code('node'),
-        r"""
-          return std::round(
-              0.0 + 0.0 * {expr} +
-              0.0 * std::log2(std::max(1.0, static_cast<double>({expr}))));
-        """.format(expr=expression_str),
+    self.assertEqual(
+        [t.expression for t in foo.to_compiled_proto().regression.terms],
+        [expression],
     )
 
   def test_regression_estimator_constant_delay_expression(self):
@@ -1045,15 +994,9 @@ class EstimatorModelTest(absltest.TestCase):
         delta=1,
     )
 
-    # This test is useful though!
-    expression_str = r"""static_cast<float>(99)"""
-    self.assertEqualIgnoringWhitespaceAndFloats(
-        foo.cpp_estimation_code('node'),
-        r"""
-          return std::round(
-              0.0 + 0.0 * {expr} +
-              0.0 * std::log2(std::max(1.0, static_cast<double>({expr}))));
-        """.format(expr=expression_str),
+    self.assertEqual(
+        [t.expression for t in foo.to_compiled_proto().regression.terms],
+        [expression],
     )
 
   def test_regression_estimator_nested_delay_expression(self):
@@ -1121,16 +1064,9 @@ class EstimatorModelTest(absltest.TestCase):
         delta=1,
     )
 
-    expression_str = r"""std::min(static_cast<float>(20),
-        (static_cast<float>(node->GetType()->GetFlatBitCount()) +
-        static_cast<float>(node->operand(1)->GetType()->GetFlatBitCount())))"""
-    self.assertEqualIgnoringWhitespaceAndFloats(
-        foo.cpp_estimation_code('node'),
-        r"""
-          return std::round(
-              0.0 + 0.0 * {expr} +
-              0.0 * std::log2(std::max(1.0, static_cast<double>({expr}))));
-        """.format(expr=expression_str),
+    self.assertEqual(
+        [t.expression for t in foo.to_compiled_proto().regression.terms],
+        [expression],
     )
 
   def test_regression_op_model_with_bounding_box_specialization(self):
@@ -1157,25 +1093,22 @@ class EstimatorModelTest(absltest.TestCase):
         ],
     )
     self.assertEqual(op_model.op, 'kFoo')
-    self.assertEqualIgnoringWhitespaceAndFloats(
-        op_model.cpp_estimation_function(),
-        """
-          absl::StatusOr<int64_t> FooDelay(Node* node) {
-            if (std::all_of(node->operands().begin(), node->operands().end(),
-                [&](Node* n) { return n == node->operand(0); })) {
-              if (node->GetType()->GetFlatBitCount() <= 1) { return 2; }
-              if (node->GetType()->GetFlatBitCount() <= 2) { return 4; }
-              return absl::UnimplementedError(
-                "Unhandled node for delay estimation: " +
-                node->ToStringWithOperandTypes());
-            }
-            return std::round(
-                0.0 + 0.0 * static_cast<float>(node->GetType()->GetFlatBitCount()) +
-                0.0 * std::log2(std::max(1.0, static_cast<double>(
-                  static_cast<float>(node->GetType()->GetFlatBitCount())
-                ))));
-          }
-        """,
+    compiled_op = op_model.to_compiled_proto()
+    self.assertEqual(compiled_op.op, 'kFoo')
+    self.assertLen(compiled_op.estimator.regression.terms, 1)
+    self.assertLen(compiled_op.specializations, 1)
+    self.assertEqual(
+        compiled_op.specializations[0].kind,
+        estimator_model_pb2.SpecializationKind.OPERANDS_IDENTICAL,
+    )
+    self.assertEqual(
+        [
+            (p.bounds[0].max_value, p.delay_ps)
+            for p in compiled_op.specializations[
+                0
+            ].estimator.bounding_box.points
+        ],
+        [(1, 2), (2, 4)],
     )
 
   def test_regression_estimator_generate_validation_sets(self):
@@ -1544,11 +1477,12 @@ class EstimatorModelTest(absltest.TestCase):
         ),
         42,
     )
-    self.assertEqualIgnoringWhitespace(
-        op_model.cpp_estimation_function(),
-        """absl::StatusOr<double> FooArea(Node* node) {
-             return 42;
-           }""",
+    self.assertEqual(
+        op_model.to_compiled_proto(),
+        text_format.Parse(
+            'op: "kFoo" estimator { fixed: 42 }',
+            estimator_model_pb2.CompiledOpModel(),
+        ),
     )
 
   def test_unspecified_metric(self):
@@ -1561,6 +1495,219 @@ class EstimatorModelTest(absltest.TestCase):
     self.assertEqualIgnoringWhitespaceAndFloats(
         'The UNSPECIFIED metric is not allowed.',
         str(e.exception),
+    )
+
+  def test_to_compiled_proto_delay_model(self):
+    proto_text = """
+      metric: DELAY_METRIC
+      op_models {
+        op: "kAdd"
+        estimator {
+          regression {
+            expressions {
+              factor {
+                source: RESULT_BIT_COUNT
+              }
+            }
+          }
+        }
+        specializations {
+          kind: OPERANDS_IDENTICAL
+          estimator {
+            fixed: 5
+          }
+        }
+      }
+      op_models {
+        op: "kSub"
+        estimator {
+          alias_op: "kAdd"
+        }
+      }
+      op_models {
+        op: "kAndReduce"
+        estimator {
+          logical_effort {
+            tau_in_ps: 10
+          }
+        }
+      }
+      op_models {
+        op: "kUMul"
+        estimator {
+          bounding_box {
+            factors {
+              source: RESULT_BIT_COUNT
+            }
+            factors {
+              source: OPERAND_BIT_COUNT
+              operand_number: 0
+            }
+          }
+        }
+      }
+      data_points {
+        operation { op: "kAdd" bit_count: 2 }
+        delay: 210
+        delay_offset: 10
+      }
+      data_points {
+        operation { op: "kAdd" bit_count: 4 }
+        delay: 410
+        delay_offset: 10
+      }
+      data_points {
+        operation { op: "kAdd" bit_count: 8 }
+        delay: 810
+        delay_offset: 10
+      }
+      data_points {
+        operation { op: "kUMul" bit_count: 8 operands { bit_count: 4 } }
+        delay: 50
+        delay_offset: 5
+      }
+    """
+    em = estimator_model.EstimatorModel(
+        text_format.Parse(proto_text, estimator_model_pb2.EstimatorModel())
+    )
+    compiled = em.to_compiled_proto()
+    self.assertEqual(compiled.metric, estimator_model_pb2.Metric.DELAY_METRIC)
+    self.assertFalse(compiled.HasField('one_bit_register_area'))
+    op_map = {m.op: m for m in compiled.op_models}
+    self.assertLen(op_map['kAdd'].estimator.regression.terms, 1)
+    self.assertEqual(op_map['kAdd'].specializations[0].estimator.fixed, 5)
+    self.assertEqual(op_map['kSub'].estimator.alias_op, 'kAdd')
+    self.assertEqual(
+        op_map['kAndReduce'].estimator.logical_effort.tau_in_ps, 10
+    )
+    self.assertLen(op_map['kUMul'].estimator.bounding_box.points, 1)
+    self.assertEqual(
+        [
+            b.max_value
+            for b in op_map['kUMul'].estimator.bounding_box.points[0].bounds
+        ],
+        [8, 4],
+    )
+    self.assertEqual(
+        op_map['kUMul'].estimator.bounding_box.points[0].delay_ps, 45
+    )
+
+  def test_to_compiled_proto_area_model(self):
+    proto_text = """
+      metric: AREA_METRIC
+      op_models {
+        op: "kAdd"
+        estimator {
+          fixed: 0
+        }
+        specializations {
+          kind: HAS_LITERAL_OPERAND
+          details {
+            literal_operand_details {
+              allowed_nonliteral_operand: 1
+              allowed_nonliteral_operand: 0
+            }
+          }
+          estimator {
+            fixed: 12
+          }
+        }
+      }
+    """
+    em = estimator_model.EstimatorModel(
+        text_format.Parse(proto_text, estimator_model_pb2.EstimatorModel())
+    )
+    compiled = em.to_compiled_proto(one_bit_register_area=12.5)
+    self.assertEqual(compiled.metric, estimator_model_pb2.Metric.AREA_METRIC)
+    self.assertAlmostEqual(compiled.one_bit_register_area, 12.5)
+    self.assertEqual(
+        list(
+            compiled.op_models[0]
+            .specializations[0]
+            .details.literal_operand_details.allowed_nonliteral_operand
+        ),
+        [0, 1],
+    )
+
+  def test_compiled_protos_are_close(self):
+    base_text = """
+      metric: AREA_METRIC
+      one_bit_register_area: 12.5
+      op_models {
+        op: "kAdd"
+        estimator {
+          regression {
+            constant: 100.0
+            terms {
+              expression { factor { source: RESULT_BIT_COUNT } }
+              linear: 25.0
+            }
+          }
+        }
+        specializations {
+          kind: OPERANDS_IDENTICAL
+          estimator {
+            area_regression {
+              terms {
+                expression { factor { source: RESULT_BIT_COUNT } }
+                square: 0.5
+                linear_log2: 1.5
+                linear: 2.5
+                log2: 3.5
+              }
+            }
+          }
+        }
+      }
+      op_models {
+        op: "kUMul"
+        estimator {
+          bounding_box {
+            points {
+              bounds {
+                factor { source: RESULT_BIT_COUNT }
+                max_value: 8
+              }
+              area_sq_microns: 42.0
+            }
+          }
+        }
+      }
+    """
+    base = text_format.Parse(
+        base_text, estimator_model_pb2.CompiledEstimatorModel()
+    )
+    perturbed = text_format.Parse(
+        base_text, estimator_model_pb2.CompiledEstimatorModel()
+    )
+    perturbed.one_bit_register_area += 1e-12
+    perturbed.op_models[0].estimator.regression.constant += 1e-12
+    perturbed.op_models[0].estimator.regression.terms[0].linear -= 1e-12
+    perturbed.op_models[0].estimator.regression.terms[0].log2 = 1e-15
+    spec_reg = (
+        perturbed.op_models[0].specializations[0].estimator.area_regression
+    )
+    spec_reg.constant = 2e-16
+    spec_reg.terms[0].square += 1e-13
+    perturbed.op_models[1].estimator.bounding_box.points[
+        0
+    ].area_sq_microns += 1e-12
+    self.assertTrue(estimator_model.compiled_protos_are_close(perturbed, base))
+
+    different_coeff = text_format.Parse(
+        base_text, estimator_model_pb2.CompiledEstimatorModel()
+    )
+    different_coeff.op_models[0].estimator.regression.constant += 1.0
+    self.assertFalse(
+        estimator_model.compiled_protos_are_close(different_coeff, base)
+    )
+
+    different_op = text_format.Parse(
+        base_text, estimator_model_pb2.CompiledEstimatorModel()
+    )
+    different_op.op_models[0].op = 'kSub'
+    self.assertFalse(
+        estimator_model.compiled_protos_are_close(different_op, base)
     )
 
 

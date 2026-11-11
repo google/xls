@@ -16,6 +16,7 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
 #include "xls/common/status/matchers.h"
 #include "xls/estimators/area_model/area_estimator.h"
@@ -26,6 +27,8 @@ namespace xls {
 namespace {
 
 using ::absl_testing::IsOkAndHolds;
+using ::absl_testing::StatusIs;
+using ::testing::DoubleNear;
 
 class DelayEstimatorsTest : public IrTestBase {};
 
@@ -175,6 +178,28 @@ TEST_F(DelayEstimatorsTest, RecurseDeeplyNested) {
   // Cost: 3 (trip count) * 3 (f2 cost) + 1 (umul) = 10
   EXPECT_THAT(estimator->GetOperationAreaInSquareMicrons(invoke_f3.node()),
               IsOkAndHolds(10));
+}
+
+TEST_F(DelayEstimatorsTest, SyntheticAreaModelWithoutPrecomputedProto) {
+  XLS_ASSERT_OK_AND_ASSIGN(AreaEstimator * estimator,
+                           GetAreaEstimator("synthetic_test_area"));
+  EXPECT_THAT(estimator->GetOneBitRegisterAreaInSquareMicrons(),
+              IsOkAndHolds(3.0));
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetBitsType(16));
+  BValue add = fb.Add(x, x);
+  BValue sub = fb.Subtract(x, x);
+  BValue negate = fb.Negate(x);
+
+  EXPECT_THAT(estimator->GetOperationAreaInSquareMicrons(x.node()),
+              IsOkAndHolds(0.0));
+  EXPECT_THAT(estimator->GetOperationAreaInSquareMicrons(add.node()),
+              IsOkAndHolds(42.0));
+  EXPECT_THAT(estimator->GetOperationAreaInSquareMicrons(sub.node()),
+              IsOkAndHolds(DoubleNear(160.0, 1e-3)));
+  EXPECT_THAT(estimator->GetOperationAreaInSquareMicrons(negate.node()),
+              StatusIs(absl::StatusCode::kUnimplemented));
 }
 
 }  // namespace

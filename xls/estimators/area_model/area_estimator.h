@@ -17,15 +17,19 @@
 
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
+#include "xls/estimators/estimator_model.pb.h"
 #include "xls/ir/node.h"
+#include "xls/ir/op.h"
 
 namespace xls {
 
@@ -82,6 +86,40 @@ class AreaEstimatorManager {
 
 // Returns the singleton manager which holds the AreaEstimator objects
 AreaEstimatorManager& GetAreaEstimatorManagerSingleton();
+
+// AreaEstimator that evaluates a pre-computed CompiledEstimatorModel proto.
+class ProtoAreaEstimator : public AreaEstimator {
+ public:
+  ProtoAreaEstimator(
+      std::string_view name,
+      absl::flat_hash_map<Op, estimator_model::CompiledOpModel> op_models,
+      std::optional<double> one_bit_register_area)
+      : AreaEstimator(name),
+        op_models_(std::move(op_models)),
+        one_bit_register_area_(one_bit_register_area) {}
+
+  static absl::StatusOr<std::unique_ptr<ProtoAreaEstimator>> Create(
+      std::string_view name,
+      const estimator_model::CompiledEstimatorModel& model);
+
+  static absl::StatusOr<std::unique_ptr<ProtoAreaEstimator>>
+  CreateFromProtoData(std::string_view name, absl::Span<const uint8_t> data);
+
+  absl::StatusOr<double> GetOperationAreaInSquareMicrons(
+      Node* node) const override;
+
+  absl::StatusOr<double> GetOneBitRegisterAreaInSquareMicrons() const override;
+
+ private:
+  absl::StatusOr<double> GetOpAreaInSquareMicrons(Op op, Node* node) const;
+
+  absl::flat_hash_map<Op, estimator_model::CompiledOpModel> op_models_;
+  std::optional<double> one_bit_register_area_;
+};
+
+// Registers a ProtoAreaEstimator parsed from embedded binary proto data.
+absl::Status RegisterProtobufAreaEstimator(std::string_view name,
+                                           absl::Span<const uint8_t> data);
 
 }  // namespace xls
 

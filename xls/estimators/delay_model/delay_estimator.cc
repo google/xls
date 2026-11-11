@@ -29,10 +29,14 @@
 #include "absl/log/die_if_null.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
+#include "absl/types/span.h"
 #include "xls/common/math_util.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/estimators/estimator_model.pb.h"
+#include "xls/estimators/proto_estimator_utils.h"
 #include "xls/ir/ir_annotator.h"
 #include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
@@ -352,6 +356,90 @@ absl::StatusOr<int64_t> CachingDelayEstimator::GetOperationDelayInPs(
     Node* node, int64_t tau_in_ps) {
   XLS_ASSIGN_OR_RETURN(int64_t delay_in_tau, GetLogicalEffortDelayInTau(node));
   return delay_in_tau * tau_in_ps;
+}
+
+/* static */ absl::StatusOr<std::unique_ptr<ProtoDelayEstimator>>
+ProtoDelayEstimator::Create(
+    std::string_view name,
+    const estimator_model::CompiledEstimatorModel& model) {
+  if (model.metric() != estimator_model::Metric::DELAY_METRIC) {
+    return absl::InvalidArgumentError(absl::StrFormat(
+        "CompiledEstimatorModel for delay estimator '%s' does not have "
+        "DELAY_METRIC.",
+        name));
+  }
+  absl::flat_hash_map<Op, estimator_model::CompiledOpModel> op_models;
+  op_models.reserve(model.op_models_size());
+  for (const auto& op_model : model.op_models()) {
+    XLS_ASSIGN_OR_RETURN(Op op, EnumNameToOp(op_model.op()));
+    op_models.emplace(op, op_model);
+  }
+  return std::make_unique<ProtoDelayEstimator>(name, std::move(op_models));
+}
+
+/* static */ absl::StatusOr<std::unique_ptr<ProtoDelayEstimator>>
+ProtoDelayEstimator::CreateFromProtoData(std::string_view name,
+                                         absl::Span<const uint8_t> data) {
+  estimator_model::CompiledEstimatorModel model;
+  if (!model.ParseFromArray(data.data(), data.size())) {
+    return absl::InvalidArgumentError(absl::StrFormat(
+        "Failed to parse CompiledEstimatorModel proto for delay model '%s'.",
+        name));
+  }
+  return Create(name, model);
+}
+
+absl::StatusOr<int64_t> ProtoDelayEstimator::GetOpDelayInPs(Op op,
+                                                            Node* node) const {
+  auto it = op_models_.find(op);
+  if (it == op_models_.end()) {
+    return absl::UnimplementedError(
+        absl::StrCat("Unhandled node for delay estimation in delay model '",
+                     name(), "': ", node->ToStringWithOperandTypes()));
+  }
+  XLS_ASSIGN_OR_RETURN(const estimator_model::CompiledEstimator* estimator,
+                       SelectEstimator(it->second, node));
+  switch (estimator->estimator_case()) {
+    case estimator_model::CompiledEstimator::kFixed:
+      return estimator->fixed();
+    case estimator_model::CompiledEstimator::kAliasOp: {
+      XLS_ASSIGN_OR_RETURN(Op aliased_op, EnumNameToOp(estimator->alias_op()));
+      return GetOpDelayInPs(aliased_op, node);
+    }
+    case estimator_model::CompiledEstimator::kRegression: {
+      XLS_ASSIGN_OR_RETURN(
+          double val, EvalRegressionEstimator(estimator->regression(), node));
+      return static_cast<int64_t>(std::round(val));
+    }
+    case estimator_model::CompiledEstimator::kBoundingBox: {
+      XLS_ASSIGN_OR_RETURN(
+          double val, EvalBoundingBoxEstimator(estimator->bounding_box(), node,
+                                               /*metric_name=*/"delay"));
+      return static_cast<int64_t>(val);
+    }
+    case estimator_model::CompiledEstimator::kLogicalEffort:
+      return DelayEstimator::GetLogicalEffortDelayInPs(
+          node, estimator->logical_effort().tau_in_ps());
+    default:
+      return absl::InvalidArgumentError(
+          absl::StrCat("Unsupported CompiledEstimator for delay model '",
+                       name(), "': ", estimator->estimator_case()));
+  }
+}
+
+absl::StatusOr<int64_t> ProtoDelayEstimator::GetOperationDelayInPs(
+    Node* node) const {
+  XLS_ASSIGN_OR_RETURN(int64_t delay, GetOpDelayInPs(node->op(), node));
+  return std::max<int64_t>(0, delay);
+}
+
+absl::Status RegisterProtobufDelayEstimator(
+    std::string_view name, absl::Span<const uint8_t> data,
+    DelayEstimatorPrecedence precedence) {
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<ProtoDelayEstimator> estimator,
+                       ProtoDelayEstimator::CreateFromProtoData(name, data));
+  return GetDelayEstimatorManagerSingleton().RegisterDelayEstimator(
+      std::move(estimator), precedence);
 }
 
 absl::StatusOr<DelayAnnotator> DelayAnnotator::Create(

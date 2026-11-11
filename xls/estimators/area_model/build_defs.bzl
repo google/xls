@@ -14,13 +14,15 @@
 
 """Contains macros for creating XLS area models."""
 
-load("@rules_cc//cc:cc_library.bzl", "cc_library")
-load("//xls/build_rules:genrule_wrapper.bzl", "genrule_wrapper")
+load("//xls/estimators:build_defs.bzl", "estimator_model_cc_library")
+
+_EMBED_NAMESPACE = "xls::area_model"
 
 def area_model(
         name,
         model_name,
         srcs,
+        precomputed_proto = None,
         **kwargs):
     """Generates an area model cc_library from an EstimatorModel protobuf.
 
@@ -28,43 +30,23 @@ def area_model(
 
       name: Name of the cc_library target to generate.
       model_name: Name of the model. This is the string that is used to access
-        the model when calling xls::GetDelayEstimator.
+        the model when calling xls::GetAreaEstimator.
       srcs: The pbtext file containing the EstimatorModel proto. There should only
         be a single source file.
+      precomputed_proto: Optional pre-computed CompiledEstimatorModel textproto
+        file. If provided, the cc_library embeds the binary proto directly and
+        evaluates it at runtime without depending on Python curve-fitting tools,
+        and a diff_test target is created to verify it stays in sync with srcs.
       **kwargs: Keyword args to pass to cc_library and genrule_wrapper rules.
     """
-
-    if len(srcs) != 1:
-        fail("More than one source not currently supported.")
-
-    genrule_wrapper(
-        name = "{}_source".format(name),
-        srcs = srcs,
-        outs = ["{}.cc".format(name)],
-        cmd = ("$(location //xls/estimators/area_model:generate_area_lookup) " +
-               "--model_name={model_name} $< " +
-               "| $(location @llvm//tools:clang-format)" +
-               " > $(OUTS)").format(model_name = model_name),
-        tools = [
-            "//xls/estimators/area_model:generate_area_lookup",
-            "@llvm//tools:clang-format",
-        ],
-        **kwargs
-    )
-    cc_library(
+    estimator_model_cc_library(
         name = name,
-        srcs = [":{}_source".format(name)],
-        alwayslink = 1,
-        deps = [
-            "@abseil-cpp//absl/container:flat_hash_set",
-            "@abseil-cpp//absl/log:check",
-            "@abseil-cpp//absl/memory",
-            "@abseil-cpp//absl/status",
-            "@abseil-cpp//absl/status:statusor",
-            "//xls/common:module_initializer",
-            "//xls/common/status:status_macros",
-            "//xls/estimators/area_model:area_estimator",
-            "//xls/ir",
-        ],
+        model_name = model_name,
+        srcs = srcs,
+        precomputed_proto = precomputed_proto,
+        embed_namespace = _EMBED_NAMESPACE,
+        data_target_suffix = "area_data",
+        registration_template = Label("//xls/estimators/area_model:area_model_registration.cc.tmpl"),
+        estimator_dep = "//xls/estimators/area_model:area_estimator",
         **kwargs
     )

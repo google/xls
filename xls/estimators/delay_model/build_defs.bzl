@@ -14,14 +14,16 @@
 
 """Contains macros for creating XLS delay models."""
 
-load("@rules_cc//cc:cc_library.bzl", "cc_library")
-load("//xls/build_rules:genrule_wrapper.bzl", "genrule_wrapper")
+load("//xls/estimators:build_defs.bzl", "estimator_model_cc_library")
+
+_EMBED_NAMESPACE = "xls::delay_model"
 
 def delay_model(
         name,
         model_name,
         precedence,
         srcs,
+        precomputed_proto = None,
         **kwargs):
     """Generates a delay model cc_library from an EstimatorModel protobuf.
 
@@ -33,42 +35,24 @@ def delay_model(
       precedence: Precedence for the model in the delay model registry.
       srcs: The pbtext file containing the EstimatorModel proto. There should only
         be a single source file.
+      precomputed_proto: Optional pre-computed CompiledEstimatorModel textproto
+        file. If provided, the cc_library embeds the binary proto directly and
+        evaluates it at runtime without depending on Python curve-fitting tools,
+        and a diff_test target is created to verify it stays in sync with srcs.
       **kwargs: Keyword args to pass to cc_library and genrule_wrapper rules.
     """
-
-    if len(srcs) != 1:
-        fail("More than one source not currently supported.")
-
     if precedence not in ("kLow", "kMedium", "kHigh"):
         fail("Invalid precedence for delay model: " + precedence)
 
-    genrule_wrapper(
-        name = "{}_source".format(name),
-        srcs = srcs,
-        outs = ["{}.cc".format(name)],
-        cmd = ("$(location //xls/estimators/delay_model:generate_delay_lookup) " +
-               "--model_name={model_name} --precedence={precedence} $< " +
-               "| $(location @llvm//tools:clang-format)" +
-               " > $(OUTS)").format(model_name = model_name, precedence = precedence),
-        tools = [
-            "//xls/estimators/delay_model:generate_delay_lookup",
-            "@llvm//tools:clang-format",
-        ],
-        **kwargs
-    )
-    cc_library(
+    estimator_model_cc_library(
         name = name,
-        srcs = [":{}_source".format(name)],
-        alwayslink = 1,
-        deps = [
-            "@abseil-cpp//absl/container:flat_hash_set",
-            "@abseil-cpp//absl/log:check",
-            "@abseil-cpp//absl/memory",
-            "@abseil-cpp//absl/status",
-            "//xls/common:module_initializer",
-            "@abseil-cpp//absl/status:statusor",
-            "//xls/estimators/delay_model:delay_estimator",
-            "//xls/ir",
-        ],
+        model_name = model_name,
+        srcs = srcs,
+        precomputed_proto = precomputed_proto,
+        embed_namespace = _EMBED_NAMESPACE,
+        data_target_suffix = "delay_data",
+        registration_template = Label("//xls/estimators/delay_model:delay_model_registration.cc.tmpl"),
+        estimator_dep = "//xls/estimators/delay_model:delay_estimator",
+        extra_substitutions = {"{PRECEDENCE}": precedence},
         **kwargs
     )
