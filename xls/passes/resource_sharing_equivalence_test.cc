@@ -1471,6 +1471,67 @@ TEST_F(ResourceSharingEquivalenceTest,
   }
 }
 
+TEST_F(ResourceSharingEquivalenceTest,
+       CloneWithMappingPopulatesOriginalNodeToClone) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue a16 = fb.Param("a16", p->GetBitsType(16));
+  BValue b16 = fb.Param("b16", p->GetBitsType(16));
+  BValue sub16 = fb.Subtract(a16, b16);
+  BValue add16 = fb.Add(a16, b16);
+  BValue umul32 = fb.UMul(a16, b16, /*result_width=*/32);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(umul32));
+
+  // Mapping whose destination lives in the same function (dst_fn == f)
+  {
+    XLS_ASSERT_OK_AND_ASSIGN(std::optional<NodeToMappings> mappings,
+                             GetNodeEquivalenceMapper().ComputeMappings(
+                                 {sub16.node()}, add16.node()));
+    ASSERT_TRUE(mappings.has_value());
+    absl::flat_hash_map<Node*, Node*> original_node_to_clone;
+    XLS_ASSERT_OK_AND_ASSIGN(
+        Node * output,
+        CloneWithMapping(sub16.node(), *mappings->at(sub16.node()),
+                         original_node_to_clone));
+    ASSERT_TRUE(original_node_to_clone.contains(add16.node()));
+    EXPECT_EQ(original_node_to_clone.at(add16.node()), output);
+    EXPECT_THAT(output, m::Add(a16.node(), m::Neg(b16.node())));
+  }
+
+  // Decomposition mapping whose destination lives in a temporary function
+  {
+    XLS_ASSERT_OK_AND_ASSIGN(
+        std::vector<std::shared_ptr<EquivalenceMapping>> decomps,
+        GetNodeEquivalenceMapper().ComputeDecompositions(umul32.node()));
+    ASSERT_EQ(decomps.size(), 1);
+
+    absl::flat_hash_map<Node*, Node*> original_node_to_clone;
+    XLS_ASSERT_OK_AND_ASSIGN(
+        Node * output,
+        CloneWithMapping(umul32.node(), *decomps[0], original_node_to_clone));
+    FunctionBase* dst_fn = decomps[0]->dst()->function_base();
+    std::vector<Node*> cloned_params;
+    for (Param* param : dst_fn->params()) {
+      cloned_params.push_back(original_node_to_clone.at(param));
+    }
+    EXPECT_THAT(cloned_params,
+                ElementsAre(m::BitSlice(a16.node(), /*start=*/8, /*width=*/8),
+                            m::BitSlice(a16.node(), /*start=*/0, /*width=*/8),
+                            m::BitSlice(b16.node(), /*start=*/8, /*width=*/8),
+                            m::BitSlice(b16.node(), /*start=*/0, /*width=*/8)));
+    for (Node* part : dst_fn->nodes()) {
+      if (part->Is<Param>()) {
+        continue;
+      }
+      ASSERT_TRUE(original_node_to_clone.contains(part));
+      Node* cloned_part = original_node_to_clone.at(part);
+      EXPECT_EQ(cloned_part->function_base(), f);
+      EXPECT_TRUE(cloned_part->IsDefinitelyEqualTo(part));
+    }
+    EXPECT_EQ(original_node_to_clone.at(decomps[0]->dst()), output);
+  }
+}
+
 struct MulSpec {
   Op op;
   int64_t lhs_width;

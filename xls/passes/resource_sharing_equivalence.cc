@@ -1432,8 +1432,10 @@ NodeEquivalenceMapper& GetNodeEquivalenceMapper() {
   return *m;
 }
 
-absl::StatusOr<Node*> CloneWithMapping(Node* node,
-                                       const EquivalenceMapping& mapping) {
+absl::StatusOr<Node*> CloneWithMapping(
+    Node* node, const EquivalenceMapping& mapping,
+    absl::optional_ref<absl::flat_hash_map<Node*, Node*>>
+        original_node_to_clone) {
   FunctionBase* f = node->function_base();
   XLS_ASSIGN_OR_RETURN(std::vector<Node*> converted_operands,
                        mapping.ApplyToOperands(f, node->operands()));
@@ -1441,13 +1443,19 @@ absl::StatusOr<Node*> CloneWithMapping(Node* node,
   if (dst_fn == f) {
     XLS_ASSIGN_OR_RETURN(Node * unified_node, mapping.dst()->CloneInNewFunction(
                                                   converted_operands, f));
+    if (original_node_to_clone.has_value()) {
+      (*original_node_to_clone)[mapping.dst()] = unified_node;
+    }
     return mapping.ApplyToOutput(f, unified_node);
   }
 
   // NOTE: The temporary function containing the destination node and its
-  // dependencies has one parameter per operand of the source node.
+  // dependencies has one parameter per converted operand.
   XLS_RET_CHECK_EQ(dst_fn->params().size(), converted_operands.size());
-  absl::flat_hash_map<Node*, Node*> cloned_map;
+  absl::flat_hash_map<Node*, Node*> local_cloned_map;
+  absl::flat_hash_map<Node*, Node*>& cloned_map =
+      original_node_to_clone.has_value() ? *original_node_to_clone
+                                         : local_cloned_map;
   for (int64_t i = 0; i < converted_operands.size(); ++i) {
     cloned_map[dst_fn->params()[i]] = converted_operands[i];
   }

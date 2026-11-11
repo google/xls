@@ -217,8 +217,12 @@ ComputeMappingsSourcesToDest(absl::Span<Node* const> sources, Node* dst,
 //   - The operands of `node` modified by ApplyToOperands.
 //   - The destination node, along with its dependencies contained in the
 //     mapping's temporary package, modified by ApplyToOutput.
-absl::StatusOr<Node*> CloneWithMapping(Node* node,
-                                       const EquivalenceMapping& mapping);
+// If `original_node_to_clone` is provided, populates it with the mapping from
+// nodes in the mapping's function to their cloned counterparts.
+absl::StatusOr<Node*> CloneWithMapping(
+    Node* node, const EquivalenceMapping& mapping,
+    absl::optional_ref<absl::flat_hash_map<Node*, Node*>>
+        original_node_to_clone = std::nullopt);
 
 // `IdentityEquivalenceMapping` handles nodes with identical ops and bit widths.
 // This mapping is exposed for ease of default mapping in constructors.
