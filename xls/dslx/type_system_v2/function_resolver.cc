@@ -24,6 +24,7 @@
 #include <string>
 #include <string_view>
 #include <variant>
+#include <vector>
 
 #include "absl/base/casts.h"
 #include "absl/container/flat_hash_map.h"
@@ -244,11 +245,41 @@ class FunctionResolverImpl : public FunctionResolver {
     if (function_node != nullptr) {
       const auto* fn = dynamic_cast<const Function*>(function_node);
       if (fn == nullptr) {
-        return TypeInferenceErrorStatus(
-            callee->span(), nullptr,
-            absl::Substitute("Invocation callee `$0` is not a function",
-                             callee->ToString()),
-            file_table_);
+        // In the case of an invocation that is a functional parameter, create a
+        // dummy function stub for the purposes of type checking. Invocations of
+        // the parent function will pass an actual function.
+        if (function_node->kind() == AstNodeKind::kParam &&
+            dynamic_cast<const Param*>(function_node)
+                ->type_annotation()
+                ->IsAnnotation<FunctionTypeAnnotation>()) {
+          const auto* param = dynamic_cast<const Param*>(function_node);
+          const auto* fn_type =
+              param->type_annotation()->AsAnnotation<FunctionTypeAnnotation>();
+          std::vector<Param*> params;
+          params.reserve(fn_type->param_types().size());
+          for (int i = 0; i < fn_type->param_types().size(); i++) {
+            const TypeAnnotation* param_type = fn_type->param_types()[i];
+            params.push_back(module_.Make<Param>(
+                module_.Make<NameDef>(param_type->span(),
+                                      absl::Substitute("param_$0", i), nullptr),
+                const_cast<TypeAnnotation*>(param_type)));
+          }
+
+          fn = module_.Make<Function>(
+              param->span(), param->name_def(),
+              std::vector<ParametricBinding*>{}, params, fn_type->return_type(),
+              module_.Make<StatementBlock>(param->span(),
+                                           std::vector<Statement*>{},
+                                           /*trailing_semi=*/true),
+              FunctionTag::kNormal, /*is_public=*/false, /*is_stub=*/true);
+
+        } else {
+          return TypeInferenceErrorStatus(
+              callee->span(), nullptr,
+              absl::Substitute("Invocation callee `$0` is not a function",
+                               callee->ToString()),
+              file_table_);
+        }
       }
       if (!fn->IsCompilerDerived() &&
           (fn->parent() == nullptr || !fn->impl().has_value())) {
