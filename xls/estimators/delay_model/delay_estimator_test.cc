@@ -304,6 +304,14 @@ TEST_F(DelayEstimatorTest, DecoratingDelayEstimator) {
                                       });
   EXPECT_THAT(decorating.GetOperationDelayInPs(f->return_value()),
               IsOkAndHolds(42));
+
+  DecoratingDelayEstimator failing(
+      "failing", *one,
+      [](Node* n, int64_t original) -> absl::StatusOr<int64_t> {
+        return absl::InvalidArgumentError("bad delay");
+      });
+  EXPECT_THAT(failing.GetOperationDelayInPs(f->return_value()),
+              StatusIs(absl::StatusCode::kInvalidArgument, "bad delay"));
 }
 
 TEST_F(DelayEstimatorTest, CachingDelayEstimator) {

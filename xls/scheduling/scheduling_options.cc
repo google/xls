@@ -130,15 +130,28 @@ absl::StatusOr<SchedulingOptions> OptionsFromFlagProto(
     scheduling_options.opt_level(proto.opt_level());
   }
   if (proto.pipeline_stages() != 0) {
+    if (proto.pipeline_stages() < 0) {
+      return absl::InvalidArgumentError("pipeline_stages must be > 0");
+    }
     scheduling_options.pipeline_stages(proto.pipeline_stages());
   }
   if (proto.clock_period_ps() != 0) {
+    if (proto.clock_period_ps() < 0) {
+      return absl::InvalidArgumentError("clock_period_ps must be > 0");
+    }
     scheduling_options.clock_period_ps(proto.clock_period_ps());
   }
   if (proto.clock_margin_percent() != 0) {
+    if (proto.clock_margin_percent() < 0) {
+      return absl::InvalidArgumentError("clock_margin_percent must be >= 0");
+    }
     scheduling_options.clock_margin_percent(proto.clock_margin_percent());
   }
   if (proto.period_relaxation_percent() != 0) {
+    if (proto.period_relaxation_percent() < 0) {
+      return absl::InvalidArgumentError(
+          "period_relaxation_percent must be >= 0");
+    }
     scheduling_options.period_relaxation_percent(
         proto.period_relaxation_percent());
   }
@@ -146,6 +159,9 @@ absl::StatusOr<SchedulingOptions> OptionsFromFlagProto(
       proto.minimize_clock_on_failure());
   scheduling_options.recover_after_minimizing_clock(
       proto.recover_after_minimizing_clock());
+  if (proto.worst_case_throughput() < 0) {
+    return absl::InvalidArgumentError("worst_case_throughput must be >= 0");
+  }
   scheduling_options.worst_case_throughput(proto.worst_case_throughput());
   scheduling_options.minimize_worst_case_throughput(
       proto.minimize_worst_case_throughput());
@@ -154,21 +170,38 @@ absl::StatusOr<SchedulingOptions> OptionsFromFlagProto(
         proto.dynamic_throughput_objective_weight());
   }
   if (proto.additional_input_delay_ps() != 0) {
+    if (proto.additional_input_delay_ps() < 0) {
+      return absl::InvalidArgumentError(
+          "additional_input_delay_ps must be >= 0");
+    }
     scheduling_options.additional_input_delay_ps(
         proto.additional_input_delay_ps());
   }
   if (proto.additional_output_delay_ps() != 0) {
+    if (proto.additional_output_delay_ps() < 0) {
+      return absl::InvalidArgumentError(
+          "additional_output_delay_ps must be >= 0");
+    }
     scheduling_options.additional_output_delay_ps(
         proto.additional_output_delay_ps());
   }
   if (!proto.additional_channel_delay_ps().empty()) {
-    absl::flat_hash_map<std::string, int64_t> additional_channel_delay_ps(
-        proto.additional_channel_delay_ps().begin(),
-        proto.additional_channel_delay_ps().end());
+    absl::flat_hash_map<std::string, int64_t> additional_channel_delay_ps;
+    for (const auto& [channel_name, delay_ps] :
+         proto.additional_channel_delay_ps()) {
+      if (delay_ps < 0) {
+        return absl::InvalidArgumentError(
+            "additional_channel_delay_ps must be >= 0");
+      }
+      additional_channel_delay_ps[channel_name] = delay_ps;
+    }
     scheduling_options.additional_channel_delay_ps(
         std::move(additional_channel_delay_ps));
   }
   if (proto.ffi_fallback_delay_ps() != 0) {
+    if (proto.ffi_fallback_delay_ps() < 0) {
+      return absl::InvalidArgumentError("ffi_fallback_delay_ps must be >= 0");
+    }
     scheduling_options.ffi_fallback_delay_ps(proto.ffi_fallback_delay_ps());
   }
 

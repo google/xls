@@ -33,6 +33,7 @@
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "absl/types/span.h"
+#include "xls/common/math_util.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/estimators/delay_model/delay_estimator.h"
@@ -370,8 +371,19 @@ absl::Status PipelineSchedule::VerifyTiming(
     if (!dead_after_synthesis.contains(node)) {
       XLS_ASSIGN_OR_RETURN(node_delay,
                            delay_estimator.GetOperationDelayInPs(node));
+      if (node_delay < 0) {
+        return absl::InvalidArgumentError(
+            absl::StrFormat("Node %s has a negative delay (%dps)",
+                            node->GetName(), node_delay));
+      }
     }
-    node_cp[node] = cp_to_node_start + node_delay;
+    SaturatedResult<int64_t> cp_to_node_end =
+        SaturatingAdd(cp_to_node_start, node_delay);
+    if (cp_to_node_end.did_overflow) {
+      return absl::InvalidArgumentError(absl::StrFormat(
+          "Critical-path delay at node %s overflows int64_t", node->GetName()));
+    }
+    node_cp[node] = cp_to_node_end.result;
     if (max_cp_node == nullptr || node_cp[node] > node_cp[max_cp_node]) {
       max_cp_node = node;
     }

@@ -17,7 +17,6 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
-#include <functional>
 #include <memory>
 #include <string>
 #include <string_view>
@@ -26,6 +25,7 @@
 
 #include "absl/base/no_destructor.h"
 #include "absl/container/flat_hash_map.h"
+#include "absl/functional/any_invocable.h"
 #include "absl/log/die_if_null.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -309,7 +309,7 @@ namespace {
 
 DecoratingDelayEstimator::DecoratingDelayEstimator(
     std::string_view name, const DelayEstimator& decorated,
-    std::function<int64_t(Node*, int64_t)> modifier)
+    absl::AnyInvocable<absl::StatusOr<int64_t>(Node*, int64_t) const> modifier)
     : DelayEstimator(name),
       decorated_(decorated),
       modifier_(ABSL_DIE_IF_NULL(std::move(modifier))) {}

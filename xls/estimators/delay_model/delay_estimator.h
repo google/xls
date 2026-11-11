@@ -17,7 +17,6 @@
 
 #include <array>
 #include <cstdint>
-#include <functional>
 #include <memory>
 #include <string>
 #include <string_view>
@@ -27,6 +26,7 @@
 #include "gtest/gtest_prod.h"
 #include "absl/base/thread_annotations.h"
 #include "absl/container/flat_hash_map.h"
+#include "absl/functional/any_invocable.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/synchronization/mutex.h"
@@ -67,9 +67,10 @@ class DelayEstimator {
 // Decorates an underlying delay estimator with an overriding modifier function.
 class DecoratingDelayEstimator : public DelayEstimator {
  public:
-  DecoratingDelayEstimator(std::string_view name,
-                           const DelayEstimator& decorated,
-                           std::function<int64_t(Node*, int64_t)> modifier);
+  DecoratingDelayEstimator(
+      std::string_view name, const DelayEstimator& decorated,
+      absl::AnyInvocable<absl::StatusOr<int64_t>(Node*, int64_t) const>
+          modifier);
 
   ~DecoratingDelayEstimator() override = default;
 
@@ -77,7 +78,7 @@ class DecoratingDelayEstimator : public DelayEstimator {
 
  private:
   const DelayEstimator& decorated_;
-  std::function<int64_t(Node*, int64_t)> modifier_;
+  absl::AnyInvocable<absl::StatusOr<int64_t>(Node*, int64_t) const> modifier_;
 };
 
 // Delay estimator delegating to a sequence of other DelayEstimators until
