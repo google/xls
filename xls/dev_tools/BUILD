@@ -75,11 +75,40 @@ cc_binary(
     ],
 )
 
+xls_dslx_library(
+    name = "benchmark_main_test_dslx",
+    srcs = ["testdata/benchmark_main_test.x"],
+)
+
+xls_dslx_ir(
+    name = "benchmark_main_fail_on_tick_ir",
+    dslx_top = "FailOnTick",
+    ir_file = "testdata/benchmark_main_fail_on_tick.ir",
+    library = ":benchmark_main_test_dslx",
+)
+
+xls_dslx_ir(
+    name = "benchmark_main_deadlock_ir",
+    dslx_top = "DeadlockAfterFirstTick",
+    ir_file = "testdata/benchmark_main_deadlock.ir",
+    library = ":benchmark_main_test_dslx",
+)
+
+xls_dslx_ir(
+    name = "benchmark_main_inv_ir",
+    dslx_top = "inv",
+    ir_file = "testdata/benchmark_main_inv.ir",
+    library = ":benchmark_main_test_dslx",
+)
+
 sh_test(
     name = "benchmark_main_test",
     srcs = ["benchmark_main_test.sh"],
     data = [
         ":benchmark_main",
+        ":testdata/benchmark_main_deadlock.ir",
+        ":testdata/benchmark_main_fail_on_tick.ir",
+        ":testdata/benchmark_main_inv.ir",
         "//xls/examples:proc_network_opt_ir_benchmark",
     ],
 )
@@ -668,6 +697,7 @@ cc_binary(
         "//xls/interpreter:block_evaluator",
         "//xls/interpreter:ir_interpreter",
         "//xls/interpreter:random_value",
+        "//xls/interpreter:serial_proc_runtime",
         "//xls/ir",
         "//xls/ir:events",
         "//xls/ir:ir_parser",
@@ -677,10 +707,7 @@ cc_binary(
         "//xls/ir:value",
         "//xls/jit:block_jit",
         "//xls/jit:function_jit",
-        "//xls/jit:jit_channel_queue",
         "//xls/jit:jit_runtime",
-        "//xls/jit:orc_jit",
-        "//xls/jit:proc_jit",
         "//xls/passes",
         "//xls/passes:bdd_query_engine",
         "//xls/passes:optimization_pass",
@@ -695,6 +722,7 @@ cc_binary(
         "//xls/tools:codegen",
         "//xls/tools:codegen_flags",
         "//xls/tools:codegen_flags_cc_proto",
+        "//xls/tools:eval_proc",
         "//xls/tools:schedule",
         "//xls/tools:scheduling_options_flags",
         "//xls/tools:scheduling_options_flags_cc_proto",
@@ -702,6 +730,7 @@ cc_binary(
         "@abseil-cpp//absl/container:flat_hash_map",
         "@abseil-cpp//absl/container:flat_hash_set",
         "@abseil-cpp//absl/flags:flag",
+        "@abseil-cpp//absl/functional:function_ref",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/status",
