@@ -56,6 +56,7 @@ delay_model(
     srcs = ["unit.textproto"],
     model_name = "unit",
     precedence = "kLow",
+    precomputed_proto = "computed_estimators/unit.textproto",
 )
 
 delay_model(
@@ -63,6 +64,7 @@ delay_model(
     srcs = ["asap7.textproto"],
     model_name = "asap7",
     precedence = "kMedium",
+    precomputed_proto = "computed_estimators/asap7.textproto",
 )
 
 delay_model(
@@ -70,4 +72,5 @@ delay_model(
     srcs = ["sky130.textproto"],
     model_name = "sky130",
     precedence = "kMedium",
+    precomputed_proto = "computed_estimators/sky130.textproto",
 )
