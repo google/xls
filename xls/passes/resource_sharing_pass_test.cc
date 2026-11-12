@@ -16,6 +16,7 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <iterator>
 #include <limits>
 #include <memory>
 #include <optional>
@@ -71,10 +72,15 @@ namespace {
 using ::absl_testing::IsOkAndHolds;
 using ::absl_testing::StatusIs;
 using ::testing::ElementsAre;
+using ::testing::Eq;
 using ::testing::Field;
 using ::testing::HasSubstr;
+using ::testing::Pointee;
+using ::testing::Property;
 using ::testing::UnorderedElementsAre;
 using ::xls::solvers::ScopedVerifyEquivalence;
+
+using NodeVisibility = NaryFoldingAction::NodeVisibility;
 
 struct ResourceSharingPassRunner {
   static absl::StatusOr<bool> RunPass(Function* f) {
@@ -136,7 +142,7 @@ TEST_F(ResourceSharingPassTest, CatchesCyclesBeforeTransforming) {
   VisibilityEdges edges = {
       OperandVisibilityAnalysis::OperandNode(X.node(), sel.node()),
       OperandVisibilityAnalysis::OperandNode(Y.node(), sel.node())};
-  std::vector<NaryFoldingAction::NodeVisibility> from_X = {
+  std::vector<NodeVisibility> from_X = {
       {.node = X.node(), .edges = edges, .sinks = {sel.node()}}};
   auto fold_X_into_Y = std::make_unique<NaryFoldingAction>(
       std::move(from_X), Y.node(), edges, /*area_saved=*/0.0);
@@ -175,7 +181,7 @@ TEST_F(ResourceSharingPassTest,
       OperandVisibilityAnalysis::OperandNode(B1.node(), sel.node())};
   VisibilityEdges edges_A0 = {
       OperandVisibilityAnalysis::OperandNode(B0.node(), sel.node())};
-  std::vector<NaryFoldingAction::NodeVisibility> from_1 = {
+  std::vector<NodeVisibility> from_1 = {
       {.node = A1.node(), .edges = edges_A1, .sinks = {sel.node()}}};
   auto fold_1 = std::make_unique<NaryFoldingAction>(
       std::move(from_1), A0.node(), edges_A0, /*area_saved=*/1.0);
@@ -186,7 +192,7 @@ TEST_F(ResourceSharingPassTest,
   // the previous folding action.
   VisibilityEdges edges_A2 = {
       OperandVisibilityAnalysis::OperandNode(A2.node(), sel.node())};
-  std::vector<NaryFoldingAction::NodeVisibility> from_2 = {
+  std::vector<NodeVisibility> from_2 = {
       {.node = A0.node(), .edges = edges_A0, .sinks = {sel.node()}}};
   auto fold_2 = std::make_unique<NaryFoldingAction>(
       std::move(from_2), A2.node(), edges_A2, /*area_saved=*/1.0);
@@ -225,7 +231,7 @@ TEST_F(ResourceSharingPassTest,
       OperandVisibilityAnalysis::OperandNode(B1.node(), sel.node())};
   VisibilityEdges edges_A0 = {
       OperandVisibilityAnalysis::OperandNode(B0.node(), sel.node())};
-  std::vector<NaryFoldingAction::NodeVisibility> from_1 = {
+  std::vector<NodeVisibility> from_1 = {
       {.node = A1.node(), .edges = edges_A1, .sinks = {sel.node()}}};
   auto fold_1 = std::make_unique<NaryFoldingAction>(
       std::move(from_1), A0.node(), edges_A0, /*area_saved=*/1.0);
@@ -234,7 +240,7 @@ TEST_F(ResourceSharingPassTest,
   // action 2 is skipped.
   VisibilityEdges edges_A2 = {
       OperandVisibilityAnalysis::OperandNode(A2.node(), sel.node())};
-  std::vector<NaryFoldingAction::NodeVisibility> from_2 = {
+  std::vector<NodeVisibility> from_2 = {
       {.node = A2.node(), .edges = edges_A2, .sinks = {sel.node()}}};
   auto fold_2 = std::make_unique<NaryFoldingAction>(
       std::move(from_2), A1.node(), edges_A1, /*area_saved=*/1.0);
@@ -273,6 +279,24 @@ TEST_F(ResourceSharingPassTest, ReplaceOperandsIfChanged_Tests) {
   EXPECT_EQ(add_node.node()->operand(1), c.node());
 }
 
+std::unique_ptr<NaryFoldingAction> MakeFoldingAction(
+    Node* target_node, absl::Span<Node* const> source_nodes = {}) {
+  std::vector<NodeVisibility> sources;
+  absl::c_transform(
+      source_nodes, std::back_inserter(sources),
+      [](Node* source) { return NodeVisibility{.node = source}; });
+  return std::make_unique<NaryFoldingAction>(
+      std::move(sources), target_node, VisibilityEdges{}, /*area_saved=*/0.0);
+}
+
+template <typename T, typename... Args>
+std::vector<std::unique_ptr<T>> make_unique_vector(Args&&... args) {
+  std::vector<std::unique_ptr<T>> vec;
+  vec.reserve(sizeof...(Args));
+  (vec.emplace_back(std::forward<Args>(args)), ...);
+  return vec;
+}
+
 TEST_F(
     ResourceSharingPassTest,
     SortFoldingActionsInDescendingOrderOfTheirAreaSavings_SpecialNodePriority) {
@@ -299,27 +323,17 @@ TEST_F(
       fb.BuildWithReturnValue(fb.Tuple(
           {add_low, sub_mid, add_high, sub_highest, from_mid, from_high})));
 
-  auto make_action = [&](Node* target, Node* source = nullptr) {
-    std::vector<NaryFoldingAction::NodeVisibility> sources;
-    if (source != nullptr) {
-      sources.push_back(NaryFoldingAction::NodeVisibility{
-          .node = source, .edges = {}, .sinks = {}});
-    }
-    return std::make_unique<NaryFoldingAction>(
-        std::move(sources), target, VisibilityEdges{}, /*area_saved=*/0.0);
-  };
-
   // The comparator doesn't care that we specify no source nodes, and this
   // allows us to conveniently express a folding of no delay spread / increase.
-  auto make_add_low = [&] { return make_action(add_low.node()); };
+  auto make_add_low = [&] { return MakeFoldingAction(add_low.node()); };
   auto make_sub_mid = [&] {
-    return make_action(sub_mid.node(), from_mid.node());
+    return MakeFoldingAction(sub_mid.node(), {from_mid.node()});
   };
   auto make_add_high = [&] {
-    return make_action(add_high.node(), from_mid.node());
+    return MakeFoldingAction(add_high.node(), {from_mid.node()});
   };
   auto make_sub_highest = [&] {
-    return make_action(sub_highest.node(), from_mid.node());
+    return MakeFoldingAction(sub_highest.node(), {from_mid.node()});
   };
 
   XLS_ASSERT_OK_AND_ASSIGN(const DelayEstimator* delay_estimator,
@@ -327,20 +341,12 @@ TEST_F(
   CriticalPathDelayAnalysis delay_analysis(delay_estimator);
   XLS_ASSERT_OK(delay_analysis.Attach(f));
 
-  auto sort_and_get_names = [&](std::unique_ptr<NaryFoldingAction> a,
-                                std::unique_ptr<NaryFoldingAction> b,
-                                std::unique_ptr<NaryFoldingAction> c,
-                                std::unique_ptr<NaryFoldingAction> d) {
-    std::vector<std::unique_ptr<NaryFoldingAction>> actions;
-    actions.push_back(std::move(a));
-    actions.push_back(std::move(b));
-    actions.push_back(std::move(c));
-    actions.push_back(std::move(d));
+  auto sort_actions = [&]<typename... Folds>(Folds&&... folds) {
+    std::vector<std::unique_ptr<NaryFoldingAction>> actions =
+        make_unique_vector<NaryFoldingAction>(std::forward<Folds>(folds)...);
     TimingAnalysis ta(actions, delay_analysis);
     SortFoldingActionsInDescendingOrderOfTheirAreaSavings(actions, ta);
-    return std::vector<std::string>{
-        actions[0]->GetTo()->GetName(), actions[1]->GetTo()->GetName(),
-        actions[2]->GetTo()->GetName(), actions[3]->GetTo()->GetName()};
+    return actions;
   };
 
   // In the sorting comparator:
@@ -353,22 +359,68 @@ TEST_F(
   // 3. For normal nodes, we tie-break by smaller delay total and smaller ID.
   //    Since both sub_mid and sub_highest have the same delay characteristics,
   //    smaller ID wins, so sub_mid > sub_highest.
-  const std::vector<std::string> kExpected = {"add_high", "add_low", "sub_mid",
-                                              "sub_highest"};
+  auto expected_targets = ElementsAre(
+      Pointee(Property(&NaryFoldingAction::GetTo, Eq(add_high.node()))),
+      Pointee(Property(&NaryFoldingAction::GetTo, Eq(add_low.node()))),
+      Pointee(Property(&NaryFoldingAction::GetTo, Eq(sub_mid.node()))),
+      Pointee(Property(&NaryFoldingAction::GetTo, Eq(sub_highest.node()))));
 
   // Verify a few input permutations to expose weak comparator hardening bugs.
-  EXPECT_EQ(sort_and_get_names(make_add_low(), make_sub_mid(), make_add_high(),
-                               make_sub_highest()),
-            kExpected);
-  EXPECT_EQ(sort_and_get_names(make_add_low(), make_add_high(), make_sub_mid(),
-                               make_sub_highest()),
-            kExpected);
-  EXPECT_EQ(sort_and_get_names(make_sub_mid(), make_add_high(), make_add_low(),
-                               make_sub_highest()),
-            kExpected);
-  EXPECT_EQ(sort_and_get_names(make_sub_highest(), make_sub_mid(),
-                               make_add_high(), make_add_low()),
-            kExpected);
+  EXPECT_THAT(sort_actions(make_add_low(), make_sub_mid(), make_add_high(),
+                           make_sub_highest()),
+              expected_targets);
+  EXPECT_THAT(sort_actions(make_add_low(), make_add_high(), make_sub_mid(),
+                           make_sub_highest()),
+              expected_targets);
+  EXPECT_THAT(sort_actions(make_sub_mid(), make_add_high(), make_add_low(),
+                           make_sub_highest()),
+              expected_targets);
+  EXPECT_THAT(sort_actions(make_sub_highest(), make_sub_mid(), make_add_high(),
+                           make_add_low()),
+              expected_targets);
+}
+
+TEST_F(ResourceSharingPassTest, SortFoldingActionsTieBreaksOnSourceIds) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetBitsType(32));
+  BValue y = fb.Param("y", p->GetBitsType(32));
+  BValue s0 = fb.Subtract(x, y, SourceInfo(), "s0");
+  BValue s1 = fb.Subtract(x, y, SourceInfo(), "s1");
+  BValue s2 = fb.Subtract(x, y, SourceInfo(), "s2");
+  BValue to = fb.Subtract(x, y, SourceInfo(), "to");
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
+                           fb.BuildWithReturnValue(fb.Tuple({s0, s1, s2, to})));
+
+  XLS_ASSERT_OK_AND_ASSIGN(const DelayEstimator* delay_estimator,
+                           GetDelayEstimator("unit"));
+  CriticalPathDelayAnalysis delay_analysis(delay_estimator);
+  XLS_ASSERT_OK(delay_analysis.Attach(f));
+
+  auto sort_actions = [&]<typename... Folds>(Folds&&... folds) {
+    std::vector<std::unique_ptr<NaryFoldingAction>> actions =
+        make_unique_vector<NaryFoldingAction>(std::forward<Folds>(folds)...);
+    TimingAnalysis ta(actions, delay_analysis);
+    SortFoldingActionsInDescendingOrderOfTheirAreaSavings(actions, ta);
+    return actions;
+  };
+
+  auto froms_are = [](auto... nodes) {
+    return ElementsAre(Field(&NodeVisibility::node, Eq(nodes))...);
+  };
+  auto expected = ElementsAre(
+      Pointee(Property(&NaryFoldingAction::GetFrom, froms_are(s0.node()))),
+      Pointee(Property(&NaryFoldingAction::GetFrom,
+                       froms_are(s0.node(), s2.node()))),
+      Pointee(Property(&NaryFoldingAction::GetFrom, froms_are(s1.node()))));
+  EXPECT_THAT(sort_actions(MakeFoldingAction(to.node(), {s1.node()}),
+                           MakeFoldingAction(to.node(), {s0.node(), s2.node()}),
+                           MakeFoldingAction(to.node(), {s0.node()})),
+              expected);
+  EXPECT_THAT(sort_actions(MakeFoldingAction(to.node(), {s0.node(), s2.node()}),
+                           MakeFoldingAction(to.node(), {s1.node()}),
+                           MakeFoldingAction(to.node(), {s0.node()})),
+              expected);
 }
 
 TEST_F(ResourceSharingPassTest,
@@ -443,9 +495,8 @@ TEST_F(ResourceSharingPassTest,
   EXPECT_EQ(actions1[0]->GetTo(), d.node());
   EXPECT_EQ(actions1[0]->GetNumberOfFroms(), 2);
   EXPECT_THAT(actions1[0]->GetFrom(),
-              UnorderedElementsAre(
-                  Field(&NaryFoldingAction::NodeVisibility::node, a.node()),
-                  Field(&NaryFoldingAction::NodeVisibility::node, b.node())));
+              UnorderedElementsAre(Field(&NodeVisibility::node, a.node()),
+                                   Field(&NodeVisibility::node, b.node())));
 
   // Add the identity equivalence mapping so the full nary folding is allowed.
   mapper.Register<IdentityEquivalenceMapping>();
@@ -460,10 +511,9 @@ TEST_F(ResourceSharingPassTest,
   EXPECT_EQ(actions2[0]->GetTo(), d.node());
   EXPECT_EQ(actions2[0]->GetNumberOfFroms(), 3);
   EXPECT_THAT(actions2[0]->GetFrom(),
-              UnorderedElementsAre(
-                  Field(&NaryFoldingAction::NodeVisibility::node, a.node()),
-                  Field(&NaryFoldingAction::NodeVisibility::node, b.node()),
-                  Field(&NaryFoldingAction::NodeVisibility::node, c.node())));
+              UnorderedElementsAre(Field(&NodeVisibility::node, a.node()),
+                                   Field(&NodeVisibility::node, b.node()),
+                                   Field(&NodeVisibility::node, c.node())));
 }
 
 class BitWidthMockAreaEstimator : public AreaEstimator {

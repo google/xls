@@ -1483,8 +1483,9 @@ ResourceSharingPass::LegalizeBinaryFoldingActions(
 void SortFoldingActionsInDescendingOrderOfTheirAreaSavings(
     std::vector<std::unique_ptr<NaryFoldingAction>>& folding_actions,
     TimingAnalysis& ta) {
-  auto area_comparator = [&ta](std::unique_ptr<NaryFoldingAction>& f0,
-                               std::unique_ptr<NaryFoldingAction>& f1) -> bool {
+  auto area_comparator =
+      [&ta](const std::unique_ptr<NaryFoldingAction>& f0,
+            const std::unique_ptr<NaryFoldingAction>& f1) -> bool {
     // Prioritize folding actions that save more area
     double area_f0 = f0->area_saved();
     double area_f1 = f1->area_saved();
@@ -1534,8 +1535,19 @@ void SortFoldingActionsInDescendingOrderOfTheirAreaSavings(
       f1_id *= -1;
     }
 
-    return std::forward_as_tuple(f0_delay_total, f0_id) <
-           std::forward_as_tuple(f1_delay_total, f1_id);
+    if (auto cmp =
+            std::tie(f0_delay_total, f0_id) <=> std::tie(f1_delay_total, f1_id);
+        cmp != 0) {
+      return cmp < 0;
+    }
+
+    // Tie break on source nodes
+    return absl::c_lexicographical_compare(
+        f0->GetFrom(), f1->GetFrom(),
+        [](const NaryFoldingAction::NodeVisibility& a,
+           const NaryFoldingAction::NodeVisibility& b) {
+          return a.node->id() < b.node->id();
+        });
   };
   absl::c_sort(folding_actions, area_comparator);
 }
