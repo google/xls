@@ -32,6 +32,7 @@
 #include "xls/interpreter/block_interpreter.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/block.h"
+#include "xls/ir/function.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/ir_matcher.h"
 #include "xls/ir/ir_test_base.h"
@@ -162,6 +163,41 @@ TEST_F(PipelineRegisterInsertionPassTest, TestMultiStageForwarding) {
   EXPECT_THAT(sb->GetRegisters(),
               ElementsAre(m2::Register("p0_v0", m::Type("bits[32]")),
                           m2::Register("p1_v0", m::Type("bits[32]"))));
+}
+
+TEST_F(PipelineRegisterInsertionPassTest,
+       TestSourceReturnValueInEarlierStageIsPipelined) {
+  auto p = CreatePackage();
+  ScheduledBlockBuilder sbb(TestName(), p.get());
+  sbb.SetSource(std::make_unique<Function>(
+      absl::StrCat("__", TestName(), "_source"), p.get()));
+  XLS_ASSERT_OK(sbb.block()->AddClockPort("clk"));
+  BValue x = sbb.InputPort("x", p->GetBitsType(32));
+  BValue y = sbb.InputPort("y", p->GetBitsType(32));
+
+  sbb.StartStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
+  BValue v0 = sbb.Add(x, y, SourceInfo(), "v0");
+  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)),
+               sbb.Literal(UBits(1, 1)));
+
+  sbb.StartStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
+  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)),
+               sbb.Literal(UBits(1, 1)));
+
+  sbb.StartStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
+  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)),
+               sbb.Literal(UBits(1, 1)));
+
+  sbb.SetSourceReturnValue(v0.node());
+  XLS_ASSERT_OK_AND_ASSIGN(ScheduledBlock * sb, sbb.Build());
+  ASSERT_THAT(sb->GetStageIndex(sb->source_return_value()), IsOkAndHolds(0));
+
+  EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(sb->GetRegisters(),
+              ElementsAre(m2::Register("p0_v0", m::Type("bits[32]")),
+                          m2::Register("p1_v0", m::Type("bits[32]"))));
+  EXPECT_THAT(sb->GetStageIndex(sb->source_return_value()), IsOkAndHolds(2));
+  EXPECT_THAT(sb->source_return_value(), m::RegisterRead("p1_v0"));
 }
 
 TEST_F(PipelineRegisterInsertionPassTest, TestFanoutToDifferentStages) {

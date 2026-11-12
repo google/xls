@@ -454,6 +454,54 @@ TEST_F(BlockConversionTest, TrivialPipelinedFunctionFloppedIo) {
                                      m::Register(m::InputPort("y"))))))))));
 }
 
+TEST_F(BlockConversionTest, PipelinedFunctionConcatOfSelectsInEarlierStage) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue sel = fb.Param("sel", p->GetBitsType(1));
+  BValue a = fb.Param("a", p->GetBitsType(8));
+  BValue b = fb.Param("b", p->GetBitsType(8));
+  BValue c = fb.Param("c", p->GetBitsType(8));
+  BValue d = fb.Param("d", p->GetBitsType(8));
+  BValue sel_hi = fb.PrioritySelect(sel, {a}, b);
+  BValue sel_lo = fb.PrioritySelect(sel, {c}, d);
+  BValue ret = fb.Concat({sel_hi, sel_lo});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(ret));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PipelineSchedule schedule,
+      PipelineSchedule::Create(f,
+                               ScheduleCycleMap({{sel.node(), 0},
+                                                 {a.node(), 0},
+                                                 {b.node(), 0},
+                                                 {c.node(), 0},
+                                                 {d.node(), 0},
+                                                 {sel_hi.node(), 0},
+                                                 {sel_lo.node(), 0},
+                                                 {ret.node(), 1}}),
+                               {.length = 2}));
+  PackageScheduleProto schedule_proto;
+  TestDelayEstimator delay_estimator;
+  XLS_ASSERT_OK_AND_ASSIGN(PipelineScheduleProto pipeline_schedule_proto,
+                           schedule.ToProto(delay_estimator));
+  schedule_proto.mutable_schedules()->emplace(f->name(),
+                                              pipeline_schedule_proto);
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Block * block,
+      ConvertToBlock(
+          f,
+          CodegenOptions().flop_inputs(false).flop_outputs(false).clock_name(
+              "clk"),
+          SchedulingOptions().pipeline_stages(2), schedule_proto));
+
+  EXPECT_THAT(
+      GetOutputPort(block),
+      m::OutputPort(m::Register(m::PrioritySelect(
+          m::InputPort("sel"),
+          /*cases=*/{m::Concat(m::InputPort("a"), m::InputPort("c"))},
+          /*default_value=*/m::Concat(m::InputPort("b"), m::InputPort("d"))))));
+}
+
 TEST_F(BlockConversionTest, ZeroWidthPipeline) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());

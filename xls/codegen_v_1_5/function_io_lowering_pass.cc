@@ -215,23 +215,6 @@ absl::StatusOr<bool> FunctionIOLoweringPass::LowerReturnValue(
     return absl::UnimplementedError("Splitting outputs not supported.");
   }
 
-  // The return value is always assumed to be in the last stage - or possibly
-  // unscheduled, if (e.g.) returning a literal. If it's not in the last stage,
-  // it must be a Param - so we need to introduce an identity node to ensure
-  // that the value gets piped through the pipeline registers.
-  Node* return_value = block->source_return_value();
-  if (block->IsStaged(return_value)) {
-    XLS_ASSIGN_OR_RETURN(int64_t stage_index,
-                         block->GetStageIndex(return_value));
-    const int64_t last_stage = block->stages().size() - 1;
-    if (stage_index != last_stage) {
-      XLS_ASSIGN_OR_RETURN(
-          return_value,
-          block->MakeNodeInStage<UnOp>(block->stages().size() - 1, SourceInfo(),
-                                       return_value, Op::kIdentity));
-    }
-  }
-
   std::optional<Node*> output_valid = std::nullopt;
   std::optional<Node*> output_flop_load_enable = std::nullopt;
   if (options.codegen_options.valid_control().has_value() &&

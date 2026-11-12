@@ -1073,8 +1073,6 @@ xls_codegen_pass(
         "//xls/common/status:status_macros",
         "//xls/ir",
         "//xls/ir:name_uniquer",
-        "//xls/ir:op",
-        "//xls/ir:source_location",
         "//xls/passes:pass_base",
         "//xls/scheduling:pipeline_schedule",
         "//xls/scheduling:pipeline_schedule_cc_proto",

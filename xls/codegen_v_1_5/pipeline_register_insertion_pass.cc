@@ -301,6 +301,32 @@ absl::StatusOr<bool> PipelineRegisterInsertionPass::InsertPipelineRegisters(
       auto stage_it = last_stage_referencing.find(node);
       auto ref_it = cross_stage_references.find(node);
 
+      if (node == block->source_return_value() &&
+          stage_index < block->stages().size() - 1) {
+        // A scheduled function's return value is lowered to an output port in
+        // the final pipeline stage by FunctionIOLoweringPass (which runs after
+        // PipelineRegisterInsertionPass). If the return value is staged in an
+        // earlier stage (e.g. a Param, or a node simplified to an earlier-stage
+        // operand by a scheduled-IR optimization pass), it must be pipelined
+        // through to the final stage.
+        const int64_t last_stage = block->stages().size() - 1;
+        if (stage_it == last_stage_referencing.end()) {
+          bool inserted;
+          std::tie(stage_it, inserted) =
+              last_stage_referencing.emplace(node, last_stage);
+          CHECK(inserted);
+        } else if (stage_it->second < last_stage) {
+          stage_it->second = last_stage;
+        }
+
+        if (ref_it == cross_stage_references.end()) {
+          bool inserted;
+          std::tie(ref_it, inserted) = cross_stage_references.emplace(
+              node, absl::flat_hash_map<int64_t, std::vector<Node*>>{});
+          CHECK(inserted);
+        }
+      }
+
       for (Node* user : node->users()) {
         if (!block->IsStaged(user)) {
           // This user is outside the schedule, so its pipeline support should
@@ -373,6 +399,10 @@ absl::StatusOr<bool> PipelineRegisterInsertionPass::InsertPipelineRegisters(
           for (Node* const user : stage_references) {
             user->ReplaceOperand(node, live_node);
           }
+        }
+        if (node == block->source_return_value() &&
+            stage_index == block->stages().size() - 1) {
+          block->SetSourceReturnValue(live_node);
         }
       }
 
