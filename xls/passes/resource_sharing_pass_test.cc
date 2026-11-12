@@ -37,6 +37,7 @@
 #include "absl/time/time.h"
 #include "absl/types/span.h"
 #include "xls/common/status/matchers.h"
+#include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/estimators/area_model/area_estimator.h"
 #include "xls/estimators/area_model/area_estimators.h"
@@ -47,6 +48,7 @@
 #include "xls/ir/bits.h"
 #include "xls/ir/function.h"
 #include "xls/ir/function_builder.h"
+#include "xls/ir/ir_matcher.h"
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
@@ -71,6 +73,9 @@ namespace {
 
 using ::absl_testing::IsOkAndHolds;
 using ::absl_testing::StatusIs;
+using ::testing::AnyOf;
+using ::testing::DoubleEq;
+using ::testing::DoubleNear;
 using ::testing::ElementsAre;
 using ::testing::Eq;
 using ::testing::Field;
@@ -79,6 +84,8 @@ using ::testing::Pointee;
 using ::testing::Property;
 using ::testing::UnorderedElementsAre;
 using ::xls::solvers::ScopedVerifyEquivalence;
+
+namespace m = ::xls::op_matchers;
 
 using NodeVisibility = NaryFoldingAction::NodeVisibility;
 
@@ -804,6 +811,755 @@ TEST_F(ResourceSharingPassTest,
                            round_tripped_pkg->GetFunction(TestName()));
   EXPECT_THAT(get_edge_id_pairs(round_tripped_f),
               IsOkAndHolds(in_memory_edges));
+}
+
+// Estimates per-source marginal area saved by `SelectSubsetOfFolds` for a
+// batch of binary folds `sources -> to` with unconstrained budgets.
+absl::StatusOr<std::vector<double>> EstimateBinaryFoldBatchSourceAreaSaved(
+    Function* f, absl::Span<Node* const> sources, Node* to,
+    AreaEstimator* area_estimator, DelayEstimator* delay_estimator) {
+  CriticalPathDelayAnalysis critical_path_delay(delay_estimator);
+  XLS_RETURN_IF_ERROR(critical_path_delay.Attach(f).status());
+  BddQueryEngine bdd_engine;
+  XLS_RETURN_IF_ERROR(bdd_engine.Populate(f).status());
+  NodeForwardDependencyAnalysis nda;
+  XLS_RETURN_IF_ERROR(nda.Attach(f).status());
+  BitProvenanceAnalysis bpa;
+  XLS_RETURN_IF_ERROR(bpa.Populate(f));
+  VisibilityEstimator visibility_estimator(
+      f->node_count(), &bdd_engine, nda, bpa, area_estimator, delay_estimator);
+
+  using NodeToMappings =
+      absl::flat_hash_map<Node*, std::unique_ptr<EquivalenceMapping>>;
+  std::vector<BinaryFoldingAction> owned_folds;
+  owned_folds.reserve(sources.size());
+  std::vector<BinaryFoldingAction*> fold_ptrs;
+  fold_ptrs.reserve(sources.size());
+  for (Node* from : sources) {
+    XLS_ASSIGN_OR_RETURN(
+        std::optional<NodeToMappings> mappings,
+        GetNodeEquivalenceMapper().ComputeMappings({from}, to));
+    XLS_RET_CHECK(mappings.has_value());
+    owned_folds.emplace_back(from, to,
+                             /*from_edges=*/FoldingAction::VisibilityEdges(),
+                             /*to_edges=*/FoldingAction::VisibilityEdges(),
+                             /*area_saved=*/0.0, std::move(*mappings));
+    fold_ptrs.push_back(&owned_folds.back());
+  }
+  XLS_ASSIGN_OR_RETURN(
+      NaryFoldEstimate estimate,
+      SelectSubsetOfFolds(
+          fold_ptrs, *area_estimator, critical_path_delay,
+          &visibility_estimator,
+          /*min_area=*/-1000.0,
+          /*max_delay_spread=*/std::numeric_limits<int64_t>::max(),
+          /*max_delay_increase=*/std::numeric_limits<uint64_t>::max(),
+          ResourceSharingPass::kDefaultConfig));
+  XLS_RET_CHECK_EQ(estimate.folds.size(), sources.size());
+  return std::move(estimate.source_area_saved);
+}
+
+// Estimates the area saved by `SelectSubsetOfFolds` for a single binary fold
+// `from -> to` in `f` with unconstrained area and delay budgets.
+absl::StatusOr<double> EstimateSingleBinaryFoldAreaSaved(
+    Function* f, Node* from, Node* to, AreaEstimator* area_estimator,
+    DelayEstimator* delay_estimator) {
+  XLS_ASSIGN_OR_RETURN(std::vector<double> source_areas,
+                       EstimateBinaryFoldBatchSourceAreaSaved(
+                           f, {from}, to, area_estimator, delay_estimator));
+  XLS_RET_CHECK_EQ(source_areas.size(), 1);
+  return source_areas[0];
+}
+
+TEST_F(ResourceSharingPassTest,
+       SelectSubsetOfFoldsChargesZeroMuxesWhenSwappedComparatorAligns) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* u32 = p->GetBitsType(32);
+  BValue a = fb.Param("a", u32);
+  BValue b = fb.Param("b", u32);
+  BValue ugt_ba = fb.UGt(b, a);
+  BValue ult_ab = fb.ULt(a, b);
+  BValue cond = fb.Param("cond", p->GetBitsType(1));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Function * f, fb.BuildWithReturnValue(fb.Select(cond, {ugt_ba, ult_ab})));
+  XLS_ASSERT_OK_AND_ASSIGN(AreaEstimator * area_estimator,
+                           GetAreaEstimator("asap7"));
+  XLS_ASSERT_OK_AND_ASSIGN(DelayEstimator * delay_estimator,
+                           GetDelayEstimator("asap7"));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      double area_ugt,
+      area_estimator->GetOperationAreaInSquareMicrons(ugt_ba.node()));
+
+  EXPECT_THAT(
+      EstimateSingleBinaryFoldAreaSaved(f, ugt_ba.node(), ult_ab.node(),
+                                        area_estimator, delay_estimator),
+      IsOkAndHolds(DoubleEq(area_ugt)));
+}
+
+TEST_F(ResourceSharingPassTest,
+       SelectSubsetOfFoldsChargesTwoMuxesWhenSwappedComparatorMisaligns) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* u32 = p->GetBitsType(32);
+  BValue a = fb.Param("a", u32);
+  BValue b = fb.Param("b", u32);
+  BValue ugt_ab = fb.UGt(a, b);
+  BValue ult_ab = fb.ULt(a, b);
+  BValue cond = fb.Param("cond", p->GetBitsType(1));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Function * f, fb.BuildWithReturnValue(fb.Select(cond, {ugt_ab, ult_ab})));
+  XLS_ASSERT_OK_AND_ASSIGN(AreaEstimator * area_estimator,
+                           GetAreaEstimator("asap7"));
+  XLS_ASSERT_OK_AND_ASSIGN(DelayEstimator * delay_estimator,
+                           GetDelayEstimator("asap7"));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      double area_ugt,
+      area_estimator->GetOperationAreaInSquareMicrons(ugt_ab.node()));
+  XLS_ASSERT_OK_AND_ASSIGN(double area_mux,
+                           EstimateAreaForSelectingASingleInput(
+                               ult_ab.node(), /*op_idx=*/0, *area_estimator));
+
+  EXPECT_THAT(
+      EstimateSingleBinaryFoldAreaSaved(f, ugt_ab.node(), ult_ab.node(),
+                                        area_estimator, delay_estimator),
+      IsOkAndHolds(DoubleEq(area_ugt - 2.0 * area_mux)));
+}
+
+TEST_F(ResourceSharingPassTest,
+       SelectSubsetOfFoldsChargesTwoMuxesForCrossSignednessMsbSwap) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* u32 = p->GetBitsType(32);
+  BValue a = fb.Param("a", u32);
+  BValue b = fb.Param("b", u32);
+  BValue sgt_ba = fb.SGt(b, a);
+  BValue ult_ab = fb.ULt(a, b);
+  BValue cond = fb.Param("cond", p->GetBitsType(1));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Function * f, fb.BuildWithReturnValue(fb.Select(cond, {sgt_ba, ult_ab})));
+  XLS_ASSERT_OK_AND_ASSIGN(AreaEstimator * area_estimator,
+                           GetAreaEstimator("asap7"));
+  XLS_ASSERT_OK_AND_ASSIGN(DelayEstimator * delay_estimator,
+                           GetDelayEstimator("asap7"));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      double area_sgt,
+      area_estimator->GetOperationAreaInSquareMicrons(sgt_ba.node()));
+  XLS_ASSERT_OK_AND_ASSIGN(double area_mux,
+                           EstimateAreaForSelectingASingleInput(
+                               ult_ab.node(), /*op_idx=*/0, *area_estimator));
+
+  EXPECT_THAT(
+      EstimateSingleBinaryFoldAreaSaved(f, sgt_ba.node(), ult_ab.node(),
+                                        area_estimator, delay_estimator),
+      IsOkAndHolds(DoubleEq(area_sgt - 2.0 * area_mux)));
+}
+
+TEST_F(ResourceSharingPassTest,
+       SelectSubsetOfFoldsChargesZeroInputMuxesWhenSwappedCompareFoldsIntoSub) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* u32 = p->GetBitsType(32);
+  BValue a = fb.Param("a", u32);
+  BValue b = fb.Param("b", u32);
+  BValue ugt_ba = fb.UGt(b, a);
+  BValue sub_ab = fb.Subtract(a, b);
+  BValue cond = fb.Param("cond", p->GetBitsType(1));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Function * f, fb.BuildWithReturnValue(fb.Select(
+                        cond, {ugt_ba, fb.BitSlice(sub_ab, /*start=*/0, 1)})));
+  XLS_ASSERT_OK_AND_ASSIGN(AreaEstimator * area_estimator,
+                           GetAreaEstimator("asap7"));
+  XLS_ASSERT_OK_AND_ASSIGN(DelayEstimator * delay_estimator,
+                           GetDelayEstimator("asap7"));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      double area_ugt,
+      area_estimator->GetOperationAreaInSquareMicrons(ugt_ba.node()));
+  using NodeToMappings =
+      absl::flat_hash_map<Node*, std::unique_ptr<EquivalenceMapping>>;
+  XLS_ASSERT_OK_AND_ASSIGN(std::optional<NodeToMappings> mappings,
+                           GetNodeEquivalenceMapper().ComputeMappings(
+                               {ugt_ba.node()}, sub_ab.node()));
+  ASSERT_TRUE(mappings.has_value());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      double ugt_to_sub_overhead,
+      mappings->at(ugt_ba.node())
+          ->EstimateAreaOverhead(*area_estimator, ugt_ba.node()->operands(),
+                                 ugt_ba.node()));
+
+  EXPECT_THAT(
+      EstimateSingleBinaryFoldAreaSaved(f, ugt_ba.node(), sub_ab.node(),
+                                        area_estimator, delay_estimator),
+      IsOkAndHolds(DoubleNear(area_ugt - ugt_to_sub_overhead, 1e-6)));
+}
+
+// Builds an `NaryFoldingAction` with `NodeVisibility::area_saved` left unset.
+absl::StatusOr<std::unique_ptr<NaryFoldingAction>>
+MakeNaryFoldWithoutPerSourceArea(absl::Span<Node* const> froms, Node* to,
+                                 double area_saved) {
+  using NodeToMappings =
+      absl::flat_hash_map<Node*, std::unique_ptr<EquivalenceMapping>>;
+  XLS_ASSIGN_OR_RETURN(std::optional<NodeToMappings> mappings,
+                       GetNodeEquivalenceMapper().ComputeMappings(froms, to));
+  XLS_RET_CHECK(mappings.has_value());
+  std::vector<NodeVisibility> from_visibilities;
+  from_visibilities.reserve(froms.size());
+  for (Node* from : froms) {
+    from_visibilities.push_back(NodeVisibility{.node = from});
+  }
+  return std::make_unique<NaryFoldingAction>(std::move(from_visibilities), to,
+                                             /*to_edges=*/VisibilityEdges{},
+                                             area_saved, std::move(*mappings));
+}
+
+TEST_F(ResourceSharingPassTest,
+       SelectSubsetOfFoldsRecordsPerSourceMarginalAreaSaved) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* u32 = p->GetBitsType(32);
+  BValue a = fb.Param("a", u32);
+  BValue b = fb.Param("b", u32);
+  BValue c = fb.Param("c", u32);
+  BValue ugt_ba = fb.UGt(b, a);
+  BValue ugt_bc = fb.UGt(b, c);
+  BValue ult_ab = fb.ULt(a, b);
+  BValue cond = fb.Param("cond", p->GetBitsType(2));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Function * f, fb.BuildWithReturnValue(
+                        fb.Select(cond, {ugt_ba, ugt_bc, ult_ab},
+                                  /*default_value=*/fb.Literal(UBits(0, 1)))));
+  XLS_ASSERT_OK_AND_ASSIGN(AreaEstimator * area_estimator,
+                           GetAreaEstimator("asap7"));
+  XLS_ASSERT_OK_AND_ASSIGN(DelayEstimator * delay_estimator,
+                           GetDelayEstimator("asap7"));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      double area_ugt,
+      area_estimator->GetOperationAreaInSquareMicrons(ugt_ba.node()));
+  XLS_ASSERT_OK_AND_ASSIGN(double area_mux,
+                           EstimateAreaForSelectingASingleInput(
+                               ult_ab.node(), /*op_idx=*/0, *area_estimator));
+
+  EXPECT_THAT(EstimateBinaryFoldBatchSourceAreaSaved(
+                  f, {ugt_ba.node(), ugt_bc.node()}, ult_ab.node(),
+                  area_estimator, delay_estimator),
+              IsOkAndHolds(ElementsAre(DoubleEq(area_ugt),
+                                       DoubleEq(area_ugt - area_mux))));
+}
+
+TEST_F(ResourceSharingPassTest,
+       LegalizeSequenceDeductsEstimatorAreaWhenPerSourceAreaSavedIsUnset) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* u32 = p->GetBitsType(32);
+  BValue a = fb.Param("a", u32);
+  BValue b = fb.Param("b", u32);
+  BValue claimed_src = fb.Add(a, b);
+  BValue surviving_src = fb.Add(a, b);
+  BValue first_dst = fb.Add(a, b);
+  BValue second_dst = fb.Add(a, b);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Function * f, fb.BuildWithReturnValue(fb.Tuple(
+                        {claimed_src, surviving_src, first_dst, second_dst})));
+  NodeBackwardDependencyAnalysis nda_backwards;
+  XLS_ASSERT_OK(nda_backwards.Attach(f));
+  BitWidthMockAreaEstimator area_estimator;
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<NaryFoldingAction> first_fold,
+      MakeNaryFoldWithoutPerSourceArea({claimed_src.node()}, first_dst.node(),
+                                       /*area_saved=*/50.0));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<NaryFoldingAction> second_fold,
+      MakeNaryFoldWithoutPerSourceArea(
+          {claimed_src.node(), surviving_src.node()}, second_dst.node(),
+          /*area_saved=*/100.0));
+  std::vector<std::unique_ptr<NaryFoldingAction>> sequence;
+  sequence.push_back(std::move(first_fold));
+  sequence.push_back(std::move(second_fold));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto legalized_and_modified,
+      ResourceSharingPass::LegalizeSequenceOfFolding(
+          sequence, /*mutual_exclusivity=*/{}, nda_backwards, &area_estimator,
+          ResourceSharingPass::kDefaultConfig));
+  EXPECT_TRUE(legalized_and_modified.second);
+  ASSERT_EQ(legalized_and_modified.first.size(), 2);
+  EXPECT_DOUBLE_EQ(legalized_and_modified.first[1]->area_saved(), 100.0 - 32.0);
+}
+
+TEST_F(
+    ResourceSharingPassTest,
+    LegalizeSequencePrunesPriorDestinationWhenPriorSourceConflictsWithTarget) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* u32 = p->GetBitsType(32);
+  BValue a = fb.Param("a", u32);
+  BValue b = fb.Param("b", u32);
+  BValue conflicting_prior_src = fb.Add(a, b);
+  BValue chained_mid = fb.Add(a, b);
+  BValue legal_src = fb.Add(a, b);
+  BValue final_dst = fb.Add(a, b);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Function * f,
+      fb.BuildWithReturnValue(fb.Tuple(
+          {conflicting_prior_src, chained_mid, legal_src, final_dst})));
+  NodeBackwardDependencyAnalysis nda_backwards;
+  XLS_ASSERT_OK(nda_backwards.Attach(f));
+
+  // Every pair is mutually exclusive except `{conflicting_prior_src,
+  // final_dst}`, exercising non-transitivity across
+  // `conflicting_prior_src -> chained_mid` and `chained_mid -> final_dst`.
+  absl::btree_set<ResourceSharingPass::MutuallyExclPair> mutual_exclusivity = {
+      {conflicting_prior_src.node(), chained_mid.node()},
+      {conflicting_prior_src.node(), legal_src.node()},
+      {chained_mid.node(), legal_src.node()},
+      {chained_mid.node(), final_dst.node()},
+      {legal_src.node(), final_dst.node()},
+  };
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<NaryFoldingAction> prior_fold,
+      MakeNaryFoldWithoutPerSourceArea({conflicting_prior_src.node()},
+                                       chained_mid.node(),
+                                       /*area_saved=*/10.0));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<NaryFoldingAction> downstream_fold,
+      MakeNaryFoldWithoutPerSourceArea({chained_mid.node(), legal_src.node()},
+                                       final_dst.node(),
+                                       /*area_saved=*/20.0));
+  std::vector<std::unique_ptr<NaryFoldingAction>> sequence;
+  sequence.push_back(std::move(prior_fold));
+  sequence.push_back(std::move(downstream_fold));
+
+  XLS_ASSERT_OK_AND_ASSIGN(auto legalized_and_modified,
+                           ResourceSharingPass::LegalizeSequenceOfFolding(
+                               sequence, mutual_exclusivity, nda_backwards,
+                               /*area_estimator=*/std::nullopt,
+                               ResourceSharingPass::kDefaultConfig));
+  EXPECT_TRUE(legalized_and_modified.second);
+  ASSERT_EQ(legalized_and_modified.first.size(), 2);
+  EXPECT_THAT(legalized_and_modified.first[1]->GetFrom(),
+              ElementsAre(Field(&NodeVisibility::node, legal_src.node())));
+}
+
+TEST_F(ResourceSharingPassTest,
+       PassFoldsSwappedComparatorWithZeroMuxesAndRejectsUnswapped) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* u34 = p->GetBitsType(34);
+  BValue sel = fb.Param("sel", p->GetBitsType(2));
+  BValue a = fb.Param("a", u34);
+  BValue b = fb.Param("b", u34);
+  BValue ult_ab = fb.ULt(a, b);
+  BValue ugt_ba = fb.UGt(b, a);
+  BValue ugt_ab = fb.UGt(a, b);
+  BValue out = fb.PrioritySelect(sel, /*cases=*/{ugt_ba, ugt_ab},
+                                 /*default_value=*/ult_ab);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(out));
+  ScopedVerifyEquivalence check_equivalent(f, absl::Seconds(10));
+
+  OptimizationPassOptions opts{};
+  opts.enable_resource_sharing = true;
+  XLS_ASSERT_OK_AND_ASSIGN(opts.area_estimator, GetAreaEstimator("asap7"));
+  XLS_ASSERT_OK_AND_ASSIGN(opts.delay_estimator, GetDelayEstimator("asap7"));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      double area_ugt,
+      opts.area_estimator->GetOperationAreaInSquareMicrons(ugt_ba.node()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      double area_mux, EstimateAreaForSelectingASingleInput(
+                           ult_ab.node(), /*op_idx=*/0, *opts.area_estimator));
+  PassResults results;
+  OptimizationContext context;
+  ResourceSharingPass pass(ResourceSharingPass::ProfitabilityGuard::kInDegree,
+                           /*min_area_savings=*/area_ugt - area_mux);
+
+  EXPECT_THAT(pass.RunOnFunctionBase(f, opts, &results, context),
+              IsOkAndHolds(true));
+  auto shared_cmp = AnyOf(m::ULt(m::Param("a"), m::Param("b")),
+                          m::UGt(m::Param("b"), m::Param("a")));
+  ASSERT_THAT(f->return_value(),
+              m::PrioritySelect(
+                  m::Param("sel"),
+                  /*cases=*/{shared_cmp, m::UGt(m::Param("a"), m::Param("b"))},
+                  /*default_value=*/shared_cmp));
+  const PrioritySelect* ret_sel = f->return_value()->As<PrioritySelect>();
+  EXPECT_EQ(ret_sel->get_case(0), ret_sel->default_value());
+}
+
+TEST_F(ResourceSharingPassTest,
+       PassFoldsSwappedCompareIntoSubWithZeroMuxesAndRejectsUnswapped) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* u34 = p->GetBitsType(34);
+  BValue sel = fb.Param("sel", p->GetBitsType(2));
+  BValue a = fb.Param("a", u34);
+  BValue b = fb.Param("b", u34);
+  BValue sub_ab = fb.Subtract(a, b);
+  BValue ugt_ba = fb.UGt(b, a);
+  BValue ugt_ab = fb.UGt(a, b);
+  BValue out = fb.PrioritySelect(
+      sel, /*cases=*/{fb.ZeroExtend(ugt_ba, 34), fb.ZeroExtend(ugt_ab, 34)},
+      /*default_value=*/sub_ab);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(out));
+  ScopedVerifyEquivalence check_equivalent(f, absl::Seconds(10));
+
+  OptimizationPassOptions opts{};
+  opts.enable_resource_sharing = true;
+  XLS_ASSERT_OK_AND_ASSIGN(opts.area_estimator, GetAreaEstimator("asap7"));
+  XLS_ASSERT_OK_AND_ASSIGN(opts.delay_estimator, GetDelayEstimator("asap7"));
+  PassResults results;
+  OptimizationContext context;
+  ResourceSharingPass pass(ResourceSharingPass::ProfitabilityGuard::kInDegree,
+                           /*min_area_savings=*/2.0);
+
+  EXPECT_THAT(pass.RunOnFunctionBase(f, opts, &results, context),
+              IsOkAndHolds(true));
+  ASSERT_THAT(f->return_value(), m::PrioritySelect());
+  const Node* shared_sub =
+      f->return_value()->As<PrioritySelect>()->default_value();
+  auto folded_ugt_ba = m::Select(
+      m::Xor(m::BitSlice(m::Param("a"), /*start=*/33, /*width=*/1),
+             m::BitSlice(m::Param("b"), /*start=*/33, /*width=*/1)),
+      /*cases=*/{m::BitSlice(Eq(shared_sub), /*start=*/33, /*width=*/1),
+                 m::BitSlice(m::Param("b"), /*start=*/33, /*width=*/1)});
+  EXPECT_THAT(f->return_value(),
+              m::PrioritySelect(
+                  m::Param("sel"),
+                  /*cases=*/
+                  {m::ZeroExt(folded_ugt_ba),
+                   m::ZeroExt(m::UGt(m::Param("a"), m::Param("b")))},
+                  /*default_value=*/m::Sub(m::Param("a"), m::Param("b"))));
+}
+
+TEST_F(ResourceSharingPassTest,
+       EndToEndPrunedMappedDestinationAndRecomputedMappings) {
+  OptimizationPassOptions opts{};
+  opts.enable_resource_sharing = true;
+  XLS_ASSERT_OK_AND_ASSIGN(opts.area_estimator, GetAreaEstimator("asap7"));
+  XLS_ASSERT_OK_AND_ASSIGN(opts.delay_estimator, GetDelayEstimator("asap7"));
+
+  // 1. Pruning a replaced destination preserves remaining downstream folds:
+  // `ult_512 -> sub_a` runs first (sole comparator, zero muxes) and replaces
+  // `sub_a` with `sub[512]`. Pruning `sub_a` from `{sub_a, sub_c} -> sub_b`
+  // during legalization allows `sub_c -> sub_b` to execute, leaving `{64, 512}`
+  // subtractors instead of aborting the batch and leaving `{64, 64, 512}`.
+  {
+    auto p = CreatePackage();
+    FunctionBuilder fb(TestName(), p.get());
+    Type* u64 = p->GetBitsType(64);
+    BValue op = fb.Param("op", p->GetBitsType(2));
+    BValue a64 = fb.Param("a64", u64);
+    BValue b64 = fb.Param("b64", u64);
+    BValue c64 = fb.Param("c64", u64);
+
+    BValue sub_a = fb.Subtract(a64, b64);
+    BValue sub_b = fb.Subtract(a64, c64);
+    BValue sub_c = fb.Subtract(a64, c64);
+    BValue ult_512 = fb.ULt(fb.ZeroExtend(a64, 512), fb.ZeroExtend(b64, 512));
+
+    BValue out =
+        fb.Select(op,
+                  /*cases=*/{sub_a, sub_b, sub_c, fb.ZeroExtend(ult_512, 64)});
+    XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(out));
+    ScopedVerifyEquivalence check_equivalent(f, absl::Seconds(10));
+
+    PassResults results;
+    OptimizationContext context;
+    ResourceSharingPass pass;
+    EXPECT_THAT(pass.RunOnFunctionBase(f, opts, &results, context),
+                IsOkAndHolds(true));
+
+    std::vector<int64_t> sub_widths;
+    for (Node* node : f->nodes()) {
+      if (!node->IsDead() && node->op() == Op::kSub) {
+        sub_widths.push_back(node->BitCountOrDie());
+      }
+    }
+    absl::c_sort(sub_widths);
+    EXPECT_THAT(sub_widths, ElementsAre(64, 512));
+  }
+
+  // 2. Pruning a claimed widening source recomputes narrow destination
+  // mappings: `shll_wide_amt` (`u62 << u7`) and `shll_narrow_amt`
+  // (`u63 << u6`) have incomparable operand widths so neither folds into the
+  // other, while `{shll_wide_amt, shll_narrow_amt} -> shra_dst2` (`u64 >>> u6`)
+  // widens `shra_dst2`'s shift-amount operand to 7 bits. Once
+  // `{shll_wide_amt, shrl_for_dst1} -> shra_dst1` claims `shll_wide_amt`,
+  // recomputing mappings for `shll_narrow_amt -> shra_dst2` keeps `shra_dst2`'s
+  // shift-amount operand at 6 bits (`{6, 7}`) rather than retaining the stale
+  // 7-bit widening (`{7, 7}`).
+  {
+    auto p = CreatePackage();
+    FunctionBuilder fb(TestName(), p.get());
+    BValue mode = fb.Param("mode", p->GetBitsType(2));
+    BValue v62 = fb.Param("v62", p->GetBitsType(62));
+    BValue v63 = fb.Param("v63", p->GetBitsType(63));
+    BValue amt6 = fb.Param("amt6", p->GetBitsType(6));
+    BValue amt7 = fb.Param("amt7", p->GetBitsType(7));
+
+    BValue v64_from_62 = fb.ZeroExtend(v62, 64);
+    BValue shll_wide_amt = fb.Shll(v62, amt7);
+    BValue shll_narrow_amt = fb.Shll(v63, amt6);
+    BValue shra_dst1 = fb.Shra(v64_from_62, amt7);
+    BValue shra_dst2 = fb.Shra(v64_from_62, amt6);
+    BValue shrl_for_dst1 = fb.Shrl(v62, amt7);
+
+    BValue arm0 =
+        fb.Tuple({fb.ZeroExtend(shll_wide_amt, 64), fb.Literal(UBits(0, 64))});
+    BValue arm1 = fb.Tuple({shra_dst1, fb.ZeroExtend(shll_narrow_amt, 64)});
+    BValue arm2 = fb.Tuple({shra_dst1, shra_dst2});
+    BValue arm3 = fb.Tuple({fb.ZeroExtend(shrl_for_dst1, 64), shra_dst2});
+    BValue out = fb.Select(mode, /*cases=*/{arm0, arm1, arm2, arm3});
+    XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(out));
+    ScopedVerifyEquivalence check_equivalent(f, absl::Seconds(10));
+
+    PassResults results;
+    OptimizationContext context;
+    ResourceSharingPass pass;
+    EXPECT_THAT(pass.RunOnFunctionBase(f, opts, &results, context),
+                IsOkAndHolds(true));
+
+    std::vector<int64_t> shra_amt_widths;
+    for (Node* node : f->nodes()) {
+      if (!node->IsDead() && node->op() == Op::kShra) {
+        shra_amt_widths.push_back(node->operand(1)->BitCountOrDie());
+      }
+    }
+    absl::c_sort(shra_amt_widths);
+    EXPECT_THAT(shra_amt_widths, ElementsAre(6, 7));
+  }
+}
+
+TEST_F(ResourceSharingPassTest,
+       MakeNaryAndLegalizeSequencePruningAccountingAndEdgeCases) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* u16 = p->GetBitsType(16);
+  Type* u32 = p->GetBitsType(32);
+  BValue op = fb.Param("op", p->GetBitsType(3));
+  BValue a16 = fb.Param("a16", u16);
+  BValue b16 = fb.Param("b16", u16);
+  BValue a32 = fb.Param("a32", u32);
+  BValue b32 = fb.Param("b32", u32);
+
+  BValue ult_32 = fb.ULt(a32, b32);
+  BValue sge_16 = fb.SGe(a16, b16);
+  BValue sub_16_leaf = fb.Subtract(a16, b16);
+  BValue sub_16_mid = fb.Subtract(a16, b16);
+  BValue sub_16_dst1 = fb.Subtract(a16, b16);
+  BValue sub_16_dst2 = fb.Subtract(a16, b16);
+  BValue sub_32_dst = fb.Subtract(a32, b32);
+
+  BValue c0 = fb.ZeroExtend(ult_32, 32);
+  BValue c1 = fb.ZeroExtend(sge_16, 32);
+  BValue c2 = fb.ZeroExtend(sub_16_leaf, 32);
+  BValue c3 = fb.ZeroExtend(sub_16_mid, 32);
+  BValue c4 = fb.ZeroExtend(sub_16_dst1, 32);
+  BValue c5 = fb.ZeroExtend(sub_16_dst2, 32);
+  BValue c6 = sub_32_dst;
+
+  BValue result = fb.Select(op, {c0, c1, c2, c3, c4, c5, c6},
+                            /*default_value=*/fb.Literal(UBits(0, 32)));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(result));
+
+  XLS_ASSERT_OK_AND_ASSIGN(AreaEstimator * area_estimator,
+                           GetAreaEstimator("asap7"));
+  XLS_ASSERT_OK_AND_ASSIGN(ResourceSharingPass::VisibilityAnalyses visibility,
+                           ResourceSharingPass::VisibilityAnalyses::Create(
+                               f, ResourceSharingPass::kDefaultConfig));
+
+  absl::btree_set<ResourceSharingPass::MutuallyExclPair> mutual_exclusivity;
+  const std::array<Node*, 7> nodes = {ult_32.node(),      sge_16.node(),
+                                      sub_16_leaf.node(), sub_16_mid.node(),
+                                      sub_16_dst1.node(), sub_16_dst2.node(),
+                                      sub_32_dst.node()};
+  for (size_t i = 0; i < nodes.size(); ++i) {
+    for (size_t j = i + 1; j < nodes.size(); ++j) {
+      mutual_exclusivity.emplace(nodes[i], nodes[j]);
+    }
+  }
+
+  using NodeToMappings =
+      absl::flat_hash_map<Node*, std::unique_ptr<EquivalenceMapping>>;
+  auto edge_of = [&](BValue case_val) {
+    return FoldingAction::VisibilityEdges{
+        OperandVisibilityAnalysis::OperandNode(case_val.node(), result.node())};
+  };
+
+  // 1. `NaryFoldingAction::Clone` preserves `NodeVisibility::area_saved`, and
+  // `LegalizeSequenceOfFolding` retains unmapped prior destinations while
+  // reporting `modified = true`, subtracting per-source net `area_saved` (not
+  // gross op area), and recomputing mappings when a source is pruned.
+  {
+    absl::flat_hash_map<Node*, Node*> identity_map;
+    for (Node* n : f->nodes()) {
+      identity_map[n] = n;
+    }
+    XLS_ASSERT_OK_AND_ASSIGN(std::optional<NodeToMappings> m_leaf,
+                             GetNodeEquivalenceMapper().ComputeMappings(
+                                 {sub_16_leaf.node()}, sub_16_mid.node()));
+    auto fold_into_mid = std::make_unique<NaryFoldingAction>(
+        std::vector<NaryFoldingAction::NodeVisibility>{{
+            .node = sub_16_leaf.node(),
+            .edges = edge_of(c2),
+            .sinks = {result.node()},
+            .area_saved = 10.0,
+        }},
+        sub_16_mid.node(), edge_of(c3), /*area_saved=*/10.0,
+        std::move(*m_leaf));
+    XLS_ASSERT_OK_AND_ASSIGN(
+        std::unique_ptr<NaryFoldingAction> cloned_mid,
+        NaryFoldingAction::Clone(*fold_into_mid, identity_map));
+    ASSERT_EQ(cloned_mid->GetFrom().size(), 1);
+    EXPECT_EQ(cloned_mid->GetFrom()[0].area_saved, 10.0);
+
+    XLS_ASSERT_OK_AND_ASSIGN(std::optional<NodeToMappings> m_mid_to_dst1,
+                             GetNodeEquivalenceMapper().ComputeMappings(
+                                 {sub_16_mid.node()}, sub_16_dst1.node()));
+    auto fold_mid_into_dst1 = std::make_unique<NaryFoldingAction>(
+        std::vector<NaryFoldingAction::NodeVisibility>{{
+            .node = sub_16_mid.node(),
+            .edges = edge_of(c3),
+            .sinks = {result.node()},
+            .area_saved = 10.0,
+        }},
+        sub_16_dst1.node(), edge_of(c4), /*area_saved=*/10.0,
+        std::move(*m_mid_to_dst1));
+
+    // `ult_32` is claimed by `consume_ult32`, so pruning `ult_32` from
+    // `{ult_32 (3.0), sge_16 (5.0)} -> sub_16_dst2` deducts `3.0` (leaving net
+    // `5.0`, whereas subtracting `ult_32`'s gross ASAP7 area would go negative)
+    // and drops the 32-bit widening mapping on `sub_16_dst2`.
+    XLS_ASSERT_OK_AND_ASSIGN(std::optional<NodeToMappings> m_consume_ult32,
+                             GetNodeEquivalenceMapper().ComputeMappings(
+                                 {ult_32.node()}, sub_32_dst.node()));
+    auto consume_ult32 = std::make_unique<NaryFoldingAction>(
+        std::vector<NaryFoldingAction::NodeVisibility>{{
+            .node = ult_32.node(),
+            .edges = edge_of(c0),
+            .sinks = {result.node()},
+            .area_saved = 20.0,
+        }},
+        sub_32_dst.node(), edge_of(c6), /*area_saved=*/20.0,
+        std::move(*m_consume_ult32));
+
+    XLS_ASSERT_OK_AND_ASSIGN(
+        std::optional<NodeToMappings> m_pair1,
+        GetNodeEquivalenceMapper().ComputeMappings(
+            {ult_32.node(), sge_16.node()}, sub_16_dst2.node()));
+    ASSERT_TRUE(m_pair1->contains(sub_16_dst2.node()));
+    auto keep_sge_after_net_sub = std::make_unique<NaryFoldingAction>(
+        std::vector<NaryFoldingAction::NodeVisibility>{
+            {.node = ult_32.node(),
+             .edges = edge_of(c0),
+             .sinks = {result.node()},
+             .area_saved = 3.0},
+            {.node = sge_16.node(),
+             .edges = edge_of(c1),
+             .sinks = {result.node()},
+             .area_saved = 5.0},
+        },
+        sub_16_dst2.node(), edge_of(c5), /*area_saved=*/8.0,
+        std::move(*m_pair1));
+
+    std::vector<std::unique_ptr<NaryFoldingAction>> seq;
+    seq.push_back(std::move(consume_ult32));
+    seq.push_back(std::move(cloned_mid));
+    seq.push_back(std::move(fold_mid_into_dst1));
+    seq.push_back(std::move(keep_sge_after_net_sub));
+    XLS_ASSERT_OK_AND_ASSIGN(
+        auto legalized_and_modified,
+        ResourceSharingPass::LegalizeSequenceOfFolding(
+            seq, mutual_exclusivity, *visibility.nda_backwards, area_estimator,
+            ResourceSharingPass::kDefaultConfig));
+    EXPECT_TRUE(legalized_and_modified.second);
+    ASSERT_EQ(legalized_and_modified.first.size(), 4);
+    EXPECT_NEAR(legalized_and_modified.first[3]->area_saved(), 5.0, 1e-6);
+    EXPECT_FALSE(legalized_and_modified.first[3]->mappings().contains(
+        sub_16_dst2.node()));
+
+    // An incompatible mapper cleanly drops the pruned action.
+    XLS_ASSERT_OK_AND_ASSIGN(
+        std::optional<NodeToMappings> m_unset,
+        GetNodeEquivalenceMapper().ComputeMappings(
+            {ult_32.node(), sge_16.node()}, sub_16_dst2.node()));
+    auto unset_area_fold = std::make_unique<NaryFoldingAction>(
+        std::vector<NaryFoldingAction::NodeVisibility>{
+            {.node = ult_32.node(),
+             .edges = edge_of(c0),
+             .sinks = {result.node()}},
+            {.node = sge_16.node(),
+             .edges = edge_of(c1),
+             .sinks = {result.node()}},
+        },
+        sub_16_dst2.node(), edge_of(c5), /*area_saved=*/0.0,
+        std::move(*m_unset));
+    std::vector<std::unique_ptr<NaryFoldingAction>> unset_seq;
+    unset_seq.push_back(std::move(legalized_and_modified.first[0]));
+    unset_seq.push_back(std::move(unset_area_fold));
+    NodeEquivalenceMapper empty_mapper;
+    XLS_ASSERT_OK_AND_ASSIGN(
+        auto dropped,
+        ResourceSharingPass::LegalizeSequenceOfFolding(
+            unset_seq, mutual_exclusivity, *visibility.nda_backwards,
+            area_estimator, ResourceSharingPass::kDefaultConfig, empty_mapper));
+    EXPECT_TRUE(dropped.second);
+    EXPECT_EQ(dropped.first.size(), 1);
+  }
+
+  // 2. `MakeNaryFoldingAction` recomputes mappings and deducts dropped
+  // `source_area_saved` when visibility extraction drops a widening source.
+  {
+    XLS_ASSERT_OK_AND_ASSIGN(std::optional<NodeToMappings> m_ult32,
+                             GetNodeEquivalenceMapper().ComputeMappings(
+                                 {ult_32.node()}, sub_16_dst1.node()));
+    XLS_ASSERT_OK_AND_ASSIGN(std::optional<NodeToMappings> m_sge16,
+                             GetNodeEquivalenceMapper().ComputeMappings(
+                                 {sge_16.node()}, sub_16_dst1.node()));
+    BinaryFoldingAction fold_ult32(ult_32.node(), sub_16_dst1.node(),
+                                   /*from_edges=*/{}, edge_of(c4),
+                                   /*area_saved=*/0.0, std::move(*m_ult32),
+                                   /*sinks=*/{});
+    BinaryFoldingAction fold_sge16(
+        sge_16.node(), sub_16_dst1.node(), edge_of(c1), edge_of(c4),
+        /*area_saved=*/0.0, std::move(*m_sge16), {result.node()});
+    std::vector<BinaryFoldingAction*> folds = {&fold_ult32, &fold_sge16};
+    XLS_ASSERT_OK_AND_ASSIGN(std::optional<NodeToMappings> nary_map,
+                             ResourceSharingPass::CompatibleNaryMappings(
+                                 folds, GetNodeEquivalenceMapper()));
+    ASSERT_TRUE(nary_map->contains(sub_16_dst1.node()));
+
+    const ResourceSharingPass::Config zero_edge_cfg = {
+        .min_area_savings = ResourceSharingPass::kDefaultMinAreaSavings,
+        .max_delay_spread_squared =
+            ResourceSharingPass::kDefaultMaxDelaySpreadSquared,
+        .max_delay_increase = ResourceSharingPass::kDefaultMaxDelayIncrease,
+        .max_delay_increase_per_fold =
+            ResourceSharingPass::kDefaultMaxDelayIncreasePerFold,
+        .max_edges_to_handle = 0,
+        .max_path_count_for_edge_in_general_visibility_analysis =
+            ResourceSharingPass::
+                kDefaultMaxPathCountForEdgeInGeneralVisibilityAnalysis,
+        .max_path_count_for_bdd_engine =
+            ResourceSharingPass::kDefaultMaxPathCountForBddEngine,
+    };
+    const std::array<double, 2> src_areas = {12.0, 7.5};
+    XLS_ASSERT_OK_AND_ASSIGN(
+        std::unique_ptr<NaryFoldingAction> nary_action,
+        ResourceSharingPass::MakeNaryFoldingAction(
+            folds, /*area_saved=*/19.5, visibility, std::move(*nary_map),
+            zero_edge_cfg, src_areas));
+    EXPECT_THAT(nary_action->GetFrom(),
+                ElementsAre(Field(&NaryFoldingAction::NodeVisibility::node,
+                                  sge_16.node())));
+    EXPECT_FALSE(nary_action->mappings().contains(sub_16_dst1.node()));
+    EXPECT_NEAR(nary_action->area_saved(), 7.5, 1e-6);
+
+    NodeEquivalenceMapper empty_mapper;
+    EXPECT_THAT(ResourceSharingPass::MakeNaryFoldingAction(
+                    folds, /*area_saved=*/19.5, visibility,
+                    /*mappings=*/{}, zero_edge_cfg, src_areas, empty_mapper),
+                StatusIs(absl::StatusCode::kInternal));
+  }
 }
 
 void IrFuzzResourceSharing(FuzzPackageWithArgs fuzz_package_with_args) {

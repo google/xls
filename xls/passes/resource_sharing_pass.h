@@ -425,22 +425,28 @@ class ResourceSharingPass : public OptimizationFunctionBasePass {
       absl::Span<BinaryFoldingAction* const> binary_folds,
       const NodeEquivalenceMapper& mapper);
 
-  // MakeNaryFoldingActions creates a single n-ary folding action from as many
+  // MakeNaryFoldingAction creates a single n-ary folding action from as many
   // of the provided binary foldings as possible, given our understanding of the
-  // visibility of these nodes. It is possible that one of the binary foldings
-  // is on a node whose conservative visibility expression is too complicated to
-  // analyze efficiently, in which case we must drop that binary folding.
+  // visibility of these nodes. If any binary folding is dropped because its
+  // visibility expression exceeds `config.max_edges_to_handle`, `mappings` are
+  // recomputed via `eq_mapper` for the surviving sources and `area_saved` is
+  // adjusted using `source_area_saved` (per-source marginal net area savings).
   static absl::StatusOr<std::unique_ptr<NaryFoldingAction>>
-  MakeNaryFoldingAction(std::vector<BinaryFoldingAction*>& subset_of_edges_to_n,
-                        double area_saved, const VisibilityAnalyses& visibility,
-                        NodeToMappings mappings, const Config& config);
+  MakeNaryFoldingAction(
+      std::vector<BinaryFoldingAction*>& subset_of_edges_to_n,
+      double area_saved, const VisibilityAnalyses& visibility,
+      NodeToMappings mappings, const Config& config,
+      absl::Span<const double> source_area_saved = {},
+      const NodeEquivalenceMapper& eq_mapper = GetNodeEquivalenceMapper());
 
   // Legalizes a sequence of folding actions by removing or modifying actions
-  // that conflict.
+  // that conflict (including sources whose prior destination fold replaced them
+  // via a destination mapping). When an action loses sources, `eq_mapper`
+  // recomputes mappings for the surviving sources.
   //
   // Returns a pair where the first element is the legalized sequence of
   // actions and the second element is a boolean that is true if the input
-  // sequence was modified.
+  // sequence was modified (at least one action was removed or lost a source).
   static absl::StatusOr<
       std::pair<std::vector<std::unique_ptr<NaryFoldingAction>>, bool>>
   LegalizeSequenceOfFolding(
@@ -450,7 +456,8 @@ class ResourceSharingPass : public OptimizationFunctionBasePass {
           mutual_exclusivity,
       const NodeBackwardDependencyAnalysis& nda,
       absl::optional_ref<const AreaEstimator> area_estimator,
-      const ResourceSharingPass::Config& config);
+      const ResourceSharingPass::Config& config,
+      const NodeEquivalenceMapper& eq_mapper = GetNodeEquivalenceMapper());
 
   // Groups selected binary folding actions by destination into n-ary folding
   // actions, sorts them by node area and topological index, and legalizes the
@@ -610,6 +617,8 @@ struct NaryFoldEstimate {
   double area_saved;
   double delay_spread;
   uint64_t delay_increase;
+  // Marginal net area saved per selected fold in `folds`.
+  std::vector<double> source_area_saved = {};
 };
 
 // Select the subset of folds based on the configured estimate thresholds.

@@ -17,6 +17,7 @@
 
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <string>
 #include <utility>
 #include <vector>
@@ -184,6 +185,9 @@ class NaryFoldingAction : public FoldingAction {
     Node* node;
     VisibilityEdges edges;
     absl::flat_hash_set<Node*> sinks;
+    // Marginal net area saved by folding `node` (gross source area minus
+    // input-mux, visibility-selector, and per-source mapping overheads).
+    std::optional<double> area_saved = std::nullopt;
   };
 
   NaryFoldingAction(
