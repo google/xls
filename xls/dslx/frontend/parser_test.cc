@@ -6156,18 +6156,397 @@ pub fn f(x: u4) -> u4 {
   ASSERT_EQ(f->attributes().size(), 1);
   EXPECT_EQ(f->attributes()[0]->attribute_kind(), AttributeKind::kTabulate);
   EXPECT_TRUE(f->attributes()[0]->args().empty());
+  EXPECT_FALSE(f->tabulate_domains().has_value());
   EXPECT_EQ(f->ToString(), kProgram);
 }
 
-TEST_F(ParserTest, TabulateAttributeUnexpectedArgFailure) {
+TEST_F(ParserTest, TabulateAttributeSingleArg) {
+  constexpr std::string_view kProgram = R"(#[tabulate(domains = `u32:0..4`)]
+pub fn f(x: u32) -> u32 {
+    x
+})";
+  std::unique_ptr<Module> module = ExpectParsesSuccessfully(kProgram);
+  ASSERT_NE(module, nullptr);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
+                           module->GetMemberOrError<Function>("f"));
+  ASSERT_TRUE(f->tabulate_domains().has_value());
+  const XlsTuple* tuple = *f->tabulate_domains();
+  EXPECT_EQ(tuple->parent(), nullptr);
+  ASSERT_EQ(tuple->members().size(), 1);
+  EXPECT_EQ(tuple->members()[0]->ToString(), "u32:0..4");
+  const Range* range = dynamic_cast<const Range*>(tuple->members()[0]);
+  ASSERT_NE(range, nullptr);
+  EXPECT_EQ(range->start()->ToString(), "u32:0");
+  EXPECT_EQ(range->end()->ToString(), "4");
+
+  ASSERT_EQ(f->attributes().size(), 1);
+  EXPECT_EQ(f->attributes()[0]->attribute_kind(), AttributeKind::kTabulate);
+  ASSERT_EQ(f->attributes()[0]->args().size(), 1);
+  auto arg = std::get<AttributeData::StringKeyValueArgument>(
+      f->attributes()[0]->args()[0]);
+  EXPECT_EQ(arg.first, "domains");
+  EXPECT_EQ(arg.second, "u32:0..4");
+  EXPECT_TRUE(arg.is_backticked);
+  EXPECT_EQ(f->ToString(), kProgram);
+}
+
+TEST_F(ParserTest, TabulateAttributeComplexArgs) {
   constexpr std::string_view kProgram = R"(
-#[tabulate(unknown_key = "foo")]
+enum Op : u32 { Add = 0, Sub = 1 }
+#[tabulate(domains=`[u32:0, u32:10], [Op::Add, Op::Sub]`)]
+fn f(x: u32, op: Op) -> u32 { x }
+)";
+  std::unique_ptr<Module> module = ExpectParsesSuccessfully(kProgram);
+  ASSERT_NE(module, nullptr);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
+                           module->GetMemberOrError<Function>("f"));
+  ASSERT_EQ(f->attributes().size(), 1);
+  EXPECT_EQ(f->attributes()[0]->attribute_kind(), AttributeKind::kTabulate);
+  ASSERT_EQ(f->attributes()[0]->args().size(), 1);
+  auto arg = std::get<AttributeData::StringKeyValueArgument>(
+      f->attributes()[0]->args()[0]);
+  EXPECT_EQ(arg.first, "domains");
+  EXPECT_EQ(arg.second, "[u32:0, u32:10], [Op::Add, Op::Sub]");
+
+  ASSERT_TRUE(f->tabulate_domains().has_value());
+  const XlsTuple* tuple = *f->tabulate_domains();
+  ASSERT_EQ(tuple->members().size(), 2);
+
+  const Array* array1 = dynamic_cast<const Array*>(tuple->members()[0]);
+  ASSERT_NE(array1, nullptr);
+  EXPECT_FALSE(array1->in_parens());
+  ASSERT_EQ(array1->members().size(), 2);
+  EXPECT_EQ(array1->members()[0]->ToString(), "u32:0");
+  EXPECT_EQ(array1->members()[1]->ToString(), "u32:10");
+
+  const Array* array2 = dynamic_cast<const Array*>(tuple->members()[1]);
+  ASSERT_NE(array2, nullptr);
+  EXPECT_FALSE(array2->in_parens());
+  ASSERT_EQ(array2->members().size(), 2);
+  const ColonRef* cref1 = dynamic_cast<const ColonRef*>(array2->members()[0]);
+  ASSERT_NE(cref1, nullptr);
+  EXPECT_EQ(cref1->attr(), "Add");
+  const ColonRef* cref2 = dynamic_cast<const ColonRef*>(array2->members()[1]);
+  ASSERT_NE(cref2, nullptr);
+  EXPECT_EQ(cref2->attr(), "Sub");
+}
+
+TEST_F(ParserTest, TabulateAttributeStructDomain) {
+  constexpr std::string_view kProgram = R"(
+struct MyStruct { x: u32, y: u8 }
+#[tabulate(domains=`MyStruct { x: u32:0..10 }`)]
+fn f(s: MyStruct) -> u32 { s.x }
+)";
+  std::unique_ptr<Module> module = ExpectParsesSuccessfully(kProgram);
+  ASSERT_NE(module, nullptr);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
+                           module->GetMemberOrError<Function>("f"));
+  ASSERT_TRUE(f->tabulate_domains().has_value());
+  const XlsTuple* domains = *f->tabulate_domains();
+  ASSERT_EQ(domains->members().size(), 1);
+  const StructInstance* struct_inst =
+      dynamic_cast<const StructInstance*>(domains->members()[0]);
+  ASSERT_NE(struct_inst, nullptr);
+  ASSERT_EQ(struct_inst->GetUnorderedMembers().size(), 1);
+  EXPECT_EQ(struct_inst->GetUnorderedMembers()[0].first, "x");
+  EXPECT_EQ(struct_inst->GetUnorderedMembers()[0].second->kind(),
+            AstNodeKind::kRange);
+}
+
+TEST_F(ParserTest, TabulateAttributeConstDomains) {
+  constexpr std::string_view kProgram = R"(
+struct MyStruct { x: u32 }
+const STRUCT_DOMAIN = MyStruct { x: u32:0..10 };
+const SCALAR_DOMAIN = [u8:1, u8:2];
+#[tabulate(domains=`STRUCT_DOMAIN, SCALAR_DOMAIN`)]
+fn f(s: MyStruct, y: u8) -> u32 { s.x }
+)";
+  std::unique_ptr<Module> module = ExpectParsesSuccessfully(kProgram);
+  ASSERT_NE(module, nullptr);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      ConstantDef * struct_domain,
+      module->GetMemberOrError<ConstantDef>("STRUCT_DOMAIN"));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      ConstantDef * scalar_domain,
+      module->GetMemberOrError<ConstantDef>("SCALAR_DOMAIN"));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
+                           module->GetMemberOrError<Function>("f"));
+  ASSERT_TRUE(f->tabulate_domains().has_value());
+  const XlsTuple* domains = *f->tabulate_domains();
+  ASSERT_EQ(domains->members().size(), 2);
+
+  const NameRef* ref0 = dynamic_cast<const NameRef*>(domains->members()[0]);
+  ASSERT_NE(ref0, nullptr);
+  EXPECT_EQ(ref0->identifier(), "STRUCT_DOMAIN");
+  EXPECT_EQ(ref0->GetDefiner(), struct_domain);
+
+  const NameRef* ref1 = dynamic_cast<const NameRef*>(domains->members()[1]);
+  ASSERT_NE(ref1, nullptr);
+  EXPECT_EQ(ref1->identifier(), "SCALAR_DOMAIN");
+  EXPECT_EQ(ref1->GetDefiner(), scalar_domain);
+}
+
+TEST_F(ParserTest, TabulateAttributeNestedStructDomain) {
+  constexpr std::string_view kProgram = R"(
+struct Inner { y: u32 }
+struct Outer { x: Inner }
+#[tabulate(domains=`Outer { x: Inner { y: u32:0..10 } }`)]
+fn f(s: Outer) -> u32 { s.x.y }
+)";
+  std::unique_ptr<Module> module = ExpectParsesSuccessfully(kProgram);
+  ASSERT_NE(module, nullptr);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
+                           module->GetMemberOrError<Function>("f"));
+  ASSERT_TRUE(f->tabulate_domains().has_value());
+  const XlsTuple* domains = *f->tabulate_domains();
+  ASSERT_EQ(domains->members().size(), 1);
+
+  const StructInstance* outer =
+      dynamic_cast<const StructInstance*>(domains->members()[0]);
+  ASSERT_NE(outer, nullptr);
+  ASSERT_EQ(outer->GetUnorderedMembers().size(), 1);
+  EXPECT_EQ(outer->GetUnorderedMembers()[0].first, "x");
+
+  const StructInstance* inner = dynamic_cast<const StructInstance*>(
+      outer->GetUnorderedMembers()[0].second);
+  ASSERT_NE(inner, nullptr);
+  ASSERT_EQ(inner->GetUnorderedMembers().size(), 1);
+  EXPECT_EQ(inner->GetUnorderedMembers()[0].first, "y");
+  EXPECT_EQ(inner->GetUnorderedMembers()[0].second->kind(),
+            AstNodeKind::kRange);
+}
+
+TEST_F(ParserTest, TabulateAttributeArbitraryNestedStructDomain) {
+  constexpr std::string_view kProgram = R"(
+struct Inner { y: u32 }
+struct Outer { x: Inner }
+#[tabulate(domains=`Outer { x: () }`)]
+fn f(s: Outer) -> u32 { s.x.y }
+)";
+  std::unique_ptr<Module> module = ExpectParsesSuccessfully(kProgram);
+  ASSERT_NE(module, nullptr);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
+                           module->GetMemberOrError<Function>("f"));
+  ASSERT_TRUE(f->tabulate_domains().has_value());
+  const XlsTuple* domains = *f->tabulate_domains();
+  ASSERT_EQ(domains->members().size(), 1);
+
+  const StructInstance* outer =
+      dynamic_cast<const StructInstance*>(domains->members()[0]);
+  ASSERT_NE(outer, nullptr);
+  ASSERT_EQ(outer->GetUnorderedMembers().size(), 1);
+  EXPECT_EQ(outer->GetUnorderedMembers()[0].first, "x");
+  const XlsTuple* inner_tuple =
+      dynamic_cast<const XlsTuple*>(outer->GetUnorderedMembers()[0].second);
+  ASSERT_NE(inner_tuple, nullptr);
+  EXPECT_TRUE(inner_tuple->members().empty());
+}
+
+TEST_F(ParserTest, TabulateEmptyTupleDomain) {
+  std::unique_ptr<Module> module = ExpectParsesSuccessfully(R"(
+#[tabulate(domains=`()`)]
+fn f(x: u8) -> u8 { x }
+)");
+  ASSERT_NE(module, nullptr);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
+                           module->GetMemberOrError<Function>("f"));
+  ASSERT_TRUE(f->tabulate_domains().has_value());
+  const XlsTuple* domains_tuple = *f->tabulate_domains();
+  ASSERT_EQ(domains_tuple->members().size(), 1);
+  const XlsTuple* first_member_tuple =
+      dynamic_cast<const XlsTuple*>(domains_tuple->members()[0]);
+  ASSERT_NE(first_member_tuple, nullptr);
+  EXPECT_TRUE(first_member_tuple->members().empty());
+}
+
+TEST_F(ParserTest, TabulateEmptyTupleDomainList) {
+  constexpr std::string_view kProgram =
+      R"(#[tabulate(domains = `u32:0..4, [true, false], ()`)]
+pub fn f(x: u32, flag: bool, y: u2) -> u32 {
+    if flag { x } else { y as u32 }
+})";
+  std::unique_ptr<Module> module = ExpectParsesSuccessfully(kProgram);
+  ASSERT_NE(module, nullptr);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
+                           module->GetMemberOrError<Function>("f"));
+  ASSERT_EQ(f->attributes().size(), 1);
+  EXPECT_EQ(f->attributes()[0]->attribute_kind(), AttributeKind::kTabulate);
+  ASSERT_TRUE(f->tabulate_domains().has_value());
+  const XlsTuple* domains = *f->tabulate_domains();
+  ASSERT_EQ(domains->members().size(), 3);
+  EXPECT_EQ(domains->members()[0]->kind(), AstNodeKind::kRange);
+  EXPECT_EQ(domains->members()[1]->kind(), AstNodeKind::kArray);
+  const XlsTuple* third_member =
+      dynamic_cast<const XlsTuple*>(domains->members()[2]);
+  ASSERT_NE(third_member, nullptr);
+  EXPECT_TRUE(third_member->members().empty());
+  EXPECT_EQ(f->ToString(), kProgram);
+}
+
+TEST_F(ParserTest, TabulateAndFuzzTestWithDifferentDomains) {
+  constexpr std::string_view kProgram = R"(
+enum Op : u2 { Add = 0, Sub = 1 }
+struct Pair { a: u32, b: u32 }
+const TAB_OPS = [Op::Add];
+
+#[fuzz_test(domains=`Pair { a: u32:0..100, b: () }, [Op::Add, Op::Sub]`)]
+#[tabulate(domains=`Pair { a: u32:0..4, b: [u32:1, u32:2] }, TAB_OPS`)]
+fn f(p: Pair, op: Op) -> u32 { p.a }
+
+#[tabulate(domains=`[u32:1, u32:2], ()`)]
+#[fuzz_test(domains=`u32:0..1000, [true]`)]
+fn g(x: u32, flag: bool) -> u32 { x }
+)";
+  std::unique_ptr<Module> module = ExpectParsesSuccessfully(kProgram);
+  ASSERT_NE(module, nullptr);
+
+  XLS_ASSERT_OK_AND_ASSIGN(FuzzTestFunction * ftf_f,
+                           module->GetMemberOrError<FuzzTestFunction>("f"));
+  ASSERT_TRUE(ftf_f->domains().has_value());
+  Function& f = ftf_f->fn();
+  ASSERT_TRUE(f.tabulate_domains().has_value());
+  EXPECT_NE(*f.tabulate_domains(), *ftf_f->domains());
+  EXPECT_EQ((*f.tabulate_domains())->parent(), nullptr);
+
+  const XlsTuple* f_fuzz_domains = *ftf_f->domains();
+  ASSERT_EQ(f_fuzz_domains->members().size(), 2);
+  const auto* f_fuzz_struct =
+      dynamic_cast<const StructInstance*>(f_fuzz_domains->members()[0]);
+  ASSERT_NE(f_fuzz_struct, nullptr);
+  ASSERT_EQ(f_fuzz_struct->GetUnorderedMembers().size(), 2);
+  EXPECT_EQ(f_fuzz_struct->GetUnorderedMembers()[0].first, "a");
+  EXPECT_EQ(f_fuzz_struct->GetUnorderedMembers()[0].second->ToString(),
+            "u32:0..100");
+  EXPECT_EQ(f_fuzz_struct->GetUnorderedMembers()[1].first, "b");
+  EXPECT_EQ(f_fuzz_struct->GetUnorderedMembers()[1].second->kind(),
+            AstNodeKind::kXlsTuple);
+  EXPECT_EQ(f_fuzz_domains->members()[1]->kind(), AstNodeKind::kArray);
+
+  const XlsTuple* f_tab_domains = *f.tabulate_domains();
+  ASSERT_EQ(f_tab_domains->members().size(), 2);
+  const auto* f_tab_struct =
+      dynamic_cast<const StructInstance*>(f_tab_domains->members()[0]);
+  ASSERT_NE(f_tab_struct, nullptr);
+  ASSERT_EQ(f_tab_struct->GetUnorderedMembers().size(), 2);
+  EXPECT_EQ(f_tab_struct->GetUnorderedMembers()[0].first, "a");
+  EXPECT_EQ(f_tab_struct->GetUnorderedMembers()[0].second->ToString(),
+            "u32:0..4");
+  EXPECT_EQ(f_tab_struct->GetUnorderedMembers()[1].first, "b");
+  EXPECT_EQ(f_tab_struct->GetUnorderedMembers()[1].second->kind(),
+            AstNodeKind::kArray);
+  const auto* f_tab_op_ref =
+      dynamic_cast<const NameRef*>(f_tab_domains->members()[1]);
+  ASSERT_NE(f_tab_op_ref, nullptr);
+  EXPECT_EQ(f_tab_op_ref->identifier(), "TAB_OPS");
+
+  ASSERT_EQ(f.attributes().size(), 2);
+  EXPECT_EQ(f.attributes()[0]->attribute_kind(), AttributeKind::kFuzzTest);
+  EXPECT_EQ(f.attributes()[1]->attribute_kind(), AttributeKind::kTabulate);
+
+  XLS_ASSERT_OK_AND_ASSIGN(FuzzTestFunction * ftf_g,
+                           module->GetMemberOrError<FuzzTestFunction>("g"));
+  ASSERT_TRUE(ftf_g->domains().has_value());
+  Function& g = ftf_g->fn();
+  ASSERT_TRUE(g.tabulate_domains().has_value());
+  EXPECT_NE(*g.tabulate_domains(), *ftf_g->domains());
+
+  ASSERT_EQ((*ftf_g->domains())->members().size(), 2);
+  EXPECT_EQ((*ftf_g->domains())->members()[0]->kind(), AstNodeKind::kRange);
+  EXPECT_EQ((*ftf_g->domains())->members()[1]->kind(), AstNodeKind::kArray);
+
+  ASSERT_EQ((*g.tabulate_domains())->members().size(), 2);
+  EXPECT_EQ((*g.tabulate_domains())->members()[0]->kind(), AstNodeKind::kArray);
+  const auto* g_tab_empty =
+      dynamic_cast<const XlsTuple*>((*g.tabulate_domains())->members()[1]);
+  ASSERT_NE(g_tab_empty, nullptr);
+  EXPECT_TRUE(g_tab_empty->members().empty());
+
+  ASSERT_EQ(g.attributes().size(), 2);
+  EXPECT_EQ(g.attributes()[0]->attribute_kind(), AttributeKind::kTabulate);
+  EXPECT_EQ(g.attributes()[1]->attribute_kind(), AttributeKind::kFuzzTest);
+}
+
+TEST_F(ParserTest, TabulateAttributeInvalidNoKeyFailure) {
+  EXPECT_THAT(Parse(R"(#[tabulate(`u4:0..2`)] fn f(x: u4) -> u4 { x })"),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Expected attribute argument.")));
+  EXPECT_THAT(Parse(R"(#[tabulate(1)] fn f(x: u4) -> u4 { x })"),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Expected attribute argument.")));
+}
+
+TEST_F(ParserTest, TabulateAttributeInvalidIntegerValueFailure) {
+  EXPECT_THAT(
+      Parse(R"(#[tabulate(domains = 1)] fn f(x: u4) -> u4 { x })"),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("The 'tabulate' attribute only accepts an optional "
+                         "'domains' argument that is a backtick-quoted DSLX "
+                         "string.")));
+}
+
+TEST_F(ParserTest, TabulateAttributeUnexpectedArgFailure) {
+  EXPECT_THAT(
+      Parse(R"(#[tabulate(unknown_key = "foo")] fn f(x: u4) -> u4 { x })"),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("The 'tabulate' attribute only accepts an optional "
+                         "'domains' argument that is a backtick-quoted DSLX "
+                         "string.")));
+  EXPECT_THAT(
+      Parse(R"(#[tabulate(foo = `u4:0..2`)] fn f(x: u4) -> u4 { x })"),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("The 'tabulate' attribute only accepts an optional "
+                         "'domains' argument that is a backtick-quoted DSLX "
+                         "string.")));
+}
+
+TEST_F(ParserTest, TabulateAttributeOnProcFailure) {
+  constexpr std::string_view kProgram = R"(
+#[tabulate]
+proc p {
+  config() { () }
+  init { () }
+  next(tok: token) { tok }
+})";
+  EXPECT_THAT(Parse(kProgram),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("#[tabulate] is only valid on a function.")));
+}
+
+TEST_F(ParserTest, TabulateAttributeNonBacktickStringFailure) {
+  constexpr std::string_view kProgram = R"(
+#[tabulate(domains = "u4:0..2")]
+fn f(x: u4) -> u4 {
+  x
+})";
+  EXPECT_THAT(
+      Parse(kProgram),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("The 'tabulate' attribute only accepts an optional "
+                         "'domains' argument that is a backtick-quoted DSLX "
+                         "string.")));
+}
+
+TEST_F(ParserTest, TabulateAttributeDuplicateDomainsFailure) {
+  constexpr std::string_view kProgram = R"(
+#[tabulate(domains = `u4:0..1`, domains = `u4:1..2`)]
 fn f(x: u4) -> u4 {
   x
 })";
   EXPECT_THAT(Parse(kProgram),
               StatusIs(absl::StatusCode::kInvalidArgument,
-                       HasSubstr("#[tabulate] does not take any arguments.")));
+                       HasSubstr("Duplicate 'domains' argument in 'tabulate' "
+                                 "attribute.")));
+}
+
+TEST_F(ParserTest, TabulateAttributeEmptyParensFailure) {
+  constexpr std::string_view kProgram = R"(
+#[tabulate()]
+fn f(x: u4) -> u4 {
+  x
+})";
+  EXPECT_THAT(Parse(kProgram),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Expected attribute argument.")));
 }
 
 TEST_F(ParserTest, TabulateAttributeOnStructFailure) {

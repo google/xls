@@ -536,6 +536,14 @@ TEST_F(AstTest, AttributeToStringTabulate) {
   EXPECT_EQ(attr->ToString(), "#[tabulate]");
 }
 
+TEST_F(AstTest, AttributeToStringTabulateDomains) {
+  AttributeData::StringKeyValueArgument arg("domains", "u32:0..4",
+                                            /*is_backticked=*/true);
+  Attribute* attr = m.Make<Attribute>(
+      fake_span, fake_span, AttributeData(AttributeKind::kTabulate, {arg}));
+  EXPECT_EQ(attr->ToString(), "#[tabulate(domains = `u32:0..4`)]");
+}
+
 TEST_F(AstTest, IsIrrefutablePatternWithRestOfTuple) {
   NameDef* x =
       m.Make<NameDef>(fake_span, std::string("x"), /*definer=*/nullptr);

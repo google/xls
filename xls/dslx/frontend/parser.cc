@@ -990,25 +990,32 @@ absl::StatusOr<QuickCheckTestCases> Parser::GetQuickCheckTestCases(
       "Expected 'exhaustive' or 'test_count' in quickcheck attribute");
 }
 
-absl::Status Parser::ValidateFuzzTestAttribute(const Attribute& attribute) {
+absl::Status Parser::ValidateOptionalDomainsAttribute(
+    const Attribute& attribute) {
+  if (attribute.args().empty()) {
+    return absl::OkStatus();
+  }
+  bool seen_domains = false;
   for (const AttributeData::Argument& arg : attribute.args()) {
     if (auto* kv = std::get_if<AttributeData::StringKeyValueArgument>(&arg)) {
       if (kv->first == "domains" && kv->is_backticked) {
+        if (seen_domains) {
+          return ParseErrorStatus(
+              *attribute.GetSpan(),
+              absl::StrFormat(
+                  "Duplicate 'domains' argument in '%s' attribute.",
+                  AttributeKindToString(attribute.attribute_kind())));
+        }
+        seen_domains = true;
         continue;
       }
     }
     return ParseErrorStatus(
         *attribute.GetSpan(),
-        "The 'fuzz_test' attribute requires a 'domains' argument that is a "
-        "backtick-quoted DSLX string.");
-  }
-  return absl::OkStatus();
-}
-
-absl::Status Parser::ValidateTabulateAttribute(const Attribute& attribute) {
-  if (!attribute.args().empty()) {
-    return ParseErrorStatus(*attribute.GetSpan(),
-                            "#[tabulate] does not take any arguments.");
+        absl::StrFormat(
+            "The '%s' attribute only accepts an optional 'domains' argument "
+            "that is a backtick-quoted DSLX string.",
+            AttributeKindToString(attribute.attribute_kind())));
   }
   return absl::OkStatus();
 }
@@ -1099,6 +1106,7 @@ absl::StatusOr<ModuleMember> Parser::ApplyFunctionAttributes(
     Function* fn, std::vector<Attribute*> attributes, Bindings& bindings) {
   bool is_test = false;
   Attribute* fuzz_test_attribute = nullptr;
+  Attribute* tabulate_attribute = nullptr;
   std::optional<QuickCheckTestCases> quickcheck_test_cases;
   std::vector<std::string> test_attributes;
 
@@ -1124,7 +1132,7 @@ absl::StatusOr<ModuleMember> Parser::ApplyFunctionAttributes(
         is_test = true;
         break;
       case AttributeKind::kFuzzTest:
-        XLS_RETURN_IF_ERROR(ValidateFuzzTestAttribute(*next));
+        XLS_RETURN_IF_ERROR(ValidateOptionalDomainsAttribute(*next));
         fuzz_test_attribute = next;
         test_attributes.push_back(next->ToString());
         break;
@@ -1137,7 +1145,8 @@ absl::StatusOr<ModuleMember> Parser::ApplyFunctionAttributes(
       }
 
       case AttributeKind::kTabulate:
-        XLS_RETURN_IF_ERROR(ValidateTabulateAttribute(*next));
+        XLS_RETURN_IF_ERROR(ValidateOptionalDomainsAttribute(*next));
+        tabulate_attribute = next;
         break;
 
       default:
@@ -1160,6 +1169,14 @@ absl::StatusOr<ModuleMember> Parser::ApplyFunctionAttributes(
 
   fn->SetAttributes(attributes);
 
+  if (tabulate_attribute != nullptr) {
+    XLS_ASSIGN_OR_RETURN(std::optional<XlsTuple*> domains,
+                         ParseAttributeDomains(*tabulate_attribute, bindings));
+    if (domains.has_value()) {
+      fn->set_tabulate_domains(domains);
+    }
+  }
+
   if (is_test) {
     Span tf_span(attributes[0]->GetSpan()->start(), fn->span().limit());
     TestFunction* tf = module_->Make<TestFunction>(tf_span, *fn);
@@ -1168,16 +1185,8 @@ absl::StatusOr<ModuleMember> Parser::ApplyFunctionAttributes(
   }
   if (fuzz_test_attribute != nullptr) {
     Span ft_span(fuzz_test_attribute->GetSpan()->start(), fn->span().limit());
-    std::optional<XlsTuple*> domains = std::nullopt;
-    for (const AttributeData::Argument& arg : fuzz_test_attribute->args()) {
-      if (auto* kv = std::get_if<AttributeData::StringKeyValueArgument>(&arg)) {
-        if (kv->first == "domains" && kv->is_backticked) {
-          XLS_ASSIGN_OR_RETURN(domains,
-                               ParseFuzzTestDomains(kv->second, bindings));
-          break;
-        }
-      }
-    }
+    XLS_ASSIGN_OR_RETURN(std::optional<XlsTuple*> domains,
+                         ParseAttributeDomains(*fuzz_test_attribute, bindings));
     FuzzTestFunction* ft =
         module_->Make<FuzzTestFunction>(ft_span, *fn, domains);
     ft->SetParentage();  // Ensure the function has its parent marked.
@@ -1194,8 +1203,20 @@ absl::StatusOr<ModuleMember> Parser::ApplyFunctionAttributes(
   return fn;
 }
 
-absl::StatusOr<XlsTuple*> Parser::ParseFuzzTestDomains(
-    std::string_view domains_str, Bindings& bindings) {
+absl::StatusOr<std::optional<XlsTuple*>> Parser::ParseAttributeDomains(
+    const Attribute& attribute, Bindings& bindings) {
+  for (const AttributeData::Argument& arg : attribute.args()) {
+    if (auto* kv = std::get_if<AttributeData::StringKeyValueArgument>(&arg)) {
+      if (kv->first == "domains" && kv->is_backticked) {
+        return ParseDomains(kv->second, bindings);
+      }
+    }
+  }
+  return std::nullopt;
+}
+
+absl::StatusOr<XlsTuple*> Parser::ParseDomains(std::string_view domains_str,
+                                               Bindings& bindings) {
   // Force it to be a tuple via the trailing comma. Otherwise, if the user
   // writes `#[fuzz_test(domains="(u32:1, u32:2)")]` the parser will fail to
   // parse the domain as a 1-element tuple (containing a 2-element tuple).

@@ -545,6 +545,11 @@ class AstCloner : public AstNodeVisitor {
     }
     new_function->set_disable_format(n->disable_format());
     new_function->set_compiler_derived(n->IsCompilerDerived());
+    if (n->tabulate_domains().has_value()) {
+      XLS_RETURN_IF_ERROR(ReplaceOrVisit(*n->tabulate_domains()));
+      new_function->set_tabulate_domains(
+          absl::down_cast<XlsTuple*>(old_to_new_.at(*n->tabulate_domains())));
+    }
     old_to_new_[n] = new_function;
     new_name_def->set_definer(old_to_new_.at(n));
     if (n->impl().has_value()) {

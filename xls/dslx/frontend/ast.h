@@ -2655,6 +2655,16 @@ class Function : public AstNode {
   }
   bool disable_format() const { return disable_format_; }
 
+  // Parsed `domains` expressions from `#[tabulate(domains=`...`)]`, if present.
+  // Like `AstNode::attributes()`, this is omitted from `GetChildren()` because
+  // attribute expressions sit outside the function signature and body.
+  std::optional<XlsTuple*> tabulate_domains() const {
+    return tabulate_domains_;
+  }
+  void set_tabulate_domains(std::optional<XlsTuple*> tabulate_domains) {
+    tabulate_domains_ = tabulate_domains;
+  }
+
   FunctionTag tag() const { return tag_; }
   std::optional<Proc*> proc() const { return proc_; }
   void set_proc(Proc* proc) { proc_ = proc; }
@@ -2696,6 +2706,7 @@ class Function : public AstNode {
   bool is_stub_;
   std::optional<ForeignFunctionData> extern_verilog_module_;
   bool disable_format_ = false;
+  std::optional<XlsTuple*> tabulate_domains_;
 };
 
 // Represents a single arm in a match expression.

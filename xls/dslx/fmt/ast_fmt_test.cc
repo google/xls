@@ -4688,5 +4688,13 @@ pub fn f(x: u4) -> u4 {
 )");
 }
 
+TEST_F(ModuleFmtTest, TabulateAttributeWithDomains) {
+  DoFmt(R"(#[tabulate(domains=`u32:0..4, [true, false]`)]
+pub fn f(x: u32, flag: bool) -> u32 {
+    if flag { x } else { u32:0 }
+}
+)");
+}
+
 }  // namespace
 }  // namespace xls::dslx

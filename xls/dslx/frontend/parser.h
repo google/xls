@@ -681,8 +681,10 @@ class Parser : public TokenParser {
                                                    const Pos& hash_pos);
   absl::StatusOr<std::vector<AttributeData::Argument>>
   ParseAttributeArguments();
-  absl::StatusOr<XlsTuple*> ParseFuzzTestDomains(std::string_view domains_str,
-                                                 Bindings& bindings);
+  absl::StatusOr<XlsTuple*> ParseDomains(std::string_view domains_str,
+                                         Bindings& bindings);
+  absl::StatusOr<std::optional<XlsTuple*>> ParseAttributeDomains(
+      const Attribute& attribute, Bindings& bindings);
   absl::StatusOr<ModuleMember> ApplyFunctionAttributes(
       Function* fn, std::vector<Attribute*> attributes, Bindings& bindings);
   absl::StatusOr<ModuleMember> ApplyProcAttributes(
@@ -702,8 +704,7 @@ class Parser : public TokenParser {
   absl::StatusOr<QuickCheckTestCases> GetQuickCheckTestCases(
       const Attribute& attribute);
 
-  absl::Status ValidateFuzzTestAttribute(const Attribute& attribute);
-  absl::Status ValidateTabulateAttribute(const Attribute& attribute);
+  absl::Status ValidateOptionalDomainsAttribute(const Attribute& attribute);
 
   // Parses a "spawn" statement, which creates & initializes a proc.
   absl::StatusOr<Spawn*> ParseSpawn(Bindings& bindings);

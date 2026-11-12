@@ -3326,5 +3326,32 @@ fn main(p: Point) -> u64 {
   EXPECT_TRUE(cloned_fn->IsCompilerDerived());
 }
 
+TEST(AstClonerTest, TabulateFunctionWithDomains) {
+  constexpr std::string_view kProgram =
+      R"(#[tabulate(domains = `u32:0..4, [true, false]`)]
+pub fn f(x: u32, flag: bool) -> u32 {
+    if flag { x } else { u32:0 }
+})";
+
+  FileTable file_table;
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<Module> module,
+      ParseModule(kProgram, "fake_path.x", "the_module", file_table));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
+                           module->GetMemberOrError<Function>("f"));
+  ASSERT_TRUE(f->tabulate_domains().has_value());
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> clone, CloneModule(*module));
+  EXPECT_EQ(kProgram, clone->ToString());
+  XLS_ASSERT_OK(VerifyClone(module.get(), clone.get(), file_table));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * cloned_f,
+                           clone->GetMemberOrError<Function>("f"));
+  ASSERT_TRUE(cloned_f->tabulate_domains().has_value());
+  EXPECT_NE(*cloned_f->tabulate_domains(), *f->tabulate_domains());
+  EXPECT_EQ((*cloned_f->tabulate_domains())->parent(), nullptr);
+  XLS_ASSERT_OK(VerifyClone(*f->tabulate_domains(),
+                            *cloned_f->tabulate_domains(), file_table));
+}
+
 }  // namespace
 }  // namespace xls::dslx
