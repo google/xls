@@ -1412,6 +1412,8 @@ cc_library(
         "//xls/common:string_to_int",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
+        "@abseil-cpp//absl/algorithm:container",
+        "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",
@@ -1496,11 +1498,14 @@ cc_test(
     deps = [
         ":bits",
         ":bits_ops",
+        ":bits_test_utils",
         ":format_preference",
         ":number_parser",
         "//xls/common:xls_gunit_main",
+        "//xls/common/fuzzing:fuzztest",
         "//xls/common/status:matchers",
         "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/strings",
         "@googletest//:gtest",
     ],
 )

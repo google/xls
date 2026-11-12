@@ -15,6 +15,7 @@
 #include "xls/ir/number_parser.h"
 
 #include <algorithm>
+#include <array>
 #include <cstdint>
 #include <limits>
 #include <string>
@@ -22,8 +23,11 @@
 #include <utility>
 #include <vector>
 
+#include "absl/algorithm/container.h"
+#include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/ascii.h"
 #include "absl/strings/numbers.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_replace.h"
@@ -52,20 +56,49 @@ static absl::StatusOr<Bits> ParseUnsignedNumberHelper(
   }
 
   if (format == FormatPreference::kUnsignedDecimal) {
-    Bits result(UBits(0, 32));
-    Bits bits_10(UBits(10, 8));
-    for (int i = 0; i < numeric_string.size(); i++) {
-      result = bits_ops::UMul(result, bits_10);
-      uint32_t magnitude;
-      std::string digit_str(1, numeric_string.at(i));
-      if (!absl::SimpleAtoi(digit_str, &magnitude)) {
-        return absl::InvalidArgumentError(absl::StrFormat(
-            "Could not convert %s to 32-bit decimal number", orig_string));
+    if (!absl::c_all_of(numeric_string, absl::ascii_isdigit)) {
+      return absl::InvalidArgumentError(absl::StrFormat(
+          "Could not convert %s to 32-bit decimal number", orig_string));
+    }
+    // Consume the digits in chunks of up to 19 (the most that are guaranteed
+    // to fit in a uint64_t: 10^19 - 1 < 2^64) using native parsing, and fold
+    // each chunk into the running result with arbitrary-precision arithmetic:
+    //   result = result * 10^len(chunk) + chunk.
+    // The overwhelmingly common case (node ids, source locations, bit widths,
+    // small literals) is a single chunk, which never touches `Bits`
+    // arithmetic. Parsing one digit at a time with `Bits` arithmetic was ~100x
+    // slower and dominated IR parsing time on large packages.
+    constexpr int64_t kMaxChunkDigits = 19;
+    // Powers of ten up to 10^19, indexed by exponent.
+    static constexpr std::array<uint64_t, kMaxChunkDigits + 1> kPowersOfTen =
+        [] {
+          std::array<uint64_t, kMaxChunkDigits + 1> powers{};
+          powers[0] = 1;
+          for (int64_t i = 1; i <= kMaxChunkDigits; ++i) {
+            powers[i] = powers[i - 1] * 10;
+          }
+          return powers;
+        }();
+    // Narrowed to the minimum width at every step; zero is zero-width.
+    Bits result;
+    std::string_view remaining = numeric_string;
+    while (!remaining.empty()) {
+      std::string_view chunk = remaining.substr(0, kMaxChunkDigits);
+      remaining.remove_prefix(chunk.size());
+      uint64_t chunk_value;
+      // All-digit chunks of at most 19 characters always parse and fit.
+      CHECK(absl::SimpleAtoi(chunk, &chunk_value));
+      Bits chunk_bits =
+          UBits(chunk_value, Bits::MinBitCountUnsigned(chunk_value));
+      if (result.bit_count() == 0) {
+        // result == 0, so result * 10^k + chunk == chunk.
+        result = std::move(chunk_bits);
+        continue;
       }
-      Bits new_char(UBits(magnitude, result.bit_count()));
-
-      result = bits_ops::Add(result, new_char);
-      result = bits_ops::DropLeadingZeroes(result);
+      Bits scaled =
+          bits_ops::UMul(result, UBits(kPowersOfTen[chunk.size()], 64));
+      result = bits_ops::DropLeadingZeroes(bits_ops::Add(
+          scaled, bits_ops::ZeroExtend(chunk_bits, scaled.bit_count())));
     }
     return result;
   }

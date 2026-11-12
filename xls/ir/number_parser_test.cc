@@ -16,14 +16,18 @@
 
 #include <cstdint>
 #include <limits>
+#include <string>
 #include <string_view>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "xls/common/fuzzing/fuzztest.h"
 #include "absl/status/status.h"
+#include "absl/strings/str_cat.h"
 #include "xls/common/status/matchers.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/bits_ops.h"
+#include "xls/ir/bits_test_utils.h"
 #include "xls/ir/format_preference.h"
 
 namespace xls {
@@ -184,6 +188,59 @@ TEST(NumberParserTest, ParseNumberErrors) {
                        ::testing::HasSubstr(
                            "Value is not representable as an int64_t")));
 }
+
+// Decimal numbers are parsed in chunks of up to 19 digits; exercise the chunk
+// boundaries and values around 2^64 explicitly, cross-checked against the
+// (independent) hexadecimal parser.
+TEST(NumberParserTest, ParseWideDecimalNumbers) {
+  auto expect_same_as_hex = [](std::string_view decimal, std::string_view hex) {
+    XLS_ASSERT_OK_AND_ASSIGN(Bits from_decimal, ParseNumber(decimal));
+    XLS_ASSERT_OK_AND_ASSIGN(Bits from_hex, ParseNumber(hex));
+    EXPECT_EQ(from_decimal, from_hex) << decimal << " vs " << hex;
+  };
+  // 19 digits (the largest single chunk), 10^19 - 1.
+  expect_same_as_hex("9999999999999999999", "0x8ac7230489e7ffff");
+  // 20 digits; 10^19 and the extremes around 2^64.
+  expect_same_as_hex("10000000000000000000", "0x8ac7230489e80000");
+  expect_same_as_hex("18446744073709551615", "0xffffffffffffffff");
+  expect_same_as_hex("18446744073709551616", "0x10000000000000000");
+  // 2^128 - 1 (39 digits) and 2^128 (39 digits).
+  expect_same_as_hex("340282366920938463463374607431768211455",
+                     "0xffffffffffffffffffffffffffffffff");
+  expect_same_as_hex("340282366920938463463374607431768211456",
+                     "0x100000000000000000000000000000000");
+  // 39 digits: 10^38.
+  expect_same_as_hex("100000000000000000000000000000000000000",
+                     "0x4b3b4ca85a86c47a098a224000000000");
+  // 38 digits (exactly two chunks) whose second chunk is all zeros (10^37),
+  // and whose second chunk has leading zeros (10^37 + 1).
+  expect_same_as_hex("10000000000000000000000000000000000000",
+                     "0x785ee10d5da46d900f436a000000000");
+  expect_same_as_hex("10000000000000000000000000000000000001",
+                     "0x785ee10d5da46d900f436a000000001");
+  // Underscores are ignored wherever they appear.
+  expect_same_as_hex("18_446_744_073_709_551_616", "0x10000000000000000");
+}
+
+// Round trip: any value, formatted as decimal, parses back to the same value
+// (narrowed to the minimum width). This covers arbitrary numbers of chunks.
+void DecimalRoundTripsThroughParser(const Bits& bits) {
+  std::string decimal = BitsToString(bits, FormatPreference::kUnsignedDecimal);
+  XLS_ASSERT_OK_AND_ASSIGN(Bits parsed, ParseNumber(decimal));
+  EXPECT_EQ(parsed, bits_ops::DropLeadingZeroes(bits)) << decimal;
+}
+FUZZ_TEST(NumberParserFuzzTest, DecimalRoundTripsThroughParser)
+    .WithDomains(ArbitraryBits());
+
+void Uint64DecimalRoundTripsThroughParser(uint64_t value) {
+  std::string decimal = absl::StrCat(value);
+  XLS_ASSERT_OK_AND_ASSIGN(uint64_t parsed, ParseNumberAsUint64(decimal));
+  EXPECT_EQ(parsed, value);
+  XLS_ASSERT_OK_AND_ASSIGN(Bits parsed_bits, ParseNumber(decimal));
+  EXPECT_EQ(parsed_bits, UBits(value, Bits::MinBitCountUnsigned(value)));
+}
+FUZZ_TEST(NumberParserFuzzTest, Uint64DecimalRoundTripsThroughParser)
+    .WithDomains(fuzztest::Arbitrary<uint64_t>());
 
 }  // namespace
 }  // namespace xls
