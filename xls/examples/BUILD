@@ -1385,7 +1385,7 @@ xls_dslx_ir(
     ir_conv_args = {
         "lower_to_proc_scoped_channels": "true",
         "default_fifo_config": "depth: 2, bypass: true, " +
-                               "register_push_outputs: false, register_pop_outputs: false",
+                               "register_push_outputs: true, register_pop_outputs: false",
     },
     ir_file = "proc_network.ir",
     library = ":proc_network_dslx",
