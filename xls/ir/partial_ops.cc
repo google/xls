@@ -310,28 +310,33 @@ PartialInformation Reverse(PartialInformation p) {
 
 PartialInformation Encode(const PartialInformation& p) {
   const int64_t output_width = CeilOfLog2(p.BitCount());
-  if (!p.Ternary().has_value()) {
-    return PartialInformation::Unconstrained(output_width);
-  }
-  PartialInformation result =
-      PartialInformation(ternary_ops::BitsToTernary(Bits(output_width)));
-  for (int64_t i = 0; i < p.Ternary()->size(); ++i) {
-    if (p.Ternary()->at(i) == TernaryValue::kKnownZero) {
-      continue;
-    }
+  std::optional<TernaryVector> ternary = std::nullopt;
+  if (p.Ternary().has_value()) {
+    PartialInformation ternary_result =
+        PartialInformation(ternary_ops::BitsToTernary(Bits(output_width)));
+    for (int64_t i = 0; i < p.Ternary()->size(); ++i) {
+      if (p.Ternary()->at(i) == TernaryValue::kKnownZero) {
+        continue;
+      }
 
-    // We may be encoding `i` into the output, depending on whether the input
-    // bit is set; OR all the corresponding output bits with the input bit at
-    // position `i`.
-    TernaryVector encoded_i =
-        ternary_ops::BitsToTernary(UBits(i, output_width));
-    if (p.Ternary()->at(i) == TernaryValue::kUnknown) {
-      absl::c_replace(encoded_i, TernaryValue::kKnownOne,
-                      TernaryValue::kUnknown);
+      // We may be encoding `i` into the output, depending on whether the input
+      // bit is set; OR all the corresponding output bits with the input bit at
+      // position `i`.
+      TernaryVector encoded_i =
+          ternary_ops::BitsToTernary(UBits(i, output_width));
+      if (p.Ternary()->at(i) == TernaryValue::kUnknown) {
+        absl::c_replace(encoded_i, TernaryValue::kKnownOne,
+                        TernaryValue::kUnknown);
+      }
+      ternary_result.Or(PartialInformation(std::move(encoded_i)));
     }
-    result.Or(PartialInformation(std::move(encoded_i)));
+    ternary = ternary_result.Ternary();
   }
-  return result;
+  std::optional<IntervalSet> range = std::nullopt;
+  if (p.Range().has_value()) {
+    range = interval_ops::Encode(*p.Range(), output_width);
+  }
+  return PartialInformation(output_width, std::move(ternary), std::move(range));
 }
 
 PartialInformation OneHotLsbToMsb(const PartialInformation& p) {

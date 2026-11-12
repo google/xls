@@ -1212,60 +1212,67 @@ IntervalSet Encode(const IntervalSet& a, int64_t width) {
   const int64_t input_width = a.BitCount();
   const int64_t output_width = width;
 
-  // For small ranges, compute the exact output by enumerating all possible
-  // input values. This keeps Encode precise when the input range is small, and
-  // avoids blowing up for large ranges.
-  if (std::optional<int64_t> sz = a.Size();
-      sz.has_value() && *sz <= kMaxExactCalculations) {
-    IntervalSet result(output_width);
-    for (const Bits& in : a.Values()) {
-      uint64_t out_value = 0;
+  IntervalSet result(output_width);
+  for (const Interval& interval : a.Intervals()) {
+    // For small intervals, compute the exact output by enumerating all possible
+    // input values. This keeps Encode precise when the interval is small (such
+    // as precise power-of-two points from OneHot), and avoids blowing up for
+    // large intervals.
+    if (std::optional<int64_t> sz = interval.Size();
+        sz.has_value() && *sz <= kMaxExactCalculations) {
+      for (const Bits& in : interval) {
+        uint64_t out_value = 0;
+        for (int64_t i = 0; i < input_width; ++i) {
+          if (in.Get(i)) {
+            out_value |= static_cast<uint64_t>(i);
+          }
+        }
+        result.AddInterval(Interval::Precise(UBits(out_value, output_width)));
+      }
+      continue;
+    }
+
+    // Otherwise, fall back to extracting a ternary approximation for the
+    // interval and computing the ternary of the OR-based encode operation.
+    TernaryVector input_ternary = ExtractTernaryInterval(interval);
+    TernaryVector output_ternary(output_width, TernaryValue::kKnownZero);
+    for (int64_t j = 0; j < output_width; ++j) {
+      bool any_one = false;
+      bool any_unknown = false;
       for (int64_t i = 0; i < input_width; ++i) {
-        if (in.Get(i)) {
-          out_value |= static_cast<uint64_t>(i);
+        if (((i >> j) & 1) == 0) {
+          continue;
+        }
+        switch (input_ternary[i]) {
+          case TernaryValue::kKnownZero:
+            break;
+          case TernaryValue::kKnownOne:
+            any_one = true;
+            break;
+          case TernaryValue::kUnknown:
+            any_unknown = true;
+            break;
+        }
+        if (any_one) {
+          break;
         }
       }
-      result.AddInterval(Interval::Precise(UBits(out_value, output_width)));
-    }
-    result.Normalize();
-    return result;
-  }
-
-  // Otherwise, fall back to extracting a ternary approximation for the input
-  // and computing the ternary of the OR-based encode operation.
-  TernaryVector input_ternary = ExtractTernaryVector(a);
-  TernaryVector output_ternary(output_width, TernaryValue::kKnownZero);
-  for (int64_t j = 0; j < output_width; ++j) {
-    bool any_one = false;
-    bool any_unknown = false;
-    for (int64_t i = 0; i < input_width; ++i) {
-      if (((i >> j) & 1) == 0) {
-        continue;
-      }
-      switch (input_ternary[i]) {
-        case TernaryValue::kKnownZero:
-          break;
-        case TernaryValue::kKnownOne:
-          any_one = true;
-          break;
-        case TernaryValue::kUnknown:
-          any_unknown = true;
-          break;
-      }
       if (any_one) {
-        break;
+        output_ternary[j] = TernaryValue::kKnownOne;
+      } else if (any_unknown) {
+        output_ternary[j] = TernaryValue::kUnknown;
+      } else {
+        output_ternary[j] = TernaryValue::kKnownZero;
       }
     }
-    if (any_one) {
-      output_ternary[j] = TernaryValue::kKnownOne;
-    } else if (any_unknown) {
-      output_ternary[j] = TernaryValue::kUnknown;
-    } else {
-      output_ternary[j] = TernaryValue::kKnownZero;
+
+    for (const Interval& out_interval :
+         FromTernary(output_ternary, /*max_interval_bits=*/4).Intervals()) {
+      result.AddInterval(out_interval);
     }
   }
-
-  return FromTernary(output_ternary, /*max_interval_bits=*/4);
+  result.Normalize();
+  return MinimizeIntervals(result, /*size=*/kMaxIntervalSegments);
 }
 
 IntervalSet SignExtend(const IntervalSet& a, int64_t width) {

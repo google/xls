@@ -749,5 +749,34 @@ FUZZ_TEST(PartialOpsFuzzTest, SLtIsCompatible)
     .WithDomains(ArbitraryPartiallyDescribedBits(8),
                  ArbitraryPartiallyDescribedBits(8));
 
+TEST(PartialOpsTest, EncodeOfOneHotPreservesRange) {
+  PartialInformation one_hot =
+      OneHotLsbToMsb(PartialInformation::Unconstrained(24));
+  // Every bit in a 25-bit one-hot output can be 0 or 1, so only range
+  // information is present.
+  ASSERT_FALSE(one_hot.Ternary().has_value());
+  ASSERT_TRUE(one_hot.Range().has_value());
+
+  PartialInformation encoded = Encode(one_hot);
+  EXPECT_FALSE(encoded.Ternary().has_value());
+  ASSERT_TRUE(encoded.Range().has_value());
+  EXPECT_EQ(*encoded.Range(),
+            IntervalSet::Of({Interval(UBits(0, 5), UBits(24, 5))}));
+}
+
+TEST(PartialOpsTest, EncodePropagatesDisjointIntervalBounds) {
+  PartialInformation input(IntervalSet::Of(
+      {Interval(UBits(0, 25), UBits(31, 25)),
+       Interval(UBits(1 << 20, 25), UBits((1 << 20) + 31, 25))}));
+  ASSERT_TRUE(input.Ternary().has_value());
+  ASSERT_TRUE(input.Range().has_value());
+
+  PartialInformation encoded = Encode(input);
+  ASSERT_TRUE(encoded.Range().has_value());
+  EXPECT_EQ(*encoded.Range(),
+            IntervalSet::Of({Interval(UBits(0, 5), UBits(7, 5)),
+                             Interval(UBits(20, 5), UBits(23, 5))}));
+}
+
 }  // namespace
 }  // namespace xls::partial_ops

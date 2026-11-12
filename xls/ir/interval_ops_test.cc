@@ -852,6 +852,34 @@ TEST(IntervalOpsTest, Encode) {
   EXPECT_EQ(Encode(in, /*width=*/3), FromValues({2, 5, 7}, /*bits=*/3));
 }
 
+TEST(IntervalOpsTest, EncodePerIntervalPrecision) {
+  // 25 singleton one-hot intervals exceed kMaxExactCalculations (16) in total
+  // size, but each interval has size <= 16 and is enumerated exactly rather
+  // than widening to [0, 31].
+  std::vector<int64_t> one_hot_points;
+  one_hot_points.reserve(25);
+  for (int64_t i = 0; i < 25; ++i) {
+    one_hot_points.push_back(int64_t{1} << i);
+  }
+  IntervalSet one_hot = FromValues(one_hot_points, /*bits=*/25);
+  EXPECT_EQ(Encode(one_hot, /*width=*/5), FromRanges({{0, 24}}, /*bits=*/5));
+
+  // Each interval has size 32 (> kMaxExactCalculations = 16), so both use the
+  // per-interval ternary fallback: [0, 31] -> 00XXX ([0, 7]) and
+  // [(1 << 20), (1 << 20) + 31] -> 101XX ([20, 23]), avoiding the spurious
+  // [16, 19] values produced by merging ternary across the whole IntervalSet.
+  IntervalSet disjoint_large =
+      FromRanges({{0, 31}, {(1 << 20), (1 << 20) + 31}}, /*bits=*/25);
+  EXPECT_EQ(Encode(disjoint_large, /*width=*/5),
+            FromRanges({{0, 7}, {20, 23}}, /*bits=*/5));
+
+  // Mixing a large interval (> 16 points) with a small exact interval (size 1)
+  // evaluates each with its respective strategy.
+  IntervalSet mixed = FromRanges({{0, 31}, {1 << 18, 1 << 18}}, /*bits=*/25);
+  EXPECT_EQ(Encode(mixed, /*width=*/5),
+            FromRanges({{0, 7}, {18, 18}}, /*bits=*/5));
+}
+
 void EncodeZ3Fuzz(absl::Span<std::pair<int64_t, int64_t> const> lhs) {
   UnaryOpFuzz(
       "encode", [&](FunctionBuilder& fb, BValue l) { return fb.Encode(l); },
