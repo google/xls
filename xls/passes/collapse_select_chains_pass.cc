@@ -24,6 +24,7 @@
 #include "absl/algorithm/container.h"
 #include "absl/base/attributes.h"
 #include "absl/base/nullability.h"
+#include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
 #include "absl/log/die_if_null.h"
@@ -38,6 +39,7 @@
 #include "xls/ir/bits.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/node.h"
+#include "xls/ir/node_util.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
 #include "xls/ir/value.h"
@@ -86,6 +88,27 @@ bool IsChainableSelect(Node* node) {
     return true;
   }
   return false;
+}
+
+// Returns whether extending a select chain rooted at `chain_root` to include
+// `candidate` is profitable under the default heuristic.
+//
+// Starting a chain at `chain_root` (`candidate == chain_root`) is always
+// allowed even when `chain_root` has multiple users, because replacing
+// `chain_root` updates all of its consumers in place without duplicating mux
+// logic. By contrast, folding a multi-use inner select (`!HasSingleUse`) into
+// an outer `OneHotSelect` cannot eliminate `candidate` because its external
+// users keep it live, duplicating its mux cone and increasing area and fanout.
+// Stopping before `candidate` leaves it as the shared `final_default`
+// fall-through and still lets `candidate` collapse independently if its own
+// subchain is profitable.
+//
+// Note: Extending across a multi-use inner select is semantically legal;
+// future applicability / profitability / transformation (APT) refactorings may
+// admit multi-use inner selects during chain discovery and evaluate this
+// trade-off in the profitability stage instead.
+bool IsProfitableToChain(Node* candidate, Node* chain_root) {
+  return candidate == chain_root || HasSingleUse(candidate);
 }
 
 }  // namespace
@@ -285,7 +308,8 @@ absl::StatusOr<std::vector<SelectNodeChain>> GetSelectNodeChains(
 
     Node* current = node;
     while (current != nullptr && IsChainableSelect(current) &&
-           !visited_selects.contains(current)) {
+           !visited_selects.contains(current) &&
+           IsProfitableToChain(current, /*chain_root=*/node)) {
       if (current->Is<Select>()) {
         Select* sel = current->As<Select>();
         chain_nodes.push_back(current);
@@ -474,13 +498,31 @@ absl::StatusOr<bool> CollapseSelectChainsPass::RunOnFunctionBaseInternal(
     }
   }
 
-  // Perform transforms.
-  bool modified = false;
-  for (const SelectNodeChain& chain : profitable_chains) {
-    XLS_RETURN_IF_ERROR(CollapseSelectNodeChain(chain));
-    modified = true;
+  if (profitable_chains.empty()) {
+    return false;
   }
-  return modified;
+  if (profitable_chains.size() == 1) {
+    XLS_RETURN_IF_ERROR(CollapseSelectNodeChain(profitable_chains.front()));
+    return true;
+  }
+
+  // Collapse consumer chains before producer chains in reverse topological
+  // order so that replacing an inner chain root via ReplaceUsesWithNew updates
+  // any already-created outer OneHotSelect referencing that root instead of
+  // leaving the outer chain with a stale pointer to a dead Select node.
+  absl::flat_hash_map<const Node*, const SelectNodeChain*> chain_by_root;
+  chain_by_root.reserve(profitable_chains.size());
+  for (const SelectNodeChain& chain : profitable_chains) {
+    chain_by_root[chain.chain_nodes.front().node] = &chain;
+  }
+  XLS_ASSIGN_OR_RETURN(std::vector<Node*> reverse_topo_nodes,
+                       context.ReverseTopoSort(f));
+  for (Node* node : reverse_topo_nodes) {
+    if (auto it = chain_by_root.find(node); it != chain_by_root.end()) {
+      XLS_RETURN_IF_ERROR(CollapseSelectNodeChain(*it->second));
+    }
+  }
+  return true;
 }
 
 }  // namespace xls
