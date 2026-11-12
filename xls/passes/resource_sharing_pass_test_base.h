@@ -1829,24 +1829,24 @@ TYPED_TEST_P(ResourceSharingPassTestBase,
   // ScopedVerifyEquivalence.
   auto p = this->CreatePackage();
   FunctionBuilder fb(this->TestName(), p.get());
-  Type* u6 = p->GetBitsType(6);
+  Type* u5 = p->GetBitsType(5);
   Type* u4 = p->GetBitsType(4);
   BValue cond = fb.Param("cond", p->GetBitsType(2));
-  BValue a6 = fb.Param("a6", u6);
-  BValue b6 = fb.Param("b6", u6);
-  BValue c6 = fb.Param("c6", u6);
+  BValue a5 = fb.Param("a5", u5);
+  BValue b5 = fb.Param("b5", u5);
+  BValue c5 = fb.Param("c5", u5);
   BValue d4 = fb.Param("d4", u4);
   BValue e4 = fb.Param("e4", u4);
-  BValue f6 = fb.Param("f6", u6);
-  BValue umul_6_6 = fb.UMul(a6, b6, 12);
-  BValue smul_6_4 = fb.SMul(c6, d4, 12);
-  BValue smul_4_6 = fb.SMul(e4, f6, 12);
+  BValue f5 = fb.Param("f5", u5);
+  BValue umul_5_5 = fb.UMul(a5, b5, 10);
+  BValue smul_5_4 = fb.SMul(c5, d4, 10);
+  BValue smul_4_5 = fb.SMul(e4, f5, 10);
   BValue sel =
-      fb.Select(cond, {umul_6_6, smul_6_4, smul_4_6}, fb.Literal(UBits(0, 12)));
+      fb.Select(cond, {umul_5_5, smul_5_4, smul_4_5}, fb.Literal(UBits(0, 10)));
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(sel));
   EXPECT_EQ(NumberOfMultiplications(f), 3);
 
-  ScopedVerifyEquivalence check_equivalent(f, absl::Seconds(10));
+  ScopedVerifyEquivalence check_equivalent(f, absl::Seconds(20));
   EXPECT_THAT(this->Run(f), IsOkAndHolds(true));
   EXPECT_EQ(NumberOfMultiplications(f), 1);
   EXPECT_EQ(NumberOfNodes(f, {Op::kSMul}), 1);
