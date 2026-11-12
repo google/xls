@@ -1282,7 +1282,8 @@ absl::StatusOr<bool> MatchSignedDivide(Node* original_div_op,
   int64_t constant_dividend = dividend_bits.FitsInInt64()
                                   ? *dividend_bits.ToInt64()
                                   : std::numeric_limits<int64_t>::max();
-  if (std::abs(constant_dividend) > kMaxDividendForCompressedLUT) {
+  if (constant_dividend < -kMaxDividendForCompressedLUT ||
+      constant_dividend > kMaxDividendForCompressedLUT) {
     return false;
   }
 
@@ -1568,8 +1569,9 @@ absl::StatusOr<bool> MatchArithPatterns(int64_t opt_level, Node* n,
       XLS_RETURN_IF_ERROR(
           n->ReplaceUsesWithNew<Literal>(ZeroOfType(n->GetType())).status());
       return true;
-    } else if (bits_ops::ULessThanOrEqual(bits_ops::Abs(dividend),
-                                          kMaxDividendForCompressedLUT)) {
+    } else if (bits_ops::ULessThanOrEqual(
+                   n->op() == Op::kSMod ? bits_ops::Abs(dividend) : dividend,
+                   kMaxDividendForCompressedLUT)) {
       VLOG(2) << "FOUND: UMod/SMod of small constant " << dividend
               << "; replacing with remainder computation";
       const bool is_signed = n->op() == Op::kSMod;

@@ -3041,6 +3041,24 @@ TEST_F(ArithSimplificationPassTest, ZeroBitSDiv) {
   EXPECT_THAT(f->return_value(), m::Literal(UBits(0, 0)));
 }
 
+TEST_F(ArithSimplificationPassTest, UModOfLargeUnsignedWithMsbSet) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  fb.UMod(fb.Literal(UBits(65535, 16)), fb.Param("x", p->GetBitsType(16)));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(false));
+  EXPECT_THAT(f->return_value(), m::UMod());
+}
+
+TEST_F(ArithSimplificationPassTest, Int64MinDividendSDiv) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  fb.SDiv(fb.Literal(Bits::MinSigned(64)), fb.Param("x", p->GetBitsType(64)));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(false));
+  EXPECT_THAT(f->return_value(), m::SDiv());
+}
+
 void IrFuzzArithSimplification(FuzzPackageWithArgs fuzz_package_with_args) {
   ArithSimplificationPass pass;
   OptimizationPassChangesOutputs(std::move(fuzz_package_with_args), pass);
