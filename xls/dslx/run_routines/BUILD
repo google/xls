@@ -99,6 +99,7 @@ cc_library(
 cc_test(
     name = "run_routines_test",
     srcs = ["run_routines_test.cc"],
+    shard_count = 5,
     deps = [
         ":ir_test_runner",
         ":run_comparator",
