@@ -11,65 +11,52 @@ module myproc(
   reg [31:0] p0_tuple_index_4;
   reg [31:0] p1_add_6;
   reg __loopback_already_done_reg;
-  reg __out_already_done_reg;
   reg p1_inputs_valid;
   reg p2_inputs_valid;
-  wire active_outputs_ready_2;
   wire p2_stage_done;
   wire stage_outputs_ready_1;
   wire active_outputs_ready_1;
   wire p1_stage_done;
   wire stage_outputs_ready_0;
-  wire and_127;
-  wire and_129;
+  wire and_114;
   wire p0_stage_done;
-  wire and_136;
-  wire and_138;
-  wire or_143;
-  wire [31:0] add_144;
-  wire or_145;
-  wire and_149;
-  wire or_150;
-  wire and_151;
-  wire or_152;
-  wire or_153;
-  wire or_154;
+  wire and_122;
+  wire or_127;
+  wire [31:0] add_128;
+  wire or_129;
+  wire and_134;
+  wire or_135;
+  wire or_136;
+  wire or_137;
 
-  assign active_outputs_ready_2 = out_rdy | __out_already_done_reg;
-  assign p2_stage_done = p2_inputs_valid & active_outputs_ready_2;
+  assign p2_stage_done = p2_inputs_valid & out_rdy;
   assign stage_outputs_ready_1 = ~p2_inputs_valid | p2_stage_done;
   assign active_outputs_ready_1 = instantiation_output_50 | __loopback_already_done_reg;
   assign p1_stage_done = p1_inputs_valid & stage_outputs_ready_1 & active_outputs_ready_1;
   assign stage_outputs_ready_0 = ~p1_inputs_valid | p1_stage_done;
-  assign and_127 = p1_inputs_valid & ~__loopback_already_done_reg;
-  assign and_129 = p2_inputs_valid & ~__out_already_done_reg;
+  assign and_114 = p1_inputs_valid & ~__loopback_already_done_reg;
   assign p0_stage_done = instantiation_output_52 & stage_outputs_ready_0;
-  assign and_136 = and_127 & instantiation_output_50;
-  assign and_138 = and_129 & out_rdy;
-  assign or_143 = p0_stage_done | rst;
-  assign add_144 = p0_tuple_index_4 + 32'h0000_0001;
-  assign or_145 = p1_stage_done | rst;
-  assign and_149 = and_136 & ~p1_stage_done;
-  assign or_150 = and_136 | p1_stage_done;
-  assign and_151 = and_138 & ~p2_stage_done;
-  assign or_152 = and_138 | p2_stage_done;
-  assign or_153 = p0_stage_done | p1_stage_done;
-  assign or_154 = p1_stage_done | p2_stage_done;
+  assign and_122 = and_114 & instantiation_output_50;
+  assign or_127 = p0_stage_done | rst;
+  assign add_128 = p0_tuple_index_4 + 32'h0000_0001;
+  assign or_129 = p1_stage_done | rst;
+  assign and_134 = and_122 & ~p1_stage_done;
+  assign or_135 = and_122 | p1_stage_done;
+  assign or_136 = p0_stage_done | p1_stage_done;
+  assign or_137 = p1_stage_done | p2_stage_done;
   always @ (posedge clk) begin
-    p0_tuple_index_4 <= or_143 ? instantiation_output_51 : p0_tuple_index_4;
-    p1_add_6 <= or_145 ? add_144 : p1_add_6;
+    p0_tuple_index_4 <= or_127 ? instantiation_output_51 : p0_tuple_index_4;
+    p1_add_6 <= or_129 ? add_128 : p1_add_6;
   end
   always @ (posedge clk) begin
     if (rst) begin
       __loopback_already_done_reg <= 1'h0;
-      __out_already_done_reg <= 1'h0;
       p1_inputs_valid <= 1'h0;
       p2_inputs_valid <= 1'h0;
     end else begin
-      __loopback_already_done_reg <= or_150 ? and_149 : __loopback_already_done_reg;
-      __out_already_done_reg <= or_152 ? and_151 : __out_already_done_reg;
-      p1_inputs_valid <= or_153 ? p0_stage_done : p1_inputs_valid;
-      p2_inputs_valid <= or_154 ? p1_stage_done : p2_inputs_valid;
+      __loopback_already_done_reg <= or_135 ? and_134 : __loopback_already_done_reg;
+      p1_inputs_valid <= or_136 ? p0_stage_done : p1_inputs_valid;
+      p2_inputs_valid <= or_137 ? p1_stage_done : p2_inputs_valid;
     end
   end
   // ===== Instantiations
@@ -82,13 +69,13 @@ module myproc(
   ) fifo_loopback (
     .clk(clk),
     .rst(rst),
-    .push_data(add_144),
-    .push_valid(and_127),
+    .push_data(add_128),
+    .push_valid(and_114),
     .pop_ready(p0_stage_done),
     .push_ready(instantiation_output_50),
     .pop_data(instantiation_output_51),
     .pop_valid(instantiation_output_52)
   );
   assign out = p1_add_6;
-  assign out_vld = and_129;
+  assign out_vld = p2_inputs_valid;
 endmodule
