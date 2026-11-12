@@ -979,10 +979,8 @@ absl::StatusOr<TrackedBValue> NewFSMGenerator::GenerateBarrierSliceMask(
     XLSCC_CHECK_NE(scope.end_slice, -1, body_loc);
     XLSCC_CHECK_LT(scope.start_slice, scope.end_slice, body_loc);
 
-    // Start slice activity is used to calculate after barrier at end of
-    // scope.
     // End slice activity may be used to calculate finished iteration.
-    if (slice_index <= scope.start_slice || slice_index >= scope.end_slice) {
+    if (slice_index < scope.start_slice || slice_index >= scope.end_slice) {
       continue;
     }
 

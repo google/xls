@@ -10762,6 +10762,36 @@ TEST_P(TranslatorProcTest_NewFSMOnly, ActivationBarrierConditional) {
   }
 }
 
+TEST_P(TranslatorProcTest_NewFSMOnly, TwoSequentialConditionalBarriers) {
+  const std::string content = R"(
+       class Block {
+        public:
+         __xls_channel<int, __xls_channel_dir_In>& in;
+         __xls_channel<int, __xls_channel_dir_Out>& out;
+
+         #pragma hls_top
+         void Run() {
+          int x = in.read();
+          int a = x + 1;
+          __xlscc_activation_barrier</*conditional=*/true>();
+          int b = a + 2;
+          __xlscc_activation_barrier</*conditional=*/true>();
+          int c = b + 3;
+          out.write(c);
+         }
+      };)";
+
+  absl::flat_hash_map<std::string, std::list<xls::Value>> inputs;
+  inputs["in"] = {xls::Value(xls::SBits(10, 32)),
+                  xls::Value(xls::SBits(20, 32))};
+
+  absl::flat_hash_map<std::string, std::list<xls::Value>> outputs;
+  outputs["out"] = {xls::Value(xls::SBits(10 + 1 + 2 + 3, 32)),
+                    xls::Value(xls::SBits(20 + 1 + 2 + 3, 32))};
+  ProcTest(content, /*block_spec=*/std::nullopt, inputs, outputs,
+           /*min_ticks=*/6, /*max_ticks=*/6);
+}
+
 TEST_P(TranslatorProcTest_NewFSMOnly, ActivationBarrierUnconditionalInIf) {
   const std::string content = R"(
        class Block {
