@@ -34,9 +34,11 @@
 #include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_cat.h"
 #include "absl/time/time.h"
 #include "absl/types/span.h"
 #include "xls/common/status/matchers.h"
+#include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/estimators/area_model/area_estimator.h"
 #include "xls/estimators/area_model/area_estimators.h"
@@ -846,6 +848,603 @@ TEST_F(ResourceSharingPassTest,
                   f, mutual_exclusivity, visibilities,
                   ResourceSharingPass::kDefaultConfig),
               IsOkAndHolds(IsEmpty()));
+}
+
+// Builds a synthetic `NaryFoldingAction` with `froms` folded into `to`.
+absl::StatusOr<std::unique_ptr<NaryFoldingAction>> MakeSyntheticNaryFold(
+    absl::Span<Node* const> froms, Node* to, double area_saved) {
+  using NodeToMappings =
+      absl::flat_hash_map<Node*, std::unique_ptr<EquivalenceMapping>>;
+  XLS_ASSIGN_OR_RETURN(std::optional<NodeToMappings> mappings,
+                       GetNodeEquivalenceMapper().ComputeMappings(froms, to));
+  XLS_RET_CHECK(mappings.has_value());
+  std::vector<NodeVisibility> from_visibilities;
+  from_visibilities.reserve(froms.size());
+  for (Node* from : froms) {
+    from_visibilities.push_back(NodeVisibility{.node = from});
+  }
+  return std::make_unique<NaryFoldingAction>(std::move(from_visibilities), to,
+                                             /*to_edges=*/VisibilityEdges{},
+                                             area_saved, std::move(*mappings));
+}
+
+TEST_F(ResourceSharingPassTest,
+       LegalizeSequencePrunesConsumedSourceAndDeductsEstimatorArea) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* u32 = p->GetBitsType(32);
+  BValue a = fb.Param("a", u32);
+  BValue b = fb.Param("b", u32);
+  BValue claimed_src = fb.Add(a, b);
+  BValue surviving_src = fb.Add(a, b);
+  BValue first_dst = fb.Add(a, b);
+  BValue second_dst = fb.Add(a, b);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Function * f, fb.BuildWithReturnValue(fb.Tuple(
+                        {claimed_src, surviving_src, first_dst, second_dst})));
+  NodeBackwardDependencyAnalysis nda_backwards;
+  XLS_ASSERT_OK(nda_backwards.Attach(f));
+  BitWidthMockAreaEstimator area_estimator;
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<NaryFoldingAction> first_fold,
+      MakeSyntheticNaryFold({claimed_src.node()}, first_dst.node(),
+                            /*area_saved=*/50.0));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<NaryFoldingAction> second_fold,
+      MakeSyntheticNaryFold({claimed_src.node(), surviving_src.node()},
+                            second_dst.node(),
+                            /*area_saved=*/100.0));
+  std::vector<std::unique_ptr<NaryFoldingAction>> sequence;
+  sequence.push_back(std::move(first_fold));
+  sequence.push_back(std::move(second_fold));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto legalized_and_modified,
+      ResourceSharingPass::LegalizeSequenceOfFolding(
+          sequence, /*mutual_exclusivity=*/{}, nda_backwards, &area_estimator,
+          ResourceSharingPass::kDefaultConfig, GetNodeEquivalenceMapper()));
+  EXPECT_TRUE(legalized_and_modified.second);
+  ASSERT_EQ(legalized_and_modified.first.size(), 2);
+  EXPECT_DOUBLE_EQ(legalized_and_modified.first[1]->area_saved(), 100.0 - 32.0);
+}
+
+TEST_F(
+    ResourceSharingPassTest,
+    LegalizeSequenceDropsFoldTargetingConsumedSourceWithoutPoisoningItsSource) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* u32 = p->GetBitsType(32);
+  BValue cond = fb.Param("cond", p->GetBitsType(3));
+  BValue x = fb.Param("x", u32);
+  BValue y = fb.Param("y", u32);
+  BValue add_a = fb.Add(x, x);
+  BValue add_b = fb.Add(y, y);
+  BValue add_c = fb.Add(x, y);
+  BValue out =
+      fb.PrioritySelect(cond, {add_a, add_b, add_c}, fb.Literal(UBits(0, 32)));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(out));
+  ScopedVerifyEquivalence check_equivalent(f, absl::Seconds(10));
+
+  XLS_ASSERT_OK_AND_ASSIGN(ResourceSharingPass::VisibilityAnalyses visibility,
+                           ResourceSharingPass::VisibilityAnalyses::Create(
+                               f, ResourceSharingPass::kDefaultConfig));
+  absl::btree_set<ResourceSharingPass::MutuallyExclPair> mutual_exclusivity = {
+      {add_a.node(), add_b.node()},
+      {add_a.node(), add_c.node()},
+      {add_b.node(), add_c.node()},
+  };
+  auto edge_of = [&](int64_t case_idx) {
+    return FoldingAction::VisibilityEdges{
+        OperandVisibilityAnalysis::OperandNode(out.node()->operand(case_idx),
+                                               out.node())};
+  };
+  auto make_fold = [&](Node* from, int64_t from_case, Node* to,
+                       int64_t to_case) {
+    auto mappings =
+        GetNodeEquivalenceMapper().ComputeMappings({from}, to).value();
+    return std::make_unique<NaryFoldingAction>(
+        std::vector<NodeVisibility>{NodeVisibility{
+            .node = from, .edges = edge_of(from_case), .sinks = {out.node()}}},
+        to, edge_of(to_case), /*area_saved=*/10.0, std::move(*mappings));
+  };
+
+  // Once `add_b -> add_c` is accepted, `add_b` is consumed, so `add_a -> add_b`
+  // is dropped (`modified = true`).
+  {
+    std::vector<std::unique_ptr<NaryFoldingAction>> two_folds;
+    two_folds.push_back(make_fold(add_b.node(), 1, add_c.node(), 3));
+    two_folds.push_back(make_fold(add_a.node(), 2, add_b.node(), 1));
+    XLS_ASSERT_OK_AND_ASSIGN(
+        auto legalized_two,
+        ResourceSharingPass::LegalizeSequenceOfFolding(
+            two_folds, mutual_exclusivity, *visibility.nda_backwards,
+            /*area_estimator=*/std::nullopt,
+            ResourceSharingPass::kDefaultConfig, GetNodeEquivalenceMapper()));
+    EXPECT_TRUE(legalized_two.second);
+    ASSERT_EQ(legalized_two.first.size(), 1);
+    EXPECT_EQ(legalized_two.first[0]->GetTo(), add_c.node());
+  }
+
+  // Also verify on a 4-way mutually exclusive function that dropping `a -> b`
+  // does not mark `a` consumed, allowing a subsequent `a -> d` fold to execute.
+  auto p4 = CreatePackage();
+  FunctionBuilder fb4(absl::StrCat(TestName(), "_four"), p4.get());
+  Type* u32_4 = p4->GetBitsType(32);
+  BValue cond4 = fb4.Param("cond", p4->GetBitsType(3));
+  BValue x4 = fb4.Param("x", u32_4);
+  BValue y4 = fb4.Param("y", u32_4);
+  BValue n_a = fb4.Add(x4, x4);
+  BValue n_b = fb4.Add(y4, y4);
+  BValue n_c = fb4.Add(x4, y4);
+  BValue n_d = fb4.Add(y4, x4);
+  BValue out4 = fb4.PrioritySelect(cond4, {n_a, n_b, n_c}, n_d);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f4, fb4.BuildWithReturnValue(out4));
+  ScopedVerifyEquivalence check_equivalent4(f4, absl::Seconds(10));
+  XLS_ASSERT_OK_AND_ASSIGN(ResourceSharingPass::VisibilityAnalyses vis4,
+                           ResourceSharingPass::VisibilityAnalyses::Create(
+                               f4, ResourceSharingPass::kDefaultConfig));
+  absl::btree_set<ResourceSharingPass::MutuallyExclPair> me4 = {
+      {n_a.node(), n_b.node()}, {n_a.node(), n_c.node()},
+      {n_a.node(), n_d.node()}, {n_b.node(), n_c.node()},
+      {n_b.node(), n_d.node()}, {n_c.node(), n_d.node()},
+  };
+  auto make_fold4 = [&](Node* from, Node* to) {
+    auto mappings =
+        GetNodeEquivalenceMapper().ComputeMappings({from}, to).value();
+    return std::make_unique<NaryFoldingAction>(
+        std::vector<NodeVisibility>{
+            NodeVisibility{.node = from,
+                           .edges = {OperandVisibilityAnalysis::OperandNode(
+                               from, out4.node())},
+                           .sinks = {out4.node()}}},
+        to,
+        FoldingAction::VisibilityEdges{
+            OperandVisibilityAnalysis::OperandNode(to, out4.node())},
+        /*area_saved=*/10.0, std::move(*mappings));
+  };
+  std::vector<std::unique_ptr<NaryFoldingAction>> three_folds;
+  three_folds.push_back(make_fold4(n_b.node(), n_c.node()));
+  three_folds.push_back(make_fold4(n_a.node(), n_b.node()));
+  three_folds.push_back(make_fold4(n_a.node(), n_d.node()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto legalized_three,
+      ResourceSharingPass::LegalizeSequenceOfFolding(
+          three_folds, me4, *vis4.nda_backwards,
+          /*area_estimator=*/std::nullopt, ResourceSharingPass::kDefaultConfig,
+          GetNodeEquivalenceMapper()));
+  EXPECT_TRUE(legalized_three.second);
+  ASSERT_EQ(legalized_three.first.size(), 2);
+  EXPECT_EQ(legalized_three.first[0]->GetTo(), n_c.node());
+  EXPECT_EQ(legalized_three.first[1]->GetTo(), n_d.node());
+  XLS_ASSERT_OK_AND_ASSIGN(std::vector<const NaryFoldingAction*> performed,
+                           ResourceSharingPass::PerformFoldingActions(
+                               f4, vis4, legalized_three.first));
+  EXPECT_EQ(performed.size(), 2);
+}
+
+TEST_F(
+    ResourceSharingPassTest,
+    LegalizeSequencePrunesPriorDestinationWhenPriorSourceConflictsWithTarget) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* u32 = p->GetBitsType(32);
+  BValue a = fb.Param("a", u32);
+  BValue b = fb.Param("b", u32);
+  BValue conflicting_prior_src = fb.Add(a, b);
+  BValue chained_mid = fb.Add(a, b);
+  BValue legal_src = fb.Add(a, b);
+  BValue final_dst = fb.Add(a, b);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Function * f,
+      fb.BuildWithReturnValue(fb.Tuple(
+          {conflicting_prior_src, chained_mid, legal_src, final_dst})));
+  NodeBackwardDependencyAnalysis nda_backwards;
+  XLS_ASSERT_OK(nda_backwards.Attach(f));
+
+  // Every pair is mutually exclusive except `{conflicting_prior_src,
+  // final_dst}`, exercising non-transitivity across
+  // `conflicting_prior_src -> chained_mid` and `chained_mid -> final_dst`.
+  absl::btree_set<ResourceSharingPass::MutuallyExclPair> mutual_exclusivity = {
+      {conflicting_prior_src.node(), chained_mid.node()},
+      {conflicting_prior_src.node(), legal_src.node()},
+      {chained_mid.node(), legal_src.node()},
+      {chained_mid.node(), final_dst.node()},
+      {legal_src.node(), final_dst.node()},
+  };
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<NaryFoldingAction> prior_fold,
+      MakeSyntheticNaryFold({conflicting_prior_src.node()}, chained_mid.node(),
+                            /*area_saved=*/10.0));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<NaryFoldingAction> downstream_fold,
+      MakeSyntheticNaryFold({chained_mid.node(), legal_src.node()},
+                            final_dst.node(),
+                            /*area_saved=*/20.0));
+  std::vector<std::unique_ptr<NaryFoldingAction>> sequence;
+  sequence.push_back(std::move(prior_fold));
+  sequence.push_back(std::move(downstream_fold));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto legalized_and_modified,
+      ResourceSharingPass::LegalizeSequenceOfFolding(
+          sequence, mutual_exclusivity, nda_backwards,
+          /*area_estimator=*/std::nullopt, ResourceSharingPass::kDefaultConfig,
+          GetNodeEquivalenceMapper()));
+  EXPECT_TRUE(legalized_and_modified.second);
+  ASSERT_EQ(legalized_and_modified.first.size(), 2);
+  EXPECT_THAT(legalized_and_modified.first[1]->GetFrom(),
+              ElementsAre(Field(&NodeVisibility::node, legal_src.node())));
+}
+
+TEST_F(ResourceSharingPassTest,
+       EndToEndPrunedMappedDestinationAndRecomputedMappings) {
+  OptimizationPassOptions opts{};
+  opts.enable_resource_sharing = true;
+  XLS_ASSERT_OK_AND_ASSIGN(opts.area_estimator, GetAreaEstimator("asap7"));
+  XLS_ASSERT_OK_AND_ASSIGN(opts.delay_estimator, GetDelayEstimator("asap7"));
+
+  // 1. Pruning a replaced destination preserves remaining downstream folds:
+  // `ult_512 -> sub_a` runs first (sole comparator, zero muxes) and replaces
+  // `sub_a` with `sub[512]`. Pruning `sub_a` from `{sub_a, sub_c} -> sub_b`
+  // during legalization allows `sub_c -> sub_b` to execute, leaving `{64, 512}`
+  // subtractors instead of aborting the batch and leaving `{64, 64, 512}`.
+  {
+    auto p = CreatePackage();
+    FunctionBuilder fb(TestName(), p.get());
+    Type* u64 = p->GetBitsType(64);
+    BValue op = fb.Param("op", p->GetBitsType(2));
+    BValue a64 = fb.Param("a64", u64);
+    BValue b64 = fb.Param("b64", u64);
+    BValue c64 = fb.Param("c64", u64);
+
+    BValue sub_a = fb.Subtract(a64, b64);
+    BValue sub_b = fb.Subtract(a64, c64);
+    BValue sub_c = fb.Subtract(a64, c64);
+    BValue ult_512 = fb.ULt(fb.ZeroExtend(a64, 512), fb.ZeroExtend(b64, 512));
+
+    BValue out =
+        fb.Select(op,
+                  /*cases=*/{sub_a, sub_b, sub_c, fb.ZeroExtend(ult_512, 64)});
+    XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(out));
+    ScopedVerifyEquivalence check_equivalent(f, absl::Seconds(10));
+
+    PassResults results;
+    OptimizationContext context;
+    ResourceSharingPass pass;
+    EXPECT_THAT(pass.RunOnFunctionBase(f, opts, &results, context),
+                IsOkAndHolds(true));
+
+    std::vector<int64_t> sub_widths;
+    for (Node* node : f->nodes()) {
+      if (!node->IsDead() && node->op() == Op::kSub) {
+        sub_widths.push_back(node->BitCountOrDie());
+      }
+    }
+    absl::c_sort(sub_widths);
+    EXPECT_THAT(sub_widths, ElementsAre(64, 512));
+  }
+
+  // 2. Pruning a claimed widening source recomputes narrow destination
+  // mappings: `shll_wide_amt` (`u62 << u7`) and `shll_narrow_amt`
+  // (`u63 << u6`) have incomparable operand widths so neither folds into the
+  // other, while `{shll_wide_amt, shll_narrow_amt} -> shra_dst2` (`u64 >>> u6`)
+  // widens `shra_dst2`'s shift-amount operand to 7 bits. Once
+  // `{shll_wide_amt, shrl_for_dst1} -> shra_dst1` claims `shll_wide_amt`,
+  // recomputing mappings for `shll_narrow_amt -> shra_dst2` keeps `shra_dst2`'s
+  // shift-amount operand at 6 bits (`{6, 7}`) rather than retaining the stale
+  // 7-bit widening (`{7, 7}`).
+  {
+    auto p = CreatePackage();
+    FunctionBuilder fb(TestName(), p.get());
+    BValue mode = fb.Param("mode", p->GetBitsType(2));
+    BValue v62 = fb.Param("v62", p->GetBitsType(62));
+    BValue v63 = fb.Param("v63", p->GetBitsType(63));
+    BValue amt6 = fb.Param("amt6", p->GetBitsType(6));
+    BValue amt7 = fb.Param("amt7", p->GetBitsType(7));
+
+    BValue v64_from_62 = fb.ZeroExtend(v62, 64);
+    BValue shll_wide_amt = fb.Shll(v62, amt7);
+    BValue shll_narrow_amt = fb.Shll(v63, amt6);
+    BValue shra_dst1 = fb.Shra(v64_from_62, amt7);
+    BValue shra_dst2 = fb.Shra(v64_from_62, amt6);
+    BValue shrl_for_dst1 = fb.Shrl(v62, amt7);
+
+    BValue arm0 =
+        fb.Tuple({fb.ZeroExtend(shll_wide_amt, 64), fb.Literal(UBits(0, 64))});
+    BValue arm1 = fb.Tuple({shra_dst1, fb.ZeroExtend(shll_narrow_amt, 64)});
+    BValue arm2 = fb.Tuple({shra_dst1, shra_dst2});
+    BValue arm3 = fb.Tuple({fb.ZeroExtend(shrl_for_dst1, 64), shra_dst2});
+    BValue out = fb.Select(mode, /*cases=*/{arm0, arm1, arm2, arm3});
+    XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(out));
+    ScopedVerifyEquivalence check_equivalent(f, absl::Seconds(10));
+
+    PassResults results;
+    OptimizationContext context;
+    ResourceSharingPass pass;
+    EXPECT_THAT(pass.RunOnFunctionBase(f, opts, &results, context),
+                IsOkAndHolds(true));
+
+    std::vector<int64_t> shra_amt_widths;
+    for (Node* node : f->nodes()) {
+      if (!node->IsDead() && node->op() == Op::kShra) {
+        shra_amt_widths.push_back(node->operand(1)->BitCountOrDie());
+      }
+    }
+    absl::c_sort(shra_amt_widths);
+    EXPECT_THAT(shra_amt_widths, ElementsAre(6, 7));
+  }
+}
+
+TEST_F(ResourceSharingPassTest,
+       MakeNaryAndLegalizeSequencePruningAndMappingRecomputation) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* u16 = p->GetBitsType(16);
+  Type* u32 = p->GetBitsType(32);
+  BValue op = fb.Param("op", p->GetBitsType(3));
+  BValue a16 = fb.Param("a16", u16);
+  BValue b16 = fb.Param("b16", u16);
+  BValue a32 = fb.Param("a32", u32);
+  BValue b32 = fb.Param("b32", u32);
+
+  BValue ult_32 = fb.ULt(a32, b32);
+  BValue sge_16 = fb.SGe(a16, b16);
+  BValue sub_16_leaf = fb.Subtract(a16, b16);
+  BValue sub_16_mid = fb.Subtract(a16, b16);
+  BValue sub_16_dst1 = fb.Subtract(a16, b16);
+  BValue sub_16_dst2 = fb.Subtract(a16, b16);
+  BValue sub_32_dst = fb.Subtract(a32, b32);
+
+  BValue c0 = fb.ZeroExtend(ult_32, 32);
+  BValue c1 = fb.ZeroExtend(sge_16, 32);
+  BValue c2 = fb.ZeroExtend(sub_16_leaf, 32);
+  BValue c3 = fb.ZeroExtend(sub_16_mid, 32);
+  BValue c4 = fb.ZeroExtend(sub_16_dst1, 32);
+  BValue c5 = fb.ZeroExtend(sub_16_dst2, 32);
+  BValue c6 = sub_32_dst;
+
+  BValue result = fb.Select(op, {c0, c1, c2, c3, c4, c5, c6},
+                            /*default_value=*/fb.Literal(UBits(0, 32)));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(result));
+
+  XLS_ASSERT_OK_AND_ASSIGN(AreaEstimator * area_estimator,
+                           GetAreaEstimator("asap7"));
+  XLS_ASSERT_OK_AND_ASSIGN(ResourceSharingPass::VisibilityAnalyses visibility,
+                           ResourceSharingPass::VisibilityAnalyses::Create(
+                               f, ResourceSharingPass::kDefaultConfig));
+
+  absl::btree_set<ResourceSharingPass::MutuallyExclPair> mutual_exclusivity;
+  const std::array<Node*, 7> nodes = {ult_32.node(),      sge_16.node(),
+                                      sub_16_leaf.node(), sub_16_mid.node(),
+                                      sub_16_dst1.node(), sub_16_dst2.node(),
+                                      sub_32_dst.node()};
+  for (size_t i = 0; i < nodes.size(); ++i) {
+    for (size_t j = i + 1; j < nodes.size(); ++j) {
+      mutual_exclusivity.emplace(nodes[i], nodes[j]);
+    }
+  }
+
+  using NodeToMappings =
+      absl::flat_hash_map<Node*, std::unique_ptr<EquivalenceMapping>>;
+  auto edge_of = [&](BValue case_val) {
+    return FoldingAction::VisibilityEdges{
+        OperandVisibilityAnalysis::OperandNode(case_val.node(), result.node())};
+  };
+
+  // 1. `LegalizeSequenceOfFolding` retains unmapped prior destinations for
+  // downstream chains while pruning mapped prior destinations and consumed
+  // sources, recomputing mappings on surviving sources.
+  {
+    XLS_ASSERT_OK_AND_ASSIGN(std::optional<NodeToMappings> m_leaf,
+                             GetNodeEquivalenceMapper().ComputeMappings(
+                                 {sub_16_leaf.node()}, sub_16_mid.node()));
+    auto fold_into_mid = std::make_unique<NaryFoldingAction>(
+        std::vector<NaryFoldingAction::NodeVisibility>{{
+            .node = sub_16_leaf.node(),
+            .edges = edge_of(c2),
+            .sinks = {result.node()},
+        }},
+        sub_16_mid.node(), edge_of(c3), /*area_saved=*/10.0,
+        std::move(*m_leaf));
+
+    XLS_ASSERT_OK_AND_ASSIGN(std::optional<NodeToMappings> m_mid_to_dst1,
+                             GetNodeEquivalenceMapper().ComputeMappings(
+                                 {sub_16_mid.node()}, sub_16_dst1.node()));
+    auto fold_mid_into_dst1 = std::make_unique<NaryFoldingAction>(
+        std::vector<NaryFoldingAction::NodeVisibility>{{
+            .node = sub_16_mid.node(),
+            .edges = edge_of(c3),
+            .sinks = {result.node()},
+        }},
+        sub_16_dst1.node(), edge_of(c4), /*area_saved=*/10.0,
+        std::move(*m_mid_to_dst1));
+
+    XLS_ASSERT_OK_AND_ASSIGN(std::optional<NodeToMappings> m_consume_ult32,
+                             GetNodeEquivalenceMapper().ComputeMappings(
+                                 {ult_32.node()}, sub_32_dst.node()));
+    auto consume_ult32 = std::make_unique<NaryFoldingAction>(
+        std::vector<NaryFoldingAction::NodeVisibility>{{
+            .node = ult_32.node(),
+            .edges = edge_of(c0),
+            .sinks = {result.node()},
+        }},
+        sub_32_dst.node(), edge_of(c6), /*area_saved=*/20.0,
+        std::move(*m_consume_ult32));
+
+    XLS_ASSERT_OK_AND_ASSIGN(
+        std::optional<NodeToMappings> m_pair1,
+        GetNodeEquivalenceMapper().ComputeMappings(
+            {ult_32.node(), sge_16.node()}, sub_16_dst2.node()));
+    ASSERT_TRUE(m_pair1->contains(sub_16_dst2.node()));
+    auto keep_sge_after_pruning = std::make_unique<NaryFoldingAction>(
+        std::vector<NaryFoldingAction::NodeVisibility>{
+            {.node = ult_32.node(),
+             .edges = edge_of(c0),
+             .sinks = {result.node()}},
+            {.node = sge_16.node(),
+             .edges = edge_of(c1),
+             .sinks = {result.node()}},
+        },
+        sub_16_dst2.node(), edge_of(c5), /*area_saved=*/8.0,
+        std::move(*m_pair1));
+
+    std::vector<std::unique_ptr<NaryFoldingAction>> seq;
+    seq.push_back(std::move(consume_ult32));
+    seq.push_back(std::move(fold_into_mid));
+    seq.push_back(std::move(fold_mid_into_dst1));
+    seq.push_back(std::move(keep_sge_after_pruning));
+    XLS_ASSERT_OK_AND_ASSIGN(
+        auto legalized_and_modified,
+        ResourceSharingPass::LegalizeSequenceOfFolding(
+            seq, mutual_exclusivity, *visibility.nda_backwards, area_estimator,
+            ResourceSharingPass::kDefaultConfig, GetNodeEquivalenceMapper()));
+    EXPECT_TRUE(legalized_and_modified.second);
+    ASSERT_EQ(legalized_and_modified.first.size(), 4);
+    EXPECT_FALSE(legalized_and_modified.first[3]->mappings().contains(
+        sub_16_dst2.node()));
+
+    // Also verify mapped prior destination (`sub_16_dst1` when `ult_32` widens
+    // it) is added to `consumed_nodes`: `sub_16_dst1` is pruned from
+    // `{sub_16_dst1, sub_16_leaf} -> sub_16_dst2` while `sub_16_leaf` survives,
+    // and a later fold targeting `sub_16_dst1` is dropped.
+    XLS_ASSERT_OK_AND_ASSIGN(std::optional<NodeToMappings> m_mapped_dst,
+                             GetNodeEquivalenceMapper().ComputeMappings(
+                                 {ult_32.node()}, sub_16_dst1.node()));
+    ASSERT_TRUE(m_mapped_dst->contains(sub_16_dst1.node()));
+    auto mapped_dst_fold = std::make_unique<NaryFoldingAction>(
+        std::vector<NaryFoldingAction::NodeVisibility>{
+            {.node = ult_32.node(),
+             .edges = edge_of(c0),
+             .sinks = {result.node()}},
+        },
+        sub_16_dst1.node(), edge_of(c4), /*area_saved=*/20.0,
+        std::move(*m_mapped_dst));
+    XLS_ASSERT_OK_AND_ASSIGN(
+        std::optional<NodeToMappings> m_from_mapped_dst,
+        GetNodeEquivalenceMapper().ComputeMappings(
+            {sub_16_dst1.node(), sub_16_leaf.node()}, sub_16_dst2.node()));
+    ASSERT_TRUE(m_from_mapped_dst.has_value());
+    auto use_mapped_dst_as_src = std::make_unique<NaryFoldingAction>(
+        std::vector<NaryFoldingAction::NodeVisibility>{
+            {.node = sub_16_dst1.node(),
+             .edges = edge_of(c4),
+             .sinks = {result.node()}},
+            {.node = sub_16_leaf.node(),
+             .edges = edge_of(c2),
+             .sinks = {result.node()}},
+        },
+        sub_16_dst2.node(), edge_of(c5), /*area_saved=*/10.0,
+        std::move(*m_from_mapped_dst));
+    XLS_ASSERT_OK_AND_ASSIGN(std::optional<NodeToMappings> m_into_mapped_dst,
+                             GetNodeEquivalenceMapper().ComputeMappings(
+                                 {sge_16.node()}, sub_16_dst1.node()));
+    ASSERT_TRUE(m_into_mapped_dst.has_value());
+    auto fold_into_mapped_dst = std::make_unique<NaryFoldingAction>(
+        std::vector<NaryFoldingAction::NodeVisibility>{
+            {.node = sge_16.node(),
+             .edges = edge_of(c1),
+             .sinks = {result.node()}},
+        },
+        sub_16_dst1.node(), edge_of(c4), /*area_saved=*/5.0,
+        std::move(*m_into_mapped_dst));
+    std::vector<std::unique_ptr<NaryFoldingAction>> mapped_dst_seq;
+    mapped_dst_seq.push_back(std::move(mapped_dst_fold));
+    mapped_dst_seq.push_back(std::move(use_mapped_dst_as_src));
+    mapped_dst_seq.push_back(std::move(fold_into_mapped_dst));
+    XLS_ASSERT_OK_AND_ASSIGN(
+        auto legalized_mapped_dst,
+        ResourceSharingPass::LegalizeSequenceOfFolding(
+            mapped_dst_seq, mutual_exclusivity, *visibility.nda_backwards,
+            /*area_estimator=*/std::nullopt,
+            ResourceSharingPass::kDefaultConfig, GetNodeEquivalenceMapper()));
+    EXPECT_TRUE(legalized_mapped_dst.second);
+    ASSERT_EQ(legalized_mapped_dst.first.size(), 2);
+    EXPECT_THAT(legalized_mapped_dst.first[1]->GetFrom(),
+                ElementsAre(Field(&NaryFoldingAction::NodeVisibility::node,
+                                  sub_16_leaf.node())));
+
+    // An incompatible mapper cleanly drops a pruned action.
+    XLS_ASSERT_OK_AND_ASSIGN(
+        std::optional<NodeToMappings> m_unset,
+        GetNodeEquivalenceMapper().ComputeMappings(
+            {ult_32.node(), sge_16.node()}, sub_16_dst2.node()));
+    auto prunable_fold = std::make_unique<NaryFoldingAction>(
+        std::vector<NaryFoldingAction::NodeVisibility>{
+            {.node = ult_32.node(),
+             .edges = edge_of(c0),
+             .sinks = {result.node()}},
+            {.node = sge_16.node(),
+             .edges = edge_of(c1),
+             .sinks = {result.node()}},
+        },
+        sub_16_dst2.node(), edge_of(c5), /*area_saved=*/0.0,
+        std::move(*m_unset));
+    std::vector<std::unique_ptr<NaryFoldingAction>> drop_seq;
+    drop_seq.push_back(std::move(legalized_and_modified.first[0]));
+    drop_seq.push_back(std::move(prunable_fold));
+    NodeEquivalenceMapper empty_mapper;
+    XLS_ASSERT_OK_AND_ASSIGN(
+        auto dropped,
+        ResourceSharingPass::LegalizeSequenceOfFolding(
+            drop_seq, mutual_exclusivity, *visibility.nda_backwards,
+            area_estimator, ResourceSharingPass::kDefaultConfig, empty_mapper));
+    EXPECT_TRUE(dropped.second);
+    EXPECT_EQ(dropped.first.size(), 1);
+  }
+
+  // 2. `MakeNaryFoldingAction` recomputes mappings when visibility extraction
+  // drops a widening source.
+  {
+    XLS_ASSERT_OK_AND_ASSIGN(std::optional<NodeToMappings> m_ult32,
+                             GetNodeEquivalenceMapper().ComputeMappings(
+                                 {ult_32.node()}, sub_16_dst1.node()));
+    XLS_ASSERT_OK_AND_ASSIGN(std::optional<NodeToMappings> m_sge16,
+                             GetNodeEquivalenceMapper().ComputeMappings(
+                                 {sge_16.node()}, sub_16_dst1.node()));
+    BinaryFoldingAction fold_ult32(ult_32.node(), sub_16_dst1.node(),
+                                   /*from_edges=*/{}, edge_of(c4),
+                                   /*area_saved=*/0.0, std::move(*m_ult32),
+                                   /*sinks=*/{});
+    BinaryFoldingAction fold_sge16(
+        sge_16.node(), sub_16_dst1.node(), edge_of(c1), edge_of(c4),
+        /*area_saved=*/0.0, std::move(*m_sge16), {result.node()});
+    std::vector<BinaryFoldingAction*> folds = {&fold_ult32, &fold_sge16};
+    XLS_ASSERT_OK_AND_ASSIGN(std::optional<NodeToMappings> nary_map,
+                             ResourceSharingPass::CompatibleNaryMappings(
+                                 folds, GetNodeEquivalenceMapper()));
+    ASSERT_TRUE(nary_map->contains(sub_16_dst1.node()));
+
+    const ResourceSharingPass::Config zero_edge_cfg = {
+        .min_area_savings = ResourceSharingPass::kDefaultMinAreaSavings,
+        .max_delay_spread_squared =
+            ResourceSharingPass::kDefaultMaxDelaySpreadSquared,
+        .max_delay_increase = ResourceSharingPass::kDefaultMaxDelayIncrease,
+        .max_delay_increase_per_fold =
+            ResourceSharingPass::kDefaultMaxDelayIncreasePerFold,
+        .max_edges_to_handle = 0,
+        .max_path_count_for_edge_in_general_visibility_analysis =
+            ResourceSharingPass::
+                kDefaultMaxPathCountForEdgeInGeneralVisibilityAnalysis,
+        .max_path_count_for_bdd_engine =
+            ResourceSharingPass::kDefaultMaxPathCountForBddEngine,
+    };
+    XLS_ASSERT_OK_AND_ASSIGN(
+        std::unique_ptr<NaryFoldingAction> nary_action,
+        ResourceSharingPass::MakeNaryFoldingAction(
+            folds, /*area_saved=*/19.5, visibility, std::move(*nary_map),
+            zero_edge_cfg, GetNodeEquivalenceMapper()));
+    EXPECT_THAT(nary_action->GetFrom(),
+                ElementsAre(Field(&NaryFoldingAction::NodeVisibility::node,
+                                  sge_16.node())));
+    EXPECT_FALSE(nary_action->mappings().contains(sub_16_dst1.node()));
+
+    NodeEquivalenceMapper empty_mapper;
+    EXPECT_THAT(ResourceSharingPass::MakeNaryFoldingAction(
+                    folds, /*area_saved=*/19.5, visibility,
+                    /*mappings=*/{}, zero_edge_cfg, empty_mapper),
+                StatusIs(absl::StatusCode::kInternal));
+  }
 }
 
 void IrFuzzResourceSharing(FuzzPackageWithArgs fuzz_package_with_args) {

@@ -425,22 +425,26 @@ class ResourceSharingPass : public OptimizationFunctionBasePass {
       absl::Span<BinaryFoldingAction* const> binary_folds,
       const NodeEquivalenceMapper& mapper);
 
-  // MakeNaryFoldingActions creates a single n-ary folding action from as many
+  // MakeNaryFoldingAction creates a single n-ary folding action from as many
   // of the provided binary foldings as possible, given our understanding of the
-  // visibility of these nodes. It is possible that one of the binary foldings
-  // is on a node whose conservative visibility expression is too complicated to
-  // analyze efficiently, in which case we must drop that binary folding.
+  // visibility of these nodes. If any binary folding is dropped because its
+  // visibility expression exceeds `config.max_edges_to_handle`, `mappings` are
+  // recomputed via `eq_mapper` for the surviving sources.
   static absl::StatusOr<std::unique_ptr<NaryFoldingAction>>
   MakeNaryFoldingAction(std::vector<BinaryFoldingAction*>& subset_of_edges_to_n,
                         double area_saved, const VisibilityAnalyses& visibility,
-                        NodeToMappings mappings, const Config& config);
+                        NodeToMappings mappings, const Config& config,
+                        const NodeEquivalenceMapper& eq_mapper);
 
   // Legalizes a sequence of folding actions by removing or modifying actions
-  // that conflict.
+  // that conflict. A node is consumed once it is a source or a mapped
+  // destination of an accepted fold; later folds targeting a consumed
+  // destination are dropped, and consumed sources are pruned. When an action
+  // loses sources, `eq_mapper` recomputes mappings for the surviving sources.
   //
   // Returns a pair where the first element is the legalized sequence of
   // actions and the second element is a boolean that is true if the input
-  // sequence was modified.
+  // sequence was modified (at least one action was removed or lost a source).
   static absl::StatusOr<
       std::pair<std::vector<std::unique_ptr<NaryFoldingAction>>, bool>>
   LegalizeSequenceOfFolding(
@@ -450,7 +454,8 @@ class ResourceSharingPass : public OptimizationFunctionBasePass {
           mutual_exclusivity,
       const NodeBackwardDependencyAnalysis& nda,
       absl::optional_ref<const AreaEstimator> area_estimator,
-      const ResourceSharingPass::Config& config);
+      const ResourceSharingPass::Config& config,
+      const NodeEquivalenceMapper& eq_mapper);
 
   // Groups selected binary folding actions by destination into n-ary folding
   // actions, sorts them by node area and topological index, and legalizes the
