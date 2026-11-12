@@ -615,6 +615,77 @@ TEST_F(NextValueOptimizationPassTest, SwappedValuesAndPredicatesWithNonSynth) {
   EXPECT_THAT(Run(p.get()), IsOkAndHolds(false));
 }
 
+TEST_F(NextValueOptimizationPassTest,
+       MultipleSynthAndNonSynthElementsSharingTransitionsDecouple) {
+  auto p = CreatePackage();
+  ProcBuilder pb("p", p.get());
+  // Place `y` before `x` while `Select` reads `x`, alongside two matching
+  // non-synthesizable observers and one observer whose `StateRead` has a
+  // different predicate (so it cannot substitute for unconditional `x_read`).
+  BStateElement y =
+      pb.StateElement("y", Value(UBits(0, 32)), /*non_synthesizable=*/false);
+  BStateElement x =
+      pb.StateElement("x", Value(UBits(0, 32)), /*non_synthesizable=*/false);
+  BStateElement obs_a =
+      pb.StateElement("obs_a", Value(UBits(0, 32)), /*non_synthesizable=*/true);
+  BStateElement obs_b =
+      pb.StateElement("obs_b", Value(UBits(0, 32)), /*non_synthesizable=*/true);
+  BStateElement pred_obs = pb.StateElement("pred_obs", Value(UBits(0, 32)),
+                                           /*non_synthesizable=*/true);
+  BStateElement cond =
+      pb.StateElement("cond", Value(UBits(1, 1)), /*non_synthesizable=*/false);
+  BStateElement data =
+      pb.StateElement("data", Value(UBits(7, 32)), /*non_synthesizable=*/false);
+
+  BValue cond_read = pb.StateRead(cond);
+  BValue data_read = pb.StateRead(data);
+  pb.StateRead(y);
+  BValue x_read = pb.StateRead(x);
+  pb.StateRead(obs_a);
+  pb.StateRead(obs_b);
+  pb.StateRead(pred_obs, /*predicate=*/cond_read);
+
+  BValue select = pb.Select(cond_read, /*cases=*/{x_read, data_read});
+  pb.Next(y, select);
+  pb.Next(x, select);
+  pb.Next(obs_a, select);
+  pb.Next(obs_b, select);
+  pb.Next(pred_obs, select);
+  pb.Next(cond, pb.Not(cond_read));
+  pb.Next(data, pb.Add(data_read, pb.Literal(UBits(11, 32))));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
+  solvers::ScopedVerifyProcEquivalence svpe(proc, /*activation_count=*/4,
+                                            /*include_state=*/true);
+
+  ASSERT_THAT(Run(p.get(), /*split_next_value_selects=*/2), IsOkAndHolds(true));
+  EXPECT_THAT(proc->next_values(),
+              UnorderedElementsAre(
+                  m::Next(y.state_element(), m::StateRead("x"),
+                          m::Eq(m::StateRead("cond"), m::Literal(0))),
+                  m::Next(y.state_element(), m::StateRead("data"),
+                          m::Eq(m::StateRead("cond"), m::Literal(1))),
+                  m::Next(x.state_element(), m::StateRead("x"),
+                          m::Eq(m::StateRead("cond"), m::Literal(0))),
+                  m::Next(x.state_element(), m::StateRead("data"),
+                          m::Eq(m::StateRead("cond"), m::Literal(1))),
+                  m::Next(obs_a.state_element(), m::StateRead("obs_a"),
+                          m::Eq(m::StateRead("cond"), m::Literal(0))),
+                  m::Next(obs_a.state_element(), m::StateRead("data"),
+                          m::Eq(m::StateRead("cond"), m::Literal(1))),
+                  m::Next(obs_b.state_element(), m::StateRead("obs_b"),
+                          m::Eq(m::StateRead("cond"), m::Literal(0))),
+                  m::Next(obs_b.state_element(), m::StateRead("data"),
+                          m::Eq(m::StateRead("cond"), m::Literal(1))),
+                  m::Next(pred_obs.state_element(), m::StateRead("x"),
+                          m::Eq(m::StateRead("cond"), m::Literal(0))),
+                  m::Next(pred_obs.state_element(), m::StateRead("data"),
+                          m::Eq(m::StateRead("cond"), m::Literal(1))),
+                  m::Next(cond.state_element(), m::Not(m::StateRead("cond"))),
+                  m::Next(data.state_element(),
+                          m::Add(m::StateRead("data"), m::Literal(11)))));
+}
+
 void IrFuzzNextValueOptimization(FuzzPackageWithArgs fuzz_package_with_args) {
   NextValueOptimizationPass pass;
   OptimizationPassChangesOutputs(std::move(fuzz_package_with_args), pass);
