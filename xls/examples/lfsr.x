@@ -23,12 +23,12 @@
 pub fn lfsr<BIT_WIDTH: u32>
     (current_value: uN[BIT_WIDTH], tap_mask: uN[BIT_WIDTH]) -> uN[BIT_WIDTH] {
     // Compute the new bit from the taps
-    let new_bit = for (index, xor_bit): (u32, u1) in u32:0..BIT_WIDTH {
-        if tap_mask[index+:u1] == u1:0 { xor_bit } else { xor_bit ^ current_value[index+:u1] }
-    }(u1:0);
+    let new_bit = for (index, xor_bit): (u32, u1) in 0..BIT_WIDTH {
+        if tap_mask[index+:u1] == 0 { xor_bit } else { xor_bit ^ current_value[index+:u1] }
+    }(0);
 
     // Kick the high bit and insert the new bit
-    current_value[u32:0+:uN[BIT_WIDTH - u32:1]] ++ new_bit
+    current_value[0+:uN[BIT_WIDTH - 1]] ++ new_bit
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -51,22 +51,22 @@ fn lfsr8(n: u8) -> u8 { lfsr(n, u8:0b10111000) }
 #[test]
 fn lfsr7_test() {
     // Trivial test.
-    assert_eq(lfsr7(u7:0), u7:0);
+    assert_eq(lfsr7(0), u7:0);
 
     // Test a few values.
-    assert_eq(lfsr7(u7:1), u7:2);
-    assert_eq(lfsr7(u7:104), u7:80);
-    assert_eq(lfsr7(u7:31), u7:62);
-    assert_eq(lfsr7(u7:67), u7:7);
-    assert_eq(lfsr7(u7:9), u7:18);
-    assert_eq(lfsr7(u7:107), u7:86);
-    assert_eq(lfsr7(u7:108), u7:88);
-    assert_eq(lfsr7(u7:88), u7:49);
+    assert_eq(lfsr7(1), u7:2);
+    assert_eq(lfsr7(104), u7:80);
+    assert_eq(lfsr7(31), u7:62);
+    assert_eq(lfsr7(67), u7:7);
+    assert_eq(lfsr7(9), u7:18);
+    assert_eq(lfsr7(107), u7:86);
+    assert_eq(lfsr7(108), u7:88);
+    assert_eq(lfsr7(88), u7:49);
 
     // test that the cycle works
     assert_eq(
         u7:1,
-        for (_, value) in u32:0..u32:127 {
+        for (_, value) in u32:0..127 {
             lfsr7(value)
         }(u7:1));
 }
@@ -74,22 +74,22 @@ fn lfsr7_test() {
 #[test]
 fn lfsr8_test() {
     // Trivial test.
-    assert_eq(lfsr8(u8:0), u8:0);
+    assert_eq(lfsr8(0), u8:0);
 
     // Test a few values.
-    assert_eq(lfsr8(u8:1), u8:2);
-    assert_eq(lfsr8(u8:37), u8:75);
-    assert_eq(lfsr8(u8:6), u8:12);
-    assert_eq(lfsr8(u8:155), u8:55);
-    assert_eq(lfsr8(u8:10), u8:21);
-    assert_eq(lfsr8(u8:214), u8:172);
-    assert_eq(lfsr8(u8:176), u8:97);
-    assert_eq(lfsr8(u8:237), u8:219);
+    assert_eq(lfsr8(1), u8:2);
+    assert_eq(lfsr8(37), u8:75);
+    assert_eq(lfsr8(6), u8:12);
+    assert_eq(lfsr8(155), u8:55);
+    assert_eq(lfsr8(10), u8:21);
+    assert_eq(lfsr8(214), u8:172);
+    assert_eq(lfsr8(176), u8:97);
+    assert_eq(lfsr8(237), u8:219);
 
     // Test that the cycle works.
     assert_eq(
         u8:1,
-        for (_, value) in u32:0..u32:255 {
+        for (_, value) in u32:0..255 {
             lfsr8(value)
         }(u8:1));
 }

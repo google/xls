@@ -45,7 +45,7 @@ fn decode_a_instruction(ins: u16) -> (u15) {
 #[test]
 fn decode_a_test() {
     // @21
-    let (value) = decode_a_instruction(u16:0b0_000000000010101);
+    let (value) = decode_a_instruction(0b0_000000000010101);
     assert_eq(value, u15:21);
 }
 
@@ -102,17 +102,17 @@ fn decode_c_instruction(ins: u16) -> (u7, u3, u3) {
 #[test]
 fn decode_c_test() {
     // MD=D+1
-    let (comp, dest, jump) = decode_c_instruction(u16:0b1110011111011000);
+    let (comp, dest, jump) = decode_c_instruction(0b1110011111011000);
     assert_eq(comp, COMP_D_PLUS_1);
     assert_eq(dest, DEST_M | DEST_D);
     assert_eq(jump, JUMP_NULL);
     // M=1
-    let (comp, dest, jump) = decode_c_instruction(u16:0b111_0111111_001_000);
+    let (comp, dest, jump) = decode_c_instruction(0b111_0111111_001_000);
     assert_eq(comp, COMP_1);
     assert_eq(dest, DEST_M);
     assert_eq(jump, JUMP_NULL);
     // D+1;JLE
-    let (comp, dest, jump) = decode_c_instruction(u16:0b111_0011111_000_110);
+    let (comp, dest, jump) = decode_c_instruction(0b111_0011111_000_110);
     assert_eq(comp, COMP_D_PLUS_1);
     assert_eq(dest, DEST_NULL);
     assert_eq(jump, JUMP_JLE);
@@ -122,7 +122,7 @@ fn encode_a_instruction(a: u15) -> u16 { u1:0 ++ a }
 
 #[test]
 fn encode_a_test() {
-    let value = encode_a_instruction(u15:21);
+    let value = encode_a_instruction(21);
     assert_eq(value, u16:21);
 }
 
@@ -142,14 +142,13 @@ fn run_a_instruction(pc: u16, ins: u16, rd: u16, ra: u16, rm: u16) -> (u16, u16,
     let (value) = decode_a_instruction(ins);
     let ra' = value as u16;
     let wm = u1:0;
-    (pc + u16:1, rd, ra', rm, wm)
+    (pc + 1, rd, ra', rm, wm)
 }
 
 #[test]
 fn run_a_test() {
     // @21
-    let (pc, rd, ra, rm, wm) =
-        run_a_instruction(u16:0, encode_a_instruction(u15:21), u16:1, u16:2, u16:3);
+    let (pc, rd, ra, rm, wm) = run_a_instruction(0, encode_a_instruction(21), 1, 2, 3);
     assert_eq(pc, u16:1);
     assert_eq(rd, u16:1);
     assert_eq(ra, u16:21);
@@ -157,13 +156,13 @@ fn run_a_test() {
     assert_eq(wm, u1:0);
 }
 
-fn z_bit(z: u1, v: u16) -> u16 { if z { u16:0 } else { v } }
+fn z_bit(z: u1, v: u16) -> u16 { if z { 0 } else { v } }
 
 #[test]
 fn z_bit_test() {
-    let z = z_bit(u1:1, u16:42);
+    let z = z_bit(1, 42);
     assert_eq(z, u16:0);
-    let v = z_bit(u1:0, u16:42);
+    let v = z_bit(0, 42);
     assert_eq(v, u16:42);
 }
 
@@ -171,9 +170,9 @@ fn n_bit(n: u1, v: u16) -> u16 { if n { !v } else { v } }
 
 #[test]
 fn n_bit_test() {
-    let n = n_bit(u1:1, u16:42);
+    let n = n_bit(1, 42);
     assert_eq(n, !u16:42);
-    let v = n_bit(u1:0, u16:42);
+    let v = n_bit(0, 42);
     assert_eq(v, u16:42);
 }
 
@@ -187,22 +186,22 @@ fn alu(x: u16, y: u16, c: u6) -> (u16, u1, u1) {
     let and: u16 = x'' & y'';
     let output: u16 = if f { sum } else { and };
     let output': u16 = if no { !output } else { output };
-    let zr = (output' == u16:0);
-    let ng = ((output' as s16) < s16:0);
+    let zr = (output' == 0);
+    let ng = ((output' as s16) < 0);
     (output', zr, ng)
 }
 
 #[test]
 fn alu_test() {
-    let (output, zr, ng) = alu(u16:2, u16:8, COMP_D_PLUS_1[0:6]);
+    let (output, zr, ng) = alu(2, 8, COMP_D_PLUS_1[0:6]);
     assert_eq(output, u16:3);
     assert_eq(zr, u1:0);
     assert_eq(ng, u1:0);
-    let (output, zr, ng) = alu(u16:2, u16:8, COMP_D_AND_A[0:6]);
+    let (output, zr, ng) = alu(2, 8, COMP_D_AND_A[0:6]);
     assert_eq(output, u16:0);
     assert_eq(zr, u1:1);
     assert_eq(ng, u1:0);
-    let (output, zr, ng) = alu(u16:8, u16:2, COMP_A_MINUS_D[0:6]);
+    let (output, zr, ng) = alu(8, 2, COMP_A_MINUS_D[0:6]);
     assert_eq(output, s16:-6 as u16);
     assert_eq(zr, u1:0);
     assert_eq(ng, u1:1);
@@ -218,29 +217,29 @@ fn run_c_instruction(pc: u16, ins: u16, rd: u16, ra: u16, rm: u16) -> (u16, u16,
     let ra' = if (dest & DEST_A) == DEST_A { output } else { ra };
     let (rm', wm) = if (dest & DEST_M) == DEST_M { (output, u1:1) } else { (rm, u1:0) };
     let flags: u3 = ng ++ zr ++ !ng;
-    let pc' = if (jump & flags) != u3:0 { ra' } else { pc + u16:1 };
+    let pc' = if (jump & flags) != 0 { ra' } else { pc + 1 };
     (pc', rd', ra', rm', wm)
 }
 
 #[test]
 fn run_c_test() {
     // MD=D+1
-    let (pc, rd, ra, rm, _wm) = run_c_instruction(
-        u16:0, encode_c_instruction(u7:0b0011111, u3:0b011, u3:0b000), u16:1, u16:2, u16:3);
+    let (pc, rd, ra, rm, _wm) =
+        run_c_instruction(0, encode_c_instruction(0b0011111, 0b011, 0b000), 1, 2, 3);
     assert_eq(pc, u16:1);
     assert_eq(rd, u16:2);
     assert_eq(ra, u16:2);
     assert_eq(rm, u16:2);
     // D+1;JLE
-    let (pc, rd, ra, rm, _wm) = run_c_instruction(
-        u16:0, encode_c_instruction(u7:0b0011111, u3:0b000, u3:0b110), s16:-1 as u16, u16:2, u16:3);
+    let (pc, rd, ra, rm, _wm) =
+        run_c_instruction(0, encode_c_instruction(0b0011111, 0b000, 0b110), s16:-1 as u16, 2, 3);
     assert_eq(pc, u16:2);
     assert_eq(rd, s16:-1 as u16);
     assert_eq(ra, u16:2);
     assert_eq(rm, u16:3);
     // 0;JMP
-    let (pc, rd, ra, rm, _wm) = run_c_instruction(
-        u16:0, encode_c_instruction(u7:0b0101010, u3:0b000, u3:0b111), u16:1, u16:2, u16:3);
+    let (pc, rd, ra, rm, _wm) =
+        run_c_instruction(0, encode_c_instruction(0b0101010, 0b000, 0b111), 1, 2, 3);
     assert_eq(pc, u16:2);
     assert_eq(rd, u16:1);
     assert_eq(ra, u16:2);
@@ -251,8 +250,8 @@ fn cpu(pc: u16, rd: u16, ra: u16, ram: u16[32], rom: u16[32]) -> (u16, u16, u16,
     let ins = rom[pc];
     let rm = ram[ra];
     let (pc', rd', ra', rm', wm) = match ins[15+:u1] {
-        u1:0 => run_a_instruction(pc, ins, rd, ra, rm),
-        u1:1 => run_c_instruction(pc, ins, rd, ra, rm),
+        0 => run_a_instruction(pc, ins, rd, ra, rm),
+        1 => run_c_instruction(pc, ins, rd, ra, rm),
     };
     (pc', rd', ra', if wm { update(ram, ra', rm') } else { ram })
 }
@@ -260,40 +259,40 @@ fn cpu(pc: u16, rd: u16, ra: u16, ram: u16[32], rom: u16[32]) -> (u16, u16, u16,
 #[test]
 fn run_cpu() {
     let rom = u16[32]:[
-        encode_a_instruction(u15:16), // 00 @16
+        encode_a_instruction(16), // 00 @16
         encode_c_instruction(COMP_1, DEST_M, JUMP_NULL), // 01 M=1
-        encode_a_instruction(u15:17), // 02 @17
+        encode_a_instruction(17), // 02 @17
         encode_c_instruction(COMP_0, DEST_M, JUMP_NULL), // 03 M=0
-        encode_a_instruction(u15:16), // 04 @16
+        encode_a_instruction(16), // 04 @16
         encode_c_instruction(COMP_M, DEST_D, JUMP_NULL), // 05 D=M
-        encode_a_instruction(u15:0), // 06 @0
+        encode_a_instruction(0), // 06 @0
         encode_c_instruction(COMP_M_MINUS_D, DEST_D, JUMP_NULL), // 07 D=M-D
-        encode_a_instruction(u15:18), // 08 @18
+        encode_a_instruction(18), // 08 @18
         encode_c_instruction(COMP_D, DEST_NULL, JUMP_JLT), // 09 D;JLT
-        encode_a_instruction(u15:16), // 10 @16
+        encode_a_instruction(16), // 10 @16
         encode_c_instruction(COMP_M, DEST_D, JUMP_NULL), // 11 D=M
-        encode_a_instruction(u15:17), // 12 @17
+        encode_a_instruction(17), // 12 @17
         encode_c_instruction(COMP_D_PLUS_M, DEST_M, JUMP_NULL), // 13 M=D+M
-        encode_a_instruction(u15:16), // 14 @16
+        encode_a_instruction(16), // 14 @16
         encode_c_instruction(COMP_M_PLUS_1, DEST_M, JUMP_NULL), // 15 M=M+1
-        encode_a_instruction(u15:4), // 16 @4
-        encode_c_instruction(COMP_0, DEST_NULL, u3:0b111), // 17 0;JMP
-        encode_a_instruction(u15:17), // 18 @17
+        encode_a_instruction(4), // 16 @4
+        encode_c_instruction(COMP_0, DEST_NULL, 0b111), // 17 0;JMP
+        encode_a_instruction(17), // 18 @17
         encode_c_instruction(COMP_M, DEST_D, JUMP_NULL), // 19 D=M
-        encode_a_instruction(u15:1), // 20 @1
+        encode_a_instruction(1), // 20 @1
         encode_c_instruction(COMP_D, DEST_M, JUMP_NULL), // 21 M=D
-        encode_a_instruction(u15:22), // 22 @22
-        encode_c_instruction(COMP_0, DEST_NULL, u3:0b111), // 23 0;JMP
-        u16:0, ...
+        encode_a_instruction(22), // 22 @22
+        encode_c_instruction(COMP_0, DEST_NULL, 0b111), // 23 0;JMP
+        0, ...
     ];
     let pc = u16:0;
     let ra = u16:0;
     let rd = u16:0;
-    let ram = u16[32]:[u16:4, 0, ...];
+    let ram = u16[32]:[4, 0, ...];
     let (pc'', _rd, _ra, ram'') =
-        for (_, (pc', rd', ra', ram')): (u32, (u16, u16, u16, u16[32])) in u32:0..u32:100 {
+        for (_, (pc', rd', ra', ram')): (u32, (u16, u16, u16, u16[32])) in 0..100 {
             cpu(pc', rd', ra', ram', rom)
         }((pc, rd, ra, ram));
-    assert_eq(ram''[u16:1], u16:10);
+    assert_eq(ram''[1], u16:10);
     assert_eq(pc'', u16:22);
 }

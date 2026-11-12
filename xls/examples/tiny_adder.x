@@ -21,8 +21,8 @@ fn tiny_adder(x: u1, y: u1) -> u2 {
 
 #[test]
 fn test_exhaustive() {
-    assert_eq(tiny_adder(u1:0, u1:0), u2:0b00);
-    assert_eq(tiny_adder(u1:0, u1:1), u2:0b01);
-    assert_eq(tiny_adder(u1:1, u1:1), u2:0b10);
-    assert_eq(tiny_adder(u1:1, u1:0), u2:0b01);
+    assert_eq(tiny_adder(0, 0), u2:0b00);
+    assert_eq(tiny_adder(0, 1), u2:0b01);
+    assert_eq(tiny_adder(1, 1), u2:0b10);
+    assert_eq(tiny_adder(1, 0), u2:0b01);
 }

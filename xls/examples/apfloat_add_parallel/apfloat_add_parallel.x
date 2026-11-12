@@ -37,7 +37,7 @@ import apfloat;
 fn compound_adder<WIDTH: u32>(a: uN[WIDTH], b: uN[WIDTH]) -> (uN[WIDTH], uN[WIDTH]) {
     // TODO(hzeller): 2023-10-15 use an efficient implementation if synthesis
     // tool can't deduce this.
-    (a + b, a + b + uN[WIDTH]:1)
+    (a + b, a + b + 1)
 }
 
 #[test]
@@ -56,7 +56,7 @@ fn sign_magnitude_difference<WIDTH: u32>(a: uN[WIDTH], b: uN[WIDTH]) -> (bool, u
     //                     ~(|A| + |~B|)    iff |A| - |B| <= 0
     // We use the compound_adder() to efficiently prepare sum + 1 to select result
 
-    type WidthWithCarry = uN[WIDTH + u32:1];
+    type WidthWithCarry = uN[WIDTH + 1];
     let (sum, incremented_sum) = compound_adder(a as WidthWithCarry, !b as WidthWithCarry);
     let a_is_less_equal: bool = !sum[-1:];  // Sign bit overflow in the carry
 
@@ -78,8 +78,8 @@ fn sign_magnitude_difference_test() {
     assert_eq(sign_magnitude_difference(u1:1, u1:0), (false, u1:1));
 
     // Exhaustive for u2
-    for (left, _): (u2, ()) in u2:0..u2:3 {
-        for (right, _): (u2, ()) in u2:0..u2:3 {
+    for (left, _): (u2, ()) in 0..3 {
+        for (right, _): (u2, ()) in 0..3 {
             assert_eq(
                 sign_magnitude_difference(left, right),
                 ((right >= left), if right >= left { right - left } else { left - right }));
@@ -87,8 +87,8 @@ fn sign_magnitude_difference_test() {
     }(());
 
     // Exhaustive for u8
-    for (left, _): (u8, ()) in u8:0..u8:255 {
-        for (right, _): (u8, ()) in u8:0..u8:255 {
+    for (left, _): (u8, ()) in 0..255 {
+        for (right, _): (u8, ()) in 0..255 {
             assert_eq(
                 sign_magnitude_difference(left, right),
                 ((right >= left), if right >= left { right - left } else { left - right }));
@@ -121,9 +121,8 @@ fn leading_zero_anticipator<WIDTH: u32, SHIFT_WIDTH: u32 = {std::clog2(WIDTH)}>
     let (_, difference) = sign_magnitude_difference(minuend, subtrahend);
     ZeroAnticipatorPrediction {
         quasinormalization_shift: clz(difference) as uN[SHIFT_WIDTH],
-        is_nonzero: difference != uN[WIDTH]:0,
-        needs_correction: false,
-        // Our pretend zero anticipator is always right.
+        is_nonzero: difference != 0,
+        needs_correction: false,  // Our pretend zero anticipator is always right.
     }
 }
 
@@ -196,14 +195,14 @@ fn n_path<EXP_SZ: u32, FRACTION_SZ: u32>
     };
 
     let near_exponent = if exact_cancellation {
-        uN[EXP_SZ]:0
+        0
     } else {
         minuend_exponent - lz_prediction.quasinormalization_shift as uN[EXP_SZ] -
         lz_prediction.needs_correction as uN[EXP_SZ]
     };
 
     let use_far_path = !diff_sign && diff_magnitude[-1:];
-    let near_sign = if exact_cancellation { u1:0 } else { diff_sign ^ minuend_sign };
+    let near_sign = if exact_cancellation { 0 } else { diff_sign ^ minuend_sign };
 
     type ResultType = apfloat::APFloat<EXP_SZ, FRACTION_SZ>;
 
@@ -215,115 +214,115 @@ fn n_path_test() {
     type F32 = apfloat::APFloat<8, 23>;
 
     // Almost three minus one brings us in range ..[1,2)
-    let a = F32 { sign: u1:0, bexp: u8:0x80, fraction: u23:0x3fffff };  // 2.9999998
-    let b = F32 { sign: u1:1, bexp: u8:0x7f, fraction: u23:0x000000 };  // -1
-    let expected = F32 { sign: u1:0, bexp: u8:0x7f, fraction: u23:0x7ffffe };  // a + b = almosttwo
+    let a = F32 { sign: 0, bexp: 0x80, fraction: 0x3fffff };  // 2.9999998
+    let b = F32 { sign: 1, bexp: 0x7f, fraction: 0x000000 };  // -1
+    let expected = F32 { sign: 0, bexp: 0x7f, fraction: 0x7ffffe };  // a + b = almosttwo
     assert_eq(n_path(a, b), (expected, false));
 
     // However 3 - 1 returns exactly 2, so that would be _outside_ range [1,2), so we
     // should use far path.
-    let a = F32 { sign: u1:0, bexp: u8:0x80, fraction: u23:0x400000 };  // 3.0
-    let b = F32 { sign: u1:1, bexp: u8:0x7f, fraction: u23:0x000000 };  // -1
-    let expected = F32 { sign: u1:0, bexp: u8:0x80, fraction: u23:0x000000 };  // a + b = 2
+    let a = F32 { sign: 0, bexp: 0x80, fraction: 0x400000 };  // 3.0
+    let b = F32 { sign: 1, bexp: 0x7f, fraction: 0x000000 };  // -1
+    let expected = F32 { sign: 0, bexp: 0x80, fraction: 0x000000 };  // a + b = 2
     assert_eq(n_path(a, b), (expected, true));  // <- use far
 
-    let a = F32 { sign: u1:1, bexp: u8:0x7f, fraction: u23:0x000000 };  // -1
-    let b = F32 { sign: u1:0, bexp: u8:0x80, fraction: u23:0x000000 };  // 2
-    let expected = F32 { sign: u1:0, bexp: u8:0x7f, fraction: u23:0x000000 };  // a + b = 1
+    let a = F32 { sign: 1, bexp: 0x7f, fraction: 0x000000 };  // -1
+    let b = F32 { sign: 0, bexp: 0x80, fraction: 0x000000 };  // 2
+    let expected = F32 { sign: 0, bexp: 0x7f, fraction: 0x000000 };  // a + b = 1
     assert_eq(n_path(a, b), (expected, false));
 
     // +/- 1 exponent offset
-    let a = F32 { sign: u1:0, bexp: u8:0x87, fraction: u23:0x210000 };  // 322
-    let b = F32 { sign: u1:1, bexp: u8:0x86, fraction: u23:0x540000 };  // -212
-    let expected = F32 { sign: u1:0, bexp: u8:0x85, fraction: u23:0x5c0000 };  // a + b = 110
+    let a = F32 { sign: 0, bexp: 0x87, fraction: 0x210000 };  // 322
+    let b = F32 { sign: 1, bexp: 0x86, fraction: 0x540000 };  // -212
+    let expected = F32 { sign: 0, bexp: 0x85, fraction: 0x5c0000 };  // a + b = 110
     assert_eq(n_path(a, b), (expected, false));
 
-    let a = F32 { sign: u1:0, bexp: u8:0x86, fraction: u23:0x540000 };  // 212
-    let b = F32 { sign: u1:1, bexp: u8:0x87, fraction: u23:0x210000 };  // -322
-    let expected = F32 { sign: u1:1, bexp: u8:0x85, fraction: u23:0x5c0000 };  // a + b = -110
+    let a = F32 { sign: 0, bexp: 0x86, fraction: 0x540000 };  // 212
+    let b = F32 { sign: 1, bexp: 0x87, fraction: 0x210000 };  // -322
+    let expected = F32 { sign: 1, bexp: 0x85, fraction: 0x5c0000 };  // a + b = -110
     assert_eq(n_path(a, b), (expected, false));
 
     // Lots of cancellation
-    let a = F32 { sign: u1:0, bexp: u8:0x96, fraction: u23:0x000000 };  // 8_388_608
-    let b = F32 { sign: u1:1, bexp: u8:0x95, fraction: u23:0x7fffff };  // -8_388_607.5
-    let expected = F32 { sign: u1:0, bexp: u8:0x7e, fraction: u23:0x000000 };  // a + b = 0.5
+    let a = F32 { sign: 0, bexp: 0x96, fraction: 0x000000 };  // 8_388_608
+    let b = F32 { sign: 1, bexp: 0x95, fraction: 0x7fffff };  // -8_388_607.5
+    let expected = F32 { sign: 0, bexp: 0x7e, fraction: 0x000000 };  // a + b = 0.5
     assert_eq(n_path(a, b), (expected, false));
 
     // More bits than fit into the representation, only coarse-grained resoolution
-    let a = F32 { sign: u1:0, bexp: u8:0x96, fraction: u23:0x7ffffb };  // 16_777_211
-    let b = F32 { sign: u1:1, bexp: u8:0x96, fraction: u23:0x7ffffe };  // -16_777_214
-    let expected = F32 { sign: u1:1, bexp: u8:0x80, fraction: u23:0x400000 };  // a + b = -3
+    let a = F32 { sign: 0, bexp: 0x96, fraction: 0x7ffffb };  // 16_777_211
+    let b = F32 { sign: 1, bexp: 0x96, fraction: 0x7ffffe };  // -16_777_214
+    let expected = F32 { sign: 1, bexp: 0x80, fraction: 0x400000 };  // a + b = -3
     assert_eq(n_path(a, b), (expected, false));
 
-    let a = F32 { sign: u1:0, bexp: u8:0x96, fraction: u23:0x7ffffe };  // 16_777_214
-    let b = F32 { sign: u1:1, bexp: u8:0x96, fraction: u23:0x7ffffb };  // -16_777_211
-    let expected = F32 { sign: u1:0, bexp: u8:0x80, fraction: u23:0x400000 };  // a + b = 3
+    let a = F32 { sign: 0, bexp: 0x96, fraction: 0x7ffffe };  // 16_777_214
+    let b = F32 { sign: 1, bexp: 0x96, fraction: 0x7ffffb };  // -16_777_211
+    let expected = F32 { sign: 0, bexp: 0x80, fraction: 0x400000 };  // a + b = 3
     assert_eq(n_path(a, b), (expected, false));
 
     // Also expected: limited floating point resolution, so the following arrives at -2
-    let a = F32 { sign: u1:0, bexp: u8:0x97, fraction: u23:0x000000 };  // 16_777_217
-    let b = F32 { sign: u1:1, bexp: u8:0x97, fraction: u23:0x000001 };  // -16_777_218
-    let expected = F32 { sign: u1:1, bexp: u8:0x80, fraction: u23:0x000000 };  // a + b = -2
+    let a = F32 { sign: 0, bexp: 0x97, fraction: 0x000000 };  // 16_777_217
+    let b = F32 { sign: 1, bexp: 0x97, fraction: 0x000001 };  // -16_777_218
+    let expected = F32 { sign: 1, bexp: 0x80, fraction: 0x000000 };  // a + b = -2
     assert_eq(n_path(a, b), (expected, false));
 
     // Full cancellation, arriving at zero
-    let a = F32 { sign: u1:0, bexp: u8:0x7f, fraction: u23:0x000000 };  // 1
-    let b = F32 { sign: u1:1, bexp: u8:0x7f, fraction: u23:0x000000 };  // -1
-    let expected = F32 { sign: u1:0, bexp: u8:0x00, fraction: u23:0x000000 };  // a + b = 0
+    let a = F32 { sign: 0, bexp: 0x7f, fraction: 0x000000 };  // 1
+    let b = F32 { sign: 1, bexp: 0x7f, fraction: 0x000000 };  // -1
+    let expected = F32 { sign: 0, bexp: 0x00, fraction: 0x000000 };  // a + b = 0
     assert_eq(n_path(a, b), (expected, false));
 
-    let a = F32 { sign: u1:0, bexp: u8:0x89, fraction: u23:0x1a4000 };  // 1234
-    let b = F32 { sign: u1:1, bexp: u8:0x89, fraction: u23:0x1a4000 };  // -1234
-    let expected = F32 { sign: u1:0, bexp: u8:0x00, fraction: u23:0x000000 };  // a + b = 0
+    let a = F32 { sign: 0, bexp: 0x89, fraction: 0x1a4000 };  // 1234
+    let b = F32 { sign: 1, bexp: 0x89, fraction: 0x1a4000 };  // -1234
+    let expected = F32 { sign: 0, bexp: 0x00, fraction: 0x000000 };  // a + b = 0
     assert_eq(n_path(a, b), (expected, false));
 
     // Various fractional values
-    let a = F32 { sign: u1:0, bexp: u8:0x7f, fraction: u23:0x000000 };  // 1
-    let b = F32 { sign: u1:1, bexp: u8:0x7e, fraction: u23:0x000000 };  // -0.5
-    let expected = F32 { sign: u1:0, bexp: u8:0x7e, fraction: u23:0x000000 };  // a + b = 0.5
+    let a = F32 { sign: 0, bexp: 0x7f, fraction: 0x000000 };  // 1
+    let b = F32 { sign: 1, bexp: 0x7e, fraction: 0x000000 };  // -0.5
+    let expected = F32 { sign: 0, bexp: 0x7e, fraction: 0x000000 };  // a + b = 0.5
     assert_eq(n_path(a, b), (expected, false));
 
-    let a = F32 { sign: u1:0, bexp: u8:0x7f, fraction: u23:0x000000 };  // 1
-    let b = F32 { sign: u1:1, bexp: u8:0x7e, fraction: u23:0x400000 };  // -0.75
-    let expected = F32 { sign: u1:0, bexp: u8:0x7d, fraction: u23:0x000000 };  // a + b = 0.25
+    let a = F32 { sign: 0, bexp: 0x7f, fraction: 0x000000 };  // 1
+    let b = F32 { sign: 1, bexp: 0x7e, fraction: 0x400000 };  // -0.75
+    let expected = F32 { sign: 0, bexp: 0x7d, fraction: 0x000000 };  // a + b = 0.25
     assert_eq(n_path(a, b), (expected, false));
 
-    let a = F32 { sign: u1:0, bexp: u8:0x7f, fraction: u23:0x000000 };  // 1
-    let b = F32 { sign: u1:1, bexp: u8:0x7e, fraction: u23:0x200000 };  // -0.625
-    let expected = F32 { sign: u1:0, bexp: u8:0x7d, fraction: u23:0x400000 };  // a + b = 0.375
+    let a = F32 { sign: 0, bexp: 0x7f, fraction: 0x000000 };  // 1
+    let b = F32 { sign: 1, bexp: 0x7e, fraction: 0x200000 };  // -0.625
+    let expected = F32 { sign: 0, bexp: 0x7d, fraction: 0x400000 };  // a + b = 0.375
     assert_eq(n_path(a, b), (expected, false));
 
-    let a = F32 { sign: u1:0, bexp: u8:0x7f, fraction: u23:0x000000 };  // 1
-    let b = F32 { sign: u1:1, bexp: u8:0x7f, fraction: u23:0x200000 };  // -1.25
-    let expected = F32 { sign: u1:1, bexp: u8:0x7d, fraction: u23:0x000000 };  // a + b = -0.25
+    let a = F32 { sign: 0, bexp: 0x7f, fraction: 0x000000 };  // 1
+    let b = F32 { sign: 1, bexp: 0x7f, fraction: 0x200000 };  // -1.25
+    let expected = F32 { sign: 1, bexp: 0x7d, fraction: 0x000000 };  // a + b = -0.25
     assert_eq(n_path(a, b), (expected, false));
 
     // Some corner cases
-    let a = F32 { sign: u1:0, bexp: u8:0x7f, fraction: u23:0x000001 };  // 1 + ulp(1)
-    let b = F32 { sign: u1:1, bexp: u8:0x7f, fraction: u23:0x000000 };  // -1
-    let expected = F32 { sign: u1:0, bexp: u8:0x68, fraction: u23:0x000000 };  // a + b = ulp(1)
+    let a = F32 { sign: 0, bexp: 0x7f, fraction: 0x000001 };  // 1 + ulp(1)
+    let b = F32 { sign: 1, bexp: 0x7f, fraction: 0x000000 };  // -1
+    let expected = F32 { sign: 0, bexp: 0x68, fraction: 0x000000 };  // a + b = ulp(1)
     assert_eq(n_path(a, b), (expected, false));
 
-    let a = F32 { sign: u1:0, bexp: u8:0x01, fraction: u23:0x000000 };  // MIN_NORM
-    let b = F32 { sign: u1:1, bexp: u8:0x01, fraction: u23:0x000000 };  // -MIN_NORM
-    let expected = F32 { sign: u1:0, bexp: u8:0x00, fraction: u23:0x000000 };  // a + b = 0
+    let a = F32 { sign: 0, bexp: 0x01, fraction: 0x000000 };  // MIN_NORM
+    let b = F32 { sign: 1, bexp: 0x01, fraction: 0x000000 };  // -MIN_NORM
+    let expected = F32 { sign: 0, bexp: 0x00, fraction: 0x000000 };  // a + b = 0
     assert_eq(n_path(a, b), (expected, false));
 
-    let a = F32 { sign: u1:1, bexp: u8:0x28, fraction: u23:0x6b0000 };  // 'h946b0000
-    let b = F32 { sign: u1:0, bexp: u8:0x28, fraction: u23:0x0e0000 };  // 'h140e0000
-    let expected = F32 { sign: u1:1, bexp: u8:0x27, fraction: u23:0x3a0000 };  // a + b = 'h93ba0000
+    let a = F32 { sign: 1, bexp: 0x28, fraction: 0x6b0000 };  // 'h946b0000
+    let b = F32 { sign: 0, bexp: 0x28, fraction: 0x0e0000 };  // 'h140e0000
+    let expected = F32 { sign: 1, bexp: 0x27, fraction: 0x3a0000 };  // a + b = 'h93ba0000
     assert_eq(n_path(a, b), (expected, false));
 
-    let a = F32 { sign: u1:1, bexp: u8:0x28, fraction: u23:0x6b3b67 };  // 'h946b3b67
-    let b = F32 { sign: u1:0, bexp: u8:0x28, fraction: u23:0x0e4c12 };  // 'h140e4c12
-    let expected = F32 { sign: u1:1, bexp: u8:0x27, fraction: u23:0x39deaa };  // a + b = 'h93b9deaa
+    let a = F32 { sign: 1, bexp: 0x28, fraction: 0x6b3b67 };  // 'h946b3b67
+    let b = F32 { sign: 0, bexp: 0x28, fraction: 0x0e4c12 };  // 'h140e4c12
+    let expected = F32 { sign: 1, bexp: 0x27, fraction: 0x39deaa };  // a + b = 'h93b9deaa
     assert_eq(n_path(a, b), (expected, false));
 }
 
 fn r_exponent_differencer
     <EXP_SZ: u32, FRACTION_SZ: u32,
-     SIGNIFICAND_WIDTH: u32 = {u32:1 + FRACTION_SZ}, // + hidden bit
-     LARGEST_MEANINGFUL_SHIFT_WIDTH: u32 = {std::clog2(SIGNIFICAND_WIDTH + u32:1)},
+     SIGNIFICAND_WIDTH: u32 = {1 + FRACTION_SZ}, // + hidden bit
+     LARGEST_MEANINGFUL_SHIFT_WIDTH: u32 = {std::clog2(SIGNIFICAND_WIDTH + 1)},
      UPPER_EXPONENT_WIDTH: u32 = {EXP_SZ - LARGEST_MEANINGFUL_SHIFT_WIDTH}>
     (a: apfloat::APFloat<EXP_SZ, FRACTION_SZ>, b: apfloat::APFloat<EXP_SZ, FRACTION_SZ>)
     -> (bool, uN[UPPER_EXPONENT_WIDTH], uN[LARGEST_MEANINGFUL_SHIFT_WIDTH], bool) {
@@ -345,12 +344,12 @@ fn r_exponent_differencer_test() {
     type UpperBits = uN[3];
     type LowerBits = uN[5];  // clog2(1 + 23 + 1)
 
-    let a = F32 { bexp: u8:42, sign: u1:0, fraction: u23:0 };
-    let b = F32 { bexp: u8:48, sign: u1:0, fraction: u23:0 };
+    let a = F32 { bexp: 42, sign: 0, fraction: 0 };
+    let b = F32 { bexp: 48, sign: 0, fraction: 0 };
     assert_eq(r_exponent_differencer(a, b), (true, UpperBits:0, LowerBits:6, true));
 
-    let a = F32 { bexp: u8:48, sign: u1:0, fraction: u23:0 };
-    let b = F32 { bexp: u8:42, sign: u1:0, fraction: u23:0 };
+    let a = F32 { bexp: 48, sign: 0, fraction: 0 };
+    let b = F32 { bexp: 42, sign: 0, fraction: 0 };
     assert_eq(r_exponent_differencer(a, b), (false, UpperBits:0, LowerBits:6, true));
 }
 
@@ -359,7 +358,7 @@ fn r_exponent_differencer_test() {
 fn r_path<EXP_SZ: u32, FRACTION_SZ: u32>
     (a: apfloat::APFloat<EXP_SZ, FRACTION_SZ>, b: apfloat::APFloat<EXP_SZ, FRACTION_SZ>)
     -> (apfloat::APFloat<EXP_SZ, FRACTION_SZ>, bool) {
-    const _SIGNIFICAND_WIDTH = FRACTION_SZ + u32:1;
+    const _SIGNIFICAND_WIDTH = FRACTION_SZ + 1;
 
     let (exp_diff_sign, up_diff, med_shift, use_far) = r_exponent_differencer(a, b);
 
@@ -387,11 +386,11 @@ fn r_path<EXP_SZ: u32, FRACTION_SZ: u32>
     let preshifted_signed_smaller_significand =
         if exp_diff_sign { preshifted_signed_a } else { preshifted_signed_b };
 
-    const LARGEST_ALIGNMENT_SHIFT = (u32:1 << std::clog2(FRACTION_SZ + u32:2)) - u32:1;
+    const LARGEST_ALIGNMENT_SHIFT = (u32:1 << std::clog2(FRACTION_SZ + 2)) - 1;
     const ALIGNED_SIGNIFICAND_FRACTION_BITS = LARGEST_ALIGNMENT_SHIFT + FRACTION_SZ;
 
-    type PaddedAlignedSignificand = sN[ALIGNED_SIGNIFICAND_FRACTION_BITS + u32:2];
-    type AlignedSignificandWithRounding = uN[ALIGNED_SIGNIFICAND_FRACTION_BITS + u32:1];
+    type PaddedAlignedSignificand = sN[ALIGNED_SIGNIFICAND_FRACTION_BITS + 2];
+    type AlignedSignificandWithRounding = uN[ALIGNED_SIGNIFICAND_FRACTION_BITS + 1];
 
     let _signed_small_significand =
         if exp_diff_sign { signed_b_significand } else { signed_a_significand };
@@ -399,7 +398,7 @@ fn r_path<EXP_SZ: u32, FRACTION_SZ: u32>
     let top_part = if effective_subtraction { !top_part_bits } else { top_part_bits };
     let max_shift_aligned_small_significand = top_part ++ signed_a_significand;
 
-    let padding_bits = uN[LARGEST_ALIGNMENT_SHIFT - u32:2]:0;
+    let padding_bits = uN[LARGEST_ALIGNMENT_SHIFT - 2]:0;
     let sign_adjusted_padding = if effective_subtraction { !padding_bits } else { padding_bits };
     let padded_signed_small_significand: PaddedAlignedSignificand = std::to_signed(
         effective_subtraction ++ preshifted_signed_smaller_significand ++ sign_adjusted_padding);
@@ -430,29 +429,29 @@ fn r_path<EXP_SZ: u32, FRACTION_SZ: u32>
 fn r_path_test() {
     type F32 = apfloat::APFloat<8, 23>;
 
-    let a = F32 { sign: u1:0, bexp: u8:0x7f, fraction: u23:0x000000 };  // 1
-    let b = F32 { sign: u1:0, bexp: u8:0x81, fraction: u23:0x000000 };  // 4
-    let expected = F32 { sign: u1:0, bexp: u8:0x81, fraction: u23:0x200000 };  // a + b = 5
+    let a = F32 { sign: 0, bexp: 0x7f, fraction: 0x000000 };  // 1
+    let b = F32 { sign: 0, bexp: 0x81, fraction: 0x000000 };  // 4
+    let expected = F32 { sign: 0, bexp: 0x81, fraction: 0x200000 };  // a + b = 5
     assert_eq(r_path(a, b), (expected, true));
 
-    let a = F32 { sign: u1:0, bexp: u8:0x7f, fraction: u23:0x000000 };  // 1
-    let b = F32 { sign: u1:1, bexp: u8:0x81, fraction: u23:0x000000 };  // -4
-    let expected = F32 { sign: u1:1, bexp: u8:0x80, fraction: u23:0x400000 };  // a + b = -3
+    let a = F32 { sign: 0, bexp: 0x7f, fraction: 0x000000 };  // 1
+    let b = F32 { sign: 1, bexp: 0x81, fraction: 0x000000 };  // -4
+    let expected = F32 { sign: 1, bexp: 0x80, fraction: 0x400000 };  // a + b = -3
     assert_eq(r_path(a, b), (expected, true));
 
-    let a = F32 { sign: u1:0, bexp: u8:0x7f, fraction: u23:0x000000 };  // 1
-    let b = F32 { sign: u1:1, bexp: u8:0x81, fraction: u23:0x400000 };  // -6
-    let expected = F32 { sign: u1:1, bexp: u8:0x81, fraction: u23:0x200000 };  // a + b = -5
+    let a = F32 { sign: 0, bexp: 0x7f, fraction: 0x000000 };  // 1
+    let b = F32 { sign: 1, bexp: 0x81, fraction: 0x400000 };  // -6
+    let expected = F32 { sign: 1, bexp: 0x81, fraction: 0x200000 };  // a + b = -5
     assert_eq(r_path(a, b), (expected, true));
 
-    let a = F32 { sign: u1:0, bexp: u8:0x7f, fraction: u23:0x000000 };  // 1
-    let b = F32 { sign: u1:1, bexp: u8:0x7d, fraction: u23:0x000000 };  // -0.25
-    let expected = F32 { sign: u1:0, bexp: u8:0x7e, fraction: u23:0x400000 };  // a + b = 0.75
+    let a = F32 { sign: 0, bexp: 0x7f, fraction: 0x000000 };  // 1
+    let b = F32 { sign: 1, bexp: 0x7d, fraction: 0x000000 };  // -0.25
+    let expected = F32 { sign: 0, bexp: 0x7e, fraction: 0x400000 };  // a + b = 0.75
     assert_eq(r_path(a, b), (expected, true));
 
-    let a = F32 { sign: u1:0, bexp: u8:0xfe, fraction: u23:0x7fffff };  // FLT_MAX
-    let b = F32 { sign: u1:0, bexp: u8:0xe7, fraction: u23:0x000000 };  // ulp(FLT_MAX)
-    let expected = F32 { sign: u1:0, bexp: u8:0xff, fraction: u23:0x000000 };  // a + b = inf
+    let a = F32 { sign: 0, bexp: 0xfe, fraction: 0x7fffff };  // FLT_MAX
+    let b = F32 { sign: 0, bexp: 0xe7, fraction: 0x000000 };  // ulp(FLT_MAX)
+    let expected = F32 { sign: 0, bexp: 0xff, fraction: 0x000000 };  // a + b = inf
     assert_eq(r_path(a, b), (expected, true));
 }
 
@@ -471,37 +470,37 @@ pub fn add_seidel_even<EXP_SZ: u32, FRACTION_SZ: u32>
 fn add_seidel_even_test() {
     type F32 = apfloat::APFloat<8, 23>;
 
-    let one: F32 = apfloat::one<u32:8, u32:23>(u1:0);
-    let two = F32 { sign: u1:0, bexp: u8:0x80, fraction: u23:0x000000 };
+    let one: F32 = apfloat::one<8, 23>(0);
+    let two = F32 { sign: 0, bexp: 0x80, fraction: 0x000000 };
     assert_eq(add_seidel_even(one, one), two);
 
-    let fourty = F32 { sign: u1:0, bexp: u8:0x84, fraction: u23:0x200000 };
-    let fourtytwo = F32 { sign: u1:0, bexp: u8:0x84, fraction: u23:0x280000 };
+    let fourty = F32 { sign: 0, bexp: 0x84, fraction: 0x200000 };
+    let fourtytwo = F32 { sign: 0, bexp: 0x84, fraction: 0x280000 };
     assert_eq(add_seidel_even(fourty, two), fourtytwo);
 
     // Subnormals considered zero
-    let a = F32 { sign: u1:1, bexp: u8:0x00, fraction: u23:0x008400 };  // subnormal
-    let b = F32 { sign: u1:0, bexp: u8:0x13, fraction: u23:0x7c2018 };  // some random value
-    let expected = F32 { sign: u1:0, bexp: u8:0x13, fraction: u23:0x7c2018 };  // a + b = same
+    let a = F32 { sign: 1, bexp: 0x00, fraction: 0x008400 };  // subnormal
+    let b = F32 { sign: 0, bexp: 0x13, fraction: 0x7c2018 };  // some random value
+    let expected = F32 { sign: 0, bexp: 0x13, fraction: 0x7c2018 };  // a + b = same
     assert_eq(add_seidel_even(a, b), expected);
 
     // Infinity + something = infinity
-    let a = F32 { sign: u1:0, bexp: u8:0xff, fraction: u23:0x000000 };  // inf
-    let b = F32 { sign: u1:0, bexp: u8:0xf2, fraction: u23:0x401000 };  // some random normal
-    let expected = F32 { sign: u1:0, bexp: u8:0xff, fraction: u23:0x000000 };  // a + b = inf
+    let a = F32 { sign: 0, bexp: 0xff, fraction: 0x000000 };  // inf
+    let b = F32 { sign: 0, bexp: 0xf2, fraction: 0x401000 };  // some random normal
+    let expected = F32 { sign: 0, bexp: 0xff, fraction: 0x000000 };  // a + b = inf
     assert_eq(add_seidel_even(a, b), expected);
 
     // -inf + inf => nan
-    let a = F32 { sign: u1:1, bexp: u8:0xff, fraction: u23:0x000000 };  // hff800000
-    let b = F32 { sign: u1:0, bexp: u8:0xff, fraction: u23:0x000000 };  // h7f800000
-    let expected = F32 { sign: u1:0, bexp: u8:0xff, fraction: u23:0x400000 };
+    let a = F32 { sign: 1, bexp: 0xff, fraction: 0x000000 };  // hff800000
+    let b = F32 { sign: 0, bexp: 0xff, fraction: 0x000000 };  // h7f800000
+    let expected = F32 { sign: 0, bexp: 0xff, fraction: 0x400000 };
     //assert_eq(add_seidel_even(a, b), expected);
     assert_eq(apfloat::add(a, b), expected);  // <- TODO: use add_seidel_even() not apfloat
 
     // Far away results should just result in the far result
-    let a = F32 { sign: u1:0, bexp: u8:0x11, fraction: u23:0x123456 };  // pretty tiny
-    let b = F32 { sign: u1:1, bexp: u8:0x92, fraction: u23:0x000001 };  // some number
-    let expected = F32 { sign: u1:1, bexp: u8:0x92, fraction: u23:0x000001 };  // a + b = same
+    let a = F32 { sign: 0, bexp: 0x11, fraction: 0x123456 };  // pretty tiny
+    let b = F32 { sign: 1, bexp: 0x92, fraction: 0x000001 };  // some number
+    let expected = F32 { sign: 1, bexp: 0x92, fraction: 0x000001 };  // a + b = same
     //assert_eq(add_seidel_even(a, b), expected);
     assert_eq(apfloat::add(a, b), expected);  // <- TODO: use add_seidel_even() not apfloat
 }

@@ -21,7 +21,7 @@ const LOWERCASE_Z = u8:122;
 fn capitalize<N: u32>(x: u8[N]) -> u8[N] {
     let cap_distance = 'a' - 'A';
 
-    let result = for (i, result): (u32, u8[N]) in u32:0..N {
+    let result = for (i, result): (u32, u8[N]) in 0..N {
         let element =
             if x[i] >= LOWERCASE_A && x[i] <= LOWERCASE_Z { x[i] - cap_distance } else { x[i] };
 
@@ -39,9 +39,9 @@ fn sponge_capitalize<N: u32>(x: u8[N]) -> u8[N] {
     let cap_distance = 'a' - 'A';
 
     let do_cap = true;
-    let result = for (i, (result, do_cap)): (u32, (u8[N], u1)) in u32:0..N {
-        let input_is_cap = x[i] >= u8:65 && x[i] <= u8:90;
-        let input_is_lower = x[i] >= u8:97 && x[i] <= u8:122;
+    let result = for (i, (result, do_cap)): (u32, (u8[N], u1)) in 0..N {
+        let input_is_cap = x[i] >= 65 && x[i] <= 90;
+        let input_is_lower = x[i] >= 97 && x[i] <= 122;
         let capital = x[i] - cap_distance;
         let lower = x[i] + cap_distance;
 

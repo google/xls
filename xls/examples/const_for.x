@@ -16,18 +16,18 @@
 #![feature(generics)]
 
 fn const_for_mask<N: u32>() -> u8 {
-    const for (idx, mask): (u32, u8) in u32:0..N {
+    const for (idx, mask): (u32, u8) in 0..N {
         mask | (u8:1 << idx)
-    }(u8:0)
+    }(0)
 }
 
 #[test]
 fn const_for_test() {
-    assert_eq(const_for_mask<u32:5>(), u8:0b11111);
-    assert_eq(const_for_mask<u32:8>(), u8::MAX);
+    assert_eq(const_for_mask<5>(), u8:0b11111);
+    assert_eq(const_for_mask<8>(), u8::MAX);
 }
 
-fn main() -> u8 { const_for_mask<u32:3>() }
+fn main() -> u8 { const_for_mask<3>() }
 
 proc ConstForInst {
     req_r: chan<()> in,
@@ -41,9 +41,9 @@ impl ConstForInst {
 
     fn next(self) {
         let (tok, _d) = recv(join(), self.req_r);
-        let result = const for (idx, mask): (u32, u32) in u32:0..u32:5 {
+        let result = const for (idx, mask): (u32, u32) in 0..5 {
             mask | (u32:1 << idx)
-        }(u32:0);
+        }(0);
         let tok = send(tok, self.resp_s, result);
     }
 }
@@ -61,7 +61,7 @@ impl ConstForProcSpawnTest {
     fn new(terminator: chan<bool> out) -> Self {
         let (req_s, req_r) = chan<()>[NUM_OF_CHANNELS]("req");
         let (resp_s, resp_r) = chan<u32>[NUM_OF_CHANNELS]("resp");
-        const for (idx, _): (u32, ()) in u32:0..NUM_OF_CHANNELS {
+        const for (idx, _): (u32, ()) in 0..NUM_OF_CHANNELS {
             ConstForInst::new(req_r[idx], resp_s[idx]).spawn();
         }(());
         Self { req_s, resp_r, terminator }

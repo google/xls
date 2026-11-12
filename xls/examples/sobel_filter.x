@@ -37,10 +37,10 @@ const Y_STENCIL_F32 = map(Y_STENCIL, convert_triplet);
 pub fn apply_stencil_float32<NUM_ROWS: u32, NUM_COLS: u32, NUM_ELMS: u32 = {NUM_ROWS * NUM_COLS}>
     (in_img: F32[NUM_ELMS], row_idx: u32, col_idx: u32, stencil: F32[3][3]) -> F32 {
 
-    for (row_offset, sum): (u32, F32) in u32:0..u32:3 {
+    for (row_offset, sum): (u32, F32) in 0..3 {
 
         let img_row_idx = row_idx + row_offset;
-        for (col_offset, sum): (u32, F32) in u32:0..u32:3 {
+        for (col_offset, sum): (u32, F32) in 0..3 {
             let img_col_idx = col_idx + col_offset;
 
             let img_idx = img_row_idx * NUM_COLS + img_col_idx;
@@ -50,7 +50,7 @@ pub fn apply_stencil_float32<NUM_ROWS: u32, NUM_COLS: u32, NUM_ELMS: u32 = {NUM_
             // as a reduction tree rather than a sequence of adds.
             float32::add(sum, prod)
         }(sum)
-    }(float32::zero(u1:0))
+    }(float32::zero(0))
 }
 
 #[test]
@@ -61,29 +61,29 @@ fn apply_stencil_float32_test() {
         float32::cast_from_fixed_using_rne);
 
     assert_eq(
-        apply_stencil_float32<u32:4, u32:4>(img1, u32:0, u32:0, X_STENCIL_F32),
+        apply_stencil_float32<4, 4>(img1, u32:0, u32:0, X_STENCIL_F32),
         float32::cast_from_fixed_using_rne(s32:-10));
     assert_eq(
-        apply_stencil_float32<u32:4, u32:4>(img1, u32:0, u32:1, X_STENCIL_F32),
+        apply_stencil_float32<4, 4>(img1, u32:0, u32:1, X_STENCIL_F32),
         float32::cast_from_fixed_using_rne(s32:9));
     assert_eq(
-        apply_stencil_float32<u32:4, u32:4>(img1, u32:1, u32:0, X_STENCIL_F32),
+        apply_stencil_float32<4, 4>(img1, u32:1, u32:0, X_STENCIL_F32),
         float32::cast_from_fixed_using_rne(s32:-11));
     assert_eq(
-        apply_stencil_float32<u32:4, u32:4>(img1, u32:1, u32:1, X_STENCIL_F32),
+        apply_stencil_float32<4, 4>(img1, u32:1, u32:1, X_STENCIL_F32),
         float32::cast_from_fixed_using_rne(s32:12));
 
     assert_eq(
-        apply_stencil_float32<u32:4, u32:4>(img1, u32:0, u32:0, Y_STENCIL_F32),
+        apply_stencil_float32<4, 4>(img1, u32:0, u32:0, Y_STENCIL_F32),
         float32::cast_from_fixed_using_rne(s32:-14));
     assert_eq(
-        apply_stencil_float32<u32:4, u32:4>(img1, u32:0, u32:1, Y_STENCIL_F32),
+        apply_stencil_float32<4, 4>(img1, u32:0, u32:1, Y_STENCIL_F32),
         float32::cast_from_fixed_using_rne(s32:-13));
     assert_eq(
-        apply_stencil_float32<u32:4, u32:4>(img1, u32:1, u32:0, Y_STENCIL_F32),
+        apply_stencil_float32<4, 4>(img1, u32:1, u32:0, Y_STENCIL_F32),
         float32::cast_from_fixed_using_rne(s32:7));
     assert_eq(
-        apply_stencil_float32<u32:4, u32:4>(img1, u32:1, u32:1, Y_STENCIL_F32),
+        apply_stencil_float32<4, 4>(img1, u32:1, u32:1, Y_STENCIL_F32),
         float32::cast_from_fixed_using_rne(s32:8));
 }
 
@@ -92,12 +92,12 @@ fn apply_stencil_float32_test() {
 // NUM_COLS-2 columns.
 pub fn sobel_filter_float32
     <NUM_ROWS: u32, NUM_COLS: u32, NUM_ELMS: u32 = {NUM_ROWS * NUM_COLS},
-     NUM_ROWS_OUT: u32 = {NUM_ROWS - u32:2}, NUM_COLS_OUT: u32 = {NUM_COLS - u32:2},
+     NUM_ROWS_OUT: u32 = {NUM_ROWS - 2}, NUM_COLS_OUT: u32 = {NUM_COLS - 2},
      NUM_ELMS_OUT: u32 = {NUM_ROWS_OUT * NUM_COLS_OUT}>
     (in_img: F32[NUM_ELMS]) -> F32[NUM_ELMS_OUT] {
     // Iterate over output pixels.
-    for (out_row_idx, out_img): (u32, F32[NUM_ELMS_OUT]) in u32:0..NUM_ROWS_OUT {
-        for (out_col_idx, out_img): (u32, F32[NUM_ELMS_OUT]) in u32:0..NUM_COLS_OUT {
+    for (out_row_idx, out_img): (u32, F32[NUM_ELMS_OUT]) in 0..NUM_ROWS_OUT {
+        for (out_col_idx, out_img): (u32, F32[NUM_ELMS_OUT]) in 0..NUM_COLS_OUT {
             // Iterate over stencil.
             let x_stencil_out = apply_stencil_float32<NUM_ROWS, NUM_COLS>(
                 in_img, out_row_idx, out_col_idx, X_STENCIL_F32);
@@ -112,7 +112,7 @@ pub fn sobel_filter_float32
             let out_idx = out_row_idx * NUM_COLS_OUT + out_col_idx;
             update(out_img, out_idx, pixel_val)
         }(out_img)
-    }(F32[NUM_ELMS_OUT]:[float32::zero(u1:0), ...])
+    }(F32[NUM_ELMS_OUT]:[float32::zero(0), ...])
 }
 
 #[test]
@@ -122,22 +122,22 @@ fn sobel_filter_float32_test() {
         s32[16]:[1, 1, 1, 1, 1, -1, -2, 1, 1, -4, -3, 1, 1, 1, 1, 1],
         float32::cast_from_fixed_using_rne);
 
-    let sobel_out = sobel_filter_float32<u32:4, u32:4>(img1);
+    let sobel_out = sobel_filter_float32<4, 4>(img1);
 
     // Truncate before comparison for simplicity.
     // Can't use map to cast_to_fixed for all elements at once because
     // map does not seem to support parametric functions.
-    assert_eq(float32::cast_to_fixed<u32:32>(sobel_out[u32:0]), s32:17);
-    assert_eq(float32::cast_to_fixed<u32:32>(sobel_out[u32:1]), s32:15);
-    assert_eq(float32::cast_to_fixed<u32:32>(sobel_out[u32:2]), s32:13);
-    assert_eq(float32::cast_to_fixed<u32:32>(sobel_out[u32:3]), s32:14);
+    assert_eq(float32::cast_to_fixed<32>(sobel_out[0]), s32:17);
+    assert_eq(float32::cast_to_fixed<32>(sobel_out[1]), s32:15);
+    assert_eq(float32::cast_to_fixed<32>(sobel_out[2]), s32:13);
+    assert_eq(float32::cast_to_fixed<32>(sobel_out[3]), s32:14);
 
     // Try non-square image.
     let img1 =
         map(s32[12]:[1, 1, 1, 1, 1, -1, -2, 1, 1, -4, -3, 1], float32::cast_from_fixed_using_rne);
-    let sobel_out = sobel_filter_float32<u32:3, u32:4>(img1);
-    assert_eq(float32::cast_to_fixed<u32:32>(sobel_out[u32:0]), s32:17);
-    assert_eq(float32::cast_to_fixed<u32:32>(sobel_out[u32:1]), s32:15);
+    let sobel_out = sobel_filter_float32<3, 4>(img1);
+    assert_eq(float32::cast_to_fixed<32>(sobel_out[0]), s32:17);
+    assert_eq(float32::cast_to_fixed<32>(sobel_out[1]), s32:15);
 }
 // TODO(jbaileyhandle): Fixed-point version (Images are generally fixed point).
 // Note that sqrt is a floating-point op, so we would need to cast to float

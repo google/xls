@@ -34,28 +34,28 @@ fn swap<B: u32, N: u32>(array: uN[B][N], i: u32, j: u32) -> uN[B][N] {
 
 fn bitonic_sort<N: u32, LOG_N: u32 = {std::clog2(N)}>(array: u32[N]) -> u32[N] {
     const_assert!(std::is_pow2(N));
-    let (result, _) = for (_, (array, k)) in u32:0..LOG_N {
-        let (result, _) = for (_, (array, j)) in u32:0..LOG_N {
-            if j == u32:0 {
+    let (result, _) = for (_, (array, k)) in 0..LOG_N {
+        let (result, _) = for (_, (array, j)) in 0..LOG_N {
+            if j == 0 {
                 (array, j)
             } else {
-                let result = for (i, array) in u32:0..N {
+                let result = for (i, array) in 0..N {
                     let l = i ^ j;
                     if l <= i {
                         (array)
                     } else {
-                        if (((i & k) == u32:0) && (array[i] > array[l])) ||
-                        (((i & k) != u32:0) && (array[i] < array[l])) {
+                        if (((i & k) == 0) && (array[i] > array[l])) ||
+                        (((i & k) != 0) && (array[i] < array[l])) {
                             swap(array, i, l)
                         } else {
                             (array)
                         }
                     }
                 }(array);
-                (result, j / u32:2)
+                (result, j / 2)
             }
-        }((array, k / u32:2));
-        (result, k * u32:2)
+        }((array, k / 2));
+        (result, k * 2)
     }((array, u32:2));
     result
 }

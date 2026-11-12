@@ -76,10 +76,10 @@ proc matmul<ROWS: u32, COLS: u32> {
     node_weights: chan<F32>[COLS][ROWS] out,
     activations: chan<F32>[ROWS] in,
     results: chan<F32>[COLS] out,
-    from_wests: chan<F32>[COLS + u32:1][ROWS] in,
-    to_easts: chan<F32>[COLS + u32:1][ROWS] out,
-    from_norths: chan<F32>[COLS][ROWS + u32:1] in,
-    to_souths: chan<F32>[COLS][ROWS + u32:1] out,
+    from_wests: chan<F32>[COLS + 1][ROWS] in,
+    to_easts: chan<F32>[COLS + 1][ROWS] out,
+    from_norths: chan<F32>[COLS][ROWS + 1] in,
+    to_souths: chan<F32>[COLS][ROWS + 1] out,
     weight_loaded: bool,
 }
 
@@ -89,14 +89,14 @@ impl matmul<ROWS, COLS> {
          results: chan<F32>[COLS] out) -> Self {
         let (store_node_weights, load_node_weights) = chan<F32>[COLS][ROWS]("node_weights");
         // Declare the east-to-west channels.
-        let (to_easts, from_wests) = chan<F32>[COLS + u32:1][ROWS]("east_west");
+        let (to_easts, from_wests) = chan<F32>[COLS + 1][ROWS]("east_west");
         // Declare the north-to-south channels.
-        let (to_souths, from_norths) = chan<F32>[COLS][ROWS + u32:1]("north_south");
-        unroll_for! (row, _): (u32, ()) in u32:0..ROWS {
-            unroll_for! (col, _): (u32, ()) in u32:0..COLS {
+        let (to_souths, from_norths) = chan<F32>[COLS][ROWS + 1]("north_south");
+        unroll_for! (row, _): (u32, ()) in 0..ROWS {
+            unroll_for! (col, _): (u32, ()) in 0..COLS {
                 node<row, col>::new(
                     load_node_weights[row][col], from_wests[row][col], from_norths[row][col],
-                    to_easts[row][col + u32:1], to_souths[row + u32:1][col]).spawn(
+                    to_easts[row][col + 1], to_souths[row + 1][col]).spawn(
                     );
             }(());
         }(());
@@ -120,8 +120,8 @@ impl matmul<ROWS, COLS> {
         // Note: this is a one-off operation that happens on the first activation.
         let tok = if !weight_loaded {
             let (recv_weights_tok, weights_matrix) = recv(token(), self.weights);
-            unroll_for! (row, tok): (u32, token) in u32:0..ROWS {
-                unroll_for! (col, tok): (u32, token) in u32:0..COLS {
+            unroll_for! (row, tok): (u32, token) in 0..ROWS {
+                unroll_for! (col, tok): (u32, token) in 0..COLS {
                     let weight_tok = send(
                         recv_weights_tok, self.node_weights[row][col], weights_matrix[row][col]);
                     join(weight_tok, tok)
@@ -133,26 +133,26 @@ impl matmul<ROWS, COLS> {
 
         // Send activation to the "left"-end of the array.
         const ACTIVATIONS_COL = u32:0;
-        unroll_for! (row, _): (u32, ()) in u32:0..ROWS {
+        unroll_for! (row, _): (u32, ()) in 0..ROWS {
             let (tok, activation) = recv(tok, self.activations[row]);
             send(tok, self.to_easts[row][ACTIVATIONS_COL], activation);
         }(());
 
         // Send zero values to the "top"-end of the array.
         const ZEROES_ROW = u32:0;
-        unroll_for! (col, _): (u32, ()) in u32:0..COLS {
+        unroll_for! (col, _): (u32, ()) in 0..COLS {
             send(token(), self.to_souths[ZEROES_ROW][col], float32::zero(false));
         }(());
 
         // Consume and drop values on the "right"-end of the array.
         const DROPS_COL = COLS;
-        unroll_for! (row, _): (u32, ()) in u32:0..ROWS {
+        unroll_for! (row, _): (u32, ()) in 0..ROWS {
             recv(token(), self.from_wests[row][DROPS_COL]);
         }(());
 
         // Forward result from the "bottom"-end of the array.
         const RESULTS_ROW = ROWS;
-        unroll_for! (col, _): (u32, ()) in u32:0..COLS {
+        unroll_for! (col, _): (u32, ()) in 0..COLS {
             let (tok, result) = recv(token(), self.from_norths[RESULTS_ROW][col]);
             send(tok, self.results[col], result);
         }(());
@@ -167,7 +167,7 @@ impl matmul_4x4 {
     fn new
         (weights: chan<F32[4][4]> in, activations: chan<F32>[4] in, results: chan<F32>[4] out)
         -> Self {
-        matmul<u32:4, u32:4>::new(weights, activations, results).spawn();
+        matmul<4, 4>::new(weights, activations, results).spawn();
         Self {}
     }
 }
@@ -190,13 +190,13 @@ impl matmul_4x4_test {
     }
 
     fn next(self) {
-        const F32_0 = float32::zero(u1:0);
-        const F32_1 = float32::one(u1:0);
-        const F32_2 = F32 { sign: u1:0, bexp: u8:128, fraction: u23:0 };
-        const F32_3 = F32 { sign: u1:0, bexp: u8:128, fraction: u1:1 ++ u22:0 };
-        const F32_4 = F32 { sign: u1:0, bexp: u8:129, fraction: u23:0 };
-        const F32_6 = F32 { sign: u1:0, bexp: u8:129, fraction: u1:1 ++ u22:0 };
-        const F32_8 = F32 { sign: u1:0, bexp: u8:130, fraction: u23:0 };
+        const F32_0 = float32::zero(0);
+        const F32_1 = float32::one(0);
+        const F32_2 = F32 { sign: 0, bexp: 128, fraction: 0 };
+        const F32_3 = F32 { sign: 0, bexp: 128, fraction: u1:1 ++ u22:0 };
+        const F32_4 = F32 { sign: 0, bexp: 129, fraction: 0 };
+        const F32_6 = F32 { sign: 0, bexp: 129, fraction: u1:1 ++ u22:0 };
+        const F32_8 = F32 { sign: 0, bexp: 130, fraction: 0 };
         const SCALAR_MATRIX_4X4_F32_2 = F32[4][4]:[
             [F32_2, F32_0, F32_0, F32_0], [F32_0, F32_2, F32_0, F32_0],
             [F32_0, F32_0, F32_2, F32_0], [F32_0, F32_0, F32_0, F32_2],

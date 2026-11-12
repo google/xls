@@ -49,14 +49,14 @@ fn idct_row(s: s32[8]) -> s32[8] {
     let w2mw6 = W2 - W6;
     let w3pw5 = W3 + W5;
     let w3mw5 = W3 - W5;
-    let x0 = (s[u8:0] << u32:11) + s32:128;
-    let x1 = s[u8:4] << u32:11;
-    let x2 = s[u8:6];
-    let x3 = s[u8:2];
-    let x4 = s[u8:1];
-    let x5 = s[u8:7];
-    let x6 = s[u8:5];
-    let x7 = s[u8:3];
+    let x0 = (s[0] << 11) + 128;
+    let x1 = s[4] << 11;
+    let x2 = s[6];
+    let x3 = s[2];
+    let x4 = s[1];
+    let x5 = s[7];
+    let x6 = s[5];
+    let x7 = s[3];
 
     // Stage 1.
     let x8 = W7 * (x4 + x5);
@@ -82,13 +82,13 @@ fn idct_row(s: s32[8]) -> s32[8] {
     let x8 = x8 - x3;
     let x3 = x0 + x2;
     let x0 = x0 - x2;
-    let x2 = (R2 * (x4 + x5) + s32:128) >> u32:8;
-    let x4 = (R2 * (x4 - x5) + s32:128) >> u32:8;
+    let x2 = (R2 * (x4 + x5) + 128) >> 8;
+    let x4 = (R2 * (x4 - x5) + 128) >> 8;
 
     // Stage 4.
     let result = s32[8]:[
-        (x7 + x1) >> u32:8, (x3 + x2) >> u32:8, (x0 + x4) >> u32:8, (x8 + x6) >> u32:8,
-        (x8 - x6) >> u32:8, (x0 - x4) >> u32:8, (x3 - x2) >> u32:8, (x7 - x1) >> u32:8,
+        (x7 + x1) >> 8, (x3 + x2) >> 8, (x0 + x4) >> 8, (x8 + x6) >> 8, (x8 - x6) >> 8,
+        (x0 - x4) >> 8, (x3 - x2) >> 8, (x7 - x1) >> 8,
     ];
     result
 }
@@ -104,22 +104,21 @@ fn idct_row_test() {
 // Extracts a row (8 adjacent values) from a 64-value coefficient array.
 fn get_row(a: s32[COEFF_PER_MCU], rowno: u8) -> s32[8] {
     s32[8]:[
-        a[u8:8 * rowno + u8:0], a[u8:8 * rowno + u8:1], a[u8:8 * rowno + u8:2],
-        a[u8:8 * rowno + u8:3], a[u8:8 * rowno + u8:4], a[u8:8 * rowno + u8:5],
-        a[u8:8 * rowno + u8:6], a[u8:8 * rowno + u8:7],
+        a[8 * rowno + 0], a[8 * rowno + 1], a[8 * rowno + 2], a[8 * rowno + 3], a[8 * rowno + 4],
+        a[8 * rowno + 5], a[8 * rowno + 6], a[8 * rowno + 7],
     ]
 }
 
 // Runs a row-wise IDCT over each of the 8-element rows of f.
 fn idct_rows(f: s32[COEFF_PER_MCU]) -> s32[COEFF_PER_MCU] {
-    let row0 = idct_row(get_row(f, u8:0));
-    let row1 = idct_row(get_row(f, u8:1));
-    let row2 = idct_row(get_row(f, u8:2));
-    let row3 = idct_row(get_row(f, u8:3));
-    let row4 = idct_row(get_row(f, u8:4));
-    let row5 = idct_row(get_row(f, u8:5));
-    let row6 = idct_row(get_row(f, u8:6));
-    let row7 = idct_row(get_row(f, u8:7));
+    let row0 = idct_row(get_row(f, 0));
+    let row1 = idct_row(get_row(f, 1));
+    let row2 = idct_row(get_row(f, 2));
+    let row3 = idct_row(get_row(f, 3));
+    let row4 = idct_row(get_row(f, 4));
+    let row5 = idct_row(get_row(f, 5));
+    let row6 = idct_row(get_row(f, 6));
+    let row7 = idct_row(get_row(f, 7));
     row0 ++ row1 ++ row2 ++ row3 ++ row4 ++ row5 ++ row6 ++ row7
 }
 
@@ -140,29 +139,29 @@ fn idct_col(s: s32[8]) -> s32[8] {
     let w3mw5 = W3 - W5;
 
     // Prescale.
-    let y0 = (s[u8:0] << u32:8) + s32:8192;
-    let y1 = s[u8:4] << u32:8;
-    let y2 = s[u8:6];
-    let y3 = s[u8:2];
-    let y4 = s[u8:1];
-    let y5 = s[u8:7];
-    let y6 = s[u8:5];
-    let y7 = s[u8:3];
+    let y0 = (s[0] << 8) + 8192;
+    let y1 = s[4] << 8;
+    let y2 = s[6];
+    let y3 = s[2];
+    let y4 = s[1];
+    let y5 = s[7];
+    let y6 = s[5];
+    let y7 = s[3];
 
     // Stage 1.
-    let y8 = W7 * (y4 + y5) + s32:4;
-    let y4 = (y8 + w1mw7 * y4) >> u32:3;
-    let y5 = (y8 - w1pw7 * y5) >> u32:3;
-    let y8 = W3 * (y6 + y7) + s32:4;
-    let y6 = (y8 - w3mw5 * y6) >> u32:3;
-    let y7 = (y8 - w3pw5 * y7) >> u32:3;
+    let y8 = W7 * (y4 + y5) + 4;
+    let y4 = (y8 + w1mw7 * y4) >> 3;
+    let y5 = (y8 - w1pw7 * y5) >> 3;
+    let y8 = W3 * (y6 + y7) + 4;
+    let y6 = (y8 - w3mw5 * y6) >> 3;
+    let y7 = (y8 - w3pw5 * y7) >> 3;
 
     // Stage 2.
     let y8 = y0 + y1;
     let y0 = y0 - y1;
-    let y1 = W6 * (y3 + y2) + s32:4;
-    let y2 = (y1 - w2pw6 * y2) >> u32:3;
-    let y3 = (y1 + w2mw6 * y3) >> u32:3;
+    let y1 = W6 * (y3 + y2) + 4;
+    let y2 = (y1 - w2pw6 * y2) >> 3;
+    let y3 = (y1 + w2mw6 * y3) >> 3;
     let y1 = y4 + y6;
     let y4 = y4 - y6;
     let y6 = y5 + y7;
@@ -173,48 +172,47 @@ fn idct_col(s: s32[8]) -> s32[8] {
     let y8 = y8 - y3;
     let y3 = y0 + y2;
     let y0 = y0 - y2;
-    let y2 = (R2 * (y4 + y5) + s32:128) >> u32:8;
-    let y4 = (R2 * (y4 - y5) + s32:128) >> u32:8;
+    let y2 = (R2 * (y4 + y5) + 128) >> 8;
+    let y4 = (R2 * (y4 - y5) + 128) >> 8;
 
     // Stage 4.
     s32[8]:[
-        (y7 + y1) >> u32:14, (y3 + y2) >> u32:14, (y0 + y4) >> u32:14, (y8 + y6) >> u32:14,
-        (y8 - y6) >> u32:14, (y0 - y4) >> u32:14, (y3 - y2) >> u32:14, (y7 - y1) >> u32:14,
+        (y7 + y1) >> 14, (y3 + y2) >> 14, (y0 + y4) >> 14, (y8 + y6) >> 14, (y8 - y6) >> 14,
+        (y0 - y4) >> 14, (y3 - y2) >> 14, (y7 - y1) >> 14,
     ]
 }
 
 // Extracts a column (8 strided values) from a 64-value coefficient array.
 fn get_col(a: s32[COEFF_PER_MCU], colno: u8) -> s32[8] {
     s32[8]:[
-        a[u8:8 * u8:0 + colno], a[u8:8 * u8:1 + colno], a[u8:8 * u8:2 + colno],
-        a[u8:8 * u8:3 + colno], a[u8:8 * u8:4 + colno], a[u8:8 * u8:5 + colno],
-        a[u8:8 * u8:6 + colno], a[u8:8 * u8:7 + colno],
+        a[8 * 0 + colno], a[8 * 1 + colno], a[8 * 2 + colno], a[8 * 3 + colno], a[8 * 4 + colno],
+        a[8 * 5 + colno], a[8 * 6 + colno], a[8 * 7 + colno],
     ]
 }
 
 // Runs a column-wise IDCT over each of the 8-element columns of f.
 fn idct_cols(f: s32[COEFF_PER_MCU]) -> s32[COEFF_PER_MCU] {
-    let col0 = idct_col(get_col(f, u8:0));
-    let col1 = idct_col(get_col(f, u8:1));
-    let col2 = idct_col(get_col(f, u8:2));
-    let col3 = idct_col(get_col(f, u8:3));
-    let col4 = idct_col(get_col(f, u8:4));
-    let col5 = idct_col(get_col(f, u8:5));
-    let col6 = idct_col(get_col(f, u8:6));
-    let col7 = idct_col(get_col(f, u8:7));
+    let col0 = idct_col(get_col(f, 0));
+    let col1 = idct_col(get_col(f, 1));
+    let col2 = idct_col(get_col(f, 2));
+    let col3 = idct_col(get_col(f, 3));
+    let col4 = idct_col(get_col(f, 4));
+    let col5 = idct_col(get_col(f, 5));
+    let col6 = idct_col(get_col(f, 6));
+    let col7 = idct_col(get_col(f, 7));
 
     // Concatenate the columns. This is awkward to do today...
     // TODO(leary): 2020-08-03 Come up with a plan for making this better.
-    for (i, accum): (u8, s32[COEFF_PER_MCU]) in u8:0..COEFF_PER_MCU_U8 {
-        let val: s32 = match i & u8:7 {
-            u8:0 => col0[i >> u8:3],
-            u8:1 => col1[i >> u8:3],
-            u8:2 => col2[i >> u8:3],
-            u8:3 => col3[i >> u8:3],
-            u8:4 => col4[i >> u8:3],
-            u8:5 => col5[i >> u8:3],
-            u8:6 => col6[i >> u8:3],
-            u8:7 => col7[i >> u8:3],
+    for (i, accum): (u8, s32[COEFF_PER_MCU]) in 0..COEFF_PER_MCU_U8 {
+        let val: s32 = match i & 7 {
+            0 => col0[i >> 3],
+            1 => col1[i >> 3],
+            2 => col2[i >> 3],
+            3 => col3[i >> 3],
+            4 => col4[i >> 3],
+            5 => col5[i >> 3],
+            6 => col6[i >> 3],
+            7 => col7[i >> 3],
             _ => fail!("invalid_column_index", s32:0),
         };
         update(accum, i, val)

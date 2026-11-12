@@ -69,32 +69,32 @@ fn expand_mask
     <DATA_WIDTH: u32, NUM_PARTITIONS: u32,
      EXPANSION_FACTOR: u32 = {std::ceil_div(DATA_WIDTH, NUM_PARTITIONS)}>
     (partition_mask: uN[NUM_PARTITIONS]) -> uN[DATA_WIDTH] {
-    for (idx, data_mask): (u32, uN[DATA_WIDTH]) in u32:0..NUM_PARTITIONS {
+    for (idx, data_mask): (u32, uN[DATA_WIDTH]) in 0..NUM_PARTITIONS {
         let data_mask_segment = flatten(u1[EXPANSION_FACTOR]:[partition_mask[idx+:u1], ...]);
         ((data_mask_segment as uN[DATA_WIDTH]) << (idx * EXPANSION_FACTOR)) | data_mask
-    }(uN[DATA_WIDTH]:0)
+    }(0)
 }
 
 #[test]
 fn expand_mask_test() {
     // Try expanding all 2-bit masks to 4-bit masks.
-    assert_eq(u4:0b0000, expand_mask<u32:4>(u2:0b00));
-    assert_eq(u4:0b1100, expand_mask<u32:4>(u2:0b10));
-    assert_eq(u4:0b0011, expand_mask<u32:4>(u2:0b01));
-    assert_eq(u4:0b1111, expand_mask<u32:4>(u2:0b11));
+    assert_eq(u4:0b0000, expand_mask<4>(u2:0b00));
+    assert_eq(u4:0b1100, expand_mask<4>(u2:0b10));
+    assert_eq(u4:0b0011, expand_mask<4>(u2:0b01));
+    assert_eq(u4:0b1111, expand_mask<4>(u2:0b11));
 
     // Try expanding all 2-bit masks to 3-bit masks, which are the same as the
     // 4-bit masks with the MSB dropped.
-    assert_eq(u3:0b000, expand_mask<u32:3>(u2:0b00));
-    assert_eq(u3:0b100, expand_mask<u32:3>(u2:0b10));
-    assert_eq(u3:0b011, expand_mask<u32:3>(u2:0b01));
-    assert_eq(u3:0b111, expand_mask<u32:3>(u2:0b11));
+    assert_eq(u3:0b000, expand_mask<3>(u2:0b00));
+    assert_eq(u3:0b100, expand_mask<3>(u2:0b10));
+    assert_eq(u3:0b011, expand_mask<3>(u2:0b01));
+    assert_eq(u3:0b111, expand_mask<3>(u2:0b11));
 
     // Try expanding 2-bit masks to 2-bit masks, which should be identity.
-    assert_eq(u2:0b00, expand_mask<u32:2>(u2:0b00));
-    assert_eq(u2:0b10, expand_mask<u32:2>(u2:0b10));
-    assert_eq(u2:0b01, expand_mask<u32:2>(u2:0b01));
-    assert_eq(u2:0b11, expand_mask<u32:2>(u2:0b11));
+    assert_eq(u2:0b00, expand_mask<2>(u2:0b00));
+    assert_eq(u2:0b10, expand_mask<2>(u2:0b10));
+    assert_eq(u2:0b01, expand_mask<2>(u2:0b01));
+    assert_eq(u2:0b11, expand_mask<2>(u2:0b11));
 }
 
 // Writes value `write_value` with write mask `mask` over previous value
@@ -107,7 +107,7 @@ fn write_word<DATA_WIDTH: u32, NUM_PARTITIONS: u32>
     let expanded_mask = expand_mask<DATA_WIDTH>(mask);
     let new_word = (mem_word & !expanded_mask) | (write_value & expanded_mask);
     let new_initialization =
-        for (idx, partial_initialization): (u32, bool[NUM_PARTITIONS]) in u32:0..NUM_PARTITIONS {
+        for (idx, partial_initialization): (u32, bool[NUM_PARTITIONS]) in 0..NUM_PARTITIONS {
             if mask[idx+:bool] {
                 update(partial_initialization, idx, true)
             } else {
@@ -131,8 +131,8 @@ fn write_word_test() {
 // word divided into word_partition_size-chunks.
 pub fn num_partitions(word_partition_size: u32, data_width: u32) -> u32 {
     match word_partition_size {
-        u32:0 => u32:0,
-        _ => (word_partition_size + data_width - u32:1) / word_partition_size,
+        0 => 0,
+        _ => (word_partition_size + data_width - 1) / word_partition_size,
     }
 }
 
@@ -161,7 +161,7 @@ pub fn num_partitions(word_partition_size: u32, data_width: u32) -> u32 {
 //  ASSERT_VALID_READ: if true, add assertion that read operations are only
 //   performed on values that a previous write has set. This is meant to model
 //   asserting that a user doesn't read X from an unitialized SRAM.
-pub proc RamModel<DATA_WIDTH: u32, SIZE: u32, WORD_PARTITION_SIZE: u32 = {u32:0}, SIMULTANEOUS_READ_WRITE_BEHAVIOR:
+pub proc RamModel<DATA_WIDTH: u32, SIZE: u32, WORD_PARTITION_SIZE: u32 = {0}, SIMULTANEOUS_READ_WRITE_BEHAVIOR:
 SimultaneousReadWriteBehavior = {
     SimultaneousReadWriteBehavior::READ_BEFORE_WRITE}, INITIALIZED: bool = {false}, ASSERT_VALID_READ:
 bool = {
@@ -186,7 +186,7 @@ u32 = {
             // mem contents initialized to whatever INITIAL_VALUE contains (zero by
             // default).
             // TODO(google/xls#818): use a parameter for the initial value.
-            uN[DATA_WIDTH][SIZE]:[uN[DATA_WIDTH]:0, ...], // mem_initialized initialized to whatever
+            uN[DATA_WIDTH][SIZE]:[0, ...], // mem_initialized initialized to whatever
             // INITIALIZED is (false by
             // default, indicating no data has been written yet).
             bool[NUM_PARTITIONS][SIZE]:[bool[NUM_PARTITIONS]:[INITIALIZED, ...], ...]
@@ -199,16 +199,10 @@ u32 = {
         let (mem, mem_initialized) = state;
 
         // Perform nonblocking receives on each request channel.
-        let zero_read_req = ReadReq<ADDR_WIDTH, NUM_PARTITIONS> {
-            addr: bits[ADDR_WIDTH]:0,
-            mask: bits[NUM_PARTITIONS]:0,
-        };
+        let zero_read_req = ReadReq<ADDR_WIDTH, NUM_PARTITIONS> { addr: 0, mask: 0 };
         let (tok, read_req, read_req_valid) = recv_non_blocking(join(), read_req, zero_read_req);
-        let zero_write_req = WriteReq<ADDR_WIDTH, DATA_WIDTH, NUM_PARTITIONS> {
-            addr: bits[ADDR_WIDTH]:0,
-            data: bits[DATA_WIDTH]:0,
-            mask: bits[NUM_PARTITIONS]:0,
-        };
+        let zero_write_req =
+            WriteReq<ADDR_WIDTH, DATA_WIDTH, NUM_PARTITIONS> { addr: 0, data: 0, mask: 0 };
         let (tok, write_req, write_req_valid) = recv_non_blocking(tok, write_req, zero_write_req);
 
         // Assert memory being read is initialized by checking that all partitions
@@ -216,9 +210,7 @@ u32 = {
         if read_req_valid && ASSERT_VALID_READ {
             let mem_initialized_as_bits =
                 std::convert_to_bits_msb0(array_rev(mem_initialized[read_req.addr]));
-            assert!(
-                read_req.mask & !mem_initialized_as_bits == uN[NUM_PARTITIONS]:0,
-                "memory_not_initialized")
+            assert!(read_req.mask & !mem_initialized_as_bits == 0, "memory_not_initialized")
         } else {
             ()
         };
@@ -287,21 +279,20 @@ proc RamModelWriteReadMaskedWriteReadTest {
 
     next(state: ()) {
         let NUM_OFFSETS = u32:8;
-        let tok = for (offset, tok): (u32, token) in u32:0..NUM_OFFSETS {
+        let tok = for (offset, tok): (u32, token) in 0..NUM_OFFSETS {
             trace!(offset);
 
             // First, write the whole memory.
-            let tok = for (addr, tok): (u32, token) in u32:0..u32:256 {
+            let tok = for (addr, tok): (u32, token) in 0..256 {
                 let tok = send(
-                    tok, write_req,
-                    WriteWordReq<u32:32>(addr as uN[8], (addr + offset) as uN[32]));
+                    tok, write_req, WriteWordReq<32>(addr as uN[8], (addr + offset) as uN[32]));
                 let (tok, _) = recv(tok, write_resp);
                 tok
             }(tok);
 
             // Now check that what we wrote is still there.
-            let tok = for (addr, tok): (u32, token) in u32:0..u32:256 {
-                let tok = send(tok, read_req, ReadWordReq<u32:32>(addr as uN[8]));
+            let tok = for (addr, tok): (u32, token) in 0..256 {
+                let tok = send(tok, read_req, ReadWordReq<32>(addr as uN[8]));
                 let (tok, read_data) = recv(tok, read_resp);
                 assert_eq(read_data.data, (addr + offset) as uN[32]);
                 tok
@@ -310,19 +301,15 @@ proc RamModelWriteReadMaskedWriteReadTest {
         }(join());
 
         // Test that masked writes work.
-        let tok = for (addr, tok): (u32, token) in u32:0..u32:256 {
-            let bit_idx = addr & u32:0x1F;  // addr % 32
+        let tok = for (addr, tok): (u32, token) in 0..256 {
+            let bit_idx = addr & 0x1F;  // addr % 32
             let tok = send(
                 tok, write_req,
-                WriteReq<u32:8, u32:32, u32:32> {
-                    addr: addr as uN[8],
-                    data: u32:0,
-                    mask: (u32:1 << bit_idx),
-                });
+                WriteReq<8, 32, 32> { addr: addr as uN[8], data: 0, mask: (u32:1 << bit_idx) });
             let (tok, _) = recv(tok, write_resp);
-            let tok = send(tok, read_req, ReadWordReq<u32:32>(addr as uN[8]));
+            let tok = send(tok, read_req, ReadWordReq<32>(addr as uN[8]));
             let (tok, read_data) = recv(tok, read_resp);
-            let expected = (addr + NUM_OFFSETS - u32:1) & !(u32:1 << bit_idx);
+            let expected = (addr + NUM_OFFSETS - 1) & !(u32:1 << bit_idx);
             assert_eq(read_data.data, expected);
             tok
         }(tok);
@@ -358,8 +345,8 @@ proc RamModelInitializationTest {
 
     next(state: ()) {
         // Now check that what we wrote is still there.
-        let tok = for (addr, tok): (u32, token) in u32:0..u32:256 {
-            let tok = send(tok, read_req, ReadWordReq<u32:32>(addr as uN[8]));
+        let tok = for (addr, tok): (u32, token) in 0..256 {
+            let tok = send(tok, read_req, ReadWordReq<32>(addr as uN[8]));
             let (tok, read_data) = recv(tok, read_resp);
             assert_eq(read_data.data, u32:0);
             tok
@@ -395,16 +382,16 @@ proc RamModelFourBitMaskReadWriteTest {
 
     next(state: ()) {
         // Write full words
-        let tok = send(join(), write_req, WriteWordReq<u32:2>(u8:0, u8:0xFF));
+        let tok = send(join(), write_req, WriteWordReq<2>(u8:0, u8:0xFF));
         let (tok, _) = recv(tok, write_resp);
-        let tok = send(tok, write_req, WriteWordReq<u32:2>(u8:1, u8:0xBA));
+        let tok = send(tok, write_req, WriteWordReq<2>(u8:1, u8:0xBA));
         let (tok, _) = recv(tok, write_resp);
 
         // Check that full words are written as expected
-        let tok = send(tok, read_req, ReadWordReq<u32:2>(u8:0));
+        let tok = send(tok, read_req, ReadWordReq<2>(u8:0));
         let (tok, read_data) = recv(tok, read_resp);
         assert_eq(read_data.data, u8:0xFF);
-        let tok = send(tok, read_req, ReadWordReq<u32:2>(u8:1));
+        let tok = send(tok, read_req, ReadWordReq<2>(u8:1));
         let (tok, read_data) = recv(tok, read_resp);
         assert_eq(read_data.data, u8:0xBA);
 
@@ -415,10 +402,10 @@ proc RamModelFourBitMaskReadWriteTest {
         let (tok, _) = recv(tok, write_resp);
 
         // Check that half-words are written as expected
-        let tok = send(tok, read_req, ReadWordReq<u32:2>(u8:0));
+        let tok = send(tok, read_req, ReadWordReq<2>(u8:0));
         let (tok, read_data) = recv(tok, read_resp);
         assert_eq(read_data.data, u8:0xDF);
-        let tok = send(tok, read_req, ReadWordReq<u32:2>(u8:1));
+        let tok = send(tok, read_req, ReadWordReq<2>(u8:1));
         let (tok, read_data) = recv(tok, read_resp);
         assert_eq(read_data.data, u8:0xB8);
 
@@ -458,7 +445,7 @@ proc RamModelAssertNoConflictWriteOnlyTest {
     init { () }
 
     next(state: ()) {
-        let tok = send(join(), write_req, WriteWordReq<u32:1>(u8:0, u8:0xFF));
+        let tok = send(join(), write_req, WriteWordReq<1>(u8:0, u8:0xFF));
         let (tok, _) = recv(tok, write_resp);
 
         let tok = send(tok, terminator, true);
@@ -480,7 +467,7 @@ pub struct RWRamReq<ADDR_WIDTH: u32, DATA_WIDTH: u32> {
 pub struct RWRamResp<DATA_WIDTH: u32> { data: bits[DATA_WIDTH] }
 
 // Models a single-port RAM.
-pub proc SinglePortRamModel<DATA_WIDTH: u32, SIZE: u32, WORD_PARTITION_SIZE: u32 = {u32:0}, ADDR_WIDTH:
+pub proc SinglePortRamModel<DATA_WIDTH: u32, SIZE: u32, WORD_PARTITION_SIZE: u32 = {0}, ADDR_WIDTH:
 u32 = {
     std::clog2(SIZE)}, NUM_PARTITIONS: u32 = {num_partitions(WORD_PARTITION_SIZE, DATA_WIDTH)}>
 {
@@ -493,7 +480,7 @@ u32 = {
         (req, resp, wr_comp)
     }
 
-    init { bits[DATA_WIDTH][SIZE]:[bits[DATA_WIDTH]:0, ...] }
+    init { bits[DATA_WIDTH][SIZE]:[0, ...] }
 
     next(state: bits[DATA_WIDTH][SIZE]) {
         let (tok, request) = recv(join(), req_chan);
@@ -534,10 +521,10 @@ proc SinglePortRamModelTest {
     next(state: ()) {
         let NUM_OFFSETS = u32:30;
         trace!(NUM_OFFSETS);
-        let tok = for (offset, tok): (u32, token) in u32:0..NUM_OFFSETS {
+        let tok = for (offset, tok): (u32, token) in 0..NUM_OFFSETS {
             trace!(offset);
             // First, write the whole memory.
-            let tok = for (addr, tok): (u32, token) in u32:0..u32:1024 {
+            let tok = for (addr, tok): (u32, token) in 0..1024 {
                 let tok = send(
                     tok, req_out,
                     RWRamReq {
@@ -553,7 +540,7 @@ proc SinglePortRamModelTest {
             }(tok);
 
             // Now check that what we wrote is still there.
-            let tok = for (addr, tok): (u32, token) in u32:0..u32:1024 {
+            let tok = for (addr, tok): (u32, token) in 0..1024 {
                 let tok = send(
                     tok, req_out,
                     RWRamReq {
@@ -575,7 +562,7 @@ proc SinglePortRamModelTest {
 }
 
 // Models a true dual-port RAM.
-proc RamModel2RW<DATA_WIDTH: u32, SIZE: u32, WORD_PARTITION_SIZE: u32 = {u32:0}, SIMULTANEOUS_READ_WRITE_BEHAVIOR:
+proc RamModel2RW<DATA_WIDTH: u32, SIZE: u32, WORD_PARTITION_SIZE: u32 = {0}, SIMULTANEOUS_READ_WRITE_BEHAVIOR:
 SimultaneousReadWriteBehavior = {
     SimultaneousReadWriteBehavior::READ_BEFORE_WRITE}, ADDR_WIDTH: u32 = {std::clog2(SIZE)}, NUM_PARTITIONS:
 u32 = {
@@ -594,7 +581,7 @@ u32 = {
         (req0, req1, resp0, resp1, wr_comp0, wr_comp1)
     }
 
-    init { bits[DATA_WIDTH][SIZE]:[bits[DATA_WIDTH]:0, ...] }
+    init { bits[DATA_WIDTH][SIZE]:[0, ...] }
 
     next(state: bits[DATA_WIDTH][SIZE]) {
         let (tok0, request0, valid0) =
@@ -622,17 +609,17 @@ u32 = {
             if valid1 && request1.we { update(state, request1.addr, request1.data) } else { state };
 
         let response0 = match (valid0 && request0.re, SIMULTANEOUS_READ_WRITE_BEHAVIOR) {
-            (bool:1, SimultaneousReadWriteBehavior::READ_BEFORE_WRITE) => RWRamResp {
+            (1, SimultaneousReadWriteBehavior::READ_BEFORE_WRITE) => RWRamResp {
                 data: state_before_write[request0.addr],
             },
-            (bool:1, _) => RWRamResp { data: state[request0.addr] },
+            (1, _) => RWRamResp { data: state[request0.addr] },
             _ => RWRamResp { data: bits[DATA_WIDTH]:0 },
         };
         let response1 = match (valid1 && request1.re, SIMULTANEOUS_READ_WRITE_BEHAVIOR) {
-            (bool:1, SimultaneousReadWriteBehavior::READ_BEFORE_WRITE) => RWRamResp {
+            (1, SimultaneousReadWriteBehavior::READ_BEFORE_WRITE) => RWRamResp {
                 data: state_before_write[request1.addr],
             },
-            (bool:1, _) => RWRamResp { data: state[request1.addr] },
+            (1, _) => RWRamResp { data: state[request1.addr] },
             _ => RWRamResp { data: bits[DATA_WIDTH]:0 },
         };
 
@@ -677,10 +664,10 @@ proc RamModel2RWTest {
     next(state: ()) {
         let NUM_OFFSETS = u32:30;
         trace!(NUM_OFFSETS);
-        let tok = for (offset, tok): (u32, token) in u32:0..NUM_OFFSETS {
+        let tok = for (offset, tok): (u32, token) in 0..NUM_OFFSETS {
             let tok = trace_fmt!("offset = {}", offset);
             // First, write the whole memory.
-            let tok = for (addr, tok): (u32, token) in u32:0..u32:1024 {
+            let tok = for (addr, tok): (u32, token) in 0..1024 {
                 let tok = send(
                     tok, req0_out,
                     RWRamReq {
@@ -696,7 +683,7 @@ proc RamModel2RWTest {
             }(tok);
 
             // Now check that what we wrote is still there.
-            let tok = for (addr, tok): (u32, token) in u32:0..u32:1024 {
+            let tok = for (addr, tok): (u32, token) in 0..1024 {
                 let tok = send(
                     tok, req1_out,
                     RWRamReq {
@@ -713,7 +700,7 @@ proc RamModel2RWTest {
             }(tok);
 
             // Now, write addr and read addr-1 simultaneously.
-            let tok = for (addr, tok): (u32, token) in u32:0..u32:1024 {
+            let tok = for (addr, tok): (u32, token) in 0..1024 {
                 // write addr
                 let write_tok = send(
                     tok, req0_out,
@@ -726,9 +713,9 @@ proc RamModel2RWTest {
                         re: false,
                     });
                 let read_tok = send_if(
-                    tok, req1_out, addr > u32:0,
+                    tok, req1_out, addr > 0,
                     RWRamReq {
-                        addr: (addr as u10) - u10:1,
+                        addr: (addr as u10) - 1,
                         data: uN[32]:0,
                         write_mask: (),
                         read_mask: (),
@@ -736,9 +723,9 @@ proc RamModel2RWTest {
                         re: true,
                     });
                 let (write_tok, _) = recv(write_tok, wr_comp0_in);
-                let (read_tok, read_data) = recv_if(
-                    read_tok, resp1_in, addr > u32:0, RWRamResp<32> { data: -u32:1 - offset });
-                assert_eq(read_data.data, addr - u32:1 - offset);
+                let (read_tok, read_data) =
+                    recv_if(read_tok, resp1_in, addr > 0, RWRamResp<32> { data: -u32:1 - offset });
+                assert_eq(read_data.data, addr - 1 - offset);
                 join(write_tok, read_tok)
             }(tok);
 

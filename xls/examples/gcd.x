@@ -15,25 +15,25 @@
 import std;
 
 // https://en.wikipedia.org/wiki/Greatest_common_divisor#Euclidean_algorithm
-fn gcd_euclidean<N: u32, DN: u32 = {N * u32:2}>(a: uN[N], b: uN[N]) -> uN[N] {
-    let (gcd, _) = for (_, (a, b)) in u32:0..DN {
-        if b == uN[N]:0 { (a, b) } else { (b, (std::iterative_div_mod(a, b)).1) }
+fn gcd_euclidean<N: u32, DN: u32 = {N * 2}>(a: uN[N], b: uN[N]) -> uN[N] {
+    let (gcd, _) = for (_, (a, b)) in 0..DN {
+        if b == 0 { (a, b) } else { (b, (std::iterative_div_mod(a, b)).1) }
     }((a, b));
     gcd
 }
 
 fn gcd_binary_match<N: u32>(a: uN[N], b: uN[N], d: uN[N]) -> (uN[N], uN[N], uN[N]) {
     match (a[0:1], b[0:1]) {
-        (u1:0, u1:1) => (b, a >> 1, d),
-        (u1:1, u1:0) => (a, b >> 1, d),
-        (u1:0, u1:0) => (a >> 1, b >> 1, d + uN[N]:1),
-        (u1:1, u1:1) => ((a - b) >> 1, b, d),
+        (0, 1) => (b, a >> 1, d),
+        (1, 0) => (a, b >> 1, d),
+        (0, 0) => (a >> 1, b >> 1, d + 1),
+        (1, 1) => ((a - b) >> 1, b, d),
     }
 }
 
 // https://en.wikipedia.org/wiki/Greatest_common_divisor#Binary_GCD_algorithm
-fn gcd_binary<N: u32, DN: u32 = {N * u32:2}>(a: uN[N], b: uN[N]) -> uN[N] {
-    let (a, _, d) = for (_, (a, b, d)) in u32:0..DN {
+fn gcd_binary<N: u32, DN: u32 = {N * 2}>(a: uN[N], b: uN[N]) -> uN[N] {
+    let (a, _, d) = for (_, (a, b, d)) in 0..DN {
         if a == b {
             (a, b, d)
         } else if a < b {
@@ -58,6 +58,4 @@ fn gcd_binary_test() {
 }
 
 #[quickcheck(test_count=50000)]
-fn prop_gcd_equal(a: u32, b: u32) -> bool {
-    gcd_euclidean<u32:32>(a, b) == gcd_binary<u32:32>(a, b)
-}
+fn prop_gcd_equal(a: u32, b: u32) -> bool { gcd_euclidean<32>(a, b) == gcd_binary<32>(a, b) }

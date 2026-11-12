@@ -22,11 +22,11 @@ const ARRAY_SIZE = u32:16;
 // This implementation uses ~2n adders, but only adds (2 lg n - 2) adder delays.
 fn sparse_prefix_sum(values: u16[ARRAY_SIZE]) -> u16[ARRAY_SIZE] {
     // Up-sweep
-    let swept = for (j, c): (u32, u16[ARRAY_SIZE]) in u32:0..std::clog2(ARRAY_SIZE) {
-        let step = u32:1 << (j + u32:1);
+    let swept = for (j, c): (u32, u16[ARRAY_SIZE]) in 0..std::clog2(ARRAY_SIZE) {
+        let step = u32:1 << (j + 1);
         let half_step = u32:1 << j;
-        for (s, updated): (u32, u16[ARRAY_SIZE]) in u32:1..ARRAY_SIZE {
-            let index = s * step - u32:1;
+        for (s, updated): (u32, u16[ARRAY_SIZE]) in 1..ARRAY_SIZE {
+            let index = s * step - 1;
             if index < ARRAY_SIZE {
                 update(updated, index, c[index] + c[index - half_step])
             } else {
@@ -35,12 +35,12 @@ fn sparse_prefix_sum(values: u16[ARRAY_SIZE]) -> u16[ARRAY_SIZE] {
         }(c)
     }(values);
     // Down-sweep
-    for (i, c): (u32, u16[ARRAY_SIZE]) in u32:0..std::clog2(ARRAY_SIZE) {
+    for (i, c): (u32, u16[ARRAY_SIZE]) in 0..std::clog2(ARRAY_SIZE) {
         let j = std::clog2(ARRAY_SIZE) - i;
         let step = u32:1 << j;
-        let half_step = u32:1 << (j - u32:1);
-        for (s, updated): (u32, u16[ARRAY_SIZE]) in u32:1..ARRAY_SIZE {
-            let index = s * step + half_step - u32:1;
+        let half_step = u32:1 << (j - 1);
+        for (s, updated): (u32, u16[ARRAY_SIZE]) in 1..ARRAY_SIZE {
+            let index = s * step + half_step - 1;
             if index < ARRAY_SIZE {
                 update(updated, index, c[index] + c[index - half_step])
             } else {
@@ -52,7 +52,7 @@ fn sparse_prefix_sum(values: u16[ARRAY_SIZE]) -> u16[ARRAY_SIZE] {
 
 #[test]
 fn sparse_prefix_sum_test() {
-    let result = sparse_prefix_sum(u16[16]:[u16:1, ...]);
+    let result = sparse_prefix_sum(u16[16]:[1, ...]);
     assert_eq(result, u16[16]:[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]);
 
     let result = sparse_prefix_sum(u16[16]:[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]);

@@ -77,7 +77,7 @@ impl serialized_decomposer_smoke_test {
     }
 
     fn next(self) {
-        let tok = send(token(), self.data_in_s, uN[128]:18446744073709551616);
+        let tok = send(token(), self.data_in_s, 18446744073709551616);
         let (tok, v1) = recv(tok, self.data_out_1_r);
         assert_eq(v1, u32:0);
         let (tok, v2) = recv(tok, self.data_out_2_r);

@@ -28,18 +28,16 @@ import xls.examples.ram;
 type RamReq = ram::RWRamReq;
 type RamResp = ram::RWRamResp;
 
-fn double(x: u32) -> u32 { x * u32:2 }
+fn double(x: u32) -> u32 { x * 2 }
 
 fn addr_width(size: u32) -> u32 { std::clog2(size) }
 
-fn half_floor(size: u32) -> u32 { (size >> u32:1) }
+fn half_floor(size: u32) -> u32 { (size >> 1) }
 
-fn is_odd(size: u32) -> bool { size[0:1] != u1:0 }
+fn is_odd(size: u32) -> bool { size[0:1] != 0 }
 
-struct DelayState
-    <DATA_WIDTH: u32,
-     ADDR_WIDTH: u32 // Current index into the RAM
-     > {
+struct DelayState<DATA_WIDTH: u32, ADDR_WIDTH: u32> {
+    // Current index into the RAM
     idx: bits[ADDR_WIDTH],
     // For the first DELAY cycles, the RAM has not been filled and whatever you
     // read from it will be garbage, during which init_done will be false. When
@@ -77,7 +75,7 @@ proc Delay0or1<DATA_WIDTH: u32, DELAY_IS_ONE: bool, INIT_DATA: u32> {
 }
 
 // Only works on DELAY even, the wrapper handles the case with odd-DELAY values.
-proc DelayInternal<DATA_WIDTH: u32, DELAY: u32, INIT_DATA: u32 = {u32:0}, ADDR_WIDTH:
+proc DelayInternal<DATA_WIDTH: u32, DELAY: u32, INIT_DATA: u32 = {0}, ADDR_WIDTH:
 u32 = {
     addr_width(half_floor(DELAY))}, DOUBLE_DATA_WIDTH: u32 = {double(DATA_WIDTH)}, HALF_FLOOR_DELAY:
 u32 = {
@@ -140,10 +138,9 @@ u32 = {
                 ..state
             }
         } else {
-            let next_idx = state.idx + bits[ADDR_WIDTH]:1;
-            let next_idx =
-                if next_idx as u32 >= half_floor(DELAY) { bits[ADDR_WIDTH]:0 } else { next_idx };
-            let next_init_done = state.init_done || (next_idx == uN[ADDR_WIDTH]:0);
+            let next_idx = state.idx + 1;
+            let next_idx = if next_idx as u32 >= half_floor(DELAY) { 0 } else { next_idx };
+            let next_init_done = state.init_done || (next_idx == 0);
             DelayState { idx: next_idx, is_read_stage: true, init_done: next_init_done, ..state }
         }
     }
@@ -152,7 +149,7 @@ u32 = {
 // A proc that implements a delay.
 // For the first DELAY transactions, the output is INIT_DATA. After that, the
 // output transactions are the inputs delayed by DELAY.
-pub proc Delay<DATA_WIDTH: u32, DELAY: u32, INIT_DATA: u32 = {u32:0}, ADDR_WIDTH:
+pub proc Delay<DATA_WIDTH: u32, DELAY: u32, INIT_DATA: u32 = {0}, ADDR_WIDTH:
 u32 = {
     addr_width(half_floor(DELAY))}, DOUBLE_DATA_WIDTH: u32 = {double(DATA_WIDTH)}, HALF_FLOOR_DELAY:
 u32 = {
@@ -193,7 +190,7 @@ pub proc Delay32x2048_init3 {
 
     config(data_in: chan<u32> in, data_out: chan<u32> out, ram_req: chan<DelayRamReq32x2048> out,
            ram_resp: chan<DelayRamResp32x2048> in, ram_wr_comp: chan<()> in) {
-        spawn Delay<u32:32, u32:2048, u32:3>(data_in, data_out, ram_req, ram_resp, ram_wr_comp);
+        spawn Delay<32, 2048, 3>(data_in, data_out, ram_req, ram_resp, ram_wr_comp);
         (data_in, data_out, ram_req, ram_resp, ram_wr_comp)
     }
 
@@ -214,12 +211,11 @@ proc delay_smoke_test_even {
         let (ram_req_s, ram_req_r) = chan<RamReq<10, 64>>("ram_req");
         let (ram_resp_s, ram_resp_r) = chan<RamResp<64>>("ram_resp");
         let (ram_wr_comp_s, ram_wr_comp_r) = chan<()>("ram_wr_comp");
-        spawn ram::SinglePortRamModel<u32:64, u32:1024>(ram_req_r, ram_resp_s, ram_wr_comp_s);
+        spawn ram::SinglePortRamModel<64, 1024>(ram_req_r, ram_resp_s, ram_wr_comp_s);
 
         let (data_in_s, data_in_r) = chan<u32>("data_in");
         let (data_out_s, data_out_r) = chan<u32>("data_out");
-        spawn Delay<u32:32, TEST0_DELAY, u32:3>(
-            data_in_r, data_out_s, ram_req_s, ram_resp_r, ram_wr_comp_r);
+        spawn Delay<32, TEST0_DELAY, 3>(data_in_r, data_out_s, ram_req_s, ram_resp_r, ram_wr_comp_r);
 
         (data_in_s, data_out_r, terminator)
     }
@@ -227,19 +223,19 @@ proc delay_smoke_test_even {
     init { () }
 
     next(state: ()) {
-        let stok = for (i, tok): (u32, token) in u32:0..TEST0_DELAY * u32:5 {
+        let stok = for (i, tok): (u32, token) in 0..TEST0_DELAY * 5 {
             trace!(i);
             send(tok, data_in_r, i)
         }(join());
         // first, receive the inits
-        let rtok = for (i, tok): (u32, token) in u32:0..TEST0_DELAY {
+        let rtok = for (i, tok): (u32, token) in 0..TEST0_DELAY {
             trace!(i);
             let (tok, result) = recv(tok, data_out_s);
             assert_eq(result, u32:3);
             tok
         }(join());
         // after the inits, check the delayed outputs
-        let rtok = for (i, tok): (u32, token) in u32:0..TEST0_DELAY * u32:4 {
+        let rtok = for (i, tok): (u32, token) in 0..TEST0_DELAY * 4 {
             trace!(i);
             let (tok, result) = recv(tok, data_out_s);
             assert_eq(result, i);
@@ -263,29 +259,28 @@ proc delay_smoke_test_odd {
         let (ram_req_s, ram_req_r) = chan<RamReq<10, 64>>("ram_req");
         let (ram_resp_s, ram_resp_r) = chan<RamResp<64>>("ram_resp");
         let (ram_wr_comp_s, ram_wr_comp_r) = chan<()>("ram_wr_comp");
-        spawn ram::SinglePortRamModel<u32:64, u32:1024>(ram_req_r, ram_resp_s, ram_wr_comp_s);
+        spawn ram::SinglePortRamModel<64, 1024>(ram_req_r, ram_resp_s, ram_wr_comp_s);
 
         let (data_in_s, data_in_r) = chan<u32>("data_in");
         let (data_out_s, data_out_r) = chan<u32>("data_out");
-        spawn Delay<u32:32, TEST1_DELAY, u32:3>(
-            data_in_r, data_out_s, ram_req_s, ram_resp_r, ram_wr_comp_r);
+        spawn Delay<32, TEST1_DELAY, 3>(data_in_r, data_out_s, ram_req_s, ram_resp_r, ram_wr_comp_r);
         (data_in_s, data_out_r, terminator)
     }
 
     init { () }
 
     next(state: ()) {
-        let stok = for (i, tok): (u32, token) in u32:0..TEST1_DELAY * u32:5 {
+        let stok = for (i, tok): (u32, token) in 0..TEST1_DELAY * 5 {
             send(tok, data_in_r, i)
         }(join());
         // first, receive the inits
-        let rtok = for (_, tok): (u32, token) in u32:0..TEST1_DELAY {
+        let rtok = for (_, tok): (u32, token) in 0..TEST1_DELAY {
             let (tok, result) = recv(tok, data_out_s);
             assert_eq(result, u32:3);
             tok
         }(join());
         // after the inits, check the delayed outputs
-        let rtok = for (i, tok): (u32, token) in u32:0..TEST1_DELAY * u32:4 {
+        let rtok = for (i, tok): (u32, token) in 0..TEST1_DELAY * 4 {
             let (tok, result) = recv(tok, data_out_s);
             assert_eq(result, i);
             tok

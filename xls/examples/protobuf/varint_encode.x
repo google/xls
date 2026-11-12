@@ -19,16 +19,16 @@
 // See https://developers.google.com/protocol-buffers/docs/encoding#varints
 pub fn varint_encode_u32(x: u32) -> (u8[5], u3) {
     let (varint_size, a, _): (u3, u8[5], u32) =
-        for (i, (size, a, x)): (u32, (u3, u8[5], u32)) in u32:0..u32:5 {
+        for (i, (size, a, x)): (u32, (u3, u8[5], u32)) in 0..5 {
             // Lop off the least significant seven bits.
             let lsb = x as u7;
 
             // Compute what bits are remaining of the original integral value.
-            let remaining = x >> u32:7;
+            let remaining = x >> 7;
 
             // We put leading continue bits on bytes for the varint encoding in the
             // most significant bit position.
-            let continue_bit = remaining != u32:0;
+            let continue_bit = remaining != 0;
 
             // Update the byte entry in the varint-encoded byte array.
             let byte_entry: u8 = continue_bit ++ lsb;
@@ -38,17 +38,17 @@ pub fn varint_encode_u32(x: u32) -> (u8[5], u3) {
 
             // When we have zero-valued bytes we're not incrementing the size anymore,
             // we had already pushed the last byte.
-            let new_size = if byte_entry != u8:0 { (i + u32:1) as u3 } else { size };
+            let new_size = if byte_entry != 0 { (i + 1) as u3 } else { size };
 
             // Loop carry the size, array, and the remaining part of the original integer.
             (new_size, new_a, remaining)
-        }((u3:0, u8[5]:[u8:0, ...], x));
+        }((u3:0, u8[5]:[0, ...], x));
     (a, varint_size)
 }
 
 #[test]
 fn varint_encode_u32_test() {
-    let (a, i) = varint_encode_u32(u32:300);
+    let (a, i) = varint_encode_u32(300);
     assert_eq(u8[5]:[172, 2, 0, 0, 0], a);
     assert_eq(u3:2, i);
 }

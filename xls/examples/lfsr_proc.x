@@ -59,7 +59,7 @@ impl test {
     fn new(terminator: chan<bool> out) -> Self {
         let (value_s, value_r) = chan<u8>("value");
         let (seed_s, seed_r) = chan<(u8, u8)>("seed");
-        user_module<u32:8>::new(value_s, seed_r).spawn();
+        user_module<8>::new(value_s, seed_r).spawn();
         Self { value_r, seed_s, terminator }
     }
 
