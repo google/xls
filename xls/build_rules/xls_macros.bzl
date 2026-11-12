@@ -492,17 +492,7 @@ def xls_synthesis_metrics(
         **kwargs
     )
 
-def xls_dslx_fmt_test_macro(name, src, opportunistic_postcondition = False):
-    """Creates a test target that confirms `src` is auto-formatted.
-
-    Args:
-        name: Name of the (diff) test target this will emit.
-        src: Source file to auto-format.
-        opportunistic_postcondition: Flag that checks whether the output text
-            is highly similar to the input text. Note that sometimes this /can/
-            flag an error for some set of valid auto-formattings, so is
-            intended primarily for use as a development/debugging tool.
-    """
+def _emit_single_dslx_fmt_test(name, src, opportunistic_postcondition = False):
     out = name + ".fmt.x"
     flag = "--opportunistic_postcondition" if opportunistic_postcondition else ""
     cmd = "$(location %s) %s $< > $@" % (Label(DEFAULT_DSLX_FMT_TARGET), flag)
@@ -526,6 +516,43 @@ def xls_dslx_fmt_test_macro(name, src, opportunistic_postcondition = False):
         file2 = ":" + name + "_dslx_fmt",
         failure_message = "File %s was not canonically auto-formatted; to update, in the top level directory of your WORKSPACE run: bazel build -c opt %s && cp bazel-genfiles/%s %s" % (src_file, target, out_file, src_file),
     )
+
+def xls_dslx_fmt_test_macro(name, src = None, srcs = None, opportunistic_postcondition = False):
+    """Creates a test target confirming file(s) are auto-formatted.
+
+    Args:
+        name: Name of the test target or test_suite.
+        src: Single source file to auto-format (mutually exclusive with `srcs`).
+        srcs: List of source files to auto-format (mutually exclusive with `src`).
+        opportunistic_postcondition: Flag that checks whether the output text
+            is highly similar to the input text. Note that sometimes this /can/
+            flag an error for some set of valid auto-formattings, so is
+            intended primarily for use as a development/debugging tool.
+    """
+    if (src == None) == (srcs == None):
+        fail("Exactly one of `src` or `srcs` must be specified for {}".format(name))
+
+    if src != None:
+        _emit_single_dslx_fmt_test(
+            name = name,
+            src = src,
+            opportunistic_postcondition = opportunistic_postcondition,
+        )
+    else:
+        test_targets = []
+        for s in srcs:
+            sub_name = "{}_{}".format(name, s.replace("/", "_").replace(".", "_"))
+            _emit_single_dslx_fmt_test(
+                name = sub_name,
+                src = s,
+                opportunistic_postcondition = opportunistic_postcondition,
+            )
+            test_targets.append(":" + sub_name)
+
+        native.test_suite(
+            name = name,
+            tests = test_targets,
+        )
 
 def xls_full_benchmark_ir_macro(
         name,
