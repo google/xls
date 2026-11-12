@@ -1,0 +1,26 @@
+package test_module
+
+file_number 0 "xls/dslx/stdlib/std.x"
+file_number 1 "test_module.x"
+
+fn __std__is_pow2__2(x: bits[2] id=1) -> bits[1] {
+  literal.5: bits[2] = literal(value=1, id=5)
+  sub.6: bits[2] = sub(x, literal.5, id=6)
+  literal.3: bits[2] = literal(value=0, id=3)
+  and.7: bits[2] = and(x, sub.6, id=7)
+  literal.8: bits[2] = literal(value=0, id=8)
+  ugt.4: bits[1] = ugt(x, literal.3, id=4)
+  eq.9: bits[1] = eq(and.7, literal.8, id=9)
+  N: bits[32] = literal(value=2, id=2)
+  ret and.10: bits[1] = and(ugt.4, eq.9, id=10)
+}
+
+fn __test_module__f__2(x: bits[2] id=11) -> bits[1] {
+  N: bits[32] = literal(value=2, id=12)
+  ret invoke.13: bits[1] = invoke(x, to_apply=__std__is_pow2__2, id=13)
+}
+
+fn __test_module__main() -> bits[1] {
+  literal.14: bits[2] = literal(value=3, id=14)
+  ret invoke.15: bits[1] = invoke(literal.14, to_apply=__test_module__f__2, id=15)
+}

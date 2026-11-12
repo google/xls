@@ -12,16 +12,22 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <filesystem>
+#include <memory>
+#include <string>
 #include <string_view>
+#include <utility>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/container/flat_hash_map.h"
 #include "absl/status/status_matchers.h"
 #include "xls/common/status/matchers.h"
 #include "xls/dslx/create_import_data.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/type_system/typecheck_test_utils.h"
 #include "xls/dslx/type_system_v2/matchers.h"
+#include "xls/dslx/virtualizable_file_system.h"
 
 namespace xls::dslx {
 namespace {
@@ -2189,6 +2195,26 @@ const_assert!(u32::MAX == 4294967295);
 const_assert!(s8::MAX == 127);
 const_assert!(s32::MAX == 2147483647);
 )"));
+}
+
+TEST(TypecheckV2Test, UseImportedBuiltinTypeAliasMember) {
+  constexpr std::string_view kImported = R"(
+pub type MyU8 = u8;
+)";
+  constexpr std::string_view kProgram = R"(#![feature(use_syntax)]
+use imported::MyU8;
+
+const X = MyU8::MAX;
+const_assert!(X == u8::MAX);
+)";
+
+  absl::flat_hash_map<std::filesystem::path, std::string> files = {
+      {std::filesystem::path("/imported.x"), std::string(kImported)},
+      {std::filesystem::path("/fake_main_path.x"), std::string(kProgram)},
+  };
+  ImportData import_data = CreateImportDataForTest(
+      std::make_unique<FakeFilesystem>(std::move(files), "/"));
+  XLS_EXPECT_OK(TypecheckV2(kProgram, "fake_main_path", &import_data).status());
 }
 
 TEST(TypecheckV2Test, ZeroAttribute) {
