@@ -30,11 +30,17 @@
 #include "xls/dslx/ir_convert/test_utils.h"
 #include "xls/dslx/parse_and_typecheck.h"
 #include "xls/dslx/type_system/parametric_env.h"
+#include "xls/ir/function.h"
+#include "xls/ir/node.h"
+#include "xls/ir/op.h"
 #include "xls/ir/package.h"
 #include "xls/ir/xls_ir_interface.pb.h"
 
 namespace xls::dslx {
 namespace {
+using ::testing::Each;
+using ::testing::Ne;
+using ::testing::Property;
 using ::xls::proto_testing::EqualsProto;
 
 void ExpectIr(std::string_view got) {
@@ -600,6 +606,40 @@ TEST(FunctionConverterTest, ConvertsFunctionWithUpdate2DBuiltinEmptyTuple) {
                   }
                 }
               )pb"));
+}
+
+TEST(FunctionConverterTest, ConvertsCoverResultWhenEmitCoverIsFalse) {
+  ImportData import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(R"(fn f(p: bool) -> () {
+  let () = if p { cover!("branch_cover", p) } else { () };
+  cover!("tail_cover", !p)
+})",
+                        "test_module.x", "test_module", &import_data));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
+                           tm.module->GetMemberOrError<Function>("f"));
+  PackageConversionData package = MakeConversionData("test_module_package");
+  PackageData package_data{.conversion_info = &package};
+  FunctionConverter converter(package_data, tm.module, &import_data,
+                              ConvertOptions{.emit_cover = false},
+                              /*proc_data=*/nullptr,
+                              /*channel_scope=*/nullptr, /*is_top=*/true);
+  XLS_ASSERT_OK(converter.HandleFunction(f, tm.type_info, ParametricEnv{}));
+
+  XLS_ASSERT_OK_AND_ASSIGN(xls::Function * top_fn,
+                           package.package->GetTopAsFunction());
+  EXPECT_EQ(top_fn->GetType()->ToString(), "(bits[1]) -> ()");
+  XLS_ASSERT_OK_AND_ASSIGN(
+      xls::Function * itok_fn,
+      package.package->GetFunction("__itok__test_module__f"));
+  EXPECT_EQ(itok_fn->GetType()->ToString(),
+            "(token, bits[1], bits[1]) -> (token, ())");
+  for (const auto& fn : package.package->functions()) {
+    EXPECT_THAT(fn->nodes(),
+                Each(Property(&xls::Node::op, Ne(xls::Op::kCover))));
+  }
 }
 
 }  // namespace

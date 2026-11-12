@@ -2790,10 +2790,10 @@ absl::Status FunctionConverter::HandleCoverBuiltin(const Invocation* node,
     XLS_RET_CHECK(implicit_token_data_->create_control_predicate != nullptr);
     BValue control_predicate = implicit_token_data_->create_control_predicate();
 
-    // Don't generate anything if no traces.
+    // Don't generate anything if no covers.
     if (!options_.emit_cover) {
       Def(node, [&](const SourceInfo& loc) {
-        return implicit_token_data_->entry_token;
+        return function_builder_->Tuple(std::vector<BValue>());
       });
       return absl::OkStatus();
     }

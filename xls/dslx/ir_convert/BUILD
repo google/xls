@@ -540,6 +540,7 @@ cc_test(
         "//xls/dslx/frontend:ast",
         "//xls/dslx/type_system:parametric_env",
         "//xls/ir",
+        "//xls/ir:op",
         "//xls/ir:xls_ir_interface_cc_proto",
         "@abseil-cpp//absl/types:span",
         "@googletest//:gtest",
