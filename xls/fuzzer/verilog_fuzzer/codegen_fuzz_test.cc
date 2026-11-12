@@ -110,5 +110,30 @@ top fn FuzzTest(p0: bits[64] id=1) -> bits[64] {
               StatusIs(absl::StatusCode::kInvalidArgument));
 }
 
+TEST(CodegenFuzzTest, InvalidOutputPortNameRegression) {
+  auto package = Parser::ParsePackage(R"(package FuzzTest
+
+top fn FuzzTest(p0: bits[64] id=1) -> bits[64] {
+  ret identity.2: bits[64] = identity(p0, id=2)
+}
+)");
+  ASSERT_TRUE(package.ok()) << package.status();
+
+  SchedulingOptionsFlagsProto scheduling_options = DefaultSchedulingOptions();
+  CodegenFlagsProto codegen_options = DefaultCodegenOptions();
+  codegen_options.set_codegen_version(
+      CodegenVersionProto::CODEGEN_VERSION_ONE_DOT_ZERO);
+  codegen_options.set_generator(GeneratorKind::GENERATOR_KIND_PIPELINE);
+  codegen_options.set_output_port_name("1invalid_port_name");
+
+  VerilogGenerator verilog = VerilogGenerator{
+      .package = *std::move(package),
+      .scheduling_options = scheduling_options,
+      .codegen_options = codegen_options,
+  };
+  EXPECT_THAT(verilog.GenerateVerilog(),
+              StatusIs(absl::StatusCode::kInvalidArgument));
+}
+
 }  // namespace
 }  // namespace xls

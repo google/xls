@@ -270,13 +270,14 @@ CloneNodesIntoPipelinedBlock(
     XLS_RETURN_IF_ERROR(cloner.AddBlockInstantiations(converted_blocks));
   }
   for (int64_t stage = 0; stage < pipeline_schedule.length(); ++stage) {
-    XLS_RET_CHECK_OK(
+    XLS_RETURN_IF_ERROR(
         cloner.CloneNodes(pipeline_schedule.nodes_in_cycle(stage), stage));
-    XLS_RET_CHECK_OK(cloner.AddNextPipelineStage(stage));
+    XLS_RETURN_IF_ERROR(cloner.AddNextPipelineStage(stage));
   }
 
-  XLS_RET_CHECK_OK(cloner.AddOutputPortsIfFunction(options.output_port_name()));
-  XLS_RET_CHECK_OK(
+  XLS_RETURN_IF_ERROR(
+      cloner.AddOutputPortsIfFunction(options.output_port_name()));
+  XLS_RETURN_IF_ERROR(
       cloner.MarkMutualExclusiveStages(pipeline_schedule.length()));
 
   return std::make_tuple(cloner.GetResult(), cloner.GetConcurrentStages());
