@@ -32,6 +32,7 @@
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/ir_convert/conversion_info.h"
 #include "xls/dslx/ir_convert/convert_options.h"
+#include "xls/dslx/type_system/channel_manager.h"
 #include "xls/dslx/type_system/parametric_env.h"
 #include "xls/dslx/type_system/type_info.h"
 #include "xls/ir/channel.h"
@@ -146,6 +147,24 @@ class ChannelScope {
   // given `decl`, and returns it.
   absl::StatusOr<ChannelOrArray> DefineChannelOrArray(const ChannelDecl* decl);
 
+  // Creates the channel for a `bind`. The channel name comes from the bind,
+  // while the payload type is resolved in the endpoint's own proc since the two
+  // ends may belong to different procs.
+  absl::StatusOr<Channel*> DefineImplicitChannel(
+      const ImplicitChannelDecl& decl, const StructMemberNode* member,
+      const TypeInfo* type_info);
+
+  // Creates new IR channels and a `ChannelArray` for a bound `Source` or
+  // `Sink` array `member` of the proc in the current function context.
+  absl::StatusOr<ChannelArray*> DefineImplicitChannelArray(
+      const StructMemberNode* member);
+
+  // Wraps existing IR channels into a `ChannelArray` for a `Source` or `Sink`
+  // array `member` without creating new ones (e.g. when bound to a member of
+  // the same proc).
+  absl::StatusOr<ChannelArray*> DefineChannelArray(
+      const StructMemberNode* member, absl::Span<const ChannelRef> elements);
+
   // Creates the channel object, or array of channel objects, indicated by the
   // given parameter or proc member at the overall DSLX->IR conversion
   // boundary. Channels at the boundary have only a send or receive side.
@@ -217,6 +236,10 @@ class ChannelScope {
   absl::Status DefineProtoChannelOrArray(
       ChannelOrArray array, dslx::ChannelTypeAnnotation* type_annot,
       xls::Type* ir_type, TypeInfo* type_info);
+
+  // Resolves a channel annotation's payload type and converts it to IR.
+  absl::StatusOr<xls::Type*> GetPayloadIrType(
+      const ChannelTypeAnnotation* annot, const TypeInfo* type_info) const;
 
   std::string_view GetBaseNameForChannelOrArray(
       ChannelOrArray channel_or_array);
