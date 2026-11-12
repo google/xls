@@ -15,6 +15,7 @@
 #ifndef XLS_PASSES_RESOURCE_SHARING_EQUIVALENCE_H_
 #define XLS_PASSES_RESOURCE_SHARING_EQUIVALENCE_H_
 
+#include <cstdint>
 #include <memory>
 #include <optional>
 #include <type_traits>
@@ -32,8 +33,47 @@
 #include "xls/ir/function_base.h"
 #include "xls/ir/node.h"
 #include "xls/ir/package.h"
+#include "xls/ir/type.h"
 
 namespace xls {
+
+// Symbolic description of the `Node*` that `ApplyToOperands` produces for a
+// single destination operand port.
+//
+// Two mappings targeting the same `dst` produce the exact same `Node*` on port
+// `dst_op_idx` (requiring no input `PrioritySelect` mux on that port) when
+// their `MappedOperandDesc` values are equal and `IsShareable()`.
+struct MappedOperandDesc {
+  enum class Kind {
+    // Unknown or non-deduplicated expression (never assumed to match).
+    kOpaque,
+    // `base` passed through unchanged.
+    kIdentity,
+    // `ExtendIf(f, base, target_width, Op::kZeroExt)` (`base` narrower than
+    // `target_width`).
+    kZeroExt,
+    // `ExtendIf(f, base, target_width, Op::kSignExt)` (`base` narrower than
+    // `target_width`).
+    kSignExt,
+    // `ExtendIf(f, FindOrMakeUnaryOp(f, base, Op::kNeg), target_width,
+    // Op::kZeroExt)`.
+    kNegZeroExt,
+  };
+
+  Kind kind = Kind::kOpaque;
+  Node* base = nullptr;
+  int64_t target_width = 0;
+
+  bool IsShareable() const { return kind != Kind::kOpaque && base != nullptr; }
+
+  friend bool operator==(const MappedOperandDesc&,
+                         const MappedOperandDesc&) = default;
+
+  // Returns the `Node*` already present in `f` that `ApplyToOperands` will
+  // return or reuse, or `nullptr` if `ApplyToOperands` would allocate a new
+  // node or `kind == Kind::kOpaque`.
+  Node* FindExistingNode(FunctionBase* f) const;
+};
 
 // `EquivalenceMapping` is an abstract class representing what is needed to use
 // `dst` instead of `src`, i.e. what transformations to `src` node's operands
@@ -92,6 +132,13 @@ class EquivalenceMapping {
   // Returns true if this mapping modifies the output of the dst node.
   virtual absl::StatusOr<bool> RequiresOutputTransformation() const {
     return false;
+  }
+
+  // Returns a symbolic description of the `Node*` that `ApplyToOperands`
+  // produces at destination port `dst_op_idx` when given `src_operands`.
+  virtual absl::StatusOr<MappedOperandDesc> DescribeMappedOperand(
+      absl::Span<Node* const> src_operands, int64_t dst_op_idx) const {
+    return MappedOperandDesc{};
   }
 
  protected:
@@ -264,7 +311,35 @@ class IdentityEquivalenceMapping : public EquivalenceMapping {
   absl::StatusOr<bool> RequiresOutputTransformation() const override {
     return false;
   }
+  absl::StatusOr<MappedOperandDesc> DescribeMappedOperand(
+      absl::Span<Node* const> src_operands, int64_t dst_op_idx) const override {
+    if (dst_op_idx < 0 || dst_op_idx >= src_operands.size()) {
+      return MappedOperandDesc{};
+    }
+    Node* op = src_operands[dst_op_idx];
+    return MappedOperandDesc{
+        .kind = MappedOperandDesc::Kind::kIdentity,
+        .base = op,
+        .target_width = op->GetType()->GetFlatBitCount(),
+    };
+  }
 };
+
+// Describes the mapped operand produced for `node` at destination port
+// `dst_op_idx` under `mappings` (treating `node` as identity-mapped when absent
+// from `mappings`).
+absl::StatusOr<MappedOperandDesc> DescribeNodeMappedOperand(
+    const absl::flat_hash_map<Node*, std::unique_ptr<EquivalenceMapping>>&
+        mappings,
+    Node* node, int64_t dst_op_idx);
+
+// Returns true if `from` and `to` produce the exact same `Node*` at destination
+// port `dst_op_idx` when lowered under `mappings` (meaning no input
+// `PrioritySelect` mux is materialized on that port).
+absl::StatusOr<bool> AreMappedOperandsIdentical(
+    const absl::flat_hash_map<Node*, std::unique_ptr<EquivalenceMapping>>&
+        mappings,
+    Node* from, Node* to, int64_t dst_op_idx);
 
 }  // namespace xls
 

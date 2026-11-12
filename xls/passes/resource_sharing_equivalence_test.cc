@@ -1840,5 +1840,141 @@ INSTANTIATE_TEST_SUITE_P(MulEquivalenceMappingAsymmetricWidthSweepTests,
                                            std::pair<int64_t, int64_t>{2, 3},
                                            std::pair<int64_t, int64_t>{3, 5}));
 
+TEST_F(ResourceSharingEquivalenceTest, DescribeMappedOperandsAndSharing) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* u1 = p->GetBitsType(1);
+  Type* u16 = p->GetBitsType(16);
+  Type* u32 = p->GetBitsType(32);
+  BValue a = fb.Param("a", u32);
+  BValue b = fb.Param("b", u32);
+  BValue c = fb.Param("c", u32);
+  BValue a1 = fb.Param("a1", u1);
+  BValue b1 = fb.Param("b1", u1);
+  BValue a16 = fb.Param("a16", u16);
+  BValue b16 = fb.Param("b16", u16);
+  BValue c16 = fb.Param("c16", u16);
+
+  BValue eq_ab = fb.Eq(a, b);
+  BValue ne_ab = fb.Ne(a, b);
+  BValue ult_ab = fb.ULt(a, b);
+  BValue ugt_ba = fb.UGt(b, a);
+  BValue ule_ba = fb.ULe(b, a);
+  BValue uge_ab = fb.UGe(a, b);
+  BValue slt_ab = fb.SLt(a, b);
+  BValue sgt_ba = fb.SGt(b, a);
+  BValue sle_ba = fb.SLe(b, a);
+  BValue ult1_ab = fb.ULt(a1, b1);
+  BValue slt1_ba = fb.SLt(b1, a1);
+  BValue sgt1_ab = fb.SGt(a1, b1);
+  BValue sgt1_ba = fb.SGt(b1, a1);
+  BValue sub_ab = fb.Subtract(a, b);
+  BValue neg_b = fb.Negate(b);
+  BValue add_ac = fb.Add(a, c);
+  BValue add_a_negb = fb.Add(a, neg_b);
+  BValue sub_a_negb = fb.Subtract(a, neg_b);
+  BValue sub16_ac = fb.Subtract(a16, c16);
+  BValue ult16_ab = fb.ULt(a16, b16);
+  BValue slt16_ab = fb.SLt(a16, b16);
+  BValue shll_ab = fb.Shll(a, b16);
+  BValue shrl_cb = fb.Shrl(c, b16);
+  BValue shra16_ac = fb.Shra(a16, c16);
+  BValue shrl16_ab = fb.Shrl(a16, b16);
+  BValue b17 = fb.Param("b17", p->GetBitsType(17));
+  BValue umul_ab = fb.UMul(a16, b16, 32);
+  BValue umul_a16_b17 = fb.UMul(a16, b17, 33);
+  BValue umul_b17_a16 = fb.UMul(b17, a16, 33);
+  BValue smul_ac = fb.SMul(a16, c16, 32);
+  XLS_ASSERT_OK(fb.BuildWithReturnValue(ult_ab).status());
+
+  auto shares_ports = [](absl::Span<Node* const> srcs, Node* from,
+                         Node* dst) -> absl::StatusOr<std::pair<bool, bool>> {
+    XLS_ASSIGN_OR_RETURN(std::optional<NodeToMappings> mappings,
+                         GetNodeEquivalenceMapper().ComputeMappings(srcs, dst));
+    XLS_RET_CHECK(mappings.has_value());
+    XLS_ASSIGN_OR_RETURN(bool p0,
+                         AreMappedOperandsIdentical(*mappings, from, dst, 0));
+    XLS_ASSIGN_OR_RETURN(bool p1,
+                         AreMappedOperandsIdentical(*mappings, from, dst, 1));
+    return std::make_pair(p0, p1);
+  };
+
+  // Identity & equality comparators (`ne -> eq` does not swap).
+  EXPECT_THAT(shares_ports({eq_ab.node()}, eq_ab.node(), eq_ab.node()),
+              IsOkAndHolds(std::make_pair(true, true)));
+  EXPECT_THAT(shares_ports({ne_ab.node()}, ne_ab.node(), eq_ab.node()),
+              IsOkAndHolds(std::make_pair(true, true)));
+
+  // Same-signedness comparators with and without operand swap.
+  EXPECT_THAT(shares_ports({uge_ab.node()}, uge_ab.node(), ult_ab.node()),
+              IsOkAndHolds(std::make_pair(true, true)));
+  EXPECT_THAT(shares_ports({ugt_ba.node()}, ugt_ba.node(), ult_ab.node()),
+              IsOkAndHolds(std::make_pair(true, true)));
+  EXPECT_THAT(shares_ports({ule_ba.node()}, ule_ba.node(), ult_ab.node()),
+              IsOkAndHolds(std::make_pair(true, true)));
+  EXPECT_THAT(shares_ports({sgt_ba.node()}, sgt_ba.node(), slt_ab.node()),
+              IsOkAndHolds(std::make_pair(true, true)));
+
+  // Multi-bit cross-signedness (`sgt(b, a) -> ult(a, b)`) requires `SwapMsbs`
+  // `Concat`s and therefore materializes two muxes (`false, false`).
+  EXPECT_THAT(shares_ports({sgt_ba.node()}, sgt_ba.node(), ult_ab.node()),
+              IsOkAndHolds(std::make_pair(false, false)));
+
+  // 1-bit cross-signedness (`SwapMsbs` on `bits[1]` reverses operands):
+  // `slt1(b1, a1) -> ult1(a1, b1)` swaps once to `(a1, b1)`;
+  // `sgt1(a1, b1) -> ult1(a1, b1)` swaps twice to `(a1, b1)`.
+  EXPECT_THAT(shares_ports({slt1_ba.node()}, slt1_ba.node(), ult1_ab.node()),
+              IsOkAndHolds(std::make_pair(true, true)));
+  EXPECT_THAT(shares_ports({sgt1_ab.node()}, sgt1_ab.node(), ult1_ab.node()),
+              IsOkAndHolds(std::make_pair(true, true)));
+  EXPECT_THAT(shares_ports({sgt1_ba.node()}, sgt1_ba.node(), ult1_ab.node()),
+              IsOkAndHolds(std::make_pair(false, false)));
+
+  // CompareToArith (`ugt` / `sle` -> `sub`, plus widened signed vs unsigned).
+  EXPECT_THAT(shares_ports({ugt_ba.node()}, ugt_ba.node(), sub_ab.node()),
+              IsOkAndHolds(std::make_pair(true, true)));
+  EXPECT_THAT(shares_ports({sle_ba.node()}, sle_ba.node(), sub_ab.node()),
+              IsOkAndHolds(std::make_pair(true, true)));
+  // When `ult_ab` widens `sub16_ac` to 32 bits (`ZeroExt`), `ult16_ab` shares
+  // `ZeroExt(a16, 32)` on port 0 while `slt16_ab` needs `SignExt(a16, 32)`.
+  EXPECT_THAT(shares_ports({ult_ab.node(), ult16_ab.node()}, ult16_ab.node(),
+                           sub16_ac.node()),
+              IsOkAndHolds(std::make_pair(true, false)));
+  EXPECT_THAT(shares_ports({ult_ab.node(), slt16_ab.node()}, slt16_ab.node(),
+                           sub16_ac.node()),
+              IsOkAndHolds(std::make_pair(false, false)));
+
+  // AddSub (`add(a, c) -> sub(a, b)`, `add(a, neg(b)) -> sub(a, b)`, and
+  // `sub(a, b) -> add(a, neg(b))` reusing existing `neg(b)`).
+  EXPECT_THAT(shares_ports({add_ac.node()}, add_ac.node(), sub_ab.node()),
+              IsOkAndHolds(std::make_pair(true, false)));
+  EXPECT_THAT(
+      shares_ports({add_a_negb.node()}, add_a_negb.node(), sub_ab.node()),
+      IsOkAndHolds(std::make_pair(true, true)));
+  EXPECT_THAT(shares_ports({sub_ab.node()}, sub_ab.node(), add_a_negb.node()),
+              IsOkAndHolds(std::make_pair(true, true)));
+  EXPECT_THAT(
+      shares_ports({sub_a_negb.node()}, sub_a_negb.node(), add_ac.node()),
+      IsOkAndHolds(std::make_pair(true, false)));
+
+  // Shifts: `shrl(c, b16) -> shll(a, b16)` shares shift amount on port 1;
+  // `shrl16(a16, b16) -> shra16(a16, c16)` widens `shra16` to 17 bits with
+  // `SignExt(a16, 17)` while `shrl16` uses `ZeroExt(a16, 17)` (`false` on 0).
+  EXPECT_THAT(shares_ports({shrl_cb.node()}, shrl_cb.node(), shll_ab.node()),
+              IsOkAndHolds(std::make_pair(false, true)));
+  EXPECT_THAT(
+      shares_ports({shrl16_ab.node()}, shrl16_ab.node(), shra16_ac.node()),
+      IsOkAndHolds(std::make_pair(false, false)));
+
+  // Mul: `umul(b17, a16) -> umul(a16, b17)` swaps operands (`true, true`);
+  // `umul(a16, b16) -> smul(a16, c16)` widens `smul` to 17-bit `SignExt` while
+  // `umul` uses 17-bit `ZeroExt` (`false, false`).
+  EXPECT_THAT(shares_ports({umul_b17_a16.node()}, umul_b17_a16.node(),
+                           umul_a16_b17.node()),
+              IsOkAndHolds(std::make_pair(true, true)));
+  EXPECT_THAT(shares_ports({umul_ab.node()}, umul_ab.node(), smul_ac.node()),
+              IsOkAndHolds(std::make_pair(false, false)));
+}
+
 }  // namespace
 }  // namespace xls

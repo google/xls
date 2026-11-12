@@ -37,6 +37,7 @@
 #include "absl/time/time.h"
 #include "absl/types/span.h"
 #include "xls/common/status/matchers.h"
+#include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/estimators/area_model/area_estimator.h"
 #include "xls/estimators/area_model/area_estimators.h"
@@ -804,6 +805,231 @@ TEST_F(ResourceSharingPassTest,
                            round_tripped_pkg->GetFunction(TestName()));
   EXPECT_THAT(get_edge_id_pairs(round_tripped_f),
               IsOkAndHolds(in_memory_edges));
+}
+
+TEST_F(ResourceSharingPassTest, SelectSubsetOfFoldsAccountsForSwappedOperands) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* u32 = p->GetBitsType(32);
+  BValue a = fb.Param("a", u32);
+  BValue b = fb.Param("b", u32);
+  BValue ult_ab = fb.ULt(a, b);
+  BValue ugt_ba = fb.UGt(b, a);
+  BValue ugt_ab = fb.UGt(a, b);
+  BValue sgt_ba = fb.SGt(b, a);
+  BValue sub_ab = fb.Subtract(a, b);
+  BValue cond = fb.Param("cond", p->GetBitsType(3));
+  BValue sel = fb.Select(
+      cond,
+      {ugt_ba, ugt_ab, sgt_ba, ult_ab, fb.BitSlice(sub_ab, /*start=*/0, 1)},
+      /*default_value=*/fb.Literal(UBits(0, 1)));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(sel));
+
+  XLS_ASSERT_OK_AND_ASSIGN(AreaEstimator * area_estimator,
+                           GetAreaEstimator("asap7"));
+  XLS_ASSERT_OK_AND_ASSIGN(DelayEstimator * delay_estimator,
+                           GetDelayEstimator("asap7"));
+  CriticalPathDelayAnalysis critical_path_delay(delay_estimator);
+  XLS_ASSERT_OK(critical_path_delay.Attach(f));
+  BddQueryEngine bdd_engine;
+  XLS_ASSERT_OK(bdd_engine.Populate(f));
+  NodeForwardDependencyAnalysis nda;
+  XLS_ASSERT_OK(nda.Attach(f));
+  BitProvenanceAnalysis bpa;
+  XLS_ASSERT_OK(bpa.Populate(f));
+  VisibilityEstimator visibility_estimator(
+      f->node_count(), &bdd_engine, nda, bpa, area_estimator, delay_estimator);
+
+  using NodeToMappings =
+      absl::flat_hash_map<Node*, std::unique_ptr<EquivalenceMapping>>;
+  auto make_fold = [](Node* from,
+                      Node* to) -> absl::StatusOr<BinaryFoldingAction> {
+    XLS_ASSIGN_OR_RETURN(
+        std::optional<NodeToMappings> mappings,
+        GetNodeEquivalenceMapper().ComputeMappings({from}, to));
+    XLS_RET_CHECK(mappings.has_value());
+    return BinaryFoldingAction(from, to,
+                               /*from_edges=*/FoldingAction::VisibilityEdges(),
+                               /*to_edges=*/FoldingAction::VisibilityEdges(),
+                               /*area_saved=*/0.0, std::move(*mappings));
+  };
+  XLS_ASSERT_OK_AND_ASSIGN(BinaryFoldingAction fold_zero_muxes,
+                           make_fold(ugt_ba.node(), ult_ab.node()));
+  XLS_ASSERT_OK_AND_ASSIGN(BinaryFoldingAction fold_two_muxes,
+                           make_fold(ugt_ab.node(), ult_ab.node()));
+  XLS_ASSERT_OK_AND_ASSIGN(BinaryFoldingAction fold_sgt_msb_swap,
+                           make_fold(sgt_ba.node(), ult_ab.node()));
+  XLS_ASSERT_OK_AND_ASSIGN(BinaryFoldingAction fold_ugt_to_sub,
+                           make_fold(ugt_ba.node(), sub_ab.node()));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      double area_ugt,
+      area_estimator->GetOperationAreaInSquareMicrons(ugt_ba.node()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      double area_sgt,
+      area_estimator->GetOperationAreaInSquareMicrons(sgt_ba.node()));
+  XLS_ASSERT_OK_AND_ASSIGN(double area_mux,
+                           EstimateAreaForSelectingASingleInput(
+                               ult_ab.node(), /*op_idx=*/0, *area_estimator));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      double ugt_to_sub_overhead,
+      fold_ugt_to_sub.mappings()
+          .at(ugt_ba.node())
+          ->EstimateAreaOverhead(*area_estimator, ugt_ba.node()->operands(),
+                                 ugt_ba.node()));
+
+  // `ugt(b, a)` swaps operands to `(a, b)`, matching `ult(a, b)` on both
+  // inputs with zero input-mux overhead.
+  XLS_ASSERT_OK_AND_ASSIGN(
+      NaryFoldEstimate est_zero_muxes,
+      SelectSubsetOfFolds(
+          {&fold_zero_muxes}, *area_estimator, critical_path_delay,
+          &visibility_estimator, /*min_area=*/-1000.0,
+          /*max_delay_spread=*/std::numeric_limits<int64_t>::max(),
+          /*max_delay_increase=*/std::numeric_limits<uint64_t>::max(),
+          ResourceSharingPass::kDefaultConfig));
+  ASSERT_EQ(est_zero_muxes.folds.size(), 1);
+  EXPECT_DOUBLE_EQ(est_zero_muxes.area_saved, area_ugt);
+
+  // `ugt(a, b)` swaps operands to `(b, a)`, requiring two 32-bit input muxes.
+  XLS_ASSERT_OK_AND_ASSIGN(
+      NaryFoldEstimate est_two_muxes,
+      SelectSubsetOfFolds(
+          {&fold_two_muxes}, *area_estimator, critical_path_delay,
+          &visibility_estimator, /*min_area=*/-1000.0,
+          /*max_delay_spread=*/std::numeric_limits<int64_t>::max(),
+          /*max_delay_increase=*/std::numeric_limits<uint64_t>::max(),
+          ResourceSharingPass::kDefaultConfig));
+  ASSERT_EQ(est_two_muxes.folds.size(), 1);
+  EXPECT_DOUBLE_EQ(est_two_muxes.area_saved, area_ugt - 2.0 * area_mux);
+
+  // Cross-signedness `sgt(b, a) -> ult(a, b)` wraps both ports via `SwapMsbs`
+  // `Concat`s, so it still pays for two 32-bit input muxes.
+  XLS_ASSERT_OK_AND_ASSIGN(
+      NaryFoldEstimate est_sgt_msb_swap,
+      SelectSubsetOfFolds(
+          {&fold_sgt_msb_swap}, *area_estimator, critical_path_delay,
+          &visibility_estimator, /*min_area=*/-1000.0,
+          /*max_delay_spread=*/std::numeric_limits<int64_t>::max(),
+          /*max_delay_increase=*/std::numeric_limits<uint64_t>::max(),
+          ResourceSharingPass::kDefaultConfig));
+  ASSERT_EQ(est_sgt_msb_swap.folds.size(), 1);
+  EXPECT_DOUBLE_EQ(est_sgt_msb_swap.area_saved, area_sgt - 2.0 * area_mux);
+
+  // `CompareToArithEquivalenceMapping`: `ugt(b, a) -> sub(a, b)` swaps to
+  // `(a, b)` with zero input-mux overhead.
+  XLS_ASSERT_OK_AND_ASSIGN(
+      NaryFoldEstimate est_ugt_to_sub,
+      SelectSubsetOfFolds(
+          {&fold_ugt_to_sub}, *area_estimator, critical_path_delay,
+          &visibility_estimator, /*min_area=*/-1000.0,
+          /*max_delay_spread=*/std::numeric_limits<int64_t>::max(),
+          /*max_delay_increase=*/std::numeric_limits<uint64_t>::max(),
+          ResourceSharingPass::kDefaultConfig));
+  ASSERT_EQ(est_ugt_to_sub.folds.size(), 1);
+  EXPECT_NEAR(est_ugt_to_sub.area_saved, area_ugt - ugt_to_sub_overhead, 1e-6);
+}
+
+TEST_F(ResourceSharingPassTest,
+       PassFoldsSwappedOperandsWithZeroMuxesAndRejectsUnmatched) {
+  PassResults results;
+  OptimizationContext context;
+  OptimizationPassOptions opts{};
+  opts.enable_resource_sharing = true;
+  XLS_ASSERT_OK_AND_ASSIGN(opts.area_estimator, GetAreaEstimator("asap7"));
+  XLS_ASSERT_OK_AND_ASSIGN(opts.delay_estimator, GetDelayEstimator("asap7"));
+
+  // 1. `ComparatorEquivalenceMapping`: `ugt(b, a)` and `ult(a, b)` share both
+  // lowered operands (0 input muxes, profitable), while `ugt(a, b)` requires
+  // two 34-bit input muxes (rejected).
+  {
+    auto p = CreatePackage();
+    FunctionBuilder fb(TestName(), p.get());
+    Type* u34 = p->GetBitsType(34);
+    BValue sel = fb.Param("sel", p->GetBitsType(2));
+    BValue a = fb.Param("a", u34);
+    BValue b = fb.Param("b", u34);
+    BValue ult_ab = fb.ULt(a, b);
+    BValue ugt_ba = fb.UGt(b, a);
+    BValue ugt_ab = fb.UGt(a, b);
+    BValue out = fb.PrioritySelect(sel, /*cases=*/{ugt_ba, ugt_ab},
+                                   /*default_value=*/ult_ab);
+    XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(out));
+    ScopedVerifyEquivalence check_equivalent(f, absl::Seconds(10));
+
+    XLS_ASSERT_OK_AND_ASSIGN(
+        double area_ugt,
+        opts.area_estimator->GetOperationAreaInSquareMicrons(ugt_ba.node()));
+    XLS_ASSERT_OK_AND_ASSIGN(
+        double area_mux,
+        EstimateAreaForSelectingASingleInput(ult_ab.node(), /*op_idx=*/0,
+                                             *opts.area_estimator));
+    ResourceSharingPass pass(ResourceSharingPass::ProfitabilityGuard::kInDegree,
+                             /*min_area_savings=*/area_ugt - area_mux);
+    EXPECT_THAT(pass.RunOnFunctionBase(f, opts, &results, context),
+                IsOkAndHolds(true));
+
+    int64_t live_cmp_count = 0;
+    int64_t live_priority_sel_count = 0;
+    for (Node* node : f->nodes()) {
+      if (node->IsDead()) {
+        continue;
+      }
+      if (OpIsCompare(node->op())) {
+        ++live_cmp_count;
+        EXPECT_TRUE(node->operand(0)->Is<Param>());
+        EXPECT_TRUE(node->operand(1)->Is<Param>());
+      } else if (node->Is<PrioritySelect>()) {
+        ++live_priority_sel_count;
+      }
+    }
+    EXPECT_EQ(live_cmp_count, 2);
+    EXPECT_EQ(live_priority_sel_count, 1);
+  }
+
+  // 2. `CompareToArithEquivalenceMapping`: `ugt(b, a)` folds into `sub(a, b)`
+  // with zero input muxes, while `ugt(a, b)` is rejected.
+  {
+    auto p = CreatePackage();
+    FunctionBuilder fb(TestName(), p.get());
+    Type* u34 = p->GetBitsType(34);
+    BValue sel = fb.Param("sel", p->GetBitsType(2));
+    BValue a = fb.Param("a", u34);
+    BValue b = fb.Param("b", u34);
+    BValue sub_ab = fb.Subtract(a, b);
+    BValue ugt_ba = fb.UGt(b, a);
+    BValue ugt_ab = fb.UGt(a, b);
+    BValue out = fb.PrioritySelect(
+        sel,
+        /*cases=*/{fb.ZeroExtend(ugt_ba, 34), fb.ZeroExtend(ugt_ab, 34)},
+        /*default_value=*/sub_ab);
+    XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(out));
+    ScopedVerifyEquivalence check_equivalent(f, absl::Seconds(10));
+
+    ResourceSharingPass pass(ResourceSharingPass::ProfitabilityGuard::kInDegree,
+                             /*min_area_savings=*/2.0);
+    EXPECT_THAT(pass.RunOnFunctionBase(f, opts, &results, context),
+                IsOkAndHolds(true));
+
+    int64_t live_ugt_count = 0;
+    int64_t live_sub_count = 0;
+    for (Node* node : f->nodes()) {
+      if (node->IsDead()) {
+        continue;
+      }
+      if (node->op() == Op::kUGt) {
+        ++live_ugt_count;
+        EXPECT_EQ(node->operand(0), a.node());
+        EXPECT_EQ(node->operand(1), b.node());
+      } else if (node->op() == Op::kSub) {
+        ++live_sub_count;
+        EXPECT_EQ(node->operand(0), a.node());
+        EXPECT_EQ(node->operand(1), b.node());
+      }
+    }
+    EXPECT_EQ(live_sub_count, 1);
+    EXPECT_EQ(live_ugt_count, 1);
+  }
 }
 
 void IrFuzzResourceSharing(FuzzPackageWithArgs fuzz_package_with_args) {
