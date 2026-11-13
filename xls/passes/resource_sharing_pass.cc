@@ -741,12 +741,17 @@ absl::StatusOr<NaryFoldEstimate> SelectSubsetOfFolds(
             folding->GetFrom(), folding->GetFromVisibilityEdges(),
             folding->GetSinks()));
 
+    auto it = folding->mappings().find(from);
+    XLS_RET_CHECK(it != folding->mappings().end());
+
     // Estimate the area overhead that will be paid to forward all inputs to
     // the destination of the current binary folding.
     double input_mux_overhead = 0.0;
     for (int64_t op_idx = 0; op_idx < destination->operand_count(); ++op_idx) {
-      if (op_idx >= from->operand_count() ||
-          destination->operand(op_idx) != from->operand(op_idx)) {
+      XLS_ASSIGN_OR_RETURN(bool same_operand,
+                           AreMappedOperandsIdentical(folding->mappings(), from,
+                                                      destination, op_idx));
+      if (!same_operand) {
         input_mux_overhead += area_input_select[op_idx];
       }
     }
@@ -754,8 +759,6 @@ absl::StatusOr<NaryFoldEstimate> SelectSubsetOfFolds(
 
     // Add overhead incurred by mapping operands and output
     // e.g. negation when folding between add/sub
-    auto it = folding->mappings().find(from);
-    XLS_RET_CHECK(it != folding->mappings().end());
     XLS_ASSIGN_OR_RETURN(double mapping_overhead,
                          it->second->EstimateAreaOverhead(
                              area_estimator, from->operands(), from));

@@ -5144,6 +5144,7 @@ cc_test(
         "//xls/common:xls_gunit_main",
         "//xls/common/fuzzing:fuzztest",
         "//xls/common/status:matchers",
+        "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "//xls/estimators",
         "//xls/estimators/area_model:area_estimator",
