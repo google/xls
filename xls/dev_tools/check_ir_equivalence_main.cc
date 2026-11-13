@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include <cstdint>
+#include <functional>
 #include <iostream>
 #include <memory>
 #include <optional>
@@ -23,6 +24,7 @@
 #include <vector>
 
 #include "absl/algorithm/container.h"
+#include "absl/cleanup/cleanup.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/flags/flag.h"
 #include "absl/log/check.h"
@@ -31,11 +33,14 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
+#include "absl/time/time.h"
+#include "absl/types/optional_ref.h"
 #include "xls/common/exit_status.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/init_xls.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/common/stopwatch.h"
 #include "xls/dev_tools/tool_timeout.h"
 #include "xls/ir/format_preference.h"
 #include "xls/ir/function.h"
@@ -84,17 +89,34 @@ ABSL_FLAG(int, match_exit_code, 0,
           "Value to exit with if equivalence is not proven.");
 ABSL_FLAG(xls::solvers::SolverKind, solver, xls::solvers::SolverKind::kZ3,
           "Solver backend to use (z3 or bitwuzla).");
+ABSL_FLAG(bool, optimize_merged_ir, false,
+          "If true, run the standard optimization pass pipeline on the merged "
+          "equivalence-checking IR before invoking the solver.");
 // LINT.ThenChange(//xls/build_rules/xls_ir_rules.bzl)
+
+ABSL_FLAG(bool, print_timing, false,
+          "If true, print phase wall-clock timings to stderr.");
 
 namespace xls {
 namespace {
 
 absl::StatusOr<solvers::ProverResult> CheckFunctionEquivalence(
-    Function* f1, Function* f2, solvers::SolverKind solver) {
-  return solvers::TryProveEquivalence(f1, f2, solver);
+    Function* f1, Function* f2, solvers::SolverKind solver,
+    bool optimize_merged_ir,
+    absl::optional_ref<solvers::EquivalenceTiming> timing) {
+  std::function<absl::Status(Package*)> transform_merged;
+  if (optimize_merged_ir) {
+    transform_merged = [](Package* pkg) -> absl::Status {
+      return RunOptimizationPassPipeline(pkg).status();
+    };
+  }
+  return solvers::TryProveEquivalence(f1, f2, /*ignore_asserts=*/false, solver,
+                                      /*limit=*/{}, transform_merged, timing);
 }
 absl::StatusOr<solvers::ProverResult> CheckProcEquivalence(
-    Proc* p1, Proc* p2, int64_t activation_count, solvers::SolverKind solver) {
+    Proc* p1, Proc* p2, int64_t activation_count, solvers::SolverKind solver,
+    bool optimize_merged_ir,
+    absl::optional_ref<solvers::EquivalenceTiming> timing) {
   XLS_ASSIGN_OR_RETURN(
       Function * f1,
       UnrollProcToFunction(p1, activation_count, /*include_state=*/false),
@@ -103,7 +125,7 @@ absl::StatusOr<solvers::ProverResult> CheckProcEquivalence(
       Function * f2,
       UnrollProcToFunction(p2, activation_count, /*include_state=*/false),
       _ << "Unable to unroll: " << p2->DumpIr());
-  return CheckFunctionEquivalence(f1, f2, solver);
+  return CheckFunctionEquivalence(f1, f2, solver, optimize_merged_ir, timing);
 }
 
 absl::StatusOr<std::vector<std::string>> CounterexampleParams(
@@ -141,8 +163,30 @@ absl::StatusOr<std::vector<std::string>> CounterexampleParams(
 absl::StatusOr<bool> RealMain(const std::vector<std::string_view>& ir_paths,
                               const std::string& entry,
                               std::optional<int64_t> activation_count,
-                              solvers::SolverKind solver) {
+                              solvers::SolverKind solver,
+                              bool optimize_merged_ir, bool print_timing) {
   auto timeout = StartTimeoutTimer();
+  Stopwatch total_sw;
+  absl::Duration inlining_duration = absl::ZeroDuration();
+  solvers::EquivalenceTiming equiv_timing{};
+  absl::Cleanup print_timing_cleanup([&]() {
+    if (print_timing) {
+      double inlining_ms = absl::ToDoubleMilliseconds(inlining_duration);
+      double merge_ms = absl::ToDoubleMilliseconds(equiv_timing.merge_duration);
+      double opt_pipeline_ms =
+          absl::ToDoubleMilliseconds(equiv_timing.transform_duration);
+      double merge_and_opt_ms = merge_ms + opt_pipeline_ms;
+      double solver_ms =
+          absl::ToDoubleMilliseconds(equiv_timing.solver_duration);
+      double total_ms = absl::ToDoubleMilliseconds(total_sw.GetElapsedTime());
+      std::cerr << absl::StreamFormat(
+          "timing: inlining_ms=%.3f merge_ms=%.3f opt_pipeline_ms=%.3f "
+          "merge_and_opt_ms=%.3f solver_ms=%.3f total_ms=%.3f\n",
+          inlining_ms, merge_ms, opt_pipeline_ms, merge_and_opt_ms, solver_ms,
+          total_ms);
+    }
+  });
+
   std::vector<std::unique_ptr<Package>> packages;
   for (const auto ir_path : ir_paths) {
     XLS_ASSIGN_OR_RETURN(std::string ir_text, GetFileContents(ir_path));
@@ -159,6 +203,7 @@ absl::StatusOr<bool> RealMain(const std::vector<std::string_view>& ir_paths,
   //
   // To work around this, we have to inline such calls.
   // Fortunately, inlining is pretty simple and unlikely to change semantics.
+  Stopwatch inlining_sw;
   XLS_ASSIGN_OR_RETURN(
       std::unique_ptr<OptimizationPass> inlining_passes,
       // NB All except full-inlining and dce are defined in this file.
@@ -173,6 +218,7 @@ absl::StatusOr<bool> RealMain(const std::vector<std::string_view>& ir_paths,
         inlining_passes->Run(package.get(), options, &results, context)
             .status());
   }
+  inlining_duration = inlining_sw.GetElapsedTime();
 
   std::vector<FunctionBase*> functions;
   functions.reserve(packages.size());
@@ -192,7 +238,8 @@ absl::StatusOr<bool> RealMain(const std::vector<std::string_view>& ir_paths,
     }
     XLS_ASSIGN_OR_RETURN(result, CheckFunctionEquivalence(
                                      functions[0]->AsFunctionOrDie(),
-                                     functions[1]->AsFunctionOrDie(), solver));
+                                     functions[1]->AsFunctionOrDie(), solver,
+                                     optimize_merged_ir, equiv_timing));
   } else if (functions[0]->IsProc()) {
     if (!functions[1]->IsProc()) {
       return absl::InvalidArgumentError("Both inputs must be procs");
@@ -201,10 +248,11 @@ absl::StatusOr<bool> RealMain(const std::vector<std::string_view>& ir_paths,
       return absl::InvalidArgumentError(
           "a positive activation is required for proc equivalence checking");
     }
-    XLS_ASSIGN_OR_RETURN(result,
-                         CheckProcEquivalence(functions[0]->AsProcOrDie(),
-                                              functions[1]->AsProcOrDie(),
-                                              *activation_count, solver));
+    XLS_ASSIGN_OR_RETURN(
+        result,
+        CheckProcEquivalence(functions[0]->AsProcOrDie(),
+                             functions[1]->AsProcOrDie(), *activation_count,
+                             solver, optimize_merged_ir, equiv_timing));
   } else {
     return absl::InternalError(
         "Block equivalence checking not supported currently.");
@@ -235,7 +283,9 @@ int main(int argc, char** argv) {
   QCHECK_EQ(positional_args.size(), 2) << "Two IR files must be specified!";
   auto result = xls::RealMain(positional_args, absl::GetFlag(FLAGS_top),
                               absl::GetFlag(FLAGS_activation_count),
-                              absl::GetFlag(FLAGS_solver));
+                              absl::GetFlag(FLAGS_solver),
+                              absl::GetFlag(FLAGS_optimize_merged_ir),
+                              absl::GetFlag(FLAGS_print_timing));
   if (!result.ok()) {
     return xls::ExitStatus(result.status());
   }
