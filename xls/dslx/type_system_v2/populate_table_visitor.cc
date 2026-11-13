@@ -761,17 +761,29 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
     return table_.SetTypeAnnotation(node, any_type);
   }
 
-  // Preserve the shape of every tuple in the pattern. Leaves get their
-  // types from the matched value, and `..` can match any number of elements.
-  TupleTypeAnnotation* MakeTuplePatternAnnotation(const TuplePattern* node) {
+  // Preserve the shape of every tuple in the pattern. Irrefutable leaves get
+  // their types from the matched value, `..` can match any number of elements,
+  // and refutable leaves also contribute their own types via type variables.
+  absl::StatusOr<TupleTypeAnnotation*> MakeTuplePatternAnnotation(
+      const TuplePattern* node) {
     std::vector<TypeAnnotation*> member_types;
     member_types.reserve(node->members().size());
     for (const PatternTree& child : node->members()) {
       if (const auto* tuple = std::get_if<TuplePattern*>(&child)) {
-        member_types.push_back(MakeTuplePatternAnnotation(*tuple));
-      } else {
+        XLS_ASSIGN_OR_RETURN(TupleTypeAnnotation * subtuple,
+                             MakeTuplePatternAnnotation(*tuple));
+        member_types.push_back(subtuple);
+      } else if (IsIrrefutablePattern(child)) {
         member_types.push_back(
             module_.Make<AnyTypeAnnotation>(IsRestOfTupleLeaf(child)));
+      } else {
+        const AstNode* actual_child = ToAstNode(child);
+        XLS_ASSIGN_OR_RETURN(
+            const NameRef* variable,
+            DefineTypeVariable(actual_child, "pattern_child_expr"));
+        XLS_RETURN_IF_ERROR(table_.SetTypeVariable(actual_child, variable));
+        member_types.push_back(
+            module_.Make<TypeVariableTypeAnnotation>(variable));
       }
     }
     return module_.Make<TupleTypeAnnotation>(node->span(),
@@ -781,8 +793,9 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
   absl::Status HandleTuplePattern(const TuplePattern* node) override {
     VLOG(5) << "HandleTuplePattern: " << node->ToString();
     const NameRef* variable = *table_.GetTypeVariable(node);
-    XLS_RETURN_IF_ERROR(
-        table_.SetTypeAnnotation(node, MakeTuplePatternAnnotation(node)));
+    XLS_ASSIGN_OR_RETURN(TupleTypeAnnotation * annotation,
+                         MakeTuplePatternAnnotation(node));
+    XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(node, annotation));
     return HandleTuplePatternChildren(
         node, module_.Make<TypeVariableTypeAnnotation>(variable));
   }
@@ -853,16 +866,34 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
           module_.Make<ElementTypeAnnotation>(tuple_pattern_type, index);
     }
 
-    XLS_RETURN_IF_ERROR(
-        DefineAndSetTypeVariable(actual_child, "pattern_child"));
-    XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(actual_child, element_type));
     if (std::holds_alternative<TuplePattern*>(child)) {
-      XLS_RETURN_IF_ERROR(HandleTuplePatternChildren(
-          std::get<TuplePattern*>(child), element_type));
-    } else {
-      XLS_RETURN_IF_ERROR(ToAstNode(child)->Accept(this));
+      XLS_RETURN_IF_ERROR(
+          DefineAndSetTypeVariable(actual_child, "pattern_child"));
+      XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(actual_child, element_type));
+      return HandleTuplePatternChildren(std::get<TuplePattern*>(child),
+                                        element_type);
     }
-    return absl::OkStatus();
+
+    std::optional<const NameRef*> child_expr_var =
+        table_.GetTypeVariable(actual_child);
+    XLS_RETURN_IF_ERROR(actual_child->Accept(this));
+    XLS_ASSIGN_OR_RETURN(const NameRef* pattern_child_var,
+                         DefineTypeVariable(actual_child, "pattern_child"));
+    XLS_RETURN_IF_ERROR(
+        table_.SetTypeVariable(actual_child, pattern_child_var));
+    if (std::holds_alternative<Range*>(child)) {
+      const auto* range = std::get<Range*>(child);
+      XLS_RETURN_IF_ERROR(
+          table_.SetTypeVariable(range->start(), pattern_child_var));
+      XLS_RETURN_IF_ERROR(
+          table_.SetTypeVariable(range->end(), pattern_child_var));
+    }
+    if (child_expr_var.has_value()) {
+      XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(
+          actual_child,
+          module_.Make<TypeVariableTypeAnnotation>(*child_expr_var)));
+    }
+    return table_.SetTypeAnnotation(actual_child, element_type);
   }
 
   absl::Status HandleForLoopBase(const ForLoopBase* node) {
