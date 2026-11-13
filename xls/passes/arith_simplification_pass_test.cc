@@ -859,6 +859,241 @@ TEST_F(ArithSimplificationPassTest, UMulBy256ZeroExtendedResult) {
                         m::Literal(UBits(0, 8))));
 }
 
+TEST_F(ArithSimplificationPassTest, UMulByDecode) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetBitsType(3));
+  BValue k = fb.Param("k", p->GetBitsType(3));
+  BValue power = fb.Decode(k, 5);
+  fb.UMul(x, power, 7);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  ScopedVerifyEquivalence stays_equivalent(f, kProverTimeout);
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::Select(m::ULt(m::Param("k"), m::Literal(5)),
+                        {m::Literal(0),
+                         m::Shll(m::ZeroExt(m::Param("x")), m::Param("k"))}));
+}
+
+TEST_F(ArithSimplificationPassTest, UMulByDecodeCommutedWithoutGuard) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetBitsType(3));
+  BValue k = fb.Param("k", p->GetBitsType(2));
+  BValue power = fb.Decode(k, 4);
+  fb.UMul(power, x, 7);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  ScopedVerifyEquivalence stays_equivalent(f, kProverTimeout);
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::Shll(m::ZeroExt(m::Param("x")), m::Param("k")));
+}
+
+TEST_F(ArithSimplificationPassTest, UMulByDecodeWiderThanResultWithoutGuard) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetBitsType(3));
+  BValue k = fb.Param("k", p->GetBitsType(4));
+  BValue power = fb.Decode(k, 8);
+  fb.UMul(x, power, 5);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  ScopedVerifyEquivalence stays_equivalent(f, kProverTimeout);
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::Shll(m::ZeroExt(m::Param("x")), m::Param("k")));
+}
+
+TEST_F(ArithSimplificationPassTest,
+       UMulVariablePowersPreferUnguardedDecodeForBothOperandOrders) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue decode_shift = fb.Param("decode_shift", p->GetBitsType(3));
+  BValue shll_shift = fb.Param("shll_shift", p->GetBitsType(3));
+  BValue decoded = fb.Decode(decode_shift, 7);
+  BValue shifted_one = fb.Shll(fb.Literal(UBits(1, 5)), shll_shift);
+  BValue decode_first = fb.UMul(decoded, shifted_one, 7);
+  BValue decode_second = fb.UMul(shifted_one, decoded, 7);
+  fb.Tuple({decode_first, decode_second});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  ScopedVerifyEquivalence stays_equivalent(f, kProverTimeout);
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::Tuple(m::Shll(m::ZeroExt(m::Decode(m::Param("shll_shift"))),
+                               m::Param("decode_shift")),
+                       m::Shll(m::ZeroExt(m::Decode(m::Param("shll_shift"))),
+                               m::Param("decode_shift"))));
+}
+
+TEST_F(ArithSimplificationPassTest,
+       UMulVariablePowersPreferUnguardedShiftedOneForBothOperandOrders) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue decode_shift = fb.Param("decode_shift", p->GetBitsType(3));
+  BValue shll_shift = fb.Param("shll_shift", p->GetBitsType(3));
+  BValue decoded = fb.Decode(decode_shift, 5);
+  BValue shifted_one = fb.Shll(fb.Literal(UBits(1, 7)), shll_shift);
+  BValue decode_first = fb.UMul(decoded, shifted_one, 7);
+  BValue decode_second = fb.UMul(shifted_one, decoded, 7);
+  fb.Tuple({decode_first, decode_second});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  ScopedVerifyEquivalence stays_equivalent(f, kProverTimeout);
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::Tuple(m::Shll(m::ZeroExt(m::Decode(m::Param("decode_shift"))),
+                               m::Param("shll_shift")),
+                       m::Shll(m::ZeroExt(m::Decode(m::Param("decode_shift"))),
+                               m::Param("shll_shift"))));
+}
+
+TEST_F(ArithSimplificationPassTest, UMulByShiftedOne) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetBitsType(3));
+  BValue k = fb.Param("k", p->GetBitsType(3));
+  BValue one = fb.Literal(UBits(1, 5));
+  BValue power = fb.Shll(one, k);
+  fb.UMul(x, power, 7);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  ScopedVerifyEquivalence stays_equivalent(f, kProverTimeout);
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::Select(m::ULt(m::Param("k"), m::Literal(5)),
+                        {m::Literal(0),
+                         m::Shll(m::ZeroExt(m::Param("x")), m::Param("k"))}));
+}
+
+TEST_F(ArithSimplificationPassTest, UMulByShiftedPowerOfTwo) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetBitsType(3));
+  BValue k = fb.Param("k", p->GetBitsType(3));
+  fb.UMul(x, fb.Shll(fb.Literal(UBits(4, 5)), k), 7);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  ScopedVerifyEquivalence stays_equivalent(f, kProverTimeout);
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  // The pass can simplify k < 3 to bitwise logic. Equivalence checks the
+  // bounds condition independently of that representation.
+  EXPECT_THAT(f->return_value(),
+              m::Select(_, {m::Literal(0), m::Shll(_, m::Param("k"))}));
+}
+
+TEST_F(ArithSimplificationPassTest,
+       UMulByShiftedPowerOfTwoWithNarrowShiftAmount) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetBitsType(3));
+  BValue k = fb.Param("k", p->GetBitsType(1));
+  fb.UMul(fb.Shll(fb.Literal(UBits(4, 4)), k), x, 7);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  ScopedVerifyEquivalence stays_equivalent(f, kProverTimeout);
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(), m::Shll(_, m::Param("k")));
+}
+
+TEST_F(ArithSimplificationPassTest,
+       UMulByShiftedPowerOfTwoWiderThanResultWithoutGuard) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetBitsType(3));
+  BValue k = fb.Param("k", p->GetBitsType(3));
+  fb.UMul(x, fb.Shll(fb.Literal(UBits(4, 8)), k), 5);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  ScopedVerifyEquivalence stays_equivalent(f, kProverTimeout);
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(), m::Shll(_, m::Param("k")));
+}
+
+TEST_F(ArithSimplificationPassTest, UMulByDecodeEqualResultWidthWithoutGuard) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetBitsType(3));
+  BValue k = fb.Param("k", p->GetBitsType(4));
+  fb.UMul(x, fb.Decode(k, 5), 5);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  ScopedVerifyEquivalence stays_equivalent(f, kProverTimeout);
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::Shll(m::ZeroExt(m::Param("x")), m::Param("k")));
+}
+
+TEST_F(ArithSimplificationPassTest, UMulByDecodeTruncatesMultiplicand) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetBitsType(9));
+  BValue k = fb.Param("k", p->GetBitsType(3));
+  fb.UMul(x, fb.Decode(k, 5), 7);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  ScopedVerifyEquivalence stays_equivalent(f, kProverTimeout);
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(
+      f->return_value(),
+      m::Select(m::ULt(m::Param("k"), m::Literal(5)),
+                {m::Literal(0),
+                 m::Shll(m::BitSlice(m::Param("x"), 0, 7), m::Param("k"))}));
+}
+
+TEST_F(ArithSimplificationPassTest, UMulByDecodeZeroWidthMultiplicand) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetBitsType(0));
+  BValue k = fb.Param("k", p->GetBitsType(3));
+  BValue power = fb.Decode(k, 5);
+  fb.Tuple({fb.UMul(x, power, 7), fb.UMul(power, x, 7)});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  ScopedVerifyEquivalence stays_equivalent(f, kProverTimeout);
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::Tuple(m::Literal(UBits(0, 7)), m::Literal(UBits(0, 7))));
+}
+
+TEST_F(ArithSimplificationPassTest, UMulByDecodePreservesOtherUsers) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetBitsType(3));
+  BValue k = fb.Param("k", p->GetBitsType(3));
+  BValue power = fb.Decode(k, 5);
+  fb.Tuple({fb.UMul(x, power, 7), power});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  ScopedVerifyEquivalence stays_equivalent(f, kProverTimeout);
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(
+      f->return_value(),
+      m::Tuple(m::Select(m::ULt(m::Param("k"), m::Literal(5)),
+                         {m::Literal(0),
+                          m::Shll(m::ZeroExt(m::Param("x")), m::Param("k"))}),
+               m::Decode(m::Param("k"))));
+}
+
+TEST_F(ArithSimplificationPassTest, UMulByDecodeShape) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetBitsType(5));
+  BValue k = fb.Param("k", p->GetBitsType(32));
+  BValue power = fb.Decode(k, 27);
+  fb.UMul(x, power, 32);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  ScopedVerifyEquivalence stays_equivalent(f, kProverTimeout);
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::Select(m::ULt(m::Param("k"), m::Literal(27)),
+                        {m::Literal(0),
+                         m::Shll(m::ZeroExt(m::Param("x")), m::Param("k"))}));
+}
+
 TEST_F(ArithSimplificationPassTest, UModBy4) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
