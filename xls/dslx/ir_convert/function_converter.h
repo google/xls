@@ -196,35 +196,14 @@ class FunctionConverter {
     return package->GetTupleType({token_type, u1_type, type});
   }
 
-  // Helper function used for adding a parameter type in for-loops and similar.
-  BValue AddParam(std::string_view name, xls::Type* type) {
-    CHECK(function_proto_);
-    auto* param_proto = function_proto_.value()->add_parameters();
-    param_proto->set_name(name);
-    *param_proto->mutable_type() = type->ToProto();
-    // This is only for internal 'for-loop' and similar impl functions so they
-    // won't ever be emitted as verilog.
-    return function_builder_->Param(name, type);
-  }
+  absl::StatusOr<BValue> AddParam(
+      std::string_view name, xls::Type* type,
+      std::optional<std::string> sv_type = std::nullopt);
+  void AssignParamNames();
 
   // Helper function used for adding a parameter type wrapped up in a
   // token/activation boolean.
-  BValue AddTokenWrappedParam(xls::Type* type) {
-    BuilderBase* fb = function_builder_.get();
-    xls::Type* wrapped_type = WrapIrForImplicitTokenType(type, package());
-    BValue param = fb->Param("__token_wrapped", wrapped_type);
-    BValue entry_token = fb->TupleIndex(param, 0);
-    BValue activated = fb->TupleIndex(param, 1);
-    auto create_control_predicate = [activated] { return activated; };
-    implicit_token_data_ =
-        ImplicitTokenData{entry_token, activated, create_control_predicate};
-    BValue unwrapped = fb->TupleIndex(param, 2);
-    CHECK(function_proto_);
-    auto* param_proto = function_proto_.value()->add_parameters();
-    param_proto->set_name(param.GetName());
-    *param_proto->mutable_type() = param.GetType()->ToProto();
-    return unwrapped;
-  }
+  absl::StatusOr<BValue> AddTokenWrappedParam(xls::Type* type);
 
   // Helpers to construct a synthetic function to use when iterating with `map`.
   void BuildMapIterFunction(FunctionBuilder* syn, const SourceInfo& loc,

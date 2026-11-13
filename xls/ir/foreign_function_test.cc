@@ -35,5 +35,16 @@ TEST(ForeignFunctionTest, PartialValueSubstituteHelper) {
   EXPECT_EQ(ffi.delay_ps(), 1536);
   EXPECT_EQ(substitute.GetUpdatedFfiData()->delay_ps(), 1536);
 }
+
+TEST(ForeignFunctionTest, RenameParameterRootsOnceAndKeepEscapedBraces) {
+  ForeignFunctionData ffi;
+  ffi.set_code_template("{x'.1.0} {x_} {{x_}} {fn} {return.0}");
+  FfiPartialValueSubstituteHelper substitute(ffi);
+  substitute.SetParameterName("x'", "x_");
+  substitute.SetParameterName("x_", "x___1");
+  substitute.SetParameterName("return", "_return");
+  EXPECT_EQ(substitute.GetUpdatedFfiData()->code_template(),
+            "{x_.1.0} {x___1} {{x_}} {fn} {return.0}");
+}
 }  // namespace
 }  // namespace xls

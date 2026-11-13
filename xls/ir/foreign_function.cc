@@ -45,8 +45,8 @@ absl::StatusOr<ForeignFunctionData> ForeignFunctionDataCreateFromTemplate(
 
 void FfiPartialValueSubstituteHelper::SetNamedValue(std::string_view name,
                                                     const Value& value) {
-  if (!value.IsBits()) {
-    return;  // Only interested in scalars right now
+  if (!ffi_.has_value() || !value.IsBits()) {
+    return;
   }
   // Emit these in hex to be interpreted as whatever it needs to be in the
   // Verilog substitution. This is somewhat breaking abstraction as we already
@@ -58,9 +58,18 @@ void FfiPartialValueSubstituteHelper::SetNamedValue(std::string_view name,
       BitsToRawDigits(value.bits(), FormatPreference::kPlainHex, true));
 }
 
+void FfiPartialValueSubstituteHelper::SetParameterName(
+    std::string_view source_name, std::string_view ir_name) {
+  if (source_name != ir_name && source_name != "fn" &&
+      source_name != "return") {
+    parameter_names_[source_name] = ir_name;
+  }
+}
+
 std::optional<::xls::ForeignFunctionData>
 FfiPartialValueSubstituteHelper::GetUpdatedFfiData() const {
-  if (!ffi_.has_value() || substitutions_.empty()) {
+  if (!ffi_.has_value() ||
+      (substitutions_.empty() && parameter_names_.empty())) {
     return ffi_;  // Nothing to do.
   }
   absl::StatusOr<CodeTemplate> code_template =
@@ -69,10 +78,17 @@ FfiPartialValueSubstituteHelper::GetUpdatedFfiData() const {
   std::string modified_template = code_template->Substitute(
       [&](std::string_view name) {
         auto found = substitutions_.find(name);
-        if (found == substitutions_.end()) {
-          return absl::StrCat("{", name, "}");  // Pass on original name
+        if (found != substitutions_.end()) {
+          return found->second;
         }
-        return found->second;
+        std::string_view root = name.substr(0, name.find('.'));
+        auto param = parameter_names_.find(root);
+        if (param != parameter_names_.end()) {
+          return absl::StrCat("{", param->second, name.substr(root.size()),
+                              "}");
+        } else {
+          return absl::StrCat("{", name, "}");
+        }
       },
       CodeTemplate::Escaped::kKeep);
   ForeignFunctionData result;
