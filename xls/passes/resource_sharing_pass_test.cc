@@ -75,6 +75,8 @@ using ::testing::ElementsAre;
 using ::testing::Eq;
 using ::testing::Field;
 using ::testing::HasSubstr;
+using ::testing::IsEmpty;
+using ::testing::IsNull;
 using ::testing::Pointee;
 using ::testing::Property;
 using ::testing::UnorderedElementsAre;
@@ -804,6 +806,46 @@ TEST_F(ResourceSharingPassTest,
                            round_tripped_pkg->GetFunction(TestName()));
   EXPECT_THAT(get_edge_id_pairs(round_tripped_f),
               IsOkAndHolds(in_memory_edges));
+}
+
+TEST_F(ResourceSharingPassTest,
+       RejectsFoldingWhenFoldedNodeDependsOnVisibilityEdgeNode) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue s = fb.Param("s", p->GetBitsType(1));
+  BValue a = fb.Param("a", p->GetBitsType(4));
+  BValue b = fb.Param("b", p->GetBitsType(4));
+  BValue zero = fb.Literal(UBits(0, 4));
+  BValue mul_a = fb.UMul(a, a, /*result_width=*/4, SourceInfo(), "mul_a");
+  BValue sel_a = fb.PrioritySelect(s, {mul_a}, zero);
+  // mul_b depends on sel_a (mul_a's visibility edge node), even though mul_a
+  // and mul_b are only visible under mutually exclusive values of `s`.
+  BValue mul_b = fb.UMul(sel_a, b, /*result_width=*/4, SourceInfo(), "mul_b");
+  BValue sel_b = fb.PrioritySelect(s, {zero}, mul_b);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
+                           fb.BuildWithReturnValue(fb.Tuple({sel_a, sel_b})));
+
+  XLS_ASSERT_OK_AND_ASSIGN(ResourceSharingPass::VisibilityAnalyses visibilities,
+                           ResourceSharingPass::VisibilityAnalyses::Create(
+                               f, ResourceSharingPass::kDefaultConfig));
+  ASSERT_TRUE(visibilities.single_select.IsMutuallyExclusive(mul_a.node(),
+                                                             mul_b.node()));
+
+  // Check both directions to exercise dependency analysis.
+  EXPECT_THAT(ResourceSharingPass::GetFoldableActionForMutuallyExclusiveNodes(
+                  mul_a.node(), mul_b.node(), visibilities,
+                  ResourceSharingPass::kDefaultConfig.max_edges_to_handle),
+              IsOkAndHolds(IsNull()));
+  EXPECT_THAT(ResourceSharingPass::GetFoldableActionForMutuallyExclusiveNodes(
+                  mul_b.node(), mul_a.node(), visibilities,
+                  ResourceSharingPass::kDefaultConfig.max_edges_to_handle),
+              IsOkAndHolds(IsNull()));
+  absl::btree_set<ResourceSharingPass::MutuallyExclPair> mutual_exclusivity = {
+      {mul_a.node(), mul_b.node()}};
+  EXPECT_THAT(ResourceSharingPass::ComputeFoldableActions(
+                  f, mutual_exclusivity, visibilities,
+                  ResourceSharingPass::kDefaultConfig),
+              IsOkAndHolds(IsEmpty()));
 }
 
 void IrFuzzResourceSharing(FuzzPackageWithArgs fuzz_package_with_args) {
