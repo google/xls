@@ -59,7 +59,8 @@ std::string MangleInterpValue(const InterpValue& value) {
                                                {",", "__"},
                                                {" ", ""},
                                                {"<", "__type_"},
-                                               {">", ""}});
+                                               {">", ""},
+                                               {":", "_"}});
     return absl::StartsWith(result, "__") ? result.substr(2) : result;
   }
 

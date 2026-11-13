@@ -58,6 +58,7 @@ using ::absl_testing::IsOkAndHolds;
 using ::absl_testing::StatusIs;
 using ::testing::HasSubstr;
 using ::testing::IsEmpty;
+using ::testing::Not;
 using ::testing::SizeIs;
 
 namespace m = ::xls::op_matchers;
@@ -94,6 +95,21 @@ fn top() -> u32 { helper(u32:1) }
                            ConvertModuleForTest(program));
   EXPECT_THAT(converted,
               HasSubstr("fn __test_module__helper(_source: bits[32]"));
+}
+
+TEST_F(IrConverterTest, TypeParametricWithColonInTypeNameIsMangledToValidIr) {
+  // `S<u32:4>` contains `:`, which is not valid in an IR identifier, so it must
+  // be sanitized when mangled into the name of the `id` instantiation.
+  constexpr std::string_view program = R"(#![feature(generics)]
+struct S<N: u32> { x: uN[N] }
+fn id<T: type>(x: T) -> T { x }
+fn main(s: S<u32:4>) -> S<u32:4> { id(s) }
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
+                           ConvertModuleForTest(program));
+  EXPECT_THAT(converted, HasSubstr("fn __test_module__id__S__type_u32_4("));
+  EXPECT_THAT(converted, Not(HasSubstr(":4")));
 }
 
 TEST_F(IrConverterTest, Concat) {
