@@ -274,5 +274,19 @@ TEST_F(PortLegalizationPassTest, ZeroWidthChannelMetadata) {
   }
 }
 
+TEST_F(PortLegalizationPassTest, ZeroWidthReservedKeywordPorts) {
+  auto p = CreatePackage();
+
+  BlockBuilder bb(TestName(), p.get());
+  BValue in = bb.InputPort("scheduled_fn", p->GetTupleType({}));
+  bb.OutputPort("fn", in);
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block, bb.Build());
+
+  EXPECT_EQ(block->GetPorts().size(), 2);
+  ASSERT_THAT(Run(block), IsOkAndHolds(true));
+  EXPECT_EQ(block->GetPorts().size(), 0);
+  EXPECT_FALSE(block->DumpIr().empty());
+}
+
 }  // namespace
 }  // namespace xls::verilog

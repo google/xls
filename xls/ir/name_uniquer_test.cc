@@ -50,7 +50,9 @@ TEST(NameUniquerTest, SimpleUniquer) {
 TEST(NameUniquerTest, ReserveIdentifier) {
   NameUniquer uniquer("__");
   EXPECT_THAT(uniquer.ReserveIdentifier("foo"), IsOk());
+  EXPECT_THAT(uniquer.ReserveIdentifier("foo"), Not(IsOk()));
   EXPECT_THAT(uniquer.ReserveIdentifier("baz__2"), IsOk());
+  EXPECT_THAT(uniquer.ReserveIdentifier("baz__2"), Not(IsOk()));
   EXPECT_THAT(uniquer.ReserveIdentifier("BOO__2"), IsOk());
   EXPECT_EQ("foo__1", uniquer.GetSanitizedUniqueName("foo"));
   EXPECT_EQ("foo__2", uniquer.GetSanitizedUniqueName("foo"));
@@ -62,6 +64,14 @@ TEST(NameUniquerTest, ReserveIdentifier) {
   EXPECT_EQ("BOO", uniquer.GetSanitizedUniqueName("BOO"));
   EXPECT_EQ("BOO__1", uniquer.GetSanitizedUniqueName("BOO"));
   EXPECT_EQ("BOO__3", uniquer.GetSanitizedUniqueName("BOO"));
+
+  // A failed duplicate ReserveIdentifier call on a suffixed identifier must not
+  // advance or consume the next available sequential ID in the generator.
+  EXPECT_THAT(uniquer.ReserveIdentifier("qux__2"), IsOk());
+  EXPECT_THAT(uniquer.ReserveIdentifier("qux__2"), Not(IsOk()));
+  EXPECT_EQ("qux", uniquer.GetSanitizedUniqueName("qux"));
+  EXPECT_EQ("qux__1", uniquer.GetSanitizedUniqueName("qux"));
+  EXPECT_EQ("qux__3", uniquer.GetSanitizedUniqueName("qux"));
 }
 
 TEST(NameUniquerTest, DifferentSeparator) {
@@ -92,6 +102,13 @@ TEST(NameUniquerTest, NumericSuffixes) {
   EXPECT_EQ("bar__1", uniquer.GetSanitizedUniqueName("bar"));
   EXPECT_EQ("bar__2", uniquer.GetSanitizedUniqueName("bar"));
   EXPECT_EQ("bar__4", uniquer.GetSanitizedUniqueName("bar"));
+
+  // Non-canonical numeric suffixes (such as leading zeros) are treated as bare
+  // prefixes rather than colliding with canonical numeric suffixes.
+  EXPECT_EQ("lead__01", uniquer.GetSanitizedUniqueName("lead__01"));
+  EXPECT_EQ("lead__1", uniquer.GetSanitizedUniqueName("lead__1"));
+  EXPECT_THAT(uniquer.ReleaseIdentifier("lead__01"), IsOk());
+  EXPECT_THAT(uniquer.ReleaseIdentifier("lead__1"), IsOk());
 }
 
 TEST(NameUniquerTest, SanitizeNames) {

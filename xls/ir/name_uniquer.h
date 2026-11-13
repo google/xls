@@ -101,6 +101,8 @@ class NameUniquer {
 
     // Returns the next available unique ID.
     int64_t NextId() { return RegisterId(next_); }
+    // Returns true if `id` is currently registered as in use.
+    bool IsUsed(int64_t id) const { return used_.contains(id); }
     // Allow the 'id' to be used again. Does not move the incrementing 'next'
     // backwards.
     absl::Status Release(int64_t id);

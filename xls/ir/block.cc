@@ -377,6 +377,14 @@ absl::Status Block::SetPortNameExactly(std::string_view name, Node* node) {
                             "already exists with this name",
                             name));
       }
+      if (node->HasAssignedName()) {
+        XLS_RETURN_IF_ERROR(
+            node_name_uniquer_.ReleaseIdentifier(node->GetName()));
+      }
+      if (n->HasAssignedName()) {
+        XLS_RETURN_IF_ERROR(node_name_uniquer_.ReleaseIdentifier(n->GetName()));
+      }
+      XLS_RETURN_IF_ERROR(node_name_uniquer_.ReserveIdentifier(name));
       // Pick a new name for n.
       n->SetNameDirectly(UniquifyNodeName(name));
       XLS_RET_CHECK_NE(n->GetName(), name);
@@ -384,8 +392,12 @@ absl::Status Block::SetPortNameExactly(std::string_view name, Node* node) {
       return absl::OkStatus();
     }
   }
-  // Ensure the name is known by the uniquer.
-  UniquifyNodeName(name);
+  if (node->HasAssignedName()) {
+    XLS_RETURN_IF_ERROR(node_name_uniquer_.ReleaseIdentifier(node->GetName()));
+  }
+  // Ensure the name is tracked by the uniquer (for example when `name` is an
+  // IR reserved keyword that `GetSanitizedUniqueName` prefixed with `_`).
+  XLS_RETURN_IF_ERROR(node_name_uniquer_.ReserveIdentifier(name));
   node->SetNameDirectly(name);
   return absl::OkStatus();
 }
@@ -649,6 +661,11 @@ Node* Block::AddNodeInternal(std::unique_ptr<Node> node) {
 }
 
 absl::Status Block::RemoveNode(Node* n) {
+  // Check FunctionBase::RemoveNode preconditions before mutating Block-specific
+  // port/register/instantiation state below so a failed removal does not leave
+  // the block in a partially mutated state.
+  XLS_RET_CHECK(n->users().empty()) << n->GetName();
+  XLS_RET_CHECK(!HasImplicitUse(n)) << n->GetName();
   // Similar to parameters in xls::Functions, input and output ports are also
   // also stored separately as vectors for easy access and to indicate ordering.
   // Fix up these vectors prior to removing the node.

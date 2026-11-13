@@ -262,6 +262,23 @@ TEST_F(BlockTest, ErrorConditions) {
                        HasSubstr("is not a valid identifier")));
 }
 
+TEST_F(BlockTest, AddAndRemovePortWithReservedKeywordName) {
+  auto p = CreatePackage();
+  BlockBuilder bb("my_block", p.get());
+  Type* u0 = p->GetBitsType(0);
+  BValue in = bb.InputPort("scheduled_fn", u0);
+  BValue out = bb.OutputPort("fn", in);
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block, bb.Build());
+
+  EXPECT_EQ(in.node()->GetName(), "scheduled_fn");
+  EXPECT_EQ(out.node()->GetName(), "fn");
+
+  XLS_ASSERT_OK(block->RemoveNode(out.node()));
+  XLS_ASSERT_OK(block->RemoveNode(in.node()));
+  EXPECT_TRUE(block->GetPorts().empty());
+  EXPECT_FALSE(block->DumpIr().empty());
+}
+
 TEST_F(BlockTest, TrivialBlock) {
   auto p = CreatePackage();
   BlockBuilder bb("my_block", p.get());

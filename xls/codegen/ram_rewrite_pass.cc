@@ -258,8 +258,7 @@ absl::Status WriteCompletionRewrite(
   XLS_RETURN_IF_ERROR(CheckDataPortType(
       write_completion_ports.resp_data->GetType(), "Write completion", {}, {}));
 
-  std::string data_name =
-      block->UniquifyNodeName(absl::StrCat(ram_name, "_write_completion_data"));
+  std::string data_name = absl::StrCat(ram_name, "_write_completion_data");
 
   XLS_ASSIGN_OR_RETURN(xls::Literal * empty_tuple,
                        block->MakeNodeWithName<xls::Literal>(
@@ -510,18 +509,12 @@ absl::StatusOr<bool> Ram1RWRewrite(Package* package,
   // Make names for each element of the request tuple. They will end up each
   // having their own port.
   std::string_view ram_name = ram_config.ram_name();
-  std::string req_addr_name =
-      block->UniquifyNodeName(absl::StrCat(ram_name, "_addr"));
-  std::string req_wr_data_name =
-      block->UniquifyNodeName(absl::StrCat(ram_name, "_wr_data"));
-  std::string req_wr_mask_name =
-      block->UniquifyNodeName(absl::StrCat(ram_name, "_wr_mask"));
-  std::string req_rd_mask_name =
-      block->UniquifyNodeName(absl::StrCat(ram_name, "_rd_mask"));
-  std::string req_we_name =
-      block->UniquifyNodeName(absl::StrCat(ram_name, "_we"));
-  std::string req_re_name =
-      block->UniquifyNodeName(absl::StrCat(ram_name, "_re"));
+  std::string req_addr_name = absl::StrCat(ram_name, "_addr");
+  std::string req_wr_data_name = absl::StrCat(ram_name, "_wr_data");
+  std::string req_wr_mask_name = absl::StrCat(ram_name, "_wr_mask");
+  std::string req_rd_mask_name = absl::StrCat(ram_name, "_rd_mask");
+  std::string req_we_name = absl::StrCat(ram_name, "_we");
+  std::string req_re_name = absl::StrCat(ram_name, "_re");
 
   // we is asserted when req.we is asserted and when the request is valid.
   XLS_ASSIGN_OR_RETURN(
@@ -536,8 +529,8 @@ absl::StatusOr<bool> Ram1RWRewrite(Package* package,
           /*loc=*/SourceInfo(), std::vector<Node*>({req_re, req_valid}),
           Op::kAnd, req_re_name));
 
-  std::string req_re_valid_buf_name = block->UniquifyNodeName(
-      absl::StrFormat("__%s_buffer", req_re_valid->GetName()));
+  std::string req_re_valid_buf_name =
+      absl::StrFormat("__%s_buffer", req_re_valid->GetName());
   XLS_ASSIGN_OR_RETURN(Node * req_re_valid_buf,
                        block->MakeNodeWithName<UnOp>(
                            /*loc=*/SourceInfo(), req_re_valid, Op::kIdentity,
@@ -550,8 +543,7 @@ absl::StatusOr<bool> Ram1RWRewrite(Package* package,
           /*load_enable=*/std::nullopt, req_re_valid_buf));
 
   // Make a new response port with a new name.
-  std::string resp_rd_data_name =
-      block->UniquifyNodeName(absl::StrCat(ram_name, "_rd_data"));
+  std::string resp_rd_data_name = absl::StrCat(ram_name, "_rd_data");
   // Make the actual input port. Destructure the response type. (NB The bits are
   // identical but other parts expect the wr_data and rd_data ports to have the
   // same type).
@@ -708,26 +700,19 @@ absl::StatusOr<bool> Ram1R1WRewrite(Package* package,
   // Make names for each element of the request tuple. They will end up each
   // having their own port.
   std::string_view ram_name = ram_config.ram_name();
-  std::string rd_addr_name =
-      block->UniquifyNodeName(absl::StrCat(ram_name, "_rd_addr"));
-  std::string rd_mask_name =
-      block->UniquifyNodeName(absl::StrCat(ram_name, "_rd_mask"));
-  std::string rd_en_name =
-      block->UniquifyNodeName(absl::StrCat(ram_name, "_rd_en"));
-  std::string wr_addr_name =
-      block->UniquifyNodeName(absl::StrCat(ram_name, "_wr_addr"));
-  std::string wr_data_name =
-      block->UniquifyNodeName(absl::StrCat(ram_name, "_wr_data"));
-  std::string wr_mask_name =
-      block->UniquifyNodeName(absl::StrCat(ram_name, "_wr_mask"));
-  std::string wr_en_name =
-      block->UniquifyNodeName(absl::StrCat(ram_name, "_wr_en"));
+  std::string rd_addr_name = absl::StrCat(ram_name, "_rd_addr");
+  std::string rd_mask_name = absl::StrCat(ram_name, "_rd_mask");
+  std::string rd_en_name = absl::StrCat(ram_name, "_rd_en");
+  std::string wr_addr_name = absl::StrCat(ram_name, "_wr_addr");
+  std::string wr_data_name = absl::StrCat(ram_name, "_wr_data");
+  std::string wr_mask_name = absl::StrCat(ram_name, "_wr_mask");
+  std::string wr_en_name = absl::StrCat(ram_name, "_wr_en");
 
   wr_en->SetName(wr_en_name);
   rd_en->SetName(rd_en_name);
 
   std::string req_re_valid_buf_name =
-      block->UniquifyNodeName(absl::StrFormat("__%s_buffer", rd_en->GetName()));
+      absl::StrFormat("__%s_buffer", rd_en->GetName());
   XLS_ASSIGN_OR_RETURN(
       Node * req_re_valid_buf,
       block->MakeNodeWithName<UnOp>(
@@ -740,8 +725,7 @@ absl::StatusOr<bool> Ram1R1WRewrite(Package* package,
           /*load_enable=*/std::nullopt, req_re_valid_buf));
 
   // Make a new response port with a new name.
-  std::string rd_data_name =
-      block->UniquifyNodeName(absl::StrCat(ram_name, "_rd_data"));
+  std::string rd_data_name = absl::StrCat(ram_name, "_rd_data");
   XLS_ASSIGN_OR_RETURN(InputPort * rd_data_port,
                        block->AddInputPort(rd_data_name, rd_data->GetType()));
   XLS_ASSIGN_OR_RETURN(

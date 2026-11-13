@@ -77,6 +77,14 @@ std::optional<int64_t> ParseNumericSuffix(std::string_view name,
     return std::nullopt;
   }
   std::string_view suffix = name.substr(separator_index + separator.size());
+  // Reject non-canonical integer suffixes that `absl::SimpleAtoi` accepts (such
+  // as leading whitespace, `+`/`-` signs, or leading zeros like `"01"`), since
+  // they do not round-trip through `absl::StrCat(root, separator, i)` (e.g.,
+  // `"foo__01"` and `"foo__1"` are distinct valid identifiers).
+  if (suffix.empty() || !absl::ascii_isdigit(suffix[0]) ||
+      (suffix.size() > 1 && suffix[0] == '0')) {
+    return std::nullopt;
+  }
   int64_t i;
   if (absl::SimpleAtoi(suffix, &i)) {
     // Remove numeric suffix from root.
@@ -136,10 +144,11 @@ absl::Status NameUniquer::ReserveIdentifier(std::string_view sv) {
   std::string_view root;
   std::optional<int64_t> suffix = ParseNumericSuffix(sv, separator_, &root);
   if (suffix) {
-    XLS_RET_CHECK_EQ(generated_names_[root].generator.RegisterId(*suffix),
-                     *suffix)
+    SequentialIdGenerator& generator = generated_names_[root].generator;
+    XLS_RET_CHECK(!generator.IsUsed(*suffix))
         << "Identifier '" << sv
         << "' is already in use with suffix: " << *suffix;
+    XLS_RET_CHECK_EQ(generator.RegisterId(*suffix), *suffix);
   } else {
     XLS_RET_CHECK(!generated_names_.contains(sv) ||
                   !generated_names_[sv].bare_prefix_taken)

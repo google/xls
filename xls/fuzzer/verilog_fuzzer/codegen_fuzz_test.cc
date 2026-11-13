@@ -21,15 +21,20 @@
 #include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
+#include "xls/codegen_v_1_5/block_conversion_pass_pipeline.h"
+#include "xls/common/status/matchers.h"
 #include "xls/fuzzer/ir_fuzzer/ir_fuzz_domain.h"
 #include "xls/fuzzer/verilog_fuzzer/verilog_fuzz_domain.h"
+#include "xls/ir/function_builder.h"
 #include "xls/ir/ir_parser.h"
+#include "xls/ir/package.h"
 #include "xls/tools/codegen_flags.pb.h"
 #include "xls/tools/scheduling_options_flags.pb.h"
 
 namespace xls {
 namespace {
 
+using ::absl_testing::IsOk;
 using ::absl_testing::IsOkAndHolds;
 using ::absl_testing::StatusIs;
 using ::testing::AnyOf;
@@ -133,6 +138,28 @@ top fn FuzzTest(p0: bits[64] id=1) -> bits[64] {
   };
   EXPECT_THAT(verilog.GenerateVerilog(),
               StatusIs(absl::StatusCode::kInvalidArgument));
+}
+
+TEST(CodegenFuzzTest, ZeroWidthReservedKeywordOutputPortNameRegression) {
+  auto package = std::make_unique<Package>("FuzzTest");
+  FunctionBuilder fb("FuzzTest", package.get());
+  fb.Tuple({});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  XLS_ASSERT_OK(package->SetTop(f));
+
+  SchedulingOptionsFlagsProto scheduling_options = DefaultSchedulingOptions();
+  CodegenFlagsProto codegen_options = DefaultCodegenOptions();
+  codegen_options.set_codegen_version(
+      CodegenVersionProto::CODEGEN_VERSION_ONE_DOT_FIVE);
+  codegen_options.set_generator(GeneratorKind::GENERATOR_KIND_COMBINATIONAL);
+  codegen_options.set_output_port_name("scheduled_fn");
+
+  VerilogGenerator verilog = VerilogGenerator{
+      .package = std::move(package),
+      .scheduling_options = scheduling_options,
+      .codegen_options = codegen_options,
+  };
+  EXPECT_THAT(verilog.GenerateVerilog(), IsOk());
 }
 
 }  // namespace
