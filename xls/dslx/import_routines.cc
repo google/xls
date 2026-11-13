@@ -334,6 +334,13 @@ absl::StatusOr<UseImportResult> DoImportViaUse(
                           name_def_span.ToString(file_table), member_name,
                           import_tokens.ToString()));
     }
+    if (!IsPublic(**member)) {
+      return absl::InvalidArgumentError(
+          absl::StrFormat("ImportError: %s Member `%s` of module `%s` is not "
+                          "public",
+                          name_def_span.ToString(file_table), member_name,
+                          import_tokens.ToString()));
+    }
     return UseImportResult{.imported_module = module_info_ptr,
                            .imported_member = member.value()};
   }
