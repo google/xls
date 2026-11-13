@@ -29,32 +29,28 @@ namespace xls {
 absl::StatusOr<ForeignFunctionData> ForeignFunctionDataCreateFromTemplate(
     std::string_view annotation);
 
-// Helper to substitute some ffi template parameters with constant values.
-// Many constant values might only be available in earlier stages of processing;
-// this helps to update the template and replace template values already known.
-//
-// This helper allows partially fill the template with these values, while the
-// remaining template parameters are left as-is.
-// Parameter is an optional ForeignFunctionData; if nullopt, no replacmenets
-// will be done.
-// (Used in the FunctionConverter)
+// Updates a foreign function template with constants and IR parameter names
+// known during lowering. Other placeholders are left for code generation.
 class FfiPartialValueSubstituteHelper {
  public:
   explicit FfiPartialValueSubstituteHelper(
       std::optional<ForeignFunctionData> ffi)
       : ffi_(std::move(ffi)) {}
 
-  // Set a named value. If the name is referenced in the ForeingFunctionData
-  // template, it will be replaced with the value.
+  // Replaces a named constant with its value in the template.
   void SetNamedValue(std::string_view name, const Value& value);
 
-  // Get updated template with all the substituion values replaced.
+  // Renames references to a parameter, including tuple element references.
+  void SetParameterName(std::string_view source_name, std::string_view ir_name);
+
+  // Get the template with the substitutions applied.
   // If the originally provided std::optional was empty, returns nullopt.
   std::optional<ForeignFunctionData> GetUpdatedFfiData() const;
 
  private:
   const std::optional<ForeignFunctionData> ffi_;
   absl::flat_hash_map<std::string, std::string> substitutions_;
+  absl::flat_hash_map<std::string, std::string> parameter_names_;
 };
 }  // namespace xls
 
