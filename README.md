@@ -316,6 +316,33 @@ purpose, and correspond to the components in this XLS stack diagram:
         Visualization tools to inspect the XLS compiler/system interactively.
         See [IR visualization](https://google.github.io/xls/ir_visualization/).
 
+## Projects Using XLS
+
+A non-exhaustive list of projects that build on, extend, or use XLS. If you have
+a project you would like to see listed here, please open a pull request or let
+us know in an [issue](https://github.com/google/xls/issues).
+
+In-tree extensions and integrations:
+
+-   [`xls/contrib`](https://github.com/google/xls/tree/main/xls/contrib):
+    community-maintained utilities and components, including **XLS[cc]** (a
+    C++-to-XLS front end), an MLIR integration, and an XLA-to-XLS path.
+-   [`third_party`](https://github.com/google/xls/tree/main/third_party):
+    third-party libraries packaged for use with XLS, such as a SoftFloat-derived
+    floating-point library and assorted DSLX sources.
+
+External projects:
+
+-   [xlsynth/xlsynth-crate](https://github.com/xlsynth/xlsynth-crate): Rust
+    crates that expose XLS capabilities by wrapping the `libxlsynth` shared
+    library.
+-   [antmicro/xls-dashboard](https://github.com/antmicro/xls-dashboard):
+    generates HTML dashboards from data extracted from XLS tests and their
+    outputs.
+-   [antmicro/xls-vizier](https://github.com/antmicro/xls-vizier): integrates
+    Google's [Vizier](https://github.com/google/vizier) black-box optimization
+    tool with XLS to tune parameters of DSLX designs.
+
 ## Community
 
 Discussions about XLS - development, debugging, usage, etc.:
