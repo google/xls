@@ -1389,33 +1389,6 @@ const_assert!(fun_2<8>() == 8);
 )"));
 }
 
-TEST(TypecheckV2StructTest, TwoDifferentInstantiationsOfStructWithDefault) {
-  XLS_EXPECT_OK(TypecheckV2(
-      R"(
-fn foo<N: u32>(a: uN[N]) -> uN[N] { a }
-
-struct S<A: u32, B: bool = {false}, C: u32 = {foo(A)}> {
-  x: uN[C],
-}
-
-impl S<A, B, C> {
-  fn new(x: uN[C]) -> Self {
-    S<A, B, C> { x }
-  }
-}
-
-fn test1() -> u32 {
-  let s = S<32>::new(0);
-  0
-}
-
-fn test2() -> u32 {
-  let s = S<32, true>::new(0);
-  0
-}
-)"));
-}
-
 // Generates a DSLX module whose `compute` function chains `depth` non-constexpr
 // `let` bindings into a DAG (`x_i = (x_{i-1} ^ x_{i-1}) + (x_{i-2} ^ x_{i-1})`)
 // and feeds them into nested invocations inside parametric `update(...)` calls.

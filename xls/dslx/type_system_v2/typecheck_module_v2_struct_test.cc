@@ -2732,5 +2732,32 @@ const_assert!(X == 15);
                 HasNodeWithType("X", "uN[32]"))));
 }
 
+TEST(TypecheckV2StructTest, TwoDifferentInstantiationsOfStructWithDefault) {
+  XLS_EXPECT_OK(TypecheckV2(
+      R"(
+fn foo<N: u32>(a: uN[N]) -> uN[N] { a }
+
+struct S<A: u32, B: bool = {false}, C: u32 = {foo(A)}> {
+  x: uN[C],
+}
+
+impl S<A, B, C> {
+  fn new(x: uN[C]) -> Self {
+    S<A, B, C> { x }
+  }
+}
+
+fn test1() -> u32 {
+  let s = S<32>::new(0);
+  0
+}
+
+fn test2() -> u32 {
+  let s = S<32, true>::new(0);
+  0
+}
+)"));
+}
+
 }  // namespace
 }  // namespace xls::dslx
