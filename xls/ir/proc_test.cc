@@ -266,7 +266,7 @@ TEST_F(ProcTest, MultipleStateReads) {
               ElementsAre(read1, read2));
 
   // Remove the second read.
-  std::string read2_name = read2->GetName();
+  [[maybe_unused]] std::string read2_name = read2->GetName();
   XLS_ASSERT_OK(proc->RemoveNode(read2));
   XLS_ASSERT_OK(proc->RebuildSideTables());
 
