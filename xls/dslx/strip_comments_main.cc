@@ -60,7 +60,7 @@ absl::StatusOr<std::string> RealMain(const std::filesystem::path& path,
   std::stringstream ss;
   while (!s.AtEof()) {
     XLS_ASSIGN_OR_RETURN(Token t, s.Pop());
-    if (t.kind() != TokenKind::kComment) {
+    if (t.kind() != TokenKind::kComment && t.kind() != TokenKind::kBlockComment) {
       ss << t.ToString();
     }
   }

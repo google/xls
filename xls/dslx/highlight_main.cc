@@ -81,6 +81,8 @@ std::string ToHighlightStr(const Token& t) {
       return HandleNumber(t.ToString());
     case TokenKind::kComment:
       return HandleComment(t.ToString());
+    case TokenKind::kBlockComment:
+      return HandleComment(t.ToString());
     case TokenKind::kIdentifier: {
       const std::string& value = t.GetStringValue();
       if (IsNameParametricBuiltin(value)) {
