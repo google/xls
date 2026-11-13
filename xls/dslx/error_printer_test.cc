@@ -373,5 +373,26 @@ fn main() -> u32 {
             "0008:   p.invalid_field\n"
             "~~~~~~~~^-------------^ my error message\n");
 }
+
+
+    TEST(PrintPositionalErrorTest, StripsCompoundAnsiCodesWhenNoColor) {
+      const std::string filename = "test.x";
+      UniformContentFilesystem vfs("line 1\n");
+      FileTable file_table;
+      Fileno fileno = file_table.GetOrCreate(filename);
+      const Span error_span(Pos(fileno, 0, 0), Pos(fileno, 0, 5));
+      std::stringstream ss;
+
+      // \033[1;31m is bold red (compound code), \033[0m is reset
+      XLS_ASSERT_OK(PrintPositionalError(
+          {error_span}, "\033[1;31mcompound code error\033[0m", ss,
+          /*color=*/PositionalErrorColor::kNoColor, file_table, vfs,
+          /*error_context_line_count=*/1));
+
+      EXPECT_THAT(ss.str(), testing::HasSubstr("compound code error"));
+      // This fails before the fix because \033[1;31m is NOT stripped!
+      EXPECT_THAT(ss.str(), testing::Not(testing::HasSubstr("\033")));
+    }
+
 }  // namespace
 }  // namespace xls::dslx
