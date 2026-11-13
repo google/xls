@@ -23,15 +23,19 @@
 #include <variant>
 #include <vector>
 
+#include "absl/cleanup/cleanup.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
+#include "absl/time/time.h"
+#include "absl/types/optional_ref.h"
 #include "absl/types/span.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/common/stopwatch.h"
 #include "xls/common/visitor.h"
 #include "xls/ir/function.h"
 #include "xls/ir/function_builder.h"
@@ -42,6 +46,7 @@
 #include "xls/ir/source_location.h"
 #include "xls/ir/topo_sort.h"
 #include "xls/ir/value.h"
+#include "xls/passes/dce_pass.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/pass_base.h"
 #include "xls/solvers/solver.h"
@@ -166,10 +171,23 @@ class RemoveAssertsPass : public OptimizationFunctionBasePass {
 
 }  // namespace
 
-absl::StatusOr<ProverResult> TryProveEquivalence(Function* a, Function* b,
-                                                 bool ignore_asserts,
-                                                 SolverKind kind,
-                                                 SolverLimit limit) {
+absl::StatusOr<ProverResult> TryProveEquivalence(
+    Function* a, Function* b, bool ignore_asserts, SolverKind kind,
+    SolverLimit limit,
+    const std::function<absl::Status(Package*)>& transform_merged,
+    absl::optional_ref<EquivalenceTiming> timing) {
+  absl::Duration merge_duration = absl::ZeroDuration();
+  absl::Duration transform_duration = absl::ZeroDuration();
+  absl::Duration solver_duration = absl::ZeroDuration();
+  absl::Cleanup record_timing([&]() {
+    if (timing.has_value()) {
+      timing->merge_duration = merge_duration;
+      timing->transform_duration = transform_duration;
+      timing->solver_duration = solver_duration;
+    }
+  });
+
+  Stopwatch merge_sw;
   std::unique_ptr<Package> to_test = std::make_unique<Package>(
       absl::StrFormat("%s_tester", a->package()->name()));
   XLS_ASSIGN_OR_RETURN(
@@ -247,11 +265,44 @@ absl::StatusOr<ProverResult> TryProveEquivalence(Function* a, Function* b,
   RemoveAssertsPass rap;
   XLS_RETURN_IF_ERROR(rap.Run(to_test.get(), {}, &res, ctx).status())
       << "Unable to remove asserts from function!";
+  XLS_RETURN_IF_ERROR(to_test->SetTop(to_test_func));
+  merge_duration = merge_sw.GetElapsedTime();
+
+  if (transform_merged) {
+    Stopwatch transform_sw;
+    XLS_RETURN_IF_ERROR(transform_merged(to_test.get()));
+    // Optimization passes may synthesize new invariant assert nodes (e.g.,
+    // selector one-hot invariants). Strip them and clean up dead condition
+    // cones using a fresh context prior to solver translation.
+    OptimizationContext post_transform_ctx;
+    PassResults post_transform_res;
+    XLS_ASSIGN_OR_RETURN(
+        bool removed_asserts,
+        rap.Run(to_test.get(), {}, &post_transform_res, post_transform_ctx));
+    if (removed_asserts) {
+      DeadCodeEliminationPass dce;
+      XLS_RETURN_IF_ERROR(
+          dce.Run(to_test.get(), {}, &post_transform_res, post_transform_ctx)
+              .status());
+    }
+    transform_duration = transform_sw.GetElapsedTime();
+  }
+
+  std::optional<FunctionBase*> top = to_test->GetTop();
+  XLS_RET_CHECK(top.has_value() && (*top)->IsFunction())
+      << "Merged equivalence package must have a top function.";
+  Function* proved_func = (*top)->AsFunctionOrDie();
+
   // Run prover
+  Stopwatch solver_sw;
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<Solver> solver, CreateSolver(kind));
-  XLS_ASSIGN_OR_RETURN(ProverResult base_result,
-                       solver->TryProve(to_test_func, new_ret,
-                                        Predicate::NotEqualToZero(), limit));
+  absl::StatusOr<ProverResult> base_result =
+      solver->TryProve(proved_func, proved_func->return_value(),
+                       Predicate::NotEqualToZero(), limit);
+  solver_duration = solver_sw.GetElapsedTime();
+  if (!base_result.ok()) {
+    return std::move(base_result).status();
+  }
   // remap parameters back to the originals.
   return std::visit(
       Visitor{
@@ -272,7 +323,7 @@ absl::StatusOr<ProverResult> TryProveEquivalence(Function* a, Function* b,
                   mapped_counterexample[a->param(idx)] = value;
                 } else {
                   // from 'a'
-                  XLS_ASSIGN_OR_RETURN(int64_t idx, to_test_func->GetParamIndex(
+                  XLS_ASSIGN_OR_RETURN(int64_t idx, proved_func->GetParamIndex(
                                                         param->As<Param>()));
                   mapped_counterexample[a->param(idx)] = value;
                   mapped_counterexample[b->param(idx)] = value;
@@ -283,7 +334,7 @@ absl::StatusOr<ProverResult> TryProveEquivalence(Function* a, Function* b,
             return f;
           },
       },
-      std::move(base_result));
+      *std::move(base_result));
 }
 
 absl::StatusOr<ProverResult> TryProveEquivalence(
