@@ -350,6 +350,7 @@ cc_test(
         "interval_set_test.cc",
     ],
     shard_count = 6,
+    tags = ["xls_benchmark"],
     deps = [
         ":bits",
         ":interval",
@@ -440,6 +441,7 @@ cc_test(
         "bits_test.cc",
     ],
     shard_count = 6,
+    tags = ["xls_benchmark"],
     deps = [
         ":bit_push_buffer",
         ":bits",
@@ -749,6 +751,7 @@ cc_library(
 cc_test(
     name = "topo_sort_test",
     srcs = ["topo_sort_test.cc"],
+    tags = ["xls_benchmark"],
     deps = [
         ":benchmark_support",
         ":bits",
@@ -1532,6 +1535,7 @@ cc_test(
         "bits_ops_test.cc",
     ],
     shard_count = 2,
+    tags = ["xls_benchmark"],
     deps = [
         ":bits",
         ":bits_ops",

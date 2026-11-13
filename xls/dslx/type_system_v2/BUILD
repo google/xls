@@ -629,6 +629,7 @@ cc_test(
 cc_test(
     name = "typecheck_module_v2_function_test",
     srcs = ["typecheck_module_v2_function_test.cc"],
+    tags = ["xls_benchmark"],
     deps = [
         ":matchers",
         "//xls/common:xls_gunit_main",

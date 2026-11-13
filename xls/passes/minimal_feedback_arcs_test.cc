@@ -342,9 +342,9 @@ void BM_FullyConnectedProcNetwork(benchmark::State& state) {
   }
 }
 
-BENCHMARK(BM_MultiProcLoop)->Range(10, 5000);
-BENCHMARK(BM_SingleProcLoop)->Range(10, 5000);
-BENCHMARK(BM_FullyConnectedProcNetwork)->Range(10, 100);
+BENCHMARK(BM_MultiProcLoop)->Range(10, 512);
+BENCHMARK(BM_SingleProcLoop)->Range(10, 512);
+BENCHMARK(BM_FullyConnectedProcNetwork)->Range(10, 64);
 
 }  // namespace
 }  // namespace xls

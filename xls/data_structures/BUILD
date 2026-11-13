@@ -112,6 +112,7 @@ cc_library(
 cc_test(
     name = "transitive_closure_test",
     srcs = ["transitive_closure_test.cc"],
+    tags = ["xls_benchmark"],
     deps = [
         ":inline_bitmap",
         ":transitive_closure",
