@@ -14,6 +14,10 @@
 
 #include "xls/common/subprocess.h"
 
+#include <fcntl.h>
+#include <unistd.h>
+
+#include <cerrno>
 #include <filesystem>
 #include <optional>
 #include <string>
@@ -21,11 +25,14 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/cleanup/cleanup.h"
 #include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_cat.h"
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
+#include "xls/common/file/get_runfile_path.h"
 #include "xls/common/file/temp_directory.h"
 #include "xls/common/status/matchers.h"
 
@@ -239,6 +246,29 @@ TEST(SubprocessTest, EnvironmentVariables) {
                           /*exit_status=*/0,
                           /*normal_termination=*/true,
                           /*timeout_expired=*/false)));
+}
+
+TEST(SubprocessTest, DoesNotInheritExtraFileDescriptors) {
+  XLS_ASSERT_OK_AND_ASSIGN(TempDirectory directory, TempDirectory::Create());
+  XLS_ASSERT_OK_AND_ASSIGN(std::filesystem::path helper_path,
+                           GetXlsRunfilePath("xls/common/subprocess_helper"));
+  int extra_fd = open(directory.path().c_str(), O_RDONLY);
+  ASSERT_GE(extra_fd, 3);
+  absl::Cleanup close_extra_fd = [extra_fd] { close(extra_fd); };
+  ASSERT_EQ(fcntl(extra_fd, F_GETFD) & FD_CLOEXEC, 0);
+
+  std::string fd_path = absl::StrCat("/dev/fd/", extra_fd);
+  ASSERT_TRUE(std::filesystem::exists(fd_path));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      SubprocessResult result,
+      InvokeSubprocess({helper_path.string(), fd_path, helper_path.string()},
+                       std::nullopt));
+
+  EXPECT_TRUE(result.normal_termination);
+  EXPECT_EQ(result.exit_status, ENOENT);
+  EXPECT_THAT(result.stderr_content,
+              HasSubstr("Subprocess helper failed to chdir to target"));
 }
 
 }  // namespace

@@ -32,13 +32,15 @@ namespace xls::internal {
 // looked up using PATH in envp, relative to the child's working directory.
 //
 // file_actions must be initialized by the caller, which retains ownership. The
-// implementation may append actions. On success, the caller must reap the PID.
-// Uses posix_spawn rather than fork/exec so the parent can safely be
-// multithreaded.
+// implementation may append actions. When close_extra_fds is true, open file
+// descriptors >= 3 without FD_CLOEXEC are closed in the child before exec. On
+// success, the caller must reap the PID. Uses posix_spawn rather than fork/exec
+// so the parent can safely be multithreaded.
 absl::StatusOr<pid_t> SpawnSubprocess(
     absl::Span<const char* const> argv,
     const std::optional<std::filesystem::path>& cwd,
-    posix_spawn_file_actions_t* file_actions, char* const* envp);
+    posix_spawn_file_actions_t* file_actions, char* const* envp,
+    bool close_extra_fds = true);
 
 }  // namespace xls::internal
 

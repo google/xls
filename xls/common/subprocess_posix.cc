@@ -12,20 +12,24 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <fcntl.h>
 #include <paths.h>
 #include <spawn.h>
 #include <sys/types.h>
+#include <unistd.h>
 
 #include <cerrno>
 #include <filesystem>
 #include <optional>
 #include <string>
 #include <string_view>
+#include <system_error>  // NOLINT
 #include <vector>
 
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/match.h"
+#include "absl/strings/numbers.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_split.h"
 #include "absl/strings/strip.h"
@@ -36,6 +40,28 @@
 
 namespace xls::internal {
 namespace {
+
+// Appends close actions for any open file descriptors >= 3 that do not already
+// have FD_CLOEXEC set. Descriptors with FD_CLOEXEC (including the stdout/stderr
+// pipes configured by CreateChildFileActions) are closed automatically on exec;
+// skipping them avoids duplicate close actions.
+int AddCloseExtraFdsFileActions(posix_spawn_file_actions_t* file_actions) {
+  std::error_code ec;
+  for (const std::filesystem::directory_entry& entry :
+       std::filesystem::directory_iterator("/dev/fd", ec)) {
+    int fd = 0;
+    if (absl::SimpleAtoi(entry.path().filename().c_str(), &fd) && fd >= 3) {
+      int flags = fcntl(fd, F_GETFD);
+      if (flags != -1 && (flags & FD_CLOEXEC) == 0) {
+        if (int err = posix_spawn_file_actions_addclose(file_actions, fd);
+            err != 0) {
+          return err;
+        }
+      }
+    }
+  }
+  return ec.value();
+}
 
 // Returns zero with *pid set on success, or a POSIX error number on failure.
 int SpawnExecutable(pid_t* pid, const char* executable,
@@ -122,7 +148,8 @@ int SpawnWithPathSearch(pid_t* pid, absl::Span<const char* const> argv,
 absl::StatusOr<pid_t> SpawnSubprocess(
     absl::Span<const char* const> argv,
     const std::optional<std::filesystem::path>& cwd,
-    posix_spawn_file_actions_t* file_actions, char* const* envp) {
+    posix_spawn_file_actions_t* file_actions, char* const* envp,
+    bool close_extra_fds) {
   // Change the child directory without a helper executable.
   if (cwd.has_value()) {
     // This records the action; the directory change happens when spawning.
@@ -130,6 +157,13 @@ absl::StatusOr<pid_t> SpawnSubprocess(
     if (int err = AddChdirFileAction(file_actions, cwd->c_str()); err != 0) {
       return absl::InternalError(absl::StrCat(
           "Cannot add child working directory action: ", Strerror(err)));
+    }
+  }
+  if (close_extra_fds) {
+    if (int err = AddCloseExtraFdsFileActions(file_actions); err != 0) {
+      return absl::InternalError(
+          absl::StrCat("Cannot add close actions for extra file descriptors: ",
+                       Strerror(err)));
     }
   }
   pid_t pid;

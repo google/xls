@@ -284,6 +284,11 @@ cc_test(
 cc_binary(
     name = "subprocess_helper",
     srcs = ["subprocess_helper.cc"],
+    deps = [
+        "@abseil-cpp//absl/flags:flag",
+        "@abseil-cpp//absl/flags:parse",
+        "@abseil-cpp//absl/strings",
+    ],
 )
 
 xls_cc_embed_data(
@@ -375,10 +380,12 @@ cc_library(
 cc_test(
     name = "subprocess_for_os_test",
     srcs = ["subprocess_for_os_test.cc"],
+    data = [":subprocess_helper"],
     deps = [
         ":subprocess_for_os",
         ":xls_gunit_main",
         "//xls/common/file:filesystem",
+        "//xls/common/file:get_runfile_path",
         "//xls/common/file:temp_directory",
         "//xls/common/status:matchers",
         "@abseil-cpp//absl/cleanup",
@@ -418,14 +425,18 @@ cc_library(
 cc_test(
     name = "subprocess_test",
     srcs = ["subprocess_test.cc"],
+    data = [":subprocess_helper"],
     deps = [
         ":subprocess",
         ":xls_gunit_main",
+        "//xls/common/file:get_runfile_path",
         "//xls/common/file:temp_directory",
         "//xls/common/status:matchers",
+        "@abseil-cpp//absl/cleanup",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:status_matchers",
         "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/time",
         "@googletest//:gtest",
     ],

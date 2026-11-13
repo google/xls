@@ -63,7 +63,8 @@ absl::StatusOr<FileDescriptor> GetSubprocessHelperFd() {
 absl::StatusOr<pid_t> SpawnSubprocess(
     absl::Span<const char* const> argv,
     const std::optional<std::filesystem::path>& cwd,
-    posix_spawn_file_actions_t* file_actions, char* const* envp) {
+    posix_spawn_file_actions_t* file_actions, char* const* envp,
+    bool close_extra_fds) {
   // The helper changes directory and calls execvp, supporting Linux toolchains
   // whose libc lacks a posix_spawn chdir action. Run it out of a memfd so
   // subprocesses do not depend on Bazel build artifacts remaining on disk.
@@ -73,8 +74,11 @@ absl::StatusOr<pid_t> SpawnSubprocess(
   std::string subprocess_helper =
       absl::StrCat("/proc/self/fd/", subprocess_helper_fd->get());
   std::vector<const char*> helper_argv;
-  helper_argv.reserve(argv.size() + 2);
+  helper_argv.reserve(argv.size() + 4);
   helper_argv.push_back(subprocess_helper.c_str());
+  helper_argv.push_back(close_extra_fds ? "--close_extra_fds"
+                                        : "--noclose_extra_fds");
+  helper_argv.push_back("--");
   helper_argv.push_back(cwd.has_value() ? cwd->c_str() : "");
   helper_argv.insert(helper_argv.end(), argv.begin(), argv.end());
 

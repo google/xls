@@ -14,9 +14,11 @@
 
 #include "xls/common/subprocess_for_os.h"
 
+#include <fcntl.h>
 #include <spawn.h>
 #include <sys/types.h>
 #include <sys/wait.h>
+#include <unistd.h>
 
 #include <cerrno>
 #include <filesystem>
@@ -33,6 +35,7 @@
 #include "absl/strings/str_cat.h"
 #include "absl/types/span.h"
 #include "xls/common/file/filesystem.h"
+#include "xls/common/file/get_runfile_path.h"
 #include "xls/common/file/temp_directory.h"
 #include "xls/common/status/matchers.h"
 
@@ -65,7 +68,8 @@ absl::Status WriteScript(const std::filesystem::path& path,
 // so assertions can identify which PATH candidate ran.
 absl::StatusOr<int> SpawnAndWait(std::initializer_list<const char*> arguments,
                                  const std::filesystem::path& cwd,
-                                 std::string path) {
+                                 std::string path,
+                                 bool close_extra_fds = true) {
   // posix_spawn requires null-terminated argv and envp arrays. Keep their
   // backing storage alive until SpawnSubprocess returns.
   std::vector<const char*> argv(arguments);
@@ -88,7 +92,7 @@ absl::StatusOr<int> SpawnAndWait(std::initializer_list<const char*> arguments,
       [&] { EXPECT_EQ(posix_spawn_file_actions_destroy(&file_actions), 0); });
 
   absl::StatusOr<pid_t> pid = internal::SpawnSubprocess(
-      absl::MakeConstSpan(argv), cwd, &file_actions, envp);
+      absl::MakeConstSpan(argv), cwd, &file_actions, envp, close_extra_fds);
   if (!pid.ok()) {
     return pid.status();
   }
@@ -179,6 +183,33 @@ TEST(SubprocessForOsTest, ExecutableTextWithoutShebangUsesShell) {
       int exit_status,
       SpawnAndWait({"command", "expected"}, directory.path(), "."));
   EXPECT_EQ(exit_status, 53);
+}
+
+TEST(SubprocessForOsTest, ClosesInheritedFileDescriptorsAboveStderr) {
+  XLS_ASSERT_OK_AND_ASSIGN(TempDirectory directory, TempDirectory::Create());
+  XLS_ASSERT_OK(
+      WriteScript(directory.path() / "command", "#!/bin/sh\nexit 23\n"));
+  XLS_ASSERT_OK_AND_ASSIGN(std::filesystem::path helper_path,
+                           GetXlsRunfilePath("xls/common/subprocess_helper"));
+  int extra_fd = open(directory.path().c_str(), O_RDONLY);
+  ASSERT_GE(extra_fd, 3);
+  absl::Cleanup close_extra_fd = [extra_fd] { close(extra_fd); };
+  ASSERT_EQ(fcntl(extra_fd, F_GETFD) & FD_CLOEXEC, 0);
+
+  std::string fd_path = absl::StrCat("/dev/fd/", extra_fd);
+  ASSERT_TRUE(std::filesystem::exists(fd_path));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      int exit_status,
+      SpawnAndWait({helper_path.c_str(), fd_path.c_str(), "./command"}, "/",
+                   "."));
+  EXPECT_EQ(exit_status, ENOENT);
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      int preserved_exit_status,
+      SpawnAndWait({helper_path.c_str(), fd_path.c_str(), "./command"}, "/",
+                   ".", /*close_extra_fds=*/false));
+  EXPECT_EQ(preserved_exit_status, 23);
 }
 
 }  // namespace
