@@ -12,6 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <cstdint>
+#include <limits>
+#include <memory>
 #include <string>
 #include <utility>
 
@@ -162,5 +165,66 @@ TEST(CodegenFuzzTest, ZeroWidthReservedKeywordOutputPortNameRegression) {
   EXPECT_THAT(verilog.GenerateVerilog(), IsOk());
 }
 
+TEST(CodegenFuzzTest, LargeAdditionalInputDelayDoesNotOverflowRegression) {
+  auto package = std::make_shared<Package>("FuzzTest");
+  FunctionBuilder fb("FuzzTest", package.get());
+  BValue p0 = fb.Param("p0", package->GetBitsType(64));
+  fb.Negate(p0);
+  XLS_ASSERT_OK(fb.Build().status());
+
+  SchedulingOptionsFlagsProto scheduling_options = DefaultSchedulingOptions();
+  scheduling_options.set_additional_input_delay_ps(
+      std::numeric_limits<int64_t>::max());
+  CodegenFlagsProto codegen_options = DefaultCodegenOptions();
+
+  VerilogGenerator verilog = VerilogGenerator{
+      .package = std::move(package),
+      .scheduling_options = scheduling_options,
+      .codegen_options = codegen_options,
+  };
+  EXPECT_THAT(verilog.GenerateVerilog(),
+              StatusIs(absl::StatusCode::kInvalidArgument));
+}
+
+TEST(CodegenFuzzTest, NegativeAdditionalInputDelayRejectedRegression) {
+  auto package = std::make_shared<Package>("FuzzTest");
+  FunctionBuilder fb("FuzzTest", package.get());
+  BValue p0 = fb.Param("p0", package->GetBitsType(64));
+  fb.Negate(p0);
+  XLS_ASSERT_OK(fb.Build().status());
+
+  SchedulingOptionsFlagsProto scheduling_options = DefaultSchedulingOptions();
+  scheduling_options.set_additional_input_delay_ps(-1);
+  CodegenFlagsProto codegen_options = DefaultCodegenOptions();
+
+  VerilogGenerator verilog = VerilogGenerator{
+      .package = std::move(package),
+      .scheduling_options = scheduling_options,
+      .codegen_options = codegen_options,
+  };
+  EXPECT_THAT(verilog.GenerateVerilog(),
+              StatusIs(absl::StatusCode::kInvalidArgument));
+}
+
+TEST(CodegenFuzzTest,
+     LargeClockPeriodWithClockMarginDoesNotOverflowRegression) {
+  auto package = std::make_shared<Package>("FuzzTest");
+  FunctionBuilder fb("FuzzTest", package.get());
+  BValue p0 = fb.Param("p0", package->GetBitsType(64));
+  fb.Identity(p0);
+  XLS_ASSERT_OK(fb.Build().status());
+
+  SchedulingOptionsFlagsProto scheduling_options = DefaultSchedulingOptions();
+  scheduling_options.set_clock_period_ps(std::numeric_limits<int64_t>::max());
+  scheduling_options.set_clock_margin_percent(1);
+  CodegenFlagsProto codegen_options = DefaultCodegenOptions();
+
+  VerilogGenerator verilog = VerilogGenerator{
+      .package = std::move(package),
+      .scheduling_options = scheduling_options,
+      .codegen_options = codegen_options,
+  };
+  CodegenSucceedsOrThrowsReasonableError(verilog);
+}
 }  // namespace
 }  // namespace xls

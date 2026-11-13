@@ -15,6 +15,7 @@
 #include "xls/scheduling/sdc_scheduler.h"
 
 #include <cstdint>
+#include <limits>
 #include <optional>
 
 #include "gmock/gmock.h"
@@ -199,6 +200,31 @@ TEST_F(SDCSchedulerTest, DecoupledThroughputConstraintsEnforced) {
   EXPECT_EQ(
       cycle_map.at(*proc->next_values().begin()) - cycle_map.at(x_read.node()),
       2);
+}
+
+TEST_F(SDCSchedulerTest, LargeDelayOverflowReturnsInvalidArgument) {
+  class LargeDelayEstimator : public DelayEstimator {
+   public:
+    LargeDelayEstimator() : DelayEstimator("large") {}
+    absl::StatusOr<int64_t> GetOperationDelayInPs(Node* node) const override {
+      return std::numeric_limits<int64_t>::max() / 2 + 10;
+    }
+  };
+
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  auto x = fb.Param("x", p->GetBitsType(32));
+  auto y = fb.Param("y", p->GetBitsType(32));
+  fb.Add(x, y);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      ScheduleGraph graph,
+      ScheduleGraph::Create(f, /*dead_after_synthesis=*/{}));
+  LargeDelayEstimator delay_estimator;
+  SchedulingOptions options;
+  EXPECT_THAT(SDCScheduler::Create(graph, delay_estimator, options),
+              absl_testing::StatusIs(absl::StatusCode::kInvalidArgument));
 }
 
 }  // namespace

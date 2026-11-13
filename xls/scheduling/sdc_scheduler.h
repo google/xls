@@ -50,7 +50,7 @@ class SDCSchedulingModel {
 
  public:
   SDCSchedulingModel(
-      const ScheduleGraph& graph, const DelayMap& delay_map,
+      const ScheduleGraph& graph, DelayMap delay_map,
       std::optional<int64_t> initiation_interval, double sdc_solution_tolerance,
       absl::flat_hash_map<std::pair<std::string, std::string>, int64_t>
           arc_worst_case_throughput = {},
@@ -179,7 +179,7 @@ class SDCSchedulingModel {
 
   operations_research::math_opt::Model model_;
   double sdc_solution_tolerance_;
-  const DelayMap& delay_map_;
+  DelayMap delay_map_;
   std::optional<int64_t> initiation_interval_;
   absl::flat_hash_map<std::pair<std::string, std::string>, int64_t>
       arc_worst_case_throughput_;
@@ -318,7 +318,6 @@ class SDCScheduler final : public Scheduler {
       const operations_research::math_opt::SolveResult& result,
       SchedulingFailureBehavior failure_behavior);
 
-  DelayMap delay_map_;
   ::operations_research::math_opt::SolverType solver_type_;
   ::operations_research::math_opt::SolveParameters solve_parameters_;
   SDCSchedulingModel model_;
