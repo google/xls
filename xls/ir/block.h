@@ -163,6 +163,10 @@ class Block : public FunctionBase {
   absl::Status AddClockPort(std::string_view name);
   const std::optional<ClockPort>& GetClockPort() const { return clock_port_; }
 
+  // Removes the block's clock port. Returns an error if the block has no
+  // clock port.
+  absl::Status RemoveClockPort();
+
   // Adds a new single-bit input port to the block and sets it as the reset port
   // with the given behavior. Returns the port.
   absl::StatusOr<InputPort*> AddResetPort(std::string_view port_name,

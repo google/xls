@@ -574,6 +574,22 @@ absl::Status Block::AddClockPort(std::string_view name) {
   return absl::OkStatus();
 }
 
+absl::Status Block::RemoveClockPort() {
+  if (!clock_port_.has_value()) {
+    return absl::NotFoundError(
+        absl::StrFormat("Block `%s` has no clock port", name()));
+  }
+  auto it =
+      std::find_if(ports_.begin(), ports_.end(), [this](const Port& port) {
+        return std::holds_alternative<ClockPort*>(port) &&
+               std::get<ClockPort*>(port) == &clock_port_.value();
+      });
+  XLS_RET_CHECK(it != ports_.end());
+  ports_.erase(it);
+  clock_port_ = std::nullopt;
+  return absl::OkStatus();
+}
+
 absl::StatusOr<InputPort*> Block::AddResetPort(std::string_view port_name,
                                                ResetBehavior behavior) {
   if (reset_port_.has_value()) {

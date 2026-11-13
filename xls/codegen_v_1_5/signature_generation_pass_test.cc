@@ -16,7 +16,9 @@
 
 #include <memory>
 #include <optional>
+#include <string>
 #include <string_view>
+#include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
@@ -748,18 +750,7 @@ top block my_block() {
                   width: 1
                   type { type_enum: BITS bit_count: 1 }
                 }
-                clock_name: "clk"
-                reset { name: "rst" asynchronous: false active_low: false }
-                pipeline {
-                  latency: 0
-                  initiation_interval: 1
-                  pipeline_control {
-                    valid {
-                      input_name: "input_valid"
-                      output_name: "output_valid"
-                    }
-                  }
-                }
+                combinational {}
                 channel_interfaces {
                   channel_name: "out"
                   direction: CHANNEL_DIRECTION_SEND
@@ -800,18 +791,7 @@ top block my_block() {
                   width: 1
                   type { type_enum: BITS bit_count: 1 }
                 }
-                clock_name: "clk"
-                reset { name: "rst" asynchronous: false active_low: false }
-                pipeline {
-                  latency: 0
-                  initiation_interval: 1
-                  pipeline_control {
-                    valid {
-                      input_name: "input_valid"
-                      output_name: "output_valid"
-                    }
-                  }
-                }
+                combinational {}
                 channel_interfaces {
                   channel_name: "in"
                   direction: CHANNEL_DIRECTION_RECEIVE
@@ -860,6 +840,44 @@ top block parent(in: bits[32], out: bits[32]) {
       sig.instantiations(), ElementsAre(EqualsProto(R"pb(
         block_instantiation { instance_name: "child_inst" block_name: "child" }
       )pb")));
+}
+
+TEST_F(SignatureGenerationPassTest, ClocklessBlockKeepsValidControlPorts) {
+  // A block without a clock port gets a combinational signature, which has no
+  // pipeline control. Ports whose names match the valid_control option must
+  // then stay in the signature as data ports instead of disappearing.
+  constexpr std::string_view ir_text = R"(package test
+
+top block my_block(input_valid: bits[1], in: bits[32], out: bits[32], output_valid: bits[1]) {
+  input_valid: bits[1] = input_port(name=input_valid)
+  in: bits[32] = input_port(name=in)
+  out: () = output_port(in, name=out)
+  output_valid: () = output_port(input_valid, name=output_valid)
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> p,
+                           Parser::ParsePackage(ir_text));
+  XLS_ASSERT_OK_AND_ASSIGN(Block * my_block, p->GetBlock("my_block"));
+
+  BlockConversionPassOptions options = {
+      .codegen_options = verilog::CodegenOptions()
+                             .clock_name("clk")
+                             .valid_control("input_valid", "output_valid"),
+  };
+  ASSERT_THAT(Run(p.get(), options), IsOkAndHolds(true));
+  ASSERT_NE(my_block->GetSignature(), std::nullopt);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      verilog::ModuleSignature sig,
+      verilog::ModuleSignature::FromProto(*my_block->GetSignature()));
+
+  EXPECT_TRUE(sig.proto().has_combinational());
+  EXPECT_FALSE(sig.proto().has_clock_name());
+  std::vector<std::string> port_names;
+  for (const verilog::PortProto& port : sig.proto().data_ports()) {
+    port_names.push_back(port.name());
+  }
+  EXPECT_THAT(port_names, UnorderedElementsAre("input_valid", "in", "out",
+                                               "output_valid"));
 }
 
 TEST_F(SignatureGenerationPassTest,
@@ -972,15 +990,7 @@ top block my_block(in: bits[32], in_valid: bits[1], in_ready: bits[1],
               width: 1
               type { type_enum: BITS bit_count: 1 }
             }
-            clock_name: "clk"
-            reset { name: "rst" asynchronous: false active_low: false }
-            pipeline {
-              latency: 0
-              initiation_interval: 1
-              pipeline_control {
-                valid { input_name: "input_valid" output_name: "output_valid" }
-              }
-            }
+            combinational {}
             channel_interfaces {
               channel_name: "in"
               direction: CHANNEL_DIRECTION_RECEIVE

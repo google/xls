@@ -49,6 +49,8 @@ namespace xls::codegen {
 namespace {
 
 using ::absl_testing::IsOkAndHolds;
+using ::testing::HasSubstr;
+using ::testing::Not;
 
 constexpr char kTestName[] = "codegen_proc_test";
 constexpr char kTestdataPath[] = "xls/codegen_v_1_5/testdata";
@@ -261,6 +263,79 @@ TEST_P(CodegenProcTest, TrivialProcHierarchyWithProcScopedChannels) {
       {"in_ch", {UBits(0, 32), UBits(10, 32), UBits(42, 32)}}};
   absl::flat_hash_map<std::string, std::vector<Bits>> outputs = {
       {"out_ch", {UBits(0, 32), UBits(10, 32), UBits(52, 32)}}};
+  EXPECT_THAT(simulator.RunInputSeriesProc(inputs, {{"out_ch", 3}}),
+              IsOkAndHolds(outputs));
+}
+
+TEST_P(CodegenProcTest,
+       CombinationalLeafInProcHierarchyWithProcScopedChannels) {
+  // A proc hierarchy where the leaf proc's logic is purely combinational
+  // (stateless +1 lowered into a single stage with no I/O flops). The leaf
+  // block should not have clock/reset ports; the top block keeps its
+  // interface. See https://github.com/google/xls/issues/4635.
+  Package p(TestBaseName());
+
+  TokenlessProcBuilder lb(NewStyleProc(), "plus_one_proc", "tkn", &p);
+  BReceiveChannel leaf_in = lb.AddInputChannel("ns", p.GetBitsType(32));
+  BSendChannel leaf_out = lb.AddOutputChannel("plusones", p.GetBitsType(32));
+  lb.Send(leaf_out, lb.Add(lb.Receive(leaf_in), lb.Literal(UBits(1, 32))));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * leaf_proc, lb.Build());
+
+  TokenlessProcBuilder pb(NewStyleProc(), "a_top_proc", "tkn", &p);
+  BReceiveChannel in_channel = pb.AddInputChannel("in_ch", p.GetBitsType(32));
+  BSendChannel out_channel = pb.AddOutputChannel("out_ch", p.GetBitsType(32));
+
+  pb.InstantiateProc("inst", leaf_proc, {in_channel, out_channel});
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * top, pb.Build({}));
+  XLS_ASSERT_OK(p.SetTop(top));
+
+  TestDelayEstimator delay_estimator;
+  XLS_ASSERT_OK_AND_ASSIGN(
+      verilog::CodegenResult result,
+      Codegen(&p,
+              verilog::CodegenOptions()
+                  .flop_inputs(false)
+                  .flop_outputs(false)
+                  .clock_name("clk")
+                  .emit_as_pipeline(true)
+                  .reset("rst", false, false, false)
+                  .use_system_verilog(UseSystemVerilog()),
+              SchedulingOptions().pipeline_stages(1).schedule_all_procs(true),
+              &delay_estimator));
+
+  // The combinational leaf module has no clock or reset ports.
+  auto module_text = [&](std::string_view module_name) -> std::string {
+    std::string::size_type start =
+        result.verilog_text.find(absl::StrCat("module ", module_name, "("));
+    if (start == std::string::npos) {
+      ADD_FAILURE() << "Module `" << module_name
+                    << "` not found in:\n" << result.verilog_text;
+      return "";
+    }
+    std::string::size_type end = result.verilog_text.find("endmodule", start);
+    if (end == std::string::npos) {
+      ADD_FAILURE() << "No endmodule found for `" << module_name << "`";
+      return "";
+    }
+    return result.verilog_text.substr(start, end - start);
+  };
+  std::string leaf_text = module_text("plus_one_proc");
+  EXPECT_THAT(leaf_text, Not(HasSubstr("clk")));
+  EXPECT_THAT(leaf_text, Not(HasSubstr("rst")));
+  // The top block keeps its interface, but does not connect clock or reset to
+  // the instantiated leaf.
+  std::string top_text = module_text("a_top_proc");
+  EXPECT_THAT(top_text, HasSubstr("input wire clk"));
+  EXPECT_THAT(top_text, HasSubstr("input wire rst"));
+  EXPECT_THAT(top_text, Not(HasSubstr(".clk(")));
+  EXPECT_THAT(top_text, Not(HasSubstr(".rst(")));
+
+  verilog::ModuleSimulator simulator =
+      NewModuleSimulator(result.verilog_text, result.signature);
+  absl::flat_hash_map<std::string, std::vector<Bits>> inputs = {
+      {"in_ch", {UBits(0, 32), UBits(10, 32), UBits(42, 32)}}};
+  absl::flat_hash_map<std::string, std::vector<Bits>> outputs = {
+      {"out_ch", {UBits(1, 32), UBits(11, 32), UBits(43, 32)}}};
   EXPECT_THAT(simulator.RunInputSeriesProc(inputs, {{"out_ch", 3}}),
               IsOkAndHolds(outputs));
 }
