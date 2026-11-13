@@ -539,11 +539,9 @@ absl::Status NoteBuiltinInvocationConstExpr(std::string_view fn_name,
   // array_size is always a constexpr result since it just needs the type
   // information
   if (fn_name == "array_size") {
-    auto* array_type =
-        absl::down_cast<const ArrayType*>(fn_type.params()[0].get());
-    XLS_ASSIGN_OR_RETURN(int64_t array_size, array_type->size().GetAsInt64());
-    ti->NoteConstExpr(invocation,
-                      InterpValue::MakeU32(static_cast<int32_t>(array_size)));
+    XLS_ASSIGN_OR_RETURN(InterpValue size, GetElementCountAsInterpValue(
+                                               fn_type.params()[0].get()));
+    ti->NoteConstExpr(invocation, size);
   }
 
   // bit_count and element_count are similar to array_size, but use the

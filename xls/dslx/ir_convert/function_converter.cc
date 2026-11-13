@@ -146,6 +146,18 @@ std::string MatchArmLabel(const FunctionBase* function, const Match* node,
 // https://github.com/google/xls/issues/450
 constexpr size_t kUsizeBits = 32;
 
+absl::StatusOr<BValue> ReverseArray(BValue arg,
+                                    const SourceInfo& loc = SourceInfo()) {
+  XLS_ASSIGN_OR_RETURN(xls::ArrayType * array_type, arg.GetType()->AsArray());
+  std::vector<BValue> elements;
+  elements.reserve(array_type->size());
+  for (int64_t i = array_type->size(); i > 0; --i) {
+    BValue index = arg.builder()->Literal(UBits(i - 1, 64));
+    elements.push_back(arg.builder()->ArrayIndex(arg, {index}, loc));
+  }
+  return arg.builder()->Array(elements, array_type->element_type(), loc);
+}
+
 // Returns a status that indicates an error in the IR conversion process.
 absl::Status IrConversionErrorStatus(const std::optional<Span>& span,
                                      std::string_view message,
@@ -2130,6 +2142,16 @@ absl::StatusOr<BValue> FunctionConverter::DefMapWithBuiltin(
       result = fb.Reverse(param);
     } else if (builtin_name == "encode") {
       result = fb.Encode(param);
+    } else if (builtin_name == "array_rev") {
+      XLS_ASSIGN_OR_RETURN(result, ReverseArray(param));
+    } else if (builtin_name == "array_size") {
+      XLS_ASSIGN_OR_RETURN(const FunctionType* mapper_type,
+                           current_type_info_->GetItemAs<FunctionType>(node));
+      const Type* mapper_arg_type = mapper_type->params()[0].get();
+      XLS_ASSIGN_OR_RETURN(InterpValue size,
+                           GetElementCountAsInterpValue(mapper_arg_type));
+      XLS_ASSIGN_OR_RETURN(Value value, size.ConvertToIr());
+      result = fb.Literal(value);
     } else {
       return absl::InternalError(
           absl::StrCat("Invalid builtin name for map: ", builtin_name));
@@ -5245,18 +5267,10 @@ absl::Status FunctionConverter::HandleBuiltinArraySize(const Invocation* node) {
 absl::Status FunctionConverter::HandleBuiltinArrayRev(const Invocation* node) {
   XLS_RET_CHECK_EQ(node->args().size(), 1);
   XLS_ASSIGN_OR_RETURN(BValue arg, Use(node->args()[0]));
-  auto* array_type = arg.GetType()->AsArrayOrDie();
-
-  Def(node, [&](const SourceInfo& loc) {
-    std::vector<BValue> elems;
-    for (int64_t i = 0; i < array_type->size(); ++i) {
-      BValue index = function_builder_->Literal(
-          UBits(static_cast<uint64_t>(array_type->size() - i - 1), 64));
-      elems.push_back(function_builder_->ArrayIndex(arg, {index}, loc));
-    }
-    return function_builder_->Array(elems, array_type->element_type(), loc);
-  });
-  return absl::OkStatus();
+  return DefWithStatus(
+             node,
+             [&](const SourceInfo& loc) { return ReverseArray(arg, loc); })
+      .status();
 }
 
 absl::Status FunctionConverter::HandleBuiltinZip(const Invocation* node) {

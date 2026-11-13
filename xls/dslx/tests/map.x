@@ -57,3 +57,16 @@ fn map_unary_builtins() {
     assert_eq(u3[8]:[0, 4, 2, 6, 1, 5, 3, 7], map(x, rev));
     assert_eq(u2[8]:[0, 0, 1, 1, 2, 2, 3, 3], map(x, encode));
 }
+
+#[quickcheck]
+fn map_array_rev(x: bool, y: u8) -> bool {
+    let rows = [[y, !y], [y, y]];
+    map([[x, !x]], array_rev) == [[!x, x]] && map(rows, array_rev) == [[!y, y], [y, y]]
+}
+
+#[quickcheck]
+fn map_array_size(x: bool, y: u8) -> bool {
+    let row = [x, !x];
+    map([row], array_size) == [array_size(row)] && array_size(row) == u32:2 &&
+    map([[y], [!y]], array_size) == [u32:1, u32:1]
+}

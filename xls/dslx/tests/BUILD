@@ -22,6 +22,7 @@ load(
     "xls_dslx_library",
     "xls_dslx_opt_ir",
     "xls_dslx_opt_ir_test",
+    "xls_dslx_prove_quickcheck_test",
     "xls_dslx_test",
     "xls_ir_opt_ir",
 )
@@ -374,6 +375,11 @@ dslx_lang_test(
 )
 
 dslx_lang_test(name = "map")
+
+xls_dslx_prove_quickcheck_test(
+    name = "map_prove_quickcheck_test",
+    library = ":map_dslx",
+)
 
 dslx_lang_test(name = "multiplies")
 
