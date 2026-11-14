@@ -191,6 +191,24 @@ type MyTypeAlias = some_module::SomeType;
   EXPECT_THAT(definition_location.range.end, PosEq(want_end));
 }
 
+TEST(LanguageServerAdapterTest, TestFindDefinitionsSumVariant) {
+  LanguageServerAdapter adapter(GetDslxStdlibUri(), /*dslx_paths=*/{});
+  const LspUri kUri("file:///fake/path/test.x");
+  XLS_ASSERT_OK(adapter.Update(kUri, R"(#![feature(type_inference_v2)]
+enum E { Tuple(u32) }
+fn make(x: u32) -> E { E::Tuple(x) }
+)"));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::vector<verible::lsp::Location> definition_locations,
+      adapter.FindDefinitions(kUri, verible::lsp::Position{2, 28}));
+  ASSERT_EQ(definition_locations.size(), 1);
+  const verible::lsp::Location& definition = definition_locations.front();
+  EXPECT_EQ(definition.uri, kUri.GetStringView());
+  EXPECT_THAT(definition.range.start, PosEq((verible::lsp::Position{1, 9})));
+  EXPECT_THAT(definition.range.end, PosEq((verible::lsp::Position{1, 14})));
+}
+
 // After we parse an invalid file the language server can still get requests,
 // check that works reasonably.
 TEST(LanguageServerAdapterTest, TestCallAfterInvalidParse) {
