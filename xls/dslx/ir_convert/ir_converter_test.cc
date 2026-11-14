@@ -418,6 +418,56 @@ TEST_F(IrConverterTest, CountedForVariableRange) {
   ASSERT_FALSE(status_or_ir.ok());
 }
 
+TEST_F(IrConverterTest, NonzeroRangeNamesTheIndexUsedByArrayAccess) {
+  struct Names {
+    std::string index, carry, array;
+  };
+  for (const Names& names :
+       {Names{"bank", "acc", "cells"}, Names{"xls_iteration", "acc", "cells"},
+        Names{"bank", "xls_iteration", "cells"},
+        Names{"bank", "acc", "xls_iteration"}}) {
+    std::string program =
+        absl::StrFormat(R"(
+fn f(%s: u32[4]) -> u32 {
+  for (%s, %s) in u32:1..u32:4 { %s + %s[%s] }(u32:0)
+})",
+                        names.array, names.index, names.carry, names.carry,
+                        names.array, names.index);
+    SCOPED_TRACE(program);
+    ImportData import_data = CreateImportDataForTest();
+    XLS_ASSERT_OK_AND_ASSIGN(TypecheckedModule tm,
+                             ParseAndTypecheck(program, "test_module.x",
+                                               "test_module", &import_data));
+    XLS_ASSERT_OK_AND_ASSIGN(PackageConversionData converted,
+                             ConvertModuleToPackage(tm.module, &import_data,
+                                                    kProcScopedChannelOptions));
+    XLS_ASSERT_OK_AND_ASSIGN(xls::Function * body,
+                             converted.package->GetFunction(
+                                 "____test_module__f_counted_for_0_body"));
+    std::string counter = body->params()[0]->GetName();
+    if (names.index == "xls_iteration" || names.carry == "xls_iteration" ||
+        names.array == "xls_iteration") {
+      EXPECT_THAT(counter, ::testing::StartsWith("xls_iteration__"));
+    } else {
+      EXPECT_EQ(counter, "xls_iteration");
+    }
+    EXPECT_THAT(converted.interface.functions(),
+                ::testing::Contains(::testing::Truly([&](const auto& function) {
+                  return function.base().name() == body->name() &&
+                         function.parameters_size() > 0 &&
+                         function.parameters(0).name() == counter;
+                })));
+    EXPECT_THAT(
+        body->return_value(),
+        m::Add(m::Param(names.carry),
+               m::ArrayIndex(
+                   m::Param(names.array),
+                   {::testing::AllOf(
+                       m::Name(names.index),
+                       m::Add(body->params()[0], m::Literal("bits[32]:1")))})));
+  }
+}
+
 TEST_F(IrConverterTest, ExtendConversions) {
   constexpr std::string_view program =
       R"(fn main(x: u8, y: s8) -> (u32, u32, s32, s32) {
