@@ -563,8 +563,8 @@ absl::StatusOr<LogicRef*> ModuleBuilder::DeclareModuleConstant(
   return ref;
 }
 
-absl::StatusOr<LogicRef*> ModuleBuilder::DeclareVariable(std::string_view name,
-                                                         Type* type) {
+absl::StatusOr<LogicRef*> ModuleBuilder::DeclareVariable(
+    std::string_view name, Type* type, const SourceInfo& loc) {
   DataType* data_type;
   if (type->IsArray()) {
     ArrayType* array_type = type->AsArrayOrDie();
@@ -574,15 +574,15 @@ absl::StatusOr<LogicRef*> ModuleBuilder::DeclareVariable(std::string_view name,
   } else {
     data_type = file_->BitVectorType(type->GetFlatBitCount(), SourceInfo());
   }
-  return module_->AddWire(SanitizeAndUniquifyName(name), data_type,
-                          SourceInfo(), declaration_section());
+  return module_->AddWire(SanitizeAndUniquifyName(name), data_type, loc,
+                          declaration_section());
 }
 
-absl::StatusOr<LogicRef*> ModuleBuilder::DeclareVariable(std::string_view name,
-                                                         int64_t bit_count) {
+absl::StatusOr<LogicRef*> ModuleBuilder::DeclareVariable(
+    std::string_view name, int64_t bit_count, const SourceInfo& loc) {
   return module_->AddWire(SanitizeAndUniquifyName(name),
-                          file_->BitVectorType(bit_count, SourceInfo()),
-                          SourceInfo(), declaration_section());
+                          file_->BitVectorType(bit_count, SourceInfo()), loc,
+                          declaration_section());
 }
 
 bool ModuleBuilder::CanEmitAsInlineExpression(Node* node) {
@@ -793,7 +793,8 @@ std::string ModuleBuilder::SanitizeAndUniquifyName(std::string_view name,
 
 absl::StatusOr<LogicRef*> ModuleBuilder::EmitAsAssignment(
     std::string_view name, Node* node, absl::Span<Expression* const> inputs) {
-  XLS_ASSIGN_OR_RETURN(LogicRef * ref, DeclareVariable(name, node->GetType()));
+  XLS_ASSIGN_OR_RETURN(LogicRef * ref,
+                       DeclareVariable(name, node->GetType(), node->loc()));
 
   // TODO(meheff): Arrays should not be special cased here. Instead each op
   // should be expressed using a generator which takes an span of input
@@ -1257,8 +1258,9 @@ absl::StatusOr<IndexableExpression*> ModuleBuilder::EmitGate(
         gate->GetType()->ToString()));
   }
 
-  XLS_ASSIGN_OR_RETURN(LogicRef * ref,
-                       DeclareVariable(gate->GetName(), gate->GetType()));
+  XLS_ASSIGN_OR_RETURN(
+      LogicRef * ref,
+      DeclareVariable(gate->GetName(), gate->GetType(), gate->loc()));
 
   if (gate->gate_type() == GateType::kObservableGate) {
     // Observable gates don't perform zero-clamping; they can be evaluated as
@@ -1460,7 +1462,7 @@ absl::Status ModuleBuilder::AssignRegisters(
           AddAssignment(reg.xls_type, reg.ref, reg.reset_value,
                         [&](Expression* lhs, Expression* rhs) {
                           conditional->consequent()->Add<NonblockingAssignment>(
-                              SourceInfo(), lhs, rhs);
+                              reg.ref->loc(), lhs, rhs);
                         }));
     }
     assignment_block = conditional->AddAlternate();
@@ -1472,7 +1474,7 @@ absl::Status ModuleBuilder::AssignRegisters(
     XLS_RETURN_IF_ERROR(AddAssignment(
         reg.xls_type, reg.ref, reg.next, [&](Expression* lhs, Expression* rhs) {
           assignment_block->Add<NonblockingAssignment>(
-              SourceInfo(), lhs,
+              reg.ref->loc(), lhs,
               reg.load_enable == nullptr
                   ? rhs
                   : file_->Ternary(reg.load_enable, rhs, lhs, SourceInfo()));

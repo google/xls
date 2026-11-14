@@ -1238,9 +1238,10 @@ absl::StatusOr<Block*> Block::Clone(
   for (Register* reg : GetRegisters()) {
     XLS_ASSIGN_OR_RETURN(Type * mapped_type,
                          target_package->MapTypeFromOtherPackage(reg->type()));
-    XLS_ASSIGN_OR_RETURN(register_map[reg], cloned_block->AddRegister(
-                                                to_new_name(reg), mapped_type,
-                                                reg->reset_value()));
+    XLS_ASSIGN_OR_RETURN(
+        register_map[reg],
+        cloned_block->AddRegister(to_new_name(reg), mapped_type,
+                                  reg->reset_value(), reg->loc()));
   }
   for (Instantiation* inst : GetInstantiations()) {
     if (inst->kind() == InstantiationKind::kBlock) {
