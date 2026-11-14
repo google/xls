@@ -911,8 +911,9 @@ ListOfAllFoldingActionsWithDestination(
     };
     // Check if @a_source is mutually-exclusive with all other nodes already
     // confirmed (i.e., the sources of @subset_of_edges_to_n)
-    bool is_a_mutually_exclusive =
-        absl::c_all_of(subset_of_edges_to_n, can_fold_together);
+    if (!absl::c_all_of(subset_of_edges_to_n, can_fold_together)) {
+      continue;
+    }
 
     // Confirm equivalence mapping can handle the sources simultaneously.
     XLS_ASSIGN_OR_RETURN(std::optional<NodeToMappings> mappings,
@@ -921,7 +922,7 @@ ListOfAllFoldingActionsWithDestination(
 
     // Consider the current folding action only if its source is mutually
     // exclusive with the other sources
-    if (is_a_mutually_exclusive && mappings.has_value()) {
+    if (mappings.has_value()) {
       subset_of_edges_to_n.push_back(a);
     }
   }
@@ -1020,11 +1021,14 @@ ListOfFoldingActionsWithDestination(
           break;
         }
       }
+      if (!all_can_fold) {
+        continue;
+      }
       // Confirm equivalence mapping can handle the sources simultaneously.
       XLS_ASSIGN_OR_RETURN(
           std::optional<NodeToMappings> mappings,
           ResourceSharingPass::CompatibleNaryMappings(batch, fold, eq_mapper));
-      if (all_can_fold && mappings.has_value()) {
+      if (mappings.has_value()) {
         batch.push_back(fold);
         found_batch = true;
         break;
@@ -1125,6 +1129,98 @@ bool WillToUseFrom(Node* from, Node* to,
   return false;
 }
 
+// Returns true if prior foldings on `shared_node` involve a node that is not
+// mutually exclusive with or def-use independent of `next_node`.
+absl::StatusOr<bool> HasPriorFoldingChainConflict(
+    Node* shared_node, Node* next_node,
+    const absl::flat_hash_map<Node*, NaryFoldingAction*>& prior_foldings,
+    const absl::btree_set<ResourceSharingPass::MutuallyExclPair>&
+        mutual_exclusivity,
+    const NodeBackwardDependencyAnalysis& nda) {
+  auto it = prior_foldings.find(shared_node);
+  if (it == prior_foldings.end()) {
+    return false;
+  }
+  NaryFoldingAction* prior_folding = it->second;
+  XLS_RET_CHECK_NE(prior_folding, nullptr);
+  auto conflicts_with = [&](Node* prior_node) {
+    if (prior_node == shared_node) {
+      return false;
+    }
+    return !mutual_exclusivity.contains({next_node, prior_node}) ||
+           nda.IsDependent(next_node, prior_node) ||
+           nda.IsDependent(prior_node, next_node);
+  };
+  if (conflicts_with(prior_folding->GetTo())) {
+    VLOG(4) << "      Excluding chained folding between "
+            << next_node->ToString() << " and " << shared_node->ToString()
+            << " because it conflicts with prior folding destination "
+            << prior_folding->GetTo()->ToString();
+    return true;
+  }
+  for (const NaryFoldingAction::NodeVisibility& prior_from :
+       prior_folding->GetFrom()) {
+    if (conflicts_with(prior_from.node)) {
+      VLOG(4) << "      Excluding chained folding between "
+              << next_node->ToString() << " and " << shared_node->ToString()
+              << " because it conflicts with prior folding source "
+              << prior_from.node->ToString();
+      return true;
+    }
+  }
+  return false;
+}
+
+// Returns true if folding `source` creates a dependency cycle with `to_node`
+// or any previously accepted source in `legal_froms`.
+bool DoesSourceCauseCycle(
+    Node* source, Node* to_node,
+    absl::Span<const NaryFoldingAction::NodeVisibility> legal_froms,
+    const NodeBackwardDependencyAnalysis& nda,
+    const absl::flat_hash_map<Node*, absl::flat_hash_set<Node*>>&
+        one_to_others_folded,
+    UnionFind<Node*>& fold_representative) {
+  auto causes_cycle_with = [&](Node* other_node) {
+    return WillToUseFrom(source, other_node, nda, one_to_others_folded,
+                         fold_representative) ||
+           WillToUseFrom(other_node, source, nda, one_to_others_folded,
+                         fold_representative);
+  };
+  if (causes_cycle_with(to_node) ||
+      absl::c_any_of(legal_froms,
+                     [&](const NaryFoldingAction::NodeVisibility& prior_from) {
+                       return causes_cycle_with(prior_from.node);
+                     })) {
+    VLOG(4) << "      Excluding the following source because it causes a"
+               "use-chain between source and destination to become a cycle";
+    VLOG(4) << "        Source removed = " << source->ToString();
+    return true;
+  }
+  return false;
+}
+
+// Clones equivalence mappings for given from nodes and the `folding` to node.
+absl::StatusOr<NodeToMappings> CloneEquivalenceMappings(
+    const NaryFoldingAction& folding,
+    absl::Span<const NaryFoldingAction::NodeVisibility> subset_of_froms) {
+  NodeToMappings legal_mappings;
+  auto clone_mapping_if_present = [&](Node* key) -> absl::Status {
+    if (auto map_it = folding.mappings().find(key);
+        map_it != folding.mappings().end()) {
+      auto [it, inserted] = legal_mappings.try_emplace(key);
+      XLS_RET_CHECK(inserted);
+      XLS_ASSIGN_OR_RETURN(it->second, map_it->second->Clone(std::nullopt));
+    }
+    return absl::OkStatus();
+  };
+  for (const NaryFoldingAction::NodeVisibility& from : subset_of_froms) {
+    XLS_RET_CHECK(folding.mappings().contains(from.node));
+    XLS_RETURN_IF_ERROR(clone_mapping_if_present(from.node));
+  }
+  XLS_RETURN_IF_ERROR(clone_mapping_if_present(folding.GetTo()));
+  return legal_mappings;
+}
+
 absl::StatusOr<std::pair<std::vector<std::unique_ptr<NaryFoldingAction>>, bool>>
 ResourceSharingPass::LegalizeSequenceOfFolding(
     absl::Span<const std::unique_ptr<NaryFoldingAction>>
@@ -1187,57 +1283,7 @@ ResourceSharingPass::LegalizeSequenceOfFolding(
       VLOG(2) << "      Area savings = " << *area_saved_without_overhead;
     }
 
-    // Check the destination
     Node* to_node = folding->GetTo();
-    auto it = nodes_already_selected_as_folding_sources.find(to_node);
-    if (it != nodes_already_selected_as_folding_sources.end()) {
-      // The destination of the current n-ary folding (i.e., @to_node) was used
-      // as a source on a prior n-ary folding. Hence, @to_node must be mutually
-      // exclusive with the destination of such prior n-ary folding for @folding
-      // to be legal.
-      //
-      // For example, let us assume the prior n-ary folding was from n_i to n_j.
-      // Let us also assume that the current n-ary folding is from n_k to n_i;
-      // this current folding is legal only if n_k is mutually exclusive with
-      // n_j since the previous folding will happen before the current one.
-      NaryFoldingAction* prior_folding = it->second;
-      XLS_RET_CHECK_NE(prior_folding, nullptr);
-      Node* prior_folding_destination = prior_folding->GetTo();
-      XLS_RET_CHECK_NE(prior_folding_destination, to_node);
-      bool skip_current_folding = false;
-      for (const NaryFoldingAction::NodeVisibility& from : folding->GetFrom()) {
-        Node* source = from.node;
-        if (!mutual_exclusivity.contains({source, prior_folding_destination}) ||
-            nda.IsDependent(source, prior_folding_destination) ||
-            nda.IsDependent(prior_folding_destination, source)) {
-          VLOG(4)
-              << "      Excluding the current n-ary folding f_i because "
-                 "its destination was used by a prior n-ary folding f_j "
-                 "that has a destination that is not mutually exclusive "
-                 "with the following source of f_i, or would create a cycle";
-          VLOG(4) << "        Problematic source of f_i   = "
-                  << source->ToString();
-          VLOG(4) << "        Prior folding's destination = "
-                  << prior_folding_destination->ToString();
-          skip_current_folding = true;
-          break;
-        }
-        for (const NaryFoldingAction::NodeVisibility& prior_from :
-             prior_folding->GetFrom()) {
-          if (!mutual_exclusivity.contains({source, prior_from.node})) {
-            skip_current_folding = true;
-            break;
-          }
-        }
-        if (skip_current_folding) {
-          break;
-        }
-      }
-      if (skip_current_folding) {
-        modified = true;
-        continue;
-      }
-    }
 
     // Check all sources of the current n-ary folding
     std::vector<NaryFoldingAction::NodeVisibility> legal_froms;
@@ -1263,80 +1309,29 @@ ResourceSharingPass::LegalizeSequenceOfFolding(
         continue;
       }
 
-      // Exclude folding sources s_i that have been used as destination of
-      // another, previous folding action f_j where f_j had a source that is not
-      // mutually exclusive with s_i.
-      //
-      // For example, let us assume that a previous folding action was from
-      // node_a to node_b. Also, let us assume that the current folding is from
-      // node_b to node_c. Finally, let us assume that node_a is not mutually
-      // exclusive with node_c; this is possible because the mutual exclusive
-      // relation is not transitive. Then, node_b -> node_c folding is illegal
-      // if done after node_a -> node_b.
-      if (auto it = prior_folding_of_destination.find(source);
-          it != prior_folding_of_destination.end()) {
-        NaryFoldingAction* prior_folding = (*it).second;
-
-        // The node @source was used as destination on a prior n-ary folding.
-        //
-        // For @source to be legally foldable to @to_node, all the sources of
-        // the previous folding (i.e., @prior_folding) must be mutually
-        // exclusive with @to_node.
-        // This check is needed because the mutual exclusive relation is not
-        // transitive.
-        bool is_safe = true;
-        for (const NaryFoldingAction::NodeVisibility& prior_from :
-             prior_folding->GetFrom()) {
-          if (!mutual_exclusivity.contains({prior_from.node, to_node})) {
-            VLOG(4) << "      Excluding the following source because it was "
-                       "already used by a prior n-ary folding as its "
-                       "destination and this prior folding sources are not all "
-                       "mutually exclusive with the following source";
-            VLOG(4) << "        Source removed = " << source->ToString();
-            VLOG(4) << "        Prior folding";
-            VLOG(4) << "          To " << prior_folding->GetTo()->ToString();
-            for (const NaryFoldingAction::NodeVisibility& tmp_prior_from :
-                 prior_folding->GetFrom()) {
-              if (prior_from.node == tmp_prior_from.node) {
-                VLOG(4) << "          From (reason) "
-                        << tmp_prior_from.node->ToString();
-              } else {
-                VLOG(4) << "          From " << tmp_prior_from.node->ToString();
-              }
-            }
-            is_safe = false;
-            continue;
-          }
-        }
-        if (!is_safe) {
-          modified = true;
-          continue;
-        }
+      // Ensure any folding chains via `to_node` and/or `source` are valid.
+      XLS_ASSIGN_OR_RETURN(
+          bool dest_chain_conflict,
+          HasPriorFoldingChainConflict(
+              to_node, source, nodes_already_selected_as_folding_sources,
+              mutual_exclusivity, nda));
+      if (dest_chain_conflict) {
+        modified = true;
+        continue;
+      }
+      XLS_ASSIGN_OR_RETURN(bool src_chain_conflict,
+                           HasPriorFoldingChainConflict(
+                               source, to_node, prior_folding_of_destination,
+                               mutual_exclusivity, nda));
+      if (src_chain_conflict) {
+        modified = true;
+        continue;
       }
 
-      // Ensure adding `source` to the nary folding does not cause a cycle with
-      // the `destination` of the nary or any prior added `source` of the nary.
-      std::vector<Node*> other_nodes = {to_node};
-      other_nodes.reserve(1 + legal_froms.size());
-      for (const NaryFoldingAction::NodeVisibility& prior_from : legal_froms) {
-        other_nodes.push_back(prior_from.node);
-      }
-      bool causes_cycle = false;
-      for (Node* other_node : other_nodes) {
-        if (WillToUseFrom(source, other_node, nda, one_to_others_folded,
-                          fold_representative) ||
-            WillToUseFrom(other_node, source, nda, one_to_others_folded,
-                          fold_representative)) {
-          VLOG(4)
-              << "      Excluding the following source because it causes a"
-                 "use-chain between source and destination to become a cycle";
-          VLOG(4) << "        Source removed = " << source->ToString();
-          modified = true;
-          causes_cycle = true;
-          break;
-        }
-      }
-      if (causes_cycle) {
+      // Ensure folding `source` into `to_node` does not create a cycle.
+      if (DoesSourceCauseCycle(source, to_node, legal_froms, nda,
+                               one_to_others_folded, fold_representative)) {
+        modified = true;
         continue;
       }
 
@@ -1392,21 +1387,9 @@ ResourceSharingPass::LegalizeSequenceOfFolding(
 
     // The current n-ary folding is worth considering. Allocate a new n-ary
     // folding to capture it, cloning mappings for legal sources.
-    absl::flat_hash_map<Node*, std::unique_ptr<EquivalenceMapping>>
-        legal_mappings;
-    for (const NaryFoldingAction::NodeVisibility& from : legal_froms) {
-      auto it = folding->mappings().find(from.node);
-      XLS_RET_CHECK(it != folding->mappings().end());
-      XLS_ASSIGN_OR_RETURN(std::unique_ptr<EquivalenceMapping> cloned_mapping,
-                           it->second->Clone(std::nullopt));
-      legal_mappings[from.node] = std::move(cloned_mapping);
-    }
-    if (auto it = folding->mappings().find(to_node);
-        it != folding->mappings().end()) {
-      XLS_ASSIGN_OR_RETURN(std::unique_ptr<EquivalenceMapping> cloned_mapping,
-                           it->second->Clone(std::nullopt));
-      legal_mappings[to_node] = std::move(cloned_mapping);
-    }
+    XLS_ASSIGN_OR_RETURN(NodeToMappings legal_mappings,
+                         CloneEquivalenceMappings(*folding, legal_froms));
+
     std::unique_ptr<NaryFoldingAction> new_folding =
         std::make_unique<NaryFoldingAction>(
             std::move(legal_froms), to_node, folding->GetToVisibilityEdges(),
@@ -1647,7 +1630,6 @@ SelectFoldingActionsBasedOnInDegree(
     const absl::btree_set<ResourceSharingPass::MutuallyExclPair>&
         mutual_exclusivity,
     const ResourceSharingPass::VisibilityAnalyses& visibility,
-    const NodeBackwardDependencyAnalysis& nda,
     const AreaEstimator& area_estimator,
     const CriticalPathDelayAnalysis& critical_path_delay,
     const NodeEquivalenceMapper& eq_mapper,
@@ -1732,21 +1714,7 @@ SelectFoldingActionsBasedOnInDegree(
     }
   }
 
-  // Make the current sequence of n-ary folding legal.
-  //
-  // In more detail, at this point, every n-ary folding action is legal in
-  // isolation.
-  // However, a given n-ary folding action might be illegal if another one run
-  // before.
-  std::vector<std::unique_ptr<NaryFoldingAction>> folding_actions_to_perform;
-  XLS_ASSIGN_OR_RETURN(
-      std::tie(folding_actions_to_perform, std::ignore),
-      ResourceSharingPass::LegalizeSequenceOfFolding(
-          std::move(
-              potential_folding_actions_to_perform_without_timing_problems),
-          mutual_exclusivity, nda, area_estimator, config));
-
-  return folding_actions_to_perform;
+  return potential_folding_actions_to_perform_without_timing_problems;
 }
 
 // This function selects all legal n-ary folding actions.
@@ -1766,7 +1734,6 @@ SelectAllFoldingActions(
     const absl::btree_set<ResourceSharingPass::MutuallyExclPair>&
         mutual_exclusivity,
     const ResourceSharingPass::VisibilityAnalyses& visibility,
-    const NodeBackwardDependencyAnalysis& nda,
     const AreaEstimator& area_estimator,
     const CriticalPathDelayAnalysis& critical_path_delay,
     const NodeEquivalenceMapper& eq_mapper,
@@ -1826,19 +1793,7 @@ SelectAllFoldingActions(
   SortFoldingActionsInDescendingOrderOfTheirAreaSavings(
       potential_folding_actions_to_perform, ta);
 
-  // Make the current sequence of n-ary folding legal.
-  //
-  // In more detail, at this point, every n-ary folding action is legal in
-  // isolation.
-  // However, a given n-ary folding action might be illegal if another one run
-  // before.
-  std::vector<std::unique_ptr<NaryFoldingAction>> folding_actions_to_perform;
-  XLS_ASSIGN_OR_RETURN(std::tie(folding_actions_to_perform, std::ignore),
-                       ResourceSharingPass::LegalizeSequenceOfFolding(
-                           std::move(potential_folding_actions_to_perform),
-                           mutual_exclusivity, nda, area_estimator, config));
-
-  return folding_actions_to_perform;
+  return potential_folding_actions_to_perform;
 }
 
 // This function implements the heuristic that randomly selects the sub-set of
@@ -1883,10 +1838,11 @@ SelectRandomlyFoldingActions(
   folds.reserve(indexes_of_selected_edges.size());
   for (auto& [destination, indexes] : indexes_of_selected_edges) {
     XLS_RET_CHECK_GT(indexes.size(), 0);
+    folds.clear();
 
     NodeToMappings final_mappings;
     double area_saved = 0.0;
-    for (uint64_t index : indexes) {
+    for (int64_t index : indexes) {
       // Fetch the edge
       BinaryFoldingAction* edge = edges[index];
       if (!absl::c_all_of(folds, [&](auto* fold) {
@@ -1897,11 +1853,16 @@ SelectRandomlyFoldingActions(
       XLS_ASSIGN_OR_RETURN(
           std::optional<NodeToMappings> mappings,
           ResourceSharingPass::CompatibleNaryMappings(folds, edge, eq_mapper));
+      if (!mappings.has_value()) {
+        continue;
+      }
       folds.push_back(edge);
       area_saved += edge->area_saved();
       final_mappings = std::move(mappings.value());
     }
-    XLS_RET_CHECK_NE(folds.size(), 0);
+    if (folds.empty()) {
+      continue;
+    }
 
     // Create a single n-ary folding action
     std::unique_ptr<NaryFoldingAction> new_action;
@@ -1938,12 +1899,11 @@ SelectFoldingActions(
   // Decide the sub-set of legal folding actions to perform
   switch (heuristics) {
     case ResourceSharingPass::ProfitabilityGuard::kInDegree: {
-      XLS_ASSIGN_OR_RETURN(
-          folding_actions_to_perform,
-          SelectFoldingActionsBasedOnInDegree(
-              context, folding_graph, mutual_exclusivity, visibility, nda,
-              area_estimator, critical_path_delay, eq_mapper, config,
-              visibility_estimator));
+      XLS_ASSIGN_OR_RETURN(folding_actions_to_perform,
+                           SelectFoldingActionsBasedOnInDegree(
+                               context, folding_graph, mutual_exclusivity,
+                               visibility, area_estimator, critical_path_delay,
+                               eq_mapper, config, visibility_estimator));
       break;
     }
 
@@ -1963,15 +1923,25 @@ SelectFoldingActions(
     }
 
     case ResourceSharingPass::ProfitabilityGuard::kAlways: {
-      XLS_ASSIGN_OR_RETURN(
-          folding_actions_to_perform,
-          SelectAllFoldingActions(context, folding_graph, mutual_exclusivity,
-                                  visibility, nda, area_estimator,
-                                  critical_path_delay, eq_mapper, config,
-                                  visibility_estimator));
+      XLS_ASSIGN_OR_RETURN(folding_actions_to_perform,
+                           SelectAllFoldingActions(
+                               context, folding_graph, mutual_exclusivity,
+                               visibility, area_estimator, critical_path_delay,
+                               eq_mapper, config, visibility_estimator));
       break;
     }
   }
+
+  // Make the current sequence of n-ary folding legal.
+  //
+  // In more detail, at this point, every n-ary folding action is legal in
+  // isolation.
+  // However, a given n-ary folding action might be illegal if another one run
+  // before.
+  XLS_ASSIGN_OR_RETURN(std::tie(folding_actions_to_perform, std::ignore),
+                       ResourceSharingPass::LegalizeSequenceOfFolding(
+                           folding_actions_to_perform, mutual_exclusivity, nda,
+                           area_estimator, config));
 
   TimingAnalysis ta{folding_actions_to_perform, critical_path_delay};
   std::vector<std::unique_ptr<NaryFoldingAction>>
