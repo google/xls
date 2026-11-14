@@ -82,12 +82,11 @@ using NodeToMappings =
 ResourceSharingPass::CompatibleNaryMappings(
     absl::Span<BinaryFoldingAction* const> prev_folds,
     BinaryFoldingAction* next_fold, const NodeEquivalenceMapper& eq_mapper) {
-  std::vector<Node*> sources = {next_fold->GetFrom()};
-  sources.reserve(prev_folds.size() + 1);
-  absl::c_transform(
-      prev_folds, std::back_inserter(sources),
-      [](const BinaryFoldingAction* fold) { return fold->GetFrom(); });
-  return eq_mapper.ComputeMappings(sources, next_fold->GetTo());
+  std::vector<BinaryFoldingAction*> all_folds;
+  all_folds.reserve(prev_folds.size() + 1);
+  absl::c_copy(prev_folds, std::back_inserter(all_folds));
+  all_folds.push_back(next_fold);
+  return CompatibleNaryMappings(all_folds, eq_mapper);
 }
 
 /* static */ absl::StatusOr<std::optional<NodeToMappings>>
@@ -95,9 +94,14 @@ ResourceSharingPass::CompatibleNaryMappings(
     absl::Span<BinaryFoldingAction* const> binary_folds,
     const NodeEquivalenceMapper& eq_mapper) {
   XLS_RET_CHECK(!binary_folds.empty());
-  return CompatibleNaryMappings(
-      absl::MakeSpan(binary_folds).subspan(0, binary_folds.size() - 1),
-      binary_folds.back(), eq_mapper);
+  Node* to = binary_folds.front()->GetTo();
+  std::vector<Node*> sources;
+  sources.reserve(binary_folds.size());
+  for (const BinaryFoldingAction* fold : binary_folds) {
+    XLS_RET_CHECK_EQ(fold->GetTo(), to);
+    sources.push_back(fold->GetFrom());
+  }
+  return eq_mapper.ComputeMappings(sources, to);
 }
 
 // GetDelayIncrease computes the maximum difference in delay between any pair
@@ -288,6 +292,113 @@ ResourceSharingPass::ComputeMutualExclusionAnalysis(
   return mutual_exclusivity;
 }
 
+namespace {
+
+// Holds the visibility edges and sinks for one side of a folding pair.
+struct VisibilityEdgesSinks {
+  FoldingAction::VisibilityEdges edges;
+  absl::flat_hash_set<Node*> sinks;
+};
+
+// Holds the visibility info needed to build foldings in either direction.
+struct MutuallyExclusivePairVisibility {
+  VisibilityEdgesSinks one;
+  VisibilityEdgesSinks other;
+
+  bool empty() const { return one.edges.empty() || other.edges.empty(); }
+
+  // Computes visibility info needed to fold `one_node` and `other_node` in
+  // either direction, or returns std::nullopt if no valid visibility expression
+  // exists.
+  static absl::StatusOr<std::optional<MutuallyExclusivePairVisibility>> Create(
+      Node* one_node, Node* other_node,
+      const ResourceSharingPass::VisibilityAnalyses& visibility,
+      int64_t max_edges_to_handle) {
+    MutuallyExclusivePairVisibility pair_vis;
+    XLS_RETURN_IF_ERROR(pair_vis.PopulateFromSingleSelect(
+        one_node, other_node, visibility.single_select));
+    XLS_RETURN_IF_ERROR(pair_vis.PopulateFromAnalysisVariant(
+        one_node, other_node, visibility.general, max_edges_to_handle));
+    XLS_RETURN_IF_ERROR(pair_vis.PopulateFromAnalysisVariant(
+        one_node, other_node, visibility.pairwise, max_edges_to_handle));
+
+    if (pair_vis.empty()) {
+      // This will only ever happen if visibility analysis returns no edges
+      // because there were too many of them, more than the configured threshold
+      // allows for. In this case, it isn't practical to fold.
+      VLOG(4) << "Cannot determine visibility expression necessary to fold: "
+              << one_node << " and " << other_node;
+      return std::nullopt;
+    }
+
+    auto has_edge_depended_on_by =
+        [&](const FoldingAction::VisibilityEdges& edges, Node* one_node,
+            Node* other_node) {
+          for (const auto& edge : edges) {
+            if (visibility.nda->IsDependent(edge.node, one_node) ||
+                visibility.nda->IsDependent(edge.node, other_node)) {
+              VLOG(4) << "Folded node depends on visibility edge node: "
+                      << edge.node;
+              return true;
+            }
+          }
+          return false;
+        };
+
+    // Ensure neither folded node depends on any visibility edge node.
+    if (has_edge_depended_on_by(pair_vis.one.edges, one_node, other_node) ||
+        has_edge_depended_on_by(pair_vis.other.edges, one_node, other_node)) {
+      return std::nullopt;
+    }
+    return pair_vis;
+  }
+
+  absl::Status PopulateFromSingleSelect(
+      Node* one_node, Node* other_node,
+      const SingleSelectVisibilityAnalysis& single_select) {
+    if (!single_select.IsMutuallyExclusive(one_node, other_node)) {
+      return absl::OkStatus();
+    }
+    XLS_ASSIGN_OR_RETURN(one.edges,
+                         single_select.GetEdgesForVisibilityExpr(one_node));
+    other.edges.clear();
+    // Only waste time computing other.edges if one.edges was computable.
+    if (!one.edges.empty()) {
+      XLS_ASSIGN_OR_RETURN(other.edges,
+                           single_select.GetEdgesForVisibilityExpr(other_node));
+    }
+    if (!other.edges.empty()) {
+      // Specifying a sink indicates that visibility through this node is
+      // equivalent to visibility through all terminal nodes.
+      one.sinks = {single_select.GetInfo(one_node)->select};
+      other.sinks = {single_select.GetInfo(other_node)->select};
+    }
+    return absl::OkStatus();
+  }
+
+  template <typename VisibilityAnalysisT>
+  absl::Status PopulateFromAnalysisVariant(Node* one_node, Node* other_node,
+                                           const VisibilityAnalysisT& variant,
+                                           int64_t max_edges_to_handle) {
+    if (!empty() || !variant.IsMutuallyExclusive(one_node, other_node)) {
+      return absl::OkStatus();
+    }
+    XLS_ASSIGN_OR_RETURN(one.edges,
+                         variant.GetEdgesForMutuallyExclusiveVisibilityExpr(
+                             one_node, {other_node}, max_edges_to_handle));
+    other.edges.clear();
+    // Only waste time computing other.edges if one.edges was computable.
+    if (!one.edges.empty()) {
+      XLS_ASSIGN_OR_RETURN(other.edges,
+                           variant.GetEdgesForMutuallyExclusiveVisibilityExpr(
+                               other_node, {one_node}, max_edges_to_handle));
+    }
+    return absl::OkStatus();
+  }
+};
+
+}  // namespace
+
 absl::StatusOr<std::unique_ptr<BinaryFoldingAction>>
 ResourceSharingPass::GetFoldableActionForMutuallyExclusiveNodes(
     Node* from_node, Node* to_node,
@@ -303,77 +414,21 @@ ResourceSharingPass::GetFoldableActionForMutuallyExclusiveNodes(
     return nullptr;
   }
 
-  absl::flat_hash_set<OperandVisibilityAnalysis::OperandNode> from_edges;
-  absl::flat_hash_set<OperandVisibilityAnalysis::OperandNode> to_edges;
-  absl::flat_hash_set<Node*> sinks;
-  if (visibility.single_select.IsMutuallyExclusive(from_node, to_node)) {
-    XLS_ASSIGN_OR_RETURN(
-        from_edges,
-        visibility.single_select.GetEdgesForVisibilityExpr(from_node));
-    // Only waste time computing to_edges if from_edges was computable.
-    to_edges.clear();
-    if (!from_edges.empty()) {
-      XLS_ASSIGN_OR_RETURN(
-          to_edges,
-          visibility.single_select.GetEdgesForVisibilityExpr(to_node));
-    }
-    if (!to_edges.empty()) {
-      // Specifying a sink indicates that visibility through ths node is
-      // equivalent to visibility through all terminal nodes.
-      sinks = {visibility.single_select.GetInfo(from_node)->select};
-    }
-  }
-  auto try_next_analysis_variant = [&](auto& variant) -> absl::Status {
-    if ((from_edges.empty() || to_edges.empty()) &&
-        variant.IsMutuallyExclusive(from_node, to_node)) {
-      XLS_ASSIGN_OR_RETURN(from_edges,
-                           variant.GetEdgesForMutuallyExclusiveVisibilityExpr(
-                               from_node, {to_node}, max_edges_to_handle));
-      // Only waste time computing to_edges if from_edges was computable.
-      to_edges.clear();
-      if (!from_edges.empty()) {
-        XLS_ASSIGN_OR_RETURN(to_edges,
-                             variant.GetEdgesForMutuallyExclusiveVisibilityExpr(
-                                 to_node, {from_node}, max_edges_to_handle));
-      }
-    }
-    return absl::OkStatus();
-  };
-  XLS_RETURN_IF_ERROR(try_next_analysis_variant(visibility.general));
-  XLS_RETURN_IF_ERROR(try_next_analysis_variant(visibility.pairwise));
-
-  if (from_edges.empty() || to_edges.empty()) {
-    // This will only ever happen if visibility analysis returns no edges
-    // because there were too many of them, more than the configured threshold
-    // allows for. In this case, it isn't practical to fold.
-    VLOG(4) << "Cannot determine visibility expression necessary to fold: "
-            << from_node << " into: " << to_node;
+  XLS_ASSIGN_OR_RETURN(
+      std::optional<MutuallyExclusivePairVisibility> pair_vis,
+      MutuallyExclusivePairVisibility::Create(from_node, to_node, visibility,
+                                              max_edges_to_handle));
+  if (!pair_vis.has_value()) {
     return nullptr;
-  }
-
-  // Ensure that none of the visibility edge nodes (the selectors) depend on
-  // from_node or to_node.
-  for (const auto& edge : from_edges) {
-    if (visibility.nda->IsDependent(edge.node, from_node) ||
-        visibility.nda->IsDependent(edge.node, to_node)) {
-      VLOG(4) << "Visibility edge node depends on folded node: " << edge.node;
-      return nullptr;
-    }
-  }
-  for (const auto& edge : to_edges) {
-    if (visibility.nda->IsDependent(edge.node, from_node) ||
-        visibility.nda->IsDependent(edge.node, to_node)) {
-      VLOG(4) << "Visibility edge node depends on folded node: " << edge.node;
-      return nullptr;
-    }
   }
 
   VLOG(4) << "Adding folding action: " << from_node << " into " << to_node;
   // Only n-ary foldings are evaluated with area saving thresholds, so we
   // defer computing area saved until then
   return std::make_unique<BinaryFoldingAction>(
-      from_node, to_node, std::move(from_edges), std::move(to_edges), 0.0,
-      std::move(*mappings), std::move(sinks));
+      from_node, to_node, std::move(pair_vis->one.edges),
+      std::move(pair_vis->other.edges), 0.0, std::move(*mappings),
+      std::move(pair_vis->one.sinks));
 }
 
 absl::StatusOr<std::vector<std::unique_ptr<BinaryFoldingAction>>>
@@ -385,40 +440,29 @@ ResourceSharingPass::ComputeFoldableActions(
   std::vector<std::unique_ptr<BinaryFoldingAction>> foldable_actions;
   for (const auto& [one_node, other_node] : mutual_exclusivity) {
     XLS_ASSIGN_OR_RETURN(
-        std::unique_ptr<BinaryFoldingAction> fold_one_into_other,
-        GetFoldableActionForMutuallyExclusiveNodes(
+        std::optional<MutuallyExclusivePairVisibility> pair_vis,
+        MutuallyExclusivePairVisibility::Create(
             one_node, other_node, visibility, config.max_edges_to_handle));
-
-    if (fold_one_into_other) {
-      // Directly construct the reverse folding action to avoid recomputing
-      // visibility expressions.
-      XLS_ASSIGN_OR_RETURN(
-          std::optional<NodeToMappings> mappings,
-          GetNodeEquivalenceMapper().ComputeMappings({other_node}, one_node));
-      if (mappings.has_value()) {
-        absl::flat_hash_set<Node*> reverse_sinks;
-        if (!fold_one_into_other->GetSinks().empty()) {
-          reverse_sinks = {
-              visibility.single_select.GetInfo(other_node)->select};
-        }
-        auto fold_other_into_one = std::make_unique<BinaryFoldingAction>(
-            other_node, one_node, fold_one_into_other->GetToVisibilityEdges(),
-            fold_one_into_other->GetFromVisibilityEdges(),
-            fold_one_into_other->area_saved(), std::move(*mappings),
-            std::move(reverse_sinks));
-        foldable_actions.push_back(std::move(fold_other_into_one));
-      }
-      foldable_actions.push_back(std::move(fold_one_into_other));
+    if (!pair_vis.has_value()) {
       continue;
     }
 
-    // There is no visibility to reuse, try folding in the other direction.
-    XLS_ASSIGN_OR_RETURN(
-        std::unique_ptr<BinaryFoldingAction> fold_other_into_one,
-        GetFoldableActionForMutuallyExclusiveNodes(
-            other_node, one_node, visibility, config.max_edges_to_handle));
-    if (fold_other_into_one) {
-      foldable_actions.push_back(std::move(fold_other_into_one));
+    for (bool reversed : {false, true}) {
+      Node* from_node = reversed ? other_node : one_node;
+      Node* to_node = reversed ? one_node : other_node;
+      XLS_ASSIGN_OR_RETURN(
+          std::optional<NodeToMappings> mappings,
+          GetNodeEquivalenceMapper().ComputeMappings({from_node}, to_node));
+      if (!mappings.has_value()) {
+        continue;
+      }
+      const VisibilityEdgesSinks& from_vis =
+          reversed ? pair_vis->other : pair_vis->one;
+      const VisibilityEdgesSinks& to_vis =
+          reversed ? pair_vis->one : pair_vis->other;
+      foldable_actions.push_back(std::make_unique<BinaryFoldingAction>(
+          from_node, to_node, from_vis.edges, to_vis.edges, 0.0,
+          std::move(*mappings), from_vis.sinks));
     }
   }
 
