@@ -62,9 +62,11 @@ control the scheduler.
     `pipeline` and `combinational`. The `pipeline` generator runs a scheduler
     that partitions the IR ops into pipeline stages.
 
--   `--opt_level=...` controls the optimization level to apply when using the
-    `pipeline` generator, to take advantage of any discovered optimization
-    opportunities.
+-   `--opt_level=...` controls the scheduling-time optimization level applied
+    when using the `pipeline` generator, to take advantage of any optimization
+    opportunities discovered during scheduling (ignored when
+    `--generator=combinational`). Note that general IR optimization passes are
+    controlled separately via `opt_main --opt_level`.
 
 -   `--delay_model=...` selects the delay model to use when scheduling. See the
     [page here](delay_estimation.md) for more detail.
@@ -646,6 +648,85 @@ response-receive are scheduled to match the RAM's latency.
 -   `--embed_child_block_signatures` is disabled by default. It recursively
     embeds each instantiated child block's signature into its parent's,
     so a tool can discover nested ports/channels from one top-level signature.
+
+# Measuring and Reducing Area {#measuring-and-reducing-area}
+
+-   **Measuring synthesized cell counts and area with Yosys**: While
+    `--block_metrics_path` (inspectable with `print_bom`) reports XLS
+    block-level operations before logic synthesis, downstream cell count and
+    area can be measured on generated Verilog or SystemVerilog using Yosys. For
+    unweighted generic cell counts (`$_*` primitives):
+
+    ```
+    $ yosys -p "read_verilog -sv <output.v>; synth -flatten -top <top_module>; stat"
+    ```
+
+    The generic `stat` summary breaks down primitive cells into combinational
+    gates (`$_NOT_`, `$_AND_`, `$_OR_`, `$_XOR_`, `$_MUX_`, etc.) and sequential
+    flip-flops (`$_DFF*`, `$_DFFE_*`, `$_SDFF*`, `$_SDFFE_*`, `$_SDFFCE_*`). To
+    measure technology-mapped standard-cell count and physical area against a
+    target Liberty library (`<target.lib>`), run `dfflibmap` and `abc` before
+    `stat`:
+
+    ```
+    $ yosys -p "read_verilog -sv <output.v>; synth -flatten -top <top_module>; dfflibmap -liberty <target.lib>; opt; abc -liberty <target.lib>; opt_clean -purge; stat -liberty <target.lib>"
+    ```
+
+-   **State encoding options for procs**: The representation of `proc` state
+    significantly affects both flip-flop count and next-state combinational
+    logic:
+
+    -   **Binary encoding** (`ceil(log2(N))` flip-flops): Minimizes register
+        bits and is usually most compact for counters, wide datapath state, or
+        state machines with dense arithmetic transitions.
+    -   **One-hot encoding** (`N` flip-flops for `N` states): Uses one bit per
+        state so state matching reduces to a single wire (`state[i]`), avoiding
+        wide equality comparators and decoder trees in small control FSMs.
+    -   **Shift-register encoding**: Updates state via direct bit shifts and
+        concatenations (`state[:-1] ++ next_bit`) rather than general addition
+        or state decoding, which maps directly to flip-flop chains with minimal
+        combinational logic for fixed-window history or sequence detectors.
+    -   **Johnson (twisted-ring) counter encoding** (`N/2` flip-flops for `N`
+        even states): Shifts the inverted MSB into the LSB
+        (`state[:-1] ++ !state[K-1]`), cycling through `2K` states with only `K`
+        flip-flops, zero adder carry chains, and at most 2-input AND/NOR gates
+        to decode any individual state.
+
+-   **Preserving flip-flop reset and enable inference**: Synthesis tools such as
+    Yosys (`opt_dff`) infer dedicated synchronous-reset and clock-enable
+    flip-flops (`$_SDFF*`, `$_SDFFE_*`, `$_SDFFCE_*`) by pattern-matching
+    explicit 2-to-1 multiplexers (`sel ? a : b`) driving register inputs. When a
+    `proc` encodes synchronous clear and hold/enable in DSLX next-state logic
+    (for example, `if clr { u8:0 } else if en { next_val } else { state }`), two
+    IR optimization passes can lower those multiplexers into bitwise gates that
+    block generic `$_SDFF*` / `$_SDFFE_*` inference:
+
+    1.  [`next_value_opt`](passes_list.md#next_value_opt)
+        (`--split_next_value_selects=4` by default in `opt_main`) splits
+        `select`-based state updates into multiple predicated `next_value`
+        nodes, which codegen combines using a `one_hot_sel` AND/OR mask.
+    2.  [`select_simp`](passes_list.md#select_simp) and `select_range_simp`
+        rewrite 2-way selects with a constant-zero arm (`sel(clr, [x, 0])`) into
+        a bitwise AND with a sign-extended mask (`x & {W{~clr}}`).
+
+    Whether preserving these multiplexers reduces post-synthesis area depends on
+    the target technology library:
+
+    -   When measuring Yosys generic (`$_*`) cell counts or targeting cell
+        libraries and FPGA fabrics that provide dedicated synchronous-reset /
+        clock-enable flip-flops, pass `--reset=<rst>` to `codegen_main` for
+        module-level reset, or preserve next-state multiplexers by passing
+        `--split_next_value_selects=0` to `opt_main` (and, when constant-zero
+        reset arms are present, `--skip_passes=select_simp,select_range_simp` to
+        `opt_main` together with `--opt_level=0` on `codegen_main`).
+    -   When targeting standard-cell libraries that do **not** include
+        synchronous-reset or clock-enable flip-flops (such as ASAP7, which only
+        provides plain `DFF` cells and decomposes `$_SDFFE_*` back into `DFF`
+        plus combinational gates during `dfflibmap`), XLS's default shared
+        control-predicate factoring and `abc` AOI/OAI mapping can be at least as
+        compact as preserving `$_SDFFE_*` cells. Always measure with `dfflibmap`
+        and `abc -liberty <target.lib>` on your target library to verify the net
+        area impact.
 
 # Miscellaneous
 
