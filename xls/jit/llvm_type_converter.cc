@@ -234,21 +234,11 @@ llvm::Value* LlvmTypeConverter::AsSignedValue(
   CHECK(xls_type->IsBits());
   int64_t xls_bit_count = xls_type->AsBitsOrDie()->bit_count();
   int64_t llvm_bit_count = GetLlvmBitCount(xls_bit_count);
-  llvm::Value* signed_value;
-  if (llvm_bit_count == xls_bit_count || xls_bit_count == 0) {
-    signed_value = value;
-  } else if (xls_bit_count == 1) {
-    // Just for this one case we don't need to do a shift.
-    signed_value = builder.CreateICmpNE(
-        value, llvm::ConstantInt::get(value->getType(), 0));
-  } else {
-    llvm::Value* sign_bit = builder.CreateTrunc(
-        builder.CreateLShr(
-            value, llvm::ConstantInt::get(value->getType(), xls_bit_count - 1)),
-        builder.getIntNTy(1));
-    signed_value = builder.CreateSelect(
-        sign_bit,
-        builder.CreateOr(InvertedPaddingMask(xls_type, builder), value), value);
+  llvm::Value* signed_value = value;
+  if (xls_bit_count > 0 && xls_bit_count < llvm_bit_count) {
+    int64_t shift_amt = llvm_bit_count - xls_bit_count;
+    signed_value =
+        builder.CreateAShr(builder.CreateShl(value, shift_amt), shift_amt);
   }
   return dest_type.has_value() && dest_type.value() != signed_value->getType()
              ? builder.CreateSExt(signed_value, dest_type.value())
@@ -280,6 +270,10 @@ llvm::Value* LlvmTypeConverter::ClearPaddingBits(llvm::Value* value,
                                                  llvm::IRBuilder<>& builder) {
   if (!xls_type->IsBits()) {
     // TODO(meheff): Handle non-bits types.
+    return value;
+  }
+  int64_t xls_bit_count = xls_type->AsBitsOrDie()->bit_count();
+  if (xls_bit_count == GetLlvmBitCount(xls_bit_count)) {
     return value;
   }
   return builder.CreateAnd(value, PaddingMask(xls_type, builder));

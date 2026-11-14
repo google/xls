@@ -36,6 +36,7 @@
 #include "xls/jit/aot_entrypoint.pb.h"
 #include "xls/jit/block_jit.h"
 #include "xls/jit/function_base_jit.h"
+#include "xls/jit/jit_runtime.h"
 
 namespace xls {
 
@@ -154,11 +155,13 @@ class BaseBlockJitWrapper {
     XLS_RET_CHECK(proto.ParseFromArray(aot_proto.data(), aot_proto.size()));
     XLS_RET_CHECK_EQ(proto.entrypoint_size(), 1)
         << "Wrapper should only have a single XLS block compiled.";
+    XLS_ASSIGN_OR_RETURN(TargetLayoutInfo target_layout,
+                         ResolveTargetLayoutInfo(proto));
     XLS_ASSIGN_OR_RETURN(
-        auto jit, BlockJit::CreateFromAot(proto.entrypoint(0),
-                                          proto.data_layout(), entrypoint));
+        auto jit, BlockJit::CreateFromAot(proto.entrypoint(0), target_layout,
+                                          entrypoint));
 
-    auto res = std::unique_ptr<RealType>(new RealType(std ::move(jit)));
+    auto res = std::unique_ptr<RealType>(new RealType(std::move(jit)));
     res->aot_entrypoints_proto_ = std::move(proto);
     return res;
   }
