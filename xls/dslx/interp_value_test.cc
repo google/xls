@@ -86,6 +86,13 @@ TEST(InterpValueTest, BitsEquivalence) {
   EXPECT_NE(a, b);
 }
 
+TEST(InterpValueTest, FlattenSignedBits) {
+  InterpValue value = InterpValue::MakeSBits(/*bit_count=*/8, /*value=*/-125);
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue flat, value.Flatten());
+  EXPECT_TRUE(flat.IsUBits());
+  EXPECT_THAT(flat.GetBits(), IsOkAndHolds(UBits(0x83, 8)));
+}
+
 TEST(InterpValueTest, FlattenArrayOfBits) {
   auto a = InterpValue::MakeUBits(/*bit_count=*/12, /*value=*/0xf00);
   auto b = InterpValue::MakeUBits(/*bit_count=*/12, /*value=*/0xba5);
