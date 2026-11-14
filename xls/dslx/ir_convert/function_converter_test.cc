@@ -642,5 +642,45 @@ TEST(FunctionConverterTest, ConvertsCoverResultWhenEmitCoverIsFalse) {
   }
 }
 
+TEST(FunctionConverterTest, PropagatesParamSourceInfo) {
+  ImportData import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(R"(fn f(x: u32, y: u32) -> u32 {
+  assert_eq(x, x);
+  x + y
+})",
+                        "test_module.x", "test_module", &import_data));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
+                           tm.module->GetMemberOrError<Function>("f"));
+  PackageConversionData package = MakeConversionData("test_module_package");
+  PackageData package_data{.conversion_info = &package};
+  FunctionConverter converter(package_data, tm.module, &import_data,
+                              ConvertOptions{.emit_positions = true},
+                              /*proc_data=*/nullptr,
+                              /*channel_scope=*/nullptr, /*is_top=*/true);
+  XLS_ASSERT_OK(converter.HandleFunction(f, tm.type_info, ParametricEnv{}));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      xls::Function * itok_fn,
+      package.package->GetFunction("__itok__test_module__f"));
+  ASSERT_EQ(itok_fn->params().size(), 4);
+  ASSERT_FALSE(itok_fn->params()[2]->loc().Empty());
+  ASSERT_FALSE(itok_fn->params()[3]->loc().Empty());
+  EXPECT_EQ(itok_fn->params()[2]->loc().locations.front().lineno(), Lineno(0));
+  EXPECT_EQ(itok_fn->params()[2]->loc().locations.front().colno(), Colno(5));
+  EXPECT_EQ(itok_fn->params()[3]->loc().locations.front().lineno(), Lineno(0));
+  EXPECT_EQ(itok_fn->params()[3]->loc().locations.front().colno(), Colno(13));
+
+  XLS_ASSERT_OK_AND_ASSIGN(xls::Function * top_fn,
+                           package.package->GetTopAsFunction());
+  ASSERT_EQ(top_fn->params().size(), 2);
+  EXPECT_EQ(top_fn->params()[0]->loc().locations,
+            itok_fn->params()[2]->loc().locations);
+  EXPECT_EQ(top_fn->params()[1]->loc().locations,
+            itok_fn->params()[3]->loc().locations);
+}
+
 }  // namespace
 }  // namespace xls::dslx

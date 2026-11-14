@@ -812,7 +812,7 @@ class IrConverterMainTest(test_base.TestCase):
       self.assertIn(
           textwrap.dedent("""\
       fn __std__my_stdlib_func(x: bits[32] id=1) -> bits[32] {
-        ret x: bits[32] = param(name=x, id=1)
+        ret x: bits[32] = param(name=x, id=1, pos=[(0,0,22)])
       }
       """),
           result.ir,
