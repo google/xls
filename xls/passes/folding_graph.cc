@@ -403,7 +403,8 @@ absl::StatusOr<std::unique_ptr<NaryFoldingAction>> NaryFoldingAction::Clone(
     clone_froms.push_back(NaryFoldingAction::NodeVisibility{
         .node = clone_from,
         .edges = std::move(clone_visibility_edges),
-        .sinks = std::move(clone_sinks)});
+        .sinks = std::move(clone_sinks),
+        .area_saved = original_from.area_saved});
   }
   auto it = original_node_to_clone.find(other.GetTo());
   if (it == original_node_to_clone.end()) {

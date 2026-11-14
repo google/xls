@@ -48,7 +48,9 @@ using ::absl_testing::IsOkAndHolds;
 using ::absl_testing::StatusIs;
 using ::testing::AllOf;
 using ::testing::ElementsAre;
+using ::testing::FieldsAre;
 using ::testing::Key;
+using ::testing::Pair;
 using ::testing::Pointee;
 using ::testing::Property;
 using ::testing::UnorderedElementsAre;
@@ -1839,6 +1841,338 @@ INSTANTIATE_TEST_SUITE_P(MulEquivalenceMappingAsymmetricWidthSweepTests,
                          ::testing::Values(std::pair<int64_t, int64_t>{1, 2},
                                            std::pair<int64_t, int64_t>{2, 3},
                                            std::pair<int64_t, int64_t>{3, 5}));
+
+// Computes equivalence mappings from `sources` onto `dst` and returns whether
+// `from` and `dst` share lowered operands on binary ports `{0, 1}`.
+absl::StatusOr<std::pair<bool, bool>> AreBinaryOperandPortsSharedInBatch(
+    absl::Span<Node* const> sources, Node* from, Node* dst) {
+  XLS_ASSIGN_OR_RETURN(
+      std::optional<NodeToMappings> mappings,
+      GetNodeEquivalenceMapper().ComputeMappings(sources, dst));
+  XLS_RET_CHECK(mappings.has_value());
+  XLS_ASSIGN_OR_RETURN(bool port0_shared,
+                       AreMappedOperandsIdentical(*mappings, from, dst, 0));
+  XLS_ASSIGN_OR_RETURN(bool port1_shared,
+                       AreMappedOperandsIdentical(*mappings, from, dst, 1));
+  return std::make_pair(port0_shared, port1_shared);
+}
+
+absl::StatusOr<std::pair<bool, bool>> AreBinaryOperandPortsShared(Node* src,
+                                                                  Node* dst) {
+  return AreBinaryOperandPortsSharedInBatch({src}, src, dst);
+}
+
+// Computes equivalence mappings from `{src}` onto `dst` and returns the
+// mapped-operand description for `src` at destination port `dst_op_idx`.
+absl::StatusOr<MappedOperandDesc> DescribeMappedPort(Node* src, Node* dst,
+                                                     int64_t dst_op_idx) {
+  XLS_ASSIGN_OR_RETURN(std::optional<NodeToMappings> mappings,
+                       GetNodeEquivalenceMapper().ComputeMappings({src}, dst));
+  XLS_RET_CHECK(mappings.has_value());
+  return DescribeNodeMappedOperand(*mappings, src, dst_op_idx);
+}
+
+TEST_F(ResourceSharingEquivalenceTest, EqualityComparatorSharesBothOperands) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* u32 = p->GetBitsType(32);
+  BValue a = fb.Param("a", u32);
+  BValue b = fb.Param("b", u32);
+  BValue eq_ab = fb.Eq(a, b);
+  BValue ne_ab = fb.Ne(a, b);
+  XLS_ASSERT_OK(fb.BuildWithReturnValue(eq_ab).status());
+
+  EXPECT_THAT(AreBinaryOperandPortsShared(eq_ab.node(), eq_ab.node()),
+              IsOkAndHolds(Pair(true, true)));
+  EXPECT_THAT(AreBinaryOperandPortsShared(ne_ab.node(), eq_ab.node()),
+              IsOkAndHolds(Pair(true, true)));
+}
+
+TEST_F(ResourceSharingEquivalenceTest,
+       SameSignednessComparatorSharesOperandsOnlyWhenOrderAlignsAfterReversal) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* u32 = p->GetBitsType(32);
+  BValue a = fb.Param("a", u32);
+  BValue b = fb.Param("b", u32);
+  BValue ult_ab = fb.ULt(a, b);
+  BValue uge_ab = fb.UGe(a, b);
+  BValue ugt_ba = fb.UGt(b, a);
+  BValue ule_ba = fb.ULe(b, a);
+  BValue ugt_ab = fb.UGt(a, b);
+  BValue slt_ab = fb.SLt(a, b);
+  BValue sgt_ba = fb.SGt(b, a);
+  XLS_ASSERT_OK(fb.BuildWithReturnValue(ult_ab).status());
+
+  EXPECT_THAT(AreBinaryOperandPortsShared(uge_ab.node(), ult_ab.node()),
+              IsOkAndHolds(Pair(true, true)));
+  EXPECT_THAT(AreBinaryOperandPortsShared(ugt_ba.node(), ult_ab.node()),
+              IsOkAndHolds(Pair(true, true)));
+  EXPECT_THAT(AreBinaryOperandPortsShared(ule_ba.node(), ult_ab.node()),
+              IsOkAndHolds(Pair(true, true)));
+  EXPECT_THAT(AreBinaryOperandPortsShared(sgt_ba.node(), slt_ab.node()),
+              IsOkAndHolds(Pair(true, true)));
+  EXPECT_THAT(AreBinaryOperandPortsShared(ugt_ab.node(), ult_ab.node()),
+              IsOkAndHolds(Pair(false, false)));
+}
+
+TEST_F(ResourceSharingEquivalenceTest,
+       MultiBitCrossSignednessComparatorRequiresMuxesForMsbSwap) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* u32 = p->GetBitsType(32);
+  BValue a = fb.Param("a", u32);
+  BValue b = fb.Param("b", u32);
+  BValue sgt_ba = fb.SGt(b, a);
+  BValue ult_ab = fb.ULt(a, b);
+  XLS_ASSERT_OK(fb.BuildWithReturnValue(ult_ab).status());
+
+  // Multi-bit `SwapMsbs` wraps both ports in fresh `Concat`s.
+  EXPECT_THAT(AreBinaryOperandPortsShared(sgt_ba.node(), ult_ab.node()),
+              IsOkAndHolds(Pair(false, false)));
+}
+
+TEST_F(ResourceSharingEquivalenceTest,
+       OneBitCrossSignednessComparatorSharesOperandsWhenSwapsAlign) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* u1 = p->GetBitsType(1);
+  BValue a = fb.Param("a", u1);
+  BValue b = fb.Param("b", u1);
+  BValue ult_ab = fb.ULt(a, b);
+  BValue slt_ba = fb.SLt(b, a);
+  BValue sgt_ab = fb.SGt(a, b);
+  BValue sgt_ba = fb.SGt(b, a);
+  XLS_ASSERT_OK(fb.BuildWithReturnValue(ult_ab).status());
+
+  // On `bits[1]`, `SwapMsbs` reverses the operand pair rather than building
+  // `Concat`s: `slt(b, a)` swaps once to `(a, b)`, `sgt(a, b)` swaps twice to
+  // `(a, b)`, and `sgt(b, a)` swaps twice to `(b, a)`.
+  EXPECT_THAT(AreBinaryOperandPortsShared(slt_ba.node(), ult_ab.node()),
+              IsOkAndHolds(Pair(true, true)));
+  EXPECT_THAT(AreBinaryOperandPortsShared(sgt_ab.node(), ult_ab.node()),
+              IsOkAndHolds(Pair(true, true)));
+  EXPECT_THAT(AreBinaryOperandPortsShared(sgt_ba.node(), ult_ab.node()),
+              IsOkAndHolds(Pair(false, false)));
+}
+
+TEST_F(ResourceSharingEquivalenceTest,
+       CompareToSubSharesOperandsOnlyWhenOrderAlignsAfterReversal) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* u32 = p->GetBitsType(32);
+  BValue a = fb.Param("a", u32);
+  BValue b = fb.Param("b", u32);
+  BValue sub_ab = fb.Subtract(a, b);
+  BValue ugt_ba = fb.UGt(b, a);
+  BValue sle_ba = fb.SLe(b, a);
+  BValue ugt_ab = fb.UGt(a, b);
+  XLS_ASSERT_OK(fb.BuildWithReturnValue(sub_ab).status());
+
+  EXPECT_THAT(AreBinaryOperandPortsShared(ugt_ba.node(), sub_ab.node()),
+              IsOkAndHolds(Pair(true, true)));
+  EXPECT_THAT(AreBinaryOperandPortsShared(sle_ba.node(), sub_ab.node()),
+              IsOkAndHolds(Pair(true, true)));
+  EXPECT_THAT(AreBinaryOperandPortsShared(ugt_ab.node(), sub_ab.node()),
+              IsOkAndHolds(Pair(false, false)));
+}
+
+TEST_F(ResourceSharingEquivalenceTest,
+       WidenedCompareToSubSharesExtendedOperandOnlyWhenSignMatches) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* u16 = p->GetBitsType(16);
+  Type* u32 = p->GetBitsType(32);
+  BValue shared_lhs16 = fb.Param("shared_lhs16", u16);
+  BValue sub_rhs16 = fb.Param("sub_rhs16", u16);
+  BValue cmp_rhs16 = fb.Param("cmp_rhs16", u16);
+  BValue sub16 = fb.Subtract(shared_lhs16, sub_rhs16);
+  BValue ult16 = fb.ULt(shared_lhs16, cmp_rhs16);
+  BValue slt16 = fb.SLt(shared_lhs16, cmp_rhs16);
+  BValue ult32 = fb.ULt(fb.Param("a32", u32), fb.Param("b32", u32));
+  XLS_ASSERT_OK(fb.BuildWithReturnValue(sub16).status());
+
+  // `ult32` widens `sub16` to 32-bit `ZeroExt`: `ult16` shares
+  // `ZeroExt(shared_lhs16, 32)` on port 0, while `slt16` uses `SignExt`.
+  EXPECT_THAT(AreBinaryOperandPortsSharedInBatch({ult32.node(), ult16.node()},
+                                                 ult16.node(), sub16.node()),
+              IsOkAndHolds(Pair(true, false)));
+  EXPECT_THAT(AreBinaryOperandPortsSharedInBatch({ult32.node(), slt16.node()},
+                                                 slt16.node(), sub16.node()),
+              IsOkAndHolds(Pair(false, false)));
+}
+
+TEST_F(ResourceSharingEquivalenceTest,
+       AddSubSharesRhsWhenNegationCancelsOrReusesExistingNegate) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* u32 = p->GetBitsType(32);
+  BValue a = fb.Param("a", u32);
+  BValue b = fb.Param("b", u32);
+  BValue c = fb.Param("c", u32);
+  BValue neg_b = fb.Negate(b);
+  BValue sub_ab = fb.Subtract(a, b);
+  BValue add_ac = fb.Add(a, c);
+  BValue add_a_negb = fb.Add(a, neg_b);
+  BValue sub_a_negb = fb.Subtract(a, neg_b);
+  XLS_ASSERT_OK(fb.BuildWithReturnValue(sub_ab).status());
+
+  EXPECT_THAT(AreBinaryOperandPortsShared(add_ac.node(), sub_ab.node()),
+              IsOkAndHolds(Pair(true, false)));
+  EXPECT_THAT(AreBinaryOperandPortsShared(add_a_negb.node(), sub_ab.node()),
+              IsOkAndHolds(Pair(true, true)));
+  EXPECT_THAT(AreBinaryOperandPortsShared(sub_ab.node(), add_a_negb.node()),
+              IsOkAndHolds(Pair(true, true)));
+  EXPECT_THAT(AreBinaryOperandPortsShared(sub_a_negb.node(), add_ac.node()),
+              IsOkAndHolds(Pair(true, false)));
+}
+
+TEST_F(ResourceSharingEquivalenceTest,
+       AddSubMixedBatchSharesUnnegatedRhsForSameOpSource) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* u32 = p->GetBitsType(32);
+  BValue a = fb.Param("a", u32);
+  BValue b = fb.Param("b", u32);
+  BValue c = fb.Param("c", u32);
+  BValue add_ac = fb.Add(a, c);
+  BValue sub_cb = fb.Subtract(c, b);
+  BValue sub_ab = fb.Subtract(a, b);
+  XLS_ASSERT_OK(fb.BuildWithReturnValue(sub_ab).status());
+
+  EXPECT_THAT(AreBinaryOperandPortsSharedInBatch({add_ac.node(), sub_cb.node()},
+                                                 sub_cb.node(), sub_ab.node()),
+              IsOkAndHolds(Pair(false, true)));
+}
+
+TEST_F(ResourceSharingEquivalenceTest,
+       ShiftSharesShiftAmountAcrossLogicalDirections) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* u32 = p->GetBitsType(32);
+  BValue src_val = fb.Param("src_val", u32);
+  BValue dst_val = fb.Param("dst_val", u32);
+  BValue shared_amt = fb.Param("shared_amt", p->GetBitsType(16));
+  BValue shrl = fb.Shrl(src_val, shared_amt);
+  BValue shll = fb.Shll(dst_val, shared_amt);
+  XLS_ASSERT_OK(fb.BuildWithReturnValue(shll).status());
+
+  EXPECT_THAT(AreBinaryOperandPortsShared(shrl.node(), shll.node()),
+              IsOkAndHolds(Pair(false, true)));
+}
+
+TEST_F(ResourceSharingEquivalenceTest,
+       WidenedShiftDoesNotShareValueWhenExtensionSignDiffers) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* u16 = p->GetBitsType(16);
+  BValue shared_val = fb.Param("shared_val", u16);
+  BValue shrl_amt = fb.Param("shrl_amt", u16);
+  BValue shra_amt = fb.Param("shra_amt", u16);
+  BValue shrl = fb.Shrl(shared_val, shrl_amt);
+  BValue shra = fb.Shra(shared_val, shra_amt);
+  XLS_ASSERT_OK(fb.BuildWithReturnValue(shra).status());
+
+  // Widening `shra` to 17 bits sign-extends `shared_val` while `shrl`
+  // zero-extends `shared_val`.
+  EXPECT_THAT(AreBinaryOperandPortsShared(shrl.node(), shra.node()),
+              IsOkAndHolds(Pair(false, false)));
+}
+
+TEST_F(ResourceSharingEquivalenceTest,
+       UnsignedMulSharesOperandsAfterCommutativeSwap) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue a16 = fb.Param("a16", p->GetBitsType(16));
+  BValue b17 = fb.Param("b17", p->GetBitsType(17));
+  BValue umul_swapped = fb.UMul(b17, a16, /*result_width=*/33);
+  BValue umul_dst = fb.UMul(a16, b17, /*result_width=*/33);
+  XLS_ASSERT_OK(fb.BuildWithReturnValue(umul_dst).status());
+
+  EXPECT_THAT(AreBinaryOperandPortsShared(umul_swapped.node(), umul_dst.node()),
+              IsOkAndHolds(Pair(true, true)));
+}
+
+TEST_F(ResourceSharingEquivalenceTest,
+       CrossSignednessMulDoesNotShareWidenedOperand) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* u16 = p->GetBitsType(16);
+  BValue shared_lhs = fb.Param("shared_lhs", u16);
+  BValue umul_rhs = fb.Param("umul_rhs", u16);
+  BValue smul_rhs = fb.Param("smul_rhs", u16);
+  BValue umul = fb.UMul(shared_lhs, umul_rhs, /*result_width=*/32);
+  BValue smul = fb.SMul(shared_lhs, smul_rhs, /*result_width=*/32);
+  XLS_ASSERT_OK(fb.BuildWithReturnValue(smul).status());
+
+  // Widening `smul` to 17 bits sign-extends `shared_lhs` while `umul`
+  // zero-extends `shared_lhs`.
+  EXPECT_THAT(AreBinaryOperandPortsShared(umul.node(), smul.node()),
+              IsOkAndHolds(Pair(false, false)));
+}
+
+TEST_F(ResourceSharingEquivalenceTest,
+       WidenedSourceReusesExistingZeroExtendOnlyWhenUnsigned) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* u16 = p->GetBitsType(16);
+  Type* u32 = p->GetBitsType(32);
+  BValue lhs16 = fb.Param("lhs16", u16);
+  BValue narrow_rhs16 = fb.Param("narrow_rhs16", u16);
+  BValue dst_rhs32 = fb.Param("dst_rhs32", u32);
+  BValue zext_lhs = fb.ZeroExtend(lhs16, /*new_bit_count=*/32);
+  BValue ult16 = fb.ULt(lhs16, narrow_rhs16);
+  BValue ult32 = fb.ULt(zext_lhs, dst_rhs32);
+  BValue smul16 = fb.SMul(lhs16, narrow_rhs16, /*result_width=*/32);
+  BValue smul32 = fb.SMul(zext_lhs, dst_rhs32, /*result_width=*/32);
+  XLS_ASSERT_OK(fb.BuildWithReturnValue(ult32).status());
+
+  EXPECT_THAT(AreBinaryOperandPortsShared(ult16.node(), ult32.node()),
+              IsOkAndHolds(Pair(true, false)));
+  EXPECT_THAT(AreBinaryOperandPortsShared(smul16.node(), smul32.node()),
+              IsOkAndHolds(Pair(false, false)));
+}
+
+TEST_F(ResourceSharingEquivalenceTest,
+       DescribeNodeMappedOperandReportsIdentityAtMatchingWidth) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* u32 = p->GetBitsType(32);
+  BValue a = fb.Param("a", u32);
+  BValue b = fb.Param("b", u32);
+  BValue ugt_ba = fb.UGt(b, a);
+  BValue ult_ab = fb.ULt(a, b);
+  XLS_ASSERT_OK(fb.BuildWithReturnValue(ult_ab).status());
+
+  EXPECT_THAT(
+      DescribeMappedPort(ugt_ba.node(), ult_ab.node(), /*dst_op_idx=*/0),
+      IsOkAndHolds(
+          FieldsAre(MappedOperandDesc::Kind::kIdentity, a.node(), 32)));
+}
+
+TEST_F(ResourceSharingEquivalenceTest,
+       DescribeNodeMappedOperandDistinguishesZeroExtFromSignExtWhenWidening) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* u16 = p->GetBitsType(16);
+  Type* u32 = p->GetBitsType(32);
+  BValue a16 = fb.Param("a16", u16);
+  BValue b16 = fb.Param("b16", u16);
+  BValue a32 = fb.Param("a32", u32);
+  BValue b32 = fb.Param("b32", u32);
+  BValue ult16 = fb.ULt(a16, b16);
+  BValue ult32 = fb.ULt(a32, b32);
+  BValue slt16 = fb.SLt(a16, b16);
+  BValue slt32 = fb.SLt(a32, b32);
+  XLS_ASSERT_OK(fb.BuildWithReturnValue(ult32).status());
+
+  EXPECT_THAT(DescribeMappedPort(ult16.node(), ult32.node(), /*dst_op_idx=*/0),
+              IsOkAndHolds(FieldsAre(MappedOperandDesc::Kind::kZeroExt,
+                                     a16.node(), 32)));
+  EXPECT_THAT(DescribeMappedPort(slt16.node(), slt32.node(), /*dst_op_idx=*/0),
+              IsOkAndHolds(FieldsAre(MappedOperandDesc::Kind::kSignExt,
+                                     a16.node(), 32)));
+}
 
 }  // namespace
 }  // namespace xls

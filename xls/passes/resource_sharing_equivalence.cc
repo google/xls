@@ -15,6 +15,7 @@
 #include "xls/passes/resource_sharing_equivalence.h"
 
 #include <algorithm>
+#include <cstddef>
 #include <cstdint>
 #include <functional>
 #include <memory>
@@ -102,9 +103,11 @@ absl::StatusOr<double> EstimateAreaForNodes(
 using NodeToMappings =
     absl::flat_hash_map<Node*, std::unique_ptr<EquivalenceMapping>>;
 
-absl::StatusOr<Node*> ExtendIf(FunctionBase* f, Node* node,
-                               int64_t target_width, Op ext_op) {
-  XLS_RET_CHECK_LE(node->BitCountOrDie(), target_width);
+Node* FindExistingExtend(FunctionBase* f, Node* node, int64_t target_width,
+                         Op ext_op) {
+  if (node == nullptr || !node->GetType()->IsBits()) {
+    return nullptr;
+  }
   if (node->BitCountOrDie() == target_width) {
     return node;
   }
@@ -114,16 +117,61 @@ absl::StatusOr<Node*> ExtendIf(FunctionBase* f, Node* node,
       return user;
     }
   }
+  return nullptr;
+}
+
+absl::StatusOr<Node*> ExtendIf(FunctionBase* f, Node* node,
+                               int64_t target_width, Op ext_op) {
+  XLS_RET_CHECK_LE(node->BitCountOrDie(), target_width);
+  if (Node* existing = FindExistingExtend(f, node, target_width, ext_op);
+      existing != nullptr) {
+    return existing;
+  }
   return f->MakeNode<ExtendOp>(node->loc(), node, target_width, ext_op);
 }
 
-absl::StatusOr<Node*> FindOrMakeUnaryOp(FunctionBase* f, Node* operand, Op op) {
+Node* FindExistingUnaryOp(FunctionBase* f, Node* operand, Op op) {
+  if (operand == nullptr) {
+    return nullptr;
+  }
   for (Node* user : operand->users()) {
     if (user->function_base() == f && user->op() == op) {
       return user;
     }
   }
+  return nullptr;
+}
+
+absl::StatusOr<Node*> FindOrMakeUnaryOp(FunctionBase* f, Node* operand, Op op) {
+  if (Node* existing = FindExistingUnaryOp(f, operand, op);
+      existing != nullptr) {
+    return existing;
+  }
   return f->MakeNode<UnOp>(operand->loc(), operand, op);
+}
+
+MappedOperandDesc MakeExtendedOperandDesc(Node* op, int64_t target_width,
+                                          Op ext_op) {
+  if (op == nullptr || !op->GetType()->IsBits()) {
+    return MappedOperandDesc{};
+  }
+  const int64_t width = op->BitCountOrDie();
+  if (width > target_width) {
+    return MappedOperandDesc{};
+  }
+  if (width == target_width) {
+    return MappedOperandDesc{
+        .kind = MappedOperandDesc::Kind::kIdentity,
+        .base = op,
+        .target_width = target_width,
+    };
+  }
+  return MappedOperandDesc{
+      .kind = ext_op == Op::kSignExt ? MappedOperandDesc::Kind::kSignExt
+                                     : MappedOperandDesc::Kind::kZeroExt,
+      .base = op,
+      .target_width = target_width,
+  };
 }
 
 // `BitwidthExtendingEquivalenceMapping` handles nodes with identical ops where
@@ -171,6 +219,25 @@ class BitwidthExtendingEquivalenceMapping : public EquivalenceMapping {
 
   absl::StatusOr<bool> RequiresOutputTransformation() const override {
     return src_->BitCountOrDie() < dst_->BitCountOrDie();
+  }
+
+  absl::StatusOr<MappedOperandDesc> DescribeMappedOperand(
+      absl::Span<Node* const> src_operands, int64_t dst_op_idx) const override {
+    if (dst_op_idx < 0 || dst_op_idx >= src_operands.size() ||
+        dst_op_idx >= dst_->operand_count()) {
+      return MappedOperandDesc{};
+    }
+    Node* op = src_operands[dst_op_idx];
+    Node* dst_op = dst_->operand(dst_op_idx);
+    if (!op->GetType()->IsBits() || !dst_op->GetType()->IsBits()) {
+      return MappedOperandDesc{};
+    }
+    bool is_shift_amt_node =
+        dst_->OpIn({Op::kShll, Op::kShrl, Op::kShra}) && dst_op_idx == 1;
+    Op ext_op = (IsSigned(const_cast<Node*>(dst_)) && !is_shift_amt_node)
+                    ? Op::kSignExt
+                    : Op::kZeroExt;
+    return MakeExtendedOperandDesc(op, dst_op->BitCountOrDie(), ext_op);
   }
 
   absl::StatusOr<std::vector<Node*>> ApplyToOperands(
@@ -244,6 +311,35 @@ class AddSubEquivalenceMapping : public EquivalenceMapping {
 
   absl::StatusOr<bool> RequiresOutputTransformation() const override {
     return src_->BitCountOrDie() < dst_->BitCountOrDie();
+  }
+
+  absl::StatusOr<MappedOperandDesc> DescribeMappedOperand(
+      absl::Span<Node* const> src_operands, int64_t dst_op_idx) const override {
+    if (src_operands.size() != 2 || dst_op_idx < 0 || dst_op_idx >= 2 ||
+        dst_->operand_count() != 2) {
+      return MappedOperandDesc{};
+    }
+    Node* op = src_operands[dst_op_idx];
+    Node* dst_op = dst_->operand(dst_op_idx);
+    if (!op->GetType()->IsBits() || !dst_op->GetType()->IsBits()) {
+      return MappedOperandDesc{};
+    }
+    const int64_t target_width = dst_op->BitCountOrDie();
+    if (op->BitCountOrDie() > target_width) {
+      return MappedOperandDesc{};
+    }
+    if (dst_op_idx == 1 && src_->op() != dst_->op()) {
+      if (op->op() == Op::kNeg) {
+        return MakeExtendedOperandDesc(op->operand(0), target_width,
+                                       Op::kZeroExt);
+      }
+      return MappedOperandDesc{
+          .kind = MappedOperandDesc::Kind::kNegZeroExt,
+          .base = op,
+          .target_width = target_width,
+      };
+    }
+    return MakeExtendedOperandDesc(op, target_width, Op::kZeroExt);
   }
 
   absl::StatusOr<std::vector<Node*>> ApplyToOperands(
@@ -445,6 +541,39 @@ class ComparatorEquivalenceMapping : public EquivalenceMapping {
 
   absl::StatusOr<bool> RequiresOutputTransformation() const override {
     return RequiresOutputInversion(src_->op(), dst_->op());
+  }
+
+  absl::StatusOr<MappedOperandDesc> DescribeMappedOperand(
+      absl::Span<Node* const> src_operands, int64_t dst_op_idx) const override {
+    if (src_operands.size() != 2 || dst_op_idx < 0 || dst_op_idx >= 2 ||
+        dst_->operand_count() != 2) {
+      return MappedOperandDesc{};
+    }
+    if (!BothBitsTyped(src_operands[0], src_operands[1])) {
+      return MappedOperandDesc{};
+    }
+    const int64_t src_width = src_operands[0]->BitCountOrDie();
+    if (src_width != src_operands[1]->BitCountOrDie()) {
+      return MappedOperandDesc{};
+    }
+    Node* dst_op = dst_->operand(dst_op_idx);
+    if (!dst_op->GetType()->IsBits()) {
+      return MappedOperandDesc{};
+    }
+    XLS_ASSIGN_OR_RETURN(bool requires_swap,
+                         RequiresOperandSwap(src_->op(), dst_->op()));
+    if (RequiresMsbSwap()) {
+      if (src_width > 1) {
+        return MappedOperandDesc{};
+      }
+      // `SwapMsbs` reverses `(op0, op1)` when `src_width <= 1`.
+      requires_swap = !requires_swap;
+    }
+    Node* op = src_operands[requires_swap ? (1 - dst_op_idx) : dst_op_idx];
+    Op ext_op = (!IsUnsignedCompare(src_) && !IsUnsignedCompare(dst_))
+                    ? Op::kSignExt
+                    : Op::kZeroExt;
+    return MakeExtendedOperandDesc(op, dst_op->BitCountOrDie(), ext_op);
   }
 
   absl::StatusOr<std::vector<Node*>> ApplyToOperands(
@@ -718,6 +847,22 @@ class MulEquivalenceMapping : public EquivalenceMapping {
     return src_->BitCountOrDie() < dst_->BitCountOrDie();
   }
 
+  absl::StatusOr<MappedOperandDesc> DescribeMappedOperand(
+      absl::Span<Node* const> src_operands, int64_t dst_op_idx) const override {
+    if (src_operands.size() != 2 || dst_op_idx < 0 || dst_op_idx >= 2 ||
+        dst_->operand_count() != 2 ||
+        !BothBitsTyped(src_operands[0], src_operands[1])) {
+      return MappedOperandDesc{};
+    }
+    Node* dst_op = dst_->operand(dst_op_idx);
+    if (!dst_op->GetType()->IsBits()) {
+      return MappedOperandDesc{};
+    }
+    Node* op = src_operands[swap_operands_ ? (1 - dst_op_idx) : dst_op_idx];
+    Op ext_op = src_->op() == Op::kSMul ? Op::kSignExt : Op::kZeroExt;
+    return MakeExtendedOperandDesc(op, dst_op->BitCountOrDie(), ext_op);
+  }
+
   absl::StatusOr<std::vector<Node*>> ApplyToOperands(
       FunctionBase* f, absl::Span<Node* const> src_operands) const override {
     XLS_RET_CHECK_EQ(src_operands.size(), 2);
@@ -858,6 +1003,25 @@ class CompareToArithEquivalenceMapping : public EquivalenceMapping {
   }
   absl::StatusOr<bool> RequiresOutputTransformation() const override {
     return true;
+  }
+
+  absl::StatusOr<MappedOperandDesc> DescribeMappedOperand(
+      absl::Span<Node* const> src_operands, int64_t dst_op_idx) const override {
+    if (src_operands.size() != 2 || dst_op_idx < 0 || dst_op_idx >= 2 ||
+        dst_->operand_count() != 2) {
+      return MappedOperandDesc{};
+    }
+    if (!BothBitsTyped(src_operands[0], src_operands[1])) {
+      return MappedOperandDesc{};
+    }
+    Node* dst_op = dst_->operand(dst_op_idx);
+    if (!dst_op->GetType()->IsBits()) {
+      return MappedOperandDesc{};
+    }
+    XLS_ASSIGN_OR_RETURN(bool requires_swap, RequiresOperandSwap(src_->op()));
+    Node* op = src_operands[requires_swap ? (1 - dst_op_idx) : dst_op_idx];
+    Op ext_op = IsSignedCompare(src_) ? Op::kSignExt : Op::kZeroExt;
+    return MakeExtendedOperandDesc(op, dst_op->BitCountOrDie(), ext_op);
   }
 
   absl::StatusOr<std::vector<Node*>> ApplyToOperands(
@@ -1095,6 +1259,27 @@ class ShiftEquivalenceMapping : public EquivalenceMapping {
   }
   absl::StatusOr<bool> RequiresOutputTransformation() const override {
     return true;
+  }
+
+  absl::StatusOr<MappedOperandDesc> DescribeMappedOperand(
+      absl::Span<Node* const> src_operands, int64_t dst_op_idx) const override {
+    if (src_operands.size() != 2 || dst_op_idx < 0 || dst_op_idx >= 2 ||
+        dst_->operand_count() != 2) {
+      return MappedOperandDesc{};
+    }
+    Node* op = src_operands[dst_op_idx];
+    Node* dst_op = dst_->operand(dst_op_idx);
+    if (!op->GetType()->IsBits() || !dst_op->GetType()->IsBits()) {
+      return MappedOperandDesc{};
+    }
+    if (dst_op_idx == 0) {
+      if (src_->op() == Op::kShra || dst_->op() == Op::kShll ||
+          src_->op() == Op::kShll) {
+        return MappedOperandDesc{};
+      }
+      return MakeExtendedOperandDesc(op, dst_->BitCountOrDie(), Op::kZeroExt);
+    }
+    return MakeExtendedOperandDesc(op, dst_op->BitCountOrDie(), Op::kZeroExt);
   }
 
   absl::StatusOr<std::vector<Node*>> ApplyToOperands(
@@ -1479,6 +1664,74 @@ absl::StatusOr<Node*> CloneWithMapping(
   auto it = cloned_map.find(mapping.dst());
   XLS_RET_CHECK(it != cloned_map.end());
   return mapping.ApplyToOutput(f, it->second);
+}
+
+Node* MappedOperandDesc::FindExistingNode(FunctionBase* f) const {
+  if (!IsShareable() || f == nullptr) {
+    return nullptr;
+  }
+  switch (kind) {
+    case Kind::kOpaque:
+      return nullptr;
+    case Kind::kIdentity:
+      return base->function_base() == f ? base : nullptr;
+    case Kind::kZeroExt:
+      return FindExistingExtend(f, base, target_width, Op::kZeroExt);
+    case Kind::kSignExt:
+      return FindExistingExtend(f, base, target_width, Op::kSignExt);
+    case Kind::kNegZeroExt: {
+      Node* neg = FindExistingUnaryOp(f, base, Op::kNeg);
+      return FindExistingExtend(f, neg, target_width, Op::kZeroExt);
+    }
+  }
+  return nullptr;
+}
+
+absl::StatusOr<MappedOperandDesc> DescribeNodeMappedOperand(
+    const absl::flat_hash_map<Node*, std::unique_ptr<EquivalenceMapping>>&
+        mappings,
+    Node* node, int64_t dst_op_idx) {
+  if (node == nullptr) {
+    return MappedOperandDesc{};
+  }
+  if (auto it = mappings.find(node); it != mappings.end()) {
+    return it->second->DescribeMappedOperand(node->operands(), dst_op_idx);
+  }
+  if (dst_op_idx < 0 || dst_op_idx >= node->operand_count()) {
+    return MappedOperandDesc{};
+  }
+  Node* op = node->operand(dst_op_idx);
+  return MappedOperandDesc{
+      .kind = MappedOperandDesc::Kind::kIdentity,
+      .base = op,
+      .target_width = op->GetType()->GetFlatBitCount(),
+  };
+}
+
+absl::StatusOr<bool> AreMappedOperandsIdentical(
+    const absl::flat_hash_map<Node*, std::unique_ptr<EquivalenceMapping>>&
+        mappings,
+    Node* from, Node* to, int64_t dst_op_idx) {
+  if (from == nullptr || to == nullptr) {
+    return false;
+  }
+  XLS_ASSIGN_OR_RETURN(MappedOperandDesc from_desc,
+                       DescribeNodeMappedOperand(mappings, from, dst_op_idx));
+  XLS_ASSIGN_OR_RETURN(MappedOperandDesc to_desc,
+                       DescribeNodeMappedOperand(mappings, to, dst_op_idx));
+  if (!from_desc.IsShareable() || !to_desc.IsShareable()) {
+    return false;
+  }
+  if (from_desc == to_desc) {
+    return true;
+  }
+  FunctionBase* f = from->function_base();
+  if (f == nullptr || f != to->function_base()) {
+    return false;
+  }
+  Node* existing_from = from_desc.FindExistingNode(f);
+  return existing_from != nullptr &&
+         existing_from == to_desc.FindExistingNode(f);
 }
 
 }  // namespace xls
