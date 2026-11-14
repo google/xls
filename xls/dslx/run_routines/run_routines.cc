@@ -941,6 +941,12 @@ absl::StatusOr<ParseAndProveResult> ParseAndProve(
              result.GetRanCount(), result.GetFailedCount(),
              result.GetSkippedCount())
       << '\n';
+  if (result.GetRanCount() == 0) {
+    std::cerr << absl::StreamFormat(
+        "WARNING: No quickchecks were found in module '%s' (add "
+        "#[quickcheck]).\n",
+        entry_module->name());
+  }
 
   result.Finish(
       result.DidAnyFail() ? TestResult::kSomeFailed : TestResult::kAllPassed,
@@ -1151,6 +1157,11 @@ absl::StatusOr<ParseAndTestResult> AbstractTestRunner::ParseAndTest(
         options.test_filter, entry_module, tm->type_info,
         options.quickcheck_runner, ir_package.get(), options.seed, result,
         import_data.vfs()));
+  } else if (result.GetRanCount() == 0) {
+    std::cerr << absl::StreamFormat(
+        "WARNING: No tests were found in module '%s' (add #[test], "
+        "#[test_proc], or #[quickcheck]).\n",
+        entry_module->name());
   }
 
   result.Finish(
