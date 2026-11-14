@@ -264,6 +264,63 @@ const Y:u32 = foo(1);
               TypecheckFails(HasSubstr("Expected 2 argument(s) but got 1.")));
 }
 
+TEST(TypecheckV2FunctionTest, LocalLiteralPassedToConflictingParameterTypes) {
+  EXPECT_THAT(R"(
+fn take8(x: u8) -> u8 { x }
+fn take16(x: u16) -> u16 { x }
+fn f() -> (u8, u16) {
+  let x = 1;
+  (take8(x), take16(x))
+}
+)",
+              TypecheckFails(HasSizeMismatch("u8", "u16")));
+}
+
+TEST(TypecheckV2FunctionTest, LocalLiteralArgumentsInConstControlFlow) {
+  XLS_EXPECT_OK(TypecheckV2(R"(
+fn take1(x: u1) -> bool { x }
+fn take8(x: u8) -> bool { x + u8:1 == u8:2 }
+fn f() -> bool {
+  let n = 1;
+  let a = const if true {
+    let local = 1;
+    take8(local)
+  } else {
+    take8(n)
+  };
+  let b = const match true { true => take1(n), _ => take8(n) };
+  let c = const for (_i, _acc) in u32:0..u32:0 { take8(n) }(true);
+  a && b && c && take1(n)
+}
+const_assert!(f());
+)"));
+}
+
+TEST(TypecheckV2FunctionTest, UnrolledLoopDoesNotConstrainOtherInstantiations) {
+  XLS_EXPECT_OK(TypecheckV2(R"(
+fn take8(x: u8) -> bool { true }
+fn f<N: u32>() -> bool {
+  let x = 1;
+  let result = const for (_i, acc) in u32:0..N { take8(x) && acc }(true);
+  const if N == u32:0 { x } else { result }
+}
+const_assert!(f<u32:1>());
+const_assert!(f<u32:0>());
+)"));
+}
+
+TEST(TypecheckV2FunctionTest, CallWidthDependsOnLocalLiteralArgument) {
+  EXPECT_THAT(R"(
+fn take<N: u32>(x: uN[N]) -> uN[N] { x }
+fn f() -> u1 {
+  let x = 1;
+  let width = x as u32;
+  take<width>(x)
+}
+)",
+              TypecheckSucceeds(HasNodeWithType("f", "() -> uN[1]")));
+}
+
 TEST(TypecheckV2FunctionTest, FunctionCallPassingInTooLargeAutoSizeFails) {
   EXPECT_THAT(R"(
 fn foo(a: u4) -> u4 { a }

@@ -66,6 +66,32 @@
 namespace xls::dslx {
 namespace {
 
+// Returns the nearest branch or loop body that may be skipped during
+// typechecking, or nullptr if the node is always typechecked.
+const AstNode* GetEnclosingConstBranchOrLoopBody(
+    const AstNode* node, const StatementBlock* unrolled_body) {
+  // Unrolling replaces the original ConstFor with a block in the surrounding
+  // scope. Its calls are still specific to that loop instantiation.
+  while (node != nullptr && node != unrolled_body) {
+    const AstNode* parent = node->parent();
+    if (const auto* conditional = dynamic_cast<const Conditional*>(parent);
+        conditional != nullptr && conditional->IsConst() &&
+        node != conditional->test()) {
+      return node;
+    }
+    if (const auto* match = dynamic_cast<const Match*>(parent);
+        match != nullptr && match->IsConst() && node != match->matched()) {
+      return node;
+    }
+    if (const auto* loop = dynamic_cast<const ConstFor*>(parent);
+        loop != nullptr && node == loop->body()) {
+      return node;
+    }
+    node = parent;
+  }
+  return node;
+}
+
 // A visitor that walks an AST and populates an `InferenceTable` with the
 // encountered info.
 class PopulateInferenceTableVisitor : public PopulateTableVisitor,
@@ -114,7 +140,9 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
           (*struct_or_proc)->kind() == AstNodeKind::kProcDef;
     }
 
+    unrolled_body_ = root;
     absl::Status result = root->Accept(this);
+    unrolled_body_ = nullptr;
     handle_proc_functions_ = false;
     return result;
   }
@@ -1772,7 +1800,9 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
         module_.Make<FunctionTypeAnnotation>(
             return_type_variable->span(), arg_types,
             module_.Make<TypeVariableTypeAnnotation>(return_type_variable))));
-    return node->callee()->Accept(this);
+    XLS_RETURN_IF_ERROR(node->callee()->Accept(this));
+
+    return ApplyFormalTypesToLocalLiteralArguments(node, self_arg_offset);
   }
 
   absl::Status HandleFunctionRef(const FunctionRef* node) override {
@@ -2042,6 +2072,50 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
                                      {}, std::nullopt)));
 
     return DefaultHandler(node);
+  }
+
+  absl::Status ApplyFormalTypesToLocalLiteralArguments(const Invocation* node,
+                                                       int self_arg_offset) {
+    // A bare integer literal passed through a let binding must be sized at
+    // its definition. Only use a known formal signature here: inferring a
+    // parametric signature may itself require the value of the binding.
+    auto signature = table_.GetTypeAnnotation(node->callee());
+    if (!signature.has_value() ||
+        !table_.GetAnnotationFlag(*signature)
+             .HasFlag(TypeInferenceFlag::kFormalFunctionType)) {
+      return absl::OkStatus();
+    }
+    const auto& params =
+        (*signature)->AsAnnotation<FunctionTypeAnnotation>()->param_types();
+    if (params.size() != node->args().size() + self_arg_offset) {
+      return absl::OkStatus();  // Arity is checked during conversion.
+    }
+    for (int i = 0; i < node->args().size(); ++i) {
+      const auto* ref = dynamic_cast<const NameRef*>(node->args()[i]);
+      if (ref == nullptr) {
+        continue;
+      }
+      const auto* let =
+          dynamic_cast<const Let*>(ToAstNode(ref->name_def())->parent());
+      if (let == nullptr || let->type_annotation() != nullptr) {
+        continue;
+      }
+      auto initializer = table_.GetTypeAnnotation(let->rhs());
+      if (initializer.has_value() &&
+          table_.GetAnnotationFlag(*initializer)
+              .HasFlag(TypeInferenceFlag::kMinSize)) {
+        // A call in an untaken branch cannot constrain an outer binding.
+        if (GetEnclosingConstBranchOrLoopBody(ref, unrolled_body_) !=
+            GetEnclosingConstBranchOrLoopBody(let, unrolled_body_)) {
+          continue;
+        }
+        XLS_RETURN_IF_ERROR(
+            table_.AddTypeAnnotationToVariableForParametricContext(
+                std::nullopt, *table_.GetTypeVariable(let->rhs()),
+                params[i + self_arg_offset]));
+      }
+    }
+    return absl::OkStatus();
   }
 
   // Helper that creates an internal type variable for a `ConstantDef`, `Param`,
@@ -2331,6 +2405,7 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
   const FileTable& file_table_;
   ImportData& import_data_;
   TypecheckModuleFn typecheck_imported_module_;
+  const StatementBlock* unrolled_body_ = nullptr;
   bool handle_proc_functions_ = false;
   bool in_fuzz_test_domain_ = false;
   bool in_test_fn_ = false;
