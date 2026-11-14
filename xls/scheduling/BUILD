@@ -566,12 +566,18 @@ cc_library(
         ":scheduling_options",
         ":scheduling_pass",
         ":scheduling_wrapper_pass",
-        "//xls/passes",
         "//xls/passes:dce_pass",
         "//xls/passes:optimization_pass",
         "//xls/passes:optimization_pass_pipeline",
         "@abseil-cpp//absl/log:check",
-    ],
+    ] + select({
+        "@platforms//cpu:wasm32": [
+            "//xls/passes:oss_optimization_passes",
+        ],
+        "//conditions:default": [
+            "//xls/passes",
+        ],
+    }),
 )
 
 cc_library(

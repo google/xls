@@ -1844,7 +1844,8 @@ absl::Status BytecodeInterpreter::RunBuiltinMap(const Bytecode& bytecode) {
   // If true, jump to top-of-loop, else create the result array.
   bytecodes.push_back(
       Bytecode(span, Bytecode::Op::kJumpRelIf,
-               Bytecode::JumpTarget(top_of_loop_index - bytecodes.size())));
+               Bytecode::JumpTarget(static_cast<int64_t>(top_of_loop_index) -
+                                    static_cast<int64_t>(bytecodes.size()))));
   bytecodes.push_back(Bytecode(span, Bytecode::Op::kCreateArray,
                                Bytecode::NumElements(elements->size())));
 

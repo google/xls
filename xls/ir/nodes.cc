@@ -1301,7 +1301,8 @@ absl::StatusOr<Node*> Gate::CloneInNewFunction(
 SliceData Concat::GetOperandSliceData(int64_t operandno) const {
   CHECK_GE(operandno, 0);
   int64_t start = 0;
-  for (int64_t i = operands().size() - 1; i > operandno; --i) {
+  for (int64_t i = static_cast<int64_t>(operands().size()) - 1; i > operandno;
+       --i) {
     Node* operand = this->operand(i);
     start += operand->BitCountOrDie();
   }

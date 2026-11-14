@@ -606,8 +606,8 @@ std::unique_ptr<QueryEngine> BddQueryEngine::SpecializeGiven(
             // Iterate from high to low bits; that way, if we prune some due to
             // exceeding the path limit, we will preferentially retain
             // high-order bit information.
-            for (int64_t bit_index = ternary.size() - 1; bit_index >= 0;
-                 --bit_index) {
+            for (int64_t bit_index = static_cast<int64_t>(ternary.size()) - 1;
+                 bit_index >= 0; --bit_index) {
               if (ternary_ops::IsUnknown(ternary[bit_index])) {
                 continue;
               }

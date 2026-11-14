@@ -44,7 +44,7 @@ static void GatherValueLeaves(const Value& value, std::vector<Bits>* leaves) {
       }
       break;
     case ValueKind::kArray:
-      for (int64_t i = value.size() - 1; i >= 0; --i) {
+      for (int64_t i = static_cast<int64_t>(value.size()) - 1; i >= 0; --i) {
         GatherValueLeaves(value.element(i), leaves);
       }
       break;

@@ -103,6 +103,17 @@ build:asan --copt -g
 build:asan --copt -fno-omit-frame-pointer
 build:asan --linkopt -fsanitize=address
 
+# Settings for --config=wasm WebAssembly (Emscripten) build
+build:wasm --platforms=@emsdk//:platform_wasm
+# Override `common --force_pic` above; emsdk's default sysroot does not ship PIC libraries.
+build:wasm --noforce_pic
+# @boringssl//:crypto_internal adds -pthread in target linkopts, which wasm-ld rejects
+# without atomics/bulk-memory.
+build:wasm --linkopt=-sUSE_PTHREADS=0
+# or-tools's ortools/base/filesystem.cc uses try/catch while emsdk defaults to -fno-exceptions.
+build:wasm --per_file_copt=external/or-tools.*/ortools/base/filesystem.cc@-fexceptions,-fwasm-exceptions
+build:wasm --linkopt=-fwasm-exceptions
+
 # Use new-ish hermetic java (closure seems to care about this)
 common --tool_java_language_version=21
 common --tool_java_runtime_version=remotejdk_21

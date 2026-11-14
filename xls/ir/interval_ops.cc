@@ -222,7 +222,7 @@ bool CoversTernary(const Interval& interval, TernarySpan ternary) {
   TernarySpan t = ternary.subspan(0, ternary.size() - lcp.bit_count() - 1);
 
   auto could_be_le = [](TernarySpan t, const Bits& L) {
-    for (int64_t i = t.size() - 1; i >= 0; --i) {
+    for (int64_t i = static_cast<int64_t>(t.size()) - 1; i >= 0; --i) {
       if (L.Get(i)) {
         if (t[i] != TernaryValue::kKnownOne) {
           // If this bit is zero, it will make t < L.
@@ -236,7 +236,7 @@ bool CoversTernary(const Interval& interval, TernarySpan ternary) {
     return true;
   };
   auto could_be_ge = [](TernarySpan t, const Bits& U) {
-    for (int64_t i = t.size() - 1; i >= 0; --i) {
+    for (int64_t i = static_cast<int64_t>(t.size()) - 1; i >= 0; --i) {
       if (U.Get(i)) {
         if (t[i] == TernaryValue::kKnownZero) {
           // We know t < U.

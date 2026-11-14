@@ -276,7 +276,6 @@ cc_library(
         ":delay_manager",
         ":node_cut",
         ":synthesizer",
-        ":yosys_synthesizer",
         "//xls/common/logging:log_lines",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
@@ -297,5 +296,8 @@ cc_library(
         "@abseil-cpp//absl/strings:str_format",
         "@abseil-cpp//absl/types:span",
         "@or-tools//ortools/math_opt/cpp:math_opt",
-    ],
+    ] + select({
+        "@platforms//cpu:wasm32": [],
+        "//conditions:default": [":yosys_synthesizer"],
+    }),
 )

@@ -34,7 +34,9 @@
 #include "xls/estimators/delay_model/analyze_critical_path.h"
 #include "xls/estimators/delay_model/delay_estimator.h"
 #include "xls/estimators/delay_model/delay_info.pb.h"
+#ifndef __EMSCRIPTEN__
 #include "xls/fdo/grpc_synthesizer.h"
+#endif
 #include "xls/fdo/synthesized_delay_diff_utils.h"
 #include "xls/fdo/synthesizer.h"
 #include "xls/ir/ir_parser.h"
@@ -67,11 +69,16 @@ class DelayInfoPrinterImpl : public DelayInfoPrinter {
 
     std::unique_ptr<synthesis::Synthesizer> synthesizer;
     if (flags.compare_to_synthesis()) {
+#ifdef __EMSCRIPTEN__
+      return absl::UnimplementedError(
+          "Comparison to synthesis via gRPC is not supported in WebAssembly.");
+#else
       synthesis::GrpcSynthesizerParameters parameters(flags.synthesis_server());
       XLS_ASSIGN_OR_RETURN(
           synthesizer,
           synthesis::GetSynthesizerManagerSingleton().MakeSynthesizer(
               parameters.name(), parameters));
+#endif
     }
     return InitInternal(std::move(flags), std::move(p), delay_estimator,
                         std::move(synthesizer));
