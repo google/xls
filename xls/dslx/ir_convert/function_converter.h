@@ -566,6 +566,11 @@ class FunctionConverter {
   absl::Status HandleBuiltinZip(const Invocation* node);
   // keep-sorted end
 
+  // Returns the scalar select cases represented by an inline array literal,
+  // including ellipsis expansion, without materializing an IR array value.
+  absl::StatusOr<std::vector<BValue>> GetSelectCasesForArrayLiteral(
+      const Array* array);
+
   absl::Status HandleProcDef(const ProcDef* proc_def,
                              const Function* constructor);
 
