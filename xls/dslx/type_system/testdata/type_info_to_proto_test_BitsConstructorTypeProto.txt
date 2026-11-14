@@ -32,8 +32,10 @@
 5:29-5:35: NUMBER :: `2` :: uN[32]
 5:29-5:35: NUMBER :: `2` :: uN[32]
 5:29-5:35: NUMBER :: `2` :: uN[32]
+5:29-5:35: NUMBER :: `2` :: uN[32]
 5:29-5:35: TYPE_ANNOTATION :: `u2` :: typeof(uN[2])
 5:29-5:35: TYPE_ANNOTATION :: `u2` :: typeof(uN[2])
+5:29-5:35: TYPE_ANNOTATION :: `u2` :: typeof(uN[32])
 5:29-5:35: TYPE_ANNOTATION :: `u2` :: typeof(uN[32])
 5:29-5:35: TYPE_ANNOTATION :: `u2` :: typeof(uN[32])
 5:29-5:35: TYPE_ANNOTATION :: `u2` :: typeof(uN[32])
@@ -43,6 +45,10 @@
 5:37-5:44: TYPE_ANNOTATION :: `bool[2]` :: typeof(uN[1][2])
 5:42-5:43: NUMBER :: `2` :: uN[32]
 5:45-5:57: ARRAY :: `bool[2]:[true, true]` :: uN[1][2]
+5:45-5:57: NUMBER :: `2` :: uN[32]
+5:45-5:57: NUMBER :: `2` :: uN[32]
+5:45-5:57: TYPE_ANNOTATION :: `bool` :: typeof(uN[32])
+5:45-5:57: TYPE_ANNOTATION :: `bool` :: typeof(uN[32])
 5:46-5:50: NUMBER :: `true` :: uN[1]
 5:52-5:56: NUMBER :: `true` :: uN[1]
 5:60-5:65: NUMBER :: `false` :: uN[1]

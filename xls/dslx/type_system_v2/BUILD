@@ -1005,7 +1005,6 @@ cc_library(
         "//xls/dslx/type_system:type",
         "//xls/dslx/type_system:type_info",
         "@abseil-cpp//absl/base",
-        "@abseil-cpp//absl/container:flat_hash_map",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/status:statusor",
     ],

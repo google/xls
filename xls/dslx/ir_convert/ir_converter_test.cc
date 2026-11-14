@@ -48,7 +48,9 @@
 #include "xls/dslx/run_routines/run_routines.h"
 #include "xls/dslx/type_system/typecheck_test_utils.h"
 #include "xls/ir/channel.h"
+#include "xls/ir/function.h"
 #include "xls/ir/ir_matcher.h"
+#include "xls/ir/package.h"
 #include "xls/ir/proc.h"
 
 namespace xls::dslx {
@@ -1101,6 +1103,33 @@ fn f(x: u4) -> u2 {
   XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
                            ConvertModuleForTest(program));
   ExpectIr(converted);
+}
+
+TEST_F(IrConverterTest, BitSliceBoundsWithFunctionLocalTypeAliases) {
+  constexpr std::string_view program = R"(
+fn unused(x: u8) -> u8 {
+  type Offset = s2;
+  x[Offset:0x3:] as u8
+}
+
+pub fn main(x: u8) -> u8 {
+  type Offset = s8;
+  x[Offset:0x3:] as u8
+}
+)";
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(program, "test_module.x", "test_module", &import_data));
+  PackageConversionData conv{.package =
+                                 std::make_unique<Package>(tm.module->name())};
+  XLS_ASSERT_OK(ConvertOneFunctionIntoPackage(tm.module, "main", &import_data,
+                                              /*parametric_env=*/nullptr,
+                                              ConvertOptions{}, &conv));
+  XLS_ASSERT_OK_AND_ASSIGN(xls::Function * main,
+                           conv.package->GetTopAsFunction());
+  EXPECT_THAT(main->return_value(),
+              m::ZeroExt(m::BitSlice(m::Param("x"), /*start=*/3, /*width=*/5)));
 }
 
 TEST_F(IrConverterTest, InvocationMultiSymbol) {
