@@ -208,7 +208,23 @@ class InterpreterTest(test_base.TestCase):
       assert_eq(true, true)
     }
     """
-    self._parse_and_test(program, want_error=False)
+    stderr = self._parse_and_test(program, want_error=False)
+    self.assertNotIn('WARNING: No tests were found', stderr)
+
+  def test_no_tests_emits_warning(self):
+    """Tests that running on a module with no tests emits a clear warning."""
+    program = """
+    pub fn add(x: u32, y: u32) -> u32 {
+      x + y
+    }
+    """
+    stderr = self._parse_and_test(program, want_error=False)
+    self.assertIn('0 test(s) ran; 0 failed; 0 skipped', stderr)
+    self.assertRegex(
+        stderr,
+        r"WARNING: No tests were found in module '.*' \(add #\[test\],"
+        r' #\[test_proc\], or #\[quickcheck\]\)\.',
+    )
 
   def test_trace(self):
     """Tests that we see trace output in stderr."""

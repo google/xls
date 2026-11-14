@@ -909,6 +909,24 @@ fn quickcheck_that_passes() -> bool {
               IsTestResult(TestResult::kAllPassed, 1, 0, 0));
 }
 
+TEST(QuickcheckTest, ProofNoQuickchecksWarns) {
+  constexpr std::string_view kProgram = R"(
+pub fn id(x: u32) -> u32 {
+  x
+}
+)";
+  testing::internal::CaptureStderr();
+  ParseAndProveOptions options;
+  XLS_ASSERT_OK_AND_ASSIGN(auto result,
+                           ParseAndProve(kProgram, "test", "test.x", options));
+  std::string stderr_output = testing::internal::GetCapturedStderr();
+  EXPECT_THAT(result.test_result_data,
+              IsTestResult(TestResult::kAllPassed, 0, 0, 0));
+  EXPECT_THAT(stderr_output,
+              HasSubstr("WARNING: No quickchecks were found in module 'test' "
+                        "(add #[quickcheck])."));
+}
+
 TEST_P(ParseAndTestTest, DeadlockedProc) {
   // Test proc never sends to the subproc, so network is deadlocked.
   constexpr std::string_view kProgram = R"(
@@ -1055,6 +1073,23 @@ TEST_P(ParseAndTestTest, TestFilterSelectBoth) {
   XLS_ASSERT_OK_AND_ASSIGN(TestResultData result,
                            ParseAndTest(kTwoTests, "test", "test.x", options));
   EXPECT_THAT(result, IsTestResult(TestResult::kAllPassed, 2, 0, 0));
+}
+
+TEST_P(ParseAndTestTest, NoTestsWarns) {
+  constexpr std::string_view kProgram = R"(
+pub fn id(x: u32) -> u32 {
+  x
+}
+)";
+  testing::internal::CaptureStderr();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TestResultData result,
+      ParseAndTest(kProgram, "test", "test.x", ParseAndTestOptions{}));
+  std::string stderr_output = testing::internal::GetCapturedStderr();
+  EXPECT_THAT(result, IsTestResult(TestResult::kAllPassed, 0, 0, 0));
+  EXPECT_THAT(stderr_output,
+              HasSubstr("WARNING: No tests were found in module 'test' (add "
+                        "#[test], #[test_proc], or #[quickcheck])."));
 }
 
 // Exercises https://github.com/google/xls/issues/1368
