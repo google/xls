@@ -931,6 +931,29 @@ class AbstractEvaluator {
       SpanOfSpanLike inputs,
       absl::FunctionRef<Element(const Element&, const Element&)> f) const {
     CHECK_GT(inputs.size(), 0);
+    if constexpr (kIsITEFundamental) {
+      // BDD construction is sensitive to the shape of intermediate results.
+      // Match ReduceOp's balanced reduction for associative bitwise operations
+      // so that an avoidable left-associated intermediate does not saturate
+      // the BDD path budget.
+      auto reduce = [&](auto&& self, int64_t begin, int64_t end,
+                        int64_t bit_index) -> Element {
+        if (end - begin == 1) {
+          return inputs[begin][bit_index];
+        }
+        int64_t mid = begin + (end - begin) / 2;
+        return f(self(self, begin, mid, bit_index),
+                 self(self, mid, end, bit_index));
+      };
+      Vector result;
+      result.reserve(inputs.front().size());
+      for (int64_t bit_index = 0; bit_index < inputs.front().size();
+           ++bit_index) {
+        result.push_back(reduce(reduce, 0, inputs.size(), bit_index));
+      }
+      return result;
+    }
+
     Vector result(inputs.front().begin(), inputs.front().end());
     for (int64_t i = 1; i < inputs.size(); ++i) {
       for (int64_t j = 0; j < result.size(); ++j) {
