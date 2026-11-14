@@ -29,9 +29,8 @@ namespace xls::dslx {
 // defined zero value, in which cases an error is returned. In this case, span
 // is used to cite the source of the error in the program text.
 //
-// For a semantic sum, chooses the first variant when discriminants are
-// implicit, or the variant whose source discriminant is zero when they are
-// explicit. Recursively constructs zero values for that variant's payload.
+// For a semantic sum, uses the evaluated zero selection stored in its concrete
+// SumType and recursively constructs zero values for that variant's payload.
 // Returns an error when no zero variant exists or its payload has no zero.
 absl::StatusOr<InterpValue> MakeZeroValue(const Type& type,
                                           const ImportData& import_data,

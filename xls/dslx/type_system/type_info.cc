@@ -940,11 +940,25 @@ void TypeInfo::SetResolvedColonRefSubject(const ColonRef* node,
 absl::StatusOr<TypeInfo::ResolvedColonRefSubject>
 TypeInfo::GetResolvedColonRefSubject(const ColonRef* node) const {
   const auto it = resolved_colon_ref_subjects_.find(node);
-  if (it == resolved_colon_ref_subjects_.end()) {
+  if (it != resolved_colon_ref_subjects_.end()) {
+    return it->second;
+  } else if (parent_ != nullptr) {
+    return parent_->GetResolvedColonRefSubject(node);
+  } else {
     return absl::NotFoundError(absl::StrCat(
         "No ColonRef subject was resolved for: ", node->ToString()));
   }
-  return it->second;
+}
+
+bool TypeInfo::IsSumConstructor(const Invocation* node) const {
+  const auto* callee = dynamic_cast<const ColonRef*>(node->callee());
+  return callee != nullptr && IsSumConstructor(callee);
+}
+
+bool TypeInfo::IsSumConstructor(const ColonRef* node) const {
+  absl::StatusOr<ResolvedColonRefSubject> subject =
+      GetResolvedColonRefSubject(node);
+  return subject.ok() && std::holds_alternative<SumDef*>(*subject);
 }
 
 absl::optional_ref<const ParametricEnv> TypeInfo::GetInvocationCalleeBindings(

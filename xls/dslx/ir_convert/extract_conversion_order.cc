@@ -207,10 +207,18 @@ class InvocationVisitor : public ExprVisitor {
   }
 
   absl::Status HandleInvocation(const Invocation* node) override {
-    std::optional<CalleeInfo> callee_info;
     for (const Expr* arg : node->args()) {
       XLS_RETURN_IF_ERROR(arg->AcceptExpr(this));
     }
+    if (type_info_->IsSumConstructor(node)) {
+      return absl::OkStatus();
+    } else {
+      return HandleFunctionInvocation(node);
+    }
+  }
+
+  absl::Status HandleFunctionInvocation(const Invocation* node) {
+    std::optional<CalleeInfo> callee_info;
 
     absl::optional_ref<const InvocationData> inv_data =
         type_info_->GetInvocationData(node);
@@ -343,16 +351,6 @@ class InvocationVisitor : public ExprVisitor {
 
   absl::Status HandleStructInstance(const StructInstance* expr) override {
     for (const auto& member : expr->GetUnorderedMembers()) {
-      XLS_RETURN_IF_ERROR(member.second->AcceptExpr(this));
-    }
-    return absl::OkStatus();
-  }
-
-  absl::Status HandleSumInstance(const SumInstance* expr) override {
-    for (const Expr* arg : expr->tuple_payload_args()) {
-      XLS_RETURN_IF_ERROR(arg->AcceptExpr(this));
-    }
-    for (const auto& member : expr->struct_payload_field_args()) {
       XLS_RETURN_IF_ERROR(member.second->AcceptExpr(this));
     }
     return absl::OkStatus();

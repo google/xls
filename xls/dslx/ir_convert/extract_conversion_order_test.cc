@@ -64,6 +64,27 @@ fn main() -> u32 { f() }
   EXPECT_EQ(order[2].f()->identifier(), "main");
 }
 
+TEST(ExtractConversionOrderTest, SumConstructorPreservesPayloadFunctionCalls) {
+  constexpr std::string_view kProgram = R"(
+enum E { Tuple(u32) }
+fn payload(x: u32) -> u32 { x + u32:1 }
+fn wrap(x: u32) -> E { E::Tuple(payload(x)) }
+fn main(x: u32) -> E { wrap(x) }
+)";
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * main,
+                           tm.module->GetMemberOrError<Function>("main"));
+  XLS_ASSERT_OK_AND_ASSIGN(std::vector<ConversionRecord> order,
+                           GetOrderForEntry(main, tm.type_info));
+  ASSERT_EQ(order.size(), 3);
+  EXPECT_EQ(order[0].f()->identifier(), "payload");
+  EXPECT_EQ(order[1].f()->identifier(), "wrap");
+  EXPECT_EQ(order[2].f()->identifier(), "main");
+}
+
 TEST(ExtractConversionOrderTest, IncludeTestsWithFunctions) {
   constexpr std::string_view kProgram = R"(
 #[cfg(test)]

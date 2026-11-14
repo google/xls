@@ -17,9 +17,15 @@
 
 #include <cstdint>
 #include <optional>
+#include <string>
+#include <string_view>
+#include <utility>
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/types/span.h"
+#include "xls/dslx/frontend/aggregate_construction.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/ast_cloner.h"
 #include "xls/dslx/frontend/pos.h"
@@ -29,6 +35,42 @@
 #include "xls/dslx/type_system_v2/inference_table.h"
 
 namespace xls::dslx {
+
+// Binds named operands once, preserving construction diagnostics: unknown and
+// duplicate names are reported in source order, and required missing members
+// are listed alphabetically. Splat/domain callers may allow missing slots;
+// procs may omit I/O members that are default-initialized.
+absl::StatusOr<NamedFieldCorrespondence> ValidateAndBindNamedMembers(
+    const Span& span,
+    absl::Span<const std::pair<std::string, Expr*>> actual_members,
+    const NamedFields& formal_members, std::string_view aggregate_name,
+    bool is_struct, bool requires_all_members, const FileTable& file_table,
+    bool allow_default_io_members = false);
+
+// Rejects payload member types not supported by phase-one semantic sums.
+absl::Status ValidatePhase1SumPayloadMemberType(
+    const SumDef& sum_def, const SumVariant& variant,
+    const TypeAnnotation* member_annotation, const Type& member_type,
+    const FileTable& file_table);
+
+// Validates the formal type/value kind and returns a type annotation for a
+// type argument, including a ColonRef to an imported type. Expression arguments
+// must already be populated in `table`; returned type annotations are borrowed.
+absl::StatusOr<ExprOrType> NormalizeParametricArgument(
+    const ParametricBinding& binding, ExprOrType argument,
+    const InferenceTable& table, const FileTable& file_table);
+
+// Substitutes mapped references and optional Self annotations without
+// populating the resulting subtree. Cloned nodes belong to type->owner();
+// mapped whole-type replacements are borrowed from their original Modules.
+// When cloning is optional and no substitution is found, returns `type`.
+// The caller must populate the result before resolving indirect annotations.
+absl::StatusOr<const TypeAnnotation*> SubstituteTypeParametrics(
+    const TypeAnnotation* type,
+    const absl::flat_hash_map<const NameDef*, ExprOrType>& actual_values,
+    InferenceTable& table,
+    std::optional<const TypeAnnotation*> real_self_type = std::nullopt,
+    bool clone_if_no_parametrics = true);
 
 // Fabricates a `Number` node and sets the given type annotation for it in the
 // inference table.
@@ -61,22 +103,23 @@ bool IsColonRefWithTypeTarget(const InferenceTable& table, const Expr* expr);
 // parametric variables with values. Each time the returned replacer uses a node
 // that is value in `map`, it clones it via `table.Clone()`.
 
-// If `add_parametric_binding_type_annotation` is true, then any replacement
-// whose `NameDef` belongs to a parametric binding will be prefixed with the
-// type annotation of the parametric binding. This behavior should be used when
-// replacing parametric bindings with their actual literal values. Otherwise
-// subsequent type inference would in some contexts presume the literals are the
-// minimum size needed to fit their values.
+// When `add_parametric_binding_type_annotation` is enabled outside direct
+// index/type-annotation references, a concrete nonzero-width builtin formal
+// type overrides a mapped Number's annotation. Otherwise, preserve its syntax
+// type or materialize its inference-table type. Use the enabled formal type
+// only when neither exists, so an unresolved formal type does not replace an
+// actual concrete type. Retaining a type prevents later inference from
+// narrowing the literal to the minimum width that fits its value.
 CloneReplacer NameRefMapper(
     InferenceTable& table,
     const absl::flat_hash_map<const NameDef*, ExprOrType>& map,
     std::optional<Module*> target_module = std::nullopt,
     bool add_parametric_binding_type_annotation = false);
 
-// Returns whether the given node is a reference to a parametric struct or proc
-// without sufficient parametrics specified (i.e. abstract and non-concretizable
-// in the parametric sense). A node meeting the criteria can be a `TypeAlias`,
-// the `NameDef` of a `TypeAlias`, or a `ColonRef`.
+// Returns whether the given node is a reference to a parametric struct, proc,
+// or sum without sufficient parametrics specified (i.e. abstract and
+// non-concretizable in the parametric sense). A node meeting the criteria can
+// be a `TypeAlias`, the `NameDef` of a `TypeAlias`, or a `ColonRef`.
 absl::StatusOr<bool> IsReferenceToAbstractType(const AstNode* node,
                                                const ImportData& import_data,
                                                const InferenceTable& table);
