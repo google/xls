@@ -16,6 +16,7 @@
 #define XLS_IR_NAME_UNIQUER_H_
 
 #include <cstdint>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -23,6 +24,8 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
+#include "absl/status/status.h"
+#include "absl/status/statusor.h"
 #include "absl/types/span.h"
 
 namespace xls {
@@ -70,6 +73,27 @@ class NameUniquer {
   // Mark the name 'sv' as already taken.
   absl::Status ReserveIdentifier(std::string_view sv);
 
+  // If `sv` is a currently-registered uniquified name (i.e. a numeric suffix
+  // was added or changed due to a collision), returns the sanitized name that
+  // was originally requested when `sv` was generated. Otherwise (if `sv` was
+  // not uniquified or is not currently registered), returns `std::nullopt`.
+  std::optional<std::string> GetOriginalName(std::string_view sv) const;
+
+  // Returns true if `sv` is not currently registered as in use.
+  bool IsNameAvailable(std::string_view sv) const;
+
+  // Attempts to reclaim the unqualified (originally requested) name for `sv`
+  // when `sv` was uniquified due to a collision (for example, reclaiming "foo"
+  // for "foo__1" if "foo" has since been released).
+  //
+  // If the originally requested name is now available, reclaims it, releases
+  // `sv`, and returns the reclaimed name. If `sv` is already its originally
+  // requested name or the originally requested name is still in use, leaves
+  // `sv` unchanged and returns `std::nullopt`. Returns an error if `sv` is not
+  // currently registered as in use.
+  absl::StatusOr<std::optional<std::string>> TryReclaimUnqualifiedName(
+      std::string_view sv);
+
  private:
   // Used to track and generate new identifiers for the same instruction name
   // root.
@@ -79,15 +103,15 @@ class NameUniquer {
 
     // Tries to register the given ID. If the ID is not registered already,
     // register the ID and return it. Otherwise if the ID is registered return
-    // the next available ID.
+    // the next available ID and record that `id` was originally requested.
     int64_t RegisterId(int64_t id) {
       int64_t result;
-      if (used_.insert(id).second) {
+      if (used_.try_emplace(id, id).second) {
         // ID has not been used before.
         result = id;
       } else {
-        // ID has been used before, find the next one
-        CHECK(used_.insert(next_).second);
+        // ID has been used before, find the next one.
+        CHECK(used_.try_emplace(next_, id).second);
         result = next_;
       }
 
@@ -99,10 +123,32 @@ class NameUniquer {
       return result;
     }
 
-    // Returns the next available unique ID.
-    int64_t NextId() { return RegisterId(next_); }
+    // Returns the next available unique ID when the bare prefix (no numeric
+    // suffix) was requested, recording `std::nullopt` as the originally
+    // requested suffix.
+    int64_t NextId() {
+      int64_t result = next_;
+      CHECK(used_.try_emplace(result, std::nullopt).second);
+      while (used_.contains(next_)) {
+        ++next_;
+      }
+      return result;
+    }
+
     // Returns true if `id` is currently registered as in use.
     bool IsUsed(int64_t id) const { return used_.contains(id); }
+
+    // If `id` is currently in use, returns the suffix ID that was originally
+    // requested when `id` was generated (or `std::nullopt` if the bare prefix
+    // was originally requested). Returns `std::nullopt` if `id` is not in use.
+    std::optional<std::optional<int64_t>> GetOriginalId(int64_t id) const {
+      auto it = used_.find(id);
+      if (it == used_.end()) {
+        return std::nullopt;
+      }
+      return it->second;
+    }
+
     // Allow the 'id' to be used again. Does not move the incrementing 'next'
     // backwards.
     absl::Status Release(int64_t id);
@@ -111,8 +157,12 @@ class NameUniquer {
     // The next identifier to be tried.
     int64_t next_ = 1;
 
-    // Set of all the identifiers which has been used.
-    absl::flat_hash_set<int64_t> used_;
+    // Map from each currently-used suffix ID to the suffix ID that was
+    // originally requested when this ID was generated, or `std::nullopt` if the
+    // bare prefix (no numeric suffix) was originally requested. If an ID was
+    // not uniquified (i.e. the requested suffix ID was available), it maps to
+    // itself.
+    absl::flat_hash_map<int64_t, std::optional<int64_t>> used_;
   };
 
   // The string to use to separate the prefix of the name from the uniquing

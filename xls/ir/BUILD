@@ -1830,10 +1830,12 @@ cc_library(
     hdrs = ["name_uniquer.h"],
     deps = [
         "//xls/common/status:ret_check",
+        "//xls/common/status:status_macros",
         "@abseil-cpp//absl/container:flat_hash_map",
         "@abseil-cpp//absl/container:flat_hash_set",
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/types:span",
     ],

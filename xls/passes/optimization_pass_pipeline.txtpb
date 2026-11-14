@@ -380,7 +380,15 @@ compound_passes: [
   {
     long_name: "Post-inlining passes"
     short_name: "post-inlining"
-    passes: ["post-inlining-opt(>=1)", "dce", "label-recovery", "resource_sharing", "collapse_select_chains", "dce"]
+    passes: [
+      "post-inlining-opt(>=1)",
+      "dce",
+      "label-recovery",
+      "resource_sharing",
+      "collapse_select_chains",
+      "dce",
+      "name_promotion"
+    ]
     comment: "Passes performed after inlining"
   },
   {
@@ -405,7 +413,8 @@ compound_passes: [
       "dfe",
       # Now that we can see more context actually remove dead asserts.
       "useless_assert_remove",
-      "dce"
+      "dce",
+      "name_promotion"
     ]
     options: {
       min_opt_level: 1
@@ -442,7 +451,8 @@ compound_passes: [
       # deliberately stays away from value-based passes (e.g. conditional
       # specialization, which reasons about selects but not masked xors).
       "select_to_bitwise_ops",
-      "dce"
+      "dce",
+      "name_promotion"
     ]
     options: {
       min_opt_level: 1
