@@ -1254,6 +1254,18 @@ fn g() -> u8 { FOO[u32:1] }
   ExpectIr(converted);
 }
 
+TEST_F(IrConverterTest, SignedArrayCastConstants) {
+  constexpr std::string_view program = R"(
+const PACKED = ([u4:0xf, u4:0xf] as s8) as s16;
+const ELEMENT = (u8:0xff as s4[2])[u32:0] as s16;
+const ROUND_TRIP = ((u8:0xf1 as s4[2]) as u8) as s16;
+fn f() -> (s16, s16, s16) { (PACKED, ELEMENT, ROUND_TRIP) }
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
+                           ConvertOneFunctionForTest(program, "f"));
+  ExpectIr(converted);
+}
+
 TEST_F(IrConverterTest, TransitiveParametricInvocation) {
   constexpr std::string_view program =
       R"(
