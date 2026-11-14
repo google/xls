@@ -57,7 +57,8 @@ absl::StatusOr<Node*> FlopNode(
       block->AddRegister(name, input->GetType(),
                          reset.has_value()
                              ? std::make_optional(ZeroOfType(input->GetType()))
-                             : std::nullopt));
+                             : std::nullopt,
+                         input->loc()));
   XLS_RETURN_IF_ERROR(
       block
           ->MakeNodeWithName<RegisterWrite>(input->loc(), input, load_enable,
@@ -285,7 +286,8 @@ absl::StatusOr<bool> FunctionIOLoweringPass::LowerReturnValue(
   }
   XLS_ASSIGN_OR_RETURN(
       OutputPort * port,
-      block->AddOutputPort(options.codegen_options.output_port_name(), output));
+      block->AddOutputPort(options.codegen_options.output_port_name(), output,
+                           output->loc()));
   XLS_ASSIGN_OR_RETURN(bool added,
                        block->AddNodeToStage(block->stages().size() - 1, port));
   XLS_RET_CHECK(added);

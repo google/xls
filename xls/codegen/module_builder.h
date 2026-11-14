@@ -133,12 +133,14 @@ class ModuleBuilder {
 
   // Declares a variable with the given name and XLS type. Returns a reference
   // to the variable.
-  absl::StatusOr<LogicRef*> DeclareVariable(std::string_view name, Type* type);
+  absl::StatusOr<LogicRef*> DeclareVariable(
+      std::string_view name, Type* type, const SourceInfo& loc = SourceInfo());
 
   // Declares a flat variable with the given name and number of bits. Returns a
   // reference to the variable.
-  absl::StatusOr<LogicRef*> DeclareVariable(std::string_view name,
-                                            int64_t bit_count);
+  absl::StatusOr<LogicRef*> DeclareVariable(
+      std::string_view name, int64_t bit_count,
+      const SourceInfo& loc = SourceInfo());
 
   // Assigns the rhs to the lhs using continuous assignment where both sides
   // have the given XLS type. The emitted verilog may require multiple
