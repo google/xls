@@ -218,7 +218,7 @@ absl::StatusOr<xls::Function*> EmitImplicitTokenEntryWrapper(
   // Clone all the params except for the leading `(token, bool)`.
   std::vector<BValue> params;
   for (const xls::Param* p : implicit_token_f->params().subspan(2)) {
-    params.push_back(fb.Param(p->name(), p->GetType()));
+    params.push_back(fb.Param(p->name(), p->GetType(), p->loc()));
     auto* param = wrapper_proto->add_parameters();
     param->set_name(p->name());
     *param->mutable_type() = p->GetType()->ToProto();
@@ -924,7 +924,7 @@ absl::Status FunctionConverter::HandleParam(const Param* node) {
   XLS_ASSIGN_OR_RETURN(xls::Type * type,
                        ResolveTypeToIr(node->type_annotation()));
   BValue param = Def(node->name_def(), [&](const SourceInfo& loc) {
-    return function_builder_->Param(node->identifier(), type);
+    return function_builder_->Param(node->identifier(), type, loc);
   });
   if (is_top_ && param.GetName() != node->identifier()) {
     return IrConversionErrorStatus(
