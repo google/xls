@@ -524,6 +524,21 @@ fn main(input: u8[2]) -> u8[2] {
   ExpectIr(converted);
 }
 
+TEST_F(IrConverterTest, ArrayUpdateWithTupleIndexParameter) {
+  constexpr std::string_view program = R"(
+fn f(index: (u1, u1)) -> bool[1][1] { update([[false]], index, true) }
+)";
+  XLS_ASSERT_OK(ConvertModuleForTest(program));
+}
+
+TEST_F(IrConverterTest, ArrayUpdateWithTupleIndexConstant) {
+  constexpr std::string_view program = R"(
+const INDEX = (u1:0, u1:0);
+fn f(value: bool) -> bool[1][1] { update([[false]], INDEX, value) }
+)";
+  XLS_ASSERT_OK(ConvertModuleForTest(program));
+}
+
 TEST_F(IrConverterTest, ArrayEnumerate) {
   constexpr std::string_view program = R"(
 import std;
