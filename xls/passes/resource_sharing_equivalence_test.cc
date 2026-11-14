@@ -32,6 +32,7 @@
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/estimators/area_model/area_estimator.h"
+#include "xls/estimators/area_model/area_estimators.h"
 #include "xls/ir/function.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/ir_matcher.h"
@@ -1250,6 +1251,8 @@ TEST_F(ResourceSharingEquivalenceTest, MultiplySplitterEquivalenceMapping) {
               IsOkAndHolds(testing::IsEmpty()));
 
   // 8 bit umul decomposes into four 4 bit umul parts.
+  XLS_ASSERT_OK_AND_ASSIGN(AreaEstimator * area_estimator,
+                           GetAreaEstimator("unit"));
   XLS_ASSERT_OK_AND_ASSIGN(
       std::vector<std::shared_ptr<EquivalenceMapping>> umul_decompositions,
       GetNodeEquivalenceMapper().ComputeDecompositions(umul8.node()));
@@ -1260,6 +1263,13 @@ TEST_F(ResourceSharingEquivalenceTest, MultiplySplitterEquivalenceMapping) {
                              IsOkAndHolds(true)),
                     Property(&EquivalenceMapping::RequiresOutputTransformation,
                              IsOkAndHolds(false)))));
+  // 4 umuls + 3 zero_exts + 3 concats + 3 adds (13) - 1 orig = 12.0.
+  EXPECT_THAT(umul_decompositions[0]->EstimateAreaOverhead(
+                  *area_estimator, umul8.node()->operands(), umul8.node()),
+              IsOkAndHolds(12.0));
+  EXPECT_THAT(umul_decompositions[0]->EstimateAreaOverhead(*area_estimator, {},
+                                                           nullptr),
+              IsOkAndHolds(12.0));
   XLS_ASSERT_OK(VerifyEquivalence(f, umul8.node(), *umul_decompositions[0]));
 
   // 8 bit smul decomposes into four 4 bit smul parts.
@@ -1267,6 +1277,11 @@ TEST_F(ResourceSharingEquivalenceTest, MultiplySplitterEquivalenceMapping) {
       std::vector<std::shared_ptr<EquivalenceMapping>> smul_decompositions,
       GetNodeEquivalenceMapper().ComputeDecompositions(smul8.node()));
   ASSERT_EQ(smul_decompositions.size(), 1);
+  // 4 smuls + 5 sign_exts + 8 concats + 2 bit_slices + 2 selects +
+  // 1 and + 1 zero_ext + 5 adds + 1 sub (29) - 1 orig = 28.0.
+  EXPECT_THAT(smul_decompositions[0]->EstimateAreaOverhead(
+                  *area_estimator, smul8.node()->operands(), smul8.node()),
+              IsOkAndHolds(28.0));
   XLS_ASSERT_OK(VerifyEquivalence(f, smul8.node(), *smul_decompositions[0]));
 }
 

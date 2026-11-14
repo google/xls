@@ -1333,6 +1333,8 @@ cc_test(
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "//xls/estimators/area_model:area_estimator",
+        "//xls/estimators/area_model:area_estimators",
+        "//xls/estimators/area_model/models",
         "//xls/ir",
         "//xls/ir:function_builder",
         "//xls/ir:ir_matcher",

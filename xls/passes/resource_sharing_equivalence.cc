@@ -1188,21 +1188,22 @@ BValue BuildDecomposedMulAdderTree(FunctionBuilder& fb, BValue a, BValue b,
     return is_signed ? fb.SMul(lhs, rhs, half_width)
                      : fb.UMul(lhs, rhs, half_width);
   };
-  auto ext = [&](BValue val) {
-    return is_signed ? fb.SignExtend(val, width) : fb.ZeroExtend(val, width);
+  auto ext = [&](BValue val, int64_t new_width) {
+    return is_signed ? fb.SignExtend(val, new_width)
+                     : fb.ZeroExtend(val, new_width);
   };
   BValue mul_bd = mul(b, d);
   BValue mul_ad = mul(a, d);
   BValue mul_bc = mul(b, c);
   BValue mul_ac = mul(a, c);
 
-  BValue quarter_w = fb.Literal(UBits(quarter_width, 32));
-  BValue half_w = fb.Literal(UBits(half_width, 32));
-  BValue sh_ac = fb.Shll(ext(mul_ac), half_w);
-  BValue sh_ad = fb.Shll(ext(mul_ad), quarter_w);
-  BValue sh_bc = fb.Shll(ext(mul_bc), quarter_w);
+  BValue zero_q = fb.Literal(UBits(0, quarter_width));
+  BValue zero_half = fb.Literal(UBits(0, half_width));
+  BValue sh_ac = fb.Concat({mul_ac, zero_half});
+  BValue sh_ad = fb.Concat({ext(mul_ad, width - quarter_width), zero_q});
+  BValue sh_bc = fb.Concat({ext(mul_bc, width - quarter_width), zero_q});
   BValue add_middle = fb.Add(sh_ad, sh_bc);
-  BValue add_ends = fb.Add(sh_ac, ext(mul_bd));
+  BValue add_ends = fb.Add(sh_ac, ext(mul_bd, width));
   return fb.Add(add_ends, add_middle);
 }
 
@@ -1356,6 +1357,18 @@ class MultiplySplitterEquivalenceMapping : public EquivalenceMapping {
   absl::StatusOr<Node*> ApplyToOutput(FunctionBase* f,
                                       Node* dst_output) const override {
     return dst_output;
+  }
+
+  absl::StatusOr<double> EstimateAreaOverhead(
+      const AreaEstimator& area_estimator, absl::Span<Node* const> operands,
+      Node* output) const override {
+    Node* orig = output != nullptr ? output : src_;
+    XLS_ASSIGN_OR_RETURN(double orig_area,
+                         area_estimator.GetOperationAreaInSquareMicrons(orig));
+    XLS_ASSIGN_OR_RETURN(double decomp_area,
+                         area_estimator.GetFunctionBaseAreaInSquareMicrons(
+                             dst_->function_base()));
+    return decomp_area - orig_area;
   }
 };
 
