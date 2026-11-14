@@ -1796,10 +1796,12 @@ FunctionConverter::HandleForLexicalScope(const For* node,
   return relevant_name_defs;
 }
 
-absl::StatusOr<BValue> FunctionConverter::HandleForBody(
-    const For* node, FunctionConverter& body_converter, int64_t trip_count) {
-  FunctionConverterVisitor visitor(&body_converter);
-  XLS_RETURN_IF_ERROR(visitor.Visit(node->body()));
+absl::StatusOr<BValue> FunctionConverter::HandleForBody(const For* node) {
+  XLS_RETURN_IF_ERROR(Visit(node->body()));
+  XLS_ASSIGN_OR_RETURN(BValue result, Use(node->body()));
+  if (!implicit_token_data_.has_value()) {
+    return result;
+  }
 
   // We also need to thread the token out of the body function: convert our
   // signature:
@@ -1813,36 +1815,14 @@ absl::StatusOr<BValue> FunctionConverter::HandleForBody(
   // Note we could make the "activated" boolean an invariant argument, but this
   // is simpler because it keeps all the params in the same spot regardless of
   // whether it's a function body or any other kind of function.
-  if (implicit_token_data_.has_value()) {
-    XLS_ASSIGN_OR_RETURN(BValue retval, body_converter.Use(node->body()));
-    std::vector<BValue> after_all_tokens(
-        body_converter.implicit_token_data_->control_tokens.begin(),
-        body_converter.implicit_token_data_->control_tokens.end());
-    after_all_tokens.push_back(
-        body_converter.implicit_token_data_->entry_token);
-    BValue implicit_token;
-    if (after_all_tokens.size() > 1) {
-      implicit_token =
-          body_converter.function_builder_->AfterAll(after_all_tokens);
-    } else {
-      implicit_token = after_all_tokens[0];
-    }
-
-    body_converter.function_builder_->Tuple(
-        {implicit_token, body_converter.implicit_token_data_->activated,
-         retval});
+  BValue implicit_token = implicit_token_data_->entry_token;
+  if (!implicit_token_data_->control_tokens.empty()) {
+    std::vector<BValue> after_all_tokens = implicit_token_data_->control_tokens;
+    after_all_tokens.push_back(implicit_token);
+    implicit_token = function_builder_->AfterAll(after_all_tokens);
   }
-
-  XLS_ASSIGN_OR_RETURN(BValue init, Use(node->init()));
-  if (implicit_token_data_.has_value()) {
-    BValue activated = trip_count == 0
-                           ? function_builder_->Literal(UBits(0, 1))
-                           : implicit_token_data_->create_control_predicate();
-
-    init = function_builder_->Tuple(
-        {implicit_token_data_->entry_token, activated, init});
-  }
-  return init;
+  return function_builder_->Tuple(
+      {implicit_token, implicit_token_data_->activated, result});
 }
 
 // Returns whether `node` is a range expression, which is either a `Range` node
@@ -1953,12 +1933,18 @@ absl::Status FunctionConverter::HandleFor(const For* node) {
                        HandleForLexicalScope(node, body_converter));
 
   // Convert the for-loop body block into its IR (function) form.
-  XLS_ASSIGN_OR_RETURN(BValue init,
-                       HandleForBody(node, body_converter, trip_count));
-
-  // Now the body has been built up, we can get the IR function for it.
+  XLS_ASSIGN_OR_RETURN(BValue body_result, body_converter.HandleForBody(node));
   XLS_ASSIGN_OR_RETURN(xls::Function * ir_body_function,
-                       ir_body_builder_ptr->Build());
+                       ir_body_builder_ptr->BuildWithReturnValue(body_result));
+
+  XLS_ASSIGN_OR_RETURN(BValue init, Use(node->init()));
+  if (implicit_token_data_.has_value()) {
+    BValue activated = trip_count == 0
+                           ? function_builder_->Literal(UBits(0, 1))
+                           : implicit_token_data_->create_control_predicate();
+    init = function_builder_->Tuple(
+        {implicit_token_data_->entry_token, activated, init});
+  }
 
   for (const NameDef* nd : relevant_name_defs) {
     XLS_ASSIGN_OR_RETURN(BValue value, Use(nd));

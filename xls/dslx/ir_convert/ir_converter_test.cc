@@ -8709,6 +8709,17 @@ impl Top {
       /*package_name=*/"test_package", &printed_error));
 }
 
+TEST_F(IrConverterTest, ForOverArrayReturnsAccumulator) {
+  constexpr std::string_view kProgram = R"(
+pub fn main(x: u1) -> u1 {
+  for (_, acc) in [x] { acc }(u1:0)
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
+                           ConvertOneFunctionForTest(kProgram, "main"));
+  ExpectIr(converted);
+}
+
 TEST_F(IrConverterTest, ForOverArrayDestructuringTupleIterator) {
   constexpr std::string_view kProgram = R"(
 fn sum_pairs(pairs: (u32, u32)[2]) -> u32 {
