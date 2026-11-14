@@ -55,6 +55,12 @@ class ParametricStructInstantiator {
       const std::vector<InterpValue>& explicit_parametrics,
       std::optional<const StructInstanceBase*> instantiator_node) = 0;
 
+  virtual absl::StatusOr<const TypeAnnotation*> InstantiateParametricSum(
+      Module& module, const Span& span,
+      std::optional<const ParametricContext*> parent_context,
+      const SumDef& sum_def,
+      const std::vector<InterpValue>& explicit_parametrics) = 0;
+
   // Converts the `member_type` of some member of the entity referenced by
   // `struct_or_proc_ref` into a form that has any struct parametrics replaced
   // by their values.

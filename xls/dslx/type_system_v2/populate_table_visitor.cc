@@ -85,6 +85,10 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
     return module->Accept(this);
   }
 
+  absl::Status PopulateFromExpr(const Expr* expr) override {
+    return expr->Accept(this);
+  }
+
   absl::Status PopulateFromInvocation(const Invocation* invocation) override {
     return invocation->Accept(this);
   }
@@ -274,6 +278,15 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
                     TypeDefinition(const_cast<EnumDef*>(enum_def))),
                 std::vector<ExprOrType>(), std::nullopt);
         table_.SetColonRefTarget(node, *name_def);
+        return table_.SetTypeAnnotation(node, type_ref_annotation);
+      }
+
+      XLS_ASSIGN_OR_RETURN(std::optional<SumRef> sum_type_ref,
+                           GetSumRef(node, import_data_));
+      if (sum_type_ref.has_value()) {
+        XLS_ASSIGN_OR_RETURN(TypeAnnotation * type_ref_annotation,
+                             CreateSumAnnotationFromRef(*sum_type_ref));
+        table_.SetColonRefTarget(node, type_ref_annotation);
         return table_.SetTypeAnnotation(node, type_ref_annotation);
       }
 
@@ -1055,39 +1068,17 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
 
     XLS_ASSIGN_OR_RETURN(std::optional<StructOrProcRef> struct_or_proc_ref,
                          GetStructOrProcRef(node, import_data_));
-    if (!struct_or_proc_ref.has_value() ||
-        struct_or_proc_ref->parametrics.empty()) {
-      return DefaultHandler(node);
-    }
-    const StructDefBase* struct_def = struct_or_proc_ref->def;
-    if (struct_or_proc_ref->parametrics.size() >
-        struct_def->parametric_bindings().size()) {
-      return ArgCountMismatchErrorStatus(
-          node->span(),
-          absl::Substitute(
-              "Too many parametric values supplied; limit: $0 given: $1",
-              struct_def->parametric_bindings().size(),
-              struct_or_proc_ref->parametrics.size()),
-          file_table_);
-    }
-
-    // If any parametrics are explicitly specified, then they must all be
-    // explicit or defaulted. We technically could infer the rest, as with
-    // functions, but historically we choose not to. We must also constrain the
-    // actual parametric values to the binding type.
-    for (int i = 0; i < struct_def->parametric_bindings().size(); i++) {
-      const ParametricBinding* binding = struct_def->parametric_bindings()[i];
-      if (i < struct_or_proc_ref->parametrics.size()) {
-        if (std::holds_alternative<TypeAnnotation*>(
-                struct_or_proc_ref->parametrics[i])) {
-          continue;
-        }
-        const Expr* actual_expr =
-            std::get<Expr*>(struct_or_proc_ref->parametrics[i]);
-        XLS_RETURN_IF_ERROR(
-            DefineAndSetTypeVariable(actual_expr, "actual_expr"));
-        XLS_RETURN_IF_ERROR(
-            table_.SetTypeAnnotation(actual_expr, binding->type_annotation()));
+    if (struct_or_proc_ref.has_value()) {
+      XLS_RETURN_IF_ERROR(BindTypeParametricArguments(
+          node->span(), struct_or_proc_ref->def->parametric_bindings(),
+          struct_or_proc_ref->parametrics));
+    } else {
+      XLS_ASSIGN_OR_RETURN(std::optional<SumRef> sum_ref,
+                           GetSumRef(node, import_data_));
+      if (sum_ref.has_value()) {
+        XLS_RETURN_IF_ERROR(BindTypeParametricArguments(
+            node->span(), sum_ref->def->parametric_bindings(),
+            sum_ref->parametrics));
       }
     }
     return DefaultHandler(node);
@@ -1452,6 +1443,37 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
 
   absl::Status HandleProcDef(const ProcDef* node) override {
     return HandleStructDefBaseInternal(node);
+  }
+
+  absl::Status HandleSumDef(const SumDef* node) override {
+    if (!node->IsParametric()) {
+      XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(
+          node, CreateSumAnnotation(module_, const_cast<SumDef*>(node),
+                                    std::vector<ExprOrType>{})));
+    }
+    std::vector<Expr*> discriminants;
+    for (const SumVariant* variant : node->variants()) {
+      if (std::optional<Expr*> discriminant = variant->discriminant();
+          discriminant.has_value()) {
+        discriminants.push_back(*discriminant);
+      }
+    }
+    if (!discriminants.empty()) {
+      XLS_ASSIGN_OR_RETURN(
+          const NameRef* discriminant_type_variable,
+          DefineTypeVariable(discriminants.front(), "sum_discriminant"));
+      for (Expr* discriminant : discriminants) {
+        XLS_RETURN_IF_ERROR(
+            table_.SetTypeVariable(discriminant, discriminant_type_variable));
+      }
+      if (node->tag_type_annotation() != nullptr) {
+        table_.SetAnnotationFlag(node->tag_type_annotation(),
+                                 TypeInferenceFlag::kFormalMemberType);
+        XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(
+            discriminants.front(), node->tag_type_annotation()));
+      }
+    }
+    return DefaultHandler(node);
   }
 
   absl::Status HandleTupleIndex(const TupleIndex* node) override {
@@ -1933,6 +1955,16 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
 
         // The target must be a type or it's an invalid parametric to the macro.
         if (IsColonRefWithTypeTarget(table_, expr)) {
+          XLS_ASSIGN_OR_RETURN(
+              std::optional<SumRef> sum_ref,
+              GetSumRef(absl::down_cast<const ColonRef*>(expr), import_data_));
+          if (sum_ref.has_value() && node->kind() != AstNodeKind::kZeroMacro) {
+            return TypeInferenceErrorStatus(
+                *node->GetSpan(), nullptr,
+                absl::Substitute("Cannot use `$0` with sum type `$1`.",
+                                 node->ToString(), expr->ToString()),
+                file_table_);
+          }
           return absl::OkStatus();
         }
       }
@@ -1947,8 +1979,17 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
     }
 
     // If the "type" is not an expr, then it is the type annotation.
-    XLS_RETURN_IF_ERROR(
-        table_.SetTypeAnnotation(node, std::get<TypeAnnotation*>(type)));
+    const TypeAnnotation* annotation = std::get<TypeAnnotation*>(type);
+    XLS_ASSIGN_OR_RETURN(std::optional<const SumDef*> sum_def,
+                         GetSumDef(annotation, import_data_));
+    if (sum_def.has_value() && node->kind() != AstNodeKind::kZeroMacro) {
+      return TypeInferenceErrorStatusForAnnotation(
+          annotation->span(), annotation,
+          absl::Substitute("Cannot use `$0` with sum type `$1`.",
+                           node->ToString(), annotation->ToString()),
+          file_table_);
+    }
+    XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(node, annotation));
     return DefaultHandler(node);
   }
 
@@ -2042,6 +2083,66 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
                                      {}, std::nullopt)));
 
     return DefaultHandler(node);
+  }
+
+  absl::StatusOr<TypeAnnotation*> CreateSumAnnotationFromRef(SumRef ref) {
+    // A SumRef borrows its application arguments. A generated annotation
+    // adopts its children, so copy those arguments and their inference data
+    // without reparenting the original source nodes or copying declarations.
+    for (ExprOrType& argument : ref.parametrics) {
+      XLS_ASSIGN_OR_RETURN(
+          AstNode * clone,
+          table_.Clone(ToAstNode(argument), &PreserveTypeDefinitionsReplacer,
+                       &module_));
+      argument = ToExprOrType(clone);
+    }
+    return CreateSumAnnotation(module_, ref);
+  }
+
+  // Bind the supplied arguments to their declared types.
+  absl::Status BindTypeParametricArguments(
+      const Span& span, const std::vector<ParametricBinding*>& bindings,
+      const std::vector<ExprOrType>& arguments) {
+    if (arguments.size() > bindings.size()) {
+      return ArgCountMismatchErrorStatus(
+          span,
+          absl::Substitute(
+              "Too many parametric values supplied; limit: $0 given: $1",
+              bindings.size(), arguments.size()),
+          file_table_);
+    } else {
+      absl::flat_hash_map<const NameDef*, ExprOrType> prior_arguments;
+      for (int64_t i = 0; i < arguments.size(); ++i) {
+        if (std::holds_alternative<Expr*>(arguments[i])) {
+          const Expr* actual_expr = std::get<Expr*>(arguments[i]);
+          XLS_RETURN_IF_ERROR(
+              DefineAndSetTypeVariable(actual_expr, "actual_expr"));
+          // Imported types and enum/constant values have the same parsed
+          // ColonRef shape. Populate their target before checking argument
+          // kind.
+          if (actual_expr->kind() == AstNodeKind::kColonRef) {
+            XLS_RETURN_IF_ERROR(actual_expr->Accept(this));
+          }
+        }
+        const ParametricBinding* binding = bindings[i];
+        XLS_ASSIGN_OR_RETURN(ExprOrType argument,
+                             NormalizeParametricArgument(*binding, arguments[i],
+                                                         table_, file_table_));
+        if (std::holds_alternative<Expr*>(argument)) {
+          XLS_ASSIGN_OR_RETURN(
+              const TypeAnnotation* binding_type,
+              SubstituteTypeParametrics(binding->type_annotation(),
+                                        prior_arguments, table_,
+                                        /*real_self_type=*/std::nullopt,
+                                        /*clone_if_no_parametrics=*/false));
+          XLS_RETURN_IF_ERROR(binding_type->Accept(this));
+          XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(
+              std::get<Expr*>(argument), binding_type));
+        }
+        prior_arguments.emplace(binding->name_def(), argument);
+      }
+      return absl::OkStatus();
+    }
   }
 
   // Helper that creates an internal type variable for a `ConstantDef`, `Param`,
