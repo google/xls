@@ -40,6 +40,7 @@
 #include "absl/strings/str_join.h"
 #include "absl/types/span.h"
 #include "ortools/math_opt/cpp/math_opt.h"
+#include "xls/common/math_util.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/estimators/delay_model/delay_estimator.h"
@@ -75,8 +76,14 @@ absl::StatusOr<DelayMap> ComputeNodeDelays(
     if (schedule_node.is_dead_after_synthesis) {
       result[node] = 0;
     } else {
-      XLS_ASSIGN_OR_RETURN(result[node],
+      XLS_ASSIGN_OR_RETURN(int64_t node_delay,
                            delay_estimator.GetOperationDelayInPs(node));
+      if (node_delay < 0) {
+        return absl::InvalidArgumentError(
+            absl::StrFormat("Node %s has a negative delay (%dps)",
+                            node->GetName(), node_delay));
+      }
+      result[node] = node_delay;
     }
   }
   return result;
@@ -88,7 +95,7 @@ absl::StatusOr<DelayMap> ComputeNodeDelays(
 // `a` and `b`. The all-pairs distance is stored in the map of maps
 // `distances_to_node` where `distances_to_node[y][x]` (if present) is the
 // critical-path distance from `x` to `y`.
-absl::flat_hash_map<Node*, absl::flat_hash_map<Node*, int64_t>>
+absl::StatusOr<absl::flat_hash_map<Node*, absl::flat_hash_map<Node*, int64_t>>>
 ComputeDistancesToNodes(const ScheduleGraph& graph, const DelayMap& delay_map) {
   absl::flat_hash_map<Node*, absl::flat_hash_map<Node*, int64_t>>
       distances_to_node;
@@ -111,13 +118,19 @@ ComputeDistancesToNodes(const ScheduleGraph& graph, const DelayMap& delay_map) {
     // of `node` by `node_delay`.
     for (Node* operand : schedule_node.predecessors) {
       for (auto [a, operand_distance] : distances_to_node.at(operand)) {
-        auto [it, newly_reachable] =
-            distances.try_emplace(a, operand_distance + node_delay);
+        SaturatedResult<int64_t> distance =
+            SaturatingAdd(operand_distance, node_delay);
+        if (distance.did_overflow) {
+          return absl::InvalidArgumentError(absl::StrFormat(
+              "Critical-path distance from %s to %s overflows int64_t",
+              a->GetName(), schedule_node.node->GetName()));
+        }
+        auto [it, newly_reachable] = distances.try_emplace(a, distance.result);
         if (!newly_reachable) {
-          if (it->second >= operand_distance + node_delay) {
+          if (it->second >= distance.result) {
             continue;
           }
-          it->second = operand_distance + node_delay;
+          it->second = distance.result;
         }
       }
     }
@@ -204,7 +217,7 @@ ComputeCombinationalDelayConstraints(
 }  // namespace
 
 SDCSchedulingModel::SDCSchedulingModel(
-    const ScheduleGraph& graph, const DelayMap& delay_map,
+    const ScheduleGraph& graph, DelayMap delay_map,
     std::optional<int64_t> initiation_interval, double sdc_solution_tolerance,
     absl::flat_hash_map<std::pair<std::string, std::string>, int64_t>
         arc_worst_case_throughput,
@@ -212,19 +225,13 @@ SDCSchedulingModel::SDCSchedulingModel(
     : graph_(graph),
       model_(absl::StrCat("sdc_model:", graph_.name())),
       sdc_solution_tolerance_(sdc_solution_tolerance),
-      delay_map_(delay_map),
+      delay_map_(std::move(delay_map)),
       initiation_interval_(initiation_interval),
       arc_worst_case_throughput_(std::move(arc_worst_case_throughput)),
       default_arc_worst_case_throughput_(default_arc_worst_case_throughput),
       last_stage_(model_.AddContinuousVariable(0.0, kMaxStages, "last_stage")),
       cycle_at_sinknode_(model_.AddContinuousVariable(-kInfinity, kInfinity,
                                                       "cycle_at_sinknode")) {
-  // when subclassed for Iterative SDC, delay_map_ and distances_to_node_
-  // are not used.
-  if (!delay_map_.empty()) {
-    distances_to_node_ = ComputeDistancesToNodes(graph_, delay_map_);
-  }
-
   auto get_model_node_name = [this](Node* node) {
     return graph_.IsFunctionBaseScoped()
                ? node->GetName()
@@ -270,6 +277,12 @@ SDCSchedulingModel::SDCSchedulingModel(
 }
 
 absl::Status SDCSchedulingModel::AddAllDefUseConstraints() {
+  // When subclassed for Iterative SDC, delay_map_ and distances_to_node_
+  // are not used.
+  if (!delay_map_.empty()) {
+    XLS_ASSIGN_OR_RETURN(distances_to_node_,
+                         ComputeDistancesToNodes(graph_, delay_map_));
+  }
   for (const ScheduleNode& schedule_node : graph_.nodes()) {
     Node* node = schedule_node.node;
     if (IsUntimed(node)) {
@@ -1322,11 +1335,11 @@ SDCScheduler::SDCScheduler(
         arc_worst_case_throughput,
     std::optional<int64_t> default_arc_worst_case_throughput)
     : Scheduler("SDCScheduler"),
-      delay_map_(std::move(delay_map)),
       solver_type_(solver_type),
       solve_parameters_(std::move(solve_parameters)),
-      model_(graph, delay_map_, initiation_interval, sdc_solution_tolerance,
-             arc_worst_case_throughput, default_arc_worst_case_throughput) {}
+      model_(graph, std::move(delay_map), initiation_interval,
+             sdc_solution_tolerance, arc_worst_case_throughput,
+             default_arc_worst_case_throughput) {}
 
 absl::Status SDCScheduler::Initialize() {
   XLS_ASSIGN_OR_RETURN(solver_, math_opt::NewIncrementalSolver(
