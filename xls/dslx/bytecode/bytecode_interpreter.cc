@@ -751,8 +751,16 @@ absl::Status BytecodeInterpreter::EvalCall(const Bytecode& bytecode) {
 
   XLS_ASSIGN_OR_RETURN(const InterpValue::FnData* fn_data,
                        callee.GetFunction());
-  InterpValue::UserFnData user_fn_data =
-      std::get<InterpValue::UserFnData>(*fn_data);
+  InterpValue::UserFnData user_fn_data;
+  std::vector<InterpValue> curried_args;
+  if (std::holds_alternative<InterpValue::CurriedFnData>(*fn_data)) {
+    const InterpValue::CurriedFnData& curried_fn_data =
+        std::get<InterpValue::CurriedFnData>(*fn_data);
+    user_fn_data = curried_fn_data.user_fn_data;
+    curried_args = std::move(curried_fn_data.curried_args);
+  } else {
+    user_fn_data = std::get<InterpValue::UserFnData>(*fn_data);
+  }
   XLS_ASSIGN_OR_RETURN(Bytecode::InvocationData data,
                        bytecode.invocation_data());
 
@@ -797,12 +805,17 @@ absl::Status BytecodeInterpreter::EvalCall(const Bytecode& bytecode) {
   // the most recent value pushed. Handle that case first.
   std::optional<InterpValue> first_arg;
   int remaining_args = user_fn_data.function->params().size();
-  if (user_fn_data.function->IsMethod()) {
+  if (user_fn_data.function->IsMethod() && curried_args.empty()) {
     XLS_ASSIGN_OR_RETURN(first_arg, Pop());
     remaining_args--;
   }
-  XLS_ASSIGN_OR_RETURN(std::vector<InterpValue> args,
+  remaining_args -= curried_args.size();
+  std::vector<InterpValue> args = curried_args;
+  XLS_ASSIGN_OR_RETURN(std::vector<InterpValue> extra_args,
                        PopArgsRightToLeft(remaining_args));
+  for (const auto& arg : extra_args) {
+    args.push_back(arg);
+  }
   if (first_arg.has_value()) {
     args.insert(args.begin(), *first_arg);
   }
@@ -1061,6 +1074,15 @@ absl::Status BytecodeInterpreter::EvalGt(const Bytecode& bytecode) {
 absl::Status BytecodeInterpreter::EvalTupleIndex(const Bytecode& bytecode) {
   XLS_ASSIGN_OR_RETURN(InterpValue index, Pop());
   XLS_ASSIGN_OR_RETURN(InterpValue basis, Pop());
+
+  if (index.IsFunction()) {
+    XLS_ASSIGN_OR_RETURN(const InterpValue::FnData* fn_data,
+                         index.GetFunction());
+    XLS_RET_CHECK(std::holds_alternative<InterpValue::UserFnData>(*fn_data));
+    stack_.Push(InterpValue::MakeFunction(InterpValue::CurriedFnData{
+        std::get<InterpValue::UserFnData>(*fn_data), {basis}}));
+    return absl::OkStatus();
+  }
 
   if (basis.IsProcInitializer()) {
     XLS_ASSIGN_OR_RETURN(uint64_t member_index, index.GetBitValueUnsigned());

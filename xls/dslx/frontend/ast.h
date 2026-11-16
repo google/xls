@@ -1527,7 +1527,7 @@ class NameRef final : public Expr {
   //
   //  bool defined_by_fn = name_ref->DefinerIs<Function>();
   template <typename T>
-  bool DefinerIs() {
+  bool DefinerIs() const {
     if (std::holds_alternative<BuiltinNameDef*>(name_def_)) {
       return false;
     }
@@ -2903,7 +2903,10 @@ class Instantiation : public Expr {
     return explicit_parametrics_;
   }
 
-  void set_callee(Expr* callee) { callee_ = callee; }
+  void set_callee(Expr* callee) {
+    callee_ = callee;
+    SetParentage();
+  }
 
  protected:
   std::string FormatParametrics() const;
@@ -2979,6 +2982,7 @@ class Invocation : public Instantiation {
   void set_arg(int i, Expr* arg) {
     CHECK(i >= 0 && i < args_.size());
     args_[i] = arg;
+    SetParentage();
   }
 
   Precedence GetPrecedenceWithoutParens() const final {

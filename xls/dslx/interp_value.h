@@ -81,7 +81,11 @@ class InterpValue {
     Module* module;
     const Function* function;
   };
-  using FnData = std::variant<Builtin, UserFnData>;
+  struct CurriedFnData {
+    UserFnData user_fn_data;
+    std::vector<InterpValue> curried_args;
+  };
+  using FnData = std::variant<Builtin, UserFnData, CurriedFnData>;
 
   // An immutable reference to a channel object.
   class ChannelReference {
