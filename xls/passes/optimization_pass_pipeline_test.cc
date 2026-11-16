@@ -19,6 +19,7 @@
 #include <string>
 #include <string_view>
 #include <utility>
+#include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
@@ -104,6 +105,37 @@ class OptimizationPipelineTest : public IrTestBase {
               SBits(value, 8));
   }
 };
+
+TEST_F(OptimizationPipelineTest, ByteExtractionWithSeparateBitUsers) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetBitsType(128));
+  BValue index = fb.Param("index", p->GetBitsType(32));
+  // Preserve the wrapping arithmetic from the CRC reproducer.
+  BValue amount = fb.UMul(fb.Subtract(fb.Literal(UBits(15, 32)), index),
+                          fb.Literal(UBits(8, 32)));
+  BValue shifted = fb.Shrl(x, amount);
+  std::vector<BValue> bits;
+  for (int64_t i = 0; i < 8; ++i) {
+    bits.push_back(fb.BitSlice(shifted, i, 1));
+  }
+  fb.Tuple(bits);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  XLS_ASSERT_OK(p->SetTop(f));
+  ScopedVerifyEquivalence equivalent(f, kProverTimeout);
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  bool found_byte_select = false;
+  for (Node* node : f->nodes()) {
+    EXPECT_NE(node->op(), Op::kShrl) << node->ToString();
+    EXPECT_NE(node->op(), Op::kDynamicBitSlice) << node->ToString();
+    if (node->Is<Select>() && node->As<Select>()->cases().size() == 16) {
+      found_byte_select = true;
+      ASSERT_TRUE(node->As<Select>()->default_value().has_value());
+      EXPECT_THAT(*node->As<Select>()->default_value(), m::Literal(0));
+    }
+  }
+  EXPECT_TRUE(found_byte_select);
+}
 
 TEST_F(OptimizationPipelineTest, IdentityRemoval) {
   auto p = CreatePackage();
