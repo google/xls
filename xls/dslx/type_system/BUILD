@@ -274,8 +274,10 @@ cc_library(
     deps = [
         "//xls/dslx:errors",
         "//xls/dslx:interp_value",
+        "//xls/dslx:interp_value_utils",
         "//xls/dslx/frontend:ast",
         "//xls/dslx/frontend:pos",
+        "@abseil-cpp//absl/base",
         "@abseil-cpp//absl/container:flat_hash_map",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/strings",
