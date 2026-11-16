@@ -28,6 +28,7 @@
 //   codegen_args: "--generator=combinational"
 //   codegen_args: "--reset_data_path=false"
 //   simulate: true
+//   simulator: "iverilog"
 //   use_system_verilog: false
 //   timeout_seconds: 1500
 //   calls_per_sample: 0

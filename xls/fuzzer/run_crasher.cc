@@ -53,6 +53,12 @@ constexpr bool kCanRunIverilogSimulator = false;
 constexpr bool kCanRunIverilogSimulator = true;
 #endif
 
+#if defined(__aarch64__)
+constexpr bool kDefaultToIverilogForVerilog = true;
+#else
+constexpr bool kDefaultToIverilogForVerilog = false;
+#endif
+
 // Runs the sample in the given run directory.
 absl::Status RealMain(const std::filesystem::path& crasher_path,
                       const std::filesystem::path& run_dir,
@@ -69,9 +75,17 @@ absl::Status RealMain(const std::filesystem::path& crasher_path,
     SampleOptions options = crasher.options();
     options.set_simulator(*simulator);
     crasher = Sample(crasher.input_text(), options, crasher.testvector());
-  } else if (!kCanRunIverilogSimulator &&
-             crasher.options().simulator() == "iverilog" &&
-             crasher.options().simulate()) {
+  } else if (kDefaultToIverilogForVerilog &&
+             crasher.options().simulate() &&
+             crasher.options().simulator().empty() &&
+             !crasher.options().use_system_verilog()) {
+    SampleOptions options = crasher.options();
+    options.set_simulator("iverilog");
+    crasher = Sample(crasher.input_text(), options, crasher.testvector());
+  }
+  if (!kCanRunIverilogSimulator &&
+      crasher.options().simulator() == "iverilog" &&
+      crasher.options().simulate()) {
     LOG(INFO) << "Skipping iverilog simulator because sanitizers are enabled.";
     SampleOptions options = crasher.options();
     options.set_simulate(false);
