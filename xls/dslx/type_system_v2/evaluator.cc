@@ -17,12 +17,9 @@
 #include <cstdint>
 #include <memory>
 #include <optional>
-#include <string>
-#include <utility>
 #include <variant>
 
 #include "absl/base/casts.h"
-#include "absl/container/flat_hash_map.h"
 #include "absl/log/log.h"
 #include "absl/status/statusor.h"
 #include "xls/common/status/status_macros.h"
@@ -61,8 +58,8 @@ class EvaluatorImpl : public Evaluator {
       return std::get<bool>(value_or_expr);
     }
     const Expr* expr = std::get<const Expr*>(value_or_expr);
-    std::optional<InterpValue> value =
-        FastEvaluate(parametric_context, BuiltinType::kBool, expr);
+    XLS_ASSIGN_OR_RETURN(std::optional<InterpValue> value,
+                         FastEvaluate(parametric_context, expr));
 
     if (!value.has_value()) {
       XLS_RETURN_IF_ERROR(
@@ -73,11 +70,6 @@ class EvaluatorImpl : public Evaluator {
           Evaluate(ParametricContextScopedExpr(
               parametric_context,
               CreateBoolAnnotation(*expr->owner(), expr->span()), expr)));
-
-      if (expr->kind() == AstNodeKind::kNumber) {
-        literal_cache_.emplace(
-            std::make_pair(BuiltinType::kBool, expr->ToString()), *value);
-      }
     }
     return value->GetBitValueUnsigned();
   }
@@ -164,9 +156,8 @@ class EvaluatorImpl : public Evaluator {
     }
 
     const Expr* expr = std::get<const Expr*>(value_or_expr);
-    const BuiltinType type = is_signed ? BuiltinType::kS32 : BuiltinType::kU32;
-    std::optional<InterpValue> value =
-        FastEvaluate(parametric_context, type, expr);
+    XLS_ASSIGN_OR_RETURN(std::optional<InterpValue> value,
+                         FastEvaluate(parametric_context, expr));
 
     if (!value.has_value()) {
       XLS_RETURN_IF_ERROR(converter_.ConvertSubtree(
@@ -182,10 +173,6 @@ class EvaluatorImpl : public Evaluator {
       XLS_ASSIGN_OR_RETURN(
           value, Evaluate(ParametricContextScopedExpr(parametric_context,
                                                       *type_annotation, expr)));
-
-      if (expr->kind() == AstNodeKind::kNumber) {
-        literal_cache_.emplace(std::make_pair(type, expr->ToString()), *value);
-      }
     }
 
     return value->GetBitValueViaSign();
@@ -193,17 +180,18 @@ class EvaluatorImpl : public Evaluator {
 
   // Evaluates the given `Expr` if there is a faster way to do so than using
   // `ConstexprEvaluator`.
-  std::optional<InterpValue> FastEvaluate(
+  absl::StatusOr<std::optional<InterpValue>> FastEvaluate(
       std::optional<const ParametricContext*> parametric_context,
-      BuiltinType type, const Expr* expr) {
+      const Expr* expr) {
     if (expr->kind() == AstNodeKind::kNumber) {
-      // If it's a literal, it may be cached.
-      const auto it = literal_cache_.find({type, expr->ToString()});
-      if (it != literal_cache_.end()) {
-        return it->second;
-      }
-    } else if (expr->kind() == AstNodeKind::kNameRef &&
-               parametric_context.has_value()) {
+      // The literal's value depends on its resolved type, which can vary by
+      // scope and parametric instantiation.
+      XLS_ASSIGN_OR_RETURN(TypeInfo * type_info,
+                           converter_.GetTypeInfo(parametric_context));
+      return type_info->GetConstExprOption(expr);
+    }
+    if (expr->kind() == AstNodeKind::kNameRef &&
+        parametric_context.has_value()) {
       // If it's a parametric, we can get it from the context.
       const auto* name_ref = absl::down_cast<const NameRef*>(expr);
       if (std::holds_alternative<const NameDef*>(name_ref->name_def())) {
@@ -220,8 +208,6 @@ class EvaluatorImpl : public Evaluator {
   WarningCollector& warning_collector_;
   InferenceTableConverter& converter_;
   TypeSystemTracer& tracer_;
-  absl::flat_hash_map<std::pair<BuiltinType, std::string>, InterpValue>
-      literal_cache_;
 };
 
 }  // namespace
