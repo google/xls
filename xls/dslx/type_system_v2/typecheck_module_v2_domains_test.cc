@@ -382,7 +382,7 @@ const C = u32:42;
 #[fuzz_test(domains=`C`)]
 fn f(x: u8) {}
 )",
-      TypecheckFails(HasSubstr("Unsupported fuzz test domain `C` of type")));
+      TypecheckFails(HasSubstr("Unsupported domain `C` of type")));
 }
 
 TEST(TypecheckV2DomainsTest, FuzzTestImportedRangeDomainTypeMismatch) {
@@ -598,7 +598,7 @@ TEST(TypecheckV2DomainsTest, FuzzTestDomainArrayMismatch) {
 #[fuzz_test(domains=`[u32:0, 16384]`)]
 fn f(x: u8) {}
 )",
-      TypecheckFails(HasSubstr("Fuzz test domain bit count (32) does not match "
+      TypecheckFails(HasSubstr("Domain bit count (32) does not match "
                                "parameter bit count (8)")));
 }
 
@@ -654,8 +654,8 @@ const D = (u32:0..1, u8:0..2, u16:0..3);
 #[fuzz_test(domains=`D`)]
 fn f(x: (u32, u8)) {}
 )",
-      TypecheckFails(HasSubstr(
-          "Fuzz test domain tuple size (3) does not match parameter")));
+      TypecheckFails(
+          HasSubstr("Domain tuple size (3) does not match parameter")));
 }
 
 TEST(TypecheckV2DomainsTest, FuzzTestTupleDomainTypeMismatch) {
@@ -913,7 +913,7 @@ TEST(TypecheckV2DomainsTest, ArrayParamBadDomainSizeMismatch) {
 #[fuzz_test(domains=`(u32:0..10, u32:1..=11, [u32:0])`)]
 fn fuzz_custom_array_domain(t: u32[2]) {}
 )",
-      TypecheckFails(HasSubstr("domain array size (3) exceeds")));
+      TypecheckFails(HasSubstr("Domain array size (3) exceeds")));
 }
 
 TEST(TypecheckV2DomainsTest, ArrayParamBadDomainTypeMismatch) {
@@ -923,7 +923,7 @@ TEST(TypecheckV2DomainsTest, ArrayParamBadDomainTypeMismatch) {
 fn fuzz_custom_array_domain(t: u32[3]) {}
 )",
       TypecheckFails(HasSubstr(
-          "domain bit count (8) does not match parameter bit count (32)")));
+          "Domain bit count (8) does not match parameter bit count (32)")));
 }
 
 TEST(TypecheckV2DomainsTest, ArrayParamNotTupleDomain) {
@@ -932,8 +932,8 @@ TEST(TypecheckV2DomainsTest, ArrayParamNotTupleDomain) {
 #[fuzz_test(domains=`[u32:0..10, u32:1..11]`)]
 fn fuzz_custom_array_domain(t: u32[2]) {}
 )",
-      TypecheckFails(HasSubstr(
-          "Fuzz test domain for array parameter `t: u32[2]` must be a tuple")));
+      TypecheckFails(
+          HasSubstr("Domain for array parameter `t: u32[2]` must be a tuple")));
 }
 
 TEST(TypecheckV2DomainsTest, MixedArrayAndScalarSucceeds) {

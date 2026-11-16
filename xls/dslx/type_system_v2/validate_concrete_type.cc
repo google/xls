@@ -33,6 +33,7 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/common/visitor.h"
 #include "xls/dslx/constexpr_evaluator.h"
+#include "xls/dslx/domain_utils.h"
 #include "xls/dslx/errors.h"
 #include "xls/dslx/exhaustiveness/match_exhaustiveness_checker.h"
 #include "xls/dslx/frontend/ast.h"
@@ -50,7 +51,6 @@
 #include "xls/dslx/type_system/unwrap_meta_type.h"
 #include "xls/dslx/type_system_v2/import_utils.h"
 #include "xls/dslx/type_system_v2/inference_table.h"
-#include "xls/dslx/type_system_v2/validate_fuzz_test_domain.h"
 #include "xls/dslx/warning_collector.h"
 #include "xls/dslx/warning_kind.h"
 #include "xls/ir/bits.h"
@@ -399,9 +399,9 @@ class TypeValidator : public AstNodeVisitorWithDefault {
       const Param* param = node->params()[i];
       std::optional<Type*> maybe_param_type = ti_.GetItem(param);
       XLS_RET_CHECK(maybe_param_type.has_value());
-      XLS_RETURN_IF_ERROR(ValidateFuzzTestDomain(
-          domain, *maybe_param_type, param->ToString(), table_, ti_,
-          warning_collector_, import_data_, file_table_));
+      XLS_RETURN_IF_ERROR(
+          ValidateDomain(domain, *maybe_param_type, param->ToString(), ti_,
+                         warning_collector_, import_data_, file_table_));
     }
 
     return DefaultHandler(node);

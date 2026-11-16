@@ -757,6 +757,30 @@ cc_binary(
 )
 
 cc_library(
+    name = "domain_utils",
+    srcs = ["domain_utils.cc"],
+    hdrs = ["domain_utils.h"],
+    deps = [
+        ":constexpr_evaluator",
+        ":errors",
+        ":import_data",
+        ":interp_value",
+        ":warning_collector",
+        "//xls/common/status:ret_check",
+        "//xls/common/status:status_macros",
+        "//xls/dslx/frontend:ast",
+        "//xls/dslx/frontend:pos",
+        "//xls/dslx/type_system:parametric_env",
+        "//xls/dslx/type_system:type",
+        "//xls/dslx/type_system:type_info",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/strings:str_format",
+    ],
+)
+
+cc_library(
     name = "tabulate",
     srcs = ["tabulate.cc"],
     hdrs = ["tabulate.h"],

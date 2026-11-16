@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "xls/dslx/type_system_v2/validate_fuzz_test_domain.h"
+#include "xls/dslx/domain_utils.h"
 
 #include <cstdint>
 #include <memory>
@@ -21,7 +21,6 @@
 #include <string_view>
 #include <vector>
 
-#include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
@@ -38,7 +37,6 @@
 #include "xls/dslx/type_system/parametric_env.h"
 #include "xls/dslx/type_system/type.h"
 #include "xls/dslx/type_system/type_info.h"
-#include "xls/dslx/type_system_v2/inference_table.h"
 #include "xls/dslx/warning_collector.h"
 
 namespace xls::dslx {
@@ -73,16 +71,16 @@ absl::Status ValidateScalarDomainValue(const InterpValue& domain_value,
     if (domain_bit_count != bits_size) {
       return TypeInferenceErrorStatus(
           span, param_type,
-          absl::Substitute("Fuzz test domain bit count ($0) does not match "
-                           "parameter bit count ($1).",
+          absl::Substitute("Domain bit count ($0) does not match parameter bit "
+                           "count ($1).",
                            domain_bit_count, bits_size),
           file_table);
     }
     if (domain_value.IsSigned() != bits_type->is_signed()) {
       return TypeInferenceErrorStatus(
           span, param_type,
-          absl::Substitute("Fuzz test domain signedness ($0) does not match "
-                           "parameter signedness ($1).",
+          absl::Substitute("Domain signedness ($0) does not match parameter "
+                           "signedness ($1).",
                            domain_value.IsSigned() ? "signed" : "unsigned",
                            bits_type->is_signed() ? "signed" : "unsigned"),
           file_table);
@@ -122,8 +120,8 @@ absl::Status ValidateTupleDomainValue(const InterpValue& value,
   if (!value.IsTuple()) {
     return TypeInferenceErrorStatus(
         span, &param_type,
-        absl::Substitute("Fuzz test domain evaluates to type $0, but "
-                         "parameter '$1' expects a tuple.",
+        absl::Substitute("Domain evaluates to type $0, but parameter '$1' "
+                         "expects a tuple.",
                          TagToString(value.tag()), param_str),
         file_table);
   }
@@ -132,8 +130,8 @@ absl::Status ValidateTupleDomainValue(const InterpValue& value,
   if (elements->size() != param_type.size()) {
     return TypeInferenceErrorStatus(
         span, &param_type,
-        absl::Substitute("Fuzz test domain tuple size ($0) does not match "
-                         "parameter '$1' tuple size ($2).",
+        absl::Substitute("Domain tuple size ($0) does not match parameter '$1' "
+                         "tuple size ($2).",
                          elements->size(), param_str, param_type.size()),
         file_table);
   }
@@ -155,8 +153,8 @@ absl::Status ValidateStructDomainValue(const InterpValue& value,
   if (!value.IsTuple()) {
     return TypeInferenceErrorStatus(
         span, &param_type,
-        absl::Substitute("Fuzz test domain evaluates to type $0, but "
-                         "parameter '$1' expects a struct.",
+        absl::Substitute("Domain evaluates to type $0, but parameter '$1' "
+                         "expects a struct.",
                          TagToString(value.tag()), param_str),
         file_table);
   }
@@ -165,8 +163,8 @@ absl::Status ValidateStructDomainValue(const InterpValue& value,
   if (elements->size() != param_type.size()) {
     return TypeInferenceErrorStatus(
         span, &param_type,
-        absl::Substitute("Fuzz test domain struct size ($0) does not match "
-                         "parameter '$1' struct size ($2).",
+        absl::Substitute("Domain struct size ($0) does not match parameter "
+                         "'$1' struct size ($2).",
                          elements->size(), param_str, param_type.size()),
         file_table);
   }
@@ -197,8 +195,8 @@ absl::Status ValidateArrayDomainValue(const InterpValue& value,
   if (elements->size() > param_array_size) {
     return TypeInferenceErrorStatus(
         span, &param_type,
-        absl::Substitute("Fuzz test domain array size ($0) exceeds "
-                         "parameter '$1' array size ($2).",
+        absl::Substitute("Domain array size ($0) exceeds parameter '$1' array "
+                         "size ($2).",
                          elements->size(), param_str, param_array_size),
         file_table);
   }
@@ -294,13 +292,11 @@ absl::Status ValidateDomainValue(const InterpValue& domain_value,
 
 }  // namespace
 
-absl::Status ValidateFuzzTestDomain(const Expr* domain, const Type* param_type,
-                                    std::string_view param_str,
-                                    const InferenceTable& table,
-                                    const TypeInfo& ti,
-                                    WarningCollector& warning_collector,
-                                    const ImportData& import_data,
-                                    const FileTable& file_table) {
+absl::Status ValidateDomain(const Expr* domain, const Type* param_type,
+                            std::string_view param_str, const TypeInfo& ti,
+                            WarningCollector& warning_collector,
+                            const ImportData& import_data,
+                            const FileTable& file_table) {
   std::optional<Type*> maybe_domain_type = ti.GetItem(domain);
   XLS_RET_CHECK(maybe_domain_type.has_value());
   const Type* domain_type = *maybe_domain_type;
@@ -309,16 +305,16 @@ absl::Status ValidateFuzzTestDomain(const Expr* domain, const Type* param_type,
   if (domain_type->IsStruct() && !param_type->IsStruct()) {
     return TypeInferenceErrorStatus(
         domain->span(), param_type,
-        absl::Substitute("Fuzz test domain `$0` implies a struct type, but "
-                         "parameter `$1` is of type $2.",
+        absl::Substitute("Domain `$0` implies a struct type, but parameter "
+                         "`$1` is of type $2.",
                          domain->ToString(), param_str, param_type->ToString()),
         file_table);
   }
   if (param_type->IsArray() && !domain_type->IsTuple()) {
     return TypeInferenceErrorStatus(
         domain->span(), param_type,
-        absl::Substitute("Fuzz test domain for array parameter `$0` must be a "
-                         "tuple; got type $1",
+        absl::Substitute("Domain for array parameter `$0` must be a tuple; got "
+                         "type $1",
                          param_str, domain_type->ToString()),
         file_table);
   }
@@ -331,8 +327,8 @@ absl::Status ValidateFuzzTestDomain(const Expr* domain, const Type* param_type,
     if (!param_type->IsTuple() && !param_type->IsArray()) {
       return TypeInferenceErrorStatus(
           domain->span(), param_type,
-          absl::Substitute("Fuzz test domain `$0` implies a tuple or array "
-                           "type, but parameter `$1` is of type $2.",
+          absl::Substitute("Domain `$0` implies a tuple or array type, but "
+                           "parameter `$1` is of type $2.",
                            domain->ToString(), param_str,
                            param_type->ToString()),
           file_table);
@@ -343,7 +339,7 @@ absl::Status ValidateFuzzTestDomain(const Expr* domain, const Type* param_type,
       !domain_type->IsStruct()) {
     return TypeInferenceErrorStatus(
         domain->span(), param_type,
-        absl::Substitute("Unsupported fuzz test domain `$0` of type `$1`.",
+        absl::Substitute("Unsupported domain `$0` of type `$1`.",
                          domain->ToString(), domain_type->ToString()),
         file_table);
   }
@@ -353,8 +349,8 @@ absl::Status ValidateFuzzTestDomain(const Expr* domain, const Type* param_type,
   if (!domain_value_status.ok()) {
     return TypeInferenceErrorStatus(
         domain->span(), param_type,
-        absl::StrFormat("Fuzz test domain must be a constexpr expression; "
-                        "evaluation failed: %s",
+        absl::StrFormat("Domain must be a constexpr expression; evaluation "
+                        "failed: %s",
                         domain_value_status.status().message()),
         file_table);
   }

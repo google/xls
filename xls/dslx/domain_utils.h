@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef XLS_DSLX_TYPE_SYSTEM_V2_VALIDATE_FUZZ_TEST_DOMAIN_H_
-#define XLS_DSLX_TYPE_SYSTEM_V2_VALIDATE_FUZZ_TEST_DOMAIN_H_
+#ifndef XLS_DSLX_DOMAIN_UTILS_H_
+#define XLS_DSLX_DOMAIN_UTILS_H_
 
 #include <string_view>
 
@@ -23,21 +23,18 @@
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/type_system/type.h"
 #include "xls/dslx/type_system/type_info.h"
-#include "xls/dslx/type_system_v2/inference_table.h"
 #include "xls/dslx/warning_collector.h"
 
 namespace xls::dslx {
 
-// Validates that a fuzz test domain is compatible with the corresponding
+// Validates that a domain expression is compatible with the corresponding
 // function parameter type. Returns an error if not compatible.
-absl::Status ValidateFuzzTestDomain(const Expr* domain, const Type* param_type,
-                                    std::string_view param_str,
-                                    const InferenceTable& table,
-                                    const TypeInfo& ti,
-                                    WarningCollector& warning_collector,
-                                    const ImportData& import_data,
-                                    const FileTable& file_table);
+absl::Status ValidateDomain(const Expr* domain, const Type* param_type,
+                            std::string_view param_str, const TypeInfo& ti,
+                            WarningCollector& warning_collector,
+                            const ImportData& import_data,
+                            const FileTable& file_table);
 
 }  // namespace xls::dslx
 
-#endif  // XLS_DSLX_TYPE_SYSTEM_V2_VALIDATE_FUZZ_TEST_DOMAIN_H_
+#endif  // XLS_DSLX_DOMAIN_UTILS_H_

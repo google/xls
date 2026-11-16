@@ -1020,9 +1020,8 @@ const C = u32:42;
 fn f(x: u32) -> u32 { x }
 )",
                                 "test_module.x", "test_module", &import_data),
-              absl_testing::StatusIs(
-                  absl::StatusCode::kInvalidArgument,
-                  testing::HasSubstr("Unsupported fuzz test domain")));
+              absl_testing::StatusIs(absl::StatusCode::kInvalidArgument,
+                                     testing::HasSubstr("Unsupported domain")));
 }
 
 TEST(FunctionConverterFuzzTestTest, EmptyArrayDomain) {

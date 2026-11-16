@@ -1261,7 +1261,7 @@ TEST(TypecheckV2FunctionTest, FuzzTestDomainNotSupported) {
 #[fuzz_test(domains=`u8:0`)]
 fn f(x: u8) {}
 )",
-      TypecheckFails(HasSubstr("Unsupported fuzz test domain `u8:0`")));
+      TypecheckFails(HasSubstr("Unsupported domain `u8:0`")));
 }
 
 TEST(TypecheckV2FunctionTest, FuzzTestConstRange) {
