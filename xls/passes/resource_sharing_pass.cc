@@ -2048,6 +2048,14 @@ ResourceSharingPass::SelectFoldingActionsForGraph(
 
 namespace {
 
+// Precomputes visibility IR expressions for all foldings on the unmodified
+// def-use DAG, accumulating expressions across chained foldings.
+//
+// Constructing these expressions on the unmodified def-use DAG prevents
+// foldings from invalidating the analysis used to collect visibility edges,
+// and requires us to accumulate visibility expressions so we can OR them
+// in the event previous foldings have joined a from node of the current
+// folding into other nodes.
 absl::StatusOr<
     absl::flat_hash_map<const NaryFoldingAction*, std::vector<Node*>>>
 PrecomputeVisibilityExpressions(
@@ -2096,6 +2104,206 @@ PrecomputeVisibilityExpressions(
   return precomputed_from_used;
 }
 
+struct MappedNode {
+  Node* node;
+  EquivalenceMapping* mapping = nullptr;
+  std::vector<Node*> coerced_operands;
+};
+
+struct MappedFoldingAction {
+  MappedNode to;
+  std::vector<MappedNode> froms;
+};
+
+// Resolves renamed nodes and applies operand equivalence mappings for a
+// folding's destination and sources.
+absl::StatusOr<MappedFoldingAction> MapFoldingAction(
+    FunctionBase* f, const NaryFoldingAction& folding,
+    const absl::flat_hash_map<Node*, Node*>&
+        renaming_done_by_previous_folding) {
+  std::function<Node*(Node*)> final_renamed_node = [&](Node* initial) -> Node* {
+    if (auto it = renaming_done_by_previous_folding.find(initial);
+        it != renaming_done_by_previous_folding.end()) {
+      return final_renamed_node(it->second);
+    }
+    return initial;
+  };
+  auto map_node = [&](Node* mapping_key,
+                      Node* node) -> absl::StatusOr<MappedNode> {
+    MappedNode mapped{.node = node};
+    if (auto it = folding.mappings().find(mapping_key);
+        it != folding.mappings().end()) {
+      mapped.mapping = it->second.get();
+      XLS_ASSIGN_OR_RETURN(
+          mapped.coerced_operands,
+          mapped.mapping->ApplyToOperands(f, node->operands()));
+    } else {
+      absl::c_copy(node->operands(),
+                   std::back_inserter(mapped.coerced_operands));
+    }
+    return mapped;
+  };
+
+  Node* target_to_node = final_renamed_node(folding.GetTo());
+  XLS_ASSIGN_OR_RETURN(MappedNode to, map_node(target_to_node, target_to_node));
+
+  std::vector<MappedNode> froms;
+  froms.reserve(folding.GetFrom().size());
+  for (const NaryFoldingAction::NodeVisibility& from : folding.GetFrom()) {
+    Node* renamed_node = final_renamed_node(from.node);
+    XLS_ASSIGN_OR_RETURN(MappedNode mapped_from,
+                         map_node(from.node, renamed_node));
+    froms.push_back(std::move(mapped_from));
+  }
+  XLS_RET_CHECK(!froms.empty());
+
+  return MappedFoldingAction{
+      .to = std::move(to),
+      .froms = std::move(froms),
+  };
+}
+
+// Builds the input selector from visibility expressions of a folding's sources.
+//
+// Assumes each expression in `from_used_expressions` is a single-bit selector
+// predicate for the corresponding source, concatenated in reverse order so
+// index 0 occupies the LSB of the `PrioritySelect` selector.
+absl::StatusOr<Node*> BuildSelectorForFolding(
+    FunctionBase* f, Node* target_to_node, int64_t next_node_id,
+    absl::Span<Node* const> from_used_expressions) {
+  XLS_RET_CHECK(!from_used_expressions.empty());
+  for (Node* from_used : from_used_expressions) {
+    VLOG(4) << "        From used: "
+            << ToMathNotation(from_used, [&](const Node* n) -> bool {
+                 return n->id() < next_node_id;
+               });
+  }
+  Node* new_selector = nullptr;
+  if (from_used_expressions.size() > 1) {
+    std::vector<Node*> reversed_from_used(from_used_expressions.rbegin(),
+                                          from_used_expressions.rend());
+    XLS_ASSIGN_OR_RETURN(
+        new_selector,
+        f->MakeNode<Concat>(target_to_node->loc(), reversed_from_used));
+  } else {
+    new_selector = from_used_expressions.front();
+  }
+  XLS_RET_CHECK_NE(new_selector, nullptr);
+  VLOG(3) << "        New selector: " << new_selector->ToString();
+  return new_selector;
+}
+
+// Creates a priority select per operand of the folding target, when source and
+// target operands differ, and verifies no dependency cycles are introduced.
+absl::StatusOr<std::vector<Node*>> SelectFoldedOperands(
+    FunctionBase* f, const NodeBackwardDependencyAnalysis& nda,
+    const MappedFoldingAction& folding, Node* selector) {
+  std::vector<Node*> new_operands;
+  new_operands.reserve(folding.to.coerced_operands.size());
+  for (int64_t op_id = 0; op_id < folding.to.coerced_operands.size(); ++op_id) {
+    VLOG(4) << "        Operand " << op_id;
+    Node* to_operand = folding.to.coerced_operands[op_id];
+
+    // Check if all sources have the same operand of the destination.
+    bool we_need_to_select_operand =
+        absl::c_any_of(folding.froms, [&](const MappedNode& from) {
+          return from.coerced_operands[op_id] != to_operand;
+        });
+    if (!we_need_to_select_operand) {
+      VLOG(4) << "          No need for a select node";
+
+      // The current operand is in common between all sources and the
+      // destination of the folding.
+      // Hence, we do not need to select between them.
+      new_operands.push_back(to_operand);
+      continue;
+    }
+
+    // The current operand is different between the sources and the
+    // destination of the folding. Hence, we need to select which one to
+    // forward to the shared operation (i.e., the one performed by the
+    // destination of the folding).
+    //
+    // Generate all select cases, one for each source of the folding action.
+    std::vector<Node*> operand_select_cases;
+    operand_select_cases.reserve(folding.froms.size());
+    for (const MappedNode& from : folding.froms) {
+      VLOG(4) << "          Source from " << from.node->ToString();
+      operand_select_cases.push_back(from.coerced_operands[op_id]);
+    }
+
+    // Generate a select between the sources of the folding
+    XLS_ASSIGN_OR_RETURN(
+        Node * operand_select,
+        f->MakeNode<PrioritySelect>(folding.to.node->loc(), selector,
+                                    operand_select_cases, to_operand));
+    new_operands.push_back(operand_select);
+    VLOG(3) << "          " << operand_select->ToString();
+  }
+  XLS_RET_CHECK_EQ(new_operands.size(), folding.to.coerced_operands.size());
+
+  // Ensure the priority selects do not depend on any of the folded nodes.
+  // This is to avoid creating a cycle and producing an unrecoverable error.
+  for (Node* new_operand : new_operands) {
+    auto make_error = [&](Node* folded_node, Node* select) {
+      return absl::InternalError(absl::StrFormat(
+          "Folding action input selection would create a cycle with node "
+          "because selection depends on it: %s -> ... -> %s; there is a bug "
+          "in the legalization of folding actions or in visibility analysis",
+          folded_node->ToString(), select->ToString()));
+    };
+    for (const MappedNode& from : folding.froms) {
+      if (nda.IsDependent(from.node, new_operand)) {
+        return make_error(from.node, new_operand);
+      }
+    }
+    if (nda.IsDependent(folding.to.node, new_operand)) {
+      return make_error(folding.to.node, new_operand);
+    }
+  }
+  return new_operands;
+}
+
+// Updates or clones the folding target with `new_operands`, applies output
+// equivalence mappings, replaces uses of folded nodes, removes them from `f`,
+// and records the performed renamings in `renaming_done_by_previous_folding`.
+absl::Status UpdateTargetAndReplaceUses(
+    FunctionBase* f, const MappedFoldingAction& folding,
+    absl::Span<Node* const> new_operands,
+    absl::flat_hash_map<Node*, Node*>& renaming_done_by_previous_folding) {
+  Node* unified_node = nullptr;
+  if (folding.to.mapping != nullptr) {
+    XLS_ASSIGN_OR_RETURN(
+        unified_node,
+        folding.to.mapping->dst()->CloneInNewFunction(new_operands, f));
+    VLOG(3) << "        Created unified node: " << unified_node->ToString();
+  } else {
+    unified_node = folding.to.node;
+    XLS_RETURN_IF_ERROR(
+        ReplaceOperandsIfChanged(folding.to.node, new_operands));
+    VLOG(3) << "        " << folding.to.node->ToString();
+  }
+
+  auto replace_and_remove = [&](const MappedNode& mapped) -> absl::Status {
+    Node* replacement = unified_node;
+    if (mapped.mapping != nullptr) {
+      XLS_ASSIGN_OR_RETURN(replacement,
+                           mapped.mapping->ApplyToOutput(f, unified_node));
+    }
+    XLS_RETURN_IF_ERROR(mapped.node->ReplaceUsesWith(replacement));
+    XLS_RETURN_IF_ERROR(f->RemoveNode(mapped.node));
+    renaming_done_by_previous_folding[mapped.node] = unified_node;
+    return absl::OkStatus();
+  };
+  for (const MappedNode& from : folding.froms) {
+    XLS_RETURN_IF_ERROR(replace_and_remove(from));
+  }
+  if (folding.to.mapping != nullptr) {
+    XLS_RETURN_IF_ERROR(replace_and_remove(folding.to));
+  }
+  return absl::OkStatus();
+}
+
 }  // namespace
 
 absl::StatusOr<std::vector<const NaryFoldingAction*>>
@@ -2105,255 +2313,63 @@ ResourceSharingPass::PerformFoldingActions(
     const NodeBackwardDependencyAnalysis& nda,
     const std::vector<std::unique_ptr<NaryFoldingAction>>&
         folding_actions_to_perform) {
-  std::vector<const NaryFoldingAction*> performed_folding_actions;
-  performed_folding_actions.reserve(folding_actions_to_perform.size());
   VLOG(2) << "There are " << folding_actions_to_perform.size()
           << " folding actions to perform";
 
-  absl::flat_hash_map<Node*, Node*> renaming_done_by_previous_folding;
-  std::function<Node*(Node*)> final_renamed_node = [&](Node* initial) -> Node* {
-    if (auto it = renaming_done_by_previous_folding.find(initial);
-        it != renaming_done_by_previous_folding.end()) {
-      return final_renamed_node(it->second);
-    }
-    return initial;
-  };
-
   // Precompute visibility expressions for foldings prior to transforming.
-  // Constructing these expressions on the unmodified def-use DAG prevents
-  // foldings from invalidating the analysis used to collect visibility edges,
-  // and requires us to accumulate visibility expressions so we can OR them
-  // in the event previous foldings have joined a from node of the current
-  // folding into other nodes.
   XLS_ASSIGN_OR_RETURN(
       (absl::flat_hash_map<const NaryFoldingAction*, std::vector<Node*>>
            precomputed_from_used),
       PrecomputeVisibilityExpressions(f, visibility_builder,
                                       folding_actions_to_perform));
 
-  struct FromSource {
-    Node* node;
-    EquivalenceMapping* mapping;
-    std::vector<Node*> coerced_operands;
-  };
-
   // Perform the folding actions specified
+  absl::flat_hash_map<Node*, Node*> renaming_done_by_previous_folding;
+  std::vector<const NaryFoldingAction*> performed_folding_actions;
+  performed_folding_actions.reserve(folding_actions_to_perform.size());
   for (const std::unique_ptr<NaryFoldingAction>& folding :
        folding_actions_to_perform) {
-    // Get the destination of the folding.
-    // This might have been renamed by previous folding actions already
-    // performed.
-    Node* to_node = folding->GetTo();
-
     // Disable folding already folded sources / destinations because current
     // delay estimates are invalidated and do not take this into account.
-    if (renaming_done_by_previous_folding.contains(to_node)) {
+    if (renaming_done_by_previous_folding.contains(folding->GetTo()) ||
+        absl::c_any_of(folding->GetFrom(),
+                       [&](const NaryFoldingAction::NodeVisibility& from) {
+                         return renaming_done_by_previous_folding.contains(
+                             from.node);
+                       })) {
       continue;
     }
-    bool renamed = false;
-    for (const NaryFoldingAction::NodeVisibility& from : folding->GetFrom()) {
-      if (renaming_done_by_previous_folding.contains(from.node)) {
-        renamed = true;
-        break;
-      }
-    }
-    if (renamed) {
-      continue;
-    }
+    const std::vector<Node*>& from_used_expressions =
+        precomputed_from_used.at(folding.get());
+    XLS_RET_CHECK_EQ(from_used_expressions.size(), folding->GetFrom().size());
+    XLS_ASSIGN_OR_RETURN(
+        MappedFoldingAction mapped_folding,
+        MapFoldingAction(f, *folding, renaming_done_by_previous_folding));
 
-    to_node = final_renamed_node(to_node);
-
-    // If the destination node has an equivalence mapping, apply it.
-    std::vector<Node*> coerced_to_operands;
-    EquivalenceMapping* to_mapping = nullptr;
-    if (auto it = folding->mappings().find(to_node);
-        it != folding->mappings().end()) {
-      to_mapping = it->second.get();
-      XLS_ASSIGN_OR_RETURN(coerced_to_operands,
-                           to_mapping->ApplyToOperands(f, to_node->operands()));
-    } else {
-      absl::c_copy(to_node->operands(),
-                   std::back_inserter(coerced_to_operands));
-    }
-
-    // Fetch the nodes to fold that have not been folded already
-    std::vector<FromSource> froms_to_use;
-    froms_to_use.reserve(folding->GetFrom().size());
-    for (const NaryFoldingAction::NodeVisibility& from : folding->GetFrom()) {
-      Node* from_node = from.node;
-      Node* renamed_node = final_renamed_node(from_node);
-
-      // If the source node has an equivalence mapping, apply it.
-      EquivalenceMapping* mapping = nullptr;
-      std::vector<Node*> coerced_from_operands;
-      if (auto it = folding->mappings().find(from_node);
-          it != folding->mappings().end()) {
-        mapping = it->second.get();
-        XLS_ASSIGN_OR_RETURN(
-            coerced_from_operands,
-            mapping->ApplyToOperands(f, renamed_node->operands()));
-      } else {
-        absl::c_copy(renamed_node->operands(),
-                     std::back_inserter(coerced_from_operands));
-      }
-
-      froms_to_use.push_back(FromSource{
-          .node = renamed_node,
-          .mapping = mapping,
-          .coerced_operands = std::move(coerced_from_operands),
-      });
-
-      // Keep track of the renaming of the nodes that we are about to perform
-      // (from the sources to the destination).
-      // This is to enable additional folding that involves the same nodes (only
-      // if they are all related to the same select).
-      renaming_done_by_previous_folding[renamed_node] = to_node;
-    }
-    XLS_RET_CHECK(!froms_to_use.empty());
-
-    // Print the folding we are about to perform
     VLOG(2) << "  Next folding to perform:\n";
-    VLOG(2) << "    To: " << to_node->ToString();
-    for (const FromSource& from : froms_to_use) {
+    VLOG(2) << "    To: " << mapped_folding.to.node->ToString();
+    for (const MappedNode& from : mapped_folding.froms) {
       VLOG(2) << "      From: " << from.node->ToString();
     }
 
-    // Fold
-    //
-    // - Step 0: Get the subset of the bits of the selector that are relevant.
-    //
-    // At the moment, we assume every source is selected by a single bit from
-    // the selector of the select that made the sources and destination mutually
-    // exclusive.
     VLOG(3) << "      Step 0: generate the new selector";
-    std::vector<Node*> from_used_expressions =
-        precomputed_from_used.at(folding.get());
-    for (Node* from_used : from_used_expressions) {
-      VLOG(4) << "        From used: "
-              << ToMathNotation(from_used, [&](const Node* n) -> bool {
-                   return n->id() < next_node_id;
-                 });
-    }
-    Node* new_selector = nullptr;
-    if (from_used_expressions.size() > 1) {
-      absl::c_reverse(from_used_expressions);
-      XLS_ASSIGN_OR_RETURN(
-          new_selector,
-          f->MakeNode<Concat>(to_node->loc(), from_used_expressions));
-    } else {
-      new_selector = from_used_expressions.front();
-    }
-    XLS_RET_CHECK_NE(new_selector, nullptr);
-    VLOG(3) << "        New selector: " << new_selector->ToString();
+    XLS_ASSIGN_OR_RETURN(
+        Node * new_selector,
+        BuildSelectorForFolding(f, mapped_folding.to.node, next_node_id,
+                                from_used_expressions));
 
-    // - Step 1: Create a new select for each input
     VLOG(3) << "      Step 1: generate the priority selects, one per input of "
                "the folding target";
+    XLS_ASSIGN_OR_RETURN(
+        std::vector<Node*> new_operands,
+        SelectFoldedOperands(f, nda, mapped_folding, new_selector));
 
-    std::vector<Node*> new_operands;
-    for (uint32_t op_id = 0; op_id < coerced_to_operands.size(); op_id++) {
-      VLOG(4) << "        Operand " << op_id;
-
-      // Fetch the current operand for the target of the folding action.
-      Node* to_operand = coerced_to_operands[op_id];
-
-      // Check if all sources have the same operand of the destination.
-      // In this case, we do not need to select which one to forward.
-      bool we_need_to_select_operand = false;
-      for (const FromSource& from : froms_to_use) {
-        if (from.coerced_operands[op_id] != to_operand) {
-          we_need_to_select_operand = true;
-          break;
-        }
-      }
-      if (!we_need_to_select_operand) {
-        VLOG(4) << "          No need for a select node";
-
-        // The current operand is in common between all sources and the
-        // destination of the folding.
-        // Hence, we do not need to select between them.
-        new_operands.push_back(to_operand);
-        continue;
-      }
-
-      // The current operand is different between the sources and the
-      // destination of the folding. Hence, we need to select which one to
-      // forward to the shared operation (i.e., the one performed by the
-      // destination of the folding).
-      //
-      // Generate all select cases, one for each source of the folding action.
-      std::vector<Node*> operand_select_cases;
-      operand_select_cases.reserve(froms_to_use.size());
-      for (const FromSource& from : froms_to_use) {
-        VLOG(4) << "          Source from " << from.node->ToString();
-        operand_select_cases.push_back(from.coerced_operands[op_id]);
-      }
-
-      // Generate a select between the sources of the folding
-      XLS_ASSIGN_OR_RETURN(
-          Node * operand_select,
-          f->MakeNode<PrioritySelect>(to_node->loc(), new_selector,
-                                      operand_select_cases, to_operand));
-      new_operands.push_back(operand_select);
-      VLOG(3) << "          " << operand_select->ToString();
-    }
-    XLS_RET_CHECK_EQ(new_operands.size(), coerced_to_operands.size());
-
-    // Ensure the priority selects do not depend on any of the folded nodes.
-    // This is to avoid creating a cycle and producing an unrecoverable error.
-    for (Node* new_operand : new_operands) {
-      auto make_error = [&](Node* folded_node, Node* select) {
-        return absl::InternalError(absl::StrFormat(
-            "Folding action input selection would create a cycle with node "
-            "because selection depends on it: %s -> ... -> %s; there is a bug "
-            "in the legalization of folding actions or in visibility analysis",
-            folded_node->ToString(), select->ToString()));
-      };
-      for (const FromSource& from : froms_to_use) {
-        if (nda.IsDependent(from.node, new_operand)) {
-          return make_error(from.node, new_operand);
-        }
-      }
-      if (nda.IsDependent(to_node, new_operand)) {
-        return make_error(to_node, new_operand);
-      }
-    }
-
-    // - Step 2: Create unified folded node or update to_node's operands if we
-    //           don't need to create a new destination node.
-    VLOG(3) << "      Step 2: update the target of the folding transformation";
-    Node* unified_node = nullptr;
-    if (to_mapping != nullptr) {
-      XLS_ASSIGN_OR_RETURN(
-          unified_node, to_mapping->dst()->CloneInNewFunction(new_operands, f));
-      VLOG(3) << "        Created unified node: " << unified_node->ToString();
-    } else {
-      unified_node = to_node;
-      XLS_RETURN_IF_ERROR(ReplaceOperandsIfChanged(to_node, new_operands));
-      VLOG(3) << "        " << to_node->ToString();
-    }
-
-    // - Step 3: Replace every source and the destination with the output
-    //           transform applied on the folded node, then remove dead nodes.
-    VLOG(3)
-        << "      Step 3: update the def-use chains to use the new folded node";
-    for (const FromSource& from : froms_to_use) {
-      Node* replacement = unified_node;
-      if (from.mapping != nullptr) {
-        XLS_ASSIGN_OR_RETURN(replacement,
-                             from.mapping->ApplyToOutput(f, unified_node));
-      }
-      XLS_RETURN_IF_ERROR(from.node->ReplaceUsesWith(replacement));
-      XLS_RETURN_IF_ERROR(f->RemoveNode(from.node));
-    }
-    if (to_mapping != nullptr) {
-      XLS_ASSIGN_OR_RETURN(Node * to_replacement,
-                           to_mapping->ApplyToOutput(f, unified_node));
-      XLS_RETURN_IF_ERROR(to_node->ReplaceUsesWith(to_replacement));
-      XLS_RETURN_IF_ERROR(f->RemoveNode(to_node));
-      renaming_done_by_previous_folding[to_node] = unified_node;
-    }
+    VLOG(3) << "      Step 2: update the target of the folding transformation "
+               "and replace uses of the folded nodes";
+    XLS_RETURN_IF_ERROR(UpdateTargetAndReplaceUses(
+        f, mapped_folding, new_operands, renaming_done_by_previous_folding));
     VLOG(3) << "      Folding completed";
+
     performed_folding_actions.push_back(folding.get());
   }
 
