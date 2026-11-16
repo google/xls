@@ -244,6 +244,34 @@ further support the decision.
     using `nullptr` for IR element types is OK when the usage is fully
     encapsulated.
 
+-   For non-node types that are normally passed by reference, use
+    `absl::optional_ref<T>` instead of `std::optional<T*>` (or nullable `T*`)
+    when passing or returning an optional non-owning reference. Because
+    `absl::optional_ref<T>` is not assignable after construction, when
+    conditionally populating one with `XLS_ASSIGN_OR_RETURN`, assign into a
+    temporary `T*` initialized to `nullptr` inside the `if` block and construct
+    the `absl::optional_ref<T>` from that pointer afterward (do not use an
+    immediately-invoked lambda). Avoid `maybe_` prefixes or `_ptr` suffixes on
+    `absl::optional_ref` and `std::optional` variables; name variables after
+    their underlying value or role.
+
+## DSLX
+
+-   Write idiomatic DSLX focused on functional intent, readability, and
+    testability rather than transliterating reference Verilog RTL line-by-line:
+    -   Use `bool` instead of `u1` for 1-bit flags and conditions, `x[i+:bool]`
+        instead of `x[i+:u1] == u1:1`, `std::msb(x)` for the most-significant
+        bit, and strongly-typed `enum`s instead of raw bitvector constants.
+    -   Use `pub struct` with `impl` methods (such as `zero()` or `default()`)
+        rather than bare type aliases, standalone `foo_reset()` helpers, or
+        returning >3-element tuples from `match` arms.
+    -   Separate pure combinational datapath functions from stateful `proc` FSM
+        control logic, and prefer casts and standard library helpers (e.g.,
+        `array_rev(x as u32[8])`) over manually unrolling bit slices.
+    -   Use `PascalCase` for `proc` names, run
+        `dslx_fmt --simplify_type_annotations -i` to remove redundant type
+        annotations, and omit unused `#![feature(...)]` attributes.
+
 ## Protocol buffers
 
 -   Prefer to use
