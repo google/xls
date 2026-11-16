@@ -190,6 +190,35 @@ fn caller() -> bits[32] {
                                          m::Add(m::Param("y"), m::Param("x"))));
 }
 
+TEST_F(InliningPassTest, TransitiveLeafMultiCaller) {
+  const std::string program = R"(
+package some_package
+
+fn callee2(x: bits[32], y: bits[32]) -> bits[32] {
+  ret add.1: bits[32] = add(x, y)
+}
+
+fn callee1(x: bits[32], y: bits[32]) -> bits[32] {
+  ret invoke.2: bits[32] = invoke(x, y, to_apply=callee2)
+}
+
+fn caller(a: bits[32], b: bits[32]) -> bits[32] {
+  invoke.3: bits[32] = invoke(a, b, to_apply=callee1)
+  invoke.4: bits[32] = invoke(b, a, to_apply=callee1)
+  ret add.5: bits[32] = add(invoke.3, invoke.4)
+}
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(auto package, ParsePackage(program));
+  ScopedRecordIr sri(package.get());
+  ASSERT_THAT(Inline(package.get(), InliningPass::InlineDepth::kLeafOnly),
+              IsOkAndHolds(true));
+  Function* f = FindFunction("caller", package.get());
+  Function* c1 = FindFunction("callee1", package.get());
+  EXPECT_THAT(f->return_value(), m::Add(m::Invoke(), m::Invoke()));
+  EXPECT_THAT(c1->return_value(), m::Add(m::Param("x"), m::Param("y")));
+}
+
 TEST_F(InliningPassTest, TransitiveWithFfiLeafFunction) {
   const std::string program = R"(
 package some_package
