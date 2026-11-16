@@ -38,15 +38,15 @@ module neg_proc(
   assign out_load_en = __in_valid_reg & out_flop_rdy;
   assign pipeline_and_io_idle = stage_0_idle & __in_inactive & __out_inactive;
   always_ff @ (posedge clk) begin
+    __in_reg <= in_load_en ? in : __in_reg;
+    __out_reg <= out_load_en ? negate : __out_reg;
+  end
+  always_ff @ (posedge clk) begin
     if (rst) begin
-      __in_reg <= 32'h0000_0000;
       __in_valid_reg <= 1'h0;
-      __out_reg <= 32'h0000_0000;
       __out_valid_reg <= 1'h0;
     end else begin
-      __in_reg <= in_load_en ? in : __in_reg;
       __in_valid_reg <= in_flop_rdy ? in_vld : __in_valid_reg;
-      __out_reg <= out_load_en ? negate : __out_reg;
       __out_valid_reg <= out_flop_rdy ? __in_valid_reg : __out_valid_reg;
     end
   end

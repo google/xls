@@ -37,15 +37,15 @@ module neg_proc(
   assign in_load_en = in_vld & in_flop_rdy;
   assign out_skid_valid_load_en = out_skid_data_load_en | out_skid_valid_set_zero;
   always_ff @ (posedge clk) begin
+    __in_reg <= in_load_en ? in : __in_reg;
+    __out_skid_reg <= out_skid_data_load_en ? negate : __out_skid_reg;
+  end
+  always_ff @ (posedge clk) begin
     if (rst) begin
-      __in_reg <= 32'h0000_0000;
       __in_valid_reg <= 1'h0;
-      __out_skid_reg <= 32'h0000_0000;
       __out_valid_skid_reg <= 1'h0;
     end else begin
-      __in_reg <= in_load_en ? in : __in_reg;
       __in_valid_reg <= in_flop_rdy ? in_vld : __in_valid_reg;
-      __out_skid_reg <= out_skid_data_load_en ? negate : __out_skid_reg;
       __out_valid_skid_reg <= out_skid_valid_load_en ? out_from_skid_rdy : __out_valid_skid_reg;
     end
   end

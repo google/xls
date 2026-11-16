@@ -43,8 +43,10 @@
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
 #include "xls/ir/package.h"
+#include "xls/ir/register.h"
 #include "xls/ir/scheduled_builder.h"
 #include "xls/ir/value.h"
+#include "xls/ir/verifier.h"
 #include "xls/passes/pass_base.h"
 
 namespace xls::codegen {
@@ -957,6 +959,173 @@ TEST_F(ChannelToPortIoLoweringPassTest,
               m::And(_, _,
                      m::TupleIndex(m::Tuple(_, m::InputPort("p3_ch")), 1)),
               m::Literal(3))));
+}
+
+void ExpectRegisterReset(Block* block, std::string_view reg_name,
+                         bool expect_reset) {
+  XLS_ASSERT_OK_AND_ASSIGN(Register * reg, block->GetRegister(reg_name));
+  XLS_ASSERT_OK_AND_ASSIGN(RegisterWrite * reg_write,
+                           block->GetUniqueRegisterWrite(reg));
+  if (expect_reset) {
+    EXPECT_TRUE(reg->reset_value().has_value()) << reg_name;
+    EXPECT_EQ(reg_write->reset(), block->GetResetPort()) << reg_name;
+  } else {
+    EXPECT_FALSE(reg->reset_value().has_value()) << reg_name;
+    EXPECT_FALSE(reg_write->reset().has_value()) << reg_name;
+  }
+}
+
+TEST_F(ChannelToPortIoLoweringPassTest, StreamingIoFlopsRespectResetDataPath) {
+  for (FlopKind flop_kind :
+       {FlopKind::kFlop, FlopKind::kZeroLatency, FlopKind::kSkid}) {
+    for (bool reset_data_path : {false, true}) {
+      auto p = std::make_unique<Package>("test");
+      ScheduledProcBuilder pb(NewStyleProc(), "test_main", p.get());
+      BReceiveChannel a_in = pb.AddInputChannel("a_in", p->GetBitsType(32));
+      BSendChannel a_out = pb.AddOutputChannel("a_out", p->GetBitsType(32));
+      a_in.channel_interface()->SetFlopKind(flop_kind);
+      a_out.channel_interface()->SetFlopKind(flop_kind);
+
+      BValue tkn = pb.Literal(Value::Token());
+      BValue recv = pb.Receive(a_in, tkn);
+      pb.Send(a_out, pb.TupleIndex(recv, 0), pb.TupleIndex(recv, 1));
+      XLS_ASSERT_OK(pb.Build());
+
+      BlockConversionPassOptions options;
+      options.codegen_options.reset("rst", /*asynchronous=*/false,
+                                    /*active_low=*/false,
+                                    /*reset_data_path=*/reset_data_path);
+
+      ASSERT_THAT(Run(p.get(), options), IsOkAndHolds(true));
+      XLS_ASSERT_OK(VerifyPackage(p.get(), {.incomplete_lowering = true}));
+      XLS_ASSERT_OK_AND_ASSIGN(Block * block, p->GetBlock("test_main"));
+
+      if (flop_kind == FlopKind::kFlop || flop_kind == FlopKind::kSkid) {
+        ExpectRegisterReset(block, "__a_in_reg", reset_data_path);
+        ExpectRegisterReset(block, "__a_out_reg", reset_data_path);
+        ExpectRegisterReset(block, "__a_in_valid_reg", /*expect_reset=*/true);
+        ExpectRegisterReset(block, "__a_out_valid_reg", /*expect_reset=*/true);
+      }
+      if (flop_kind == FlopKind::kZeroLatency || flop_kind == FlopKind::kSkid) {
+        ExpectRegisterReset(block, "__a_in_skid_reg", reset_data_path);
+        ExpectRegisterReset(block, "__a_out_skid_reg", reset_data_path);
+        ExpectRegisterReset(block, "__a_in_valid_skid_reg",
+                            /*expect_reset=*/true);
+        ExpectRegisterReset(block, "__a_out_valid_skid_reg",
+                            /*expect_reset=*/true);
+      }
+    }
+  }
+}
+
+TEST_F(ChannelToPortIoLoweringPassTest, StreamingIoFlopsWithoutResetPort) {
+  for (FlopKind flop_kind :
+       {FlopKind::kFlop, FlopKind::kZeroLatency, FlopKind::kSkid}) {
+    auto p = std::make_unique<Package>("test");
+    ScheduledProcBuilder pb(NewStyleProc(), "test_main", p.get());
+    BReceiveChannel a_in = pb.AddInputChannel("a_in", p->GetBitsType(32));
+    BSendChannel a_out = pb.AddOutputChannel("a_out", p->GetBitsType(32));
+    a_in.channel_interface()->SetFlopKind(flop_kind);
+    a_out.channel_interface()->SetFlopKind(flop_kind);
+
+    BValue tkn = pb.Literal(Value::Token());
+    BValue recv = pb.Receive(a_in, tkn);
+    pb.Send(a_out, pb.TupleIndex(recv, 0), pb.TupleIndex(recv, 1));
+    XLS_ASSERT_OK(pb.Build());
+
+    ASSERT_THAT(Run(p.get(), BlockConversionPassOptions(),
+                    /*add_default_reset=*/false),
+                IsOkAndHolds(true));
+    XLS_ASSERT_OK(VerifyPackage(p.get(), {.incomplete_lowering = true}));
+    XLS_ASSERT_OK_AND_ASSIGN(Block * block, p->GetBlock("test_main"));
+
+    for (Register* reg : block->GetRegisters()) {
+      ExpectRegisterReset(block, reg->name(), /*expect_reset=*/false);
+    }
+  }
+}
+
+TEST_F(ChannelToPortIoLoweringPassTest,
+       SingleValueIoFlopsRespectResetDataPath) {
+  for (bool reset_data_path : {false, true}) {
+    auto p = std::make_unique<Package>("test");
+    ScheduledProcBuilder pb(NewStyleProc(), "test_main", p.get());
+    BReceiveChannel a_in = pb.AddInputChannel("a_in", p->GetBitsType(32),
+                                              ChannelKind::kSingleValue);
+    BSendChannel a_out = pb.AddOutputChannel("a_out", p->GetBitsType(32),
+                                             ChannelKind::kSingleValue);
+
+    BValue tkn = pb.Literal(Value::Token());
+    BValue recv = pb.Receive(a_in, tkn);
+    pb.Send(a_out, pb.TupleIndex(recv, 0), pb.TupleIndex(recv, 1));
+    XLS_ASSERT_OK(pb.Build());
+
+    BlockConversionPassOptions options;
+    options.codegen_options.flop_inputs(true);
+    options.codegen_options.flop_outputs(true);
+    options.codegen_options.flop_single_value_channels(true);
+    options.codegen_options.reset("rst", /*asynchronous=*/false,
+                                  /*active_low=*/false,
+                                  /*reset_data_path=*/reset_data_path);
+
+    ASSERT_THAT(Run(p.get(), options), IsOkAndHolds(true));
+    XLS_ASSERT_OK(VerifyPackage(p.get(), {.incomplete_lowering = true}));
+    XLS_ASSERT_OK_AND_ASSIGN(Block * block, p->GetBlock("test_main"));
+
+    ExpectRegisterReset(block, "__a_in_reg", reset_data_path);
+    ExpectRegisterReset(block, "__a_out_reg", reset_data_path);
+  }
+}
+
+TEST_F(ChannelToPortIoLoweringPassTest,
+       IoFlopsWithoutBlockResetPortIgnoreResetDataPathOption) {
+  auto p = std::make_unique<Package>("test");
+  ScheduledProcBuilder pb(NewStyleProc(), "test_main", p.get());
+  BReceiveChannel stream_in =
+      pb.AddInputChannel("stream_in", p->GetBitsType(32));
+  BReceiveChannel sv_in = pb.AddInputChannel("sv_in", p->GetBitsType(32),
+                                             ChannelKind::kSingleValue);
+  BSendChannel stream_out =
+      pb.AddOutputChannel("stream_out", p->GetBitsType(32));
+  BSendChannel sv_out = pb.AddOutputChannel("sv_out", p->GetBitsType(32),
+                                            ChannelKind::kSingleValue);
+  stream_in.channel_interface()->SetFlopKind(FlopKind::kSkid);
+  stream_out.channel_interface()->SetFlopKind(FlopKind::kSkid);
+
+  BValue tkn = pb.Literal(Value::Token());
+  BValue recv_stream = pb.Receive(stream_in, tkn);
+  BValue recv_sv = pb.Receive(sv_in, pb.TupleIndex(recv_stream, 0));
+  BValue send_stream = pb.Send(stream_out, pb.TupleIndex(recv_sv, 0),
+                               pb.TupleIndex(recv_stream, 1));
+  pb.Send(sv_out, send_stream, pb.TupleIndex(recv_sv, 1));
+  XLS_ASSERT_OK(pb.Build());
+
+  PassResults results;
+  BlockConversionContext context;
+  BlockConversionPassOptions no_reset_options;
+  no_reset_options.codegen_options.clock_name("clk");
+  XLS_ASSERT_OK(ScheduledBlockConversionPass()
+                    .Run(p.get(), no_reset_options, &results, context)
+                    .status());
+
+  BlockConversionPassOptions lowering_options = no_reset_options;
+  lowering_options.codegen_options.flop_inputs(true);
+  lowering_options.codegen_options.flop_outputs(true);
+  lowering_options.codegen_options.flop_single_value_channels(true);
+  lowering_options.codegen_options.reset("rst", /*asynchronous=*/false,
+                                         /*active_low=*/false,
+                                         /*reset_data_path=*/true);
+
+  ASSERT_THAT(ChannelToPortIoLoweringPass().Run(p.get(), lowering_options,
+                                                &results, context),
+              IsOkAndHolds(true));
+  XLS_ASSERT_OK(VerifyPackage(p.get(), {.incomplete_lowering = true}));
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block, p->GetBlock("test_main"));
+  ASSERT_FALSE(block->GetResetPort().has_value());
+
+  for (Register* reg : block->GetRegisters()) {
+    ExpectRegisterReset(block, reg->name(), /*expect_reset=*/false);
+  }
 }
 
 }  // namespace

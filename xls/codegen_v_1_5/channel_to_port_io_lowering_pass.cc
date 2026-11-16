@@ -1253,14 +1253,21 @@ absl::flat_hash_set<std::string> GetRamChannelNames(
 // Returns the new register added.
 absl::StatusOr<RegisterRead*> AddRegisterAfterNode(
     std::string_view name_prefix, std::optional<Node*> load_enable,
-    Node* node) {
+    bool reset_register, Node* node) {
   Block* block = node->function_base()->AsBlockOrDie();
+  XLS_RET_CHECK(!reset_register || block->GetResetPort().has_value());
 
   Type* node_type = node->GetType();
   std::string name = absl::StrFormat("__%s_reg", name_prefix);
 
+  std::optional<Value> reset_value;
+  std::optional<Node*> reset_port;
+  if (reset_register) {
+    reset_value = ZeroOfType(node_type);
+    reset_port = block->GetResetPort();
+  }
   XLS_ASSIGN_OR_RETURN(Register * reg,
-                       block->AddRegisterWithZeroResetValue(name, node_type));
+                       block->AddRegister(name, node_type, reset_value));
 
   XLS_ASSIGN_OR_RETURN(RegisterRead * reg_read,
                        block->MakeNodeWithName<RegisterRead>(
@@ -1275,7 +1282,7 @@ absl::StatusOr<RegisterRead*> AddRegisterAfterNode(
                               /*loc=*/node->loc(),
                               /*data=*/node,
                               /*load_enable=*/load_enable,
-                              /*reset=*/block->GetResetPort(),
+                              /*reset=*/reset_port,
                               /*reg=*/reg)
                           .status());
 
@@ -1314,6 +1321,7 @@ absl::Status UpdateRegisterLoadEn(Node* load_en, Register* reg, Block* block) {
 absl::Status AddZeroLatencyBufferToRDVNodes(Node* from_data, Node* from_valid,
                                             std::optional<Node*> from_rdy,
                                             std::string_view name_prefix,
+                                            bool reset_data_path,
                                             Block* block) {
   bool has_ready = from_rdy.has_value();
   if (has_ready) {
@@ -1328,13 +1336,15 @@ absl::Status AddZeroLatencyBufferToRDVNodes(Node* from_data, Node* from_valid,
   XLS_ASSIGN_OR_RETURN(
       RegisterRead * data_skid_reg_read,
       AddRegisterAfterNode(/*name_prefix=*/absl::StrCat(name_prefix, "_skid"),
-                           /*load_enable=*/literal_1, from_data));
+                           /*load_enable=*/literal_1,
+                           /*reset_register=*/reset_data_path, from_data));
 
   XLS_ASSIGN_OR_RETURN(
       RegisterRead * data_valid_skid_reg_read,
       AddRegisterAfterNode(
           /*name_prefix=*/absl::StrCat(name_prefix, "_valid_skid"),
-          /*load_enable=*/literal_1, from_valid));
+          /*load_enable=*/literal_1,
+          /*reset_register=*/block->GetResetPort().has_value(), from_valid));
 
   // If data_valid_skid_reg_read is 1, then data/valid outputs should
   // be selected from the skid set.
@@ -1443,15 +1453,19 @@ absl::Status AddZeroLatencyBufferToRDVNodes(Node* from_data, Node* from_valid,
 //
 absl::Status AddRegisterToRDVNodes(Node* from_data, Node* from_valid,
                                    std::optional<Node*> from_rdy,
-                                   std::string_view name_prefix, Block* block) {
+                                   std::string_view name_prefix,
+                                   bool reset_data_path, Block* block) {
   XLS_ASSIGN_OR_RETURN(
       RegisterRead * data_reg_read,
       AddRegisterAfterNode(/*name_prefix=*/name_prefix,
-                           /*load_enable=*/std::nullopt, from_data));
+                           /*load_enable=*/std::nullopt,
+                           /*reset_register=*/reset_data_path, from_data));
   XLS_ASSIGN_OR_RETURN(
       RegisterRead * valid_reg_read,
       AddRegisterAfterNode(/*name_prefix=*/absl::StrCat(name_prefix, "_valid"),
-                           /*load_enable=*/std::nullopt, from_valid));
+                           /*load_enable=*/std::nullopt,
+                           /*reset_register=*/block->GetResetPort().has_value(),
+                           from_valid));
 
   // 2. Construct and update the ready signal.
   Register* data_reg = data_reg_read->GetRegister();
@@ -1513,7 +1527,7 @@ absl::Status AddRegisterToRDVNodes(Node* from_data, Node* from_valid,
 absl::Status AddSkidBufferToRDVNodes(Node* from_data, Node* from_valid,
                                      std::optional<Node*> from_rdy,
                                      std::string_view name_prefix,
-                                     Block* block) {
+                                     bool reset_data_path, Block* block) {
   // A skid buffer is composed of a zero-latency buffer (skid) fed by a
   // simple pipeline register.
   //
@@ -1527,25 +1541,28 @@ absl::Status AddSkidBufferToRDVNodes(Node* from_data, Node* from_valid,
   // effectively places the register *upstream* of the skid buffer, which is
   // exactly what we want.
   XLS_RETURN_IF_ERROR(AddZeroLatencyBufferToRDVNodes(
-      from_data, from_valid, from_rdy, name_prefix, block));
+      from_data, from_valid, from_rdy, name_prefix, reset_data_path, block));
 
-  XLS_RETURN_IF_ERROR(AddRegisterToRDVNodes(from_data, from_valid, from_rdy,
-                                            name_prefix, block));
+  XLS_RETURN_IF_ERROR(AddRegisterToRDVNodes(
+      from_data, from_valid, from_rdy, name_prefix, reset_data_path, block));
 
   return absl::OkStatus();
 }
 
 absl::Status AddFlopToRDVNodes(FlopKind flop_kind, Node* data, Node* valid,
                                std::optional<Node*> ready,
-                               std::string_view name_prefix, Block* block) {
+                               std::string_view name_prefix,
+                               bool reset_data_path, Block* block) {
   switch (flop_kind) {
     case FlopKind::kZeroLatency:
       return AddZeroLatencyBufferToRDVNodes(data, valid, ready, name_prefix,
-                                            block);
+                                            reset_data_path, block);
     case FlopKind::kSkid:
-      return AddSkidBufferToRDVNodes(data, valid, ready, name_prefix, block);
+      return AddSkidBufferToRDVNodes(data, valid, ready, name_prefix,
+                                     reset_data_path, block);
     case FlopKind::kFlop:
-      return AddRegisterToRDVNodes(data, valid, ready, name_prefix, block);
+      return AddRegisterToRDVNodes(data, valid, ready, name_prefix,
+                                   reset_data_path, block);
     case FlopKind::kNone:
       return absl::OkStatus();
   }
@@ -1555,7 +1572,8 @@ absl::Status AddFlopToRDVNodes(FlopKind flop_kind, Node* data, Node* valid,
 }
 
 absl::Status AddIOFlopsForReceive(Connector& connector, FlopKind flop_kind,
-                                  ChannelRef channel, ScheduledBlock* block,
+                                  ChannelRef channel, bool reset_data_path,
+                                  ScheduledBlock* block,
                                   const BlockConversionPassOptions& options) {
   // NOTE: We control the flop insertion for single-value channels globally,
   // ignoring the flop_kind parameter. This matches the behavior in codegen v1.
@@ -1563,7 +1581,9 @@ absl::Status AddIOFlopsForReceive(Connector& connector, FlopKind flop_kind,
     if (options.codegen_options.flop_inputs() &&
         options.codegen_options.flop_single_value_channels()) {
       return AddRegisterAfterNode(/*name_prefix=*/connector.data->GetName(),
-                                  /*load_enable=*/std::nullopt, connector.data)
+                                  /*load_enable=*/std::nullopt,
+                                  /*reset_register=*/reset_data_path,
+                                  connector.data)
           .status();
     }
     // No flops needed
@@ -1588,11 +1608,13 @@ absl::Status AddIOFlopsForReceive(Connector& connector, FlopKind flop_kind,
             absl::StrCat(ChannelRefName(channel), "_consumer_ready")));
   }
   return AddFlopToRDVNodes(flop_kind, connector.data, *connector.valid,
-                           consumer_ready, ChannelRefName(channel), block);
+                           consumer_ready, ChannelRefName(channel),
+                           reset_data_path, block);
 }
 
 absl::Status AddIOFlopsForSend(Connector& connector, FlopKind flop_kind,
-                               ChannelRef channel, ScheduledBlock* block,
+                               ChannelRef channel, bool reset_data_path,
+                               ScheduledBlock* block,
                                const BlockConversionPassOptions& options) {
   // NOTE: We control the flop insertion for single-value channels globally,
   // ignoring the flop_kind parameter. This matches the behavior in codegen v1.
@@ -1632,6 +1654,7 @@ absl::Status AddIOFlopsForSend(Connector& connector, FlopKind flop_kind,
     // signal.
     return AddRegisterAfterNode(/*name_prefix=*/connector.data->GetName(),
                                 /*load_enable=*/std::nullopt,
+                                /*reset_register=*/reset_data_path,
                                 output_port_data_buf)
         .status();
   }
@@ -1666,7 +1689,7 @@ absl::Status AddIOFlopsForSend(Connector& connector, FlopKind flop_kind,
 
   return AddFlopToRDVNodes(flop_kind, output_port_data_buf,
                            output_port_valid_buf, output_port_ready_buf,
-                           ChannelRefName(channel), block);
+                           ChannelRefName(channel), reset_data_path, block);
 }
 
 absl::Status AddIOFlopsForConnector(Connector& connector, ChannelRef channel,
@@ -1675,12 +1698,17 @@ absl::Status AddIOFlopsForConnector(Connector& connector, ChannelRef channel,
   XLS_ASSIGN_OR_RETURN(
       FlopKind flop_kind,
       GetFlopKind(channel, connector.direction, block, options));
+  const bool reset_data_path =
+      block->GetResetPort().has_value() &&
+      options.codegen_options.reset().has_value() &&
+      options.codegen_options.reset()->reset_data_path();
   switch (connector.direction) {
     case ChannelDirection::kReceive:
-      return AddIOFlopsForReceive(connector, flop_kind, channel, block,
-                                  options);
+      return AddIOFlopsForReceive(connector, flop_kind, channel,
+                                  reset_data_path, block, options);
     case ChannelDirection::kSend:
-      return AddIOFlopsForSend(connector, flop_kind, channel, block, options);
+      return AddIOFlopsForSend(connector, flop_kind, channel, reset_data_path,
+                               block, options);
   }
   ABSL_UNREACHABLE();
   return absl::InternalError(
