@@ -1030,8 +1030,10 @@ class ShiftEquivalenceMapping : public EquivalenceMapping {
     auto bit_typed_two_op_shift = [](Node* node) {
       return node->OpIn({Op::kShll, Op::kShrl, Op::kShra}) &&
              node->operand_count() == 2 && node->GetType()->IsBits() &&
-             node->operand(0)->GetType()->IsBits() &&
-             node->operand(1)->GetType()->IsBits();
+             BothBitsTyped(node->operand(0), node->operand(1)) &&
+             node->BitCountOrDie() > 0 &&
+             node->operand(0)->BitCountOrDie() > 0 &&
+             node->operand(1)->BitCountOrDie() > 0;
     };
     if (!bit_typed_two_op_shift(dst)) {
       return std::nullopt;
@@ -1039,8 +1041,7 @@ class ShiftEquivalenceMapping : public EquivalenceMapping {
     bool needs_msb_padding = false;
     int64_t target_shift_width = dst->operand(1)->BitCountOrDie();
     for (Node* src : sources) {
-      // We gain nothing by handling edge case where src and dst have same op.
-      if (!bit_typed_two_op_shift(src) || src->op() == dst->op()) {
+      if (!bit_typed_two_op_shift(src)) {
         return std::nullopt;
       }
       // Cannot shift a value that is a larger bit width.
@@ -1048,13 +1049,12 @@ class ShiftEquivalenceMapping : public EquivalenceMapping {
           src->operand(0)->BitCountOrDie() > dst->operand(0)->BitCountOrDie()) {
         return std::nullopt;
       }
-      if (dst->op() == Op::kShra) {
-        // The destination must be 0-padded if the source is not shra and the
-        // bit-widths are equal, since an arithmetic shift would fill in 1s.
-        if (src->op() != Op::kShra && (src->operand(0)->BitCountOrDie() ==
-                                       dst->operand(0)->BitCountOrDie())) {
-          needs_msb_padding = true;
-        }
+      // An shra destination must be 0-padded if a non-shra source has the same
+      // value bit-width, since an arithmetic shift would otherwise fill in 1s.
+      if (dst->op() == Op::kShra && src->op() != Op::kShra &&
+          src->operand(0)->BitCountOrDie() ==
+              dst->operand(0)->BitCountOrDie()) {
+        needs_msb_padding = true;
       }
       target_shift_width =
           std::max(target_shift_width, src->operand(1)->BitCountOrDie());
@@ -1065,8 +1065,7 @@ class ShiftEquivalenceMapping : public EquivalenceMapping {
     bool needs_dst_wider = needs_msb_padding || needs_shift_amt_wider;
 
     if (!needs_dst_wider) {
-      return ComputeMappingsSourcesToDest<ShiftEquivalenceMapping>(sources,
-                                                                   dst);
+      return MapSourcesToDest(sources, dst, /*tmp_package=*/nullptr);
     }
 
     int64_t target_val_width =
@@ -1075,8 +1074,7 @@ class ShiftEquivalenceMapping : public EquivalenceMapping {
         (PackageAndNode p_and_dst),
         CreateModifiedShiftPackage(dst, target_val_width, target_shift_width));
     NodeToMappings mappings =
-        ComputeMappingsSourcesToDest<ShiftEquivalenceMapping>(
-            sources, p_and_dst.node, p_and_dst.package);
+        MapSourcesToDest(sources, p_and_dst.node, p_and_dst.package);
     mappings[dst] = std::make_unique<BitwidthExtendingEquivalenceMapping>(
         dst, p_and_dst.node, p_and_dst.package);
     return mappings;
@@ -1173,6 +1171,24 @@ class ShiftEquivalenceMapping : public EquivalenceMapping {
     }
     // reverse, slice, and extend ops are pure wire operations.
     return 0.0;
+  }
+
+ private:
+  static NodeToMappings MapSourcesToDest(absl::Span<Node* const> sources,
+                                         Node* dst,
+                                         std::shared_ptr<Package> tmp_package) {
+    NodeToMappings mappings;
+    mappings.reserve(sources.size());
+    for (Node* src : sources) {
+      if (src->op() == dst->op()) {
+        mappings[src] = std::make_unique<BitwidthExtendingEquivalenceMapping>(
+            src, dst, tmp_package);
+      } else {
+        mappings[src] =
+            std::make_unique<ShiftEquivalenceMapping>(src, dst, tmp_package);
+      }
+    }
+    return mappings;
   }
 };
 

@@ -1722,6 +1722,37 @@ TYPED_TEST_P(ResourceSharingPassTestBase, MergeAllShiftsTogether) {
   EXPECT_EQ(NumberOfShifts(f), 1);
 }
 
+TYPED_TEST_P(ResourceSharingPassTestBase,
+             MergeMixedSameAndCrossOpShiftsWithWiderShiftAmounts) {
+  // Mutually exclusive shifts spanning shll, shrl, and two shra ops with 3-bit,
+  // 5-bit, and 8-bit shift amounts fold into a single barrel shifter.
+  auto p = this->CreatePackage();
+  FunctionBuilder fb(this->TestName(), p.get());
+  Type* u8 = p->GetBitsType(8);
+  Type* u5 = p->GetBitsType(5);
+  Type* u3 = p->GetBitsType(3);
+  BValue cond = fb.Param("cond", p->GetBitsType(2));
+  BValue x0 = fb.Param("x0", u8);
+  BValue x1 = fb.Param("x1", u8);
+  BValue x2 = fb.Param("x2", u8);
+  BValue x3 = fb.Param("x3", u8);
+  BValue s3 = fb.Param("s3", u3);
+  BValue s5 = fb.Param("s5", u5);
+  BValue s8 = fb.Param("s8", u8);
+
+  BValue shll_s3 = fb.Shll(x0, s3);
+  BValue shrl_s8 = fb.Shrl(x1, s8);
+  BValue shra_s3 = fb.Shra(x2, s3);
+  BValue shra_s5 = fb.Shra(x3, s5);
+  BValue sel = fb.Select(cond, {shll_s3, shrl_s8, shra_s3, shra_s5});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(sel));
+  EXPECT_EQ(NumberOfShifts(f), 4);
+
+  ScopedVerifyEquivalence check_equivalent(f, absl::Seconds(10));
+  EXPECT_THAT(this->Run(f), IsOkAndHolds(true));
+  EXPECT_EQ(NumberOfShifts(f), 1);
+}
+
 TYPED_TEST_P(ResourceSharingPassTestBase, MergeComparisonAndSubtract) {
   std::unique_ptr<Package> p = this->CreatePackage();
   FunctionBuilder fb(this->TestName(), p.get());
@@ -1867,9 +1898,9 @@ REGISTER_TYPED_TEST_SUITE_P(
     MergeAddsWithDifferentBitwidths, MergeSubs, MergeSubs2,
     MergeSubsWithDifferentBitwidths, MergeAddsAndSubs, MergeShift,
     MergeShiftLeftAndRight, MergeShiftLogicalAndArithmetic,
-    MergeAllShiftsTogether, MergeComparisonAndSubtract,
-    MergeCrossSignMultiplications, MergeSwappedOperandMultiplications,
-    MergeCrossSignAndSwappedMultiplications,
+    MergeAllShiftsTogether, MergeMixedSameAndCrossOpShiftsWithWiderShiftAmounts,
+    MergeComparisonAndSubtract, MergeCrossSignMultiplications,
+    MergeSwappedOperandMultiplications, MergeCrossSignAndSwappedMultiplications,
     MergeMultipliesAndAddsUsedByTwoSelects, PreventCyclesInFoldingChains,
     PreventCyclesInFoldingChainsNary, PreventCyclesInFoldingChainsIndirect);
 

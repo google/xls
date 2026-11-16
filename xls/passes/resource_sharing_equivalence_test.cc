@@ -1855,5 +1855,179 @@ INSTANTIATE_TEST_SUITE_P(MulEquivalenceMappingAsymmetricWidthSweepTests,
                                            std::pair<int64_t, int64_t>{2, 3},
                                            std::pair<int64_t, int64_t>{3, 5}));
 
+TEST_F(ResourceSharingEquivalenceTest,
+       ShiftEquivalenceMappingMixedNarySameOpUsesBitwidthExtension) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetBitsType(8));
+  BValue s3 = fb.Param("s3", p->GetBitsType(3));
+  BValue s8 = fb.Param("s8", p->GetBitsType(8));
+  BValue shll_s3 = fb.Shll(x, s3);
+  BValue shra_s3 = fb.Shra(x, s3);
+  BValue shra_s8 = fb.Shra(x, s8);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(shra_s8));
+  FakeAreaEstimator area_estimator;
+
+  // In a mixed N-ary group targeting shra_s8, the same-op source shra_s3 must
+  // map via BitwidthExtendingEquivalenceMapping (0 XOR overhead, SignExt on the
+  // shifted value, ZeroExt on the shift amount).
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::optional<NodeToMappings> mappings,
+      GetNodeEquivalenceMapper().ComputeMappings(
+          {shll_s3.node(), shra_s3.node()}, shra_s8.node()));
+  ASSERT_TRUE(mappings.has_value());
+
+  const EquivalenceMapping& same_op_map = *mappings->at(shra_s3.node());
+  EXPECT_EQ(same_op_map.dst()->op(), Op::kShra);
+  EXPECT_EQ(same_op_map.dst()->operand(0)->BitCountOrDie(), 9);
+  EXPECT_EQ(same_op_map.dst()->operand(1)->BitCountOrDie(), 8);
+  EXPECT_THAT(same_op_map.EstimateAreaOverhead(
+                  area_estimator, shra_s3.node()->operands(), shra_s3.node()),
+              IsOkAndHolds(0.0));
+  EXPECT_THAT(same_op_map.ApplyToOperands(f, shra_s3.node()->operands()),
+              IsOkAndHolds(ElementsAre(m::SignExt(m::Param("x")),
+                                       m::ZeroExt(m::Param("s3")))));
+  EXPECT_THAT(VerifyEquivalence(f, shra_s3.node(), same_op_map),
+              IsOkAndHolds(m::BitSlice(m::Shra(m::SignExt(m::Param("x")),
+                                               m::ZeroExt(m::Param("s3"))),
+                                       /*start=*/0, /*width=*/8)));
+}
+
+struct ShiftSpec {
+  Op op;
+  int64_t val_width;
+  int64_t shift_width;
+};
+
+struct ShiftNaryCase {
+  std::string test_name;
+  std::vector<ShiftSpec> sources;
+  ShiftSpec dst;
+  ShiftSpec expected_dst;
+  bool expect_dst_modified;
+};
+
+class ShiftEquivalenceMappingNaryTest
+    : public ResourceSharingEquivalenceTest,
+      public ::testing::WithParamInterface<ShiftNaryCase> {};
+
+TEST_P(ShiftEquivalenceMappingNaryTest, FoldsAndPreservesEquivalence) {
+  const ShiftNaryCase& tc = GetParam();
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  int64_t param_idx = 0;
+  auto build_shift = [&](const ShiftSpec& spec) -> Node* {
+    BValue val = fb.Param(absl::StrCat("p", param_idx++),
+                          p->GetBitsType(spec.val_width));
+    BValue shamt = fb.Param(absl::StrCat("p", param_idx++),
+                            p->GetBitsType(spec.shift_width));
+    return fb.AddBinOp(spec.op, val, shamt).node();
+  };
+
+  std::vector<Node*> sources;
+  sources.reserve(tc.sources.size());
+  for (const ShiftSpec& src_spec : tc.sources) {
+    sources.push_back(build_shift(src_spec));
+  }
+  Node* dst = build_shift(tc.dst);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::optional<NodeToMappings> mappings,
+      GetNodeEquivalenceMapper().ComputeMappings(sources, dst));
+  ASSERT_TRUE(mappings.has_value());
+  EXPECT_EQ(mappings->size(),
+            sources.size() + (tc.expect_dst_modified ? 1 : 0));
+  EXPECT_EQ(mappings->contains(dst), tc.expect_dst_modified);
+
+  Node* unified_dst = mappings->at(sources[0])->dst();
+  EXPECT_EQ(unified_dst->op(), tc.expected_dst.op);
+  EXPECT_EQ(unified_dst->BitCountOrDie(), tc.expected_dst.val_width);
+  EXPECT_EQ(unified_dst->operand(0)->BitCountOrDie(),
+            tc.expected_dst.val_width);
+  EXPECT_EQ(unified_dst->operand(1)->BitCountOrDie(),
+            tc.expected_dst.shift_width);
+
+  for (const auto& [node, mapping] : *mappings) {
+    EXPECT_EQ(mapping->dst(), unified_dst);
+    XLS_ASSERT_OK(VerifyEquivalence(f, node, *mapping).status());
+  }
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    ShiftEquivalenceMappingNaryTests, ShiftEquivalenceMappingNaryTest,
+    ::testing::ValuesIn<ShiftNaryCase>({
+        // Same-op binary edges with wider source shift amounts.
+        {
+            .test_name = "SameOpWiderShiftAmountShll",
+            .sources = {{Op::kShll, 8, 8}},
+            .dst = {Op::kShll, 8, 3},
+            .expected_dst = {Op::kShll, 8, 8},
+            .expect_dst_modified = true,
+        },
+        {
+            .test_name = "SameOpWiderShiftAmountShrl",
+            .sources = {{Op::kShrl, 8, 8}},
+            .dst = {Op::kShrl, 8, 3},
+            .expected_dst = {Op::kShrl, 8, 8},
+            .expect_dst_modified = true,
+        },
+        {
+            .test_name = "SameOpWiderShiftAmountShra",
+            .sources = {{Op::kShra, 8, 8}},
+            .dst = {Op::kShra, 8, 3},
+            .expected_dst = {Op::kShra, 8, 8},
+            .expect_dst_modified = true,
+        },
+        {
+            .test_name = "SameOpNarrowerValueWiderShiftAmountShra",
+            .sources = {{Op::kShra, 4, 8}},
+            .dst = {Op::kShra, 8, 3},
+            .expected_dst = {Op::kShra, 8, 8},
+            .expect_dst_modified = true,
+        },
+        // Mixed same-op and cross-op N-ary groups across destination opcodes.
+        {
+            .test_name = "MixedSameAndCrossOpIntoShllNoWidening",
+            .sources = {{Op::kShll, 4, 3},
+                        {Op::kShrl, 8, 3},
+                        {Op::kShra, 8, 3}},
+            .dst = {Op::kShll, 8, 3},
+            .expected_dst = {Op::kShll, 8, 3},
+            .expect_dst_modified = false,
+        },
+        {
+            .test_name = "MixedSameAndCrossOpIntoShrlWithShiftWidening",
+            .sources = {{Op::kShrl, 4, 8},
+                        {Op::kShll, 8, 3},
+                        {Op::kShra, 8, 5}},
+            .dst = {Op::kShrl, 8, 3},
+            .expected_dst = {Op::kShrl, 8, 8},
+            .expect_dst_modified = true,
+        },
+        {
+            .test_name = "MixedSameAndCrossOpIntoShraNarrowCrossOpNoMsbPadding",
+            .sources = {{Op::kShll, 4, 3},
+                        {Op::kShrl, 4, 3},
+                        {Op::kShra, 8, 3}},
+            .dst = {Op::kShra, 8, 3},
+            .expected_dst = {Op::kShra, 8, 3},
+            .expect_dst_modified = false,
+        },
+        {
+            .test_name =
+                "MixedSameAndCrossOpIntoShraWithMsbPaddingAndShiftWidening",
+            .sources = {{Op::kShll, 8, 3},
+                        {Op::kShrl, 8, 8},
+                        {Op::kShra, 8, 8}},
+            .dst = {Op::kShra, 8, 3},
+            .expected_dst = {Op::kShra, 9, 8},
+            .expect_dst_modified = true,
+        },
+    }),
+    [](const ::testing::TestParamInfo<ShiftNaryCase>& info) {
+      return info.param.test_name;
+    });
+
 }  // namespace
 }  // namespace xls
