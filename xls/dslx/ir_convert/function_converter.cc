@@ -4196,6 +4196,27 @@ FunctionConverter::DefineBoundProcDefMember(const ProcDef* proc_def,
     return std::nullopt;
   }
   if (implicit_decls.size() != channel_refs.size()) {
+    // A member array lowers to one channel array, so all of its elements
+    // must be the same kind: either ports of `proc_def` (forwarded or left
+    // unbound) or channels owned by `proc_def` (bound). A forwarded element is
+    // a port supplied from outside `proc_def`, while a bound element is a
+    // channel inside it, so an array that mixes the two cannot be lowered.
+    const bool any_forwarded =
+        absl::c_any_of(channel_refs, [&](const InterpValue& channel_ref) {
+          return current_type_info_->channel_manager()
+              .GetForwardedChannel(proc_def, channel_ref)
+              .has_value();
+        });
+    if (any_forwarded) {
+      return IrConversionErrorStatus(
+          member->span(),
+          absl::Substitute(
+              "Io object `$0` of `$1` mixes bound and forwarded elements. An "
+              "array member must be entirely outside ports (forwarded or "
+              "unbound) or entirely internal channels (bound).",
+              member->name(), proc_def->identifier()),
+          file_table());
+    }
     return IrConversionErrorStatus(
         member->span(),
         absl::Substitute("Io object `$0` of `$1` is only partially bound.",
@@ -4422,7 +4443,7 @@ absl::Status FunctionConverter::AddProcDefIoObjectArgs(
     if (callee_constructor_ti->channel_manager()
             .GetImplicitChannelDecl(callee, canonical_channel_refs[i])
             .has_value()) {
-      // `proc_def` can't also bind an endpoint that `callee` binds.
+      // `proc_def` can't also bind or forward an endpoint that `callee` binds.
       if (std::optional<const ImplicitChannelDecl*> parent_decl =
               constructor_ti->channel_manager().GetImplicitChannelDecl(
                   proc_def, external_channel_refs[i]);
@@ -4435,6 +4456,26 @@ absl::Status FunctionConverter::AddProcDefIoObjectArgs(
                              proc_def->identifier()),
             file_table());
       }
+      if (std::optional<const ForwardedChannel*> parent_forward =
+              constructor_ti->channel_manager().GetForwardedChannel(
+                  proc_def, external_channel_refs[i]);
+          parent_forward.has_value()) {
+        return IrConversionErrorStatus(
+            (*parent_forward)->origin->span(),
+            absl::Substitute("Io object `$0` of `$1` is already bound inside "
+                             "`$1`, so `$2` cannot forward it.",
+                             member->name(), callee->identifier(),
+                             proc_def->identifier()),
+            file_table());
+      }
+      continue;
+    }
+    if (std::optional<const ForwardedChannel*> forwarded =
+            constructor_ti->channel_manager().GetForwardedChannel(
+                proc_def, external_channel_refs[i]);
+        forwarded.has_value()) {
+      XLS_RETURN_IF_ERROR(ExpandProcDefChannelReference(
+          (*forwarded)->GetCallerEnd(), channel_args));
       continue;
     }
     std::optional<const ImplicitChannelDecl*> implicit_decl =
@@ -4444,7 +4485,7 @@ absl::Status FunctionConverter::AddProcDefIoObjectArgs(
       return IrConversionErrorStatus(
           member->span(),
           absl::Substitute("Io object `$0` of `$1` spawned by `$2` is not "
-                           "bound.",
+                           "bound or forwarded.",
                            member->name(), callee->identifier(),
                            proc_def->identifier()),
           file_table());

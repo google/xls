@@ -272,6 +272,8 @@ cc_library(
     srcs = ["channel_manager.cc"],
     hdrs = ["channel_manager.h"],
     deps = [
+        "//xls/common/status:status_macros",
+        "//xls/dslx:channel_direction",
         "//xls/dslx:errors",
         "//xls/dslx:interp_value",
         "//xls/dslx:interp_value_utils",

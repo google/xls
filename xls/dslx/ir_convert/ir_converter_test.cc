@@ -8902,7 +8902,7 @@ impl Top {
 )")),
       StatusIs(absl::StatusCode::kInternal,
                HasSubstr("Io object `input` of `Loopback` spawned by `Top` is "
-                         "not bound.")));
+                         "not bound or forwarded.")));
 }
 
 // `Child` binds its own `input`, so `Top` binding `c.input` too would leave
@@ -8960,6 +8960,34 @@ impl Top {
               StatusIs(absl::StatusCode::kInternal,
                        HasSubstr("Io object `ins` of `Child` is already bound "
                                  "inside `Child`, so `Top` cannot bind it.")));
+}
+
+// `Child` binds its own `input`, so `Top` can't forward its own `input` to it.
+TEST_F(IrConverterTest, ProcDefForwardOfChildInternallyBoundEndpointIsError) {
+  EXPECT_THAT(ConvertModuleForTest(R"(#![feature(io_objects)]
+proc Child { snk: Sink<u32>, input: Source<u32> }
+impl Child {
+  fn new() -> Self {
+    let c = Child {};
+    c.snk.bind(c.input);
+    c
+  }
+}
+proc Top { input: Source<u32> }
+impl Top {
+  fn new() -> Self {
+    let top = Top {};
+    let c = Child::new();
+    top.input.forward(c.input);
+    c.spawn();
+    top
+  }
+}
+)"),
+              StatusIs(absl::StatusCode::kInternal,
+                       HasSubstr("Io object `input` of `Child` is already "
+                                 "bound inside `Child`, so `Top` cannot "
+                                 "forward it.")));
 }
 
 // A child proc with a 2-element io object array of each direction.
@@ -9136,6 +9164,152 @@ impl Top {
               StatusIs(absl::StatusCode::kInternal,
                        HasSubstr("Io object `to_child` of `Top` is only "
                                  "partially bound.")));
+}
+
+TEST_F(IrConverterTest, ProcDefForwardsLoopback) {
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string ir, ConvertModuleForTest(absl::StrCat(kIoLoopbackProc, R"(
+proc Top { input: Source<u32>, output: Sink<u32> }
+impl Top {
+  fn new() -> Self {
+    let top = Top {};
+    let c = Loopback::new();
+    top.input.forward(c.input);
+    c.output.forward(top.output);
+    c.spawn();
+    top
+  }
+}
+)")));
+  ExpectIr(ir);
+}
+
+TEST_F(IrConverterTest, ProcDefForwardAndBindPipeline) {
+  constexpr std::string_view kPipeline = R"(
+proc Main { input: Source<u32>, output: Sink<u32> }
+impl Main {
+  fn new() -> Self {
+    let main = Main {};
+    let stage1 = Loopback::new();
+    let stage2 = Loopback::new();
+    main.input.forward(stage1.input);
+    stage1.output.bind(stage2.input);
+    stage2.output.forward(main.output);
+    stage1.spawn();
+    stage2.spawn();
+    main
+  }
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string io_ir, ConvertModuleForTest(absl::StrCat(
+                                                  kIoLoopbackProc, kPipeline)));
+  ExpectIr(io_ir);
+
+  constexpr std::string_view kExplicit = R"(
+proc Loopback { input: chan<u32> in, output: chan<u32> out }
+impl Loopback {
+  fn new(input: chan<u32> in, output: chan<u32> out) -> Self {
+    Loopback { input, output }
+  }
+}
+proc Main { input: chan<u32> in, output: chan<u32> out }
+impl Main {
+  fn new(input: chan<u32> in, output: chan<u32> out) -> Self {
+    let (s1_out, s2_in) = chan<u32>("output");
+    Loopback::new(input, s1_out).spawn();
+    Loopback::new(s2_in, output).spawn();
+    Main { input, output }
+  }
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string explicit_ir,
+                           ConvertModuleForTest(kExplicit));
+  EXPECT_EQ(io_ir, explicit_ir);
+}
+
+TEST_F(IrConverterTest, ProcDefForwardsMultiLevel) {
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string ir, ConvertModuleForTest(absl::StrCat(kIoLoopbackProc, R"(
+proc Mid { input: Source<u32>, output: Sink<u32> }
+impl Mid {
+  fn new() -> Self {
+    let m = Mid {};
+    let l = Loopback::new();
+    m.input.forward(l.input);
+    l.output.forward(m.output);
+    l.spawn();
+    m
+  }
+}
+proc Top { input: Source<u32>, output: Sink<u32> }
+impl Top {
+  fn new() -> Self {
+    let top = Top {};
+    let m = Mid::new();
+    top.input.forward(m.input);
+    m.output.forward(top.output);
+    m.spawn();
+    top
+  }
+}
+)")));
+  ExpectIr(ir);
+}
+
+TEST_F(IrConverterTest, ProcDefForwards2DChannelArray) {
+  XLS_ASSERT_OK_AND_ASSIGN(std::string ir, ConvertModuleForTest(R"(
+#![feature(io_objects)]
+proc LoopbackArray { ins: Source<u32>[2], outs: Sink<u32>[2] }
+impl LoopbackArray {
+  fn new() -> Self { LoopbackArray {} }
+}
+proc Top { ins: Source<u32>[2][2], outs: Sink<u32>[2][2] }
+impl Top {
+  fn new() -> Self {
+    let top = Top {};
+    const for (i, _) in u32:0..2 {
+      let c = LoopbackArray::new();
+      const for (j, _) in u32:0..2 {
+        top.ins[i][j].forward(c.ins[j]);
+        c.outs[j].forward(top.outs[i][j]);
+      }(());
+      c.spawn();
+    }(());
+    top
+  }
+}
+)"));
+  ExpectIr(ir);
+}
+
+// `ins[0]` is forwarded, so it must be a port supplied from outside `Top`.
+// `ins[1]` is bound, so it must be a channel inside `Top`. One array cannot be
+// both.
+TEST_F(IrConverterTest, ProcDefForwardAndBindSameArrayIsError) {
+  EXPECT_THAT(ConvertModuleForTest(R"(
+#![feature(io_objects)]
+proc Consumer { input: Source<u32> }
+impl Consumer {
+  fn new() -> Self { Consumer {} }
+}
+proc Top { ins: Source<u32>[2], feed: Sink<u32> }
+impl Top {
+  fn new() -> Self {
+    let top = Top {};
+    let c = Consumer::new();
+    top.ins[0].forward(c.input);   // ins[0]: data comes from outside Top
+    top.feed.bind(top.ins[1]);     // ins[1]: data comes from inside Top
+    c.spawn();
+    top
+  }
+}
+)"),
+              StatusIs(absl::StatusCode::kInternal,
+                       HasSubstr("Io object `ins` of `Top` mixes bound and "
+                                 "forwarded elements. An array member must be "
+                                 "entirely outside ports (forwarded or "
+                                 "unbound) or entirely internal channels "
+                                 "(bound).")));
 }
 
 TEST_F(IrConverterTest, ConvertFilesToPackageWithSourceAndSinkMembers) {
