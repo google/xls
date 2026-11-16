@@ -550,6 +550,40 @@ TEST_P(VerilogConversionTest, BlockWithAssertNoLabel) {
                          "{message}, {rst}")));
 }
 
+TEST_P(VerilogConversionTest, BlockWithAssertAsyncReset) {
+  for (bool active_low : {false, true}) {
+    Package package(TestBaseName());
+    BlockBuilder b(TestBaseName(), &package);
+    BValue rst = b.ResetPort("my_rst", ResetBehavior{.asynchronous = true,
+                                                     .active_low = active_low});
+    BValue a = b.InputPort("a", package.GetBitsType(32));
+    BValue a_d = b.InsertRegister("a_d", a, rst, Value(UBits(123, 32)));
+    b.Assert(b.AfterAll({}), b.ULt(a_d, b.Literal(UBits(42, 32))),
+             "a is not greater than 42");
+    XLS_ASSERT_OK(b.block()->AddClockPort("my_clk"));
+    XLS_ASSERT_OK_AND_ASSIGN(Block * block, b.Build());
+    CodegenOptions options = codegen_options("my_clk").reset(
+        "my_rst", /*asynchronous=*/true, active_low, /*reset_data_path=*/false);
+    XLS_ASSERT_OK_AND_ASSIGN(std::string verilog,
+                             GenerateVerilog(block, options));
+    if (UseSystemVerilog()) {
+      if (active_low) {
+        EXPECT_THAT(
+            verilog,
+            HasSubstr(
+                R"(assert property (@(posedge my_clk) disable iff (my_rst !== 1'h1 || $sampled($isunknown(ult_7))) ult_7) else $fatal(0, "a is not greater than 42");)"));
+      } else {
+        EXPECT_THAT(
+            verilog,
+            HasSubstr(
+                R"(assert property (@(posedge my_clk) disable iff (my_rst !== 1'h0 || $sampled($isunknown(ult_7))) ult_7) else $fatal(0, "a is not greater than 42");)"));
+      }
+    } else {
+      EXPECT_THAT(verilog, Not(HasSubstr("assert")));
+    }
+  }
+}
+
 TEST_P(VerilogConversionTest, BlockWithAssertWithLabel) {
   Package package(TestBaseName());
   BlockBuilder b(TestBaseName(), &package);

@@ -1160,6 +1160,14 @@ absl::StatusOr<NodeRepresentation> ModuleBuilder::EmitAssert(
   // is in an invalid state.
   Expression* disable_iff = file_->Make<SystemFunctionCall>(
       asrt->loc(), "isunknown", std::vector<Expression*>({condition}));
+  if (clock() != nullptr && reset().has_value() && reset()->asynchronous) {
+    // When reset is asynchronous, the reset signal itself must remain
+    // unsampled in `disable iff`, but `$isunknown(condition)` must still be
+    // sampled in the Preponed region so that post-NBA combinational updates in
+    // the Observed region do not race with assertion evaluation.
+    disable_iff = file_->Make<SystemFunctionCall>(
+        asrt->loc(), "sampled", std::vector<Expression*>({disable_iff}));
+  }
   if (reset().has_value()) {
     // Disable the assert when in reset or when the reset signal is undefined.
     Expression* reset_not_active_value =
