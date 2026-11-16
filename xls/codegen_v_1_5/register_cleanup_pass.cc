@@ -78,6 +78,7 @@ absl::StatusOr<bool> RegisterCleanupPass::RemoveTrivialLoadEnables(
 
 absl::StatusOr<bool> RegisterCleanupPass::RemoveImpossibleWrites(
     Block* block, QueryEngine& query_engine) const {
+  bool changed = false;
   std::vector<Register*> registers(block->GetRegisters().begin(),
                                    block->GetRegisters().end());
   for (Register* reg : registers) {
@@ -90,6 +91,7 @@ absl::StatusOr<bool> RegisterCleanupPass::RemoveImpossibleWrites(
         XLS_RETURN_IF_ERROR(
             write->ReplaceUsesWithNew<Literal>(Value::Tuple({})).status());
         XLS_RETURN_IF_ERROR(block->RemoveNode(write));
+        changed = true;
       }
     }
 
@@ -112,9 +114,10 @@ absl::StatusOr<bool> RegisterCleanupPass::RemoveImpossibleWrites(
         XLS_RETURN_IF_ERROR(block->RemoveNode(write));
       }
       XLS_RETURN_IF_ERROR(block->RemoveRegister(reg));
+      changed = true;
     }
   }
-  return false;
+  return changed;
 }
 
 absl::StatusOr<bool> RegisterCleanupPass::RemoveUnreadRegisters(

@@ -209,6 +209,7 @@ cc_test(
         "//xls/ir:ir_test_base",
         "//xls/ir:register",
         "//xls/ir:source_location",
+        "//xls/ir:value",
         "//xls/passes:pass_base",
         "@abseil-cpp//absl/status:statusor",
         "@googletest//:gtest",
