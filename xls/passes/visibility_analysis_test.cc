@@ -330,8 +330,11 @@ TEST_F(VisibilityAnalysisTest, NodeImpactOnVisibilityViaSelects) {
       fb.Concat({fb.Eq(fb.BitSlice(op, 0, 1), fb.Literal(UBits(1, 1))),
                  fb.Ne(fb.BitSlice(op, 1, 1), fb.Literal(UBits(0, 1)))}),
       {x, x}, x);
+  BValue one_hot_guard =
+      fb.OneHotSelect(fb.BitSlice(op, 0, 3), std::vector<BValue>{x, x, x});
   XLS_ASSERT_OK_AND_ASSIGN(
-      auto f, fb.BuildWithReturnValue(fb.Tuple({select_guard, prio_guard})));
+      auto f, fb.BuildWithReturnValue(
+                  fb.Tuple({select_guard, prio_guard, one_hot_guard})));
 
   NodeImpactOnVisibilityAnalysis nia;
   XLS_ASSERT_OK(nia.Attach(f));
@@ -340,10 +343,14 @@ TEST_F(VisibilityAnalysisTest, NodeImpactOnVisibilityViaSelects) {
   int64_t impact_via_select = 4 + 1;
   // impact = paths_to_selector * (num_cases + default)
   int64_t impact_via_priority_select = 2 * (2 + 1);
+  // impact = num_cases (no default on OneHotSelect)
+  int64_t impact_via_one_hot_select = 3;
   EXPECT_EQ(nia.NodeImpactOnVisibility(op.node()),
-            impact_via_select + impact_via_priority_select);
+            impact_via_select + impact_via_priority_select +
+                impact_via_one_hot_select);
   EXPECT_EQ(nia.NodeImpactOnVisibility(select_guard.node()), 0);
   EXPECT_EQ(nia.NodeImpactOnVisibility(prio_guard.node()), 0);
+  EXPECT_EQ(nia.NodeImpactOnVisibility(one_hot_guard.node()), 0);
 }
 
 TEST_F(VisibilityAnalysisTest, VisibilityThroughPrioritySelect) {
@@ -539,15 +546,18 @@ TEST_F(VisibilityAnalysisTest, VisibilityThroughPredicate) {
 }
 
 TEST_F(VisibilityAnalysisTest, VisibilityThroughOneHotSelect) {
-  auto p = CreatePackage();
+  std::unique_ptr<Package> p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
   BValue x = fb.Param("x", p->GetBitsType(4));
   BValue y = fb.Param("y", p->GetBitsType(4));
-  BValue selector = fb.Param("sel", p->GetBitsType(2));
+  BValue selector = fb.Param("selector", p->GetBitsType(3));
   BValue add = fb.Add(x, fb.Literal(UBits(1, 4)));
   BValue sub = fb.Subtract(y, fb.Literal(UBits(1, 4)));
-  BValue select = fb.OneHotSelect(selector, {add, sub});
-  XLS_ASSERT_OK_AND_ASSIGN(auto f, fb.BuildWithReturnValue(select));
+  BValue sel_dep = fb.ZeroExtend(selector, 4);
+  BValue select = fb.OneHotSelect(selector, {add, sub, add});
+  BValue select_dep = fb.OneHotSelect(selector, {sel_dep, sub, sub});
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Function * f, fb.BuildWithReturnValue(fb.Tuple({select, select_dep})));
 
   NodeForwardDependencyAnalysis nda;
   XLS_ASSERT_OK(nda.Attach(f));
@@ -555,12 +565,31 @@ TEST_F(VisibilityAnalysisTest, VisibilityThroughOneHotSelect) {
   XLS_ASSERT_OK(post_dom.Attach(f));
   std::unique_ptr<BddQueryEngine> bdd_engine = BddQueryEngine::MakeDefault();
   XLS_ASSERT_OK(bdd_engine->Populate(f));
+  BinaryDecisionDiagram& bdd = bdd_engine->bdd();
   XLS_ASSERT_OK_AND_ASSIGN(
-      auto operand_visibility,
+      OperandVisibilityAnalysis operand_visibility,
       OperandVisibilityAnalysis::Create(&nda, bdd_engine.get()));
   XLS_ASSERT_OK_AND_ASSIGN(
-      auto visibility, VisibilityAnalysis::Create(&operand_visibility,
-                                                  bdd_engine.get(), &post_dom));
+      std::unique_ptr<VisibilityAnalysis> visibility,
+      VisibilityAnalysis::Create(&operand_visibility, bdd_engine.get(),
+                                 &post_dom));
+
+  BddNodeIndex add_visible = visibility->GetInfo(add.node())->visibility;
+  XLS_ASSERT_OK_AND_ASSIGN(BddNodeIndex sel_bit_0,
+                           GetNodeBit(selector.node(), 0, *bdd_engine));
+  XLS_ASSERT_OK_AND_ASSIGN(BddNodeIndex sel_bit_1,
+                           GetNodeBit(selector.node(), 1, *bdd_engine));
+  XLS_ASSERT_OK_AND_ASSIGN(BddNodeIndex sel_bit_2,
+                           GetNodeBit(selector.node(), 2, *bdd_engine));
+  EXPECT_EQ(add_visible, bdd.Or(sel_bit_0, sel_bit_2));
+  EXPECT_EQ(operand_visibility.OperandVisibilityThroughNode(sub.node(),
+                                                            select.node()),
+            sel_bit_1);
+  // Since `selector` is also the selector of `select_dep`, it is conservatively
+  // treated as always used through `select_dep`.
+  EXPECT_EQ(operand_visibility.OperandVisibilityThroughNode(selector.node(),
+                                                            select_dep.node()),
+            bdd.one());
 
   std::vector<Node*> sources = {x.node()};
   EXPECT_THAT(
@@ -982,6 +1011,30 @@ TEST_F(VisibilityAnalysisTest, MutuallyExclusivePrioritySelectCases) {
   RecordProperty("ir", f->DumpIr(visibility->annotator()));
 
   EXPECT_TRUE(visibility->IsMutuallyExclusive(add.node(), sub.node()));
+}
+
+TEST_F(VisibilityAnalysisTest, MutuallyExclusiveOneHotSelectCases) {
+  std::unique_ptr<Package> p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue op = fb.Param("op", p->GetBitsType(2));
+  BValue x = fb.Param("x", p->GetBitsType(4));
+  BValue y = fb.Param("y", p->GetBitsType(4));
+  BValue add = fb.Add(x, y);
+  BValue sub = fb.Subtract(x, y);
+  BValue selector = fb.Concat(
+      {fb.Eq(op, fb.Literal(UBits(1, 2))), fb.Eq(op, fb.Literal(UBits(0, 2)))});
+  BValue select = fb.OneHotSelect(selector, {add, sub});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(select));
+
+  XLS_ASSERT_OK_AND_ASSIGN(VisibilityAnalyses analyses,
+                           CreateVisibilityAnalyses(f));
+  RecordProperty("ir", f->DumpIr(analyses.visibility->annotator()));
+
+  EXPECT_TRUE(analyses.visibility->IsMutuallyExclusive(add.node(), sub.node()));
+  EXPECT_THAT(analyses.visibility->GetEdgesForMutuallyExclusiveVisibilityExpr(
+                  add.node(), {sub.node()}, -1),
+              IsOkAndHolds(UnorderedElementsAre(
+                  OperandNode(add.node(), select.node()))));
 }
 
 TEST_F(VisibilityAnalysisTest, StateUsedInValueIsVisible) {
@@ -1483,11 +1536,12 @@ TEST_F(VisibilityAnalysisTest, SingleSelectVisibilityNotPostDominating) {
   BValue x = fb.Param("x", p->GetBitsType(4));
   BValue y = fb.Param("y", p->GetBitsType(4));
   BValue z = fb.Param("z", p->GetBitsType(4));
+  BValue x_not = fb.Not(x);
   BValue select =
       fb.PrioritySelect(fb.Concat({fb.Eq(op, fb.Literal(UBits(2, 4))),
                                    fb.Eq(op, fb.Literal(UBits(1, 4))),
                                    fb.Eq(op, fb.Literal(UBits(0, 4)))}),
-                        {y, z, y}, x);
+                        {y, z, y}, x_not);
   BValue x_and_guard =
       fb.And({x, fb.SignExtend(fb.Eq(op, fb.Literal(UBits(3, 4))), 4)});
   BValue y_and_guard =
@@ -1512,6 +1566,60 @@ TEST_F(VisibilityAnalysisTest, SingleSelectVisibilityNotPostDominating) {
   auto y_vis = *visibility->GetInfo(y.node());
   EXPECT_EQ(y_vis.select, select.node());
   EXPECT_TRUE(visibility->IsMutuallyExclusive(x.node(), y.node()));
+  EXPECT_THAT(visibility->GetEdgesForVisibilityExpr(x.node()),
+              IsOkAndHolds(UnorderedElementsAre(
+                  OperandNode(x_not.node(), select.node()))));
+  EXPECT_THAT(
+      visibility->GetEdgesForVisibilityExpr(y.node()),
+      IsOkAndHolds(UnorderedElementsAre(OperandNode(y.node(), select.node()))));
+}
+
+TEST_F(VisibilityAnalysisTest,
+       SingleSelectVisibilityOneHotSelectNotPostDominating) {
+  std::unique_ptr<Package> p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue op = fb.Param("op", p->GetBitsType(4));
+  BValue x = fb.Param("x", p->GetBitsType(4));
+  BValue y = fb.Param("y", p->GetBitsType(4));
+  BValue z = fb.Param("z", p->GetBitsType(4));
+  BValue x_not = fb.Not(x);
+  // Case 1 (z, op < 3) intentionally overlaps with cases 0 (op == 0) and 2
+  // (op == 2) so that treating OneHotSelect like PrioritySelect would mask out
+  // case 2 and fail to recognize y's visibility when op == 2.
+  BValue select =
+      fb.OneHotSelect(fb.Concat({fb.Eq(op, fb.Literal(UBits(3, 4))),
+                                 fb.Eq(op, fb.Literal(UBits(2, 4))),
+                                 fb.ULt(op, fb.Literal(UBits(3, 4))),
+                                 fb.Eq(op, fb.Literal(UBits(0, 4)))}),
+                      {y, z, y, x_not});
+  BValue x_and_guard =
+      fb.And({x, fb.SignExtend(fb.Eq(op, fb.Literal(UBits(3, 4))), 4)});
+  BValue y_and_guard =
+      fb.And({y, fb.SignExtend(fb.Eq(op, fb.Literal(UBits(2, 4))), 4)});
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Function * f,
+      fb.BuildWithReturnValue(fb.Tuple({select, x_and_guard, y_and_guard})));
+
+  NodeForwardDependencyAnalysis nda;
+  XLS_ASSERT_OK(nda.Attach(f));
+  std::unique_ptr<BddQueryEngine> bdd_engine = BddQueryEngine::MakeDefault();
+  XLS_ASSERT_OK(bdd_engine->Populate(f));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      OperandVisibilityAnalysis operand_visibility,
+      OperandVisibilityAnalysis::Create(&nda, bdd_engine.get()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<SingleSelectVisibilityAnalysis> visibility,
+      SingleSelectVisibilityAnalysis::Create(&operand_visibility, &nda,
+                                             bdd_engine.get()));
+
+  SingleSelectVisibility x_vis = *visibility->GetInfo(x.node());
+  EXPECT_EQ(x_vis.select, select.node());
+  SingleSelectVisibility y_vis = *visibility->GetInfo(y.node());
+  EXPECT_EQ(y_vis.select, select.node());
+  EXPECT_TRUE(visibility->IsMutuallyExclusive(x.node(), y.node()));
+  EXPECT_THAT(visibility->GetEdgesForVisibilityExpr(x.node()),
+              IsOkAndHolds(UnorderedElementsAre(
+                  OperandNode(x_not.node(), select.node()))));
 }
 
 TEST_F(VisibilityAnalysisTest, EdgesForVisibilityExcludeDependencies) {

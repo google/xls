@@ -50,6 +50,8 @@ namespace m = ::xls::op_matchers;
 namespace xls {
 namespace {
 
+using ::absl_testing::IsOkAndHolds;
+
 class VisibilityExprBuilderTest : public IrTestBase {
  protected:
   absl::StatusOr<std::pair<Node*, VisibilityEstimator::AreaDelay>>
@@ -170,6 +172,43 @@ TEST_F(VisibilityExprBuilderTest, PrioritySelectOneHot) {
                                      m::Eq(m::Param("y"), m::Literal(1))));
   EXPECT_EQ(is_x_used.first->operand(0), y_is_0.node());
   EXPECT_EQ(is_x_used.first->operand(1), y_is_1.node());
+}
+
+TEST_F(VisibilityExprBuilderTest, OneHotSelectConcatSelector) {
+  std::unique_ptr<Package> p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetBitsType(3));
+  BValue y = fb.Param("y", p->GetBitsType(3));
+  BValue z = fb.Param("z", p->GetBitsType(3));
+  BValue y_is_0 = fb.Eq(y, fb.Literal(UBits(0, 3)));
+  BValue y_is_1 = fb.Eq(y, fb.Literal(UBits(1, 3)));
+  BValue y_is_2 = fb.Eq(y, fb.Literal(UBits(2, 3)));
+  BValue selectors = fb.Concat({y_is_0, y_is_1, y_is_2});
+  BValue one_hot_sel = fb.OneHotSelect(selectors, {z, x, x});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(one_hot_sel));
+
+  std::pair<Node*, VisibilityEstimator::AreaDelay> is_x_used;
+  XLS_ASSERT_OK_AND_ASSIGN(is_x_used,
+                           BuildDefaultVisibilityExpr(f, x.node(), {z.node()}));
+  // Operands of the 'or' are sorted by id, so y==0 comes before y==1.
+  EXPECT_THAT(is_x_used.first, m::Or(m::Eq(m::Param("y"), m::Literal(0)),
+                                     m::Eq(m::Param("y"), m::Literal(1))));
+}
+
+TEST_F(VisibilityExprBuilderTest, OneHotSelectBitSliceSelector) {
+  std::unique_ptr<Package> p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetBitsType(3));
+  BValue y = fb.Param("y", p->GetBitsType(2));
+  BValue z = fb.Param("z", p->GetBitsType(3));
+  BValue selectors = fb.OneHot(y, LsbOrMsb::kLsb);
+  BValue one_hot_sel = fb.OneHotSelect(selectors, {z, x, z});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(one_hot_sel));
+
+  std::pair<Node*, VisibilityEstimator::AreaDelay> is_x_used;
+  XLS_ASSERT_OK_AND_ASSIGN(is_x_used,
+                           BuildDefaultVisibilityExpr(f, x.node(), {z.node()}));
+  EXPECT_THAT(is_x_used.first, m::BitSlice(selectors.node(), 1, 1));
 }
 
 TEST_F(VisibilityExprBuilderTest, PrioritySelectNotOneHot) {
@@ -624,14 +663,16 @@ TEST_F(VisibilityExprBuilderTest, SelectPruning) {
   EXPECT_THAT(unconstrained_expr, m::Eq(m::Param("op"), m::Literal(1)));
 }
 
-TEST_F(VisibilityExprBuilderTest, PrioritySelectPruning) {
-  auto p = CreatePackage();
+TEST_F(VisibilityExprBuilderTest, PriorityAndOneHotSelectPruning) {
+  std::unique_ptr<Package> p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
   BValue x = fb.Param("x", p->GetBitsType(32));
   BValue y = fb.Param("y", p->GetBitsType(32));
-  BValue sel = fb.Param("sel", p->GetBitsType(2));
-  BValue prio = fb.PrioritySelect(sel, {x, y}, fb.Literal(UBits(0, 32)));
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(prio));
+  BValue s1 = fb.Param("s1", p->GetBitsType(2));
+  BValue s2 = fb.Param("s2", p->GetBitsType(3));
+  BValue prio = fb.PrioritySelect(s1, {x, y}, fb.Literal(UBits(0, 32)));
+  BValue one_hot = fb.OneHotSelect(s2, {y, prio, prio});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(one_hot));
 
   NodeForwardDependencyAnalysis nda;
   XLS_ASSERT_OK(nda.Attach(f).status());
@@ -640,42 +681,51 @@ TEST_F(VisibilityExprBuilderTest, PrioritySelectPruning) {
   std::unique_ptr<BddQueryEngine> bdd_engine = BddQueryEngine::MakeDefault();
   XLS_ASSERT_OK(bdd_engine->Populate(f).status());
   XLS_ASSERT_OK_AND_ASSIGN(
-      auto operand_visibility,
+      OperandVisibilityAnalysis operand_visibility,
       OperandVisibilityAnalysis::Create(&nda, bdd_engine.get()));
   XLS_ASSERT_OK_AND_ASSIGN(
-      auto visibility, VisibilityAnalysis::Create(&operand_visibility,
-                                                  bdd_engine.get(), &post_dom));
+      std::unique_ptr<VisibilityAnalysis> visibility,
+      VisibilityAnalysis::Create(&operand_visibility, bdd_engine.get(),
+                                 &post_dom));
   XLS_ASSERT_OK_AND_ASSIGN(
-      auto conditional_edges,
+      absl::flat_hash_set<OperandVisibilityAnalysis::OperandNode>
+          conditional_edges,
       visibility->GetEdgesForMutuallyExclusiveVisibilityExpr(x.node(), {}, -1));
 
   XLS_ASSERT_OK_AND_ASSIGN(AreaEstimator * ae, GetAreaEstimator("unit"));
   XLS_ASSERT_OK_AND_ASSIGN(DelayEstimator * de, GetDelayEstimator("unit"));
   BitProvenanceAnalysis bpa;
 
-  auto get_remaining_delay = [&](Node* n) -> int64_t {
-    if (n->op() == Op::kOr || n->op() == Op::kEq || n->op() == Op::kBitSlice) {
+  auto strict_remaining_delay = [&](Node* n) -> int64_t {
+    if (n->op() == Op::kOr) {
       return -1;
     }
-    return 100;
+    return 10;
   };
 
-  VisibilityEstimator estimator(
+  VisibilityEstimator strict_estimator(
       f->nodes_reversed().begin()->id(), bdd_engine.get(), nda, bpa, ae, de,
-      /*is_live_source=*/[](Node*) { return true; }, get_remaining_delay);
-  XLS_ASSERT_OK_AND_ASSIGN(Node * expr,
-                           estimator.BuildVisibilityIRExpr(
-                               f, x.node(), conditional_edges, /*sinks=*/{}));
+      /*is_live_source=*/[](Node*) { return true; }, strict_remaining_delay);
+  EXPECT_THAT(strict_estimator.BuildVisibilityIRExpr(
+                  f, x.node(), conditional_edges, /*sinks=*/{}),
+              IsOkAndHolds(m::BitSlice(m::Param("s1"), 0, 1)));
 
-  EXPECT_THAT(expr, m::Literal(1));
+  auto flexible_remaining_delay = [&](Node* n) -> int64_t {
+    if (n->op() == Op::kOr) {
+      return 10;
+    }
+    return 20;
+  };
 
-  // Without delay constraints, we should get the expected expression.
-  VisibilityEstimator unconstrained_estimator(
-      f->nodes_reversed().begin()->id(), bdd_engine.get(), nda, bpa, ae, de);
-  XLS_ASSERT_OK_AND_ASSIGN(Node * unconstrained_expr,
-                           unconstrained_estimator.BuildVisibilityIRExpr(
-                               f, x.node(), conditional_edges, /*sinks=*/{}));
-  EXPECT_THAT(unconstrained_expr, m::BitSlice(m::Param("sel"), 0, 1));
+  VisibilityEstimator flexible_estimator(
+      f->nodes_reversed().begin()->id(), bdd_engine.get(), nda, bpa, ae, de,
+      /*is_live_source=*/[](Node*) { return true; }, flexible_remaining_delay);
+  EXPECT_THAT(
+      flexible_estimator.BuildVisibilityIRExpr(f, x.node(), conditional_edges,
+                                               /*sinks=*/{}),
+      IsOkAndHolds(m::And(m::BitSlice(m::Param("s1"), 0, 1),
+                          m::Or(m::BitSlice(m::Param("s2"), 1, 1),
+                                m::BitSlice(m::Param("s2"), 2, 1)))));
 }
 
 TEST_F(VisibilityExprBuilderTest, TargetStageEnforcement) {

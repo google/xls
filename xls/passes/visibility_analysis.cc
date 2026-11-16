@@ -77,16 +77,12 @@ int64_t NodeImpactOnVisibilityAnalysis::ComputeInfo(
         user->Is<CompareOp>()) {
       // Aggregate tally of user's impact
       impact += *user_infos[i];
-    } else if (user->Is<Select>()) {
-      auto select = user->As<Select>();
+    } else if (std::optional<GenericSelect> select =
+                   GenericSelect::TryFrom(user);
+               select.has_value()) {
       if (select->selector() == node) {
         impact += select->cases().size() +
                   (select->default_value().has_value() ? 1 : 0);
-      }
-    } else if (user->Is<PrioritySelect>()) {
-      auto select = user->As<PrioritySelect>();
-      if (select->selector() == node) {
-        impact += select->cases().size() + 1;
       }
     } else if (user->OpIn({Op::kAnd, Op::kOr, Op::kNand, Op::kNor})) {
       // Does not count the node itself towards impact
@@ -363,6 +359,28 @@ BddNodeIndex OperandVisibilityAnalysis::ConditionOfUseWithPrioritySelect(
   return OrAggregate(or_cases, bdd_query_engine_);
 }
 
+BddNodeIndex OperandVisibilityAnalysis::ConditionOfUseWithOneHotSelect(
+    Node* node, OneHotSelect* select) const {
+  BddNodeIndex always_used = bdd_query_engine_->bdd().one();
+  Node* selector = select->selector();
+  // If the selector uses the node, then the node is always used.
+  if (nda_->IsDependent(node, selector)) {
+    return always_used;
+  }
+
+  // Collect cases that use this node
+  std::vector<BddNodeIndex> or_cases;
+  absl::Span<Node* const> cases = select->cases();
+  for (int i = 0; i < cases.size(); ++i) {
+    if (cases[i] != node) {
+      continue;
+    }
+    or_cases.push_back(GetNodeBit(selector, i));
+  }
+
+  return OrAggregate(or_cases, bdd_query_engine_);
+}
+
 BddNodeIndex OperandVisibilityAnalysis::ConditionOfUseWithSelect(
     Node* node, Select* select) const {
   auto& evaluator = bdd_query_engine_->evaluator();
@@ -533,6 +551,8 @@ BddNodeIndex OperandVisibilityAnalysis::ConditionOfUse(Node* node,
                                                        Node* user) const {
   if (user->Is<PrioritySelect>()) {
     return ConditionOfUseWithPrioritySelect(node, user->As<PrioritySelect>());
+  } else if (user->Is<OneHotSelect>()) {
+    return ConditionOfUseWithOneHotSelect(node, user->As<OneHotSelect>());
   } else if (user->Is<Select>()) {
     return ConditionOfUseWithSelect(node, user->As<Select>());
   } else if (user->Is<Send>()) {
@@ -1129,41 +1149,45 @@ bool SingleSelectVisibilityAnalysis::IsMutuallyExclusive(Node* one,
 SingleSelectVisibility SingleSelectVisibilityAnalysis::ComputeInfo(
     Node* node,
     absl::Span<const SingleSelectVisibility* const> user_infos) const {
-  PrioritySelect* single_select = nullptr;
+  std::optional<GenericSelect> single_select;
   for (int i = 0; i < user_infos.size(); ++i) {
     if (user_infos[i]->select) {
-      if (nda_->IsDependent(node, user_infos[i]->select->selector())) {
+      std::optional<GenericSelect> gs =
+          GenericSelect::TryFrom(user_infos[i]->select);
+      if (!gs.has_value() || nda_->IsDependent(node, gs->selector())) {
         continue;
       }
-      single_select = user_infos[i]->select;
+      single_select = gs;
       break;
     }
   }
   absl::Span<Node* const> users = node->users();
-  if (!single_select) {
+  if (!single_select.has_value()) {
     for (int i = 0; i < users.size(); ++i) {
-      if (users[i]->Is<PrioritySelect>()) {
-        auto select = users[i]->As<PrioritySelect>();
-        if (nda_->IsDependent(node, select->selector())) {
+      if (users[i]->Is<PrioritySelect>() || users[i]->Is<OneHotSelect>()) {
+        std::optional<GenericSelect> gs = GenericSelect::TryFrom(users[i]);
+        if (nda_->IsDependent(node, gs->selector())) {
           continue;
         }
-        single_select = select;
+        single_select = gs;
         break;
       }
     }
   }
-  // No user is a priority select or has a descendant that is.
-  if (!single_select) {
+  // No user is a priority/one-hot select or has a descendant that is.
+  if (!single_select.has_value()) {
     return SingleSelectVisibility();
   }
 
   BinaryDecisionDiagram& bdd = bdd_query_engine_->bdd();
-  BddNodeIndex no_prev_case = bdd_query_engine_->bdd().one();
+  BddNodeIndex no_prev_case = bdd.one();
   BddNodeIndex source_visible = bdd.zero();
   Node* selector = single_select->selector();
-  auto cases = single_select->cases();
+  absl::Span<Node* const> cases = single_select->cases();
+  const bool is_priority_select =
+      single_select->kind() == GenericSelect::Kind::kPrioritySel;
   for (int i = 0; i < cases.size(); ++i) {
-    if (i > 0) {
+    if (is_priority_select && i > 0) {
       no_prev_case =
           bdd.And(no_prev_case,
                   bdd.Not(operand_visibility_->GetNodeBit(selector, i - 1)));
@@ -1174,15 +1198,17 @@ SingleSelectVisibility SingleSelectVisibilityAnalysis::ComputeInfo(
           bdd.And(no_prev_case, operand_visibility_->GetNodeBit(selector, i)));
     }
   }
-  if (!cases.empty()) {
+  if (is_priority_select && !cases.empty()) {
     no_prev_case = bdd.And(
         no_prev_case,
         bdd.Not(operand_visibility_->GetNodeBit(selector, cases.size() - 1)));
   }
-  if (nda_->IsDependent(node, single_select->default_value())) {
+  if (single_select->default_value().has_value() &&
+      nda_->IsDependent(node, *single_select->default_value())) {
     source_visible = bdd.Or(source_visible, no_prev_case);
   }
-  SingleSelectVisibility single_select_vis(node, single_select, source_visible);
+  SingleSelectVisibility single_select_vis(node, single_select->AsNode(),
+                                           source_visible);
 
   // Now check that all other users are never visible if the node is not visible
   // to the select; if so, the select produces a sufficiently conservative
@@ -1236,14 +1262,15 @@ absl::StatusOr<absl::flat_hash_set<OperandNode>>
 SingleSelectVisibilityAnalysis::GetEdgesForVisibilityExpr(Node* one) const {
   absl::flat_hash_set<OperandNode> edges;
   auto info = GetInfo(one);
-  for (auto select_case : info->select->cases()) {
+  XLS_ASSIGN_OR_RETURN(GenericSelect select, GenericSelect::From(info->select));
+  for (Node* select_case : select.cases()) {
     if (nda_->IsDependent(one, select_case)) {
       edges.insert({select_case, info->select});
     }
   }
-  if (info->select->default_value() &&
-      nda_->IsDependent(one, info->select->default_value())) {
-    edges.insert({info->select->default_value(), info->select});
+  if (select.default_value().has_value() &&
+      nda_->IsDependent(one, *select.default_value())) {
+    edges.insert({*select.default_value(), info->select});
   }
   return edges;
 }

@@ -112,6 +112,8 @@ class OperandVisibilityAnalysis : public ChangeListener {
   BddNodeIndex ConditionOfUse(Node* node, Node* user) const;
   BddNodeIndex ConditionOfUseWithPrioritySelect(Node* node,
                                                 PrioritySelect* select) const;
+  BddNodeIndex ConditionOfUseWithOneHotSelect(Node* node,
+                                              OneHotSelect* select) const;
   BddNodeIndex ConditionOfUseWithSelect(Node* node, Select* select) const;
   BddNodeIndex ConditionOnPredicate(Node* node,
                                     std::optional<Node*> predicate) const;
@@ -323,13 +325,12 @@ class VisibilityAnalysis : public LazyNodeData<NodeVisibility> {
 
 struct SingleSelectVisibility {
   Node* source;
-  PrioritySelect* select;
+  Node* select;
   BddNodeIndex visibility;
 
   SingleSelectVisibility() : source(nullptr), select(nullptr), visibility{-1} {}
 
-  SingleSelectVisibility(Node* source, PrioritySelect* select,
-                         BddNodeIndex visibility)
+  SingleSelectVisibility(Node* source, Node* select, BddNodeIndex visibility)
       : source(source), select(select), visibility(visibility) {}
 
   bool operator==(const SingleSelectVisibility& other) const {

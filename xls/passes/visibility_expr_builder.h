@@ -126,10 +126,15 @@ class VisibilityBuilder : public ExpressionBuilder {
   absl::StatusOr<Node*> GetSelectorIfIndependent(Node* node, Node* select,
                                                  Node* source,
                                                  FunctionBase* func);
+  absl::StatusOr<Node*> GetSelectorBit(Node* selector, int64_t bit_index);
   bool DoesCaseImplyNoPrevCase(PrioritySelect* select, int64_t case_index);
 
   absl::StatusOr<Node*> GetVisibilityExprForPrioritySelect(
       Node* node, PrioritySelect* select, Node* source, FunctionBase* func);
+  absl::StatusOr<Node*> GetVisibilityExprForOneHotSelect(Node* node,
+                                                         OneHotSelect* select,
+                                                         Node* source,
+                                                         FunctionBase* func);
   absl::StatusOr<Node*> GetVisibilityExprForSelect(Node* node, Select* select,
                                                    Node* source,
                                                    FunctionBase* func);

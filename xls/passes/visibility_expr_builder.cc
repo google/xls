@@ -55,17 +55,23 @@ namespace xls {
 
 absl::StatusOr<Node*> VisibilityBuilder::GetSelectorIfIndependent(
     Node* node, Node* select, Node* source, FunctionBase* func) {
-  Node* selector = nullptr;
-  if (select->Is<Select>()) {
-    selector = select->As<Select>()->selector();
-  } else if (select->Is<PrioritySelect>()) {
-    selector = select->As<PrioritySelect>()->selector();
-  }
+  std::optional<GenericSelect> gs = GenericSelect::TryFrom(select);
+  Node* selector = gs.has_value() ? gs->selector() : nullptr;
   if (!selector || nda_.IsDependent(source, selector) ||
       !is_live_source_(selector)) {
     return nullptr;
   }
   return MakeParamIfTmpFunc(selector, func);
+}
+
+absl::StatusOr<Node*> VisibilityBuilder::GetSelectorBit(Node* selector,
+                                                        int64_t bit_index) {
+  if (selector->Is<Concat>() &&
+      selector->As<Concat>()->operands().size() == selector->BitCountOrDie()) {
+    Concat* concat = selector->As<Concat>();
+    return concat->operand(concat->operand_count() - bit_index - 1);
+  }
+  return FindOrMakeBitSlice(selector, bit_index, 1);
 }
 
 bool VisibilityBuilder::DoesCaseImplyNoPrevCase(PrioritySelect* select,
@@ -104,21 +110,12 @@ absl::StatusOr<Node*> VisibilityBuilder::GetVisibilityExprForPrioritySelect(
   }
   absl::Span<Node* const> cases = select->cases();
   std::vector<Node*> or_cases;
-  bool is_concat_on_single_bits =
-      selector->Is<Concat>() &&
-      selector->As<Concat>()->operands().size() == cases.size();
   for (int64_t i = 0; i < cases.size(); ++i) {
     if (node == cases[i]) {
       Node* selector_bit_i = nullptr;
       bool no_prev_case_can_be_true = DoesCaseImplyNoPrevCase(select, i);
       if (no_prev_case_can_be_true) {
-        if (is_concat_on_single_bits) {
-          Concat* concat = selector->As<Concat>();
-          selector_bit_i = concat->operand(concat->operand_count() - i - 1);
-        } else {
-          XLS_ASSIGN_OR_RETURN(selector_bit_i,
-                               FindOrMakeBitSlice(selector, i, 1));
-        }
+        XLS_ASSIGN_OR_RETURN(selector_bit_i, GetSelectorBit(selector, i));
       } else {
         XLS_ASSIGN_OR_RETURN(Node * bits_to_i,
                              FindOrMakeBitSlice(selector, 0, i + 1));
@@ -142,6 +139,30 @@ absl::StatusOr<Node*> VisibilityBuilder::GetVisibilityExprForPrioritySelect(
         Node * selector_is_zero,
         func->MakeNode<CompareOp>(select->loc(), selector, zero, Op::kEq));
     or_cases.push_back(selector_is_zero);
+  }
+
+  XLS_ASSIGN_OR_RETURN(Node * result, OrOperands(or_cases));
+  if (get_remaining_delay_(result) < 0) {
+    // This would push the condition over the acceptable delay.
+    return nullptr;
+  }
+  return result;
+}
+
+absl::StatusOr<Node*> VisibilityBuilder::GetVisibilityExprForOneHotSelect(
+    Node* node, OneHotSelect* select, Node* source, FunctionBase* func) {
+  XLS_ASSIGN_OR_RETURN(Node * selector,
+                       GetSelectorIfIndependent(node, select, source, func));
+  if (!selector) {
+    return nullptr;
+  }
+  absl::Span<Node* const> cases = select->cases();
+  std::vector<Node*> or_cases;
+  for (int64_t i = 0; i < cases.size(); ++i) {
+    if (node == cases[i]) {
+      XLS_ASSIGN_OR_RETURN(Node * selector_bit_i, GetSelectorBit(selector, i));
+      or_cases.push_back(selector_bit_i);
+    }
   }
 
   XLS_ASSIGN_OR_RETURN(Node * result, OrOperands(or_cases));
@@ -371,6 +392,9 @@ absl::StatusOr<Node*> VisibilityBuilder::BuildVisibilityExprHelper(
   } else if (user->Is<PrioritySelect>()) {
     return GetVisibilityExprForPrioritySelect(node, user->As<PrioritySelect>(),
                                               source, func);
+  } else if (user->Is<OneHotSelect>()) {
+    return GetVisibilityExprForOneHotSelect(node, user->As<OneHotSelect>(),
+                                            source, func);
   } else if (user->Is<Send>()) {
     return GetVisibilityExprForPredicate(user->As<Send>()->predicate(), source,
                                          func);
