@@ -25,14 +25,14 @@
 #include "xls/dslx/type_system/typecheck_test_utils.h"
 #include "xls/dslx/type_system_v2/matchers.h"
 
-// Tests for fuzz tests and fuzz domains.
+// Tests for function parameter domains.
 namespace xls::dslx {
 namespace {
 
 using ::absl_testing::IsOk;
 using ::testing::HasSubstr;
 
-TEST(TypecheckV2FuzzTestTest, FuzzTestStructDomainSuccess) {
+TEST(TypecheckV2DomainsTest, FuzzTestStructDomainSuccess) {
   EXPECT_THAT(R"(
 struct S { x: u32, y: u8 }
 #[fuzz_test(domains=`S { x: u32:0..10, y: u8:0..5 }`)]
@@ -41,7 +41,7 @@ fn f(s: S) {}
               TypecheckSucceeds(::testing::_));
 }
 
-TEST(TypecheckV2FuzzTestTest, FuzzTestStructDomainOmittedFieldsOk) {
+TEST(TypecheckV2DomainsTest, FuzzTestStructDomainOmittedFieldsOk) {
   EXPECT_THAT(
       R"(
 struct S { x: u32, y: u8 }
@@ -51,7 +51,7 @@ fn f(s: S) {}
       TypecheckSucceeds(::testing::_));
 }
 
-TEST(TypecheckV2FuzzTestTest, FuzzTestStructDomainInvalidField) {
+TEST(TypecheckV2DomainsTest, FuzzTestStructDomainInvalidField) {
   EXPECT_THAT(R"(
 struct S { x: u32 }
 #[fuzz_test(domains=`S { x: u32:0..10, z: u8:0..5 }`)]
@@ -60,7 +60,7 @@ fn f(s: S) {}
               TypecheckFails(HasSubstr("Struct `S` has no member `z`")));
 }
 
-TEST(TypecheckV2FuzzTestTest, FuzzTestStructDomainFieldTypeMismatch) {
+TEST(TypecheckV2DomainsTest, FuzzTestStructDomainFieldTypeMismatch) {
   EXPECT_THAT(R"(
 struct S { x: u32 }
 #[fuzz_test(domains=`S { x: u8:0..5 }`)]
@@ -70,7 +70,7 @@ fn f(s: S) {}
                   "bit count (8) does not match parameter bit count (32)")));
 }
 
-TEST(TypecheckV2FuzzTestTest, FuzzTestStructDomainNestedSuccess) {
+TEST(TypecheckV2DomainsTest, FuzzTestStructDomainNestedSuccess) {
   EXPECT_THAT(R"(
 struct Inner { y: u32 }
 struct Outer { x: Inner }
@@ -80,7 +80,7 @@ fn f(s: Outer) {}
               TypecheckSucceeds(::testing::_));
 }
 
-TEST(TypecheckV2FuzzTestTest, FuzzTestStructDomainNestedInvalid) {
+TEST(TypecheckV2DomainsTest, FuzzTestStructDomainNestedInvalid) {
   EXPECT_THAT(R"(
 struct Inner { y: u32 }
 struct Outer { x: Inner }
@@ -91,7 +91,7 @@ fn f(s: Outer) {}
                   "bit count (8) does not match parameter bit count (32)")));
 }
 
-TEST(TypecheckV2FuzzTestTest, FuzzTestStructDomainEmpty) {
+TEST(TypecheckV2DomainsTest, FuzzTestStructDomainEmpty) {
   EXPECT_THAT(R"(
 struct S { x: u32, y: u8 }
 #[fuzz_test(domains=`S {}`)]
@@ -100,7 +100,7 @@ fn f(s: S) {}
               TypecheckSucceeds(::testing::_));
 }
 
-TEST(TypecheckV2FuzzTestTest, FuzzTestDerivedStructDomainSuccess) {
+TEST(TypecheckV2DomainsTest, FuzzTestDerivedStructDomainSuccess) {
   EXPECT_THAT(R"(
 #[fuzz_domain("MyStructDomain")]
 struct MyStruct {
@@ -119,7 +119,7 @@ fn f(s: MyStruct) {}
               TypecheckSucceeds(::testing::_));
 }
 
-TEST(TypecheckV2FuzzTestTest, FuzzTestDerivedStructDomainTwoFieldsSuccess) {
+TEST(TypecheckV2DomainsTest, FuzzTestDerivedStructDomainTwoFieldsSuccess) {
   EXPECT_THAT(R"(
 #[fuzz_domain("MyStructDomain")]
 struct MyStruct {
@@ -148,7 +148,7 @@ fn y_test(s: MyStruct) {}
               TypecheckSucceeds(::testing::_));
 }
 
-TEST(TypecheckV2FuzzTestTest, FuzzTestDerivedStructDomainFieldMismatch) {
+TEST(TypecheckV2DomainsTest, FuzzTestDerivedStructDomainFieldMismatch) {
   EXPECT_THAT(R"(
 #[fuzz_domain("MyStructDomain")]
 struct MyStruct {
@@ -167,7 +167,7 @@ fn f(s: MyStruct) {}
               TypecheckFails(HasSubstr("has no member `y`")));
 }
 
-TEST(TypecheckV2FuzzTestTest, FuzzTestDerivedStructDomainFieldMissingOk) {
+TEST(TypecheckV2DomainsTest, FuzzTestDerivedStructDomainFieldMissingOk) {
   EXPECT_THAT(
       R"(
 #[fuzz_domain("MyStructDomain")]
@@ -188,7 +188,7 @@ fn f(s: MyStruct) {}
       TypecheckSucceeds(::testing::_));
 }
 
-TEST(TypecheckV2FuzzTestTest, FuzzTestDerivedStructDomainExtraField) {
+TEST(TypecheckV2DomainsTest, FuzzTestDerivedStructDomainExtraField) {
   EXPECT_THAT(R"(
 #[fuzz_domain("MyStructDomain")]
 struct MyStruct {
@@ -208,7 +208,7 @@ fn f(s: MyStruct) {}
               TypecheckFails(HasSubstr("has no member `y`")));
 }
 
-TEST(TypecheckV2FuzzTestTest, FuzzTestDerivedStructDomainNestedSuccess) {
+TEST(TypecheckV2DomainsTest, FuzzTestDerivedStructDomainNestedSuccess) {
   EXPECT_THAT(R"(
 #[fuzz_domain("InnerDomain")]
 struct Inner {
@@ -234,7 +234,7 @@ fn f(s: Outer) {}
               TypecheckSucceeds(::testing::_));
 }
 
-TEST(TypecheckV2FuzzTestTest,
+TEST(TypecheckV2DomainsTest,
      FuzzTestDerivedStructDomainNestedMissingFieldSuccess) {
   EXPECT_THAT(R"(
 #[fuzz_domain("InnerDomain")]
@@ -259,7 +259,7 @@ fn f(s: Outer) {}
               TypecheckSucceeds(::testing::_));
 }
 
-TEST(TypecheckV2FuzzTestTest, FuzzTestDerivedStructDomainValueMismatch) {
+TEST(TypecheckV2DomainsTest, FuzzTestDerivedStructDomainValueMismatch) {
   EXPECT_THAT(R"(
 #[fuzz_domain("MyStructDomain")]
 struct MyStruct {
@@ -279,7 +279,7 @@ fn f(s: MyStruct) {}
                   "bit count (32) does not match parameter bit count (8)")));
 }
 
-TEST(TypecheckV2FuzzTestTest,
+TEST(TypecheckV2DomainsTest,
      FuzzTestDerivedStructDomainStructVsRangeMismatch) {
   EXPECT_THAT(
       R"(
@@ -305,7 +305,7 @@ fn f(s: Outer) {}
       TypecheckFails(HasSubstr("expects a struct")));
 }
 
-TEST(TypecheckV2FuzzTestTest,
+TEST(TypecheckV2DomainsTest,
      FuzzTestDerivedStructDomainRangeVsStructMismatch) {
   EXPECT_THAT(R"(
 #[fuzz_domain("InnerDomain")]
@@ -330,7 +330,7 @@ fn f(s: Outer) {}
               TypecheckFails(HasSubstr("Expected range or array domain")));
 }
 
-TEST(TypecheckV2FuzzTestTest, FuzzTestSignedRangeOverflow) {
+TEST(TypecheckV2DomainsTest, FuzzTestSignedRangeOverflow) {
   EXPECT_THAT(
       R"(
 #[fuzz_test(domains=`s32:-200..200`)]
@@ -340,7 +340,7 @@ fn f(x: s8) {}
           HasSubstr("bit count (32) does not match parameter bit count (8)")));
 }
 
-TEST(TypecheckV2FuzzTestTest, FuzzTestTupleDomainParamNonTuple) {
+TEST(TypecheckV2DomainsTest, FuzzTestTupleDomainParamNonTuple) {
   EXPECT_THAT(
       R"(
 #[fuzz_test(domains=`(u32:0..10, u32:0..10)`)]
@@ -349,7 +349,7 @@ fn f(x: u32) {}
       TypecheckFails(HasSubstr("implies a tuple or array type")));
 }
 
-TEST(TypecheckV2FuzzTestTest, FuzzTestTupleDomainSizeMismatch) {
+TEST(TypecheckV2DomainsTest, FuzzTestTupleDomainSizeMismatch) {
   EXPECT_THAT(
       R"(
 #[fuzz_test(domains=`(u32:0..10, u32:0..10, u32:0..10)`)]
@@ -358,7 +358,7 @@ fn f(x: (u32, u32)) {}
       TypecheckFails(HasSubstr("tuple size (3) does not match parameter")));
 }
 
-TEST(TypecheckV2FuzzTestTest, FuzzTestStructDomainParamNonStruct) {
+TEST(TypecheckV2DomainsTest, FuzzTestStructDomainParamNonStruct) {
   EXPECT_THAT(R"(
 #[fuzz_domain("MyStructDomain")]
 struct MyStruct {
@@ -375,7 +375,7 @@ fn f(x: (u32, u32)) {}
               TypecheckFails(HasSubstr("implies a struct type")));
 }
 
-TEST(TypecheckV2FuzzTestTest, FuzzTestUnsupportedDomainType) {
+TEST(TypecheckV2DomainsTest, FuzzTestUnsupportedDomainType) {
   EXPECT_THAT(
       R"(
 const C = u32:42;
@@ -385,7 +385,7 @@ fn f(x: u8) {}
       TypecheckFails(HasSubstr("Unsupported fuzz test domain `C` of type")));
 }
 
-TEST(TypecheckV2FuzzTestTest, FuzzTestImportedRangeDomainTypeMismatch) {
+TEST(TypecheckV2DomainsTest, FuzzTestImportedRangeDomainTypeMismatch) {
   constexpr std::string_view kImported = R"(
     pub const DOMAIN = u32:0..10;
   )";
@@ -403,7 +403,7 @@ TEST(TypecheckV2FuzzTestTest, FuzzTestImportedRangeDomainTypeMismatch) {
           HasSubstr("bit count (32) does not match parameter bit count (8)")));
 }
 
-TEST(TypecheckV2FuzzTestTest, FuzzTestImportedTupleDomainParamNonTuple) {
+TEST(TypecheckV2DomainsTest, FuzzTestImportedTupleDomainParamNonTuple) {
   constexpr std::string_view kImported = R"(
     pub const DOMAIN = (u32:0..10, u32:0..10);
   )";
@@ -421,7 +421,7 @@ TEST(TypecheckV2FuzzTestTest, FuzzTestImportedTupleDomainParamNonTuple) {
                                        "parameter `x: u8` is of type")));
 }
 
-TEST(TypecheckV2FuzzTestTest, FuzzTestImportedTupleDomainSizeMismatch) {
+TEST(TypecheckV2DomainsTest, FuzzTestImportedTupleDomainSizeMismatch) {
   constexpr std::string_view kImported = R"(
     pub const DOMAIN = (u32:0..10, u32:0..10);
   )";
@@ -438,7 +438,7 @@ TEST(TypecheckV2FuzzTestTest, FuzzTestImportedTupleDomainSizeMismatch) {
                   HasSubstr("tuple size (2) does not match parameter")));
 }
 
-TEST(TypecheckV2FuzzTestTest, FuzzTestImportedStructDomainParamNonStruct) {
+TEST(TypecheckV2DomainsTest, FuzzTestImportedStructDomainParamNonStruct) {
   constexpr std::string_view kImported = R"(
     #[fuzz_domain("SDomain")]
     pub struct S { x: u32 }
@@ -459,7 +459,7 @@ TEST(TypecheckV2FuzzTestTest, FuzzTestImportedStructDomainParamNonStruct) {
               "implies a struct type, but parameter `x: u8` is of type")));
 }
 
-TEST(TypecheckV2FuzzTestTest, FuzzTestImportedStructDomainSizeMismatch) {
+TEST(TypecheckV2DomainsTest, FuzzTestImportedStructDomainSizeMismatch) {
   constexpr std::string_view kImported = R"(
     #[fuzz_domain("SDomain")]
     pub struct S { x: u32 }
@@ -479,7 +479,7 @@ TEST(TypecheckV2FuzzTestTest, FuzzTestImportedStructDomainSizeMismatch) {
                   HasSubstr("struct size (1) does not match parameter")));
 }
 
-TEST(TypecheckV2FuzzTestTest, FuzzTestSignedRangeNegativeForUnsignedParam) {
+TEST(TypecheckV2DomainsTest, FuzzTestSignedRangeNegativeForUnsignedParam) {
   EXPECT_THAT(
       R"(
 #[fuzz_test(domains=`s32:-10..10`)]
@@ -489,7 +489,7 @@ fn f(x: u8) {}
           HasSubstr("bit count (32) does not match parameter bit count (8)")));
 }
 
-TEST(TypecheckV2FuzzTestTest, FuzzTestSignedRangePositiveForUnsignedParam) {
+TEST(TypecheckV2DomainsTest, FuzzTestSignedRangePositiveForUnsignedParam) {
   EXPECT_THAT(
       R"(
 #[fuzz_test(domains=`s32:0..10`)]
@@ -499,7 +499,7 @@ fn f(x: u8) {}
           HasSubstr("bit count (32) does not match parameter bit count (8)")));
 }
 
-TEST(TypecheckV2FuzzTestTest, FuzzTestUnsignedRangeOverflowForSignedParam) {
+TEST(TypecheckV2DomainsTest, FuzzTestUnsignedRangeOverflowForSignedParam) {
   EXPECT_THAT(
       R"(
 #[fuzz_test(domains=`u32:0..200`)]
@@ -509,7 +509,7 @@ fn f(x: s8) {}
           HasSubstr("bit count (32) does not match parameter bit count (8)")));
 }
 
-TEST(TypecheckV2FuzzTestTest, FuzzTestUnsignedRangeForSignedParam) {
+TEST(TypecheckV2DomainsTest, FuzzTestUnsignedRangeForSignedParam) {
   EXPECT_THAT(
       R"(
 #[fuzz_test(domains=`u32:0..10`)]
@@ -519,7 +519,7 @@ fn f(x: s8) {}
           HasSubstr("bit count (32) does not match parameter bit count (8)")));
 }
 
-TEST(TypecheckV2FuzzTestTest, FuzzTestEmptyDomainFunctionDoesNotCrash) {
+TEST(TypecheckV2DomainsTest, FuzzTestEmptyDomainFunctionDoesNotCrash) {
   EXPECT_THAT(
       R"(
 #[fuzz_domain("SDomain")]
@@ -533,7 +533,7 @@ fn f(x: S) {}
       TypecheckFails(HasSubstr("type mismatch: SDomain vs. ()")));
 }
 
-TEST(TypecheckV2FuzzTestTest, FuzzTestDomainLocalVariableCaught) {
+TEST(TypecheckV2DomainsTest, FuzzTestDomainLocalVariableCaught) {
   EXPECT_THAT(
       R"(
 #[fuzz_domain("SDomain")]
@@ -551,7 +551,7 @@ fn f(x: S) {}
           HasSubstr("bit count (32) does not match parameter bit count (8)")));
 }
 
-TEST(TypecheckV2FuzzTestTest, FuzzTestDomainNestedFunctionCaught) {
+TEST(TypecheckV2DomainsTest, FuzzTestDomainNestedFunctionCaught) {
   EXPECT_THAT(
       R"(
 #[fuzz_domain("SDomain")]
@@ -572,7 +572,7 @@ fn f(x: S) {}
           HasSubstr("bit count (32) does not match parameter bit count (8)")));
 }
 
-TEST(TypecheckV2FuzzTestTest, FuzzTestDomainImportedCaught) {
+TEST(TypecheckV2DomainsTest, FuzzTestDomainImportedCaught) {
   constexpr std::string_view kImported = R"(
     #[fuzz_domain("SDomain")]
     pub struct S { x: u8 }
@@ -592,7 +592,7 @@ TEST(TypecheckV2FuzzTestTest, FuzzTestDomainImportedCaught) {
           HasSubstr("bit count (32) does not match parameter bit count (8)")));
 }
 
-TEST(TypecheckV2FuzzTestTest, FuzzTestDomainArrayMismatch) {
+TEST(TypecheckV2DomainsTest, FuzzTestDomainArrayMismatch) {
   EXPECT_THAT(
       R"(
 #[fuzz_test(domains=`[u32:0, 16384]`)]
@@ -602,7 +602,7 @@ fn f(x: u8) {}
                                "parameter bit count (8)")));
 }
 
-TEST(TypecheckV2FuzzTestTest, FuzzTestDomainsEmptyTupleAlwaysMatches) {
+TEST(TypecheckV2DomainsTest, FuzzTestDomainsEmptyTupleAlwaysMatches) {
   EXPECT_THAT(R"(
 #[fuzz_test(domains=`()`)]
 fn f(x: u8) {}
@@ -610,7 +610,7 @@ fn f(x: u8) {}
               TypecheckSucceeds(::testing::_));
 }
 
-TEST(TypecheckV2FuzzTestTest,
+TEST(TypecheckV2DomainsTest,
      FuzzTestEmptyTupleDomainAlwaysMatchesMultipleParams) {
   EXPECT_THAT(R"(
 #[fuzz_test(domains=`u32:0..1, ()`)]
@@ -619,7 +619,7 @@ fn f(x: u32, y: u8) {}
               TypecheckSucceeds(::testing::_));
 }
 
-TEST(TypecheckV2FuzzTestTest, FuzzTestTupleDomainSuccess) {
+TEST(TypecheckV2DomainsTest, FuzzTestTupleDomainSuccess) {
   EXPECT_THAT(R"(
 const D = (u32:0..1, u8:0..2);
 #[fuzz_test(domains=`D`)]
@@ -628,7 +628,7 @@ fn f(x: (u32, u8)) {}
               TypecheckSucceeds(::testing::_));
 }
 
-TEST(TypecheckV2FuzzTestTest, FuzzTestTupleDomainWithAliasSuccess) {
+TEST(TypecheckV2DomainsTest, FuzzTestTupleDomainWithAliasSuccess) {
   EXPECT_THAT(R"(
 type my_tuple = (u32, u8);
 const D = (u32:0..1, u8:0..2);
@@ -638,7 +638,7 @@ fn f(x: my_tuple) {}
               TypecheckSucceeds(::testing::_));
 }
 
-TEST(TypecheckV2FuzzTestTest, FuzzTestTupleDomainNestedSuccess) {
+TEST(TypecheckV2DomainsTest, FuzzTestTupleDomainNestedSuccess) {
   EXPECT_THAT(R"(
 const D = ((u32:0..1, u8:0..2), u16:0..3);
 #[fuzz_test(domains=`D`)]
@@ -647,7 +647,7 @@ fn f(x: ((u32, u8), u16)) {}
               TypecheckSucceeds(::testing::_));
 }
 
-TEST(TypecheckV2FuzzTestTest, FuzzTestConstTupleDomainSizeMismatch) {
+TEST(TypecheckV2DomainsTest, FuzzTestConstTupleDomainSizeMismatch) {
   EXPECT_THAT(
       R"(
 const D = (u32:0..1, u8:0..2, u16:0..3);
@@ -658,7 +658,7 @@ fn f(x: (u32, u8)) {}
           "Fuzz test domain tuple size (3) does not match parameter")));
 }
 
-TEST(TypecheckV2FuzzTestTest, FuzzTestTupleDomainTypeMismatch) {
+TEST(TypecheckV2DomainsTest, FuzzTestTupleDomainTypeMismatch) {
   EXPECT_THAT(
       R"(
 const D = (u32:0..1, u16:0..2);
@@ -669,7 +669,7 @@ fn f(x: (u32, u8)) {}
           HasSubstr("bit count (16) does not match parameter bit count (8)")));
 }
 
-TEST(TypecheckV2FuzzTestTest, FuzzTestTupleDomainNotATuple) {
+TEST(TypecheckV2DomainsTest, FuzzTestTupleDomainNotATuple) {
   EXPECT_THAT(R"(
 #[fuzz_test(domains=`u32:0..1`)]
 fn f(x: (u32, u8)) {}
@@ -677,7 +677,7 @@ fn f(x: (u32, u8)) {}
               TypecheckFails(HasSubstr("expects a tuple")));
 }
 
-TEST(TypecheckV2FuzzTestTest, FuzzTestTupleDomainParamNotATuple) {
+TEST(TypecheckV2DomainsTest, FuzzTestTupleDomainParamNotATuple) {
   EXPECT_THAT(R"(
 const D = (u32:0..1, u32:0..2);
 #[fuzz_test(domains=`D`)]
@@ -686,7 +686,7 @@ fn f(x: u32) {}
               TypecheckFails(HasSubstr("implies a tuple or array type")));
 }
 
-TEST(TypecheckV2FuzzTestTest, FuzzTestTupleDomainDirectSuccess) {
+TEST(TypecheckV2DomainsTest, FuzzTestTupleDomainDirectSuccess) {
   EXPECT_THAT(R"(
 #[fuzz_test(domains=`(u32:0..1, u8:0..2)`)]
 fn f(x: (u32, u8)) {}
@@ -694,7 +694,7 @@ fn f(x: (u32, u8)) {}
               TypecheckSucceeds(::testing::_));
 }
 
-TEST(TypecheckV2FuzzTestTest, FuzzTestTupleDomainMismatch) {
+TEST(TypecheckV2DomainsTest, FuzzTestTupleDomainMismatch) {
   EXPECT_THAT(
       R"(
 #[fuzz_test(domains=`u32:0..1, u8:0..2`)]
@@ -704,7 +704,7 @@ fn f(x: (u32, u8)) {}
                                "but function `f` has 1 parameter")));
 }
 
-TEST(TypecheckV2FuzzTestTest, FuzzTestDomainRangeBitSizeMismatch) {
+TEST(TypecheckV2DomainsTest, FuzzTestDomainRangeBitSizeMismatch) {
   EXPECT_THAT(
       R"(
 #[fuzz_test(domains=`u32:0..16384, u32:0..u32:16284`)]
@@ -714,7 +714,7 @@ fn f(x: u8, y:u32) {}
           HasSubstr("bit count (32) does not match parameter bit count (8)")));
 }
 
-TEST(TypecheckV2FuzzTestTest, FuzzTestDomainBitSizeMismatchAlias) {
+TEST(TypecheckV2DomainsTest, FuzzTestDomainBitSizeMismatchAlias) {
   EXPECT_THAT(
       R"(
 type u8_alias = u8;
@@ -725,7 +725,7 @@ fn f(x: u8_alias) {}
           HasSubstr("bit count (32) does not match parameter bit count (8)")));
 }
 
-TEST(TypecheckV2FuzzTestTest, FuzzTestConstRangeMismatch) {
+TEST(TypecheckV2DomainsTest, FuzzTestConstRangeMismatch) {
   EXPECT_THAT(
       R"(
 const C = u32:0..1000;
@@ -736,7 +736,7 @@ fn f(x: u8) {}
           HasSubstr("bit count (32) does not match parameter bit count (8)")));
 }
 
-TEST(TypecheckV2FuzzTestTest, FuzzTestCountMismatchTooMany) {
+TEST(TypecheckV2DomainsTest, FuzzTestCountMismatchTooMany) {
   EXPECT_THAT(
       R"(
 #[fuzz_test(domains=`u32:0..1, u32:0..2`)]
@@ -746,7 +746,7 @@ fn f(x: u32) {}
                                "but function `f` has 1 parameter")));
 }
 
-TEST(TypecheckV2FuzzTestTest, FuzzTestCountMismatchTooFew) {
+TEST(TypecheckV2DomainsTest, FuzzTestCountMismatchTooFew) {
   EXPECT_THAT(
       R"(
 #[fuzz_test(domains=`u32:0..1`)]
@@ -756,7 +756,7 @@ fn g(x: u32, y: u32) {}
                                "but function `g` has 2 parameters")));
 }
 
-TEST(TypecheckV2FuzzTestTest, FuzzTestEnum) {
+TEST(TypecheckV2DomainsTest, FuzzTestEnum) {
   EXPECT_THAT(R"(
 enum E {
   E0 = 0,
@@ -768,7 +768,7 @@ fn f(x: E) {}
               TypecheckSucceeds(::testing::_));
 }
 
-TEST(TypecheckV2FuzzTestTest, FuzzTestImportedEnum) {
+TEST(TypecheckV2DomainsTest, FuzzTestImportedEnum) {
   constexpr std::string_view kImported = R"(
 pub enum E {
   E0 = 0,
@@ -785,36 +785,8 @@ fn f(x: imported::E) {}
   EXPECT_THAT(TypecheckV2(kProgram, "main", &import_data), IsOk());
 }
 
-TEST(TypecheckV2FuzzTestTest, FuzzTestNoParameters) {
-  EXPECT_THAT(
-      R"(
-#[fuzz_test]
-fn f() {}
-)",
-      TypecheckFails(HasSubstr("Can only fuzz test functions with at least 1 "
-                               "parameter; function `f` has 0")));
-}
-
-TEST(TypecheckV2FuzzTestTest, FuzzTestAttributeWithZeroArguments) {
-  EXPECT_THAT(R"(
-#[fuzz_test]
-fn f(x: u32) {}
-)",
-              TypecheckSucceeds(::testing::_));
-}
-
-TEST(TypecheckV2FuzzTestTest, FuzzTestParametric) {
-  EXPECT_THAT(
-      R"(
-#[fuzz_test(domains=`u32:0..1`)]
-fn f<N: u32>(x: uN[N]) {
-   x+uN[N]:1
-}
-)",
-      TypecheckFails(HasSubstr("Cannot fuzz test parametric function `f`")));
-}
-
-TEST(TypecheckV2Test, FuzzTestDerivedStructDomainPartiallyNestedSuccess) {
+TEST(TypecheckV2DomainsTest,
+     FuzzTestDerivedStructDomainPartiallyNestedSuccess) {
   EXPECT_THAT(R"(
 #[fuzz_domain("InnerDomain")]
 struct Inner {
@@ -841,7 +813,7 @@ fn f(s: Outer) {}
               TypecheckSucceeds(::testing::_));
 }
 
-TEST(TypecheckV2Test, FuzzTestStructDomainTypeAlias) {
+TEST(TypecheckV2DomainsTest, FuzzTestStructDomainTypeAlias) {
   EXPECT_THAT(R"(
 #[fuzz_domain("InnerDomain")]
 struct Inner {
@@ -869,7 +841,7 @@ fn f(s: Outer) {}
               TypecheckSucceeds(::testing::_));
 }
 
-TEST(TypecheckV2Test, FuzzTestStructDomainArray) {
+TEST(TypecheckV2DomainsTest, FuzzTestStructDomainArray) {
   EXPECT_THAT(R"(
 #[fuzz_domain("InnerDomain")]
 struct Inner {
@@ -893,7 +865,7 @@ fn f(s: Outer) {}
               TypecheckSucceeds(::testing::_));
 }
 
-TEST(TypecheckV2Test, FuzzTestStructDomainTuple) {
+TEST(TypecheckV2DomainsTest, FuzzTestStructDomainTuple) {
   EXPECT_THAT(R"(
 #[fuzz_domain("InnerDomain")]
 struct Inner {
@@ -917,7 +889,7 @@ fn f(s: Outer) {}
               TypecheckSucceeds(::testing::_));
 }
 
-TEST(TypecheckV2FuzzTestTest, ArrayParam) {
+TEST(TypecheckV2DomainsTest, ArrayParam) {
   EXPECT_THAT(
       R"(
 #[fuzz_test(domains=`(u32:0..10, u32:1..=11)`)]
@@ -926,7 +898,7 @@ fn fuzz_custom_array_domain(t: u32[2]) {}
       TypecheckSucceeds(::testing::_));
 }
 
-TEST(TypecheckV2FuzzTestTest, ArrayParamSmallerSucceeds) {
+TEST(TypecheckV2DomainsTest, ArrayParamSmallerSucceeds) {
   EXPECT_THAT(
       R"(
 #[fuzz_test(domains=`(u32:0..10, u32:1..=11)`)]
@@ -935,7 +907,7 @@ fn fuzz_custom_array_domain(t: u32[4]) {}
       TypecheckSucceeds(::testing::_));
 }
 
-TEST(TypecheckV2FuzzTestTest, ArrayParamBadDomainSizeMismatch) {
+TEST(TypecheckV2DomainsTest, ArrayParamBadDomainSizeMismatch) {
   EXPECT_THAT(
       R"(
 #[fuzz_test(domains=`(u32:0..10, u32:1..=11, [u32:0])`)]
@@ -944,7 +916,7 @@ fn fuzz_custom_array_domain(t: u32[2]) {}
       TypecheckFails(HasSubstr("domain array size (3) exceeds")));
 }
 
-TEST(TypecheckV2FuzzTestTest, ArrayParamBadDomainTypeMismatch) {
+TEST(TypecheckV2DomainsTest, ArrayParamBadDomainTypeMismatch) {
   EXPECT_THAT(
       R"(
 #[fuzz_test(domains=`(u32:0..10, u32:1..=11, [u8:0])`)]
@@ -954,7 +926,7 @@ fn fuzz_custom_array_domain(t: u32[3]) {}
           "domain bit count (8) does not match parameter bit count (32)")));
 }
 
-TEST(TypecheckV2FuzzTestTest, ArrayParamNotTupleDomain) {
+TEST(TypecheckV2DomainsTest, ArrayParamNotTupleDomain) {
   EXPECT_THAT(
       R"(
 #[fuzz_test(domains=`[u32:0..10, u32:1..11]`)]
@@ -964,7 +936,7 @@ fn fuzz_custom_array_domain(t: u32[2]) {}
           "Fuzz test domain for array parameter `t: u32[2]` must be a tuple")));
 }
 
-TEST(TypecheckV2FuzzTestTest, MixedArrayAndScalarSucceeds) {
+TEST(TypecheckV2DomainsTest, MixedArrayAndScalarSucceeds) {
   EXPECT_THAT(
       R"(
 #[fuzz_test(domains=`(u32:0..10, u32:1..11), u32:0..5`)]

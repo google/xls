@@ -611,8 +611,8 @@ cc_test(
 )
 
 cc_test(
-    name = "typecheck_module_v2_fuzz_test_test",
-    srcs = ["typecheck_module_v2_fuzz_test_test.cc"],
+    name = "typecheck_module_v2_domains_test",
+    srcs = ["typecheck_module_v2_domains_test.cc"],
     deps = [
         ":matchers",
         "//xls/common:xls_gunit_main",

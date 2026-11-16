@@ -1273,6 +1273,35 @@ fn f(x: u32) {}
               TypecheckSucceeds(::testing::_));
 }
 
+TEST(TypecheckV2FunctionTest, FuzzTestNoParameters) {
+  EXPECT_THAT(
+      R"(
+#[fuzz_test]
+fn f() {}
+)",
+      TypecheckFails(HasSubstr("Can only fuzz test functions with at least 1 "
+                               "parameter; function `f` has 0")));
+}
+
+TEST(TypecheckV2FunctionTest, FuzzTestAttributeWithZeroArguments) {
+  EXPECT_THAT(R"(
+#[fuzz_test]
+fn f(x: u32) {}
+)",
+              TypecheckSucceeds(::testing::_));
+}
+
+TEST(TypecheckV2FunctionTest, FuzzTestParametric) {
+  EXPECT_THAT(
+      R"(
+#[fuzz_test(domains=`u32:0..1`)]
+fn f<N: u32>(x: uN[N]) {
+   x+uN[N]:1
+}
+)",
+      TypecheckFails(HasSubstr("Cannot fuzz test parametric function `f`")));
+}
+
 TEST(TypecheckV2FunctionTest, CallingTestUtilitySucceeds) {
   EXPECT_THAT(R"(
 #[cfg(test)]
