@@ -999,6 +999,71 @@ fn main() {
                                       HasNodeWithType("y", "uN[32]"))));
 }
 
+TEST(TypecheckV2Test, PatternMatchInfersMatchedTupleElementTypeFromArm) {
+  EXPECT_THAT(R"(
+fn f() -> bool {
+    match (1, false) {
+        (u8:1, false) => true,
+        _ => false,
+    }
+}
+
+const_assert!(f());
+)",
+              TypecheckSucceeds(
+                  AllOf(HasNodeWithType("1", "uN[8]"),
+                        HasNodeWithType("(1, false)", "(uN[8], uN[1])"))));
+}
+
+TEST(TypecheckV2Test, PatternMatchInfersArmTupleElementTypeFromMatched) {
+  EXPECT_THAT(R"(
+fn f() -> bool {
+    match (u8:1, false) {
+        (1, false) => true,
+        _ => false,
+    }
+}
+
+const_assert!(f());
+)",
+              TypecheckSucceeds(
+                  AllOf(HasNodeWithType("1", "uN[8]"),
+                        HasNodeWithType("(u8:1, false)", "(uN[8], uN[1])"))));
+}
+
+TEST(TypecheckV2Test, PatternMatchWithRestOfTupleAndLiteralAfter) {
+  EXPECT_THAT(
+      R"(
+fn f() -> bool {
+    match (1, (2, 3), false) {
+        (u8:1, .., false) => true,
+        (4, (5, 6..u16:10), false) => false,
+        (_, (u32:7, x), _) => x == u16:0,
+        _ => false,
+    }
+}
+
+const_assert!(f());
+)",
+      TypecheckSucceeds(
+          AllOf(HasNodeWithType("1", "uN[8]"), HasNodeWithType("4", "uN[8]"),
+                HasNodeWithType("2", "uN[32]"), HasNodeWithType("5", "uN[32]"),
+                HasNodeWithType("3", "uN[16]"), HasNodeWithType("6", "uN[16]"),
+                HasNodeWithType("x", "uN[16]"))));
+}
+
+TEST(TypecheckV2Test, PatternMatchMatchedTupleElementTooLargeForArmType) {
+  EXPECT_THAT(R"(
+fn f() -> bool {
+    match (256, false) {
+        (u8:1, false) => true,
+        _ => false,
+    }
+}
+)",
+              TypecheckFails(HasSizeMismatch("u8", "u9")));
+}
+
 TEST(TypecheckV2Test, PatternMatchToConstant) {
   EXPECT_THAT(R"(
 const MY_FAVORITE_NUMBER = u8:42;
