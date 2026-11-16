@@ -52,44 +52,74 @@ namespace {
 
 using ::absl_testing::IsOkAndHolds;
 
+using OperandNode = OperandVisibilityAnalysis::OperandNode;
 class VisibilityExprBuilderTest : public IrTestBase {
  protected:
-  absl::StatusOr<std::pair<Node*, VisibilityEstimator::AreaDelay>>
-  BuildDefaultVisibilityExpr(Function* f, Node* node,
-                             std::vector<Node*> mutually_exclusive_requirements,
-                             const absl::flat_hash_set<Node*>& sinks = {}) {
-    NodeForwardDependencyAnalysis nda;
-    XLS_RETURN_IF_ERROR(nda.Attach(f).status());
-    LazyPostDominatorAnalysis post_dom;
-    XLS_RETURN_IF_ERROR(post_dom.Attach(f).status());
-    std::unique_ptr<BddQueryEngine> bdd_engine = BddQueryEngine::MakeDefault();
-    XLS_RETURN_IF_ERROR(bdd_engine->Populate(f).status());
+  struct VisibilityAnalyses {
+    std::unique_ptr<NodeForwardDependencyAnalysis> nda;
+    std::unique_ptr<LazyPostDominatorAnalysis> post_dom;
+    std::unique_ptr<BddQueryEngine> bdd_engine;
+    std::unique_ptr<OperandVisibilityAnalysis> operand_visibility;
+    std::unique_ptr<VisibilityAnalysis> visibility;
+    absl::flat_hash_set<OperandNode> conditional_edges;
+  };
+
+  absl::StatusOr<VisibilityAnalyses> CreateVisibilityAnalyses(
+      FunctionBase* f, Node* node = nullptr,
+      const std::vector<Node*>& mutually_exclusive_requirements = {}) {
+    VisibilityAnalyses analyses;
+    analyses.nda = std::make_unique<NodeForwardDependencyAnalysis>();
+    XLS_RETURN_IF_ERROR(analyses.nda->Attach(f).status());
+    analyses.post_dom = std::make_unique<LazyPostDominatorAnalysis>();
+    XLS_RETURN_IF_ERROR(analyses.post_dom->Attach(f).status());
+    analyses.bdd_engine = BddQueryEngine::MakeDefault();
+    XLS_RETURN_IF_ERROR(analyses.bdd_engine->Populate(f).status());
+    XLS_ASSIGN_OR_RETURN(OperandVisibilityAnalysis op_vis,
+                         OperandVisibilityAnalysis::Create(
+                             analyses.nda.get(), analyses.bdd_engine.get()));
+    analyses.operand_visibility =
+        std::make_unique<OperandVisibilityAnalysis>(std::move(op_vis));
     XLS_ASSIGN_OR_RETURN(
-        auto operand_visibility,
-        OperandVisibilityAnalysis::Create(&nda, bdd_engine.get()));
-    XLS_ASSIGN_OR_RETURN(auto visibility,
-                         VisibilityAnalysis::Create(
-                             &operand_visibility, bdd_engine.get(), &post_dom));
-    XLS_ASSIGN_OR_RETURN(auto conditional_edges,
-                         visibility->GetEdgesForMutuallyExclusiveVisibilityExpr(
-                             node, mutually_exclusive_requirements, -1));
+        analyses.visibility,
+        VisibilityAnalysis::Create(analyses.operand_visibility.get(),
+                                   analyses.bdd_engine.get(),
+                                   analyses.post_dom.get()));
+    if (node != nullptr) {
+      XLS_ASSIGN_OR_RETURN(
+          analyses.conditional_edges,
+          analyses.visibility->GetEdgesForMutuallyExclusiveVisibilityExpr(
+              node, mutually_exclusive_requirements, -1));
+    }
+    return analyses;
+  }
+
+  absl::StatusOr<std::pair<Node*, VisibilityEstimator::AreaDelay>>
+  BuildDefaultVisibilityExpr(
+      Function* f, Node* node,
+      const std::vector<Node*>& mutually_exclusive_requirements,
+      const absl::flat_hash_set<Node*>& sinks = {}) {
+    XLS_ASSIGN_OR_RETURN(
+        VisibilityAnalyses analyses,
+        CreateVisibilityAnalyses(f, node, mutually_exclusive_requirements));
     VLOG(3) << "node: " << node->ToString() << "\n";
-    VLOG(3) << "conditional_edges: " << conditional_edges.size() << "\n";
-    for (auto edge : conditional_edges) {
+    VLOG(3) << "conditional_edges: " << analyses.conditional_edges.size()
+            << "\n";
+    for (const OperandNode& edge : analyses.conditional_edges) {
       VLOG(3) << "edge: " << edge.operand->ToString() << " -> "
               << edge.node->ToString() << "\n";
     }
-    auto last_node_id = f->nodes_reversed().begin()->id();
+    int64_t last_node_id = f->nodes_reversed().begin()->id();
     XLS_ASSIGN_OR_RETURN(AreaEstimator * ae, GetAreaEstimator("unit"));
     XLS_ASSIGN_OR_RETURN(DelayEstimator * de, GetDelayEstimator("unit"));
     BitProvenanceAnalysis bpa;
-    VisibilityEstimator estimator(last_node_id, bdd_engine.get(), nda, bpa, ae,
-                                  de);
-    XLS_ASSIGN_OR_RETURN(Node * expr, estimator.BuildVisibilityIRExpr(
-                                          f, node, conditional_edges, sinks));
-    XLS_ASSIGN_OR_RETURN(auto area_delay,
+    VisibilityEstimator estimator(last_node_id, analyses.bdd_engine.get(),
+                                  *analyses.nda, bpa, ae, de);
+    XLS_ASSIGN_OR_RETURN(Node * expr,
+                         estimator.BuildVisibilityIRExpr(
+                             f, node, analyses.conditional_edges, sinks));
+    XLS_ASSIGN_OR_RETURN(VisibilityEstimator::AreaDelay area_delay,
                          estimator.GetAreaAndDelayOfVisibilityExpr(
-                             node, conditional_edges, sinks));
+                             node, analyses.conditional_edges, sinks));
     return std::make_pair(expr, area_delay);
   }
 };
@@ -401,21 +431,8 @@ TEST_F(VisibilityExprBuilderTest, LivenessHalting) {
   BValue ret = fb.Tuple({select1, select2});
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(ret));
 
-  NodeForwardDependencyAnalysis nda;
-  XLS_ASSERT_OK(nda.Attach(f).status());
-  LazyPostDominatorAnalysis post_dom;
-  XLS_ASSERT_OK(post_dom.Attach(f).status());
-  std::unique_ptr<BddQueryEngine> bdd_engine = BddQueryEngine::MakeDefault();
-  XLS_ASSERT_OK(bdd_engine->Populate(f).status());
-  XLS_ASSERT_OK_AND_ASSIGN(
-      auto operand_visibility,
-      OperandVisibilityAnalysis::Create(&nda, bdd_engine.get()));
-  XLS_ASSERT_OK_AND_ASSIGN(
-      auto visibility, VisibilityAnalysis::Create(&operand_visibility,
-                                                  bdd_engine.get(), &post_dom));
-  XLS_ASSERT_OK_AND_ASSIGN(
-      auto conditional_edges,
-      visibility->GetEdgesForMutuallyExclusiveVisibilityExpr(x.node(), {}, -1));
+  XLS_ASSERT_OK_AND_ASSIGN(VisibilityAnalyses analyses,
+                           CreateVisibilityAnalyses(f, x.node()));
 
   XLS_ASSERT_OK_AND_ASSIGN(AreaEstimator * ae, GetAreaEstimator("unit"));
   XLS_ASSERT_OK_AND_ASSIGN(DelayEstimator * de, GetDelayEstimator("unit"));
@@ -425,12 +442,13 @@ TEST_F(VisibilityExprBuilderTest, LivenessHalting) {
   auto is_live_source = [&](Node* n) { return n != and1.node(); };
 
   VisibilityEstimator estimator(f->nodes_reversed().begin()->id(),
-                                bdd_engine.get(), nda, bpa, ae, de,
-                                is_live_source);
+                                analyses.bdd_engine.get(), *analyses.nda, bpa,
+                                ae, de, is_live_source);
 
-  XLS_ASSERT_OK_AND_ASSIGN(Node * expr, estimator.BuildVisibilityIRExpr(
-                                            f, x.node(), conditional_edges,
-                                            /*sinks=*/{}));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Node * expr,
+      estimator.BuildVisibilityIRExpr(f, x.node(), analyses.conditional_edges,
+                                      /*sinks=*/{}));
 
   // Because and1 is ignored, we only accumulate its immediate condition (lt1 !=
   // 0) combined with the conditions from select1!
@@ -440,11 +458,12 @@ TEST_F(VisibilityExprBuilderTest, LivenessHalting) {
 
   // Meanwhile, if we remove the liveness check, we should get the more general
   // visibility expression.
-  VisibilityEstimator unconstrained_estimator(
-      f->nodes_reversed().begin()->id(), bdd_engine.get(), nda, bpa, ae, de);
+  VisibilityEstimator unconstrained_estimator(f->nodes_reversed().begin()->id(),
+                                              analyses.bdd_engine.get(),
+                                              *analyses.nda, bpa, ae, de);
   XLS_ASSERT_OK_AND_ASSIGN(Node * general_expr,
                            unconstrained_estimator.BuildVisibilityIRExpr(
-                               f, x.node(), conditional_edges,
+                               f, x.node(), analyses.conditional_edges,
                                /*sinks=*/{}));
   EXPECT_THAT(general_expr,
               m::Or(m::Eq(m::Param("op1"), m::Literal(0)),
@@ -479,21 +498,8 @@ TEST_F(VisibilityExprBuilderTest, AndPruning) {
   BValue and_gate = fb.And({a, b, c, y});
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(and_gate));
 
-  NodeForwardDependencyAnalysis nda;
-  XLS_ASSERT_OK(nda.Attach(f).status());
-  LazyPostDominatorAnalysis post_dom;
-  XLS_ASSERT_OK(post_dom.Attach(f).status());
-  std::unique_ptr<BddQueryEngine> bdd_engine = BddQueryEngine::MakeDefault();
-  XLS_ASSERT_OK(bdd_engine->Populate(f).status());
-  XLS_ASSERT_OK_AND_ASSIGN(
-      auto operand_visibility,
-      OperandVisibilityAnalysis::Create(&nda, bdd_engine.get()));
-  XLS_ASSERT_OK_AND_ASSIGN(
-      auto visibility, VisibilityAnalysis::Create(&operand_visibility,
-                                                  bdd_engine.get(), &post_dom));
-  XLS_ASSERT_OK_AND_ASSIGN(
-      auto conditional_edges,
-      visibility->GetEdgesForMutuallyExclusiveVisibilityExpr(y.node(), {}, -1));
+  XLS_ASSERT_OK_AND_ASSIGN(VisibilityAnalyses analyses,
+                           CreateVisibilityAnalyses(f, y.node()));
 
   XLS_ASSERT_OK_AND_ASSIGN(AreaEstimator * ae, GetAreaEstimator("unit"));
   XLS_ASSERT_OK_AND_ASSIGN(DelayEstimator * de, GetDelayEstimator("unit"));
@@ -524,22 +530,26 @@ TEST_F(VisibilityExprBuilderTest, AndPruning) {
   };
 
   VisibilityEstimator estimator(
-      f->nodes_reversed().begin()->id(), bdd_engine.get(), nda, bpa, ae, de,
+      f->nodes_reversed().begin()->id(), analyses.bdd_engine.get(),
+      *analyses.nda, bpa, ae, de,
       /*is_live_source=*/[](Node*) { return true; }, get_remaining_delay);
 
-  XLS_ASSERT_OK_AND_ASSIGN(Node * expr,
-                           estimator.BuildVisibilityIRExpr(
-                               f, y.node(), conditional_edges, /*sinks=*/{}));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Node * expr,
+      estimator.BuildVisibilityIRExpr(f, y.node(), analyses.conditional_edges,
+                                      /*sinks=*/{}));
 
   // The expected result should omit 'c',so it should be AND(a, b).
   EXPECT_THAT(expr, m::And(m::Param("a"), m::Param("b")));
 
   // Without delay constraints, we should get the expected expression.
-  VisibilityEstimator unconstrained_estimator(
-      f->nodes_reversed().begin()->id(), bdd_engine.get(), nda, bpa, ae, de);
-  XLS_ASSERT_OK_AND_ASSIGN(Node * unconstrained_expr,
-                           unconstrained_estimator.BuildVisibilityIRExpr(
-                               f, y.node(), conditional_edges, /*sinks=*/{}));
+  VisibilityEstimator unconstrained_estimator(f->nodes_reversed().begin()->id(),
+                                              analyses.bdd_engine.get(),
+                                              *analyses.nda, bpa, ae, de);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Node * unconstrained_expr,
+      unconstrained_estimator.BuildVisibilityIRExpr(
+          f, y.node(), analyses.conditional_edges, /*sinks=*/{}));
   EXPECT_THAT(unconstrained_expr,
               m::And(m::And(m::Param("a"), m::Param("b")), m::Param("c")));
 }
@@ -556,21 +566,8 @@ TEST_F(VisibilityExprBuilderTest, OrPruning) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f,
                            fb.BuildWithReturnValue(fb.Tuple({or_y, or_y2})));
 
-  NodeForwardDependencyAnalysis nda;
-  XLS_ASSERT_OK(nda.Attach(f).status());
-  LazyPostDominatorAnalysis post_dom;
-  XLS_ASSERT_OK(post_dom.Attach(f).status());
-  std::unique_ptr<BddQueryEngine> bdd_engine = BddQueryEngine::MakeDefault();
-  XLS_ASSERT_OK(bdd_engine->Populate(f).status());
-  XLS_ASSERT_OK_AND_ASSIGN(
-      auto operand_visibility,
-      OperandVisibilityAnalysis::Create(&nda, bdd_engine.get()));
-  XLS_ASSERT_OK_AND_ASSIGN(
-      auto visibility, VisibilityAnalysis::Create(&operand_visibility,
-                                                  bdd_engine.get(), &post_dom));
-  XLS_ASSERT_OK_AND_ASSIGN(
-      auto conditional_edges,
-      visibility->GetEdgesForMutuallyExclusiveVisibilityExpr(y.node(), {}, -1));
+  XLS_ASSERT_OK_AND_ASSIGN(VisibilityAnalyses analyses,
+                           CreateVisibilityAnalyses(f, y.node()));
 
   XLS_ASSERT_OK_AND_ASSIGN(AreaEstimator * ae, GetAreaEstimator("unit"));
   XLS_ASSERT_OK_AND_ASSIGN(DelayEstimator * de, GetDelayEstimator("unit"));
@@ -590,21 +587,25 @@ TEST_F(VisibilityExprBuilderTest, OrPruning) {
   };
 
   VisibilityEstimator estimator(
-      f->nodes_reversed().begin()->id(), bdd_engine.get(), nda, bpa, ae, de,
+      f->nodes_reversed().begin()->id(), analyses.bdd_engine.get(),
+      *analyses.nda, bpa, ae, de,
       /*is_live_source=*/[](Node*) { return true; }, get_remaining_delay);
-  XLS_ASSERT_OK_AND_ASSIGN(Node * expr,
-                           estimator.BuildVisibilityIRExpr(
-                               f, y.node(), conditional_edges, /*sinks=*/{}));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Node * expr,
+      estimator.BuildVisibilityIRExpr(f, y.node(), analyses.conditional_edges,
+                                      /*sinks=*/{}));
 
   // The entire OR expression should be pruned to 1.
   EXPECT_THAT(expr, m::Literal(1));
 
   // Without delay constraints, we should get the expected OR expression.
-  VisibilityEstimator unconstrained_estimator(
-      f->nodes_reversed().begin()->id(), bdd_engine.get(), nda, bpa, ae, de);
-  XLS_ASSERT_OK_AND_ASSIGN(Node * unconstrained_expr,
-                           unconstrained_estimator.BuildVisibilityIRExpr(
-                               f, y.node(), conditional_edges, /*sinks=*/{}));
+  VisibilityEstimator unconstrained_estimator(f->nodes_reversed().begin()->id(),
+                                              analyses.bdd_engine.get(),
+                                              *analyses.nda, bpa, ae, de);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Node * unconstrained_expr,
+      unconstrained_estimator.BuildVisibilityIRExpr(
+          f, y.node(), analyses.conditional_edges, /*sinks=*/{}));
   EXPECT_THAT(unconstrained_expr, m::Or());
 }
 
@@ -617,21 +618,8 @@ TEST_F(VisibilityExprBuilderTest, SelectPruning) {
   BValue sel = fb.Select(op, x, y);
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(sel));
 
-  NodeForwardDependencyAnalysis nda;
-  XLS_ASSERT_OK(nda.Attach(f).status());
-  LazyPostDominatorAnalysis post_dom;
-  XLS_ASSERT_OK(post_dom.Attach(f).status());
-  std::unique_ptr<BddQueryEngine> bdd_engine = BddQueryEngine::MakeDefault();
-  XLS_ASSERT_OK(bdd_engine->Populate(f).status());
-  XLS_ASSERT_OK_AND_ASSIGN(
-      auto operand_visibility,
-      OperandVisibilityAnalysis::Create(&nda, bdd_engine.get()));
-  XLS_ASSERT_OK_AND_ASSIGN(
-      auto visibility, VisibilityAnalysis::Create(&operand_visibility,
-                                                  bdd_engine.get(), &post_dom));
-  XLS_ASSERT_OK_AND_ASSIGN(
-      auto conditional_edges,
-      visibility->GetEdgesForMutuallyExclusiveVisibilityExpr(x.node(), {}, -1));
+  XLS_ASSERT_OK_AND_ASSIGN(VisibilityAnalyses analyses,
+                           CreateVisibilityAnalyses(f, x.node()));
 
   XLS_ASSERT_OK_AND_ASSIGN(AreaEstimator * ae, GetAreaEstimator("unit"));
   XLS_ASSERT_OK_AND_ASSIGN(DelayEstimator * de, GetDelayEstimator("unit"));
@@ -645,21 +633,25 @@ TEST_F(VisibilityExprBuilderTest, SelectPruning) {
   };
 
   VisibilityEstimator estimator(
-      f->nodes_reversed().begin()->id(), bdd_engine.get(), nda, bpa, ae, de,
+      f->nodes_reversed().begin()->id(), analyses.bdd_engine.get(),
+      *analyses.nda, bpa, ae, de,
       /*is_live_source=*/[](Node*) { return true; }, get_remaining_delay);
 
-  XLS_ASSERT_OK_AND_ASSIGN(Node * expr,
-                           estimator.BuildVisibilityIRExpr(
-                               f, x.node(), conditional_edges, /*sinks=*/{}));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Node * expr,
+      estimator.BuildVisibilityIRExpr(f, x.node(), analyses.conditional_edges,
+                                      /*sinks=*/{}));
 
   EXPECT_THAT(expr, m::Literal(1));
 
   // Without delay constraints, we should get the expected expression.
-  VisibilityEstimator unconstrained_estimator(
-      f->nodes_reversed().begin()->id(), bdd_engine.get(), nda, bpa, ae, de);
-  XLS_ASSERT_OK_AND_ASSIGN(Node * unconstrained_expr,
-                           unconstrained_estimator.BuildVisibilityIRExpr(
-                               f, x.node(), conditional_edges, /*sinks=*/{}));
+  VisibilityEstimator unconstrained_estimator(f->nodes_reversed().begin()->id(),
+                                              analyses.bdd_engine.get(),
+                                              *analyses.nda, bpa, ae, de);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Node * unconstrained_expr,
+      unconstrained_estimator.BuildVisibilityIRExpr(
+          f, x.node(), analyses.conditional_edges, /*sinks=*/{}));
   EXPECT_THAT(unconstrained_expr, m::Eq(m::Param("op"), m::Literal(1)));
 }
 
@@ -674,23 +666,8 @@ TEST_F(VisibilityExprBuilderTest, PriorityAndOneHotSelectPruning) {
   BValue one_hot = fb.OneHotSelect(s2, {y, prio, prio});
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(one_hot));
 
-  NodeForwardDependencyAnalysis nda;
-  XLS_ASSERT_OK(nda.Attach(f).status());
-  LazyPostDominatorAnalysis post_dom;
-  XLS_ASSERT_OK(post_dom.Attach(f).status());
-  std::unique_ptr<BddQueryEngine> bdd_engine = BddQueryEngine::MakeDefault();
-  XLS_ASSERT_OK(bdd_engine->Populate(f).status());
-  XLS_ASSERT_OK_AND_ASSIGN(
-      OperandVisibilityAnalysis operand_visibility,
-      OperandVisibilityAnalysis::Create(&nda, bdd_engine.get()));
-  XLS_ASSERT_OK_AND_ASSIGN(
-      std::unique_ptr<VisibilityAnalysis> visibility,
-      VisibilityAnalysis::Create(&operand_visibility, bdd_engine.get(),
-                                 &post_dom));
-  XLS_ASSERT_OK_AND_ASSIGN(
-      absl::flat_hash_set<OperandVisibilityAnalysis::OperandNode>
-          conditional_edges,
-      visibility->GetEdgesForMutuallyExclusiveVisibilityExpr(x.node(), {}, -1));
+  XLS_ASSERT_OK_AND_ASSIGN(VisibilityAnalyses analyses,
+                           CreateVisibilityAnalyses(f, x.node()));
 
   XLS_ASSERT_OK_AND_ASSIGN(AreaEstimator * ae, GetAreaEstimator("unit"));
   XLS_ASSERT_OK_AND_ASSIGN(DelayEstimator * de, GetDelayEstimator("unit"));
@@ -704,10 +681,11 @@ TEST_F(VisibilityExprBuilderTest, PriorityAndOneHotSelectPruning) {
   };
 
   VisibilityEstimator strict_estimator(
-      f->nodes_reversed().begin()->id(), bdd_engine.get(), nda, bpa, ae, de,
+      f->nodes_reversed().begin()->id(), analyses.bdd_engine.get(),
+      *analyses.nda, bpa, ae, de,
       /*is_live_source=*/[](Node*) { return true; }, strict_remaining_delay);
   EXPECT_THAT(strict_estimator.BuildVisibilityIRExpr(
-                  f, x.node(), conditional_edges, /*sinks=*/{}),
+                  f, x.node(), analyses.conditional_edges, /*sinks=*/{}),
               IsOkAndHolds(m::BitSlice(m::Param("s1"), 0, 1)));
 
   auto flexible_remaining_delay = [&](Node* n) -> int64_t {
@@ -718,14 +696,14 @@ TEST_F(VisibilityExprBuilderTest, PriorityAndOneHotSelectPruning) {
   };
 
   VisibilityEstimator flexible_estimator(
-      f->nodes_reversed().begin()->id(), bdd_engine.get(), nda, bpa, ae, de,
+      f->nodes_reversed().begin()->id(), analyses.bdd_engine.get(),
+      *analyses.nda, bpa, ae, de,
       /*is_live_source=*/[](Node*) { return true; }, flexible_remaining_delay);
-  EXPECT_THAT(
-      flexible_estimator.BuildVisibilityIRExpr(f, x.node(), conditional_edges,
-                                               /*sinks=*/{}),
-      IsOkAndHolds(m::And(m::BitSlice(m::Param("s1"), 0, 1),
-                          m::Or(m::BitSlice(m::Param("s2"), 1, 1),
-                                m::BitSlice(m::Param("s2"), 2, 1)))));
+  EXPECT_THAT(flexible_estimator.BuildVisibilityIRExpr(
+                  f, x.node(), analyses.conditional_edges, /*sinks=*/{}),
+              IsOkAndHolds(m::And(m::BitSlice(m::Param("s1"), 0, 1),
+                                  m::Or(m::BitSlice(m::Param("s2"), 1, 1),
+                                        m::BitSlice(m::Param("s2"), 2, 1)))));
 }
 
 TEST_F(VisibilityExprBuilderTest, TargetStageEnforcement) {
@@ -740,33 +718,21 @@ TEST_F(VisibilityExprBuilderTest, TargetStageEnforcement) {
   // Add empty stages to make it a scheduled function!
   f->AddEmptyStages(3);
 
-  NodeForwardDependencyAnalysis nda;
-  XLS_ASSERT_OK(nda.Attach(f).status());
-  LazyPostDominatorAnalysis post_dom;
-  XLS_ASSERT_OK(post_dom.Attach(f).status());
-  std::unique_ptr<BddQueryEngine> bdd_engine = BddQueryEngine::MakeDefault();
-  XLS_ASSERT_OK(bdd_engine->Populate(f).status());
-  XLS_ASSERT_OK_AND_ASSIGN(
-      auto operand_visibility,
-      OperandVisibilityAnalysis::Create(&nda, bdd_engine.get()));
-  XLS_ASSERT_OK_AND_ASSIGN(
-      auto visibility, VisibilityAnalysis::Create(&operand_visibility,
-                                                  bdd_engine.get(), &post_dom));
-  XLS_ASSERT_OK_AND_ASSIGN(
-      auto conditional_edges,
-      visibility->GetEdgesForMutuallyExclusiveVisibilityExpr(x.node(), {}, -1));
+  XLS_ASSERT_OK_AND_ASSIGN(VisibilityAnalyses analyses,
+                           CreateVisibilityAnalyses(f, x.node()));
 
   auto last_node_id = f->nodes_reversed().begin()->id();
   XLS_ASSERT_OK_AND_ASSIGN(AreaEstimator * ae, GetAreaEstimator("unit"));
   XLS_ASSERT_OK_AND_ASSIGN(DelayEstimator * de, GetDelayEstimator("unit"));
   BitProvenanceAnalysis bpa;
-  VisibilityEstimator estimator(last_node_id, bdd_engine.get(), nda, bpa, ae,
-                                de);
+  VisibilityEstimator estimator(last_node_id, analyses.bdd_engine.get(),
+                                *analyses.nda, bpa, ae, de);
 
   int64_t kTargetStage = 2;
-  XLS_ASSERT_OK_AND_ASSIGN(Node * expr, estimator.BuildVisibilityIRExpr(
-                                            f, x.node(), conditional_edges,
-                                            /*sinks=*/{}, kTargetStage));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Node * expr,
+      estimator.BuildVisibilityIRExpr(f, x.node(), analyses.conditional_edges,
+                                      /*sinks=*/{}, kTargetStage));
   (void)expr;
 
   // All nodes created during BuildVisibilityIRExpr should be assigned to stage
@@ -796,34 +762,25 @@ TEST_F(VisibilityExprBuilderTest, ConservativeVisibilityWithLivePruning) {
   BValue ret = fb.And({z1, z2, b});
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(ret));
 
-  NodeForwardDependencyAnalysis nda;
-  XLS_ASSERT_OK(nda.Attach(f).status());
-  LazyPostDominatorAnalysis post_dom;
-  XLS_ASSERT_OK(post_dom.Attach(f).status());
-  std::unique_ptr<BddQueryEngine> bdd_engine = BddQueryEngine::MakeDefault();
-  XLS_ASSERT_OK(bdd_engine->Populate(f).status());
-  XLS_ASSERT_OK_AND_ASSIGN(
-      auto operand_visibility,
-      OperandVisibilityAnalysis::Create(&nda, bdd_engine.get()));
-  XLS_ASSERT_OK_AND_ASSIGN(
-      auto visibility, VisibilityAnalysis::Create(&operand_visibility,
-                                                  bdd_engine.get(), &post_dom));
+  XLS_ASSERT_OK_AND_ASSIGN(VisibilityAnalyses analyses,
+                           CreateVisibilityAnalyses(f));
 
   // Only 'x', 'y1', and 'y2' are live sources
   auto is_live_source = [&](Node* n) {
     return n == x.node() || n == y1.node() || n == y2.node();
   };
 
-  XLS_ASSERT_OK_AND_ASSIGN(auto conditional_edges,
-                           visibility->GetEdgesForConservativeVisibilityExpr(
-                               x.node(), is_live_source, -1));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      absl::flat_hash_set<OperandNode> conditional_edges,
+      analyses.visibility->GetEdgesForConservativeVisibilityExpr(
+          x.node(), is_live_source, -1));
 
   XLS_ASSERT_OK_AND_ASSIGN(AreaEstimator * ae, GetAreaEstimator("unit"));
   XLS_ASSERT_OK_AND_ASSIGN(DelayEstimator * de, GetDelayEstimator("unit"));
   BitProvenanceAnalysis bpa;
   VisibilityEstimator estimator(f->nodes_reversed().begin()->id(),
-                                bdd_engine.get(), nda, bpa, ae, de,
-                                is_live_source);
+                                analyses.bdd_engine.get(), *analyses.nda, bpa,
+                                ae, de, is_live_source);
 
   XLS_ASSERT_OK_AND_ASSIGN(Node * expr, estimator.BuildVisibilityIRExpr(
                                             f, x.node(), conditional_edges,
@@ -833,11 +790,12 @@ TEST_F(VisibilityExprBuilderTest, ConservativeVisibilityWithLivePruning) {
   EXPECT_THAT(expr, m::Literal(1));
 
   // Without live constraints, we should get the expected expression.
-  VisibilityEstimator unconstrained_estimator(
-      f->nodes_reversed().begin()->id(), bdd_engine.get(), nda, bpa, ae, de);
+  VisibilityEstimator unconstrained_estimator(f->nodes_reversed().begin()->id(),
+                                              analyses.bdd_engine.get(),
+                                              *analyses.nda, bpa, ae, de);
   XLS_ASSERT_OK_AND_ASSIGN(
-      auto unconstrained_edges,
-      visibility->GetEdgesForConservativeVisibilityExpr(
+      absl::flat_hash_set<OperandNode> unconstrained_edges,
+      analyses.visibility->GetEdgesForConservativeVisibilityExpr(
           x.node(), /*is_live_source=*/[](Node*) { return true; }, -1));
   XLS_ASSERT_OK_AND_ASSIGN(Node * unconstrained_expr,
                            unconstrained_estimator.BuildVisibilityIRExpr(
@@ -863,21 +821,8 @@ TEST_F(VisibilityExprBuilderTest, ConservativeVisibilityWithDelayPruning) {
   BValue sel = fb.Select(cond, {or_y, or_y2});
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(sel));
 
-  NodeForwardDependencyAnalysis nda;
-  XLS_ASSERT_OK(nda.Attach(f).status());
-  LazyPostDominatorAnalysis post_dom;
-  XLS_ASSERT_OK(post_dom.Attach(f).status());
-  std::unique_ptr<BddQueryEngine> bdd_engine = BddQueryEngine::MakeDefault();
-  XLS_ASSERT_OK(bdd_engine->Populate(f).status());
-  XLS_ASSERT_OK_AND_ASSIGN(
-      auto operand_visibility,
-      OperandVisibilityAnalysis::Create(&nda, bdd_engine.get()));
-  XLS_ASSERT_OK_AND_ASSIGN(
-      auto visibility, VisibilityAnalysis::Create(&operand_visibility,
-                                                  bdd_engine.get(), &post_dom));
-  XLS_ASSERT_OK_AND_ASSIGN(
-      auto conditional_edges,
-      visibility->GetEdgesForMutuallyExclusiveVisibilityExpr(y.node(), {}, -1));
+  XLS_ASSERT_OK_AND_ASSIGN(VisibilityAnalyses analyses,
+                           CreateVisibilityAnalyses(f, y.node()));
 
   auto last_node_id = f->nodes_reversed().begin()->id();
   XLS_ASSERT_OK_AND_ASSIGN(AreaEstimator * ae, GetAreaEstimator("unit"));
@@ -888,7 +833,7 @@ TEST_F(VisibilityExprBuilderTest, ConservativeVisibilityWithDelayPruning) {
   // or_y path depends on bit1.
   // cond == 0 path also pruned.
   auto get_remaining_delay = [&](Node* n) -> int64_t {
-    if (nda.IsDependent(bit1.node(), n)) {
+    if (analyses.nda->IsDependent(bit1.node(), n)) {
       return -1;
     }
     if (n->Is<CompareOp>() && n->op() == Op::kEq &&
@@ -902,23 +847,25 @@ TEST_F(VisibilityExprBuilderTest, ConservativeVisibilityWithDelayPruning) {
   };
 
   VisibilityEstimator estimator(
-      last_node_id, bdd_engine.get(), nda, bpa, ae, de,
+      last_node_id, analyses.bdd_engine.get(), *analyses.nda, bpa, ae, de,
       /*is_live_source=*/[](Node*) { return true; }, get_remaining_delay);
 
-  XLS_ASSERT_OK_AND_ASSIGN(Node * expr,
-                           estimator.BuildVisibilityIRExpr(
-                               f, y.node(), conditional_edges, /*sinks=*/{}));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Node * expr,
+      estimator.BuildVisibilityIRExpr(f, y.node(), analyses.conditional_edges,
+                                      /*sinks=*/{}));
 
   // Must return Literal(1) (always_visible) because one of the alternative
   // paths (or_y) was pruned to always_visible.
   EXPECT_THAT(expr, m::Literal(1));
 
   // Without delay constraints, we should get the expected expression.
-  VisibilityEstimator unconstrained_estimator(last_node_id, bdd_engine.get(),
-                                              nda, bpa, ae, de);
-  XLS_ASSERT_OK_AND_ASSIGN(Node * unconstrained_expr,
-                           unconstrained_estimator.BuildVisibilityIRExpr(
-                               f, y.node(), conditional_edges, /*sinks=*/{}));
+  VisibilityEstimator unconstrained_estimator(
+      last_node_id, analyses.bdd_engine.get(), *analyses.nda, bpa, ae, de);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Node * unconstrained_expr,
+      unconstrained_estimator.BuildVisibilityIRExpr(
+          f, y.node(), analyses.conditional_edges, /*sinks=*/{}));
   EXPECT_THAT(unconstrained_expr,
               m::Or(m::And(m::Not(m::Param("bit1")),
                            m::Eq(m::Param("cond"), m::Literal(0))),
@@ -939,31 +886,23 @@ TEST_F(VisibilityExprBuilderTest,
   BValue b = fb.And({x, a, y2});
   BValue ret = fb.And(z, b);
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(ret));
-  NodeForwardDependencyAnalysis nda;
-  XLS_ASSERT_OK(nda.Attach(f).status());
-  LazyPostDominatorAnalysis post_dom;
-  XLS_ASSERT_OK(post_dom.Attach(f).status());
-  std::unique_ptr<BddQueryEngine> bdd_engine = BddQueryEngine::MakeDefault();
-  XLS_ASSERT_OK(bdd_engine->Populate(f).status());
-  XLS_ASSERT_OK_AND_ASSIGN(
-      auto operand_visibility,
-      OperandVisibilityAnalysis::Create(&nda, bdd_engine.get()));
-  XLS_ASSERT_OK_AND_ASSIGN(
-      auto visibility, VisibilityAnalysis::Create(&operand_visibility,
-                                                  bdd_engine.get(), &post_dom));
+
+  XLS_ASSERT_OK_AND_ASSIGN(VisibilityAnalyses analyses,
+                           CreateVisibilityAnalyses(f));
   // Only 'x', 'y1', and 'y2' are live sources. 'a' is NOT live.
   auto is_live_source = [&](Node* n) {
     return n == x.node() || n == y1.node() || n == y2.node();
   };
-  XLS_ASSERT_OK_AND_ASSIGN(auto conditional_edges,
-                           visibility->GetEdgesForConservativeVisibilityExpr(
-                               x.node(), is_live_source, -1));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      absl::flat_hash_set<OperandNode> conditional_edges,
+      analyses.visibility->GetEdgesForConservativeVisibilityExpr(
+          x.node(), is_live_source, -1));
   XLS_ASSERT_OK_AND_ASSIGN(AreaEstimator * ae, GetAreaEstimator("unit"));
   XLS_ASSERT_OK_AND_ASSIGN(DelayEstimator * de, GetDelayEstimator("unit"));
   BitProvenanceAnalysis bpa;
   VisibilityEstimator estimator(f->nodes_reversed().begin()->id(),
-                                bdd_engine.get(), nda, bpa, ae, de,
-                                is_live_source);
+                                analyses.bdd_engine.get(), *analyses.nda, bpa,
+                                ae, de, is_live_source);
   XLS_ASSERT_OK_AND_ASSIGN(Node * expr, estimator.BuildVisibilityIRExpr(
                                             f, x.node(), conditional_edges,
                                             /*sinks=*/{}));
@@ -971,8 +910,9 @@ TEST_F(VisibilityExprBuilderTest,
   EXPECT_THAT(expr, m::Or(m::Param("y1"), m::Param("y2")));
 
   // Without live constraints, we should get the expected expression.
-  VisibilityEstimator unconstrained_estimator(
-      f->nodes_reversed().begin()->id(), bdd_engine.get(), nda, bpa, ae, de);
+  VisibilityEstimator unconstrained_estimator(f->nodes_reversed().begin()->id(),
+                                              analyses.bdd_engine.get(),
+                                              *analyses.nda, bpa, ae, de);
   XLS_ASSERT_OK_AND_ASSIGN(Node * unconstrained_expr,
                            unconstrained_estimator.BuildVisibilityIRExpr(
                                f, x.node(), conditional_edges, /*sinks=*/{}));

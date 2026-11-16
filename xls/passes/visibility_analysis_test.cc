@@ -133,7 +133,7 @@ class VisibilityAnalysisTest : public IrTestBase {
     XLS_RETURN_IF_ERROR(analyses.post_dom->Attach(f).status());
     analyses.bdd_engine = BddQueryEngine::MakeDefault();
     XLS_RETURN_IF_ERROR(analyses.bdd_engine->Populate(f).status());
-    XLS_ASSIGN_OR_RETURN(auto op_vis,
+    XLS_ASSIGN_OR_RETURN(OperandVisibilityAnalysis op_vis,
                          OperandVisibilityAnalysis::Create(
                              analyses.nda.get(), analyses.bdd_engine.get()));
     analyses.operand_visibility =
@@ -143,6 +143,32 @@ class VisibilityAnalysisTest : public IrTestBase {
         VisibilityAnalysis::Create(analyses.operand_visibility.get(),
                                    analyses.bdd_engine.get(),
                                    analyses.post_dom.get()));
+    return analyses;
+  }
+
+  struct SingleSelectVisibilityAnalyses {
+    std::unique_ptr<NodeForwardDependencyAnalysis> nda;
+    std::unique_ptr<BddQueryEngine> bdd_engine;
+    std::unique_ptr<OperandVisibilityAnalysis> operand_visibility;
+    std::unique_ptr<SingleSelectVisibilityAnalysis> visibility;
+  };
+
+  absl::StatusOr<SingleSelectVisibilityAnalyses>
+  CreateSingleSelectVisibilityAnalyses(FunctionBase* f) {
+    SingleSelectVisibilityAnalyses analyses;
+    analyses.nda = std::make_unique<NodeForwardDependencyAnalysis>();
+    XLS_RETURN_IF_ERROR(analyses.nda->Attach(f).status());
+    analyses.bdd_engine = BddQueryEngine::MakeDefault();
+    XLS_RETURN_IF_ERROR(analyses.bdd_engine->Populate(f).status());
+    XLS_ASSIGN_OR_RETURN(OperandVisibilityAnalysis op_vis,
+                         OperandVisibilityAnalysis::Create(
+                             analyses.nda.get(), analyses.bdd_engine.get()));
+    analyses.operand_visibility =
+        std::make_unique<OperandVisibilityAnalysis>(std::move(op_vis));
+    XLS_ASSIGN_OR_RETURN(analyses.visibility,
+                         SingleSelectVisibilityAnalysis::Create(
+                             analyses.operand_visibility.get(),
+                             analyses.nda.get(), analyses.bdd_engine.get()));
     return analyses;
   }
 };
@@ -264,39 +290,33 @@ TEST_F(VisibilityAnalysisTest, VisibilityInvalidates) {
   BValue abc = fb.And(ab, c);
   XLS_ASSERT_OK_AND_ASSIGN(auto f, fb.BuildWithReturnValue(abc));
 
-  NodeForwardDependencyAnalysis nda;
-  XLS_ASSERT_OK(nda.Attach(f));
-  LazyPostDominatorAnalysis post_dom;
-  XLS_ASSERT_OK(post_dom.Attach(f));
-  std::unique_ptr<BddQueryEngine> bdd_engine = BddQueryEngine::MakeDefault();
-  XLS_ASSERT_OK(bdd_engine->Populate(f));
-  BinaryDecisionDiagram& bdd = bdd_engine->bdd();
-  XLS_ASSERT_OK_AND_ASSIGN(
-      auto operand_visibility,
-      OperandVisibilityAnalysis::Create(&nda, bdd_engine.get()));
-  XLS_ASSERT_OK_AND_ASSIGN(
-      auto visibility, VisibilityAnalysis::Create(&operand_visibility,
-                                                  bdd_engine.get(), &post_dom));
+  XLS_ASSERT_OK_AND_ASSIGN(VisibilityAnalyses analyses,
+                           CreateVisibilityAnalyses(f));
+  BinaryDecisionDiagram& bdd = analyses.bdd_engine->bdd();
 
-  XLS_ASSERT_OK_AND_ASSIGN(auto b_bit, GetNodeBit(b.node(), 0, *bdd_engine));
-  XLS_ASSERT_OK_AND_ASSIGN(auto c_bit, GetNodeBit(c.node(), 0, *bdd_engine));
-  XLS_ASSERT_OK_AND_ASSIGN(auto d_bit, GetNodeBit(d.node(), 0, *bdd_engine));
-  XLS_ASSERT_OK_AND_ASSIGN(auto e_bit, GetNodeBit(e.node(), 0, *bdd_engine));
+  XLS_ASSERT_OK_AND_ASSIGN(BddNodeIndex b_bit,
+                           GetNodeBit(b.node(), 0, *analyses.bdd_engine));
+  XLS_ASSERT_OK_AND_ASSIGN(BddNodeIndex c_bit,
+                           GetNodeBit(c.node(), 0, *analyses.bdd_engine));
+  XLS_ASSERT_OK_AND_ASSIGN(BddNodeIndex d_bit,
+                           GetNodeBit(d.node(), 0, *analyses.bdd_engine));
+  XLS_ASSERT_OK_AND_ASSIGN(BddNodeIndex e_bit,
+                           GetNodeBit(e.node(), 0, *analyses.bdd_engine));
 
   VLOG(3) << "b_bit: " << bdd.ToStringDnf(b_bit);
   VLOG(3) << "c_bit: " << bdd.ToStringDnf(c_bit);
   VLOG(3) << "d_bit: " << bdd.ToStringDnf(d_bit);
   VLOG(3) << "e_bit: " << bdd.ToStringDnf(e_bit);
 
-  BddNodeIndex a_visible = visibility->GetInfo(a.node())->visibility;
+  BddNodeIndex a_visible = analyses.visibility->GetInfo(a.node())->visibility;
   VLOG(3) << "a_visible 0: " << bdd.ToStringDnf(a_visible);
   EXPECT_EQ(a_visible, bdd.And(b_bit, c_bit));
   ab.node()->ReplaceOperand(b.node(), d.node());
-  a_visible = visibility->GetInfo(a.node())->visibility;
+  a_visible = analyses.visibility->GetInfo(a.node())->visibility;
   VLOG(3) << "a_visible 1: " << bdd.ToStringDnf(a_visible);
   EXPECT_EQ(a_visible, bdd.And(d_bit, c_bit));
   abc.node()->ReplaceOperand(c.node(), e.node());
-  a_visible = visibility->GetInfo(a.node())->visibility;
+  a_visible = analyses.visibility->GetInfo(a.node())->visibility;
   VLOG(3) << "a_visible 2: " << bdd.ToStringDnf(a_visible);
   EXPECT_EQ(a_visible, bdd.And(d_bit, e_bit));
 }
@@ -362,26 +382,19 @@ TEST_F(VisibilityAnalysisTest, VisibilityThroughPrioritySelect) {
   BValue select = fb.PrioritySelect(selector, {x, add}, x);
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(select));
 
-  NodeForwardDependencyAnalysis nda;
-  XLS_ASSERT_OK(nda.Attach(f));
-  LazyPostDominatorAnalysis post_dom;
-  XLS_ASSERT_OK(post_dom.Attach(f));
-  std::unique_ptr<BddQueryEngine> bdd_engine = BddQueryEngine::MakeDefault();
-  XLS_ASSERT_OK(bdd_engine->Populate(f));
-  BinaryDecisionDiagram& bdd = bdd_engine->bdd();
-  XLS_ASSERT_OK_AND_ASSIGN(
-      auto operand_visibility,
-      OperandVisibilityAnalysis::Create(&nda, bdd_engine.get()));
-  XLS_ASSERT_OK_AND_ASSIGN(
-      auto visibility, VisibilityAnalysis::Create(&operand_visibility,
-                                                  bdd_engine.get(), &post_dom));
-  BddNodeIndex and_visible = visibility->GetInfo(add.node())->visibility;
+  XLS_ASSERT_OK_AND_ASSIGN(VisibilityAnalyses analyses,
+                           CreateVisibilityAnalyses(f));
+  BinaryDecisionDiagram& bdd = analyses.bdd_engine->bdd();
+  BddNodeIndex and_visible =
+      analyses.visibility->GetInfo(add.node())->visibility;
 
   // the selector bit determines the visibility of add
-  XLS_ASSERT_OK_AND_ASSIGN(BddNodeIndex prev_case_bit,
-                           GetNodeBit(selector.node(), 0, *bdd_engine));
-  XLS_ASSERT_OK_AND_ASSIGN(BddNodeIndex selector_bit,
-                           GetNodeBit(selector.node(), 1, *bdd_engine));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      BddNodeIndex prev_case_bit,
+      GetNodeBit(selector.node(), 0, *analyses.bdd_engine));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      BddNodeIndex selector_bit,
+      GetNodeBit(selector.node(), 1, *analyses.bdd_engine));
   EXPECT_EQ(bdd.Implies(prev_case_bit, bdd.Not(and_visible)), bdd.one());
   EXPECT_EQ(bdd.Implies(bdd.Not(selector_bit), bdd.Not(and_visible)),
             bdd.one());
@@ -400,24 +413,16 @@ TEST_F(VisibilityAnalysisTest, VisibilityThroughSelect) {
   BValue select = fb.Select(selector, {add, sub}, x);
   XLS_ASSERT_OK_AND_ASSIGN(auto f, fb.BuildWithReturnValue(select));
 
-  NodeForwardDependencyAnalysis nda;
-  XLS_ASSERT_OK(nda.Attach(f));
-  LazyPostDominatorAnalysis post_dom;
-  XLS_ASSERT_OK(post_dom.Attach(f));
-  std::unique_ptr<BddQueryEngine> bdd_engine = BddQueryEngine::MakeDefault();
-  XLS_ASSERT_OK(bdd_engine->Populate(f));
-  BinaryDecisionDiagram& bdd = bdd_engine->bdd();
-  XLS_ASSERT_OK_AND_ASSIGN(
-      auto operand_visibility,
-      OperandVisibilityAnalysis::Create(&nda, bdd_engine.get()));
-  XLS_ASSERT_OK_AND_ASSIGN(
-      auto visibility, VisibilityAnalysis::Create(&operand_visibility,
-                                                  bdd_engine.get(), &post_dom));
-  BddNodeIndex add_visible = visibility->GetInfo(add.node())->visibility;
-  BddNodeIndex sub_visible = visibility->GetInfo(sub.node())->visibility;
+  XLS_ASSERT_OK_AND_ASSIGN(VisibilityAnalyses analyses,
+                           CreateVisibilityAnalyses(f));
+  BinaryDecisionDiagram& bdd = analyses.bdd_engine->bdd();
+  BddNodeIndex add_visible =
+      analyses.visibility->GetInfo(add.node())->visibility;
+  BddNodeIndex sub_visible =
+      analyses.visibility->GetInfo(sub.node())->visibility;
 
   XLS_ASSERT_OK_AND_ASSIGN(std::vector<BddNodeIndex> selector_bits,
-                           GetNodeBits(selector.node(), *bdd_engine));
+                           GetNodeBits(selector.node(), *analyses.bdd_engine));
   EXPECT_EQ(
       bdd.Implies(bdd.And(bdd.Not(selector_bits[0]), bdd.Not(selector_bits[1])),
                   bdd.And(add_visible, bdd.Not(sub_visible))),
@@ -440,31 +445,23 @@ TEST_F(VisibilityAnalysisTest, VisibilityThroughAnd) {
   BValue and_xyz = fb.And(and_xy, z);
   XLS_ASSERT_OK_AND_ASSIGN(auto f, fb.BuildWithReturnValue(and_xyz));
 
-  NodeForwardDependencyAnalysis nda;
-  XLS_ASSERT_OK(nda.Attach(f));
-  LazyPostDominatorAnalysis post_dom;
-  XLS_ASSERT_OK(post_dom.Attach(f));
-  std::unique_ptr<BddQueryEngine> bdd_engine = BddQueryEngine::MakeDefault();
-  XLS_ASSERT_OK(bdd_engine->Populate(f));
-  BinaryDecisionDiagram& bdd = bdd_engine->bdd();
-  XLS_ASSERT_OK_AND_ASSIGN(
-      auto operand_visibility,
-      OperandVisibilityAnalysis::Create(&nda, bdd_engine.get()));
-  XLS_ASSERT_OK_AND_ASSIGN(
-      auto visibility, VisibilityAnalysis::Create(&operand_visibility,
-                                                  bdd_engine.get(), &post_dom));
-  BddNodeIndex z_visible = visibility->GetInfo(z.node())->visibility;
+  XLS_ASSERT_OK_AND_ASSIGN(VisibilityAnalyses analyses,
+                           CreateVisibilityAnalyses(f));
+  BinaryDecisionDiagram& bdd = analyses.bdd_engine->bdd();
+  BddNodeIndex z_visible = analyses.visibility->GetInfo(z.node())->visibility;
 
-  XLS_ASSERT_OK_AND_ASSIGN(BddNodeIndex not_y, AllZeros(y.node(), *bdd_engine));
+  XLS_ASSERT_OK_AND_ASSIGN(BddNodeIndex not_y,
+                           AllZeros(y.node(), *analyses.bdd_engine));
   EXPECT_EQ(bdd.Implies(not_y, bdd.Not(z_visible)), bdd.one());
-  XLS_ASSERT_OK_AND_ASSIGN(BddNodeIndex not_x, AllZeros(y.node(), *bdd_engine));
+  XLS_ASSERT_OK_AND_ASSIGN(BddNodeIndex not_x,
+                           AllZeros(y.node(), *analyses.bdd_engine));
   EXPECT_EQ(bdd.Implies(not_x, bdd.Not(z_visible)), bdd.one());
 
   // if x and y are both not all zeros, z is visible
   XLS_ASSERT_OK_AND_ASSIGN(BddNodeIndex x_bit_0,
-                           GetNodeBit(x.node(), 0, *bdd_engine));
+                           GetNodeBit(x.node(), 0, *analyses.bdd_engine));
   XLS_ASSERT_OK_AND_ASSIGN(BddNodeIndex y_bit_0,
-                           GetNodeBit(y.node(), 0, *bdd_engine));
+                           GetNodeBit(y.node(), 0, *analyses.bdd_engine));
   EXPECT_EQ(bdd.Implies(bdd.And(x_bit_0, y_bit_0), z_visible), bdd.one());
   EXPECT_NE(bdd.Implies(x_bit_0, z_visible), bdd.one());
   EXPECT_NE(bdd.Implies(x_bit_0, bdd.Not(z_visible)), bdd.one());
@@ -521,28 +518,19 @@ TEST_F(VisibilityAnalysisTest, VisibilityThroughPredicate) {
   pb.SendIf(out, le_3, add);
   XLS_ASSERT_OK_AND_ASSIGN(auto f, pb.Build());
 
-  NodeForwardDependencyAnalysis nda;
-  XLS_ASSERT_OK(nda.Attach(f));
-  LazyPostDominatorAnalysis post_dom;
-  XLS_ASSERT_OK(post_dom.Attach(f));
-  std::unique_ptr<BddQueryEngine> bdd_engine = BddQueryEngine::MakeDefault();
-  XLS_ASSERT_OK(bdd_engine->Populate(f));
-  BinaryDecisionDiagram& bdd = bdd_engine->bdd();
-  XLS_ASSERT_OK_AND_ASSIGN(
-      auto operand_visibility,
-      OperandVisibilityAnalysis::Create(&nda, bdd_engine.get()));
-  XLS_ASSERT_OK_AND_ASSIGN(
-      auto visibility, VisibilityAnalysis::Create(&operand_visibility,
-                                                  bdd_engine.get(), &post_dom));
+  XLS_ASSERT_OK_AND_ASSIGN(VisibilityAnalyses analyses,
+                           CreateVisibilityAnalyses(f));
+  BinaryDecisionDiagram& bdd = analyses.bdd_engine->bdd();
 
   XLS_ASSERT_OK_AND_ASSIGN(BddNodeIndex le_3_bit_0,
-                           GetNodeBit(le_3.node(), 0, *bdd_engine));
+                           GetNodeBit(le_3.node(), 0, *analyses.bdd_engine));
   // if `le_3` is true, the add is visible.
-  EXPECT_EQ(
-      bdd.Implies(le_3_bit_0, visibility->GetInfo(add.node())->visibility),
-      bdd.one());
+  EXPECT_EQ(bdd.Implies(le_3_bit_0,
+                        analyses.visibility->GetInfo(add.node())->visibility),
+            bdd.one());
   // `b_in_val` used by the send_if predicate is always visible
-  EXPECT_EQ(visibility->GetInfo(b_in_val.node())->visibility, bdd.one());
+  EXPECT_EQ(analyses.visibility->GetInfo(b_in_val.node())->visibility,
+            bdd.one());
 }
 
 TEST_F(VisibilityAnalysisTest, VisibilityThroughOneHotSelect) {
@@ -559,49 +547,42 @@ TEST_F(VisibilityAnalysisTest, VisibilityThroughOneHotSelect) {
   XLS_ASSERT_OK_AND_ASSIGN(
       Function * f, fb.BuildWithReturnValue(fb.Tuple({select, select_dep})));
 
-  NodeForwardDependencyAnalysis nda;
-  XLS_ASSERT_OK(nda.Attach(f));
-  LazyPostDominatorAnalysis post_dom;
-  XLS_ASSERT_OK(post_dom.Attach(f));
-  std::unique_ptr<BddQueryEngine> bdd_engine = BddQueryEngine::MakeDefault();
-  XLS_ASSERT_OK(bdd_engine->Populate(f));
-  BinaryDecisionDiagram& bdd = bdd_engine->bdd();
-  XLS_ASSERT_OK_AND_ASSIGN(
-      OperandVisibilityAnalysis operand_visibility,
-      OperandVisibilityAnalysis::Create(&nda, bdd_engine.get()));
-  XLS_ASSERT_OK_AND_ASSIGN(
-      std::unique_ptr<VisibilityAnalysis> visibility,
-      VisibilityAnalysis::Create(&operand_visibility, bdd_engine.get(),
-                                 &post_dom));
+  XLS_ASSERT_OK_AND_ASSIGN(VisibilityAnalyses analyses,
+                           CreateVisibilityAnalyses(f));
+  BinaryDecisionDiagram& bdd = analyses.bdd_engine->bdd();
 
-  BddNodeIndex add_visible = visibility->GetInfo(add.node())->visibility;
-  XLS_ASSERT_OK_AND_ASSIGN(BddNodeIndex sel_bit_0,
-                           GetNodeBit(selector.node(), 0, *bdd_engine));
-  XLS_ASSERT_OK_AND_ASSIGN(BddNodeIndex sel_bit_1,
-                           GetNodeBit(selector.node(), 1, *bdd_engine));
-  XLS_ASSERT_OK_AND_ASSIGN(BddNodeIndex sel_bit_2,
-                           GetNodeBit(selector.node(), 2, *bdd_engine));
+  BddNodeIndex add_visible =
+      analyses.visibility->GetInfo(add.node())->visibility;
+  XLS_ASSERT_OK_AND_ASSIGN(
+      BddNodeIndex sel_bit_0,
+      GetNodeBit(selector.node(), 0, *analyses.bdd_engine));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      BddNodeIndex sel_bit_1,
+      GetNodeBit(selector.node(), 1, *analyses.bdd_engine));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      BddNodeIndex sel_bit_2,
+      GetNodeBit(selector.node(), 2, *analyses.bdd_engine));
   EXPECT_EQ(add_visible, bdd.Or(sel_bit_0, sel_bit_2));
-  EXPECT_EQ(operand_visibility.OperandVisibilityThroughNode(sub.node(),
-                                                            select.node()),
+  EXPECT_EQ(analyses.operand_visibility->OperandVisibilityThroughNode(
+                sub.node(), select.node()),
             sel_bit_1);
   // Since `selector` is also the selector of `select_dep`, it is conservatively
   // treated as always used through `select_dep`.
-  EXPECT_EQ(operand_visibility.OperandVisibilityThroughNode(selector.node(),
-                                                            select_dep.node()),
+  EXPECT_EQ(analyses.operand_visibility->OperandVisibilityThroughNode(
+                selector.node(), select_dep.node()),
             bdd.one());
 
   std::vector<Node*> sources = {x.node()};
-  EXPECT_THAT(
-      IsVisibilityIndependentOf(nda, add.node(), select.node(), sources),
-      IsOkAndHolds(true));
+  EXPECT_THAT(IsVisibilityIndependentOf(*analyses.nda, add.node(),
+                                        select.node(), sources),
+              IsOkAndHolds(true));
 
   sources = {selector.node()};
-  EXPECT_THAT(
-      IsVisibilityIndependentOf(nda, add.node(), select.node(), sources),
-      IsOkAndHolds(false));
+  EXPECT_THAT(IsVisibilityIndependentOf(*analyses.nda, add.node(),
+                                        select.node(), sources),
+              IsOkAndHolds(false));
 
-  EXPECT_THAT(visibility->GetEdgesForMutuallyExclusiveVisibilityExpr(
+  EXPECT_THAT(analyses.visibility->GetEdgesForMutuallyExclusiveVisibilityExpr(
                   add.node(), {sub.node()}, -1),
               IsOk());
 }
@@ -618,36 +599,30 @@ TEST_F(VisibilityAnalysisTest, VisibilityThroughReceiveIf) {
   auto rcv_if = pb.ReceiveIf(a_in, le_3, SourceInfo(), "rcv_if");
   XLS_ASSERT_OK_AND_ASSIGN(auto f, pb.Build());
 
-  NodeForwardDependencyAnalysis nda;
-  XLS_ASSERT_OK(nda.Attach(f));
-  LazyPostDominatorAnalysis post_dom;
-  XLS_ASSERT_OK(post_dom.Attach(f));
-  std::unique_ptr<BddQueryEngine> bdd_engine = BddQueryEngine::MakeDefault();
-  XLS_ASSERT_OK(bdd_engine->Populate(f));
-  BinaryDecisionDiagram& bdd = bdd_engine->bdd();
-  XLS_ASSERT_OK_AND_ASSIGN(
-      auto operand_visibility,
-      OperandVisibilityAnalysis::Create(&nda, bdd_engine.get()));
-  XLS_ASSERT_OK_AND_ASSIGN(
-      auto visibility, VisibilityAnalysis::Create(&operand_visibility,
-                                                  bdd_engine.get(), &post_dom));
+  XLS_ASSERT_OK_AND_ASSIGN(VisibilityAnalyses analyses,
+                           CreateVisibilityAnalyses(f));
+  BinaryDecisionDiagram& bdd = analyses.bdd_engine->bdd();
 
   Node* rcv_node = rcv_if.node()->operand(0);
   ASSERT_TRUE(rcv_node->Is<Receive>());
 
   XLS_ASSERT_OK_AND_ASSIGN(BddNodeIndex le_3_bit_0,
-                           GetNodeBit(le_3.node(), 0, *bdd_engine));
-  EXPECT_EQ(bdd.Implies(le_3_bit_0, visibility->GetInfo(rcv_node)->visibility),
+                           GetNodeBit(le_3.node(), 0, *analyses.bdd_engine));
+  EXPECT_EQ(bdd.Implies(le_3_bit_0,
+                        analyses.visibility->GetInfo(rcv_node)->visibility),
             bdd.one());
-  EXPECT_EQ(visibility->GetInfo(b_in_val.node())->visibility, bdd.one());
+  EXPECT_EQ(analyses.visibility->GetInfo(b_in_val.node())->visibility,
+            bdd.one());
 
   std::vector<Node*> sources = {c_in_val.node()};
-  EXPECT_THAT(IsVisibilityIndependentOf(nda, le_3.node(), rcv_node, sources),
-              IsOkAndHolds(true));
+  EXPECT_THAT(
+      IsVisibilityIndependentOf(*analyses.nda, le_3.node(), rcv_node, sources),
+      IsOkAndHolds(true));
 
   sources = {b_in_val.node()};
-  EXPECT_THAT(IsVisibilityIndependentOf(nda, le_3.node(), rcv_node, sources),
-              IsOkAndHolds(false));
+  EXPECT_THAT(
+      IsVisibilityIndependentOf(*analyses.nda, le_3.node(), rcv_node, sources),
+      IsOkAndHolds(false));
 }
 
 TEST_F(VisibilityAnalysisTest, VisibilityThroughNext) {
@@ -665,33 +640,26 @@ TEST_F(VisibilityAnalysisTest, VisibilityThroughNext) {
   auto next = pb.Next(state, a_in_val, le_3);
   XLS_ASSERT_OK_AND_ASSIGN(auto f, pb.Build());
 
-  NodeForwardDependencyAnalysis nda;
-  XLS_ASSERT_OK(nda.Attach(f));
-  LazyPostDominatorAnalysis post_dom;
-  XLS_ASSERT_OK(post_dom.Attach(f));
-  std::unique_ptr<BddQueryEngine> bdd_engine = BddQueryEngine::MakeDefault();
-  XLS_ASSERT_OK(bdd_engine->Populate(f));
-  BinaryDecisionDiagram& bdd = bdd_engine->bdd();
-  XLS_ASSERT_OK_AND_ASSIGN(
-      auto operand_visibility,
-      OperandVisibilityAnalysis::Create(&nda, bdd_engine.get()));
-  XLS_ASSERT_OK_AND_ASSIGN(
-      auto visibility, VisibilityAnalysis::Create(&operand_visibility,
-                                                  bdd_engine.get(), &post_dom));
+  XLS_ASSERT_OK_AND_ASSIGN(VisibilityAnalyses analyses,
+                           CreateVisibilityAnalyses(f));
+  BinaryDecisionDiagram& bdd = analyses.bdd_engine->bdd();
 
   XLS_ASSERT_OK_AND_ASSIGN(BddNodeIndex le_3_bit_0,
-                           GetNodeBit(le_3.node(), 0, *bdd_engine));
-  EXPECT_EQ(
-      bdd.Implies(le_3_bit_0, visibility->GetInfo(next.node())->visibility),
-      bdd.one());
-  EXPECT_EQ(visibility->GetInfo(b_in_val.node())->visibility, bdd.one());
+                           GetNodeBit(le_3.node(), 0, *analyses.bdd_engine));
+  EXPECT_EQ(bdd.Implies(le_3_bit_0,
+                        analyses.visibility->GetInfo(next.node())->visibility),
+            bdd.one());
+  EXPECT_EQ(analyses.visibility->GetInfo(b_in_val.node())->visibility,
+            bdd.one());
 
   std::vector<Node*> sources = {c_in_val.node()};
-  EXPECT_THAT(IsVisibilityIndependentOf(nda, le_3.node(), next.node(), sources),
+  EXPECT_THAT(IsVisibilityIndependentOf(*analyses.nda, le_3.node(), next.node(),
+                                        sources),
               IsOkAndHolds(true));
 
   sources = {b_in_val.node()};
-  EXPECT_THAT(IsVisibilityIndependentOf(nda, le_3.node(), next.node(), sources),
+  EXPECT_THAT(IsVisibilityIndependentOf(*analyses.nda, le_3.node(), next.node(),
+                                        sources),
               IsOkAndHolds(false));
 }
 
@@ -707,22 +675,13 @@ TEST_F(VisibilityAnalysisTest, VisibilityHandlesIrrelevantUnknown) {
   BValue or_xyz = fb.Or({y, or_xy, z});
   XLS_ASSERT_OK_AND_ASSIGN(auto f, fb.BuildWithReturnValue(or_xyz));
 
-  NodeForwardDependencyAnalysis nda;
-  XLS_ASSERT_OK(nda.Attach(f));
-  LazyPostDominatorAnalysis post_dom;
-  XLS_ASSERT_OK(post_dom.Attach(f));
-  std::unique_ptr<BddQueryEngine> bdd_engine = BddQueryEngine::MakeDefault();
-  XLS_ASSERT_OK(bdd_engine->Populate(f));
-  BinaryDecisionDiagram& bdd = bdd_engine->bdd();
-  XLS_ASSERT_OK_AND_ASSIGN(
-      auto operand_visibility,
-      OperandVisibilityAnalysis::Create(&nda, bdd_engine.get()));
-  XLS_ASSERT_OK_AND_ASSIGN(
-      auto visibility, VisibilityAnalysis::Create(&operand_visibility,
-                                                  bdd_engine.get(), &post_dom));
-  BddNodeIndex z_visible = visibility->GetInfo(z.node())->visibility;
+  XLS_ASSERT_OK_AND_ASSIGN(VisibilityAnalyses analyses,
+                           CreateVisibilityAnalyses(f));
+  BinaryDecisionDiagram& bdd = analyses.bdd_engine->bdd();
+  BddNodeIndex z_visible = analyses.visibility->GetInfo(z.node())->visibility;
 
-  XLS_ASSERT_OK_AND_ASSIGN(BddNodeIndex all_x, AllOnes(x.node(), *bdd_engine));
+  XLS_ASSERT_OK_AND_ASSIGN(BddNodeIndex all_x,
+                           AllOnes(x.node(), *analyses.bdd_engine));
   EXPECT_EQ(bdd.Implies(all_x, bdd.Not(z_visible)), bdd.one());
 }
 
@@ -742,26 +701,17 @@ TEST_F(VisibilityAnalysisTest, VisibilityTreatExpensiveConditionAsVariable) {
   BValue expensive_select = fb.Select(expensive_condition, select, x);
   XLS_ASSERT_OK_AND_ASSIGN(auto f, fb.BuildWithReturnValue(expensive_select));
 
-  NodeForwardDependencyAnalysis nda;
-  XLS_ASSERT_OK(nda.Attach(f));
-  LazyPostDominatorAnalysis post_dom;
-  XLS_ASSERT_OK(post_dom.Attach(f));
-  std::unique_ptr<BddQueryEngine> bdd_engine = BddQueryEngine::MakeDefault();
-  XLS_ASSERT_OK(bdd_engine->Populate(f));
-  BinaryDecisionDiagram& bdd = bdd_engine->bdd();
-  XLS_ASSERT_OK_AND_ASSIGN(
-      auto operand_visibility,
-      OperandVisibilityAnalysis::Create(&nda, bdd_engine.get()));
-  XLS_ASSERT_OK_AND_ASSIGN(
-      auto visibility, VisibilityAnalysis::Create(&operand_visibility,
-                                                  bdd_engine.get(), &post_dom));
-  BddNodeIndex add_visible = visibility->GetInfo(add.node())->visibility;
+  XLS_ASSERT_OK_AND_ASSIGN(VisibilityAnalyses analyses,
+                           CreateVisibilityAnalyses(f));
+  BinaryDecisionDiagram& bdd = analyses.bdd_engine->bdd();
+  BddNodeIndex add_visible =
+      analyses.visibility->GetInfo(add.node())->visibility;
 
   XLS_ASSERT_OK_AND_ASSIGN(BddNodeIndex op_bit,
-                           GetNodeBit(op.node(), 0, *bdd_engine));
+                           GetNodeBit(op.node(), 0, *analyses.bdd_engine));
   XLS_ASSERT_OK_AND_ASSIGN(
       BddNodeIndex expensive_condition_bit,
-      GetNodeBit(expensive_condition.node(), 0, *bdd_engine));
+      GetNodeBit(expensive_condition.node(), 0, *analyses.bdd_engine));
   EXPECT_EQ(bdd.Implies(bdd.Not(op_bit), bdd.Not(add_visible)), bdd.one());
   EXPECT_EQ(bdd.Implies(bdd.And(op_bit, expensive_condition_bit), add_visible),
             bdd.one());
@@ -968,21 +918,11 @@ TEST_F(VisibilityAnalysisTest, StateElementsCanBeMutualExclusive) {
   XLS_ASSERT_OK_AND_ASSIGN(auto f, pb.Build());
   ScopedRecordIr sri(p.get());
 
-  NodeForwardDependencyAnalysis nda;
-  XLS_ASSERT_OK(nda.Attach(f));
-  LazyPostDominatorAnalysis post_dom;
-  XLS_ASSERT_OK(post_dom.Attach(f));
-  std::unique_ptr<BddQueryEngine> bdd_engine = BddQueryEngine::MakeDefault();
-  XLS_ASSERT_OK(bdd_engine->Populate(f));
-  XLS_ASSERT_OK_AND_ASSIGN(
-      auto operand_visibility,
-      OperandVisibilityAnalysis::Create(&nda, bdd_engine.get()));
-  XLS_ASSERT_OK_AND_ASSIGN(
-      auto visibility, VisibilityAnalysis::Create(&operand_visibility,
-                                                  bdd_engine.get(), &post_dom));
+  XLS_ASSERT_OK_AND_ASSIGN(VisibilityAnalyses analyses,
+                           CreateVisibilityAnalyses(f));
 
-  EXPECT_TRUE(visibility->IsMutuallyExclusive(add.node(), sub.node()));
-  EXPECT_TRUE(visibility->IsMutuallyExclusive(a.node(), c.node()));
+  EXPECT_TRUE(analyses.visibility->IsMutuallyExclusive(add.node(), sub.node()));
+  EXPECT_TRUE(analyses.visibility->IsMutuallyExclusive(a.node(), c.node()));
 }
 
 TEST_F(VisibilityAnalysisTest, MutuallyExclusivePrioritySelectCases) {
@@ -996,21 +936,11 @@ TEST_F(VisibilityAnalysisTest, MutuallyExclusivePrioritySelectCases) {
   BValue select = fb.PrioritySelect(op, {add}, sub);
   XLS_ASSERT_OK_AND_ASSIGN(auto f, fb.BuildWithReturnValue(select));
 
-  NodeForwardDependencyAnalysis nda;
-  XLS_ASSERT_OK(nda.Attach(f));
-  LazyPostDominatorAnalysis post_dom;
-  XLS_ASSERT_OK(post_dom.Attach(f));
-  std::unique_ptr<BddQueryEngine> bdd_engine = BddQueryEngine::MakeDefault();
-  XLS_ASSERT_OK(bdd_engine->Populate(f));
-  XLS_ASSERT_OK_AND_ASSIGN(
-      auto operand_visibility,
-      OperandVisibilityAnalysis::Create(&nda, bdd_engine.get()));
-  XLS_ASSERT_OK_AND_ASSIGN(
-      auto visibility, VisibilityAnalysis::Create(&operand_visibility,
-                                                  bdd_engine.get(), &post_dom));
-  RecordProperty("ir", f->DumpIr(visibility->annotator()));
+  XLS_ASSERT_OK_AND_ASSIGN(VisibilityAnalyses analyses,
+                           CreateVisibilityAnalyses(f));
+  RecordProperty("ir", f->DumpIr(analyses.visibility->annotator()));
 
-  EXPECT_TRUE(visibility->IsMutuallyExclusive(add.node(), sub.node()));
+  EXPECT_TRUE(analyses.visibility->IsMutuallyExclusive(add.node(), sub.node()));
 }
 
 TEST_F(VisibilityAnalysisTest, MutuallyExclusiveOneHotSelectCases) {
@@ -1048,21 +978,13 @@ TEST_F(VisibilityAnalysisTest, StateUsedInValueIsVisible) {
   pb.Next(a, pb.Add(input, a));
   XLS_ASSERT_OK_AND_ASSIGN(auto f, pb.Build());
 
-  NodeForwardDependencyAnalysis nda;
-  XLS_ASSERT_OK(nda.Attach(f));
-  LazyPostDominatorAnalysis post_dom;
-  XLS_ASSERT_OK(post_dom.Attach(f));
-  std::unique_ptr<BddQueryEngine> bdd_engine = BddQueryEngine::MakeDefault();
-  XLS_ASSERT_OK(bdd_engine->Populate(f));
-  XLS_ASSERT_OK_AND_ASSIGN(
-      auto operand_visibility,
-      OperandVisibilityAnalysis::Create(&nda, bdd_engine.get()));
-  XLS_ASSERT_OK_AND_ASSIGN(
-      auto visibility, VisibilityAnalysis::Create(&operand_visibility,
-                                                  bdd_engine.get(), &post_dom));
+  XLS_ASSERT_OK_AND_ASSIGN(VisibilityAnalyses analyses,
+                           CreateVisibilityAnalyses(f));
 
-  EXPECT_EQ(visibility->GetInfo(a.node())->visibility, bdd_engine->bdd().one());
-  EXPECT_EQ(visibility->GetInfo(b.node())->visibility, bdd_engine->bdd().one());
+  EXPECT_EQ(analyses.visibility->GetInfo(a.node())->visibility,
+            analyses.bdd_engine->bdd().one());
+  EXPECT_EQ(analyses.visibility->GetInfo(b.node())->visibility,
+            analyses.bdd_engine->bdd().one());
 }
 
 TEST_F(VisibilityAnalysisTest, StateUsedInPredicateIsVisible) {
@@ -1077,23 +999,14 @@ TEST_F(VisibilityAnalysisTest, StateUsedInPredicateIsVisible) {
   pb.Next(a, input, pred);
   XLS_ASSERT_OK_AND_ASSIGN(auto f, pb.Build());
 
-  NodeForwardDependencyAnalysis nda;
-  XLS_ASSERT_OK(nda.Attach(f));
-  LazyPostDominatorAnalysis post_dom;
-  XLS_ASSERT_OK(post_dom.Attach(f));
-  std::unique_ptr<BddQueryEngine> bdd_engine = BddQueryEngine::MakeDefault();
-  XLS_ASSERT_OK(bdd_engine->Populate(f));
-  XLS_ASSERT_OK_AND_ASSIGN(
-      auto operand_visibility,
-      OperandVisibilityAnalysis::Create(&nda, bdd_engine.get()));
-  XLS_ASSERT_OK_AND_ASSIGN(
-      auto visibility, VisibilityAnalysis::Create(&operand_visibility,
-                                                  bdd_engine.get(), &post_dom));
+  XLS_ASSERT_OK_AND_ASSIGN(VisibilityAnalyses analyses,
+                           CreateVisibilityAnalyses(f));
 
-  RecordProperty("ir", f->DumpIr(visibility->annotator()));
-  auto pred_bdd_node = bdd_engine->GetBddNode(TreeBitLocation(pred.node(), 0));
+  RecordProperty("ir", f->DumpIr(analyses.visibility->annotator()));
+  std::optional<BddNodeIndex> pred_bdd_node =
+      analyses.bdd_engine->GetBddNode(TreeBitLocation(pred.node(), 0));
   ASSERT_TRUE(pred_bdd_node.has_value());
-  EXPECT_EQ(visibility->GetInfo(input.node())->visibility,
+  EXPECT_EQ(analyses.visibility->GetInfo(input.node())->visibility,
             pred_bdd_node.value())
       << "input: " << input.node()->ToString()
       << " pred: " << pred.node()->ToString();
@@ -1117,22 +1030,13 @@ TEST_F(VisibilityAnalysisTest, DecoupledNextNodeVisibility) {
   pb.Next(tok_elem, input_tok);
   XLS_ASSERT_OK_AND_ASSIGN(auto f, pb.Build());
 
-  NodeForwardDependencyAnalysis nda;
-  XLS_ASSERT_OK(nda.Attach(f));
-  LazyPostDominatorAnalysis post_dom;
-  XLS_ASSERT_OK(post_dom.Attach(f));
-  std::unique_ptr<BddQueryEngine> bdd_engine = BddQueryEngine::MakeDefault();
-  XLS_ASSERT_OK(bdd_engine->Populate(f));
-  XLS_ASSERT_OK_AND_ASSIGN(
-      auto operand_visibility,
-      OperandVisibilityAnalysis::Create(&nda, bdd_engine.get()));
-  XLS_ASSERT_OK_AND_ASSIGN(
-      auto visibility, VisibilityAnalysis::Create(&operand_visibility,
-                                                  bdd_engine.get(), &post_dom));
+  XLS_ASSERT_OK_AND_ASSIGN(VisibilityAnalyses analyses,
+                           CreateVisibilityAnalyses(f));
 
-  auto pred_bdd_node = bdd_engine->GetBddNode(TreeBitLocation(pred.node(), 0));
+  std::optional<BddNodeIndex> pred_bdd_node =
+      analyses.bdd_engine->GetBddNode(TreeBitLocation(pred.node(), 0));
   ASSERT_TRUE(pred_bdd_node.has_value());
-  EXPECT_EQ(visibility->GetInfo(input_data.node())->visibility,
+  EXPECT_EQ(analyses.visibility->GetInfo(input_data.node())->visibility,
             pred_bdd_node.value())
       << "input: " << input.node()->ToString()
       << " pred: " << pred.node()->ToString();
@@ -1151,20 +1055,10 @@ TEST_F(VisibilityAnalysisTest, MutuallyExclusiveMultipleSelects) {
   XLS_ASSERT_OK_AND_ASSIGN(
       auto f, fb.BuildWithReturnValue(fb.Tuple({select, select2})));
 
-  NodeForwardDependencyAnalysis nda;
-  XLS_ASSERT_OK(nda.Attach(f));
-  LazyPostDominatorAnalysis post_dom;
-  XLS_ASSERT_OK(post_dom.Attach(f));
-  std::unique_ptr<BddQueryEngine> bdd_engine = BddQueryEngine::MakeDefault();
-  XLS_ASSERT_OK(bdd_engine->Populate(f));
-  XLS_ASSERT_OK_AND_ASSIGN(
-      auto operand_visibility,
-      OperandVisibilityAnalysis::Create(&nda, bdd_engine.get()));
-  XLS_ASSERT_OK_AND_ASSIGN(
-      auto visibility, VisibilityAnalysis::Create(&operand_visibility,
-                                                  bdd_engine.get(), &post_dom));
+  XLS_ASSERT_OK_AND_ASSIGN(VisibilityAnalyses analyses,
+                           CreateVisibilityAnalyses(f));
 
-  EXPECT_TRUE(visibility->IsMutuallyExclusive(add.node(), sub.node()));
+  EXPECT_TRUE(analyses.visibility->IsMutuallyExclusive(add.node(), sub.node()));
 }
 
 TEST_F(VisibilityAnalysisTest, VisibilityThroughManyAndsSelects) {
@@ -1243,46 +1137,39 @@ TEST_F(VisibilityAnalysisTest, VisibilityThroughManyAndsSelects) {
   BValue lit105_16 = fb.Literal(UBits(105, 16));
   XLS_ASSERT_OK_AND_ASSIGN(auto f, fb.BuildWithReturnValue(result));
 
-  NodeForwardDependencyAnalysis nda;
-  XLS_ASSERT_OK(nda.Attach(f));
-  LazyPostDominatorAnalysis post_dom;
-  XLS_ASSERT_OK(post_dom.Attach(f));
-  std::unique_ptr<BddQueryEngine> bdd_engine = BddQueryEngine::MakeDefault();
-  XLS_ASSERT_OK(bdd_engine->Populate(f));
-  BinaryDecisionDiagram& bdd = bdd_engine->bdd();
-  XLS_ASSERT_OK_AND_ASSIGN(
-      auto operand_visibility,
-      OperandVisibilityAnalysis::Create(&nda, bdd_engine.get()));
-  XLS_ASSERT_OK_AND_ASSIGN(
-      auto visibility, VisibilityAnalysis::Create(&operand_visibility,
-                                                  bdd_engine.get(), &post_dom));
+  XLS_ASSERT_OK_AND_ASSIGN(VisibilityAnalyses analyses,
+                           CreateVisibilityAnalyses(f));
+  BinaryDecisionDiagram& bdd = analyses.bdd_engine->bdd();
 
   // assert visibility on later mul expression on 'op' value
   BddNodeIndex mul_survived_visible =
-      visibility->GetInfo(mul_survived.node())->visibility;
-  XLS_ASSERT_OK_AND_ASSIGN(std::vector<SaturatingBddNodeIndex> op_bits,
-                           GetSaturatingNodeBits(op.node(), *bdd_engine));
-  XLS_ASSERT_OK_AND_ASSIGN(std::vector<SaturatingBddNodeIndex> other_op_bits,
-                           GetSaturatingNodeBits(other_op.node(), *bdd_engine));
+      analyses.visibility->GetInfo(mul_survived.node())->visibility;
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::vector<SaturatingBddNodeIndex> op_bits,
+      GetSaturatingNodeBits(op.node(), *analyses.bdd_engine));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::vector<SaturatingBddNodeIndex> other_op_bits,
+      GetSaturatingNodeBits(other_op.node(), *analyses.bdd_engine));
   XLS_ASSERT_OK_AND_ASSIGN(
       std::vector<SaturatingBddNodeIndex> lit103_16_bits,
-      GetSaturatingNodeBits(lit103_16.node(), *bdd_engine));
+      GetSaturatingNodeBits(lit103_16.node(), *analyses.bdd_engine));
   SaturatingBddNodeIndex op_is_103 =
-      bdd_engine->evaluator().Equals(op_bits, lit103_16_bits);
+      analyses.bdd_engine->evaluator().Equals(op_bits, lit103_16_bits);
   ASSERT_FALSE(HasTooManyPaths(op_is_103));
-  XLS_ASSERT_OK_AND_ASSIGN(std::vector<SaturatingBddNodeIndex> lit1_4_bits,
-                           GetSaturatingNodeBits(lit1_4.node(), *bdd_engine));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::vector<SaturatingBddNodeIndex> lit1_4_bits,
+      GetSaturatingNodeBits(lit1_4.node(), *analyses.bdd_engine));
   SaturatingBddNodeIndex other_op_is_1 =
-      bdd_engine->evaluator().Equals(other_op_bits, lit1_4_bits);
+      analyses.bdd_engine->evaluator().Equals(other_op_bits, lit1_4_bits);
   ASSERT_FALSE(HasTooManyPaths(other_op_is_1));
   EXPECT_EQ(bdd.Implies(ToBddNode(op_is_103), ToBddNode(other_op_is_1)),
             bdd.one());
 
   XLS_ASSERT_OK_AND_ASSIGN(
       std::vector<SaturatingBddNodeIndex> lit105_16_bits,
-      GetSaturatingNodeBits(lit105_16.node(), *bdd_engine));
+      GetSaturatingNodeBits(lit105_16.node(), *analyses.bdd_engine));
   SaturatingBddNodeIndex op_is_105 =
-      bdd_engine->evaluator().Equals(op_bits, lit105_16_bits);
+      analyses.bdd_engine->evaluator().Equals(op_bits, lit105_16_bits);
   ASSERT_FALSE(HasTooManyPaths(op_is_105));
   EXPECT_EQ(bdd.Implies(bdd.And(bdd.Not(ToBddNode(op_is_103)),
                                 bdd.Not(ToBddNode(op_is_105))),
@@ -1294,7 +1181,8 @@ TEST_F(VisibilityAnalysisTest, VisibilityThroughManyAndsSelects) {
                         bdd.Not(mul_survived_visible)),
             bdd.one());
 
-  EXPECT_TRUE(visibility->IsMutuallyExclusive(mul.node(), mul2.node()));
+  EXPECT_TRUE(
+      analyses.visibility->IsMutuallyExclusive(mul.node(), mul2.node()));
 }
 
 TEST_F(VisibilityAnalysisTest, EdgesForVisibilityImpactingMutualExclusivity) {
@@ -1312,22 +1200,12 @@ TEST_F(VisibilityAnalysisTest, EdgesForVisibilityImpactingMutualExclusivity) {
   XLS_ASSERT_OK_AND_ASSIGN(
       auto f, fb.BuildWithReturnValue(fb.Tuple({select, select2})));
 
-  NodeForwardDependencyAnalysis nda;
-  XLS_ASSERT_OK(nda.Attach(f));
-  LazyPostDominatorAnalysis post_dom;
-  XLS_ASSERT_OK(post_dom.Attach(f));
-  std::unique_ptr<BddQueryEngine> bdd_engine = BddQueryEngine::MakeDefault();
-  XLS_ASSERT_OK(bdd_engine->Populate(f));
-  XLS_ASSERT_OK_AND_ASSIGN(
-      auto operand_visibility,
-      OperandVisibilityAnalysis::Create(&nda, bdd_engine.get()));
-  XLS_ASSERT_OK_AND_ASSIGN(
-      auto visibility, VisibilityAnalysis::Create(&operand_visibility,
-                                                  bdd_engine.get(), &post_dom));
+  XLS_ASSERT_OK_AND_ASSIGN(VisibilityAnalyses analyses,
+                           CreateVisibilityAnalyses(f));
 
   absl::flat_hash_set<OperandNode> edges;
   XLS_ASSERT_OK_AND_ASSIGN(
-      edges, visibility->GetEdgesForMutuallyExclusiveVisibilityExpr(
+      edges, analyses.visibility->GetEdgesForMutuallyExclusiveVisibilityExpr(
                  add.node(), {sub.node()}, -1));
   EXPECT_THAT(edges, UnorderedElementsAre(
                          OperandNode(or_to_ignore.node(), select.node()),
@@ -1359,22 +1237,12 @@ TEST_F(VisibilityAnalysisTest, EdgesForVisibilityPrunesLargerEdgesFirst) {
   XLS_ASSERT_OK_AND_ASSIGN(
       auto f, fb.BuildWithReturnValue(fb.Tuple({x_and_large, y_and})));
 
-  NodeForwardDependencyAnalysis nda;
-  XLS_ASSERT_OK(nda.Attach(f));
-  LazyPostDominatorAnalysis post_dom;
-  XLS_ASSERT_OK(post_dom.Attach(f));
-  std::unique_ptr<BddQueryEngine> bdd_engine = BddQueryEngine::MakeDefault();
-  XLS_ASSERT_OK(bdd_engine->Populate(f));
-  XLS_ASSERT_OK_AND_ASSIGN(
-      auto operand_visibility,
-      OperandVisibilityAnalysis::Create(&nda, bdd_engine.get()));
-  XLS_ASSERT_OK_AND_ASSIGN(
-      auto visibility, VisibilityAnalysis::Create(&operand_visibility,
-                                                  bdd_engine.get(), &post_dom));
+  XLS_ASSERT_OK_AND_ASSIGN(VisibilityAnalyses analyses,
+                           CreateVisibilityAnalyses(f));
 
   absl::flat_hash_set<OperandNode> edges;
   XLS_ASSERT_OK_AND_ASSIGN(
-      edges, visibility->GetEdgesForMutuallyExclusiveVisibilityExpr(
+      edges, analyses.visibility->GetEdgesForMutuallyExclusiveVisibilityExpr(
                  x.node(), {y.node()}, -1));
   EXPECT_THAT(edges, UnorderedElementsAre(
                          OperandNode(x_and_medium.node(), x_and_small.node())));
@@ -1406,49 +1274,39 @@ TEST_F(VisibilityAnalysisTest,
   XLS_ASSERT_OK_AND_ASSIGN(
       auto f, fb.BuildWithReturnValue(fb.Tuple({x_and_c3, y_and})));
 
-  NodeForwardDependencyAnalysis nda;
-  XLS_ASSERT_OK(nda.Attach(f));
-  LazyPostDominatorAnalysis post_dom;
-  XLS_ASSERT_OK(post_dom.Attach(f));
-  std::unique_ptr<BddQueryEngine> bdd_engine = BddQueryEngine::MakeDefault();
-  XLS_ASSERT_OK(bdd_engine->Populate(f));
-  XLS_ASSERT_OK_AND_ASSIGN(
-      auto operand_visibility,
-      OperandVisibilityAnalysis::Create(&nda, bdd_engine.get()));
-  XLS_ASSERT_OK_AND_ASSIGN(
-      auto visibility, VisibilityAnalysis::Create(&operand_visibility,
-                                                  bdd_engine.get(), &post_dom));
+  XLS_ASSERT_OK_AND_ASSIGN(VisibilityAnalyses analyses,
+                           CreateVisibilityAnalyses(f));
 
   OperandNode edge1(x.node(), x_and_c1.node());
   OperandNode edge2(x_and_c1.node(), x_and_c2.node());
 
   // Without edge threshold (-1), the most expensive edge (c3) is pruned, and
   // both required edges (edge1 and edge2) are returned.
-  EXPECT_THAT(visibility->GetEdgesForMutuallyExclusiveVisibilityExpr(
+  EXPECT_THAT(analyses.visibility->GetEdgesForMutuallyExclusiveVisibilityExpr(
                   x.node(), {y.node()}, /*max_edges_to_handle=*/-1),
               IsOkAndHolds(UnorderedElementsAre(edge1, edge2)));
 
   // When max_edges_to_handle is 2 (< 3 total edges), the most expensive edge
   // (x_and_c2 -> x_and_c3) is dropped upfront. Subsequent pruning does nothing.
-  EXPECT_THAT(visibility->GetEdgesForMutuallyExclusiveVisibilityExpr(
+  EXPECT_THAT(analyses.visibility->GetEdgesForMutuallyExclusiveVisibilityExpr(
                   x.node(), {y.node()}, /*max_edges_to_handle=*/2),
               IsOkAndHolds(UnorderedElementsAre(edge1, edge2)));
 
   // When max_edges_to_handle is 1, two edges must be dropped. Because both
   // c1 and c2 are required to prove mutual exclusivity with y, dropping the
   // edges that express these two conditions returns in no valid solution.
-  EXPECT_THAT(visibility->GetEdgesForMutuallyExclusiveVisibilityExpr(
+  EXPECT_THAT(analyses.visibility->GetEdgesForMutuallyExclusiveVisibilityExpr(
                   x.node(), {y.node()}, /*max_edges_to_handle=*/1),
               IsOkAndHolds(IsEmpty()));
 
   // And with explicit exclusion:
   OperandNode edge3(x_and_c2.node(), x_and_c3.node());
-  EXPECT_THAT(
-      visibility->GetEdgesForMutuallyExclusiveVisibilityExpr(
-          x.node(), {y.node()}, /*max_edges_to_handle=*/-1,
-          visibility->GetInfo(x.node())->visibility,
-          {visibility->GetInfo(y.node())->visibility}, /*exclusions=*/{edge3}),
-      IsOkAndHolds(UnorderedElementsAre(edge1, edge2)));
+  EXPECT_THAT(analyses.visibility->GetEdgesForMutuallyExclusiveVisibilityExpr(
+                  x.node(), {y.node()}, /*max_edges_to_handle=*/-1,
+                  analyses.visibility->GetInfo(x.node())->visibility,
+                  {analyses.visibility->GetInfo(y.node())->visibility},
+                  /*exclusions=*/{edge3}),
+              IsOkAndHolds(UnorderedElementsAre(edge1, edge2)));
 }
 
 TEST_F(VisibilityAnalysisTest, PrunesLessImpactfulOrUnconstrainedEdgesFirst) {
@@ -1550,27 +1408,19 @@ TEST_F(VisibilityAnalysisTest, SingleSelectVisibilityNotPostDominating) {
       auto f,
       fb.BuildWithReturnValue(fb.Tuple({select, x_and_guard, y_and_guard})));
 
-  NodeForwardDependencyAnalysis nda;
-  XLS_ASSERT_OK(nda.Attach(f));
-  std::unique_ptr<BddQueryEngine> bdd_engine = BddQueryEngine::MakeDefault();
-  XLS_ASSERT_OK(bdd_engine->Populate(f));
-  XLS_ASSERT_OK_AND_ASSIGN(
-      auto operand_visibility,
-      OperandVisibilityAnalysis::Create(&nda, bdd_engine.get()));
-  XLS_ASSERT_OK_AND_ASSIGN(auto visibility,
-                           SingleSelectVisibilityAnalysis::Create(
-                               &operand_visibility, &nda, bdd_engine.get()));
+  XLS_ASSERT_OK_AND_ASSIGN(SingleSelectVisibilityAnalyses analyses,
+                           CreateSingleSelectVisibilityAnalyses(f));
 
-  auto x_vis = *visibility->GetInfo(x.node());
+  SingleSelectVisibility x_vis = *analyses.visibility->GetInfo(x.node());
   EXPECT_EQ(x_vis.select, select.node());
-  auto y_vis = *visibility->GetInfo(y.node());
+  SingleSelectVisibility y_vis = *analyses.visibility->GetInfo(y.node());
   EXPECT_EQ(y_vis.select, select.node());
-  EXPECT_TRUE(visibility->IsMutuallyExclusive(x.node(), y.node()));
-  EXPECT_THAT(visibility->GetEdgesForVisibilityExpr(x.node()),
+  EXPECT_TRUE(analyses.visibility->IsMutuallyExclusive(x.node(), y.node()));
+  EXPECT_THAT(analyses.visibility->GetEdgesForVisibilityExpr(x.node()),
               IsOkAndHolds(UnorderedElementsAre(
                   OperandNode(x_not.node(), select.node()))));
   EXPECT_THAT(
-      visibility->GetEdgesForVisibilityExpr(y.node()),
+      analyses.visibility->GetEdgesForVisibilityExpr(y.node()),
       IsOkAndHolds(UnorderedElementsAre(OperandNode(y.node(), select.node()))));
 }
 
@@ -1600,24 +1450,15 @@ TEST_F(VisibilityAnalysisTest,
       Function * f,
       fb.BuildWithReturnValue(fb.Tuple({select, x_and_guard, y_and_guard})));
 
-  NodeForwardDependencyAnalysis nda;
-  XLS_ASSERT_OK(nda.Attach(f));
-  std::unique_ptr<BddQueryEngine> bdd_engine = BddQueryEngine::MakeDefault();
-  XLS_ASSERT_OK(bdd_engine->Populate(f));
-  XLS_ASSERT_OK_AND_ASSIGN(
-      OperandVisibilityAnalysis operand_visibility,
-      OperandVisibilityAnalysis::Create(&nda, bdd_engine.get()));
-  XLS_ASSERT_OK_AND_ASSIGN(
-      std::unique_ptr<SingleSelectVisibilityAnalysis> visibility,
-      SingleSelectVisibilityAnalysis::Create(&operand_visibility, &nda,
-                                             bdd_engine.get()));
+  XLS_ASSERT_OK_AND_ASSIGN(SingleSelectVisibilityAnalyses analyses,
+                           CreateSingleSelectVisibilityAnalyses(f));
 
-  SingleSelectVisibility x_vis = *visibility->GetInfo(x.node());
+  SingleSelectVisibility x_vis = *analyses.visibility->GetInfo(x.node());
   EXPECT_EQ(x_vis.select, select.node());
-  SingleSelectVisibility y_vis = *visibility->GetInfo(y.node());
+  SingleSelectVisibility y_vis = *analyses.visibility->GetInfo(y.node());
   EXPECT_EQ(y_vis.select, select.node());
-  EXPECT_TRUE(visibility->IsMutuallyExclusive(x.node(), y.node()));
-  EXPECT_THAT(visibility->GetEdgesForVisibilityExpr(x.node()),
+  EXPECT_TRUE(analyses.visibility->IsMutuallyExclusive(x.node(), y.node()));
+  EXPECT_THAT(analyses.visibility->GetEdgesForVisibilityExpr(x.node()),
               IsOkAndHolds(UnorderedElementsAre(
                   OperandNode(x_not.node(), select.node()))));
 }
@@ -1640,28 +1481,19 @@ TEST_F(VisibilityAnalysisTest, EdgesForVisibilityExcludeDependencies) {
                             fb.Literal(UBits(0, 4)));
   XLS_ASSERT_OK_AND_ASSIGN(auto f, fb.BuildWithReturnValue(select));
 
-  NodeForwardDependencyAnalysis nda;
-  XLS_ASSERT_OK(nda.Attach(f));
-  LazyPostDominatorAnalysis post_dom;
-  XLS_ASSERT_OK(post_dom.Attach(f));
-  std::unique_ptr<BddQueryEngine> bdd_engine = BddQueryEngine::MakeDefault();
-  XLS_ASSERT_OK(bdd_engine->Populate(f));
-  XLS_ASSERT_OK_AND_ASSIGN(
-      auto operand_visibility,
-      OperandVisibilityAnalysis::Create(&nda, bdd_engine.get()));
-  XLS_ASSERT_OK_AND_ASSIGN(
-      auto visibility, VisibilityAnalysis::Create(&operand_visibility,
-                                                  bdd_engine.get(), &post_dom));
+  XLS_ASSERT_OK_AND_ASSIGN(VisibilityAnalyses analyses,
+                           CreateVisibilityAnalyses(f));
 
   // Confirm one_add and other_add are mutually exclusive
-  EXPECT_TRUE(
-      visibility->IsMutuallyExclusive(one_add.node(), other_add.node()));
+  EXPECT_TRUE(analyses.visibility->IsMutuallyExclusive(one_add.node(),
+                                                       other_add.node()));
 
   // Confirm the edge `one_add -> one_and_other_if_op_0` is not included.
   absl::flat_hash_set<OperandNode> edges_one;
   XLS_ASSERT_OK_AND_ASSIGN(
-      edges_one, visibility->GetEdgesForMutuallyExclusiveVisibilityExpr(
-                     one_add.node(), {other_add.node()}, -1));
+      edges_one,
+      analyses.visibility->GetEdgesForMutuallyExclusiveVisibilityExpr(
+          one_add.node(), {other_add.node()}, -1));
   EXPECT_THAT(edges_one,
               UnorderedElementsAre(
                   OperandNode(one_add.node(), select.node()),
