@@ -1172,7 +1172,7 @@
     },
     "//dependency_support/llvm:extension.bzl%llvm_raw_ext": {
       "general": {
-        "bzlTransitiveDigest": "pbZKhDxzQxRxVekTcJ1vwAnffzKqqshdrTXqeLDboM4=",
+        "bzlTransitiveDigest": "ExWdam0udVa4lDhN2ctMSnfh26FHx9lJmI2bnh5r4rE=",
         "usagesDigest": "2L4aUO+mN7yb6ncsan8L0mvPbVM94Dnps3QE6J8hcHw=",
         "recordedFileInputs": {},
         "recordedDirentsInputs": {},
@@ -1198,11 +1198,6 @@
           }
         },
         "recordedRepoMappingEntries": [
-          [
-            "",
-            "",
-            ""
-          ],
           [
             "",
             "bazel_tools",

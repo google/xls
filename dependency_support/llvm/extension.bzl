@@ -25,8 +25,8 @@ def _llvm_raw_ext_impl(_ctx):
         build_file_content = "# empty",
         sha256 = LLVM_SHA256,
         patches = [
-            Label("@//dependency_support/llvm:llvm.patch"),
-            Label("@//dependency_support/llvm:run_lit.patch"),
+            Label("//dependency_support/llvm:llvm.patch"),
+            Label("//dependency_support/llvm:run_lit.patch"),
         ],
         patch_args = ["-p1"],
         strip_prefix = "llvm-project-" + LLVM_COMMIT,
