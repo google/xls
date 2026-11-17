@@ -144,7 +144,11 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
           DoImportViaUse(typecheck_imported_module_, subject, &import_data_,
                          subject.name_def().span(), import_data_.file_table(),
                          import_data_.vfs()));
-      XLS_RET_CHECK(result.imported_member != nullptr);
+      // `use foo;` refers to a module; a later `foo::bar` ColonRef
+      // resolves separately, via `GetImportedModuleInfo()`.
+      if (result.imported_member == nullptr) {
+        continue;
+      }
       for (NameDef* name_def :
            ModuleMemberGetNameDefs(*result.imported_member)) {
         std::optional<const NameRef*> type_var =
@@ -261,11 +265,16 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
       // `SomeEnum::SOME_CONSTANT` case.
       std::variant<const NameDef*, BuiltinNameDef*> any_name_def =
           std::get<NameRef*>(node->subject())->name_def();
-      if (const NameDef** name_def = std::get_if<const NameDef*>(&any_name_def);
-          name_def && (*name_def)->definer() != nullptr &&
-          (*name_def)->definer()->kind() == AstNodeKind::kEnumDef) {
-        const auto* enum_def =
-            absl::down_cast<const EnumDef*>((*name_def)->definer());
+      const NameDef** name_def = std::get_if<const NameDef*>(&any_name_def);
+      AstNode* subject_definer =
+          name_def != nullptr ? (*name_def)->definer() : nullptr;
+      if (std::optional<const AstNode*> resolved =
+              import_data_.ResolveUseImportedTarget(subject_definer)) {
+        subject_definer = const_cast<AstNode*>(*resolved);
+      }
+      if (name_def != nullptr && subject_definer != nullptr &&
+          subject_definer->kind() == AstNodeKind::kEnumDef) {
+        const auto* enum_def = absl::down_cast<const EnumDef*>(subject_definer);
         const TypeAnnotation* type_ref_annotation =
             module_.Make<TypeRefTypeAnnotation>(
                 (*name_def)->span(),
@@ -323,6 +332,10 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
 
       // Built-in member of a built-in type being accessed via a type alias.
       const AstNode* definer = dynamic_cast<const NameDef*>(def)->definer();
+      if (std::optional<const AstNode*> resolved =
+              import_data_.ResolveUseImportedTarget(definer)) {
+        definer = *resolved;
+      }
       if (const auto* alias = dynamic_cast<const TypeAlias*>(definer)) {
         XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(
             ToAstNode(node->subject()), &alias->type_annotation()));

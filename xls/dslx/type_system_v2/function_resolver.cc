@@ -136,6 +136,10 @@ class FunctionResolverImpl : public FunctionResolver {
       if (std::holds_alternative<const NameDef*>(name_ref->name_def())) {
         const NameDef* def = std::get<const NameDef*>(name_ref->name_def());
         function_node = def->definer();
+        if (std::optional<const AstNode*> resolved =
+                import_data_.ResolveUseImportedTarget(function_node)) {
+          function_node = *resolved;
+        }
       } else if (std::holds_alternative<BuiltinNameDef*>(
                      name_ref->name_def())) {
         const Module* module = &module_;
