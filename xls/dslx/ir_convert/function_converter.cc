@@ -171,9 +171,18 @@ absl::Status IrConversionErrorStatus(const std::optional<Span>& span,
 
 absl::StatusOr<TypeDefinition> ToTypeDefinition(
     const TypeAnnotation* type_annotation) {
+  XLS_RET_CHECK_NE(type_annotation, nullptr);
+  // A struct instance inside an impl may name its struct as `Self`.
+  if (const auto* self_type =
+          dynamic_cast<const SelfTypeAnnotation*>(type_annotation)) {
+    XLS_RET_CHECK_NE(self_type->struct_ref(), nullptr)
+        << "`Self` has no struct outside of an impl";
+    return ToTypeDefinition(self_type->struct_ref());
+  }
   auto* type_ref_type_annotation =
       dynamic_cast<const TypeRefTypeAnnotation*>(type_annotation);
-  XLS_RET_CHECK_NE(type_annotation, nullptr);
+  XLS_RET_CHECK_NE(type_ref_type_annotation, nullptr)
+      << "Expected a type reference, got: " << type_annotation->ToString();
   return type_ref_type_annotation->type_ref()->type_definition();
 }
 
