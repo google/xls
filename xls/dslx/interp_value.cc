@@ -1232,7 +1232,7 @@ absl::StatusOr<InterpValue> InterpValue::Concat(
 }
 
 absl::StatusOr<InterpValue> InterpValue::Flatten() const {
-  if (tag_ == InterpValueTag::kUBits) {
+  if (IsBits()) {
     return *this;
   }
   if (tag_ == InterpValueTag::kArray) {

@@ -317,6 +317,7 @@ absl::StatusOr<InterpValue> CastBitsToArray(const InterpValue& bits_value,
                        array_type.element_type().GetTotalBitCount());
   XLS_ASSIGN_OR_RETURN(int64_t bits_per_element,
                        element_bit_count.GetAsInt64());
+  XLS_ASSIGN_OR_RETURN(bool is_signed, IsSigned(array_type.element_type()));
   XLS_ASSIGN_OR_RETURN(Bits bits, bits_value.GetBits());
 
   auto bit_slice_value_at_index = [&](int64_t i) -> InterpValue {
@@ -324,7 +325,7 @@ absl::StatusOr<InterpValue> CastBitsToArray(const InterpValue& bits_value,
     Bits rev = bits_ops::Reverse(bits);
     Bits slice = rev.Slice(lo, bits_per_element);
     Bits result = bits_ops::Reverse(slice);
-    return InterpValue::MakeBits(InterpValueTag::kUBits, result).value();
+    return InterpValue::MakeBits(is_signed, std::move(result));
   };
 
   std::vector<InterpValue> values;
