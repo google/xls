@@ -69,6 +69,7 @@
 #include "llvm/include/llvm/Support/VirtualFileSystem.h"
 #include "llvm/include/llvm/Support/raw_ostream.h"
 #include "xls/common/file/filesystem.h"
+#include "xls/common/file/get_runfile_path.h"
 #include "xls/contrib/xlscc/metadata_output.pb.h"
 #include "xls/ir/channel.h"
 #include "xls/ir/fileno.h"
@@ -77,6 +78,9 @@
 
 namespace xlscc {
 namespace {
+
+constexpr std::string_view kBuiltinHeaderLoc =
+    "xls/contrib/xlscc/synth_only/xls_builtin.h";
 
 void GenerateAnnotation(clang::Preprocessor& PP, std::string_view name,
                         const clang::Token& after,
@@ -1379,11 +1383,44 @@ void LibToolThread::Start() {
 void LibToolThread::Join() { thread_->Join(); }
 
 void LibToolThread::Run() {
+  std::filesystem::path builtin_header_path;
+  if (std::filesystem::exists(kBuiltinHeaderLoc)) {
+    builtin_header_path = kBuiltinHeaderLoc;
+  } else if (absl::StatusOr<std::filesystem::path> runfile =
+                 xls::GetXlsRunfilePath(
+                     "xls/contrib/xlscc/synth_only/xls_builtin.h");
+             runfile.ok() && std::filesystem::exists(*runfile)) {
+    builtin_header_path = *runfile;
+  }
+
   std::vector<std::string> argv;
   argv.emplace_back("binary");
   argv.emplace_back("/xls_top.cc");
+  bool has_synth_only_include = false;
   for (const auto& view : command_line_args_) {
+    if (absl::StrContains(view, "xls/contrib/xlscc/synth_only")) {
+      has_synth_only_include = true;
+    }
     argv.emplace_back(view);
+  }
+  if (!has_synth_only_include && !builtin_header_path.empty()) {
+    std::filesystem::path synth_only_dir = builtin_header_path.parent_path();
+    argv.emplace_back("-isystem");
+    argv.emplace_back(synth_only_dir.string());
+    std::filesystem::path ac_compat_dir = synth_only_dir / "ac_compat";
+    if (std::filesystem::exists(ac_compat_dir)) {
+      argv.emplace_back("-isystem");
+      argv.emplace_back(ac_compat_dir.string());
+    }
+    std::filesystem::path g3_root = synth_only_dir.parent_path()
+                                        .parent_path()
+                                        .parent_path()
+                                        .parent_path()
+                                        .parent_path();
+    if (!g3_root.empty()) {
+      argv.emplace_back("-isystem");
+      argv.emplace_back(g3_root.string());
+    }
   }
   // For xls_top.cc to include the source file
   argv.emplace_back("-I.");
@@ -1406,142 +1443,18 @@ void LibToolThread::Run() {
 
   llvm::IntrusiveRefCntPtr<llvm::vfs::InMemoryFileSystem> mem_fs(
       new llvm::vfs::InMemoryFileSystem);
+  if (llvm::ErrorOr<std::string> cwd =
+          llvm::vfs::getRealFileSystem()->getCurrentWorkingDirectory()) {
+    mem_fs->setCurrentWorkingDirectory(*cwd);
+  }
+  CHECK(!builtin_header_path.empty())
+      << "Could not locate xls_builtin.h on disk or in runfiles; ensure "
+         ":synth_only_headers is in data deps";
+  absl::StatusOr<std::string> builtin_content =
+      xls::GetFileContents(builtin_header_path);
+  CHECK_OK(builtin_content.status());
   mem_fs->addFile("/xls_builtin.h", 0,
-                  llvm::MemoryBuffer::getMemBuffer(
-                      R"(
-#ifndef __XLS_BUILTIN_H
-#define __XLS_BUILTIN_H
-template<int N>
-struct __xls_bits { };
-
-struct __xls_token_raw { };
-
-class [[hls_no_tuple]] __xls_token {
-public:
-  inline __xls_token() { }
-
-  inline __xls_token(const __xls_token& o) {
-    asm("fn (fid)(a: token) -> token { ret op(aid): token = "
-        "identity(a, pos=(loc)) }"
-        : "=r"(storage)
-        : "a"(o.storage));
-  }
-
-  inline __xls_token operator=(const __xls_token& o) {
-    asm("fn (fid)(a: token) -> token { ret op(aid): token = "
-        "identity(a, pos=(loc)) }"
-        : "=r"(storage)
-        : "a"(o.storage));
-
-    return *this;
-  }
-
-private:
-  __xls_token_raw storage;
-};
-
-// Should match OpType
-enum __xls_channel_dir {
-  __xls_channel_dir_Unknown=0,    // OpType::kNull
-  __xls_channel_dir_Out=1,        // OpType::kSend
-  __xls_channel_dir_In=2,         // OpType::kRecv
-  __xls_channel_dir_InOut=3       // OpType::kSendRecv
-};
-
-template<typename T, __xls_channel_dir Dir=__xls_channel_dir_Unknown>
-class __xls_channel {
- public:
-
-  class TokenizedValue {
-   public:
-    T value()const {
-      return value_;
-    }
-    __xls_token token()const {
-      return token_;
-    }
-
-   private:
-    T value_;
-    __xls_token token_;
-  };
-
-  // This separate method is necessary because C++'s implicit conversions
-  // don't allow TokenizedValue to substitute for T as a return in all cases.
-  TokenizedValue read_with_token(__xls_token token_in = __xls_token())const {
-    return TokenizedValue();
-  }
-  T read(__xls_token token_in = __xls_token())const {
-    return T();
-  }
-  __xls_token write(T val, __xls_token token_in  = __xls_token()) const {
-    return __xls_token();
-  }
-  void read(T& out)const {
-    (void)out;
-  }
-  bool nb_read(T& out)const {
-    (void)out;
-    return true;
-  }
-};
-
-// Size is an int so that templates declaring `int N` and aliases such as
-// `template <typename T, int N> using Memory = __xls_memory<T, N>;` can deduce
-// N from __xls_memory arguments.
-template<typename T, int Size>
-class __xls_memory {
- public:
-  using value_type = T;
-
-  unsigned long long size()const {
-    return Size;
-  };
-
-  T& operator[](long long int addr)const {
-    static T ret;
-    return ret;
-  }
-  void write(long long int addr, const T& value) const {
-    return;
-  }
-  T read(long long int addr) const {
-    return T();
-  }
-};
-
-
-// Bypass no outputs error
-int __xlscc_unimplemented() { return 0; }
-
-void __xlscc_assert(const char*message, bool condition, const char*label=nullptr) { }
-
-// See XLS IR trace op format
-void __xlscc_trace(const char*fmt, ...) { }
-
-class __xlscc_trace_stream_type {
- public:
-  template<typename T>
-  __xlscc_trace_stream_type& operator<<(const T& val) {
-    return *this;
-  }
-};
-
-__xlscc_trace_stream_type __xlscc_trace_stream;
-
-// Forces the FSM to a new activation / initiation.
-// The transition will be conditional on the context like an IO operation.
-template<bool conditional>
-void __xlscc_activation_barrier() { }
-
-bool __xlscc_on_reset = false;
-
-// Returns bits for 32.32 fixed point representation
-__xls_bits<64> __xlscc_fixed_32_32_bits_for_double(double input);
-__xls_bits<64> __xlscc_fixed_32_32_bits_for_float(float input);
-
-#endif//__XLS_BUILTIN_H
-          )"));
+                  llvm::MemoryBuffer::getMemBufferCopy(*builtin_content));
 
   // Inject an instantiation to make Clang parse the constructor bodies
   std::string top_class_inst_injection = top_class_name_.empty()
