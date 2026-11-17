@@ -1365,6 +1365,8 @@ TEST_F(TranslatorLogicTest, ForUnroll) {
 }
 
 TEST_F(TranslatorLogicTest, PragmaScoped) {
+  // The pragma before the end of the block is ignored, rather than applying to
+  // the loop after the block.
   std::string_view content = R"(
       long long my_package(long long a, long long b) {
         {
@@ -1377,8 +1379,9 @@ TEST_F(TranslatorLogicTest, PragmaScoped) {
         return a;
       })";
   ASSERT_THAT(SourceToIr(content).status(),
-              absl_testing::StatusIs(absl::StatusCode::kFailedPrecondition,
-                                     testing::HasSubstr("expected statement")));
+              absl_testing::StatusIs(
+                  absl::StatusCode::kUnimplemented,
+                  testing::HasSubstr("missing #pragma or attribute")));
 }
 
 TEST_F(TranslatorLogicTest, ForUnrollInTemplateFunc) {
@@ -1423,6 +1426,22 @@ TEST_F(TranslatorLogicTest, PragmaInDefineAppliesOnlyInDefine) {
   ASSERT_THAT(SourceToIr(content).status(),
               absl_testing::StatusIs(absl::StatusCode::kUnimplemented,
                                      testing::HasSubstr("missing")));
+}
+
+TEST_F(TranslatorLogicTest, PragmaInMacroBeforeClosingBraceApplies) {
+  // The loop after the pragma is in the macro, not after the macro use.
+  std::string_view content = R"(
+      #define UNROLLED_ADD(a, b)       \
+        _Pragma("hls_unroll yes")      \
+        for (int i = 1; i <= 10; ++i) a += 3 * b;
+
+      long long my_package(long long a, long long b) {
+        if (a > 0) {
+          UNROLLED_ADD(a, b)
+        }
+        return a;
+      })";
+  Run({{"a", 11}, {"b", 20}}, 611, content);
 }
 
 TEST_F(TranslatorLogicTest, NestedLoopsNoBraces) {

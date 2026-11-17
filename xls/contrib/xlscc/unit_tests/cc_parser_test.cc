@@ -1111,4 +1111,341 @@ TEST_F(CCParserTest, SharedFunctionWorks) {
   ExpectAnnotateWithoutArgs(top_ptr->getAttrs(), "hls_shared_function");
 }
 
+// Returns the template pattern of the function called by the first `return`
+// statement in `func`, or nullptr if there is no such call.
+const clang::FunctionDecl* GetReturnedCalleePattern(
+    const clang::FunctionDecl* func) {
+  CHECK(func->getBody() != nullptr);
+  for (const clang::Stmt* stmt : func->getBody()->children()) {
+    const auto* ret = clang::dyn_cast<clang::ReturnStmt>(stmt);
+    if (ret == nullptr || ret->getRetValue() == nullptr) {
+      continue;
+    }
+    const auto* call =
+        clang::dyn_cast<clang::CallExpr>(ret->getRetValue()->IgnoreImplicit());
+    if (call == nullptr || call->getDirectCallee() == nullptr) {
+      return nullptr;
+    }
+    const clang::FunctionDecl* pattern =
+        call->getDirectCallee()->getTemplateInstantiationPattern();
+    if (pattern == nullptr) {
+      return nullptr;
+    }
+    // The pragma is on the definition, which may be out of line.
+    const clang::FunctionDecl* definition = pattern->getDefinition();
+    return definition != nullptr ? definition : pattern;
+  }
+  return nullptr;
+}
+
+TEST_F(CCParserTest, LoopPragmaBeforeClosingBraceIsIgnored) {
+  xlscc::CCParser parser;
+
+  const std::string cpp_src = R"(
+    #define HLS_PRAGMA(x) _Pragma(#x)
+    #pragma hls_top
+    int foo(int a) {
+      int acc = a;
+      {
+        acc += 1;
+        #pragma hls_unroll yes
+      }
+      if (a > 0) {
+        HLS_PRAGMA(hls_pipeline_init_interval 1)
+        // for (int i = 0; i < 4; ++i) acc += i;
+      }
+      return acc;
+      #pragma hls_unroll yes
+    }
+    #pragma hls_unroll yes
+  )";
+
+  XLS_ASSERT_OK(ScanTempFileWithContent(cpp_src, {}, &parser));
+  XLS_ASSERT_OK_AND_ASSIGN(const clang::FunctionDecl* top_ptr,
+                           parser.GetTopFunction());
+  ASSERT_NE(top_ptr, nullptr);
+  ExpectAnnotateWithoutArgs(top_ptr->getAttrs(), "hls_top");
+}
+
+TEST_F(CCParserTest, NonLoopPragmaBeforeClosingBraceIsAnError) {
+  xlscc::CCParser parser;
+
+  const std::string cpp_src = R"(
+    struct S {
+      int x;
+      #pragma hls_design block
+    };
+
+    #pragma hls_top
+    int foo(int a) {
+      return a;
+    }
+  )";
+
+  EXPECT_THAT(ScanTempFileWithContent(cpp_src, {}, &parser),
+              absl_testing::StatusIs(absl::StatusCode::kFailedPrecondition));
+}
+
+TEST_F(CCParserTest, PragmaBeforeTemplateDeclarationWorks) {
+  xlscc::CCParser parser;
+
+  const std::string cpp_src = R"(
+    #pragma hls_design block
+    template <typename T, int N = (1 << 2)>
+    T scale_add(T x) {
+      return x + N;
+    }
+
+    #pragma hls_top
+    int foo(int a) {
+      return scale_add<int>(a);
+    }
+  )";
+
+  XLS_ASSERT_OK(ScanTempFileWithContent(cpp_src, {}, &parser));
+  XLS_ASSERT_OK_AND_ASSIGN(const clang::FunctionDecl* top_ptr,
+                           parser.GetTopFunction());
+  ASSERT_NE(top_ptr, nullptr);
+  ExpectAnnotateWithoutArgs(top_ptr->getAttrs(), "hls_top");
+  const clang::FunctionDecl* callee = GetReturnedCalleePattern(top_ptr);
+  ASSERT_NE(callee, nullptr);
+  ASSERT_TRUE(callee->hasAttrs());
+  ExpectAnnotateWithoutArgs(callee->getAttrs(), "hls_block");
+}
+
+TEST_F(CCParserTest, PragmasBeforeTemplateDeclarationSkipOtherPragmas) {
+  xlscc::CCParser parser;
+
+  // Pragmas from `HLS_PRAGMA(...)` are moved after the template head too, and
+  // `#pragma`, `_Pragma(...)` and `HLS_PRAGMA(...)` are all skipped.
+  const std::string cpp_src = R"(
+    #define HLS_PRAGMA(x) _Pragma(#x)
+    HLS_PRAGMA(hls_design block)
+    _Pragma("GCC diagnostic push")
+    #pragma hls_top
+    HLS_PRAGMA(GCC diagnostic pop)
+    template <typename T>
+    T twice(T x) {
+      return x + x;
+    }
+
+    int foo(int a) {
+      return twice<int>(a);
+    }
+  )";
+
+  XLS_ASSERT_OK(
+      ScanTempFileWithContent(cpp_src, {}, &parser, /*top_name=*/"foo"));
+  XLS_ASSERT_OK_AND_ASSIGN(const clang::FunctionDecl* top_ptr,
+                           parser.GetTopFunction());
+  ASSERT_NE(top_ptr, nullptr);
+  const clang::FunctionDecl* callee = GetReturnedCalleePattern(top_ptr);
+  ASSERT_NE(callee, nullptr);
+  ASSERT_TRUE(callee->hasAttrs());
+  ExpectAnnotateWithoutArgs(callee->getAttrs(), "hls_block");
+  ExpectAnnotateWithoutArgs(callee->getAttrs(), "hls_top");
+}
+
+TEST_F(CCParserTest, PragmaBeforeTemplateWithElaboratedReturnTypeWorks) {
+  xlscc::CCParser parser;
+
+  // `struct` after the template head starts the return type, not a class
+  // template, so the attribute still applies to the function.
+  const std::string cpp_src = R"(
+    struct Box {
+      int val;
+    };
+
+    #pragma hls_design block
+    template <typename T>
+    struct Box make_box(T x) {
+      return Box{x};
+    }
+
+    #pragma hls_top
+    struct Box foo(int a) {
+      return make_box<int>(a);
+    }
+  )";
+
+  XLS_ASSERT_OK(ScanTempFileWithContent(cpp_src, {}, &parser));
+  XLS_ASSERT_OK_AND_ASSIGN(const clang::FunctionDecl* top_ptr,
+                           parser.GetTopFunction());
+  ASSERT_NE(top_ptr, nullptr);
+  ExpectAnnotateWithoutArgs(top_ptr->getAttrs(), "hls_top");
+  const clang::FunctionDecl* callee = GetReturnedCalleePattern(top_ptr);
+  ASSERT_NE(callee, nullptr);
+  ASSERT_TRUE(callee->hasAttrs());
+  ExpectAnnotateWithoutArgs(callee->getAttrs(), "hls_block");
+}
+
+TEST_F(CCParserTest, PragmaBeforeClassTemplateIsAnError) {
+  xlscc::CCParser parser;
+
+  // None of the pragmas' attributes apply to classes, so the attribute is not
+  // moved after the class key, where it would only be a warning.
+  const std::string cpp_src = R"(
+    #pragma hls_design block
+    template <typename T>
+    struct Box {
+      T val;
+    };
+
+    #pragma hls_top
+    int foo(int a) {
+      Box<int> b{a};
+      return b.val;
+    }
+  )";
+
+  EXPECT_THAT(ScanTempFileWithContent(cpp_src, {}, &parser),
+              absl_testing::StatusIs(
+                  absl::StatusCode::kFailedPrecondition,
+                  testing::HasSubstr("an attribute list cannot appear here")));
+}
+
+TEST_F(CCParserTest, LoopPragmaBeforeTemplateIsAnError) {
+  // Loop pragmas only apply to loop statements, so they are not moved after a
+  // template head, where they would only be a warning.
+  {
+    xlscc::CCParser parser;
+    const std::string cpp_src = R"(
+      #pragma hls_unroll yes
+      template <typename T>
+      T twice(T x) {
+        return x + x;
+      }
+
+      #pragma hls_top
+      int foo(int a) {
+        return twice<int>(a);
+      }
+    )";
+
+    EXPECT_THAT(
+        ScanTempFileWithContent(cpp_src, {}, &parser),
+        absl_testing::StatusIs(
+            absl::StatusCode::kFailedPrecondition,
+            testing::HasSubstr("an attribute list cannot appear here")));
+  }
+  {
+    xlscc::CCParser parser;
+    const std::string cpp_src = R"(
+      #pragma hls_pipeline_init_interval 1
+      template <typename T>
+      T twice(T x) {
+        return x + x;
+      }
+
+      #pragma hls_top
+      int foo(int a) {
+        return twice<int>(a);
+      }
+    )";
+
+    EXPECT_THAT(
+        ScanTempFileWithContent(cpp_src, {}, &parser),
+        absl_testing::StatusIs(
+            absl::StatusCode::kFailedPrecondition,
+            testing::HasSubstr("an attribute list cannot appear here")));
+  }
+}
+
+TEST_F(CCParserTest, PragmaBeforeMemberTemplateDefinitionWorks) {
+  xlscc::CCParser parser;
+
+  const std::string cpp_src = R"(
+    template <typename T>
+    struct Scaler {
+      template <typename U>
+      U scale(U x);
+    };
+
+    #pragma hls_design block
+    template <typename T>
+    template <typename U>
+    U Scaler<T>::scale(U x) {
+      return x * 2;
+    }
+
+    #pragma hls_top
+    int foo(int a) {
+      return Scaler<int>().scale<int>(a);
+    }
+  )";
+
+  XLS_ASSERT_OK(ScanTempFileWithContent(cpp_src, {}, &parser));
+  XLS_ASSERT_OK_AND_ASSIGN(const clang::FunctionDecl* top_ptr,
+                           parser.GetTopFunction());
+  ASSERT_NE(top_ptr, nullptr);
+  ExpectAnnotateWithoutArgs(top_ptr->getAttrs(), "hls_top");
+  const clang::FunctionDecl* callee = GetReturnedCalleePattern(top_ptr);
+  ASSERT_NE(callee, nullptr);
+  ASSERT_TRUE(callee->hasAttrs());
+  ExpectAnnotateWithoutArgs(callee->getAttrs(), "hls_block");
+}
+
+TEST_F(CCParserTest, PragmaBeforeTruncatedTemplateIsAnError) {
+  {
+    xlscc::CCParser parser;
+    const std::string cpp_src = R"(
+      #pragma hls_design block
+      template <typename T
+    )";
+    EXPECT_THAT(ScanTempFileWithContent(cpp_src, {}, &parser),
+                absl_testing::StatusIs(absl::StatusCode::kFailedPrecondition));
+  }
+  {
+    xlscc::CCParser parser;
+    const std::string cpp_src = R"(
+      #pragma hls_design block
+      template <typename T>
+    )";
+    EXPECT_THAT(ScanTempFileWithContent(cpp_src, {}, &parser),
+                absl_testing::StatusIs(absl::StatusCode::kFailedPrecondition));
+  }
+}
+
+TEST_F(CCParserTest, ManyPragmasBeforeTemplateDeclarationAreAnError) {
+  xlscc::CCParser parser;
+
+  // Only the last few pragmas are moved after the template head, rather than
+  // recursing once per pragma, which would overflow the stack.
+  std::string cpp_src;
+  for (int64_t i = 0; i < 1000; ++i) {
+    cpp_src += "#pragma hls_design block\n";
+  }
+  cpp_src += R"(
+    template <typename T>
+    T twice(T x) {
+      return x + x;
+    }
+
+    #pragma hls_top
+    int foo(int a) {
+      return twice<int>(a);
+    }
+  )";
+
+  EXPECT_THAT(ScanTempFileWithContent(cpp_src, {}, &parser),
+              absl_testing::StatusIs(
+                  absl::StatusCode::kFailedPrecondition,
+                  testing::HasSubstr("an attribute list cannot appear here")));
+}
+
+TEST_F(CCParserTest, PragmasInNestedTemplateHeadsAreAnError) {
+  xlscc::CCParser parser;
+
+  // Each pragma is lexed while moving the attribute of the pragma before it
+  // after a template head. Only the first few are moved, rather than recursing
+  // once per pragma, which would overflow the stack.
+  std::string cpp_src;
+  for (int64_t i = 0; i < 1000; ++i) {
+    cpp_src += "#pragma hls_design block\ntemplate <\n";
+  }
+
+  EXPECT_THAT(ScanTempFileWithContent(cpp_src, {}, &parser),
+              absl_testing::StatusIs(absl::StatusCode::kFailedPrecondition));
+}
+
 }  // namespace

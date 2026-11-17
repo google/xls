@@ -14,6 +14,7 @@
 
 #include "xls/contrib/xlscc/cc_parser.h"
 
+#include <algorithm>
 #include <cstdint>
 #include <filesystem>
 #include <limits>
@@ -51,19 +52,23 @@
 #include "clang/include/clang/Basic/LLVM.h"
 #include "clang/include/clang/Basic/ParsedAttrInfo.h"
 #include "clang/include/clang/Basic/SourceLocation.h"
+#include "clang/include/clang/Basic/SourceManager.h"
 #include "clang/include/clang/Basic/TokenKinds.h"
 #include "clang/include/clang/Frontend/CompilerInstance.h"
 #include "clang/include/clang/Frontend/FrontendAction.h"
 #include "clang/include/clang/Frontend/TextDiagnosticPrinter.h"
+#include "clang/include/clang/Lex/Lexer.h"
 #include "clang/include/clang/Lex/PPCallbacks.h"
 #include "clang/include/clang/Lex/Pragma.h"
 #include "clang/include/clang/Lex/Preprocessor.h"
+#include "clang/include/clang/Lex/PreprocessorLexer.h"
 #include "clang/include/clang/Lex/Token.h"
 #include "clang/include/clang/Sema/ParsedAttr.h"
 #include "clang/include/clang/Sema/Sema.h"
 #include "clang/include/clang/Tooling/Tooling.h"
 #include "llvm/include/llvm/ADT/APInt.h"
 #include "llvm/include/llvm/ADT/IntrusiveRefCntPtr.h"
+#include "llvm/include/llvm/ADT/StringRef.h"
 #include "llvm/include/llvm/Support/Casting.h"
 #include "llvm/include/llvm/Support/MemoryBuffer.h"
 #include "llvm/include/llvm/Support/VirtualFileSystem.h"
@@ -82,53 +87,329 @@ namespace {
 constexpr std::string_view kBuiltinHeaderLoc =
     "xls/contrib/xlscc/synth_only/xls_builtin.h";
 
-void GenerateAnnotation(clang::Preprocessor& PP, std::string_view name,
-                        const clang::Token& after,
-                        const absl::Span<const clang::Token>& arguments) {
-  const int64_t num_tokens =
-      5 + (arguments.empty() ? 0 : (arguments.size() + 2));
+// Returns true if `token` is the raw (not yet looked up) identifier `name`.
+bool IsRawIdentifier(const clang::Token& token, std::string_view name) {
+  return token.is(clang::tok::raw_identifier) &&
+         std::string_view(token.getRawIdentifier()) == name;
+}
 
-  std::unique_ptr<clang::Token[]> tokens =
-      std::make_unique<clang::Token[]>(num_tokens);
-  int64_t token_index = 0;
-  auto add_token = [&](clang::tok::TokenKind kind, unsigned length,
-                       clang::SourceLocation location,
-                       std::string_view identifier = "") {
-    CHECK_LT(token_index, num_tokens);
-    tokens[token_index].setKind(kind);
-    tokens[token_index].setLength(length);
-    tokens[token_index].setLocation(location);
+// Returns true for pragmas that annotate the loop statement after them.
+bool IsLoopPragma(std::string_view name) {
+  return name == "hls_unroll" || name == "hls_pipeline_init_interval";
+}
+
+// Returns the tokens of the attribute `[[name(arguments...)]]`, located at
+// `after`.
+std::vector<clang::Token> MakeAttributeTokens(
+    clang::Preprocessor& PP, std::string_view name, const clang::Token& after,
+    absl::Span<const clang::Token> arguments) {
+  auto make_token = [&](clang::tok::TokenKind kind, unsigned length,
+                        clang::SourceLocation location,
+                        std::string_view identifier = "") {
+    clang::Token token;
+    token.startToken();
+    token.setKind(kind);
+    token.setLength(length);
+    token.setLocation(location);
     if (!identifier.empty()) {
-      tokens[token_index].setIdentifierInfo(PP.getIdentifierInfo(identifier));
+      token.setIdentifierInfo(PP.getIdentifierInfo(identifier));
     }
-    token_index++;
-  };
-  auto insert_token = [&](clang::Token token) {
-    CHECK_LT(token_index, num_tokens);
-    tokens[token_index++] = std::move(token);
+    return token;
   };
 
-  add_token(clang::tok::l_square, /*length=*/0, after.getLocation());
-  add_token(clang::tok::l_square, /*length=*/0, after.getLocation());
-
-  add_token(clang::tok::identifier, after.getLength(), after.getLocation(),
-            /*identifier=*/name);
-
+  std::vector<clang::Token> tokens;
+  // Adds tokens for [[<ident>(arguments...)]]
+  // Tokens are:
+  // '[', '[', <ident> (cnt: 3)
+  // if non-empty:
+  //   '(' + arguments + ')' (cnt: 2 + arguments.size())
+  // 2 after ']', ']' (cnt: 2)
+  int64_t num_tokens = 3 + (arguments.empty() ? 0 : (2 + arguments.size())) + 2;
+  tokens.reserve(num_tokens);
+  tokens.push_back(
+      make_token(clang::tok::l_square, /*length=*/0, after.getLocation()));
+  tokens.push_back(
+      make_token(clang::tok::l_square, /*length=*/0, after.getLocation()));
+  tokens.push_back(make_token(clang::tok::identifier, after.getLength(),
+                              after.getLocation(), /*identifier=*/name));
   if (!arguments.empty()) {
-    add_token(clang::tok::l_paren, /*length=*/0, after.getEndLoc());
-    for (const clang::Token& token : arguments) {
-      insert_token(token);
-    }
-    add_token(clang::tok::r_paren, /*length=*/0, arguments.back().getEndLoc());
+    tokens.push_back(
+        make_token(clang::tok::l_paren, /*length=*/0, after.getEndLoc()));
+    tokens.insert(tokens.end(), arguments.begin(), arguments.end());
+    tokens.push_back(make_token(clang::tok::r_paren, /*length=*/0,
+                                arguments.back().getEndLoc()));
   }
+  tokens.push_back(
+      make_token(clang::tok::r_square, /*length=*/0, after.getEndLoc()));
+  tokens.push_back(
+      make_token(clang::tok::r_square, /*length=*/0, after.getEndLoc()));
+  return tokens;
+}
 
-  add_token(clang::tok::r_square, /*length=*/0, after.getEndLoc());
-  add_token(clang::tok::r_square, /*length=*/0, after.getEndLoc());
-
-  CHECK_EQ(token_index, num_tokens);
-  PP.EnterTokenStream(std::move(tokens), num_tokens,
+// Makes `tokens` the next tokens returned by the preprocessor.
+void EnterTokens(clang::Preprocessor& PP,
+                 absl::Span<const clang::Token> tokens) {
+  if (tokens.empty()) {
+    return;
+  }
+  auto buffer = std::make_unique<clang::Token[]>(tokens.size());
+  std::copy(tokens.begin(), tokens.end(), buffer.get());
+  PP.EnterTokenStream(std::move(buffer), tokens.size(),
                       /*DisableMacroExpansion=*/false,
                       /*IsReinject=*/false);
+}
+
+// The most pragmas `LexPastPragmas()` skips. This bounds the lookahead done
+// for each pragma.
+constexpr int64_t kMaxPragmasToSkip = 16;
+
+// The most calls to `EnterAttributeAfterTemplateHeads()` that can be active at
+// once for one pragma handler, which bounds its recursion through `PP.Lex()`.
+// This is enough for a pragma and the `kMaxPragmasToSkip` pragmas after it to
+// all move their attributes after the same template head.
+constexpr int64_t kMaxNestedTemplateHeads = kMaxPragmasToSkip + 1;
+
+// Raw-lexes past up to `kMaxPragmasToSkip` `#pragma` lines and
+// `HLS_PRAGMA(...)` or `_Pragma(...)` uses, and returns the first token after
+// them (the start of the next pragma if there are more). Other preprocessor
+// directives are not skipped; for those, the `#` is returned.
+clang::Token LexPastPragmas(clang::Lexer& lexer) {
+  clang::Token token;
+  lexer.LexFromRawLexer(token);
+  for (int64_t skipped = 0;
+       token.isNot(clang::tok::eof) && skipped < kMaxPragmasToSkip; ++skipped) {
+    if (token.is(clang::tok::hash) && token.isAtStartOfLine()) {
+      clang::Token directive;
+      lexer.LexFromRawLexer(directive);
+      if (directive.isAtStartOfLine() ||
+          !IsRawIdentifier(directive, "pragma")) {
+        return token;
+      }
+      // Skip to the end of the (possibly continued) line.
+      do {
+        lexer.LexFromRawLexer(token);
+      } while (token.isNot(clang::tok::eof) && !token.isAtStartOfLine());
+      continue;
+    }
+    if (IsRawIdentifier(token, "HLS_PRAGMA") ||
+        IsRawIdentifier(token, "_Pragma")) {
+      clang::Token l_paren;
+      lexer.LexFromRawLexer(l_paren);
+      if (l_paren.isNot(clang::tok::l_paren)) {
+        return token;
+      }
+      // Skip to just after the matching `)`.
+      int64_t paren_depth = 1;
+      while (paren_depth > 0) {
+        lexer.LexFromRawLexer(token);
+        if (token.is(clang::tok::eof)) {
+          return token;
+        }
+        if (token.is(clang::tok::l_paren)) {
+          ++paren_depth;
+        } else if (token.is(clang::tok::r_paren)) {
+          --paren_depth;
+        }
+      }
+      lexer.LexFromRawLexer(token);
+      continue;
+    }
+    return token;
+  }
+  return token;
+}
+
+// Returns true if the pragma containing `pragma_token` came from a
+// `_Pragma(...)` in a macro expansion that has more tokens after it, as in
+// `#define UNROLLED(s) _Pragma("hls_unroll yes") for (...) s`.
+bool IsInMacroWithMoreTokens(const clang::Preprocessor& PP,
+                             const clang::Token& pragma_token) {
+  if (pragma_token.getLocation().isFileID()) {
+    // `pragma_token` is in a `#pragma` directive.
+    return false;
+  }
+  // Tokens from `_Pragma(...)` are expanded from the `_Pragma` to the `)`.
+  const clang::SourceManager& sm = PP.getSourceManager();
+  const clang::SourceLocation r_paren =
+      sm.getImmediateExpansionRange(pragma_token.getLocation()).getEnd();
+  return r_paren.isMacroID() &&
+         !clang::Lexer::isAtEndOfMacroExpansion(r_paren, sm, PP.getLangOpts());
+}
+
+// Where `GenerateAnnotation()` puts the attribute for a pragma.
+enum class AnnotationPlacement {
+  // Where the pragma is, so it applies to the declaration or statement after
+  // it.
+  kInPlace,
+  // After the template head(s) of the template declaration after the pragma,
+  // as attributes cannot appear before `template`.
+  kAfterTemplateHeads,
+  // Nowhere: the pragma is ignored.
+  // TODO(allight): Make misplaced pragmas errors instead of ignoring them.
+  kNone,
+};
+
+// Decides where to put the attribute for the pragma `name`, one of whose tokens
+// is `after`, by peeking at the source code after the pragma.
+//
+// To accept code written for other HLS tools, non-loop pragmas before template
+// declarations are moved after the template head(s), and loop pragmas with no
+// loop after them (for example, before a commented-out loop at the end of a
+// block) are ignored.
+AnnotationPlacement GetAnnotationPlacement(clang::Preprocessor& PP,
+                                           std::string_view name,
+                                           const clang::Token& after) {
+  // Peek with a separate raw lexer rather than `PP.Lex()`, which would run any
+  // pragma handlers and could pop the current lexer at the end of the file.
+  // The raw lexer only sees the source file, which for a `_Pragma` in a macro
+  // is the code after the macro use, so it cannot see the rest of the macro.
+  if (IsInMacroWithMoreTokens(PP, after)) {
+    return AnnotationPlacement::kInPlace;
+  }
+  const clang::PreprocessorLexer* pp_lexer = PP.getCurrentFileLexer();
+  if (pp_lexer == nullptr) {
+    return AnnotationPlacement::kInPlace;
+  }
+  // File lexers are always `clang::Lexer`s.
+  const auto* file_lexer = static_cast<const clang::Lexer*>(pp_lexer);
+  const llvm::StringRef buffer = file_lexer->getBuffer();
+  const char* position = file_lexer->getBufferLocation();
+  if (position < buffer.begin() || position > buffer.end()) {
+    return AnnotationPlacement::kInPlace;
+  }
+  clang::Lexer raw_lexer(file_lexer->getFileLoc(), PP.getLangOpts(),
+                         buffer.begin(), position, buffer.end());
+  const clang::Token next = LexPastPragmas(raw_lexer);
+
+  if (!IsLoopPragma(name) && IsRawIdentifier(next, "template")) {
+    return AnnotationPlacement::kAfterTemplateHeads;
+  }
+  if (IsLoopPragma(name) &&
+      next.isOneOf(clang::tok::eof, clang::tok::r_brace)) {
+    // TODO(allight): Make a loop pragma with no loop after it (before `}`, or
+    // at the end of a file, including a header) an error instead of ignoring
+    // it.
+    return AnnotationPlacement::kNone;
+  }
+  return AnnotationPlacement::kInPlace;
+}
+
+// Lexes the rest of a template parameter list, after its `<`, appending the
+// tokens to `tokens`. Returns false if it reached the end of the input.
+//
+// `<` and `>` only nest outside of brackets. A `<` comparison in a default
+// template argument must be parenthesized, e.g. `template <bool B = (1 < 2)>`;
+// otherwise it is taken to open a nested template argument list.
+bool LexTemplateParameterList(clang::Preprocessor& PP,
+                              std::vector<clang::Token>& tokens) {
+  int64_t angle_depth = 1;
+  int64_t bracket_depth = 0;
+  while (angle_depth > 0) {
+    clang::Token token;
+    PP.Lex(token);
+    tokens.push_back(token);
+    if (token.is(clang::tok::eof)) {
+      return false;
+    }
+    if (token.isOneOf(clang::tok::l_paren, clang::tok::l_square,
+                      clang::tok::l_brace)) {
+      ++bracket_depth;
+    } else if (token.isOneOf(clang::tok::r_paren, clang::tok::r_square,
+                             clang::tok::r_brace)) {
+      bracket_depth = std::max<int64_t>(bracket_depth - 1, 0);
+    } else if (bracket_depth == 0) {
+      if (token.is(clang::tok::less)) {
+        ++angle_depth;
+      } else if (token.is(clang::tok::greater)) {
+        --angle_depth;
+      } else if (token.is(clang::tok::greatergreater)) {
+        angle_depth = std::max<int64_t>(angle_depth - 2, 0);
+      }
+    }
+  }
+  return true;
+}
+
+// Lexes the template head(s) of the template declaration that is next, and
+// makes them the next tokens again with `attribute` inserted after them, where
+// it applies to the templated entity:
+//
+//   template <typename T> [[attr]] T f(T x);
+//   template <typename T> template <typename U> [[attr]] U S<T>::f(U x);
+//
+// None of these attributes apply to classes, so for a class template the
+// attribute stays before the class key, where the parser diagnoses it.
+//
+// This recurses through `PP.Lex()` when the tokens it lexes contain more
+// pragmas before template declarations, e.g. for several pragmas before a
+// template, or pragmas in nested template heads. `active_calls` counts the
+// calls in progress for the calling pragma handler; past
+// `kMaxNestedTemplateHeads`, the attribute is left where the pragma was, for
+// the parser to diagnose.
+void EnterAttributeAfterTemplateHeads(clang::Preprocessor& PP,
+                                      absl::Span<const clang::Token> attribute,
+                                      int64_t& active_calls) {
+  if (active_calls >= kMaxNestedTemplateHeads) {
+    EnterTokens(PP, attribute);
+    return;
+  }
+  ++active_calls;
+
+  // All tokens lexed here, to be entered again with `attribute` inserted at
+  // `attribute_index`.
+  std::vector<clang::Token> tokens;
+  int64_t attribute_index = 0;
+  auto lex = [&]() {
+    clang::Token token;
+    PP.Lex(token);
+    tokens.push_back(token);
+    return token;
+  };
+
+  clang::Token token = lex();
+  while (token.is(clang::tok::kw_template)) {
+    if (lex().isNot(clang::tok::less) ||
+        !LexTemplateParameterList(PP, tokens)) {
+      // Not a template head (e.g. an explicit instantiation
+      // `template int f<int>(int);`), or the input ended. Leave the attribute
+      // where the pragma was, for the parser to diagnose. Lexing stops here, as
+      // the preprocessor must not be lexed past the end of the input.
+      attribute_index = 0;
+      break;
+    }
+    attribute_index = static_cast<int64_t>(tokens.size());
+    token = lex();
+  }
+  --active_calls;
+
+  tokens.insert(tokens.begin() + attribute_index, attribute.begin(),
+                attribute.end());
+  EnterTokens(PP, tokens);
+}
+
+// Makes the attribute `[[name(arguments...)]]` the next tokens returned by the
+// preprocessor (or after the template heads that are next), so that the pragma
+// applies to the declaration or statement after it. `after` is a token of the
+// pragma (its name or argument), which gives the attribute its location.
+// `active_template_head_lookaheads` is the calling pragma handler's count of
+// `EnterAttributeAfterTemplateHeads()` calls in progress.
+void GenerateAnnotation(clang::Preprocessor& PP, std::string_view name,
+                        const clang::Token& after,
+                        absl::Span<const clang::Token> arguments,
+                        int64_t& active_template_head_lookaheads) {
+  const std::vector<clang::Token> attribute =
+      MakeAttributeTokens(PP, name, after, arguments);
+  switch (GetAnnotationPlacement(PP, name, after)) {
+    case AnnotationPlacement::kInPlace:
+      EnterTokens(PP, attribute);
+      return;
+    case AnnotationPlacement::kAfterTemplateHeads:
+      EnterAttributeAfterTemplateHeads(PP, attribute,
+                                       active_template_head_lookaheads);
+      return;
+    case AnnotationPlacement::kNone:
+      return;
+  }
 }
 
 std::optional<std::vector<clang::Token>> LexPragmaArgs(
@@ -838,11 +1119,35 @@ static clang::ParsedAttrInfoRegistry::Add<XlsControlChannelDepthAttrInfo>
                               "Sets the depth of the control channel FIFO for "
                               "a sub-block. Default is 0.");
 
-class HlsArgsPragmaHandler : public clang::PragmaHandler {
+// Base for the XLS[cc] pragma handlers.
+class HlsPragmaHandler : public clang::PragmaHandler {
+ public:
+  explicit HlsPragmaHandler(const std::string& pragma_name)
+      : clang::PragmaHandler(pragma_name) {}
+
+ protected:
+  // Annotates the declaration or statement after the pragma, see
+  // `GenerateAnnotation()`.
+  void Annotate(clang::Preprocessor& PP, std::string_view name,
+                const clang::Token& after,
+                absl::Span<const clang::Token> arguments) {
+    GenerateAnnotation(PP, name, after, arguments,
+                       active_template_head_lookaheads_);
+  }
+
+ private:
+  // The `EnterAttributeAfterTemplateHeads()` calls in progress for this
+  // handler. Clang creates the pragma handlers for each preprocessor, so this
+  // only counts calls for one parse. With one count per handler, the recursion
+  // is bounded by `kMaxNestedTemplateHeads` times the number of handlers.
+  int64_t active_template_head_lookaheads_ = 0;
+};
+
+class HlsArgsPragmaHandler : public HlsPragmaHandler {
  public:
   explicit HlsArgsPragmaHandler(const std::string& pragma_name,
                                 int64_t num_args)
-      : clang::PragmaHandler(pragma_name), num_args_(num_args) {}
+      : HlsPragmaHandler(pragma_name), num_args_(num_args) {}
 
   void HandlePragma(clang::Preprocessor& PP, clang::PragmaIntroducer Introducer,
                     clang::Token& firstToken) final {
@@ -922,8 +1227,8 @@ class HlsTopPragmaHandler : public HlsArgsPragmaHandler {
   void HandlePragma(clang::Preprocessor& PP, clang::PragmaIntroducer Introducer,
                     clang::Token& firstToken,
                     const std::vector<clang::Token>& toks) override {
-    GenerateAnnotation(PP, clang::PragmaHandler::getName(), firstToken,
-                       /*arguments=*/{});
+    Annotate(PP, clang::PragmaHandler::getName(), firstToken,
+             /*arguments=*/{});
   }
 };
 
@@ -939,8 +1244,8 @@ class HlsAllowDefaultPadPragmaHandler : public HlsArgsPragmaHandler {
   void HandlePragma(clang::Preprocessor& PP, clang::PragmaIntroducer Introducer,
                     clang::Token& firstToken,
                     const std::vector<clang::Token>& toks) override {
-    GenerateAnnotation(PP, "hls_array_allow_default_pad", firstToken,
-                       /*arguments=*/{});
+    Annotate(PP, "hls_array_allow_default_pad", firstToken,
+             /*arguments=*/{});
   }
 };
 
@@ -963,11 +1268,9 @@ class HlsDesignPragmaHandler : public HlsArgsPragmaHandler {
     if (tok.is(clang::tok::identifier)) {
       const clang::IdentifierInfo* identifier = tok.getIdentifierInfo();
       if (identifier->isStr("top")) {
-        GenerateAnnotation(PP, "hls_top", tok,
-                           /*arguments=*/{});
+        Annotate(PP, "hls_top", tok, /*arguments=*/{});
       } else if (identifier->isStr("block")) {
-        GenerateAnnotation(PP, "hls_block", tok,
-                           /*arguments=*/{});
+        Annotate(PP, "hls_block", tok, /*arguments=*/{});
       } else {
         LOG(WARNING) << "Ignoring unknown #pragma hls_design: "
                      << identifier->getName().str();
@@ -981,16 +1284,16 @@ static clang::PragmaHandlerRegistry::Add<HlsDesignPragmaHandler>
                       "Pragma of the form hls_design [top], equivalent to "
                       "other pragmas such as hls_top");
 
-class HlsPipelineInitIntervalPragmaHandler : public clang::PragmaHandler {
+class HlsPipelineInitIntervalPragmaHandler : public HlsPragmaHandler {
  public:
   HlsPipelineInitIntervalPragmaHandler()
-      : clang::PragmaHandler("hls_pipeline_init_interval") {}
+      : HlsPragmaHandler("hls_pipeline_init_interval") {}
 
   void HandlePragma(clang::Preprocessor& PP, clang::PragmaIntroducer Introducer,
                     clang::Token& firstToken) override {
     std::vector<clang::Token> toks;
     PP.LexTokensUntilEOF(&toks);
-    GenerateAnnotation(PP, "hls_pipeline_init_interval", firstToken, toks);
+    Annotate(PP, "hls_pipeline_init_interval", firstToken, toks);
   }
 };
 static clang::PragmaHandlerRegistry::Add<HlsPipelineInitIntervalPragmaHandler>
@@ -998,14 +1301,14 @@ static clang::PragmaHandlerRegistry::Add<HlsPipelineInitIntervalPragmaHandler>
         "hls_pipeline_init_interval",
         "Pragma specifying that a loop should be pipelined, and how.");
 
-class HlsUnrollPragmaHandler : public clang::PragmaHandler {
+class HlsUnrollPragmaHandler : public HlsPragmaHandler {
  public:
-  explicit HlsUnrollPragmaHandler() : clang::PragmaHandler("hls_unroll") {}
+  explicit HlsUnrollPragmaHandler() : HlsPragmaHandler("hls_unroll") {}
   void HandlePragma(clang::Preprocessor& PP, clang::PragmaIntroducer Introducer,
                     clang::Token& firstToken) override {
     std::vector<clang::Token> toks;
     PP.LexTokensUntilEOF(&toks);
-    GenerateAnnotation(PP, "hls_unroll", firstToken, toks);
+    Annotate(PP, "hls_unroll", firstToken, toks);
   }
 };
 static clang::PragmaHandlerRegistry::Add<HlsUnrollPragmaHandler>
