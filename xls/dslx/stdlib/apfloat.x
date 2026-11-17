@@ -3578,7 +3578,10 @@ pub fn fma<EXP_SZ: u32, FRACTION_SZ: u32>
     let sum_fraction = shifted_ab + shifted_c;
     let fraction_is_zero = sum_fraction == 0;
     let result_sign = match (fraction_is_zero, sum_fraction < 0) {
-        (true, _) => 0,
+        // If the result is zero then because we can only differ from the sign
+        // of at most one of the addition operands, we are negative only if both
+        // the (a*b) and c are negative zero.
+        (true, _) => ab.sign && c.sign,
         (false, true) => !greater_sign,
         _ => greater_sign,
     };
@@ -4098,6 +4101,22 @@ fn fma_subnormal_intermediate_rounding_test() {
     let expected = F32 { sign: 0, bexp: 0x05, fraction: 0x05096f };
     let actual = fma<8, 23>(a, b, c);
     assert_eq(expected, actual);
+}
+
+#[quickcheck]
+fn fma_precise_for_small_integers
+    (a_mag: u3, a_sign: bool, b_mag: u3, b_sign: bool, c_mag: u3, c_sign: bool) -> bool {
+    // All i4 values are representable with full precision in f32 and all
+    // intermediate calculations are exact.
+    let a = cast_from_fixed_using_rne<8, 23>((a_mag as u4) as s4);
+    let a = if a_sign { negate(a) } else { a };
+    let b = cast_from_fixed_using_rne<8, 23>((b_mag as u4) as s4);
+    let b = if b_sign { negate(b) } else { b };
+    let c = cast_from_fixed_using_rne<8, 23>((c_mag as u4) as s4);
+    let c = if c_sign { negate(c) } else { c };
+    let expected = fma<8, 23>(a, b, c);
+    let actual = add(mul(a, b), c);
+    expected == actual
 }
 
 // Returns whether or not the given APFloat has a fractional part.
