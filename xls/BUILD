@@ -25,7 +25,7 @@ package_group(
     name = "xls_public",
     # Everything the public can see is also visible internally.
     includes = [":xls_internal"],
-    packages = ["//..."],
+    packages = ["public"],
 )
 
 # TODO(leary): 2020-06-29 This structure is a work-around to publically expose
@@ -36,7 +36,7 @@ package_group(
     name = "xls_users",
     # Everything users can see is also visible internally.
     includes = [":xls_internal"],
-    packages = ["//..."],
+    packages = ["public"],
 )
 
 # Users of various XLS utility helpers, e.g. things like logging, testing
