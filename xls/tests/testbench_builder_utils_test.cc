@@ -16,9 +16,11 @@
 
 #include <bit>
 #include <cstdint>
+#include <tuple>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/random/random.h"
 
 using ::testing::StartsWith;
 
@@ -57,6 +59,28 @@ TEST(TestbencUtils, DefaultPrintValuePrintUnprintable) {
   };
   Foo a{42};
   EXPECT_THAT(DefaultPrintValue(a), StartsWith("<unprintable value"));
+}
+
+TEST(TestbencUtils, GenerateRandomValueUnsupportedTypeDies) {
+  struct Foo {
+    int value;
+  };
+  absl::BitGen gen;
+  Foo a{42};
+  EXPECT_DEATH(GenerateRandomValue(gen, 0, &a), "SetIndexToInputFn");
+}
+
+TEST(TestbencUtils, GenerateRandomValueUint16Tuple) {
+  std::tuple<uint16_t, uint16_t> first{0, 0};
+  bool saw_nonzero = false;
+  for (int64_t i = 0; i < 64; ++i) {
+    DefaultIndexToInput(i, &first);
+    if (std::get<0>(first) != 0 || std::get<1>(first) != 0) {
+      saw_nonzero = true;
+      break;
+    }
+  }
+  EXPECT_TRUE(saw_nonzero);
 }
 
 }  // namespace internal

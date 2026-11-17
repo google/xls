@@ -46,24 +46,32 @@ inline bool CompareResults(float a, float b) {
   return a_bits == b_bits || (std::isnan(a) && std::isnan(b));
 }
 
-// Compares expected vs. actual results, taking into account two special cases.
-inline bool CompareResultsWith1PercentMargin(float a, float b) {
-  // DSLX flushes subnormal outputs, while regular FP addition does not, so
-  // just check for that here.
-  // We only check that results are approximately equal. Percent error
-  // is used rather than simple difference because the input may vary
-  // by many orders of magnitude.
-  if ((std::isnan(a) && std::isnan(b)) ||
-      (ZeroOrSubnormal(a) && ZeroOrSubnormal(b))) {
+// Compares expected vs. actual results within a 1% relative error margin,
+// flushing subnormals to zero to match DSLX's FTZ semantics and allowing
+// implementation-defined host NaN encodings.
+inline bool CompareResultsWith1PercentMargin(float expected, float actual) {
+  if (std::isnan(expected) || std::isnan(actual)) {
+    return std::isnan(expected) && std::isnan(actual);
+  }
+  if (ZeroOrSubnormal(expected) && ZeroOrSubnormal(actual)) {
     return true;
   }
-  // Avoid divide by zero. Necessarily from the condition above b is not
-  // zero/subnormal in this case.
-  if (ZeroOrSubnormal(a)) {
+  if (expected == actual) {
+    return true;
+  }
+  // Avoid divide by zero (and inf/inf -> NaN). From the checks above,
+  // `expected` and `actual` are unequal, and if `expected` is zero/subnormal
+  // then `actual` is not.
+  if (ZeroOrSubnormal(expected) || std::isinf(expected) || std::isinf(actual)) {
     return false;
   }
-  float percent_error = (a - b) / a;
-  return a == b || percent_error < 0.01;
+  // Compute relative error in double so `expected - actual` cannot overflow
+  // near FLT_MAX and small values near FLT_MIN do not lose precision.
+  double expected_d = static_cast<double>(expected);
+  double actual_d = static_cast<double>(actual);
+  double relative_error =
+      std::abs(expected_d - actual_d) / std::abs(expected_d);
+  return relative_error < 0.01;
 }
 
 }  // namespace xls

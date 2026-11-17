@@ -146,6 +146,7 @@ cc_test(
     deps = [
         ":testbench_builder_utils",
         "//xls/common:xls_gunit_main",
+        "@abseil-cpp//absl/random",
         "@googletest//:gtest",
     ],
 )

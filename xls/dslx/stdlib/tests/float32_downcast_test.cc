@@ -45,17 +45,21 @@ class F64ToF32 {
     if (std::isnan(f)) {
       ASSERT_THAT(j, testing::IsNan());
     } else {
-      ASSERT_EQ(f, j) << std::boolalpha << "is subnormal: "
-                      << (std::fpclassify(f) == FP_SUBNORMAL)
-                      << " inp: " << std::hex << "0x" << v << " "
-                      << std::hexfloat << d << " f=" << f << " j=" << j;
+      // Compare raw bit representations so +0.0f and -0.0f do not compare
+      // equal.
+      ASSERT_EQ(absl::bit_cast<uint32_t>(f), absl::bit_cast<uint32_t>(j))
+          << std::boolalpha
+          << "is subnormal: " << (std::fpclassify(f) == FP_SUBNORMAL)
+          << " inp: " << std::hex << "0x" << v << " " << std::hexfloat << d
+          << " f=" << f << " j=" << j;
     }
   }
 
  private:
   std::unique_ptr<fp::F64ToF32> jit_;
 };
-FUZZ_TEST_F(F64ToF32, F64ToF32Test).WithDomains(fuzztest::Arbitrary<int64_t>());
+FUZZ_TEST_F(F64ToF32, F64ToF32Test)
+    .WithDomains(fuzztest::Arbitrary<uint64_t>());
 
 }  // namespace
 }  // namespace xls

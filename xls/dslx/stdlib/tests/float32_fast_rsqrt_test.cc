@@ -28,26 +28,28 @@
 
 ABSL_FLAG(int, num_threads, 0,
           "Number of threads to use. Set to 0 to use all.");
-ABSL_FLAG(int64_t, num_samples, 100, "Number of random samples to test.");
+ABSL_FLAG(int64_t, num_samples, 1024 * 1024,
+          "Number of random samples to test.");
 
 namespace xls {
+namespace {
 
 // The DSLX implementation uses the "round to nearest (half to even)"
 // rounding mode, which is the default on most systems, hence we don't need
 // to call fesetround().
 // The DSLX implementation also flushes input subnormals to 0, so we do that
 // here as well.
-static float ComputeExpected(fp::Float32FastRsqrt* jit_wrapper, float input) {
+float ComputeExpected(fp::Float32FastRsqrt* jit_wrapper, float input) {
   float x = FlushSubnormal(input);
   return 1.0f / sqrtf(x);
 }
 
 // Computes FP sqrt via DSLX & the JIT.
-static float ComputeActual(fp::Float32FastRsqrt* jit_wrapper, float input) {
+float ComputeActual(fp::Float32FastRsqrt* jit_wrapper, float input) {
   return jit_wrapper->Run(input).value();
 }
 
-static absl::Status RealMain(uint64_t num_samples, int num_threads) {
+absl::Status RealMain(uint64_t num_samples, int num_threads) {
   TestbenchBuilder<float, float, fp::Float32FastRsqrt> builder(
       ComputeExpected, ComputeActual,
       []() { return fp::Float32FastRsqrt::Create().value(); });
@@ -59,6 +61,7 @@ static absl::Status RealMain(uint64_t num_samples, int num_threads) {
   return builder.Build().Run();
 }
 
+}  // namespace
 }  // namespace xls
 
 int main(int argc, char** argv) {
