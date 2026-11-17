@@ -28,7 +28,6 @@
 # more tutorial information.
 
 load("@bazel_skylib//rules:diff_test.bzl", "diff_test")
-load("@hedron_compile_commands//:refresh_compile_commands.bzl", "refresh_compile_commands")
 load("@rules_license//rules:license.bzl", "license")
 
 package(
@@ -67,8 +66,7 @@ diff_test(
 # The first command ensures all generated c++ files are built. It takes a
 # while and is not strictly necessary but will result in better
 # cross-referencing.
-refresh_compile_commands(
+alias(
     name = "refresh_compile_commands",
-    exclude_external_sources = True,
-    targets = {"//xls/...": "-c opt"},
+    actual = "//xls/dev_tools/compile_commands:refresh_compile_commands",
 )
