@@ -155,7 +155,7 @@ which are optional, are described below:
 
     [(Code example)](https://github.com/google/xls/commit/feeac2c4c0bcc73b529cb0c4a976abae47f96730)
 
-1.  [IR Fuzzer](https://github.com/google/xls/tree/main/xls/ir_fuzzer/ir_fuzzer)
+1.  [IR Fuzzer](https://github.com/google/xls/tree/main/xls/fuzzer/ir_fuzzer)
 
     The IR Fuzzer generates a fuzzed IR function which may contain a variety of
     different IR operations. This fuzzed function is then provided to FuzzTests

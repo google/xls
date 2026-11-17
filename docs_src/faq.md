@@ -46,7 +46,7 @@ XLS `fn`, `proc` and `block` targets can all be simulated in this way with
 minimal or no overhead.
 
 As an example, see the
-[float32 multiply test](https://github.com/google/xls/tree/main/xls/dslx/stdlib/test/float32_mul_test.cc),
+[float32 multiply test](https://github.com/google/xls/tree/main/xls/dslx/stdlib/tests/float32_mul_test.cc),
 which calls `Run()` on the float32 multiplier which is written in XLS and
 wrapped in the
 [`float32_mul_jit_wrapper` build target](https://github.com/google/xls/tree/main/xls/dslx/stdlib/BUILD).
