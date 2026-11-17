@@ -14,5 +14,7 @@
 
 #ifndef __XLS_ASSERT_H__
 #define __XLS_ASSERT_H__
+#ifndef assert
 #define assert(...)
+#endif
 #endif  // __XLS_ASSERT_H__

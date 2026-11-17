@@ -18,9 +18,10 @@
 #include <stdio.h>
 
 namespace std {
-  int printf(const char * format, ...) {
-    return 0;
-  }
-}
+using ::FILE;
+using ::fprintf;
+using ::printf;
+using ::snprintf;
+}  // namespace std
 
 #endif  // __CSTDIO__

@@ -807,24 +807,25 @@ class [[hls_no_tuple]] XlsFixed {
     return BitElemRef((bool)slc<1>(i));
 
     // NOP to ensure that clang parses the set_element functions
-    set_element_bitref(0, 1);
+    set_element_bitref(0, BitElemRef(1));
     set_element_xlsint(0, 1);
     set_element_int(0, 1);
   }
 
-  inline XlsFixed set_element_bitref(index_t i, BitElemRef rvalue) {
+  inline BitElemRef set_element_bitref(index_t i, BitElemRef rvalue) {
     set_slc(i, XlsInt<1, false>(rvalue));
-    return *this;
+    return rvalue;
   }
 
-  inline XlsFixed set_element_int(index_t i, int rvalue) {
-    set_slc(i, XlsInt<1, false>(rvalue));
-    return *this;
+  inline BitElemRef set_element_int(index_t i, int rvalue) {
+    XlsInt<1, false> b(rvalue);
+    set_slc(i, b);
+    return BitElemRef(static_cast<bool>(b));
   }
 
-  inline XlsFixed set_element_xlsint(index_t i, XlsInt<1, false> rvalue) {
+  inline BitElemRef set_element_xlsint(index_t i, XlsInt<1, false> rvalue) {
     set_slc(i, rvalue);
-    return *this;
+    return BitElemRef(static_cast<bool>(rvalue));
   }
   // --- / Hack
 

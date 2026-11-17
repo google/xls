@@ -534,21 +534,20 @@ class MaxValue<Width, /*Signed=*/false> {
 //   because XLS[cc] doesn't support returning references yet. Instead,
 //   XLS[cc] contains a hack to explicitly handle this case.
 struct [[hls_no_tuple]] BitElemRef {
-  // template <typename T>
-  inline BitElemRef(bool in) : v(in) {}
+  explicit constexpr BitElemRef(bool in) : v(in) {}
 
-  inline operator bool() const { return v; }
+  constexpr operator bool() const { return v; }
   template <int W2, bool S2>
   operator XlsInt<W2, S2>() const {
     return operator bool();
   }
 
-  inline BitElemRef operator=(int val) {
+  inline BitElemRef& operator=(int val) {
     v = static_cast<bool>(val);
     return *this;
   }
 
-  inline BitElemRef operator=(const BitElemRef &val) {
+  inline BitElemRef& operator=(const BitElemRef& val) {
     v = static_cast<bool>(val.v);
     return *this;
   }
@@ -987,7 +986,7 @@ class [[hls_synthetic_int]] XlsInt : public XlsIntBase<Width, Signed> {
   template <int ToW>
   inline XlsInt<ToW, Signed> slc(index_t offset) const {
     static_assert(index_t::width > 0, "Bug in Log2Ceil");
-    static_assert(Width >= ToW, "Can't take a slice wider than the source");
+
     static_assert(Width > 0, "Can't slice 0 bits");
     static_assert(ToW > 0, "Can't slice 0 bits");
     typedef XlsInt<ToW, Signed> Result;
@@ -1016,24 +1015,25 @@ class [[hls_synthetic_int]] XlsInt : public XlsIntBase<Width, Signed> {
     return BitElemRef(static_cast<bool>(slc<1>(i)));
 
     // NOP to ensure that clang parses the set_element functions
-    set_element_bitref(0, 1);
+    set_element_bitref(0, BitElemRef(1));
     set_element_xlsint(0, 1);
     set_element_int(0, 1);
   }
 
-  inline XlsInt set_element_bitref(index_t i, BitElemRef rvalue) {
+  inline BitElemRef set_element_bitref(index_t i, BitElemRef rvalue) {
     set_slc(i, XlsInt<1, false>(rvalue));
-    return *this;
+    return rvalue;
   }
 
-  inline XlsInt set_element_int(index_t i, int rvalue) {
-    set_slc(i, XlsInt<1, false>(rvalue));
-    return *this;
+  inline BitElemRef set_element_int(index_t i, int rvalue) {
+    XlsInt<1, false> b(rvalue);
+    set_slc(i, b);
+    return BitElemRef(static_cast<bool>(b));
   }
 
-  inline XlsInt set_element_xlsint(index_t i, XlsInt<1, false> rvalue) {
+  inline BitElemRef set_element_xlsint(index_t i, XlsInt<1, false> rvalue) {
     set_slc(i, rvalue);
-    return *this;
+    return BitElemRef(static_cast<bool>(rvalue));
   }
 
   // --- / Hack
@@ -1260,9 +1260,34 @@ __XLS_INIT_ARRAY_SPECIAL_VAL_FOR_INTS(signed long)
 __XLS_INIT_ARRAY_SPECIAL_VAL_FOR_INTS(unsigned long)
 __XLS_INIT_ARRAY_SPECIAL_VAL_FOR_INTS(signed long long)
 __XLS_INIT_ARRAY_SPECIAL_VAL_FOR_INTS(unsigned long long)
-#undef __XLS_INIT_ARRAY_SPECIAL_VAL_FOR_INTS
+#undef __XLS_INIT_ARRAY_SPECIAL_VAL_FOR_INTS  // clang-format off
+template <typename T> struct __xls_init_array_ptr;
+template <int W, bool S> struct __xls_init_array_ptr<XlsInt<W, S>*> {
+  using type = XlsInt<W, S>;
+};
+template <ac_datatypes::ac_special_val V, int W, bool S, size_t N>
+inline bool init_array(XlsInt<W, S> (&a)[N]) {
+  XlsInt<W, S> t;
+  t.template set_val<V>();
+  [[xlscc::hls_unroll(yes)]]
+  for (size_t i = 0; i < N; i++) {
+    a[i] = t;
+  }
+  return true;
+}
+template <ac_datatypes::ac_special_val V, typename Ptr>
+inline bool init_array(const Ptr& a, int n,
+                       typename __xls_init_array_ptr<Ptr>::type* = nullptr) {
+  typename __xls_init_array_ptr<Ptr>::type t;
+  t.template set_val<V>();
+  [[xlscc::hls_unroll(yes)]]
+  for (int i = 0; i < n; i++) {
+    a[i] = t;
+  }
+  return true;
+}
 }  // namespace ac
-
+// clang-format on
 #undef ac_int
 
 #endif  // XLS_INT

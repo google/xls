@@ -22,15 +22,42 @@ namespace std {
 
 template <typename T, size_t N>
 struct array {
-  T _M_elems[N];
+  T _M_elems[N > 0 ? N : 1];
 
   typedef T value_type;
+  typedef T& reference;
+  typedef const T& const_reference;
+  typedef size_t size_type;
   typedef T* iterator;
   typedef const T* const_iterator;
 
   constexpr size_t size() const { return N; }
+  constexpr size_t max_size() const { return N; }
   constexpr bool empty() const { return N == 0; }
 
+#ifdef __XLSCC_DIRECT_ARRAY_REFS__
+  constexpr T& operator[](size_t i) { return _M_elems[i]; }
+  constexpr const T& operator[](size_t i) const { return _M_elems[i]; }
+  constexpr T& at(size_t i) { return _M_elems[i]; }
+  constexpr const T& at(size_t i) const { return _M_elems[i]; }
+  constexpr T& front() { return _M_elems[0]; }
+  constexpr const T& front() const { return _M_elems[0]; }
+  constexpr T& back() { return _M_elems[N > 0 ? N - 1 : 0]; }
+  constexpr const T& back() const { return _M_elems[N > 0 ? N - 1 : 0]; }
+  constexpr T* data() { return _M_elems; }
+  constexpr const T* data() const { return _M_elems; }
+  constexpr T* begin() { return _M_elems; }
+  constexpr const T* begin() const { return _M_elems; }
+  constexpr const T* cbegin() const { return _M_elems; }
+  constexpr T* end() { return _M_elems + N; }
+  constexpr const T* end() const { return _M_elems + N; }
+  constexpr const T* cend() const { return _M_elems + N; }
+  constexpr void fill(const T& val) {
+    for (size_t i = 0; i < N; ++i) {
+      _M_elems[i] = val;
+    }
+  }
+#else
   // ReferenceProxy is used to intercept assignment to std::array elements.
   // Leveraged by Translator::ApplyArrayAssignHack() in translator.cc.
   // Reads behave like reads of T: the explicit constructor keeps conditional
@@ -114,6 +141,7 @@ struct array {
   void set_element_bitref(size_t index, const T& val) {
     _M_elems[index] = val;
   }
+#endif  // __XLSCC_DIRECT_ARRAY_REFS__
 };
 
 }  // namespace std

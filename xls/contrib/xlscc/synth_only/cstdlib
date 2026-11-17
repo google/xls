@@ -15,4 +15,12 @@
 #ifndef __CSTDLIB__
 #define __CSTDLIB__
 
-#endif  //__CSTDLIB__
+#include <stdlib.h>
+
+namespace std {
+using ::abort;
+using ::abs;
+using ::exit;
+}  // namespace std
+
+#endif  // __CSTDLIB__

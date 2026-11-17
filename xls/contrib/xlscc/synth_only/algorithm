@@ -1,4 +1,3 @@
-
 // Copyright 2022 The XLS Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -17,17 +16,41 @@
 #define __ALGORITHM_H__
 
 namespace std {
-
-template< class T >
-constexpr const T& min( const T& a, const T& b ) {
-	return (a<b) ? a : b;
+template <typename T>
+constexpr const T& min(const T& a, const T& b) {
+  return (b < a) ? b : a;
 }
-
-template< class T >
-constexpr const T& max( const T& a, const T& b ) {
-	return (a>b) ? a : b;
+template <typename T>
+constexpr const T& max(const T& a, const T& b) {
+  return (a < b) ? b : a;
 }
-
+template <typename T>
+constexpr const T& clamp(const T& v, const T& lo, const T& hi) {
+  return (v < lo) ? lo : ((hi < v) ? hi : v);
+}
+template <typename T, typename Compare>
+constexpr const T& clamp(const T& v, const T& lo, const T& hi, Compare comp) {
+  return comp(v, lo) ? lo : (comp(hi, v) ? hi : v);
+}
+template <typename T>
+constexpr void swap(T& a, T& b) {
+  T tmp = a;
+  a = b;
+  b = tmp;
+}
+template <typename OutputIt, typename Size, typename T>
+constexpr OutputIt fill_n(OutputIt first, Size count, const T& value) {
+  for (Size i = 0; i < count; ++i, ++first) {
+    *first = value;
+  }
+  return first;
+}
+template <typename ForwardIt, typename T>
+constexpr void fill(ForwardIt first, ForwardIt last, const T& value) {
+  for (; first != last; ++first) {
+    *first = value;
+  }
+}
 }  // namespace std
 
-#endif  //__ALGORITHM_H__
+#endif  // __ALGORITHM_H__

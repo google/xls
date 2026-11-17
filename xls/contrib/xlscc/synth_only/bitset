@@ -1,0 +1,62 @@
+// Copyright 2026 The XLS Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+#ifndef XLS_CONTRIB_XLSCC_SYNTH_ONLY_BITSET_
+#define XLS_CONTRIB_XLSCC_SYNTH_ONLY_BITSET_
+
+#include <cstddef>
+
+namespace std {
+template <size_t N>
+class bitset {
+ public:
+  constexpr bitset() = default;
+  constexpr bitset(unsigned long long val) : bits_{} {
+    for (size_t i = 0; i < N && i < 64; ++i) {
+      bits_[i] = ((val >> i) & 1ULL) != 0;
+    }
+  }
+  constexpr bool operator[](size_t pos) const { return bits_[pos]; }
+  constexpr bool& operator[](size_t pos) { return bits_[pos]; }
+  constexpr bool test(size_t pos) const { return bits_[pos]; }
+  constexpr size_t size() const { return N; }
+  constexpr bitset& set() {
+    for (size_t i = 0; i < N; ++i) bits_[i] = true;
+    return *this;
+  }
+  constexpr bitset& set(size_t pos, bool val = true) {
+    bits_[pos] = val;
+    return *this;
+  }
+  constexpr bitset& reset() {
+    for (size_t i = 0; i < N; ++i) bits_[i] = false;
+    return *this;
+  }
+  constexpr bitset& reset(size_t pos) {
+    bits_[pos] = false;
+    return *this;
+  }
+  constexpr unsigned long to_ulong() const {
+    unsigned long r = 0;
+    for (size_t i = 0; i < N && i < sizeof(unsigned long) * 8; ++i) {
+      if (bits_[i]) r |= (1UL << i);
+    }
+    return r;
+  }
+
+  bool bits_[N > 0 ? N : 1]{};
+};
+}  // namespace std
+
+#endif  // XLS_CONTRIB_XLSCC_SYNTH_ONLY_BITSET_

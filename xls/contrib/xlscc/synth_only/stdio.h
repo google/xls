@@ -15,4 +15,11 @@
 #ifndef __CSTDIO_H__
 #define __CSTDIO_H__
 
+struct FILE {};
+static FILE* const stdout = nullptr;
+static FILE* const stderr = nullptr;
+inline int printf(const char*, ...) { return 0; }
+inline int fprintf(FILE*, const char*, ...) { return 0; }
+inline int snprintf(char*, unsigned long, const char*, ...) { return 0; }
+
 #endif  // __CSTDIO_H__

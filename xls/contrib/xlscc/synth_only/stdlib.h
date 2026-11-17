@@ -15,4 +15,10 @@
 #ifndef __STDLIB_H__
 #define __STDLIB_H__
 
+inline void abort() { __xlscc_assert("abort called", false); }
+inline void exit(int) { __xlscc_assert("exit called", false); }
+inline constexpr int abs(int x) { return x < 0 ? -x : x; }
+inline constexpr long abs(long x) { return x < 0 ? -x : x; }
+inline constexpr long long abs(long long x) { return x < 0 ? -x : x; }
+
 #endif  // __STDLIB_H__
