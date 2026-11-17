@@ -676,7 +676,12 @@ pub fn cast_from_fixed_using_rz<EXP_SZ: u32, FRACTION_SZ: u32, NUM_SRC_BITS: u32
     let is_zero = abs_magnitude == 0;
 
     match (is_inf, is_zero) {
-        (true, false) => inf<EXP_SZ, FRACTION_SZ>(is_negative),
+        // For round-to-zero 'the result shall be the format’s floating-point
+        // number closest to and no greater in magnitude than the infinitely
+        // precise result' so since this is an integer (and therefore
+        // non-infinite) if the result would be out of range we return the
+        // largest (in magnitude) representable finite number.
+        (true, false) => max_normal<EXP_SZ, FRACTION_SZ>(is_negative),
         // Technically is_inf and is_zero should never be true at the same time, however, currently
         // the way is_inf is computed it can be true while is_zero is true. So we allow is_inf to be
         // anything when deciding if the output should be zero or not.
@@ -789,27 +794,27 @@ fn cast_from_fixed_using_rz_test() {
 
     assert_eq(
         cast_from_fixed_using_rz<EXP_SZ, FRAC_SZ>(sN[20]:0b010000000000000000),
-        inf<EXP_SZ, FRAC_SZ>(false));
+        max_normal<EXP_SZ, FRAC_SZ>(false));
 
     assert_eq(
         cast_from_fixed_using_rz<EXP_SZ, FRAC_SZ>(-sN[20]:0b010000000000000000),
-        inf<EXP_SZ, FRAC_SZ>(true));
+        max_normal<EXP_SZ, FRAC_SZ>(true));
 
     assert_eq(
         cast_from_fixed_using_rz<EXP_SZ, FRAC_SZ>(sN[20]:0b010000111000000000),
-        inf<EXP_SZ, FRAC_SZ>(false));
+        max_normal<EXP_SZ, FRAC_SZ>(false));
 
     assert_eq(
         cast_from_fixed_using_rz<EXP_SZ, FRAC_SZ>(-sN[20]:0b010001110000000000),
-        inf<EXP_SZ, FRAC_SZ>(true));
+        max_normal<EXP_SZ, FRAC_SZ>(true));
 
     assert_eq(
         cast_from_fixed_using_rz<EXP_SZ, FRAC_SZ>(sN[30]:0b010000111000000000),
-        inf<EXP_SZ, FRAC_SZ>(false));
+        max_normal<EXP_SZ, FRAC_SZ>(false));
 
     assert_eq(
         cast_from_fixed_using_rz<EXP_SZ, FRAC_SZ>(-sN[30]:0b010001110000000000),
-        inf<EXP_SZ, FRAC_SZ>(true));
+        max_normal<EXP_SZ, FRAC_SZ>(true));
 }
 
 // Returns true if x == 0 or x is a subnormal number.
