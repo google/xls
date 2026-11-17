@@ -3658,15 +3658,14 @@ pub fn fma<EXP_SZ: u32, FRACTION_SZ: u32>
     // -inf + inf = NaN, i.e., if we have both positive and negative inf.
     let has_neg_inf = (is_ab_inf & (ab.sign == 1)) | (is_inf(c) & (c.sign == 1));
     let is_result_nan = ab.is_nan | is_nan(c) | (has_pos_inf & has_neg_inf);
-    let result_exp = if is_result_nan { max_exp } else { result_exp };
-    let result_fraction =
-        if is_result_nan { uN[FRACTION_SZ]:1 << (FRACTION_SZ - 4) } else { result_fraction };
-    let result_sign = if is_result_nan { 0 } else { result_sign };
-
-    APFloat<EXP_SZ, FRACTION_SZ> {
-        sign: result_sign,
-        bexp: result_exp as uN[EXP_SZ],
-        fraction: result_fraction as uN[FRACTION_SZ],
+    if is_result_nan {
+        qnan<EXP_SZ, FRACTION_SZ>()
+    } else {
+        APFloat<EXP_SZ, FRACTION_SZ> {
+            sign: result_sign,
+            bexp: result_exp as uN[EXP_SZ],
+            fraction: result_fraction as uN[FRACTION_SZ],
+        }
     }
 }
 
@@ -3845,7 +3844,7 @@ fn fail_case_e() {
     let a = F32 { sign: 0x0, bexp: 0x7b, fraction: 0x25e79f };
     let b = F32 { sign: 0x1, bexp: 0xff, fraction: 0x207370 };
     let c = F32 { sign: 0x1, bexp: 0x39, fraction: 0x6bb348 };
-    let expected = F32 { sign: 0, bexp: 0xff, fraction: 0x80000 };
+    let expected = qnan<8, 23>();
     let actual = fma<8, 23>(a, b, c);
     assert_eq(expected, actual)
 }
