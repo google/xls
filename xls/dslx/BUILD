@@ -769,14 +769,38 @@ cc_library(
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "//xls/dslx/frontend:ast",
+        "//xls/dslx/frontend:ast_node",
         "//xls/dslx/frontend:pos",
         "//xls/dslx/type_system:parametric_env",
         "//xls/dslx/type_system:type",
         "//xls/dslx/type_system:type_info",
+        "@abseil-cpp//absl/base",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/strings:str_format",
+        "@abseil-cpp//absl/types:span",
+    ],
+)
+
+cc_test(
+    name = "domain_utils_test",
+    srcs = ["domain_utils_test.cc"],
+    deps = [
+        ":create_import_data",
+        ":domain_utils",
+        ":import_data",
+        ":interp_value",
+        ":parse_and_typecheck",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/dslx/frontend:ast",
+        "//xls/dslx/frontend:module",
+        "//xls/dslx/type_system:type",
+        "//xls/ir:bits",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:status_matchers",
+        "@googletest//:gtest",
     ],
 )
 
@@ -785,6 +809,7 @@ cc_library(
     srcs = ["tabulate.cc"],
     hdrs = ["tabulate.h"],
     deps = [
+        ":domain_utils",
         ":import_data",
         ":interp_value",
         ":parse_and_typecheck",

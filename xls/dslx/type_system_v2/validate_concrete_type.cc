@@ -390,19 +390,9 @@ class TypeValidator : public AstNodeVisitorWithDefault {
       return DefaultHandler(node);
     }
 
-    const XlsTuple* tuple = *ftf->domains();
-    int64_t domain_count = tuple->members().size();
-    // Compare domains to params as appropriate, e.g., a u32 parameter
-    // should be fuzzed using a u32 range domain or array domain.
-    for (int i = 0; i < domain_count; ++i) {
-      const Expr* domain = tuple->members()[i];
-      const Param* param = node->params()[i];
-      std::optional<Type*> maybe_param_type = ti_.GetItem(param);
-      XLS_RET_CHECK(maybe_param_type.has_value());
-      XLS_RETURN_IF_ERROR(
-          ValidateDomain(domain, *maybe_param_type, param->ToString(), ti_,
-                         warning_collector_, import_data_, file_table_));
-    }
+    XLS_RETURN_IF_ERROR(ValidateFunctionDomains(*node, *ftf->domains(), ti_,
+                                                warning_collector_,
+                                                import_data_, file_table_));
 
     return DefaultHandler(node);
   }

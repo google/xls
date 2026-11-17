@@ -15,7 +15,6 @@
 #include "xls/dslx/tabulate.h"
 
 #include <algorithm>
-#include <bit>
 #include <cstddef>
 #include <cstdint>
 #include <memory>
@@ -36,6 +35,7 @@
 #include "xls/dslx/bytecode/bytecode.h"
 #include "xls/dslx/bytecode/bytecode_emitter.h"
 #include "xls/dslx/bytecode/bytecode_interpreter.h"
+#include "xls/dslx/domain_utils.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/module.h"
 #include "xls/dslx/import_data.h"
@@ -49,8 +49,6 @@ namespace xls::dslx {
 namespace {
 
 constexpr int64_t kMaxDomainPoints = 2000;
-constexpr int64_t kMaxParamBitWidth =
-    std::bit_width(static_cast<uint64_t>(kMaxDomainPoints)) - 1;
 constexpr size_t kMinColumnWidth = 3;
 
 struct ColumnSpec {
@@ -84,51 +82,6 @@ absl::StatusOr<Function*> GetTabulatedFunction(Module* module,
   }
   return absl::InvalidArgumentError(absl::StrFormat(
       "Function `%s` does not have a #[tabulate] attribute", fn->identifier()));
-}
-
-absl::StatusOr<std::vector<InterpValue>> EnumerateDomain(
-    std::string_view param_name, const Type& type) {
-  if (type.IsEnum()) {
-    return type.AsEnum().members();
-  }
-  std::optional<BitsLikeProperties> bits_props = GetBitsLike(type);
-  if (!bits_props.has_value()) {
-    return absl::InvalidArgumentError(absl::StrFormat(
-        "Parameter `%s` has unsupported type `%s` for #[tabulate]; expected an "
-        "enum, bool, or fixed-width integer type",
-        param_name, type.ToString()));
-  }
-  XLS_ASSIGN_OR_RETURN(bool is_signed, bits_props->is_signed.GetAsBool());
-  XLS_ASSIGN_OR_RETURN(int64_t bit_count, bits_props->size.GetAsInt64());
-  if (bit_count > kMaxParamBitWidth) {
-    return absl::InvalidArgumentError(absl::StrFormat(
-        "Parameter `%s` has width %d bits, which exceeds the maximum single-"
-        "parameter width (%d bits) for exhaustive tabulation",
-        param_name, bit_count, kMaxParamBitWidth));
-  }
-  if (IsBool(type)) {
-    return std::vector<InterpValue>{InterpValue::MakeBool(false),
-                                    InterpValue::MakeBool(true)};
-  }
-  if (bit_count == 0) {
-    return std::vector<InterpValue>{
-        InterpValue::MakeZeroValue(is_signed, /*bit_count=*/0)};
-  }
-  int64_t count = int64_t{1} << bit_count;
-  std::vector<InterpValue> domain;
-  domain.reserve(count);
-  if (!is_signed) {
-    for (int64_t v = 0; v < count; ++v) {
-      domain.push_back(InterpValue::MakeUBits(bit_count, v));
-    }
-  } else {
-    int64_t min_val = -(int64_t{1} << (bit_count - 1));
-    int64_t max_val = (int64_t{1} << (bit_count - 1)) - 1;
-    for (int64_t v = min_val; v <= max_val; ++v) {
-      domain.push_back(InterpValue::MakeSBits(bit_count, v));
-    }
-  }
-  return domain;
 }
 
 absl::StatusOr<std::vector<ColumnSpec>> BuildColumns(
@@ -186,40 +139,6 @@ absl::StatusOr<std::vector<ColumnSpec>> BuildColumns(
     });
   }
   return columns;
-}
-
-// Generates the Cartesian product of all input parameter domains.
-absl::StatusOr<std::vector<std::vector<InterpValue>>> EnumerateInputRows(
-    const Function& fn, const FunctionType& fn_type) {
-  std::vector<std::vector<InterpValue>> rows = {{}};
-  for (size_t i = 0; i < fn.params().size(); ++i) {
-    const Param* param = fn.params()[i];
-    const Type& param_type = *fn_type.params()[i];
-    XLS_ASSIGN_OR_RETURN(std::vector<InterpValue> domain,
-                         EnumerateDomain(param->identifier(), param_type));
-    if (domain.empty()) {
-      return absl::InvalidArgumentError(absl::StrFormat(
-          "Parameter `%s` has an empty domain", param->identifier()));
-    }
-    if (static_cast<int64_t>(rows.size()) >
-        kMaxDomainPoints / static_cast<int64_t>(domain.size())) {
-      return absl::InvalidArgumentError(absl::StrFormat(
-          "Input domain for `%s` exceeds maximum size of %d points",
-          fn.identifier(), kMaxDomainPoints));
-    }
-
-    std::vector<std::vector<InterpValue>> next_rows;
-    next_rows.reserve(rows.size() * domain.size());
-    for (const std::vector<InterpValue>& prefix : rows) {
-      for (const InterpValue& val : domain) {
-        std::vector<InterpValue> row = prefix;
-        row.push_back(val);
-        next_rows.push_back(std::move(row));
-      }
-    }
-    rows = std::move(next_rows);
-  }
-  return rows;
 }
 
 // Evaluates `fn` on each input row and appends the unpacked return value(s)
@@ -329,7 +248,9 @@ absl::StatusOr<std::string> TabulateFunction(ImportData* import_data,
   XLS_ASSIGN_OR_RETURN(std::vector<ColumnSpec> columns,
                        BuildColumns(*fn, fn_type));
   XLS_ASSIGN_OR_RETURN(std::vector<std::vector<InterpValue>> rows,
-                       EnumerateInputRows(*fn, fn_type));
+                       EnumerateFunctionDomains(
+                           import_data, tm.type_info, *fn, fn_type,
+                           /*domains_tuple=*/std::nullopt, kMaxDomainPoints));
   XLS_RETURN_IF_ERROR(EvaluateAndAppendOutputs(import_data, tm.type_info, *fn,
                                                fn_type.return_type(),
                                                columns.size(), rows));
