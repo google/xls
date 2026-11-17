@@ -1290,7 +1290,10 @@ class StatefulResolver : public TypeAnnotationResolver {
               XLS_ASSIGN_OR_RETURN(TypeInfo * ti,
                                    import_data_.GetRootTypeInfoForNode(def));
               XLS_ASSIGN_OR_RETURN(InterpValue value, ti->GetConstExpr(def));
-              if (value.IsTuple()) {
+              // Only scalar values can be expressed as a `Number`; aggregate
+              // constants (e.g. an array indexed in a dimension like
+              // `uN[SIZES[0]]`) are left as references.
+              if (value.IsTuple() || value.IsArray()) {
                 return std::nullopt;
               }
 

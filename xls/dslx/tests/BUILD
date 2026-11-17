@@ -1197,6 +1197,16 @@ dslx_lang_test(
 )
 
 xls_dslx_library(
+    name = "mod_imported_array_const_dims_dslx",
+    srcs = ["mod_imported_array_const_dims.x"],
+)
+
+dslx_lang_test(
+    name = "mod_importer_array_const_dims",
+    dslx_deps = [":mod_imported_array_const_dims_dslx"],
+)
+
+xls_dslx_library(
     name = "mod_imported_access_const_struct_dslx",
     srcs = ["mod_imported_access_const_struct.x"],
     deps = [":mod_imported_const_struct_dslx"],
