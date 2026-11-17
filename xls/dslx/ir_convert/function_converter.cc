@@ -4061,6 +4061,18 @@ void FunctionConverter::PopulateChannelOrArrayIdToObject(
   }
 }
 
+absl::Status FunctionConverter::CheckArrayElementNotNamed(
+    const ImplicitChannelDecl& decl) const {
+  if (!decl.name.has_value()) {
+    return absl::OkStatus();
+  }
+  return IrConversionErrorStatus(
+      decl.name->origin->span(),
+      "A channel that connects to an element of an io object array can't be "
+      "named yet.",
+      file_table());
+}
+
 absl::StatusOr<Channel*> FunctionConverter::GetOrDefineImplicitChannel(
     const ImplicitChannelDecl& decl, const StructMemberNode* member,
     const TypeInfo* type_info) {
@@ -4072,6 +4084,16 @@ absl::StatusOr<Channel*> FunctionConverter::GetOrDefineImplicitChannel(
   }
   XLS_ASSIGN_OR_RETURN(Channel * channel, channel_scope_->DefineImplicitChannel(
                                               decl, member, type_info));
+  // A `set_name` name must be used as given, so it is an error if the channel
+  // scope had to change it to keep it unique.
+  if (decl.name.has_value() && options_.lower_to_proc_scoped_channels &&
+      channel->name() != absl::StrCat("_", decl.name->name)) {
+    return IrConversionErrorStatus(
+        decl.name->origin->span(),
+        absl::Substitute("Channel name `$0` is already used in proc `$1`.",
+                         decl.name->name, decl.caller->identifier()),
+        file_table());
+  }
   for (const InterpValue& end : {decl.out_end, decl.in_end}) {
     PopulateChannelOrArrayIdToObject(end, channel);
   }
@@ -4163,6 +4185,20 @@ absl::Status FunctionConverter::DefineProcDefChannelOrArray(
   if (bound_channel_or_array.has_value()) {
     channel_or_array = *bound_channel_or_array;
   } else {
+    if (definer->kind() == AstNodeKind::kStructMember) {
+      for (const InterpValue& channel_ref : GetLeafChannelReferences(value)) {
+        if (absl::optional_ref<const IoObjectName> name =
+                current_type_info_->channel_manager().GetName(proc_def,
+                                                              channel_ref);
+            name.has_value()) {
+          return IrConversionErrorStatus(
+              name->origin->span(),
+              "Naming a proc's own `Source` or `Sink` port is not supported "
+              "yet.",
+              file_table());
+        }
+      }
+    }
     XLS_ASSIGN_OR_RETURN(
         channel_or_array,
         channel_scope_->DefineBoundaryChannelOrArray(
@@ -4200,6 +4236,27 @@ FunctionConverter::DefineBoundProcDefMember(const ProcDef* proc_def,
     return std::nullopt;
   }
   if (implicit_decls.size() != channel_refs.size()) {
+    // A member array lowers to one channel array, so all of its elements
+    // must be the same kind: either ports of `proc_def` (forwarded or left
+    // unbound) or channels owned by `proc_def` (bound). A forwarded element is
+    // a port supplied from outside `proc_def`, while a bound element is a
+    // channel inside it, so an array that mixes the two cannot be lowered.
+    const bool any_forwarded =
+        absl::c_any_of(channel_refs, [&](const InterpValue& channel_ref) {
+          return current_type_info_->channel_manager()
+              .GetForwardedChannel(proc_def, channel_ref)
+              .has_value();
+        });
+    if (any_forwarded) {
+      return IrConversionErrorStatus(
+          member->span(),
+          absl::Substitute(
+              "Io object `$0` of `$1` mixes bound and forwarded elements. An "
+              "array member must be entirely outside ports (forwarded or "
+              "unbound) or entirely internal channels (bound).",
+              member->name(), proc_def->identifier()),
+          file_table());
+    }
     return IrConversionErrorStatus(
         member->span(),
         absl::Substitute("Io object `$0` of `$1` is only partially bound.",
@@ -4212,6 +4269,9 @@ FunctionConverter::DefineBoundProcDefMember(const ProcDef* proc_def,
                          GetOrDefineImplicitChannel(*implicit_decls[0], member,
                                                     current_type_info_));
     return channel;
+  }
+  for (const ImplicitChannelDecl* implicit_decl : implicit_decls) {
+    XLS_RETURN_IF_ERROR(CheckArrayElementNotNamed(*implicit_decl));
   }
 
   // Normally none of the elements have channels yet, so the array is made the
@@ -4426,7 +4486,7 @@ absl::Status FunctionConverter::AddProcDefIoObjectArgs(
     if (callee_constructor_ti->channel_manager()
             .GetImplicitChannelDecl(callee, canonical_channel_refs[i])
             .has_value()) {
-      // `proc_def` can't also bind an endpoint that `callee` binds.
+      // `proc_def` can't also bind or forward an endpoint that `callee` binds.
       if (std::optional<const ImplicitChannelDecl*> parent_decl =
               constructor_ti->channel_manager().GetImplicitChannelDecl(
                   proc_def, external_channel_refs[i]);
@@ -4439,6 +4499,38 @@ absl::Status FunctionConverter::AddProcDefIoObjectArgs(
                              proc_def->identifier()),
             file_table());
       }
+      if (std::optional<const ForwardedChannel*> parent_forward =
+              constructor_ti->channel_manager().GetForwardedChannel(
+                  proc_def, external_channel_refs[i]);
+          parent_forward.has_value()) {
+        return IrConversionErrorStatus(
+            (*parent_forward)->origin->span(),
+            absl::Substitute("Io object `$0` of `$1` is already bound inside "
+                             "`$1`, so `$2` cannot forward it.",
+                             member->name(), callee->identifier(),
+                             proc_def->identifier()),
+            file_table());
+      }
+      // Only the proc that creates a channel can name it.
+      if (absl::optional_ref<const IoObjectName> parent_name =
+              constructor_ti->channel_manager().GetName(
+                  proc_def, external_channel_refs[i]);
+          parent_name.has_value()) {
+        return IrConversionErrorStatus(
+            parent_name->origin->span(),
+            absl::Substitute("`$0` binds `$1` itself, so `$2` can't name it.",
+                             callee->identifier(), member->name(),
+                             proc_def->identifier()),
+            file_table());
+      }
+      continue;
+    }
+    if (std::optional<const ForwardedChannel*> forwarded =
+            constructor_ti->channel_manager().GetForwardedChannel(
+                proc_def, external_channel_refs[i]);
+        forwarded.has_value()) {
+      XLS_RETURN_IF_ERROR(ExpandProcDefChannelReference(
+          (*forwarded)->GetCallerEnd(), channel_args));
       continue;
     }
     std::optional<const ImplicitChannelDecl*> implicit_decl =
@@ -4448,10 +4540,13 @@ absl::Status FunctionConverter::AddProcDefIoObjectArgs(
       return IrConversionErrorStatus(
           member->span(),
           absl::Substitute("Io object `$0` of `$1` spawned by `$2` is not "
-                           "bound.",
+                           "bound or forwarded.",
                            member->name(), callee->identifier(),
                            proc_def->identifier()),
           file_table());
+    }
+    if (canonical_arg.IsChannelArray()) {
+      XLS_RETURN_IF_ERROR(CheckArrayElementNotNamed(**implicit_decl));
     }
     XLS_RETURN_IF_ERROR(GetOrDefineImplicitChannel(**implicit_decl, member,
                                                    callee_constructor_ti)

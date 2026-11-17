@@ -272,6 +272,8 @@ cc_library(
     srcs = ["channel_manager.cc"],
     hdrs = ["channel_manager.h"],
     deps = [
+        "//xls/common/status:status_macros",
+        "//xls/dslx:channel_direction",
         "//xls/dslx:errors",
         "//xls/dslx:interp_value",
         "//xls/dslx:interp_value_utils",
@@ -279,8 +281,10 @@ cc_library(
         "//xls/dslx/frontend:pos",
         "@abseil-cpp//absl/base",
         "@abseil-cpp//absl/container:flat_hash_map",
+        "@abseil-cpp//absl/container:node_hash_map",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/types:optional_ref",
     ],
 )
 

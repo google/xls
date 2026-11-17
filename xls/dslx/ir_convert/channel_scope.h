@@ -147,9 +147,9 @@ class ChannelScope {
   // given `decl`, and returns it.
   absl::StatusOr<ChannelOrArray> DefineChannelOrArray(const ChannelDecl* decl);
 
-  // Creates the channel for a `bind`. The channel name comes from the bind,
-  // while the payload type is resolved in the endpoint's own proc since the two
-  // ends may belong to different procs.
+  // Creates the channel for a `bind`. The channel name comes from `set_name`
+  // or else the bind, while the payload type is resolved in the endpoint's own
+  // proc since the two ends may belong to different procs.
   absl::StatusOr<Channel*> DefineImplicitChannel(
       const ImplicitChannelDecl& decl, const StructMemberNode* member,
       const TypeInfo* type_info);
