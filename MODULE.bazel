@@ -4,7 +4,7 @@ module(
 )
 
 # Compiler toolchain
-bazel_dep(name = "llvm", version = "0.8.21", dev_dependency = True)
+bazel_dep(name = "llvm", version = "0.8.21")
 
 register_toolchains("@llvm//toolchain:all")
 
@@ -270,7 +270,7 @@ single_version_override(
 # Dev dependencies
 bazel_dep(name = "fuzztest", version = "20260629.0", dev_dependency = True, repo_name = "com_google_fuzztest")
 bazel_dep(name = "google_benchmark", version = "1.9.5", dev_dependency = True)
-bazel_dep(name = "googletest", version = "1.17.0.bcr.2", dev_dependency = True)
+bazel_dep(name = "googletest", version = "1.17.0.bcr.2")
 
 # compilation DB; build_cleaner
 bazel_dep(name = "bant", version = "0.3.6", dev_dependency = True)
