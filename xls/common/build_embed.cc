@@ -12,12 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "xls/common/build_embed.h"
-
 #include <string>
 
 namespace xls {
 
+// Declared in xls/common/build_embed.h; omit the #include because Bazel's
+// CppLinkstampCompile action only passes -iquote . (the root workspace) and
+// cannot resolve repo-relative headers when XLS is consumed as an external
+// Bzlmod dependency.
 std::string GetBuildEmbedLabel() {
   // BUILD_EMBED_LABEL is set to a non-empty string when built w/ --embed_label.
   return std::string(BUILD_EMBED_LABEL);
