@@ -580,9 +580,9 @@ class FunctionConverter {
       const Type* type,
       absl::flat_hash_map<const ChannelDecl*, ChannelOrArray>& channel_decls);
 
-  // Returns the channel for a `Source` or `Sink` member that the proc binds,
-  // or `std::nullopt` if the member is unbound and should be an interface.
-  // Binding arrays is not supported yet.
+  // Returns the channel or channel array for a `Source` or `Sink` member that
+  // the proc binds, or `std::nullopt` if the member is unbound and should be
+  // an interface. A partially bound array is an error.
   absl::StatusOr<std::optional<ChannelOrArray>> DefineBoundProcDefMember(
       const ProcDef* proc_def, const StructMemberNode* member,
       const InterpValue& value);

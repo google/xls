@@ -8893,6 +8893,165 @@ impl Top {
                          "not bound.")));
 }
 
+// `Child` binds its own `input`, so `Top` binding `c.input` too would leave
+// `Top`'s channel unconnected.
+TEST_F(IrConverterTest, ProcDefBindOfChildInternallyBoundEndpointIsError) {
+  EXPECT_THAT(ConvertModuleForTest(R"(#![feature(io_objects)]
+proc Child { snk: Sink<u32>, input: Source<u32> }
+impl Child {
+  fn new() -> Self {
+    let c = Child {};
+    c.snk.bind(c.input);
+    c
+  }
+}
+proc Top { to_c: Sink<u32> }
+impl Top {
+  fn new() -> Self {
+    let top = Top {};
+    let c = Child::new();
+    top.to_c.bind(c.input);
+    c.spawn();
+    top
+  }
+}
+)"),
+              StatusIs(absl::StatusCode::kInternal,
+                       HasSubstr("Io object `input` of `Child` is already "
+                                 "bound inside `Child`, so `Top` cannot bind "
+                                 "it.")));
+}
+
+TEST_F(IrConverterTest, ProcDefBindOfChildInternallyBoundArrayElementIsError) {
+  EXPECT_THAT(ConvertModuleForTest(R"(#![feature(io_objects)]
+proc Child { snk: Sink<u32>[2], ins: Source<u32>[2] }
+impl Child {
+  fn new() -> Self {
+    let c = Child {};
+    const for (i, _) in u32:0..2 {
+      c.snk[i].bind(c.ins[i]);
+    }(());
+    c
+  }
+}
+proc Top { to_c: Sink<u32> }
+impl Top {
+  fn new() -> Self {
+    let top = Top {};
+    let c = Child::new();
+    top.to_c.bind(c.ins[1]);
+    c.spawn();
+    top
+  }
+}
+)"),
+              StatusIs(absl::StatusCode::kInternal,
+                       HasSubstr("Io object `ins` of `Child` is already bound "
+                                 "inside `Child`, so `Top` cannot bind it.")));
+}
+
+// A child proc with a 2-element io object array of each direction.
+constexpr std::string_view kIoLoopbackArrayProc = R"(#![feature(io_objects)]
+proc LoopbackArray { ins: Source<u32>[2], outs: Sink<u32>[2] }
+impl LoopbackArray {
+  fn new() -> Self { LoopbackArray {} }
+}
+)";
+
+// `Top` binds each of its array members to an end of one spawned
+// `LoopbackArray`.
+constexpr std::string_view kIoTopBindsLoopbackArray = R"(
+proc Top { to_child: Sink<u32>[2], from_child: Source<u32>[2] }
+impl Top {
+  fn new() -> Self {
+    let top = Top {};
+    let c = LoopbackArray::new();
+    const for (i, _) in u32:0..2 {
+      top.to_child[i].bind(c.ins[i]);
+      c.outs[i].bind(top.from_child[i]);
+    }(());
+    c.spawn();
+    top
+  }
+}
+)";
+
+TEST_F(IrConverterTest, ProcDefBindsChannelArray) {
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string ir, ConvertModuleForTest(absl::StrCat(
+                          kIoLoopbackArrayProc, kIoTopBindsLoopbackArray)));
+  ExpectIr(ir);
+}
+
+TEST_F(IrConverterTest, ProcDefBindsChildArrayToChildArray) {
+  XLS_ASSERT_OK_AND_ASSIGN(std::string ir, ConvertModuleForTest(absl::StrCat(
+                                               kIoLoopbackArrayProc, R"(
+proc Top {}
+impl Top {
+  fn new() -> Self {
+    let a = LoopbackArray::new();
+    let b = LoopbackArray::new();
+    const for (i, _) in u32:0..2 {
+      a.outs[i].bind(b.ins[i]);
+      b.outs[i].bind(a.ins[i]);
+    }(());
+    a.spawn();
+    b.spawn();
+    Top {}
+  }
+}
+)")));
+  ExpectIr(ir);
+}
+
+TEST_F(IrConverterTest, ProcDefBinds2DChannelArray) {
+  XLS_ASSERT_OK_AND_ASSIGN(std::string ir, ConvertModuleForTest(absl::StrCat(
+                                               kIoLoopbackArrayProc, R"(
+proc Top { to_child: Sink<u32>[2][2], from_child: Source<u32>[2][2] }
+impl Top {
+  fn new() -> Self {
+    let top = Top {};
+    const for (i, _) in u32:0..2 {
+      let c = LoopbackArray::new();
+      const for (j, _) in u32:0..2 {
+        top.to_child[i][j].bind(c.ins[j]);
+        c.outs[j].bind(top.from_child[i][j]);
+      }(());
+      c.spawn();
+    }(());
+    top
+  }
+}
+)")));
+  ExpectIr(ir);
+}
+
+TEST_F(IrConverterTest, ProcDefBindArrayMatchesExplicitChannelDecl) {
+  constexpr std::string_view kExplicit = R"(
+proc LoopbackArray { ins: chan<u32>[2] in, outs: chan<u32>[2] out }
+impl LoopbackArray {
+  fn new(ins: chan<u32>[2] in, outs: chan<u32>[2] out) -> Self {
+    LoopbackArray { ins, outs }
+  }
+}
+proc Top { to_child: chan<u32>[2] out, from_child: chan<u32>[2] in }
+impl Top {
+  fn new() -> Self {
+    let (to_child_out, to_child_in) = chan<u32>[2]("to_child");
+    let (from_child_out, from_child_in) = chan<u32>[2]("from_child");
+    LoopbackArray::new(to_child_in, from_child_out).spawn();
+    Top { to_child: to_child_out, from_child: from_child_in }
+  }
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string io_ir, ConvertModuleForTest(absl::StrCat(
+                             kIoLoopbackArrayProc, kIoTopBindsLoopbackArray)));
+  XLS_ASSERT_OK_AND_ASSIGN(std::string explicit_ir,
+                           ConvertModuleForTest(kExplicit));
+  EXPECT_EQ(io_ir, explicit_ir);
+}
+
 TEST_F(IrConverterTest, ProcDefBindsOwnMembers) {
   XLS_ASSERT_OK_AND_ASSIGN(std::string ir, ConvertModuleForTest(R"(
 #![feature(io_objects)]
@@ -8906,6 +9065,65 @@ impl Top {
 }
 )"));
   ExpectIr(ir);
+}
+
+// Binding a proc's own `Sink` array to its own `Source` array creates one
+// channel per element, with no duplicate channels or boundary interfaces.
+TEST_F(IrConverterTest, ProcDefBindsOwnMemberArrays) {
+  XLS_ASSERT_OK_AND_ASSIGN(std::string ir, ConvertModuleForTest(R"(
+#![feature(io_objects)]
+proc Top { snk: Sink<u32>[2], src: Source<u32>[2] }
+impl Top {
+  fn new() -> Self {
+    let top = Top {};
+    const for (i, _) in u32:0..2 {
+      top.snk[i].bind(top.src[i]);
+    }(());
+    top
+  }
+}
+)"));
+  ExpectIr(ir);
+}
+
+// Verify that no `_src__*` channels are created due the order of the bind
+// calls. The channels should be `_a`, `_src`, and `_to_child`.
+TEST_F(IrConverterTest, ProcDefBindsArrayMixingExistingAndNewChannels) {
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string ir, ConvertModuleForTest(absl::StrCat(kIoLoopbackProc, R"(
+proc Top { a: Sink<u32>, src: Source<u32>[2], to_child: Sink<u32> }
+impl Top {
+  fn new() -> Self {
+    let top = Top {};
+    let c = Loopback::new();
+    top.a.bind(top.src[0]);
+    c.output.bind(top.src[1]);
+    top.to_child.bind(c.input);
+    c.spawn();
+    top
+  }
+}
+)")));
+  ExpectIr(ir);
+}
+
+TEST_F(IrConverterTest, ProcDefPartiallyBoundChannelArrayIsError) {
+  EXPECT_THAT(ConvertModuleForTest(absl::StrCat(kIoLoopbackProc, R"(
+proc Top { to_child: Sink<u32>[2], from_child: Source<u32> }
+impl Top {
+  fn new() -> Self {
+    let top = Top {};
+    let c = Loopback::new();
+    top.to_child[0].bind(c.input);
+    c.output.bind(top.from_child);
+    c.spawn();
+    top
+  }
+}
+)")),
+              StatusIs(absl::StatusCode::kInternal,
+                       HasSubstr("Io object `to_child` of `Top` is only "
+                                 "partially bound.")));
 }
 
 TEST_F(IrConverterTest, ConvertFilesToPackageWithSourceAndSinkMembers) {

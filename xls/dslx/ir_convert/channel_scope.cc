@@ -15,6 +15,7 @@
 #include "xls/dslx/ir_convert/channel_scope.h"
 
 #include <algorithm>
+#include <cstddef>
 #include <cstdint>
 #include <optional>
 #include <string>
@@ -210,6 +211,43 @@ absl::StatusOr<Channel*> ChannelScope::DefineImplicitChannel(
                                    /*dims=*/std::nullopt));
   XLS_RET_CHECK(std::holds_alternative<Channel*>(channel));
   return std::get<Channel*>(channel);
+}
+
+absl::StatusOr<ChannelArray*> ChannelScope::DefineImplicitChannelArray(
+    const StructMemberNode* member) {
+  XLS_RET_CHECK(function_context_.has_value());
+  VLOG(4) << "ChannelScope::DefineImplicitChannelArray: " << member->name();
+  ChannelTypeAnnotation* annot =
+      IoObjectToChannelTypeAnnotation(member->type());
+  XLS_RET_CHECK(annot->dims().has_value());
+  XLS_ASSIGN_OR_RETURN(xls::Type * ir_type,
+                       GetPayloadIrType(annot, function_context_->type_info));
+  XLS_ASSIGN_OR_RETURN(ChannelOrArray array,
+                       DefineChannelOrArrayInternal(
+                           member->name(), ChannelOps::kSendReceive, ir_type,
+                           /*channel_config=*/std::nullopt, annot->dims()));
+  XLS_RET_CHECK(std::holds_alternative<ChannelArray*>(array));
+  return std::get<ChannelArray*>(array);
+}
+
+absl::StatusOr<ChannelArray*> ChannelScope::DefineChannelArray(
+    const StructMemberNode* member, absl::Span<const ChannelRef> elements) {
+  XLS_RET_CHECK(function_context_.has_value());
+  VLOG(4) << "ChannelScope::DefineChannelArray: " << member->name();
+  ChannelTypeAnnotation* annot =
+      IoObjectToChannelTypeAnnotation(member->type());
+  XLS_RET_CHECK(annot->dims().has_value());
+  std::string base_channel_name = absl::StrCat("_", member->name());
+  ChannelArray* array = &arrays_.emplace_back(ChannelArray(base_channel_name));
+  XLS_ASSIGN_OR_RETURN(std::vector<std::string> suffixes,
+                       CreateAllArrayElementSuffixes(*annot->dims()));
+  XLS_RET_CHECK_EQ(suffixes.size(), elements.size());
+  for (size_t i = 0; i < suffixes.size(); ++i) {
+    std::string channel_name =
+        absl::StrCat(base_channel_name, kNameAndDimsSeparator, suffixes[i]);
+    array->AddChannel(channel_name, elements[i]);
+  }
+  return array;
 }
 
 absl::StatusOr<ChannelOrArray> ChannelScope::DefineBoundaryChannelOrArray(

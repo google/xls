@@ -27,6 +27,7 @@
 #include <variant>
 #include <vector>
 
+#include "absl/algorithm/container.h"
 #include "absl/base/casts.h"
 #include "absl/container/btree_set.h"
 #include "absl/container/flat_hash_map.h"
@@ -4194,20 +4195,54 @@ FunctionConverter::DefineBoundProcDefMember(const ProcDef* proc_def,
   if (implicit_decls.empty()) {
     return std::nullopt;
   }
-  if (value.IsChannelArray()) {
+  if (implicit_decls.size() != channel_refs.size()) {
     return IrConversionErrorStatus(
         member->span(),
-        absl::Substitute("Binding io object array `$0` of `$1` is not yet "
-                         "supported.",
+        absl::Substitute("Io object `$0` of `$1` is only partially bound.",
                          member->name(), proc_def->identifier()),
         file_table());
   }
 
-  XLS_RET_CHECK_EQ(implicit_decls.size(), 1);
-  XLS_ASSIGN_OR_RETURN(Channel * channel,
-                       GetOrDefineImplicitChannel(*implicit_decls[0], member,
-                                                  current_type_info_));
-  return channel;
+  if (!value.IsChannelArray()) {
+    XLS_ASSIGN_OR_RETURN(Channel * channel,
+                         GetOrDefineImplicitChannel(*implicit_decls[0], member,
+                                                    current_type_info_));
+    return channel;
+  }
+
+  // Normally none of the elements have channels yet, so the array is made the
+  // same way as for a `chan<T>[N]` declaration.
+  const bool any_defined =
+      absl::c_any_of(channel_refs, [&](const InterpValue& channel_ref) {
+        return channel_or_array_id_to_object_.contains(
+            GetChannelOrArrayId(channel_ref));
+      });
+  if (!any_defined) {
+    XLS_ASSIGN_OR_RETURN(ChannelArray * array,
+                         channel_scope_->DefineImplicitChannelArray(member));
+    std::vector<ChannelRef> channels = array->channels();
+    XLS_RET_CHECK_EQ(channels.size(), implicit_decls.size());
+    for (size_t i = 0; i < channels.size(); ++i) {
+      for (const InterpValue& end :
+           {implicit_decls[i]->out_end, implicit_decls[i]->in_end}) {
+        PopulateChannelOrArrayIdToObject(
+            end, absl::ConvertVariantTo<ChannelOrArray>(channels[i]));
+      }
+    }
+    return array;
+  }
+
+  std::vector<ChannelRef> channels;
+  channels.reserve(implicit_decls.size());
+  for (const ImplicitChannelDecl* implicit_decl : implicit_decls) {
+    XLS_ASSIGN_OR_RETURN(
+        Channel * channel,
+        GetOrDefineImplicitChannel(*implicit_decl, member, current_type_info_));
+    channels.push_back(channel);
+  }
+  XLS_ASSIGN_OR_RETURN(ChannelArray * array,
+                       channel_scope_->DefineChannelArray(member, channels));
+  return array;
 }
 
 absl::Status FunctionConverter::InitProcDefChannels(
@@ -4387,6 +4422,19 @@ absl::Status FunctionConverter::AddProcDefIoObjectArgs(
     if (callee_constructor_ti->channel_manager()
             .GetImplicitChannelDecl(callee, canonical_channel_refs[i])
             .has_value()) {
+      // `proc_def` can't also bind an endpoint that `callee` binds.
+      if (std::optional<const ImplicitChannelDecl*> parent_decl =
+              constructor_ti->channel_manager().GetImplicitChannelDecl(
+                  proc_def, external_channel_refs[i]);
+          parent_decl.has_value()) {
+        return IrConversionErrorStatus(
+            (*parent_decl)->origin->span(),
+            absl::Substitute("Io object `$0` of `$1` is already bound inside "
+                             "`$1`, so `$2` cannot bind it.",
+                             member->name(), callee->identifier(),
+                             proc_def->identifier()),
+            file_table());
+      }
       continue;
     }
     std::optional<const ImplicitChannelDecl*> implicit_decl =
