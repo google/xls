@@ -40,6 +40,7 @@ load(
 load(
     "//xls/build_rules:xls_utilities.bzl",
     _proto_data_tool_attrs = "proto_data_tool_attrs",
+    _repo_relative_path = "repo_relative_path",
     _textproto_to_binary = "text_proto_to_binary",
 )
 
@@ -52,7 +53,7 @@ def _generate_registration_impl(ctx):
     headers = ""
     for h in ctx.attr.lib[CcInfo].compilation_context.direct_public_headers:
         headers += "\n"
-        headers += '#include "%s"' % h.path
+        headers += '#include "%s"' % _repo_relative_path(h)
     ctx.actions.expand_template(
         template = ctx.file.registration_template,
         output = output_file,
@@ -62,7 +63,7 @@ def _generate_registration_impl(ctx):
             "{NAME}": ctx.attr.pass_class,
             "{WARNING}": "Generated file. Do not edit.",
             "{HEADERS}": headers,
-            "{FIRST_HEADER_FILE}": ctx.attr.lib[CcInfo].compilation_context.direct_public_headers[0].path,
+            "{FIRST_HEADER_FILE}": _repo_relative_path(ctx.attr.lib[CcInfo].compilation_context.direct_public_headers[0]),
         },
     )
 
@@ -387,7 +388,7 @@ def _xls_pass_registry_impl_helper(
             output = reg_pipeline_cc,
             substitutions = {
                 "{WARNING}": "Generated file. Do not edit",
-                "{HEADER}": emb_header.path,
+                "{HEADER}": _repo_relative_path(emb_header),
                 "{ACCESS_FN}": proto_data_fn,
                 "{MANGLED_LABEL}": accessor,
                 "{FILE}": pipeline_filename,

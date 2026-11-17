@@ -498,6 +498,27 @@ proto_to_dslx = rule(
     attrs = _proto_to_dslx_attrs,
 )
 
+def repo_relative_path(file):
+    """Returns the repository-relative path for a Bazel File.
+
+    Strips the output root prefix (`file.root.path`) and external repository
+    workspace prefix (`file.owner.workspace_root`) so generated C++ `#include`
+    paths resolve identically in the main repository and in external Bzlmod
+    consumers.
+
+    Args:
+      file: A Starlark `File` object.
+
+    Returns:
+      Repository-relative path string.
+    """
+    path = file.path
+    if file.root.path:
+        path = path.removeprefix(file.root.path + "/")
+    if file.owner and file.owner.workspace_root:
+        path = path.removeprefix(file.owner.workspace_root + "/")
+    return path
+
 BoolConfigSettingInfo = provider(
     doc = "A true/false bit containing whether a config setting is enabled.",
     fields = ["value"],
