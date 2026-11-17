@@ -1670,6 +1670,157 @@ impl Top {
   XLS_EXPECT_OK(TypecheckV2(kProgram, "main", &import_data));
 }
 
+TEST(TypecheckV2ProcTest, ForwardRecordsBothEndpoints) {
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result,
+                           TypecheckV2(absl::StrCat(kLoopbackProc, R"(
+proc Top { input: Source<u32>, output: Sink<u32> }
+impl Top {
+  fn new() -> Self {
+    let top = Top {};
+    let c = Loopback::new();
+    top.input.forward(c.input);
+    c.output.forward(top.output);
+    c.spawn();
+    top
+  }
+}
+)")));
+  XLS_ASSERT_OK_AND_ASSIGN(ProcDef * top,
+                           result.tm.module->GetMemberOrError<ProcDef>("Top"));
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue top_init,
+                           GetCanonicalInitializer(result.tm, "Top"));
+  XLS_ASSERT_OK_AND_ASSIGN(std::vector<InterpValue> spawns,
+                           result.tm.type_info->GetProcDefSpawnsFrom(top));
+  ASSERT_EQ(spawns.size(), 1);
+
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue top_input,
+                           GetMemberValue(top_init, "input"));
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue top_output,
+                           GetMemberValue(top_init, "output"));
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue child_input,
+                           GetMemberValue(spawns[0], "input"));
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue child_output,
+                           GetMemberValue(spawns[0], "output"));
+
+  const ChannelManager& manager = result.tm.type_info->channel_manager();
+  std::optional<const ForwardedChannel*> input_fwd =
+      manager.GetForwardedChannel(top, top_input);
+  ASSERT_TRUE(input_fwd.has_value());
+  EXPECT_EQ(manager.GetForwardedChannel(top, child_input), input_fwd);
+  EXPECT_EQ((*input_fwd)->from_end, top_input);
+  EXPECT_EQ((*input_fwd)->to_end, child_input);
+  EXPECT_EQ((*input_fwd)->GetCallerEnd(), top_input);
+
+  std::optional<const ForwardedChannel*> output_fwd =
+      manager.GetForwardedChannel(top, top_output);
+  ASSERT_TRUE(output_fwd.has_value());
+  EXPECT_EQ(manager.GetForwardedChannel(top, child_output), output_fwd);
+  EXPECT_EQ((*output_fwd)->from_end, child_output);
+  EXPECT_EQ((*output_fwd)->to_end, top_output);
+  EXPECT_EQ((*output_fwd)->GetCallerEnd(), top_output);
+}
+
+TEST(TypecheckV2ProcTest, ForwardEndpointTwiceIsRejected) {
+  EXPECT_THAT(absl::StrCat(kLoopbackProc, R"(
+proc Top { input: Source<u32> }
+impl Top {
+  fn new() -> Self {
+    let top = Top {};
+    let c = Loopback::new();
+    let d = Loopback::new();
+    top.input.forward(c.input);
+    top.input.forward(d.input);
+    c.spawn();
+    d.spawn();
+    top
+  }
+}
+)"),
+              TypecheckFails(HasSubstr("`top.input` is already forwarded by "
+                                       "`top.input.forward(c.input)`.")));
+}
+
+TEST(TypecheckV2ProcTest, ForwardAndBindSameEndpointIsRejected) {
+  EXPECT_THAT(absl::StrCat(kLoopbackProc, R"(
+proc Top { input: Source<u32>, to_child: Sink<u32> }
+impl Top {
+  fn new() -> Self {
+    let top = Top {};
+    let c = Loopback::new();
+    top.input.forward(c.input);
+    top.to_child.bind(c.input);
+    c.spawn();
+    top
+  }
+}
+)"),
+              TypecheckFails(HasSubstr("`c.input` is already forwarded by "
+                                       "`top.input.forward(c.input)`.")));
+
+  EXPECT_THAT(absl::StrCat(kLoopbackProc, R"(
+proc Top { input: Source<u32>, to_child: Sink<u32> }
+impl Top {
+  fn new() -> Self {
+    let top = Top {};
+    let c = Loopback::new();
+    top.to_child.bind(c.input);
+    top.input.forward(c.input);
+    c.spawn();
+    top
+  }
+}
+)"),
+              TypecheckFails(HasSubstr("`c.input` is already bound by "
+                                       "`top.to_child.bind(c.input)`.")));
+}
+
+TEST(TypecheckV2ProcTest, ForwardInvalidDirectionIsRejected) {
+  // Child Source forwarded to parent Source (backwards).
+  EXPECT_THAT(absl::StrCat(kLoopbackProc, R"(
+proc Top { input: Source<u32> }
+impl Top {
+  fn new() -> Self {
+    let top = Top {};
+    let c = Loopback::new();
+    c.input.forward(top.input);
+    c.spawn();
+    top
+  }
+}
+)"),
+              TypecheckFails(HasSubstr(
+                  "`forward` on a `Source` must forward from a member of "
+                  "`Top` to a child proc's `Source`; got `c.input` to "
+                  "`top.input`.")));
+
+  // Parent Sink forwarded to child Sink (backwards).
+  EXPECT_THAT(absl::StrCat(kLoopbackProc, R"(
+proc Top { output: Sink<u32> }
+impl Top {
+  fn new() -> Self {
+    let top = Top {};
+    let c = Loopback::new();
+    top.output.forward(c.output);
+    c.spawn();
+    top
+  }
+}
+)"),
+              TypecheckFails(HasSubstr(
+                  "`forward` on a `Sink` must forward from a child proc's "
+                  "`Sink` to a member of `Top`; got `top.output` to "
+                  "`c.output`.")));
+}
+
+TEST(TypecheckV2ProcTest, ForwardOutsideProcImplIsRejected) {
+  EXPECT_THAT(R"(
+#![feature(io_objects)]
+fn pass(a: Source<u32>, b: Source<u32>) { a.forward(b) }
+)",
+              TypecheckFails(
+                  HasSubstr("`forward` can only be called in a proc impl.")));
+}
+
 TEST(TypecheckV2ProcTest, ProcDefWithArrayTypeAliasState) {
   EXPECT_THAT(R"(
 #![feature(explicit_state_access)]
