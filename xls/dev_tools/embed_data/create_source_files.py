@@ -17,6 +17,7 @@
 
 from collections.abc import Sequence
 import dataclasses
+import os
 
 from absl import app
 from absl import flags
@@ -55,6 +56,14 @@ _OUTPUT_HEADER = flags.DEFINE_string(
     required=True,
     help="Path at which to write the output header file.",
 )
+_HEADER_INCLUDE_PATH = flags.DEFINE_string(
+    "header_include_path",
+    default=None,
+    help=(
+        "Include path for the header in generated source"
+        " (defaults to --output_header)."
+    ),
+)
 
 
 @dataclasses.dataclass
@@ -62,6 +71,7 @@ class Embedding:
   namespace: str
   accessor: str
   data_file: str
+  embed_path: str
   header_file: str
   data_file_contents: str
 
@@ -71,11 +81,16 @@ def main(argv: Sequence[str]) -> None:
     raise app.UsageError("Too many command-line arguments.")
   with open(_DATA_FILE.value, "rb") as data:
     contents = data.read()
+  embed_path = os.path.relpath(
+      os.path.abspath(_DATA_FILE.value),
+      os.path.dirname(os.path.abspath(_OUTPUT_SOURCE.value)),
+  )
   emb = Embedding(
       namespace=_NAMESPACE.value,
       accessor=_ACCESSOR.value,
       data_file=_DATA_FILE.value,
-      header_file=_OUTPUT_HEADER.value,
+      embed_path=embed_path,
+      header_file=_HEADER_INCLUDE_PATH.value or _OUTPUT_HEADER.value,
       data_file_contents=", ".join(str(int(x)) for x in contents),
   )
   env = jinja2.Environment(undefined=jinja2.StrictUndefined)

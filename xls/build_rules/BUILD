@@ -306,6 +306,7 @@ bzl_library(
     name = "xls_cc_embed_data_rules_bzl",
     srcs = ["xls_cc_embed_data_rules.bzl"],
     deps = [
+        ":xls_utilities_bzl",
         "@bazel_skylib//lib:dicts",
         "@rules_cc//cc/common",
     ],

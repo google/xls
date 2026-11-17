@@ -16,7 +16,7 @@ absl::Span<uint8_t const> {{embed.accessor}}() {
     // Technically we are using a c23 feature here but clang and gcc both
     // support it already so not really a big deal. It's also a lot faster to
     // compile.
-    #embed "{{embed.data_file}}"
+    #embed "{{embed.embed_path}}"
 
 #pragma clang diagnostic pop
 #else

@@ -20,6 +20,10 @@ load("@bazel_skylib//lib:dicts.bzl", "dicts")
 load("@bazel_tools//tools/cpp:toolchain_utils.bzl", "find_cpp_toolchain", "use_cpp_toolchain")
 load("@rules_cc//cc/common:cc_common.bzl", "cc_common")
 load("@rules_cc//cc/common:cc_info.bzl", "CcInfo")
+load(
+    "//xls/build_rules:xls_utilities.bzl",
+    _repo_relative_path = "repo_relative_path",
+)
 
 embed_data_attrs = {
     "_absl_span": attr.label(
@@ -87,6 +91,7 @@ def get_embedded_data(
     args.add("-namespace", namespace)
     args.add("-data_file", data_file.path)
     args.add("-output_header", hdr_file.path)
+    args.add("-header_include_path", _repo_relative_path(hdr_file))
     args.add("-output_source", cpp_file.path)
     args.add("-accessor", accessor)
     ctx.actions.run(
