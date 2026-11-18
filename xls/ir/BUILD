@@ -589,12 +589,27 @@ cc_library(
         ":format_preference",
         ":source_location",
         ":value",
+        "//xls/common/status:status_macros",
+        "@abseil-cpp//absl/base:core_headers",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/strings:str_format",
         "@abseil-cpp//absl/types:span",
         "@protobuf//:protobuf_lite",
+    ],
+)
+
+cc_test(
+    name = "events_test",
+    srcs = ["events_test.cc"],
+    deps = [
+        ":events",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:status_matchers",
+        "@googletest//:gtest",
     ],
 )
 

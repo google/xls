@@ -174,14 +174,14 @@ void InterpreterEvents::AppendFrom(const InterpreterEvents& other) {
   }
 }
 
-absl::Status InterpreterEventsToStatus(const InterpreterEvents& events) {
-  if (events.GetAssertMessages().empty()) {
+absl::Status InterpreterEvents::ToStatus() const {
+  if (!HasAsserts()) {
     return absl::OkStatus();
   }
 
   // If an assertion has been raised, return the message from the first
   // assertion recorded, matching the behavior of short-circuit evaluation.
-  return absl::AbortedError(events.GetAssertMessages().front());
+  return absl::AbortedError(proto_.assert_msgs(0).message());
 }
 
 }  // namespace xls

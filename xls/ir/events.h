@@ -22,11 +22,13 @@
 #include <string_view>
 #include <vector>
 
+#include "absl/base/macros.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/types/span.h"
 #include "google/protobuf/repeated_ptr_field.h"
+#include "xls/common/status/status_macros.h"
 #include "xls/ir/evaluator_result.pb.h"
 #include "xls/ir/format_preference.h"
 #include "xls/ir/source_location.h"
@@ -62,7 +64,19 @@ class InterpreterEvents {
   std::vector<std::string> GetTraceMessageStrings() const;
   std::vector<std::string> GetAssertMessages() const;
 
-  void Clear() { proto_.Clear(); }
+  bool HasTraces() const { return !proto_.trace_msgs().empty(); }
+  bool HasAsserts() const { return !proto_.assert_msgs().empty(); }
+  bool IsEmpty() const { return !HasTraces() && !HasAsserts(); }
+
+  void Clear() {
+    if (!IsEmpty()) {
+      proto_.Clear();
+    }
+  }
+
+  // Convert captured events into a result status, returning a failure when an
+  // assertion has been raised.
+  absl::Status ToStatus() const;
 
   bool operator==(const InterpreterEvents& other) const;
 
@@ -94,7 +108,12 @@ inline std::ostream& operator<<(std::ostream& os,
 
 // Convert an InterpreterEvents structure into a result status, returning
 // a failure when an assertion has been raised.
-absl::Status InterpreterEventsToStatus(const InterpreterEvents& events);
+[[deprecated("Use InterpreterEvents::ToStatus() instead.")]]
+ABSL_REFACTOR_INLINE inline absl::Status InterpreterEventsToStatus(
+    const InterpreterEvents& events) {
+  return events.ToStatus();
+}
+
 template <typename ValueT>
 struct InterpreterResult {
   ValueT value;
@@ -106,12 +125,7 @@ struct InterpreterResult {
 template <typename ValueT>
 absl::StatusOr<ValueT> InterpreterResultToStatusOrValue(
     const InterpreterResult<ValueT>& result) {
-  absl::Status status = InterpreterEventsToStatus(result.events);
-
-  if (!status.ok()) {
-    return status;
-  }
-
+  XLS_RETURN_IF_ERROR(result.events.ToStatus());
   return result.value;
 }
 
