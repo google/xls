@@ -467,6 +467,21 @@ class InferenceTableImpl : public InferenceTable {
     return std::nullopt;
   }
 
+  void RemoveCachedParametricStructContext(
+      const ParametricContext* context) override {
+    CHECK(context->is_struct());
+    const auto& details = std::get<ParametricStructDetails>(context->details());
+    auto def_it = parametric_struct_contexts_.find(details.struct_or_proc_def);
+    if (def_it == parametric_struct_contexts_.end()) {
+      return;
+    }
+    auto& contexts = def_it->second;
+    auto context_it = contexts.find(details.env);
+    if (context_it != contexts.end() && context_it->second == context) {
+      contexts.erase(context_it);
+    }
+  }
+
   absl::Status AddStructBindingAnnotationsForContext(
       const StructDefBase* struct_def, ParametricEnv parametric_env,
       const ParametricContext* context) override {
@@ -509,8 +524,12 @@ class InferenceTableImpl : public InferenceTable {
                                              MutableParametricContextData{});
     converted_parametric_envs_.emplace(result, parametric_env);
 
-    XLS_RETURN_IF_ERROR(AddStructBindingAnnotationsForContext(
-        struct_def, parametric_env, result));
+    absl::Status binding_status = AddStructBindingAnnotationsForContext(
+        struct_def, parametric_env, result);
+    if (!binding_status.ok()) {
+      RemoveCachedParametricStructContext(result);
+      return binding_status;
+    }
     return StructContextResult{.context = result, .created_new = true};
   }
 

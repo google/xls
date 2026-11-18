@@ -3,7 +3,7 @@ package test_module
 file_number 0 "xls/dslx/stdlib/std.x"
 file_number 1 "test_module.x"
 
-fn ____std__enumerate__4_u8_counted_for_0_body(i: bits[32] id=4, result: (bits[32], bits[8])[4] id=7, x: bits[8][4] id=8) -> (bits[32], bits[8])[4] {
+fn ___0T__3_std_0__9_enumerate__V1_4_T4_u1_8_counted_for_0_body(i: bits[32] id=4, result: (bits[32], bits[8])[4] id=7, x: bits[8][4] id=8) -> (bits[32], bits[8])[4] {
   literal.5: bits[32] = literal(value=0, id=5)
   add.6: bits[32] = add(i, literal.5, id=6)
   array_index.9: bits[8] = array_index(x, indices=[add.6], id=9)
@@ -11,12 +11,12 @@ fn ____std__enumerate__4_u8_counted_for_0_body(i: bits[32] id=4, result: (bits[3
   ret array_update.11: (bits[32], bits[8])[4] = array_update(result, tuple.10, indices=[add.6], id=11)
 }
 
-fn __std__enumerate__4_u8(x: bits[8][4] id=1) -> (bits[32], bits[8])[4] {
+fn _0T__3_std_0__9_enumerate__V1_4_T4_u1_8(x: bits[8][4] id=1) -> (bits[32], bits[8])[4] {
   literal.3: (bits[32], bits[8])[4] = literal(value=[(0, 0), (0, 0), (0, 0), (0, 0)], id=3)
   N: bits[32] = literal(value=4, id=2)
-  ret counted_for.12: (bits[32], bits[8])[4] = counted_for(literal.3, trip_count=4, stride=1, body=____std__enumerate__4_u8_counted_for_0_body, invariant_args=[x], id=12)
+  ret counted_for.12: (bits[32], bits[8])[4] = counted_for(literal.3, trip_count=4, stride=1, body=___0T__3_std_0__9_enumerate__V1_4_T4_u1_8_counted_for_0_body, invariant_args=[x], id=12)
 }
 
 top fn __test_module__main(array: bits[8][4] id=13) -> (bits[32], bits[8])[4] {
-  ret invoke.14: (bits[32], bits[8])[4] = invoke(array, to_apply=__std__enumerate__4_u8, id=14)
+  ret invoke.14: (bits[32], bits[8])[4] = invoke(array, to_apply=_0T__3_std_0__9_enumerate__V1_4_T4_u1_8, id=14)
 }

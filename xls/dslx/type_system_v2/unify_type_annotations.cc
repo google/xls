@@ -492,15 +492,15 @@ class Unifier {
       const InterpValue& v1, const InterpValue& v2, const Span& span) {
     XLS_RET_CHECK(v1.IsTypeReference());
     XLS_RET_CHECK(v2.IsTypeReference());
-    if (v1 == v2) {
-      return v1;
-    }
     XLS_ASSIGN_OR_RETURN(const TypeAnnotation* t1, v1.GetTypeReference());
     XLS_ASSIGN_OR_RETURN(const TypeAnnotation* t2, v2.GetTypeReference());
+    if (t1 == t2) {
+      return InterpValue::MakeUnresolvedTypeReference(t1);
+    }
     absl::StatusOr<const TypeAnnotation*> unified_annotation =
         UnifyTypeAnnotations({t1, t2}, span);
     if (unified_annotation.ok()) {
-      return InterpValue::MakeTypeReference(*unified_annotation);
+      return InterpValue::MakeUnresolvedTypeReference(*unified_annotation);
     }
     return std::nullopt;
   }
@@ -532,7 +532,7 @@ class Unifier {
         std::optional<InterpValue> value;
         const ParametricBinding* binding = def.parametric_bindings()[i];
         if (std::holds_alternative<TypeAnnotation*>(parametric)) {
-          value = InterpValue::MakeTypeReference(
+          value = InterpValue::MakeUnresolvedTypeReference(
               std::get<TypeAnnotation*>(parametric));
         } else {
           auto* expr = std::get<Expr*>(parametric);

@@ -17,6 +17,7 @@
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
+#include <functional>
 #include <limits>
 #include <memory>
 #include <optional>
@@ -302,7 +303,7 @@ std::string InterpValue::ToStringInternal(bool humanize,
       return absl::Substitute("channel_reference($0)", channel_args);
     }
     case InterpValueTag::kTypeReference:
-      return std::get<TypeReference>(payload_).string;
+      return std::get<TypeReference>(payload_).annotation->ToString();
     case InterpValueTag::kProcInitializer: {
       const auto& initializer =
           std::get<std::shared_ptr<ProcInitializer>>(payload_);
@@ -627,6 +628,41 @@ bool InterpValue::ProcInitializer::Eq(const ProcInitializer& other) const {
   return true;
 }
 
+bool InterpValue::EqForSpecialization(const InterpValue& other) const {
+  if (!IsArray() && !IsTuple()) {
+    return Eq(other);
+  }
+  if (IsArray() != other.IsArray() || IsTuple() != other.IsTuple()) {
+    return false;
+  }
+
+  // Equal interpreter ranges can describe different sequences when their
+  // endpoints have different signedness. Compare the sequence encoded into
+  // the specialization name, with a fast path for identical symbolic ranges.
+  auto lhs_range = GetRangeData();
+  auto rhs_range = other.GetRangeData();
+  if (lhs_range && rhs_range &&
+      (*lhs_range)->start.tag() == (*rhs_range)->start.tag() &&
+      (*lhs_range)->end.tag() == (*rhs_range)->end.tag() &&
+      **lhs_range == **rhs_range) {
+    return true;
+  }
+  absl::StatusOr<int64_t> lhs_length = GetLength();
+  absl::StatusOr<int64_t> rhs_length = other.GetLength();
+  if (!lhs_length.ok() || !rhs_length.ok() || *lhs_length != *rhs_length) {
+    return false;
+  }
+  for (int64_t i = 0; i < *lhs_length; ++i) {
+    absl::StatusOr<InterpValue> lhs_element = Index(i);
+    absl::StatusOr<InterpValue> rhs_element = other.Index(i);
+    if (!lhs_element.ok() || !rhs_element.ok() ||
+        !lhs_element->EqForSpecialization(*rhs_element)) {
+      return false;
+    }
+  }
+  return true;
+}
+
 bool InterpValue::Eq(const InterpValue& other) const {
   auto values_equal = [&] {
     const std::vector<InterpValue>& lhs = GetValuesOrDie();
@@ -655,9 +691,20 @@ bool InterpValue::Eq(const InterpValue& other) const {
     // bit value can be used in any place an enum type is annotated.
     case InterpValueTag::kSBits:
     case InterpValueTag::kUBits:
-    case InterpValueTag::kTypeReference:
     case InterpValueTag::kEnum: {
       return other.HasBits() && GetBitsOrDie() == other.GetBitsOrDie();
+    }
+    case InterpValueTag::kTypeReference: {
+      if (!other.IsTypeReference()) {
+        return false;
+      }
+      const TypeReference& lhs = std::get<TypeReference>(payload_);
+      const TypeReference& rhs = std::get<TypeReference>(other.payload_);
+      if (lhs.checked_type == nullptr || rhs.checked_type == nullptr) {
+        return lhs.checked_type == nullptr && rhs.checked_type == nullptr &&
+               lhs.annotation == rhs.annotation;
+      }
+      return lhs.checked_type->IsSameSpecialization(*rhs.checked_type);
     }
     case InterpValueTag::kToken:
       return other.IsToken() && GetTokenData() == other.GetTokenData();
@@ -742,7 +789,6 @@ bool InterpValue::operator==(const InterpValue& rhs) const { return Eq(rhs); }
   }
   switch (lhs.tag_) {
     case InterpValueTag::kUBits:
-    case InterpValueTag::kTypeReference:
       return MakeBool(ucmp(lhs.GetBitsOrDie(), rhs.GetBitsOrDie()));
     case InterpValueTag::kSBits:
       return MakeBool(scmp(lhs.GetBitsOrDie(), rhs.GetBitsOrDie()));
@@ -1041,10 +1087,6 @@ const Bits& InterpValue::GetBitsOrDie() const {
   if (std::holds_alternative<Bits>(payload_)) {
     return std::get<Bits>(payload_);
   }
-  if (auto* ref = std::get_if<TypeReference>(&payload_)) {
-    return ref->bits;
-  }
-
   return std::get<EnumData>(payload_).value;
 }
 
@@ -1053,6 +1095,20 @@ absl::StatusOr<const TypeAnnotation*> InterpValue::GetTypeReference() const {
     return std::get<TypeReference>(payload_).annotation;
   }
   return absl::InvalidArgumentError("Value does not contain a type reference.");
+}
+
+absl::StatusOr<std::string> InterpValue::GetTypeReferenceSpecializationName()
+    const {
+  if (!IsTypeReference()) {
+    return absl::InvalidArgumentError(
+        "Value does not contain a type reference.");
+  }
+  const TypeReference& ref = std::get<TypeReference>(payload_);
+  if (ref.checked_type == nullptr) {
+    return absl::FailedPreconditionError(
+        "An unresolved type reference has no specialization name.");
+  }
+  return ref.checked_type->GetSpecializationName();
 }
 
 absl::StatusOr<InterpValue::ChannelReference> InterpValue::GetChannelReference()
@@ -1428,7 +1484,17 @@ bool InterpValue::operator<(const InterpValue& rhs) const {
     if (!rhs.IsTypeReference()) {
       return false;
     }
-    return Lt(rhs).value().IsTrue();
+    const TypeReference& lhs_ref = std::get<TypeReference>(payload_);
+    const TypeReference& rhs_ref = std::get<TypeReference>(rhs.payload_);
+    if (lhs_ref.checked_type == nullptr || rhs_ref.checked_type == nullptr) {
+      if (lhs_ref.checked_type != nullptr || rhs_ref.checked_type != nullptr) {
+        return lhs_ref.checked_type == nullptr;
+      }
+      return std::less<const TypeAnnotation*>{}(lhs_ref.annotation,
+                                                rhs_ref.annotation);
+    }
+    return GetTypeReferenceSpecializationName().value() <
+           rhs.GetTypeReferenceSpecializationName().value();
   }
 
   if (IsChannelReference()) {

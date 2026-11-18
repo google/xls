@@ -657,6 +657,32 @@ def get_benchmark_ir_cmd(ctx, src, append_cmd_line_args = True):
     runfiles = get_runfiles_for_xls(ctx, [benchmark_ir_tool_runfiles], extra_runfiles)
     return runfiles, cmd
 
+def _mangled_component_frame(value):
+    return "{}_{}".format(len(value), value)
+
+def _is_mangled_component(value, kind):
+    if type(value) != "string":
+        return False
+    parts = value.split("_", 1)
+    return len(parts) == 2 and parts[0] == "{}{}".format(kind, len(parts[1]))
+
+def _mangled_typed_component(value):
+    if _is_mangled_component(value, "T") or _is_mangled_component(value, "V"):
+        return value
+    elif type(value) == "bool":
+        encoded_value = "1" if value else "0"
+    elif type(value) == "int":
+        if value < 0:
+            fail("A negative parametric value needs its compiler-encoded " +
+                 "V<length>_<value> component because a Starlark int does " +
+                 "not retain its DSLX bit width.")
+        encoded_value = str(value)
+    else:
+        fail("A typed parametric argument must be a bool, a nonnegative int, " +
+             "or a compiler-encoded T<length>_<type> or " +
+             "V<length>_<value> component.")
+    return "V" + _mangled_component_frame(encoded_value)
+
 def get_mangled_ir_symbol(
         module_name,
         function_name,
@@ -674,11 +700,20 @@ def get_mangled_ir_symbol(
     Args:
       module_name: The DSLX module name that the function is within.
       function_name: The DSLX function name within the module.
-      parametric_values: Any parametric values used for instantiation (e.g. for
+      parametric_values: A tuple of parametric values used for instantiation (e.g. for
         a parametric entry point that is known to be instantiated in the IR
         converted module). This is generally for more advanced use cases like
         internals testing. The argument is mutually exclusive with argument
-        'is_proc_next'.
+        'is_proc_next'. Supply arguments in alphabetical order of their binding
+        identifiers, regardless of declaration order. For a type argument, use
+        the compiler-encoded `T<length>_<specialization-name>` component as a
+        string. The length counts characters in the checked type specialization
+        name, which this helper cannot resolve from DSLX annotations. When a
+        type is present, bools and nonnegative ints are encoded automatically.
+        For other values, pass the compiler-encoded `V<length>_<value>` string.
+        In particular, s8:-1 is `V3_255`. A bare Starlark -1 lacks the DSLX bit
+        width and is rejected. For `f<Z: type, A: bool>` instantiated with u32
+        and true, pass `parametric_values = (True, "T5_u2_32")`.
       is_implicit_token: A boolean flag denoting whether the symbol contains an
         implicit token. The argument is mutually exclusive with argument
         'is_proc_next'.
@@ -719,6 +754,18 @@ def get_mangled_ir_symbol(
     suffix = ""
 
     if parametric_values:
+        if any([_is_mangled_component(v, "T") for v in parametric_values]):
+            components = [
+                _mangled_typed_component(v)
+                for v in parametric_values
+            ]
+            return "_0T__{}{}_{}_{}__{}".format(
+                prefix_str,
+                _mangled_component_frame(module_name.replace(".", "_")),
+                _mangled_component_frame(scope),
+                _mangled_component_frame(function_name),
+                "_".join(components),
+            )
         suffix = "__" + "_".join(
             [
                 str(v)

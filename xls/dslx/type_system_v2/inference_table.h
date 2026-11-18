@@ -476,6 +476,11 @@ class InferenceTable {
   virtual std::optional<StructContextResult> GetCachedParametricStructContext(
       const StructDefBase* struct_def, ParametricEnv parametric_env) = 0;
 
+  // Evicts a failed struct context only if it is still the cached context for
+  // its definition and environment. The context and its metadata remain owned.
+  virtual void RemoveCachedParametricStructContext(
+      const ParametricContext* context) = 0;
+
   // Defines a parametric struct context with the given parametric values, or
   // returns the existing one with the same values. The idea is to tie each
   // struct parameterization to a canonicalized env to avoid unnecessary

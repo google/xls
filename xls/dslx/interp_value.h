@@ -352,12 +352,39 @@ class InterpValue {
     return InterpValue(InterpValueTag::kToken, std::make_shared<TokenData>());
   }
 
-  static InterpValue MakeTypeReference(const TypeAnnotation* annotation) {
-    std::string string = annotation->ToString();
+  // Implemented by the checked type system, which owns the semantic meaning
+  // of a concrete type. Keeping this interface here avoids a dependency cycle
+  // between interpreter values and checked types.
+  class TypeReferenceData {
+   public:
+    virtual ~TypeReferenceData() = default;
+    // Defines a symmetric equivalence relation on concrete specializations.
+    virtual bool IsSameSpecialization(const TypeReferenceData& other) const = 0;
+    // Returns a deterministic name for this specialization. Equivalent
+    // specializations must either both fail or return identical names.
+    // Distinct specializations must have distinct successful names.
+    // Environment hashing and IR symbol naming rely on this contract.
+    virtual absl::StatusOr<std::string> GetSpecializationName() const = 0;
+  };
+
+  // Creates a concrete generic type binding. The annotation and any nominal
+  // declarations referenced by the checked type are borrowed. Their modules
+  // must outlive the value. The checked data owns the resolved type.
+  static InterpValue MakeTypeReference(
+      const TypeAnnotation* annotation,
+      std::shared_ptr<const TypeReferenceData> checked_type) {
+    CHECK(annotation != nullptr);
+    CHECK(checked_type != nullptr);
     return InterpValue(InterpValueTag::kTypeReference,
-                       TypeReference{.annotation = annotation,
-                                     .string = string,
-                                     .bits = Bits::FromBytes(string)});
+                       TypeReference{annotation, std::move(checked_type)});
+  }
+
+  // An annotation still undergoing inference has no specialization identity.
+  static InterpValue MakeUnresolvedTypeReference(
+      const TypeAnnotation* annotation) {
+    CHECK(annotation != nullptr);
+    return InterpValue(InterpValueTag::kTypeReference,
+                       TypeReference{annotation, nullptr});
   }
 
   // Queries
@@ -389,6 +416,10 @@ class InterpValue {
   bool IsTypeReference() const {
     return tag_ == InterpValueTag::kTypeReference;
   }
+  bool IsUnresolvedTypeReference() const {
+    return IsTypeReference() &&
+           std::get<TypeReference>(payload_).checked_type == nullptr;
+  }
   bool IsProcInitializer() const {
     return tag_ == InterpValueTag::kProcInitializer;
   }
@@ -413,6 +444,11 @@ class InterpValue {
   // interpreter performs these operations.
   bool Eq(const InterpValue& other) const;
   bool Ne(const InterpValue& other) const { return !Eq(other); }
+
+  // Compares compile-time specialization bindings by their logical values.
+  // In particular, arrays and tuples compare their lengths and elements even
+  // when an array is represented by a symbolic range.
+  bool EqForSpecialization(const InterpValue& other) const;
 
   // Various operations -- tag is not applicable for the operation, a status
   // error should be returned.
@@ -556,6 +592,8 @@ class InterpValue {
   absl::StatusOr<Bits> GetBits() const;
   const Bits& GetBitsOrDie() const;
   absl::StatusOr<const TypeAnnotation*> GetTypeReference() const;
+  // Returns the checked type's IR name component, or an error during inference.
+  absl::StatusOr<std::string> GetTypeReferenceSpecializationName() const;
   absl::StatusOr<ChannelReference> GetChannelReference() const;
   const ChannelReference& GetChannelReferenceOrDie() const {
     return std::get<ChannelReference>(payload_);
@@ -599,8 +637,7 @@ class InterpValue {
   // apply to enum values as well.
   bool HasBits() const {
     return std::holds_alternative<Bits>(payload_) ||
-           std::holds_alternative<EnumData>(payload_) ||
-           std::holds_alternative<TypeReference>(payload_);
+           std::holds_alternative<EnumData>(payload_);
   }
 
   bool HasValues() const {
@@ -669,8 +706,7 @@ class InterpValue {
 
   struct TypeReference {
     const TypeAnnotation* annotation;
-    std::string string;
-    Bits bits;
+    std::shared_ptr<const TypeReferenceData> checked_type;
   };
 
   using Payload =
