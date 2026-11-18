@@ -15,6 +15,7 @@
 #include "xls/codegen/module_builder.h"
 
 #include <cstdint>
+#include <string>
 #include <vector>
 
 #include "gmock/gmock.h"
@@ -26,7 +27,9 @@
 #include "xls/codegen/vast/vast.h"
 #include "xls/common/status/matchers.h"
 #include "xls/ir/bits.h"
+#include "xls/ir/fileno.h"
 #include "xls/ir/function_builder.h"
+#include "xls/ir/nodes.h"
 #include "xls/ir/package.h"
 #include "xls/ir/source_location.h"
 #include "xls/ir/type.h"
@@ -1080,6 +1083,79 @@ TEST_P(ModuleBuilderTest, PortCollidesWithModuleName) {
           absl::StatusCode::kInvalidArgument,
           HasSubstr(
               "Unable to name input port `my_module` on module `my_module`")));
+}
+
+TEST_P(ModuleBuilderTest, PropagatesSourceInfo) {
+  Package package(TestBaseName());
+  package.SetFileno(Fileno(0), "test.x");
+  Type* u1 = package.GetBitsType(1);
+  Type* u32 = package.GetBitsType(32);
+
+  SourceInfo type_var_loc(SourceLocation(Fileno(0), Lineno(1), Colno(2)));
+  SourceInfo bits_var_loc(SourceLocation(Fileno(0), Lineno(3), Colno(4)));
+  SourceInfo add_loc(SourceLocation(Fileno(0), Lineno(5), Colno(6)));
+  SourceInfo gate_loc(SourceLocation(Fileno(0), Lineno(7), Colno(8)));
+  SourceInfo reg_loc(SourceLocation(Fileno(0), Lineno(9), Colno(10)));
+
+  FunctionBuilder fb(TestBaseName(), &package);
+  BValue cond_param = fb.Param("cond", u1);
+  BValue x_param = fb.Param("x", u32);
+  BValue y_param = fb.Param("y", u32);
+  BValue sum_node = fb.Add(x_param, y_param, add_loc, "sum");
+  BValue gated_node = fb.Gate(cond_param, sum_node, gate_loc, "gated");
+  XLS_ASSERT_OK(fb.Build());
+
+  VerilogFile file(GetFileType(), AnnotationType::kSrcAttribute,
+                   package.fileno_to_name());
+  ResetProto reset;
+  reset.set_name("rst");
+  reset.set_asynchronous(false);
+  reset.set_active_low(false);
+  ModuleBuilder mb(TestBaseName(), &file, codegen_options(),
+                   /*clk_name=*/"clk", reset);
+  XLS_ASSERT_OK_AND_ASSIGN(LogicRef * cond, mb.AddInputPort("cond", u1));
+  XLS_ASSERT_OK_AND_ASSIGN(LogicRef * x, mb.AddInputPort("x", u32));
+  XLS_ASSERT_OK_AND_ASSIGN(LogicRef * y, mb.AddInputPort("y", u32));
+
+  XLS_ASSERT_OK_AND_ASSIGN(LogicRef * type_var,
+                           mb.DeclareVariable("type_var", u32, type_var_loc));
+  XLS_ASSERT_OK(mb.Assign(type_var, x, u32));
+  XLS_ASSERT_OK_AND_ASSIGN(LogicRef * bits_var,
+                           mb.DeclareVariable("bits_var", 16, bits_var_loc));
+  XLS_ASSERT_OK(mb.Assign(bits_var, file.Slice(x, 15, 0, SourceInfo()),
+                          package.GetBitsType(16)));
+  XLS_ASSERT_OK_AND_ASSIGN(LogicRef * sum,
+                           mb.EmitAsAssignment("sum", sum_node.node(), {x, y}));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      IndexableExpression * gated,
+      mb.EmitGate(gated_node.node()->As<Gate>(), cond, sum));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      ModuleBuilder::Register reg,
+      mb.DeclareRegister("r", u32, gated,
+                         file.Literal(UBits(0, 32), SourceInfo()), reg_loc));
+  XLS_ASSERT_OK(mb.AssignRegisters({reg}));
+  XLS_ASSERT_OK(mb.AddOutputPort("out", u32, reg.ref));
+
+  std::string verilog = file.Emit();
+  EXPECT_THAT(
+      verilog,
+      HasSubstr("  (* src = \"test.x:1.2-1.2\" *)\n  wire [31:0] type_var;"));
+  EXPECT_THAT(
+      verilog,
+      HasSubstr("  (* src = \"test.x:3.4-3.4\" *)\n  wire [15:0] bits_var;"));
+  EXPECT_THAT(
+      verilog,
+      HasSubstr("  (* src = \"test.x:5.6-5.6\" *)\n  wire [31:0] sum;"));
+  EXPECT_THAT(
+      verilog,
+      HasSubstr("  (* src = \"test.x:7.8-7.8\" *)\n  wire [31:0] gated;"));
+  EXPECT_THAT(verilog,
+              HasSubstr("  (* src = \"test.x:9.10-9.10\" *)\n  reg [31:0] r;"));
+  EXPECT_THAT(verilog, HasSubstr("      (* src = \"test.x:9.10-9.10\" *)\n"
+                                 "      r <= 32'h0000_0000;"));
+  EXPECT_THAT(verilog, HasSubstr("      (* src = \"test.x:9.10-9.10\" *)\n"
+                                 "      r <= gated;"));
 }
 
 INSTANTIATE_TEST_SUITE_P(ModuleBuilderTestInstantiation, ModuleBuilderTest,

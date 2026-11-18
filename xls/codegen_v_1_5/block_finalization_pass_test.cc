@@ -64,8 +64,11 @@ TEST_F(BlockFinalizationPassTest, BasicScheduledBlock) {
 
   XLS_ASSERT_OK(sblk->AddClockPort("clk"));
   BValue in = sbb.InputPort("in", p->GetBitsType(32));
-  XLS_ASSERT_OK_AND_ASSIGN(Register * data_reg,
-                           sblk->AddRegister("data_reg", p->GetBitsType(32)));
+  SourceInfo reg_loc(SourceLocation(Fileno(0), Lineno(10), Colno(5)));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Register * data_reg,
+      sblk->AddRegister("data_reg", p->GetBitsType(32),
+                        /*reset_value=*/std::nullopt, reg_loc));
   in.node()->As<InputPort>()->set_system_verilog_type("my_type");
 
   BValue iv0 = sbb.Literal(UBits(1, 1));
@@ -117,7 +120,9 @@ TEST_F(BlockFinalizationPassTest, BasicScheduledBlock) {
                            block->GetOutputPort("out"));
   EXPECT_EQ(output_port->direction(), PortDirection::kOutput);
   EXPECT_EQ(output_port->system_verilog_type(), "my_type");
-  EXPECT_TRUE(block->GetRegister("data_reg").ok());
+  XLS_ASSERT_OK_AND_ASSIGN(Register * cloned_reg,
+                           block->GetRegister("data_reg"));
+  EXPECT_EQ(cloned_reg->loc().locations, reg_loc.locations);
 
   EXPECT_THAT(p->blocks(),
               Each(Pointee(Property(&Block::IsScheduled, IsFalse()))));

@@ -1249,6 +1249,30 @@ TEST(FunctionBuilderTest, Registers) {
   EXPECT_THAT(get_reg_write(x_3)->load_enable().value(), m::InputPort("le"));
 }
 
+TEST(FunctionBuilderTest, InsertRegisterPreservesSourceInfo) {
+  Package p("p");
+  BlockBuilder b("b", &p);
+  XLS_ASSERT_OK(b.block()->AddClockPort("clk"));
+
+  BValue x = b.InputPort("x", p.GetBitsType(32));
+  BValue rst = b.ResetPort(
+      "rst", ResetBehavior{.asynchronous = false, .active_low = false});
+  SourceInfo loc1(SourceLocation(Fileno(0), Lineno(10), Colno(1)));
+  SourceInfo loc2(SourceLocation(Fileno(0), Lineno(20), Colno(2)));
+
+  b.InsertRegister("x_1", x, /*load_enable=*/std::nullopt, loc1);
+  b.InsertRegister("x_2", x, rst, Value(UBits(42, 32)),
+                   /*load_enable=*/std::nullopt, loc2);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block, b.Build());
+
+  XLS_ASSERT_OK_AND_ASSIGN(Register * reg1, block->GetRegister("x_1"));
+  EXPECT_EQ(reg1->loc().locations, loc1.locations);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Register * reg2, block->GetRegister("x_2"));
+  EXPECT_EQ(reg2->loc().locations, loc2.locations);
+}
+
 TEST(FunctionBuilderTest, BinOpMismatchedWidths) {
   Package p("p");
   BitsType* type8 = p.GetBitsType(8);

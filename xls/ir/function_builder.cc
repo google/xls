@@ -2203,8 +2203,8 @@ BValue BlockBuilder::InsertRegister(std::string_view name, BValue data,
   if (ErrorPending()) {
     return BValue();
   }
-  absl::StatusOr<Register*> reg_status =
-      block()->AddRegister(name, data.GetType());
+  absl::StatusOr<Register*> reg_status = block()->AddRegister(
+      name, data.GetType(), /*reset_value=*/std::nullopt, loc);
   if (!reg_status.ok()) {
     return SetError(absl::StrFormat("Cannot add register: %s",
                                     reg_status.status().message()),
@@ -2224,7 +2224,7 @@ BValue BlockBuilder::InsertRegister(std::string_view name, BValue data,
     return BValue();
   }
   absl::StatusOr<Register*> reg_status =
-      block()->AddRegister(name, data.GetType(), std::move(reset_value));
+      block()->AddRegister(name, data.GetType(), std::move(reset_value), loc);
   if (!reg_status.ok()) {
     return SetError(absl::StrFormat("Cannot add register: %s",
                                     reg_status.status().message()),

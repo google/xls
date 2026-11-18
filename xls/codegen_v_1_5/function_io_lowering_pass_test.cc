@@ -46,10 +46,14 @@
 #include "xls/ir/bits.h"
 #include "xls/ir/block.h"
 #include "xls/ir/events.h"
+#include "xls/ir/fileno.h"
 #include "xls/ir/function.h"
+#include "xls/ir/function_builder.h"
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/package.h"
+#include "xls/ir/register.h"
+#include "xls/ir/source_location.h"
 #include "xls/ir/value.h"
 #include "xls/ir/value_utils.h"
 #include "xls/passes/pass_base.h"
@@ -768,6 +772,46 @@ TEST_F(FunctionIOLoweringPassTest, MultiStageWithFloppedInputsAndValid) {
                   /*expected_latency=*/4,
                   {.input_valid = "in_valid", .output_valid = "out_valid"}),
               IsOkAndHolds(expected_output));
+}
+
+TEST_F(FunctionIOLoweringPassTest,
+       PreservesSourceInfoOnFloppedIOAndOutputPort) {
+  auto p = CreatePackage();
+  p->SetFileno(Fileno(0), "test.x");
+  SourceInfo param_loc(SourceLocation(Fileno(0), Lineno(1), Colno(2)));
+  SourceInfo ret_loc(SourceLocation(Fileno(0), Lineno(3), Colno(4)));
+
+  FunctionBuilder fb("id_func", p.get());
+  BValue x = fb.Param("x", p->GetBitsType(32), param_loc);
+  BValue ret = fb.Identity(x, ret_loc);
+  XLS_ASSERT_OK(fb.BuildWithReturnValue(ret).status());
+  XLS_ASSERT_OK(p->SetTopByName("id_func"));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      BlockConversionPassOptions options,
+      CreateBlockConversionPassOptions(p.get(), /*pipeline_stages=*/1,
+                                       ::xls::verilog::CodegenOptions()
+                                           .clock_name("clk")
+                                           .flop_inputs(true)
+                                           .flop_outputs(true)));
+  XLS_ASSERT_OK_AND_ASSIGN(ScheduledBlock * sb,
+                           CreateScheduledBlock(p.get(), "id_func", options));
+
+  PassResults results;
+  BlockConversionContext context;
+  ASSERT_THAT(FunctionIOLoweringPass().Run(p.get(), options, &results, context),
+              IsOkAndHolds(true));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Register * input_flop,
+                           sb->GetRegister("x__input_flop"));
+  EXPECT_EQ(input_flop->loc().locations, param_loc.locations);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Register * output_flop,
+                           sb->GetRegister("out__output_flop"));
+  EXPECT_EQ(output_flop->loc().locations, ret_loc.locations);
+
+  XLS_ASSERT_OK_AND_ASSIGN(OutputPort * output_port, sb->GetOutputPort("out"));
+  EXPECT_EQ(output_port->loc().locations, ret_loc.locations);
 }
 
 }  // namespace

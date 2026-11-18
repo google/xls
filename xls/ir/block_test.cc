@@ -36,6 +36,7 @@
 #include "xls/common/visitor.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/channel.h"
+#include "xls/ir/fileno.h"
 #include "xls/ir/foreign_function_data.pb.h"
 #include "xls/ir/function.h"
 #include "xls/ir/function_base.h"
@@ -394,6 +395,21 @@ TEST_F(BlockTest, BlockClone) {
                    {{"sum_d", "not_a_sum_d"}, {"state", "not_a_state"}}));
 
   ExpectIr(clone->DumpIr(), TestName(), "cloned");
+}
+
+TEST_F(BlockTest, ClonePreservesRegisterSourceInfo) {
+  auto p = CreatePackage();
+  BlockBuilder bb("my_block", p.get());
+  XLS_ASSERT_OK(bb.block()->AddClockPort("clk"));
+  SourceInfo reg_loc(SourceLocation(Fileno(0), Lineno(12), Colno(3)));
+  BValue x = bb.InputPort("x", p->GetBitsType(32));
+  BValue r = bb.InsertRegister("r", x, /*load_enable=*/std::nullopt, reg_loc);
+  bb.OutputPort("out", r);
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block, bb.Build());
+
+  XLS_ASSERT_OK_AND_ASSIGN(Block * clone, block->Clone("cloned"));
+  XLS_ASSERT_OK_AND_ASSIGN(Register * cloned_reg, clone->GetRegister("r"));
+  EXPECT_EQ(cloned_reg->loc().locations, reg_loc.locations);
 }
 
 TEST_F(BlockTest, BlockWithTrivialFeedbackDumpOrderTest) {

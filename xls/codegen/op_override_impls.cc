@@ -94,7 +94,7 @@ absl::StatusOr<NodeRepresentation> EmitOpOverrideAssignment(
     const OpOverrideAssignment& op_override, Node* node, std::string_view name,
     absl::Span<NodeRepresentation const> inputs, ModuleBuilder& mb) {
   XLS_ASSIGN_OR_RETURN(LogicRef * ref,
-                       mb.DeclareVariable(name, node->GetType()));
+                       mb.DeclareVariable(name, node->GetType(), node->loc()));
   absl::flat_hash_map<std::string, std::string> placeholders;
   for (size_t i = 0; i < inputs.size(); ++i) {
     if (std::holds_alternative<Expression*>(inputs[i])) {
@@ -186,7 +186,7 @@ absl::StatusOr<NodeRepresentation> EmitOpOverrideInstantiation(
     std::string_view name, absl::Span<NodeRepresentation const> inputs,
     ModuleBuilder& mb) {
   XLS_ASSIGN_OR_RETURN(LogicRef * ref,
-                       mb.DeclareVariable(name, node->GetType()));
+                       mb.DeclareVariable(name, node->GetType(), node->loc()));
 
   absl::flat_hash_map<std::string, std::string> placeholders;
 

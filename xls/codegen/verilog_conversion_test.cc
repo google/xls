@@ -2590,6 +2590,49 @@ TEST_P(VerilogConversionTest, StrategyLineDirectiveEmitsLineDirectives) {
   }
 }
 
+TEST_P(VerilogConversionTest,
+       StrategyAttributeEmitsSrcAttributesOnWiresAndRegisters) {
+  Package package(TestBaseName());
+  package.SetFileno(Fileno(0), "test.x");
+  Type* u32 = package.GetBitsType(32);
+  BlockBuilder bb(TestBaseName(), &package);
+  XLS_ASSERT_OK(bb.block()->AddClockPort("clk"));
+  BValue rst = bb.ResetPort(
+      "rst", ResetBehavior{.asynchronous = false, .active_low = false});
+  BValue a = bb.InputPort("a", u32);
+  BValue b = bb.InputPort("b", u32);
+  SourceInfo add_loc(SourceLocation(Fileno(0), Lineno(1), Colno(1)));
+  SourceInfo reg_loc(SourceLocation(Fileno(0), Lineno(2), Colno(3)));
+  BValue sum = bb.Add(a, b, add_loc, "sum");
+  BValue reg_sum = bb.InsertRegister("reg_sum", sum, rst, Value(UBits(0, 32)),
+                                     /*load_enable=*/std::nullopt, reg_loc);
+  bb.OutputPort("out", reg_sum);
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block, bb.Build());
+
+  CodegenOptions options = codegen_options("clk");
+  options.reset("rst", /*asynchronous=*/false, /*active_low=*/false,
+                /*reset_data_path=*/true);
+  options.separate_lines(true);
+  options.source_annotation_strategy(
+      CodegenOptions::SourceAnnotationStrategy::kSrcAttribute);
+  XLS_ASSERT_OK_AND_ASSIGN(std::string verilog,
+                           GenerateVerilog(block, options));
+
+  EXPECT_THAT(verilog,
+              testing::HasSubstr(
+                  "  (* src = \"test.x:1.1-1.1\" *)\n  wire [31:0] sum;"));
+  EXPECT_THAT(verilog,
+              testing::HasSubstr(
+                  "  (* src = \"test.x:2.3-2.3\" *)\n  reg [31:0] reg_sum;"));
+  EXPECT_THAT(verilog,
+              testing::HasSubstr("      (* src = \"test.x:2.3-2.3\" *)\n      "
+                                 "reg_sum <= 32'h0000_0000;"));
+  EXPECT_THAT(
+      verilog,
+      testing::HasSubstr(
+          "      (* src = \"test.x:2.3-2.3\" *)\n      reg_sum <= sum;"));
+}
+
 }  // namespace
 }  // namespace verilog
 }  // namespace xls

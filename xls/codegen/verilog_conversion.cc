@@ -117,8 +117,9 @@ absl::StatusOr<NodeRepresentation> CodegenNodeWithUnrepresentedOperands(
         FlattenTuple(nonempty_elements, node->GetType()->AsTupleOrDie(),
                      mb->file(), node->loc()));
     if (emit_as_assignment) {
-      XLS_ASSIGN_OR_RETURN(LogicRef * ref,
-                           mb->DeclareVariable(name, node->GetType()));
+      XLS_ASSIGN_OR_RETURN(
+          LogicRef * ref,
+          mb->DeclareVariable(name, node->GetType(), node->loc()));
       XLS_RETURN_IF_ERROR(mb->Assign(ref, expr, node->GetType()));
       return ref;
     }
@@ -989,7 +990,8 @@ class BlockGenerator {
                         shuffled_outputs, rng())) {
         XLS_ASSIGN_OR_RETURN(
             node_exprs_[output],
-            mb_.DeclareVariable(output->GetName(), output->GetType()));
+            mb_.DeclareVariable(output->GetName(), output->GetType(),
+                                output->loc()));
       }
     }
     return absl::OkStatus();
