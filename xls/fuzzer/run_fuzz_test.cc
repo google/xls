@@ -42,7 +42,7 @@ namespace xls {
 namespace {
 
 constexpr int64_t kCallsPerSample = 8;
-constexpr int64_t kSampleCount = 200;
+constexpr int64_t kSampleCount = 120;
 constexpr int64_t kProcTicks = 100;
 
 // Returns the directory in which to write crashers.
@@ -185,8 +185,10 @@ TEST_P(RunFuzzSeededTest, TestSeed) {
   }
 }
 
+// Keep the parameterized seed count in sync with `shard_count = 50` in BUILD so
+// each shard executes one seeded test (50 * 120 = 6,000 samples total).
 INSTANTIATE_TEST_SUITE_P(RunFuzzSeededTest, RunFuzzSeededTest,
-                         ::testing::Range<int64_t>(0, 30));
+                         ::testing::Range<int64_t>(0, 50));
 
 }  // namespace
 }  // namespace xls
