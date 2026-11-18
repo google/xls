@@ -373,6 +373,7 @@ operations are free to return any values that sum to the product `lhs * rhs`.
 ### Equality comparison operations
 
 Performs an equality comparison on a pair of identically-typed operands.
+Neither operand may contain a token, including within a tuple or array.
 Produces a result of bits[1] type.
 
 **Syntax**
