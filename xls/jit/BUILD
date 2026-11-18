@@ -683,6 +683,11 @@ xls_dslx_ir(
 xls_aot_generate(
     name = "multi_proc_aot",
     src = ":multi_proc",
+    aot_target = select({
+        "@platforms//cpu:aarch64": "aarch64",
+        "@platforms//cpu:x86_64": "x86_64",
+        "//conditions:default": "native",
+    }),
     salt_symbols = False,
     top_type = "PROC",
     with_msan = XLS_IS_MSAN_BUILD,
@@ -1362,6 +1367,11 @@ xls_aot_generate(
     name = "multi_function_aot",
     testonly = True,
     src = ":multi_function",
+    aot_target = select({
+        "@platforms//cpu:aarch64": "aarch64",
+        "@platforms//cpu:x86_64": "x86_64",
+        "//conditions:default": "native",
+    }),
     salt_symbols = False,
     top = "multi_function_one",
     top_type = "FUNCTION",
@@ -1372,6 +1382,11 @@ xls_aot_generate(
     name = "multi_function_aot_coverage",
     testonly = True,
     src = ":multi_function",
+    aot_target = select({
+        "@platforms//cpu:aarch64": "aarch64",
+        "@platforms//cpu:x86_64": "x86_64",
+        "//conditions:default": "native",
+    }),
     enable_llvm_coverage = True,
     salt_symbols = False,
     top = "multi_function_one",
@@ -1383,6 +1398,11 @@ xls_aot_generate(
     name = "multi_function_aot_coverage_jobs",
     testonly = True,
     src = ":multi_function",
+    aot_target = select({
+        "@platforms//cpu:aarch64": "aarch64",
+        "@platforms//cpu:x86_64": "x86_64",
+        "//conditions:default": "native",
+    }),
     enable_llvm_coverage = True,
     jobs = 2,
     salt_symbols = False,
@@ -1516,6 +1536,11 @@ cc_xls_ir_wrapper(
 xls_aot_generate(
     name = "multi_function_with_trace_aot",
     src = ":multi_function_with_trace.ir",
+    aot_target = select({
+        "@platforms//cpu:aarch64": "aarch64",
+        "@platforms//cpu:x86_64": "x86_64",
+        "//conditions:default": "native",
+    }),
     salt_symbols = False,
     top = "multi_function_one",
     top_type = "FUNCTION",
@@ -1535,7 +1560,7 @@ genrule(
     srcs = ["//xls/examples/dslx_module:manual_chan_caps_streaming_configured_opt_ir_proc_scoped.opt.ir"],
     outs = ["some_caps_no_idents.ir"],
     cmd = """
-        $(location //xls/dev_tools:remove_identifiers_main) $< > $@
+        $(execpath //xls/dev_tools:remove_identifiers_main) $< > $@
         """,
     tools = ["//xls/dev_tools:remove_identifiers_main"],
 )
@@ -1543,6 +1568,11 @@ genrule(
 xls_aot_generate(
     name = "specialized_caps_aot",
     src = ":some_caps_no_idents",
+    aot_target = select({
+        "@platforms//cpu:aarch64": "aarch64",
+        "@platforms//cpu:x86_64": "x86_64",
+        "//conditions:default": "native",
+    }),
     salt_symbols = False,
     top_type = "PROC",
     with_msan = XLS_IS_MSAN_BUILD,
@@ -1605,7 +1635,7 @@ genrule(
     srcs = [":multi_function_aot_pb"],
     outs = ["generate_aot_main_wrapper.cc"],
     cmd = """
-    $(location :aot_main_wrapper_main) -input 'bits[8]:3' -result 'bits[8]:15' -output $@ -package $(location :multi_function_aot_pb)
+    $(execpath :aot_main_wrapper_main) -input 'bits[8]:3' -result 'bits[8]:15' -output $@ -package $(execpath :multi_function_aot_pb)
     """,
     tools = [":aot_main_wrapper_main"],
 )
