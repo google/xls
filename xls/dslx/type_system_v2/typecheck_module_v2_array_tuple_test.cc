@@ -34,6 +34,42 @@ using ::absl_testing::IsOkAndHolds;
 using ::testing::AllOf;
 using ::testing::HasSubstr;
 
+TEST(TypecheckV2Test, EqualityWithTokenTupleFails) {
+  EXPECT_THAT(R"(
+const A = token();
+const B = token();
+
+pub fn main(x: bool) -> bool {
+  (A,) == (if x { A } else { B },)
+}
+)",
+              TypecheckFails(
+                  HasSubstr("'==' requires operands that support equality")));
+}
+
+TEST(TypecheckV2Test, InequalityWithTokenFails) {
+  EXPECT_THAT("fn f(a: token, b: token) -> bool { a != b }",
+              TypecheckFails(
+                  HasSubstr("'!=' requires operands that support equality")));
+}
+
+TEST(TypecheckV2Test, EqualityWithNestedChannelFails) {
+  EXPECT_THAT(R"(
+struct Handles { pair: (u32, chan<u32> in) }
+fn f(a: Handles, b: Handles) -> bool { a == b }
+)",
+              TypecheckFails(
+                  HasSubstr("'==' requires operands that support equality")));
+}
+
+TEST(TypecheckV2Test, EqualityWithComparableAggregateMembers) {
+  XLS_EXPECT_OK(TypecheckV2(R"(
+enum E : u2 { A = 0, B = 1 }
+struct Record { payload: (E, uN[7][2], ()) }
+fn f(a: Record, b: Record) -> bool { a == b && a != b }
+)"));
+}
+
 TEST(TypecheckV2Test, ConcatOfBitsLiterals) {
   EXPECT_THAT("const X = u8:3 ++ u1:1;", TopNodeHasType("uN[9]"));
 }
