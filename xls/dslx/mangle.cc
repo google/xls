@@ -51,11 +51,14 @@ std::string MangleInterpValue(const InterpValue& value) {
   }
 
   if (value.IsTypeReference()) {
+    // A comma followed by "tuple_end" mangles to "__tuple_end". The "0" after
+    // "__" distinguishes tuple markers because DSLX identifiers start with a
+    // letter or underscore.
     std::string result =
         absl::StrReplaceAll(value.ToString(), {{"[", "__dim_"},
                                                {"]", ""},
-                                               {"(", "__tuple_"},
-                                               {")", ""},
+                                               {"(", "__0tuple_start_"},
+                                               {")", "__0tuple_end"},
                                                {",", "__"},
                                                {" ", ""},
                                                {"<", "__type_"},
