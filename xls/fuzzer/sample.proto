@@ -55,6 +55,11 @@ message SampleOptionsProto {
   // also run the opt IR interpretation unconditionally?
   optional bool use_jit = 6;
 
+  // Optimization level (0-3) for LLVM JIT compilation in eval_ir_main and
+  // eval_proc_main. If unset, uses the tool's default optimization level. Only
+  // meaningful when use_jit is true.
+  optional int64 llvm_opt_level = 20;
+
   // Generate Verilog from the optimized IR. Requires optimize_ir to be true.
   optional bool codegen = 7;
 

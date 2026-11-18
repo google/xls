@@ -44,6 +44,9 @@ namespace {
 constexpr int64_t kCallsPerSample = 8;
 constexpr int64_t kSampleCount = 120;
 constexpr int64_t kProcTicks = 100;
+// Use LLVM -O1 to reduce JIT compilation overhead compared to the default -O3
+// while still exercising LLVM optimization passes.
+constexpr int64_t kLlvmOptLevel = 1;
 
 // Returns the directory in which to write crashers.
 //
@@ -127,6 +130,7 @@ class RunFuzzTest : public ::testing::Test {
     options.set_proc_ticks(absl::GetFlag(FLAGS_generate_proc) ? kProcTicks : 0);
     options.set_codegen(false);
     options.set_simulate(false);
+    options.set_llvm_opt_level(kLlvmOptLevel);
     return options;
   }
 

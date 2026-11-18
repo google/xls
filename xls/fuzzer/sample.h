@@ -97,6 +97,13 @@ class SampleOptions {
   bool use_jit() const { return proto_.use_jit(); }
   void set_use_jit(bool value) { proto_.set_use_jit(value); }
 
+  std::optional<int64_t> llvm_opt_level() const {
+    return proto_.has_llvm_opt_level()
+               ? std::optional<int64_t>(proto_.llvm_opt_level())
+               : std::nullopt;
+  }
+  void set_llvm_opt_level(int64_t value) { proto_.set_llvm_opt_level(value); }
+
   bool codegen() const { return proto_.codegen(); }
   void set_codegen(bool value) { proto_.set_codegen(value); }
 

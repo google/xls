@@ -54,8 +54,11 @@ namespace {
 using ::absl_testing::IsOkAndHolds;
 using ::absl_testing::StatusIs;
 using ::testing::AllOf;
+using ::testing::Contains;
 using ::testing::ElementsAre;
 using ::testing::HasSubstr;
+using ::testing::Not;
+using ::testing::StartsWith;
 
 // An adder implementation using a proc in DSLX.
 constexpr std::string_view kProcAdderDSLX = R"(
@@ -1051,6 +1054,200 @@ TEST_F(SampleRunnerTest, MiscompareChannelValues) {
   XLS_ASSERT_OK_AND_ASSIGN(std::string exception,
                            GetFileContents(GetTempPath() / "exception.txt"));
   EXPECT_THAT(exception, HasSubstr(expected_error));
+}
+
+TEST_F(SampleRunnerTest, EvaluateIrPassesLlvmOptLevel) {
+  std::vector<std::vector<std::string>> recorded_args;
+  SampleRunner runner(
+      GetTempPath(),
+      {.eval_ir_main = [&recorded_args](const std::vector<std::string>& args,
+                                        const std::filesystem::path&,
+                                        const SampleOptions&)
+           -> absl::StatusOr<std::string> {
+        recorded_args.push_back(args);
+        return "bits[8]:0x8e\n";
+      }});
+  constexpr std::string_view dslx_text =
+      "fn main(x: u8, y: u8) -> u8 { x + y }";
+  SampleOptions options;
+  options.set_input_is_dslx(true);
+  options.set_ir_converter_args({"--top=main"});
+  options.set_use_jit(true);
+  options.set_optimize_ir(true);
+  options.set_llvm_opt_level(1);
+  XLS_ASSERT_OK_AND_ASSIGN(ArgsBatch args_batch,
+                           ToArgsBatch({{"bits[8]:42", "bits[8]:100"}}));
+  XLS_ASSERT_OK(
+      runner.Run(Sample(std::string(dslx_text), options, args_batch)));
+
+  // Expect 4 eval_ir_main calls: unopt interpreter, unopt JIT, opt JIT, opt
+  // interpreter.
+  ASSERT_EQ(recorded_args.size(), 4);
+  int jit_calls = 0;
+  int interp_calls = 0;
+  for (const std::vector<std::string>& args : recorded_args) {
+    if (absl::c_linear_search(args, "--use_llvm_jit")) {
+      ++jit_calls;
+      EXPECT_THAT(args, Contains("--llvm_opt_level=1"));
+    } else {
+      ++interp_calls;
+      EXPECT_THAT(args, Contains("--nouse_llvm_jit"));
+      EXPECT_THAT(args, Not(Contains(StartsWith("--llvm_opt_level="))));
+    }
+  }
+  EXPECT_EQ(jit_calls, 2);
+  EXPECT_EQ(interp_calls, 2);
+}
+
+TEST_F(SampleRunnerTest, EvaluateIrOmitsLlvmOptLevelWhenUnset) {
+  std::vector<std::vector<std::string>> recorded_args;
+  SampleRunner runner(
+      GetTempPath(),
+      {.eval_ir_main = [&recorded_args](const std::vector<std::string>& args,
+                                        const std::filesystem::path&,
+                                        const SampleOptions&)
+           -> absl::StatusOr<std::string> {
+        recorded_args.push_back(args);
+        return "bits[8]:0x8e\n";
+      }});
+  constexpr std::string_view dslx_text =
+      "fn main(x: u8, y: u8) -> u8 { x + y }";
+  SampleOptions options;
+  options.set_input_is_dslx(true);
+  options.set_ir_converter_args({"--top=main"});
+  options.set_use_jit(true);
+  options.set_optimize_ir(true);
+  XLS_ASSERT_OK_AND_ASSIGN(ArgsBatch args_batch,
+                           ToArgsBatch({{"bits[8]:42", "bits[8]:100"}}));
+  XLS_ASSERT_OK(
+      runner.Run(Sample(std::string(dslx_text), options, args_batch)));
+
+  ASSERT_EQ(recorded_args.size(), 4);
+  for (const std::vector<std::string>& args : recorded_args) {
+    EXPECT_THAT(args, Not(Contains(StartsWith("--llvm_opt_level="))));
+  }
+}
+
+TEST_F(SampleRunnerTest, EvaluateIrWithLlvmOptLevelEndToEnd) {
+  SampleRunner runner(GetTempPath());
+  constexpr std::string_view dslx_text =
+      "fn main(x: u8, y: u8) -> u8 { x + y }";
+  SampleOptions options;
+  options.set_input_is_dslx(true);
+  options.set_ir_converter_args({"--top=main"});
+  options.set_use_jit(true);
+  options.set_optimize_ir(true);
+  options.set_llvm_opt_level(1);
+  XLS_ASSERT_OK_AND_ASSIGN(ArgsBatch args_batch,
+                           ToArgsBatch({{"bits[8]:42", "bits[8]:100"}}));
+  XLS_ASSERT_OK(
+      runner.Run(Sample(std::string(dslx_text), options, args_batch)));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string opt_ir_results,
+      GetFileContents(GetTempPath() / "sample.opt.ir.results"));
+  EXPECT_THAT(absl::StrSplit(absl::StripAsciiWhitespace(opt_ir_results), "\n",
+                             absl::SkipEmpty()),
+              ElementsAre("bits[8]:0x8e"));
+}
+
+TEST_F(SampleRunnerTest, EvaluateIrProcPassesLlvmOptLevel) {
+  XLS_ASSERT_OK_AND_ASSIGN(Value expected_value,
+                           Parser::ParseTypedValue("bits[32]:43"));
+  std::vector<std::vector<std::string>> recorded_args;
+  SampleRunner runner(
+      GetTempPath(),
+      {.eval_proc_main = [&recorded_args, expected_value](
+                             const std::vector<std::string>& args,
+                             const std::filesystem::path&, const SampleOptions&)
+           -> absl::StatusOr<std::string> {
+        recorded_args.push_back(args);
+        return ChannelValuesToString(
+            absl::flat_hash_map<std::string, std::vector<Value>>(
+                {{"sample__result", {expected_value, expected_value}}}));
+      }});
+  SampleOptions options;
+  options.set_input_is_dslx(true);
+  options.set_ir_converter_args({"--top=main"});
+  options.set_sample_type(fuzzer::SAMPLE_TYPE_PROC);
+  options.set_use_jit(true);
+  options.set_optimize_ir(true);
+  options.set_llvm_opt_level(1);
+  XLS_ASSERT_OK_AND_ASSIGN(ArgsBatch args_batch,
+                           ToArgsBatch({{"bits[1]:1"}, {"bits[1]:0"}}));
+  XLS_ASSERT_OK(
+      runner.Run(Sample(std::string(kProcCounterDSLX), options, args_batch,
+                        /*ir_channel_names=*/{"sample__enable_counter"})));
+
+  // Expect 4 eval_proc_main calls: unopt interpreter, unopt JIT, opt JIT, opt
+  // interpreter.
+  ASSERT_EQ(recorded_args.size(), 4);
+  int jit_calls = 0;
+  int interp_calls = 0;
+  for (const std::vector<std::string>& args : recorded_args) {
+    if (absl::c_linear_search(args, "--backend=serial_jit")) {
+      ++jit_calls;
+      EXPECT_THAT(args, Contains("--llvm_opt_level=1"));
+    } else {
+      ++interp_calls;
+      EXPECT_THAT(args, Contains("--backend=ir_interpreter"));
+      EXPECT_THAT(args, Not(Contains(StartsWith("--llvm_opt_level="))));
+    }
+  }
+  EXPECT_EQ(jit_calls, 2);
+  EXPECT_EQ(interp_calls, 2);
+}
+
+TEST_F(SampleRunnerTest, EvaluateIrProcOmitsLlvmOptLevelWhenUnset) {
+  XLS_ASSERT_OK_AND_ASSIGN(Value expected_value,
+                           Parser::ParseTypedValue("bits[32]:43"));
+  std::vector<std::vector<std::string>> recorded_args;
+  SampleRunner runner(
+      GetTempPath(),
+      {.eval_proc_main = [&recorded_args, expected_value](
+                             const std::vector<std::string>& args,
+                             const std::filesystem::path&, const SampleOptions&)
+           -> absl::StatusOr<std::string> {
+        recorded_args.push_back(args);
+        return ChannelValuesToString(
+            absl::flat_hash_map<std::string, std::vector<Value>>(
+                {{"sample__result", {expected_value, expected_value}}}));
+      }});
+  SampleOptions options;
+  options.set_input_is_dslx(true);
+  options.set_ir_converter_args({"--top=main"});
+  options.set_sample_type(fuzzer::SAMPLE_TYPE_PROC);
+  options.set_use_jit(true);
+  options.set_optimize_ir(true);
+  XLS_ASSERT_OK_AND_ASSIGN(ArgsBatch args_batch,
+                           ToArgsBatch({{"bits[1]:1"}, {"bits[1]:0"}}));
+  XLS_ASSERT_OK(
+      runner.Run(Sample(std::string(kProcCounterDSLX), options, args_batch,
+                        /*ir_channel_names=*/{"sample__enable_counter"})));
+
+  ASSERT_EQ(recorded_args.size(), 4);
+  for (const std::vector<std::string>& args : recorded_args) {
+    EXPECT_THAT(args, Not(Contains(StartsWith("--llvm_opt_level="))));
+  }
+}
+
+TEST_F(SampleRunnerTest, EvaluateIrProcWithLlvmOptLevelEndToEnd) {
+  SampleRunner runner(GetTempPath());
+  SampleOptions options;
+  options.set_input_is_dslx(true);
+  options.set_ir_converter_args({"--top=main"});
+  options.set_sample_type(fuzzer::SAMPLE_TYPE_PROC);
+  options.set_use_jit(true);
+  options.set_optimize_ir(true);
+  options.set_llvm_opt_level(1);
+  XLS_ASSERT_OK_AND_ASSIGN(ArgsBatch args_batch,
+                           ToArgsBatch({{"bits[1]:1"}, {"bits[1]:0"}}));
+  XLS_ASSERT_OK(
+      runner.Run(Sample(std::string(kProcCounterDSLX), options, args_batch,
+                        /*ir_channel_names=*/{"sample__enable_counter"})));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string opt_ir_results,
+      GetFileContents(GetTempPath() / "sample.opt.ir.results"));
+  EXPECT_THAT(opt_ir_results, HasSubstr("bits[32]:0x2b"));
 }
 
 }  // namespace

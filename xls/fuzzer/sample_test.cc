@@ -12,6 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include "xls/fuzzer/sample.h"
+
+#include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -21,7 +24,6 @@
 #include "absl/log/log.h"
 #include "xls/common/status/matchers.h"
 #include "xls/dslx/interp_value.h"
-#include "xls/fuzzer/sample.h"
 #include "xls/fuzzer/sample.pb.h"
 
 namespace xls {
@@ -60,6 +62,8 @@ TEST(SampleCcTest, SerializeDeserializeFunction) {
             copy.options().ir_converter_args());
   EXPECT_EQ(sample.options().convert_to_ir(), copy.options().convert_to_ir());
   EXPECT_EQ(sample.options().optimize_ir(), copy.options().optimize_ir());
+  EXPECT_EQ(sample.options().llvm_opt_level(), std::nullopt);
+  EXPECT_EQ(copy.options().llvm_opt_level(), std::nullopt);
 
   std::vector<std::vector<dslx::InterpValue>> args_batch;
   XLS_EXPECT_OK(sample.GetArgsAndChannels(args_batch, nullptr));
@@ -90,6 +94,7 @@ TEST(SampleCcTest, DeserializationCanHandleNewlinesInStringLiterals) {
 // END_CONFIG
 )""";
   XLS_ASSERT_OK_AND_ASSIGN(Sample parsed, Sample::Deserialize(kNewlinedConfig));
+  EXPECT_EQ(parsed.options().llvm_opt_level(), std::nullopt);
 
   std::vector<std::vector<dslx::InterpValue>> args_batch;
   XLS_EXPECT_OK(parsed.GetArgsAndChannels(args_batch, nullptr));
@@ -130,6 +135,17 @@ TEST(SampleCcTest, SerializeDeserializeProc) {
   EXPECT_EQ(args_batch[0][1].ToString(), "u32:123");
 
   EXPECT_THAT(ir_channel_names, ElementsAre("channel0", "channel1"));
+}
+
+TEST(SampleCcTest, SerializeDeserializeLlvmOptLevel) {
+  SampleOptions options;
+  options.set_llvm_opt_level(1);
+  Sample sample(kDslxFunction, options, {{dslx::InterpValue::MakeU32(42)}});
+  XLS_ASSERT_OK_AND_ASSIGN(Sample copy,
+                           Sample::Deserialize(sample.Serialize()));
+
+  EXPECT_EQ(sample, copy);
+  EXPECT_EQ(copy.options().llvm_opt_level(), 1);
 }
 
 }  // namespace

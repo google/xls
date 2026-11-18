@@ -44,6 +44,9 @@ namespace {
 constexpr int64_t kCallsPerSample = 8;
 constexpr int64_t kSampleCount = 20;
 constexpr int64_t kProcTicks = 100;
+// Use LLVM -O1 to reduce JIT compilation overhead compared to the default -O3
+// while still exercising LLVM optimization passes.
+constexpr int64_t kLlvmOptLevel = 1;
 
 using ::absl_testing::IsOkAndHolds;
 using ::testing::IsSupersetOf;
@@ -131,6 +134,7 @@ class RunFuzzCodegenTest : public ::testing::Test {
     options.set_use_system_verilog(false);
     options.set_codegen(true);
     options.set_simulate(true);
+    options.set_llvm_opt_level(kLlvmOptLevel);
     return options;
   }
 

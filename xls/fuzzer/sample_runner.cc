@@ -331,18 +331,21 @@ absl::StatusOr<std::vector<dslx::InterpValue>> EvaluateIrFunction(
     command = CallableFromExecutable(kBinary.eval_ir_main);
   }
 
+  std::vector<std::string> args = {
+      absl::StrCat("--testvector_textproto=", testvector_path.string()),
+      absl::StrFormat("--%suse_llvm_jit", use_jit ? "" : "no"),
+  };
+  if (use_jit && options.llvm_opt_level().has_value()) {
+    args.push_back(
+        absl::StrCat("--llvm_opt_level=", *options.llvm_opt_level()));
+  }
+  args.push_back(ir_path.string());
+
   XLS_ASSIGN_OR_RETURN(
       std::string results_text,
-      RunCommand(
-          absl::StrFormat("Evaluating IR file (%s): %s",
-                          (use_jit ? "JIT" : "interpreter"), ir_path),
-          *command,
-          {
-              absl::StrCat("--testvector_textproto=", testvector_path.string()),
-              absl::StrFormat("--%suse_llvm_jit", use_jit ? "" : "no"),
-              ir_path,
-          },
-          run_dir, options));
+      RunCommand(absl::StrFormat("Evaluating IR file (%s): %s",
+                                 (use_jit ? "JIT" : "interpreter"), ir_path),
+                 *command, args, run_dir, options));
   XLS_RETURN_IF_ERROR(SetFileContents(
       absl::StrCat(ir_path.string(), ".results"), results_text));
   return ParseValues(results_text);
@@ -680,8 +683,12 @@ EvaluateIrProc(const std::filesystem::path& ir_path, int64_t tick_count,
       absl::StrCat("--testvector_textproto=", testvector_proto_path.string()),
       absl::StrCat("--ticks=", tick_count),
       absl::StrCat("--backend=", backend_type),
-      ir_path,
   };
+  if (use_jit && options.llvm_opt_level().has_value()) {
+    args.push_back(
+        absl::StrCat("--llvm_opt_level=", *options.llvm_opt_level()));
+  }
+  args.push_back(ir_path.string());
   XLS_ASSIGN_OR_RETURN(std::string results_text,
                        RunCommand(desc, *command, args, run_dir, options));
   XLS_RETURN_IF_ERROR(SetFileContents(
