@@ -67,6 +67,7 @@
 #include "xls/jit/llvm_compiler.h"
 #include "xls/jit/observer.h"
 #include "xls/jit/orc_jit.h"
+#include "xls/jit/type_buffer_metadata.h"
 #include "xls/passes/pass_base.h"
 
 namespace xls {
@@ -461,10 +462,10 @@ std::unique_ptr<BlockJitContinuation> BlockJit::NewContinuation(
 
 absl::Status BlockJit::ReconcileMultipleRegisterWrites(
     BlockJitContinuation& continuation) {
-  // Save away active register writes and clear it for next time.
-  absl::flat_hash_map<int64_t, std::vector<int64_t>> active_register_writes =
-      std::move(continuation.callbacks_.active_register_writes);
-  continuation.callbacks_.active_register_writes.clear();
+  auto& active_register_writes = continuation.callbacks_.active_register_writes;
+  if (active_register_writes.empty()) {
+    return absl::OkStatus();
+  }
 
   absl::Span<uint8_t* const> register_output_pointers =
       continuation.output_arg_set().get_element_pointers().subspan(
@@ -472,34 +473,34 @@ absl::Status BlockJit::ReconcileMultipleRegisterWrites(
   absl::Span<uint8_t* const> extra_register_write_pointers =
       continuation.output_arg_set().get_element_pointers().subspan(
           metadata_.OutputPortCount() + metadata_.RegisterCount());
+  absl::Span<const TypeBufferMetadata> reg_metadata =
+      GetRegisterBufferMetadata();
+
+  std::optional<int64_t> conflict_reg_no;
   if (!extra_register_write_pointers.empty()) {
-    for (int64_t reg_no = 0; reg_no < metadata_.RegisterCount(); ++reg_no) {
-      auto it = active_register_writes.find(reg_no);
-      if (it != active_register_writes.end()) {
-        const std::vector<int64_t>& activated_reg_writes = it->second;
-        XLS_RET_CHECK_GE(activated_reg_writes.size(), 1);
-        if (activated_reg_writes.size() == 1) {
-          // Only one register write activated. Ensure the activated value ends
-          // up in the register buffer (the buffer of the first register write).
-          if (activated_reg_writes.front() == 0) {
-            // The first register write (maybe only) activated. Nothing to do.
-          } else {
-            // Copy the value to the register output buffer.
-            register_output_pointers[reg_no];
-            extra_register_write_pointers[activated_reg_writes.front() - 1];
-            GetRegisterBufferMetadata()[reg_no];
-            memcpy(
-                register_output_pointers[reg_no],
-                extra_register_write_pointers[activated_reg_writes.front() - 1],
-                GetRegisterBufferMetadata()[reg_no].size);
-          }
-        } else {
-          return absl::InternalError(absl::StrFormat(
-              "Multiple writes of register `%s` activated in the same cycle",
-              metadata_.register_names[reg_no]));
+    for (const auto& [reg_no, activated_reg_writes] : active_register_writes) {
+      if (activated_reg_writes.size() > 1) {
+        if (!conflict_reg_no.has_value() || reg_no < *conflict_reg_no) {
+          conflict_reg_no = reg_no;
         }
+        continue;
+      }
+      if (activated_reg_writes.size() == 1 &&
+          activated_reg_writes.front() != 0) {
+        // Copy the value from the active extra write buffer to the primary
+        // register output buffer.
+        std::memcpy(
+            register_output_pointers[reg_no],
+            extra_register_write_pointers[activated_reg_writes.front() - 1],
+            reg_metadata[reg_no].size);
       }
     }
+  }
+  active_register_writes.clear();
+  if (conflict_reg_no.has_value()) {
+    return absl::InternalError(absl::StrFormat(
+        "Multiple writes of register `%s` activated in the same cycle",
+        metadata_.register_names[*conflict_reg_no]));
   }
   return absl::OkStatus();
 }
@@ -529,6 +530,7 @@ absl::Status BlockJit::RunOneCycle(BlockJitContinuation& continuation) {
                                 /*instance_context=*/&continuation.callbacks_,
                                 runtime_.get(),
                                 /*continuation_point=*/0);
+    continuation.callbacks_.active_register_writes.clear();
   }
   return absl::OkStatus();
 }

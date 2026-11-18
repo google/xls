@@ -401,6 +401,50 @@ TEST_F(BlockJitTest, RegistersAreInitiallyZero) {
               UnorderedElementsAre(Pair("test1", Value(UBits(1234, 16)))));
 }
 
+TEST_F(BlockJitTest, MultiWriteRegisterAfterLastClockAcrossCycles) {
+  auto p = CreatePackage();
+  BlockBuilder bb(TestName(), p.get());
+  XLS_ASSERT_OK_AND_ASSIGN(Register * reg,
+                           bb.block()->AddRegister("r", p->GetBitsType(16)));
+  XLS_ASSERT_OK(bb.block()->AddClockPort("clk"));
+  BValue in_a = bb.InputPort("in_a", p->GetBitsType(16));
+  BValue in_b = bb.InputPort("in_b", p->GetBitsType(16));
+  BValue le_a = bb.InputPort("le_a", p->GetBitsType(1));
+  BValue le_b = bb.InputPort("le_b", p->GetBitsType(1));
+  bb.RegisterWrite(reg, in_a, le_a);
+  bb.RegisterWrite(reg, in_b, le_b);
+  bb.OutputPort("out", bb.RegisterRead(reg));
+  XLS_ASSERT_OK_AND_ASSIGN(Block * blk, bb.Build());
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<BlockJit> jit,
+                           BlockJit::Create(blk));
+  std::unique_ptr<BlockJitContinuation> cont = jit->NewContinuation(
+      BlockEvaluator::OutputPortSampleTime::kAfterLastClock);
+
+  // Cycle 1: write via port A.
+  XLS_ASSERT_OK(cont->SetInputPorts(absl::flat_hash_map<std::string, Value>{
+      {"in_a", Value(UBits(11, 16))},
+      {"in_b", Value(UBits(22, 16))},
+      {"le_a", Value(UBits(1, 1))},
+      {"le_b", Value(UBits(0, 1))},
+  }));
+  XLS_ASSERT_OK(jit->RunOneCycle(*cont));
+  EXPECT_THAT(cont->GetOutputPortsMap(),
+              UnorderedElementsAre(Pair("out", Value(UBits(11, 16)))));
+
+  // Cycle 2: write via port B; stale `active_register_writes` from Cycle 1's
+  // `kAfterLastClock` pass must not cause a spurious conflict error.
+  XLS_ASSERT_OK(cont->SetInputPorts(absl::flat_hash_map<std::string, Value>{
+      {"in_a", Value(UBits(33, 16))},
+      {"in_b", Value(UBits(44, 16))},
+      {"le_a", Value(UBits(0, 1))},
+      {"le_b", Value(UBits(1, 1))},
+  }));
+  XLS_ASSERT_OK(jit->RunOneCycle(*cont));
+  EXPECT_THAT(cont->GetOutputPortsMap(),
+              UnorderedElementsAre(Pair("out", Value(UBits(44, 16)))));
+}
+
 struct RegInput {
   uint32_t data;
   bool load_enable;
