@@ -780,6 +780,43 @@ TEST_F(UnrollProcTest, PredicatedNonBlockingReceive) {
   EXPECT_THAT(TryProveEquivalence(f, converted), IsOkAndHolds(IsProvenTrue()));
 }
 
+TEST_F(UnrollProcTest, UnpredicatedNonBlockingReceiveDefaultsToZero) {
+  auto p = CreatePackage();
+  ProcBuilder pb(absl::StrCat(TestName(), "_proc"), p.get());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto data_ch, p->CreateStreamingChannel("in_ch", ChannelOps::kReceiveOnly,
+                                              p->GetBitsType(4)));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto out_ch,
+      p->CreateStreamingChannel(
+          "out_ch", ChannelOps::kSendOnly,
+          p->GetTupleType({p->GetBitsType(1), p->GetBitsType(4)})));
+  BValue tok = pb.ReadStateElement("tok", Value::Token());
+  BValue recv = pb.ReceiveNonBlocking(data_ch, tok);
+  BValue final_tok =
+      pb.Send(out_ch, pb.TupleIndex(recv, 0),
+              pb.Tuple({pb.TupleIndex(recv, 2), pb.TupleIndex(recv, 1)}));
+  pb.Next(tok, final_tok);
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
+
+  FunctionBuilder fb(absl::StrCat(TestName(), "_func"), p.get());
+  BValue lit_zero = fb.Literal(UBits(0, 4));
+  auto make_activation = [&](int64_t act) {
+    BValue valid = fb.Param(absl::StrCat("valid_", act), p->GetBitsType(1));
+    BValue data = fb.Param(absl::StrCat("data_", act), p->GetBitsType(4));
+    BValue out_data = fb.Select(valid, data, lit_zero);
+    return fb.Tuple(
+        {fb.Tuple({fb.Literal(UBits(1, 1)), fb.Tuple({valid, out_data})})});
+  };
+  fb.Tuple({make_activation(0), make_activation(1)});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * converted,
+                           UnrollProcToFunction(proc, /*activation_count=*/2,
+                                                /*include_state=*/false));
+  EXPECT_THAT(TryProveEquivalence(f, converted), IsOkAndHolds(IsProvenTrue()));
+}
+
 TEST_F(UnrollProcTest, ConditionalReadNextStateNoOp) {
   auto p = CreatePackage();
   ProcBuilder pb(absl::StrCat(TestName(), "_proc"), p.get());

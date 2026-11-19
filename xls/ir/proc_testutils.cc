@@ -548,7 +548,11 @@ absl::StatusOr<UnrolledProc> UnrollProc(Proc* p, int64_t activation_count,
                            r->GetPayloadType());
       recvd_value[{recv_channel_ref, act_idx}] = recv_data;
     }
-    if (r->predicate()) {
+    // A predicated or non-blocking receive produces zero data when it does not
+    // execute (predicate is false or no data is available). Gate the
+    // unconstrained `recv_data` parameter on `does_execute` so unexecuted
+    // receives yield zero rather than an arbitrary symbolic value.
+    if (r->predicate() || !r->is_blocking()) {
       recv_data =
           fb.Select(does_execute, recv_data,
                     fb.Literal(ZeroOfType(recv_data.node()->GetType())));
