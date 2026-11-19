@@ -530,7 +530,7 @@ absl::StatusOr<UnrolledProc> UnrollProc(Proc* p, int64_t activation_count,
       does_execute =
           fb.And(args.back(),
                  fb.Param(NodeNameFormat("recv_executed_%d_%s", act_idx, r),
-                          r->GetPayloadType()));
+                          fb.package()->GetBitsType(1)));
     } else if (!r->predicate() && !r->is_blocking()) {
       does_execute = fb.Param(NodeNameFormat("recv_executed_%d_%s", act_idx, r),
                               fb.package()->GetBitsType(1));

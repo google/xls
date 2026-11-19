@@ -736,6 +736,50 @@ TEST_F(UnrollProcTest, PredicatedReceives) {
   EXPECT_THAT(TryProveEquivalence(f, converted), IsOkAndHolds(IsProvenTrue()));
 }
 
+TEST_F(UnrollProcTest, PredicatedNonBlockingReceive) {
+  auto p = CreatePackage();
+  ProcBuilder pb(absl::StrCat(TestName(), "_proc"), p.get());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto pred_ch, p->CreateStreamingChannel(
+                        "a_pred", ChannelOps::kReceiveOnly, p->GetBitsType(1)));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto data_ch, p->CreateStreamingChannel(
+                        "b_data", ChannelOps::kReceiveOnly, p->GetBitsType(4)));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto out_ch,
+      p->CreateStreamingChannel(
+          "out", ChannelOps::kSendOnly,
+          p->GetTupleType({p->GetBitsType(1), p->GetBitsType(4)})));
+  BValue tok = pb.ReadStateElement("tok", Value::Token());
+  BValue pred_recv = pb.Receive(pred_ch, tok);
+  BValue data_recv = pb.ReceiveIfNonBlocking(
+      data_ch, pb.TupleIndex(pred_recv, 0), pb.TupleIndex(pred_recv, 1));
+  BValue final_tok = pb.Send(
+      out_ch, pb.TupleIndex(data_recv, 0),
+      pb.Tuple({pb.TupleIndex(data_recv, 2), pb.TupleIndex(data_recv, 1)}));
+  pb.Next(tok, final_tok);
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
+
+  FunctionBuilder fb(absl::StrCat(TestName(), "_func"), p.get());
+  BValue lit_zero = fb.Literal(UBits(0, 4));
+  auto make_activation = [&](int64_t act) {
+    BValue pred = fb.Param(absl::StrCat("pred_", act), p->GetBitsType(1));
+    BValue exec = fb.Param(absl::StrCat("exec_", act), p->GetBitsType(1));
+    BValue data = fb.Param(absl::StrCat("data_", act), p->GetBitsType(4));
+    BValue valid = fb.And(pred, exec);
+    BValue out_data = fb.Select(valid, data, lit_zero);
+    return fb.Tuple(
+        {fb.Tuple({fb.Literal(UBits(1, 1)), fb.Tuple({valid, out_data})})});
+  };
+  fb.Tuple({make_activation(0), make_activation(1)});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * converted,
+                           UnrollProcToFunction(proc, /*activation_count=*/2,
+                                                /*include_state=*/false));
+  EXPECT_THAT(TryProveEquivalence(f, converted), IsOkAndHolds(IsProvenTrue()));
+}
+
 TEST_F(UnrollProcTest, ConditionalReadNextStateNoOp) {
   auto p = CreatePackage();
   ProcBuilder pb(absl::StrCat(TestName(), "_proc"), p.get());
