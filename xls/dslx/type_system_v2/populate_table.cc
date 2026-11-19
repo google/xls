@@ -19,6 +19,7 @@
 #include <optional>
 #include <string_view>
 #include <utility>
+#include <variant>
 
 #include "absl/log/check.h"
 #include "absl/status/status.h"
@@ -76,8 +77,20 @@ absl::Status PopulateBuiltinStubs(ImportData* import_data,
                                    builtins_type_info, builtins_path,
                                    std::move(builtins_converter),
                                    /*builtin_stubs=*/true);
-  return import_data->Put(builtin_tokens, std::move(builtins_module_info))
-      .status();
+  XLS_ASSIGN_OR_RETURN(
+      ModuleInfo * info,
+      import_data->Put(builtin_tokens, std::move(builtins_module_info)));
+
+  // Unlike other stub members, an enum's type depends on the types of its
+  // values, so convert the builtin enums up front.
+  for (const ModuleMember& member : info->module().top()) {
+    if (EnumDef* const* enum_def = std::get_if<EnumDef*>(&member)) {
+      XLS_RETURN_IF_ERROR(info->inference_table_converter()->ConvertSubtree(
+          *enum_def, /*function=*/std::nullopt,
+          /*parametric_context=*/std::nullopt));
+    }
+  }
+  return absl::OkStatus();
 }
 
 absl::Status PopulateTable(InferenceTable* table, Module* module,

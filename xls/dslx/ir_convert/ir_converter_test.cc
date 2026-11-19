@@ -9385,5 +9385,20 @@ fn f() -> u31[2] {
                            ConvertModuleForTest(kProgram));
   ExpectIr(converted);
 }
+
+TEST_F(IrConverterTest, ChannelConfigValueLowersToTuple) {
+  constexpr std::string_view kProgram = R"(#![feature(io_objects)]
+fn f() -> ChannelConfig {
+  ChannelConfig {
+    fifo_depth: u32:4,
+    strictness: ChannelStrictness::TOTAL_ORDER,
+    flow_control: FlowControl::READY_VALID,
+  }
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
+                           ConvertOneFunctionForTest(kProgram, "f"));
+  ExpectIr(converted);
+}
 }  // namespace
 }  // namespace xls::dslx

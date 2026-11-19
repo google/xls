@@ -591,6 +591,26 @@ struct Foo {
   EXPECT_TRUE((*sink->impl())->GetFunction("send").has_value());
 }
 
+TEST_F(ParserTest, IOObjectsNoFeatureFlagChannelStrictnessUsed) {
+  constexpr std::string_view kProgram = R"(
+const S = ChannelStrictness::TOTAL_ORDER;
+)";
+  EXPECT_THAT(ParseWithBuiltinStubs(kProgram),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("`ChannelStrictness` requires "
+                                 "#![feature(io_objects)]")));
+}
+
+TEST_F(ParserTest, IOObjectsNoFeatureFlagFlowControlType) {
+  constexpr std::string_view kProgram = R"(
+fn f(x: FlowControl) {}
+)";
+  EXPECT_THAT(ParseWithBuiltinStubs(kProgram),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("`FlowControl` requires "
+                                 "#![feature(io_objects)]")));
+}
+
 TEST_F(ParserTest, EmptyTrait) {
   RoundTrip(R"(pub trait Foo {
 })",

@@ -326,6 +326,10 @@ class Parser : public TokenParser {
   absl::StatusOr<NameRef*> ParseNameRef(Bindings& bindings,
                                         const Token* tok = nullptr);
 
+  // Returns an error if `tok` names an io object builtin (e.g. `Source` or
+  // `ChannelConfig`) and the module does not enable `io_objects`.
+  absl::Status CheckIoObjectsFeature(const Token& tok);
+
   // Precondition: token cursor should be over a double colon '::' token.
   absl::StatusOr<ColonRef*> ParseColonRef(Bindings& bindings,
                                           ColonRef::Subject subject,

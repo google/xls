@@ -148,7 +148,8 @@ const absl::flat_hash_map<std::string, BuiltinsData>& GetParametricBuiltins() {
 
 const absl::flat_hash_set<std::string>& GetIoObjectBuiltins() {
   static const absl::NoDestructor<absl::flat_hash_set<std::string>> set(
-      {"Source", "Sink", "IOResult", "ChannelConfig"});
+      {"Source", "Sink", "IOResult", "ChannelConfig", "ChannelStrictness",
+       "FlowControl"});
   return *set;
 }
 
