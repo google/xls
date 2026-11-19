@@ -1201,9 +1201,17 @@ absl::Status IrTranslator::HandleDynamicBitSlice(
     return seh.status();
   }
   Z3_ast value = GetBitVec(dynamic_bit_slice->operand(0));
-  Z3_ast start = GetBitVec(dynamic_bit_slice->operand(1));
   int64_t value_width = dynamic_bit_slice->operand(0)->BitCountOrDie();
   int64_t start_width = dynamic_bit_slice->operand(1)->BitCountOrDie();
+  if (start_width == 0) {
+    // A zero-width start index is always 0, and the IR verifier guarantees
+    // value_width >= dynamic_bit_slice->width().
+    Z3_ast truncated_value =
+        Z3_mk_extract(ctx_, dynamic_bit_slice->width() - 1, 0, value);
+    NoteTranslation(dynamic_bit_slice, truncated_value);
+    return seh.status();
+  }
+  Z3_ast start = GetBitVec(dynamic_bit_slice->operand(1));
 
   int64_t max_width = std::max(value_width, start_width);
   Z3_ast value_ext = Z3_mk_zero_ext(ctx_, max_width - value_width, value);

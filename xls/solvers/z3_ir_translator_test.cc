@@ -404,6 +404,24 @@ fn f(p: bits[4]) -> bits[1] {
   EXPECT_THAT(proven, IsProvenTrue());
 }
 
+TEST_F(Z3IrTranslatorTest, ZeroWidthStartDynamicSlice) {
+  const std::string program = R"(
+fn f(p: bits[4], start: bits[0]) -> bits[1] {
+  dynamic_slice: bits[3] = dynamic_bit_slice(p, start, width=3)
+  slice: bits[3] = bit_slice(p, start=0, width=3)
+  eq_sub: bits[1] = eq(slice, dynamic_slice)
+  dynamic_full: bits[4] = dynamic_bit_slice(p, start, width=4)
+  eq_full: bits[1] = eq(p, dynamic_full)
+  ret result: bits[1] = and(eq_sub, eq_full)
+}
+)";
+  std::unique_ptr<Package> package = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, package.get()));
+  EXPECT_THAT(TryProve(f, f->return_value(), Predicate::NotEqualToZero(),
+                       absl::InfiniteDuration()),
+              IsOkAndHolds(IsProvenTrue()));
+}
+
 TEST_F(Z3IrTranslatorTest, BitSliceUpdate) {
   const std::string program = R"(
 fn f(x: bits[8], v: bits[4]) -> bits[1] {
