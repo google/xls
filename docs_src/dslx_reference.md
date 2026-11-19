@@ -2119,19 +2119,19 @@ Unit tests run via Bazel can also be filtered via the typical Bazel
 `--test_filter` flag; i.e.,
 
 ```
-bazel test -c opt //xls/dslx/stdlib:apfloat_dslx_test --test_output=streamed
+bazel test -c opt //xls/dslx/stdlib/tests:apfloat_dslx_test --test_output=streamed
 ```
 
 selecting one test:
 
 ```
-bazel test -c opt //xls/dslx/stdlib:apfloat_dslx_test --test_output=streamed --test_filter=one_x_one_plus_one_f32
+bazel test -c opt //xls/dslx/stdlib/tests:apfloat_dslx_test --test_output=streamed --test_filter=one_x_one_plus_one_f32
 ```
 
 selecting multiple tests to run via regular expression:
 
 ```
-bazel test -c opt //xls/dslx/stdlib:apfloat_dslx_test --test_output=streamed --test_filter=.*f32.*
+bazel test -c opt //xls/dslx/stdlib/tests:apfloat_dslx_test --test_output=streamed --test_filter=.*f32.*
 ```
 
 ### QuickCheck

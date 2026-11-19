@@ -20,7 +20,9 @@ load("@rules_cc//cc:cc_test.bzl", "cc_test")
 load(
     "//xls/build_rules:xls_build_defs.bzl",
     "cc_xls_ir_wrapper",
+    "xls_dslx_fmt_test",
     "xls_dslx_opt_ir",
+    "xls_dslx_prove_quickcheck_test",
     "xls_dslx_test",
 )
 
@@ -254,6 +256,25 @@ cc_test(
         "@abseil-cpp//absl/flags:flag",
         "@abseil-cpp//absl/status",
     ],
+)
+
+xls_dslx_test(
+    name = "apfloat_dslx_test",
+    srcs = ["apfloat_test.x"],
+    dslx_test_args = {"compare": "jit"},
+    deps = ["//xls/dslx/stdlib:apfloat_dslx"],
+)
+
+xls_dslx_prove_quickcheck_test(
+    name = "apfloat_dslx_prove_quickcheck_test",
+    srcs = ["apfloat_test.x"],
+    deps = ["//xls/dslx/stdlib:apfloat_dslx"],
+)
+
+xls_dslx_fmt_test(
+    name = "apfloat_test_dslx_fmt_test",
+    src = "apfloat_test.x",
+    opportunistic_postcondition = True,
 )
 
 xls_dslx_test(
