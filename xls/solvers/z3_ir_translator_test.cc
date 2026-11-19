@@ -2506,6 +2506,36 @@ TEST_F(Z3IrTranslatorTest, HandlesSMulp) {
   EXPECT_THAT(proven, IsProvenTrue());
 }
 
+TEST_F(Z3IrTranslatorTest, HandlesTruncatingUMulp) {
+  std::unique_ptr<Package> package = CreatePackage();
+  FunctionBuilder fb(TestName(), package.get());
+  BValue a = fb.Param("a", package->GetBitsType(8));
+  BValue b = fb.Param("b", package->GetBitsType(4));
+  BValue mul = fb.UMul(a, b, /*result_width=*/5);
+  BValue mulp = fb.UMulp(a, b, /*result_width=*/5);
+  BValue sum = fb.Add(fb.TupleIndex(mulp, 0), fb.TupleIndex(mulp, 1));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
+                           fb.BuildWithReturnValue(fb.Eq(mul, sum)));
+  EXPECT_THAT(TryProve(f, f->return_value(), Predicate::NotEqualToZero(),
+                       absl::InfiniteDuration()),
+              IsOkAndHolds(IsProvenTrue()));
+}
+
+TEST_F(Z3IrTranslatorTest, HandlesTruncatingSMulp) {
+  std::unique_ptr<Package> package = CreatePackage();
+  FunctionBuilder fb(TestName(), package.get());
+  BValue a = fb.Param("a", package->GetBitsType(8));
+  BValue b = fb.Param("b", package->GetBitsType(4));
+  BValue mul = fb.SMul(a, b, /*result_width=*/5);
+  BValue mulp = fb.SMulp(a, b, /*result_width=*/5);
+  BValue sum = fb.Add(fb.TupleIndex(mulp, 0), fb.TupleIndex(mulp, 1));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
+                           fb.BuildWithReturnValue(fb.Eq(mul, sum)));
+  EXPECT_THAT(TryProve(f, f->return_value(), Predicate::NotEqualToZero(),
+                       absl::InfiniteDuration()),
+              IsOkAndHolds(IsProvenTrue()));
+}
+
 TEST_F(Z3IrTranslatorTest, HandlesGate) {
   std::unique_ptr<Package> package = CreatePackage();
   FunctionBuilder fb(TestName(), package.get());

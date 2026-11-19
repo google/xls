@@ -69,7 +69,6 @@ namespace xls {
 namespace solvers {
 namespace z3 {
 
-
 namespace {
 
 Z3_sort GetArrayIndexSort(Z3_context ctx, ArrayType* array_type) {
@@ -1684,11 +1683,8 @@ absl::Status IrTranslator::HandleMulp(PartialProductOp* mul, bool is_signed) {
   }
   Z3_ast lhs = GetValue(mul->operand(0));
   Z3_ast rhs = GetValue(mul->operand(1));
-  int lhs_size = Z3_get_bv_sort_size(ctx_, Z3_get_sort(ctx_, lhs));
-  int rhs_size = Z3_get_bv_sort_size(ctx_, Z3_get_sort(ctx_, rhs));
   int result_size = mul->width();
-  int operation_size = std::max({result_size, lhs_size, rhs_size});
-  Z3_sort op_sort = Z3_mk_bv_sort(ctx_, operation_size);
+  Z3_sort op_sort = Z3_mk_bv_sort(ctx_, result_size);
 
   Z3_ast result = DoMul(ctx_, lhs, rhs, /*is_signed=*/is_signed, result_size);
 
