@@ -406,7 +406,9 @@ class ResourceSharingPass : public OptimizationFunctionBasePass {
   ComputeFoldableActions(
       FunctionBase* f,
       const absl::btree_set<MutuallyExclPair>& mutual_exclusivity,
-      const VisibilityAnalyses& visibility, const Config& config);
+      const VisibilityAnalyses& visibility,
+      absl::FunctionRef<bool(Node*)> should_target,
+      const Config& config = kDefaultConfig);
 
   // Computes visibility analyses, mutual exclusion, and foldable actions for
   // `f`, returning the resulting `FoldingGraph` and its associated analyses.
