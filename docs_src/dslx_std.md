@@ -991,7 +991,7 @@ convenient than) a pattern like:
 #### `std::lsb`
 
 ```dslx-snippet
-pub fn lsb<N: u32>(x: uN[N]) -> u1
+pub fn lsb<S: bool, N: u32>(x: xN[S][N]) -> u1
 ```
 
 Extracts the LSb (Least Significant bit) from the value `x` and returns it.
@@ -999,7 +999,7 @@ Extracts the LSb (Least Significant bit) from the value `x` and returns it.
 #### `std::msb`
 
 ```dslx-snippet
-pub fn msb<N: u32>(x: uN[N]) -> u1
+pub fn msb<S: bool, N: u32>(x: xN[S][N]) -> u1
 ```
 
 Extracts the MSb (Most Significant bit) from the value `x` and returns it.
@@ -1369,11 +1369,11 @@ fn is_even_test() {
 #### `std::?add`
 
 ```dslx-snippet
-pub fn uadd<N: u32, M: u32, R: u32 = umax(N,M) + 1>(x: uN[N], y: uN[M]) -> uN[R]
-pub fn sadd<N: u32, M: u32, R: u32 = umax(N,M) + 1>(x: sN[N], y: sN[M]) -> sN[R]
+pub fn uadd<N: u32, M: u32, R: u32 = {max(N, M) + 1}>(x: uN[N], y: uN[M]) -> uN[R]
+pub fn sadd<N: u32, M: u32, R: u32 = {max(N, M) + 1}>(x: sN[N], y: sN[M]) -> sN[R]
 ```
 
-Returns sum of `x` (`N` bits) and `y` (`M` bits) as a `umax(N,M)+1` bit value.
+Returns sum of `x` (`N` bits) and `y` (`M` bits) as a `max(N, M) + 1` bit value.
 
 #### `std::?mul`
 
@@ -1478,23 +1478,21 @@ represents the number of bits needed to represent the `n`.
 
 Example: `flog2(7) = 2`, `flog2(8) = 3`.
 
-#### `std::?max`
+#### `std::max`
 
 ```dslx-snippet
-pub fn smax<N: u32>(x: sN[N], y: sN[N]) -> sN[N]
-pub fn umax<N: u32>(x: uN[N], y: uN[N]) -> uN[N]
+pub fn max<S: bool, N: u32>(x: xN[S][N], y: xN[S][N]) -> xN[S][N]
 ```
 
-Returns the maximum of two integers.
+Returns the maximum of two (signed or unsigned) integers.
 
-#### `std::?min`
+#### `std::min`
 
 ```dslx-snippet
-pub fn smin<N: u32>(x: sN[N], y: sN[N]) -> sN[N]
-pub fn umin<N: u32>(x: uN[N], y: uN[N]) -> uN[N]
+pub fn min<S: bool, N: u32>(x: xN[S][N], y: xN[S][N]) -> xN[S][N]
 ```
 
-Returns the minimum of two unsigned integers.
+Returns the minimum of two (signed or unsigned) integers.
 
 #### `std::uadd_with_overflow`
 
