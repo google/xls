@@ -108,8 +108,11 @@ struct UnrolledProc {
 // StateReads which are predicated-off have a value of 0. The mutex and
 // unobservability of these reads is not explicitly checked.
 //
-// The return type of the function depends on the lexicographic ordering of
-// channels so this should not be messed with.
+// The parameter list and return type of the function depend on the
+// lexicographic ordering of channel names: for each activation in order,
+// receive channels appear alphabetically (with a 1-bit `recv_executed`
+// parameter preceding `recv_data` for channels with non-blocking receives), and
+// send channels in the return tuple appear alphabetically.
 //
 // This is only intended for use with testing tools such as z3.
 // Helper to unroll a proc 'activation_count' times and return the complete

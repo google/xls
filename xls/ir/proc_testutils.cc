@@ -514,12 +514,61 @@ absl::StatusOr<UnrolledProc> UnrollProc(Proc* p, int64_t activation_count,
   Package* pkg = p->package();
   FunctionBuilder fb(
       absl::StrFormat("%s_x%d_function", p->name(), activation_count), pkg);
+  // Pre-create receive parameters in deterministic (activation, channel_name)
+  // order so parameter positions do not depend on DFS traversal order or the
+  // number of Receive nodes per channel.
+  struct ReceiveChannelInfo {
+    Type* payload_type = nullptr;
+    bool has_non_blocking = false;
+  };
+  absl::flat_hash_map<ReceiveChannelRef, ReceiveChannelInfo> recv_channels;
+  for (Node* n : p->nodes()) {
+    if (!n->Is<Receive>()) {
+      continue;
+    }
+    Receive* r = n->As<Receive>();
+    XLS_ASSIGN_OR_RETURN(ReceiveChannelRef recv_channel_ref,
+                         r->GetReceiveChannelRef());
+    auto [it, inserted] = recv_channels.emplace(
+        recv_channel_ref,
+        ReceiveChannelInfo{.payload_type = r->GetPayloadType(),
+                           .has_non_blocking = !r->is_blocking()});
+    if (!inserted) {
+      XLS_RET_CHECK_EQ(it->second.payload_type, r->GetPayloadType());
+      it->second.has_non_blocking =
+          it->second.has_non_blocking || !r->is_blocking();
+    }
+  }
+  std::vector<std::pair<ReceiveChannelRef, ReceiveChannelInfo>>
+      sorted_recv_channels(recv_channels.begin(), recv_channels.end());
+  absl::c_sort(sorted_recv_channels, [](const auto& a, const auto& b) {
+    return ChannelRefName(a.first) < ChannelRefName(b.first);
+  });
   absl::flat_hash_map<std::pair<ReceiveChannelRef, int64_t>, BValue>
       recvd_value;
-  auto recv_gen = [&recvd_value](Receive* r, FunctionBuilder& fb,
-                                 absl::Span<BValue const> args, int64_t act_idx,
-                                 std::optional<IOAction> prev_action,
-                                 BValue active) -> absl::StatusOr<IOAction> {
+  absl::flat_hash_map<std::pair<ReceiveChannelRef, int64_t>, BValue>
+      recvd_executed;
+  for (int64_t act_idx = 0; act_idx < activation_count; ++act_idx) {
+    for (const auto& [recv_channel_ref, info] : sorted_recv_channels) {
+      if (info.has_non_blocking) {
+        recvd_executed[{recv_channel_ref, act_idx}] =
+            fb.Param(NodeNameFormat("recv_executed_act%d_%s", act_idx,
+                                    ChannelRefName(recv_channel_ref)),
+                     fb.package()->GetBitsType(1));
+      }
+      recvd_value[{recv_channel_ref, act_idx}] =
+          fb.Param(NodeNameFormat("recv_data_act%d_%s", act_idx,
+                                  ChannelRefName(recv_channel_ref)),
+                   info.payload_type);
+    }
+  }
+  auto recv_gen = [&recvd_value, &recvd_executed](
+                      Receive* r, FunctionBuilder& fb,
+                      absl::Span<BValue const> args, int64_t act_idx,
+                      std::optional<IOAction> prev_action,
+                      BValue active) -> absl::StatusOr<IOAction> {
+    XLS_ASSIGN_OR_RETURN(ReceiveChannelRef recv_channel_ref,
+                         r->GetReceiveChannelRef());
     BValue does_execute;
     if (r->predicate() && r->is_blocking()) {
       // The receive executes if the predicate is true.
@@ -528,26 +577,13 @@ absl::StatusOr<UnrolledProc> UnrollProc(Proc* p, int64_t activation_count,
       // The receive executes if the predicate is true and we actually
       // send something.
       does_execute =
-          fb.And(args.back(),
-                 fb.Param(NodeNameFormat("recv_executed_%d_%s", act_idx, r),
-                          fb.package()->GetBitsType(1)));
+          fb.And(args.back(), recvd_executed.at({recv_channel_ref, act_idx}));
     } else if (!r->predicate() && !r->is_blocking()) {
-      does_execute = fb.Param(NodeNameFormat("recv_executed_%d_%s", act_idx, r),
-                              fb.package()->GetBitsType(1));
+      does_execute = recvd_executed.at({recv_channel_ref, act_idx});
     } else {
       does_execute = fb.Literal(UBits(1, 1));
     }
-    XLS_ASSIGN_OR_RETURN(ReceiveChannelRef recv_channel_ref,
-                         r->GetReceiveChannelRef());
-    BValue recv_data;
-    if (recvd_value.contains({recv_channel_ref, act_idx})) {
-      recv_data = recvd_value.at({recv_channel_ref, act_idx});
-    } else {
-      recv_data = fb.Param(NodeNameFormat("recv_data_act%d_%s", act_idx,
-                                          ChannelRefName(recv_channel_ref)),
-                           r->GetPayloadType());
-      recvd_value[{recv_channel_ref, act_idx}] = recv_data;
-    }
+    BValue recv_data = recvd_value.at({recv_channel_ref, act_idx});
     // A predicated or non-blocking receive produces zero data when it does not
     // execute (predicate is false or no data is available). Gate the
     // unconstrained `recv_data` parameter on `does_execute` so unexecuted
