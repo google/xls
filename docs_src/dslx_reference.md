@@ -1763,6 +1763,61 @@ let result = for (i, array) in u32:0..8 {
 }(u4[8]:[0, ...]);
 ```
 
+### `unroll_for!` Expression
+
+`unroll_for!` is a counted loop, like a [`for` loop](#for-expression), that is
+*fully unrolled* at compile time: the compiler replaces the loop with one copy of
+its body per iteration, substituting that iteration's index as a constant into
+each copy. Because of this, the number of iterations must be known at compile
+time.
+
+Like `for`, an `unroll_for!` is an expression that "evolves" an accumulator
+across the iterations and evaluates to the accumulator's final value. It uses the
+same syntax, including passing the accumulator's initial value as a trailing
+parenthesized argument.
+
+Because each iteration is specialized with a constant index, the loop index can
+be used in positions that require a compile-time-constant value, which the index
+of a regular `for` loop (a runtime value) cannot. For example, the body of an
+`unroll_for!` may `spawn` procs, index into arrays of channels, or build unique
+assertion labels via
+[`assert_fmt!`](./dslx_std.md#assert_fmt-assertion-failure-with-constexpr-formatting).
+See [How to use Procs](./tutorials/how_to_use_procs.md) for a worked example of
+spawning procs inside `unroll_for!` loops.
+
+#### Syntax
+
+```
+unroll_for! (index, accumulator) [: (type-of-index, type-of-accumulator)] in iterable {
+   body-expression
+} (initial-accumulator-value)
+```
+
+As with `for`, the type annotations are optional but often helpful for clarity.
+When the accumulator is not needed, it is conventionally bound to `_` with a unit
+(`()`) initial value.
+
+#### Examples
+
+Sum the values from 0 to 4 (exclusive), evolving an accumulator exactly as a
+`for` loop would, but with the loop body unrolled into four specialized copies:
+
+```dslx-snippet
+unroll_for! (i, accum): (u32, u32) in u32:0..4 {
+  accum + i
+}(u32:0)
+```
+
+When the accumulator is not needed -- for example, when the body is run only for
+its side effects, such as spawning procs or emitting assertions -- bind it to `_`
+and pass a unit value:
+
+```dslx-snippet
+unroll_for! (i, _): (u32, ()) in u32:0..u32:4 {
+  assert_fmt!(i < u32:4, "i is {}!", i);
+}(())
+```
+
 ### Lambda Expressions
 
 DSLX provides support for lambda expressions, which are most useful within `map`
