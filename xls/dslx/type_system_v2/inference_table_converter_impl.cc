@@ -620,6 +620,22 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
     for (const Expr* arg : actual_args) {
       if (arg->kind() == AstNodeKind::kColonRef &&
           IsColonRefWithTypeTarget(table_, arg)) {
+          // Special cases for common errors where we know what they likely meant
+        const std::string fun_name = function->identifier();
+        if (fun_name == "sizeof" && function->owner()->name() == "std") {
+          return TypeInferenceErrorStatus(
+              arg->span(), nullptr,
+              absl::Substitute("Cannot pass a type to sizeof. Did you mean bit_count<$0>()?", arg->ToString()),
+              file_table_);
+        }
+        if (IsBuiltin(function)) {
+          if (fun_name == "bit_count") {
+            return TypeInferenceErrorStatus(
+                arg->span(), nullptr,
+                absl::Substitute("Cannot pass a type as argument to bit_count. Did you mean bit_count<$0>()?", arg->ToString()),
+                file_table_);
+          }
+        }
         return TypeInferenceErrorStatus(
             arg->span(), nullptr, "Cannot pass a type as a function argument.",
             file_table_);
