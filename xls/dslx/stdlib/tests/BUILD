@@ -610,3 +610,101 @@ cc_test(
         "@googletest//:gtest",
     ],
 )
+
+APFLOAT_FUZZ_TOPS = [
+    ("e4m3_add", "E4M3Add"),
+    ("e4m3_mul", "E4M3Mul"),
+    ("e4m3_fma", "E4M3Fma"),
+    ("e4m3_from_s64_rne", "E4M3FromS64Rne"),
+    ("e4m3_from_s64_rz", "E4M3FromS64Rz"),
+    ("bf16_add", "Bf16Add"),
+    ("bf16_add_lza", "Bf16AddLza"),
+    ("bf16_sub", "Bf16Sub"),
+    ("bf16_mul", "Bf16Mul"),
+    ("bf16_fma", "Bf16Fma"),
+    ("bf16_ldexp", "Bf16Ldexp"),
+    ("bf16_from_s32_rne", "Bf16FromS32Rne"),
+    ("bf16_from_s32_rz", "Bf16FromS32Rz"),
+    ("bf16_to_s32", "Bf16ToS32"),
+    ("bf16_to_u32", "Bf16ToU32"),
+    ("bf16_cmp", "Bf16Cmp"),
+    ("bf16_ceil_with_denorms", "Bf16CeilWithDenorms"),
+    ("bf16_ceil_daz", "Bf16CeilDaz"),
+    ("bf16_floor_with_denorms", "Bf16FloorWithDenorms"),
+    ("bf16_floor_daz", "Bf16FloorDaz"),
+    ("bf16_trunc", "Bf16Trunc"),
+    ("bf16_round_rne", "Bf16RoundRne"),
+    ("bf16_round_rna", "Bf16RoundRna"),
+    ("hf16_add", "Hf16Add"),
+    ("hf16_mul", "Hf16Mul"),
+    ("hf16_fma", "Hf16Fma"),
+    ("hf16_from_s32_rne", "Hf16FromS32Rne"),
+    ("hf16_from_s32_rz", "Hf16FromS32Rz"),
+    ("f32_add", "F32Add"),
+    ("f32_add_lza", "F32AddLza"),
+    ("f32_mul", "F32Mul"),
+    ("f32_fma", "F32Fma"),
+    ("f32_ldexp", "F32Ldexp"),
+    ("f32_from_s64_rne", "F32FromS64Rne"),
+    ("f32_from_s64_rz", "F32FromS64Rz"),
+    ("f32_to_s32", "F32ToS32"),
+    ("f32_to_u32", "F32ToU32"),
+    ("f32_cast_to_fixed_s32", "F32CastToFixedS32"),
+    ("f32_from_int32", "F32FromInt32"),
+    ("f32_from_uint32", "F32FromUint32"),
+    ("f32_fast_rsqrt", "F32FastRsqrt"),
+    ("f32_to_bf16_downcast_rne", "F32ToBf16DowncastRne"),
+    ("f32_to_bf16_downcast_rna", "F32ToBf16DowncastRna"),
+    ("f32_to_hf16_downcast_rne", "F32ToHf16DowncastRne"),
+    ("f32_to_hf16_downcast", "F32ToHf16Downcast"),
+    ("bf16_to_f32_upcast_denorms", "Bf16ToF32UpcastDenorms"),
+    ("bf16_to_f32_upcast_daz", "Bf16ToF32UpcastDaz"),
+    ("hf16_to_f32_upcast_denorms", "Hf16ToF32UpcastDenorms"),
+    ("f64_add", "F64Add"),
+    ("f64_mul", "F64Mul"),
+    ("f64_fma", "F64Fma"),
+]
+
+[
+    [
+        xls_dslx_opt_ir(
+            name = "apfloat_fuzz_" + top,
+            srcs = ["apfloat_fuzz_exports.x"],
+            dslx_top = top,
+            ir_conv_args = {"lower_to_proc_scoped_channels": "true"},
+        ),
+        cc_xls_ir_wrapper(
+            name = "apfloat_fuzz_" + top + "_jit_wrapper",
+            src = ":apfloat_fuzz_" + top,
+            enable_llvm_coverage = True,
+            jit_wrapper_args = {
+                "class_name": class_name,
+                "function": top,
+                "namespace": "xls::dslx::apfloat_fuzz",
+            },
+        ),
+    ]
+    for (top, class_name) in APFLOAT_FUZZ_TOPS
+]
+
+xls_dslx_fmt_test(
+    name = "apfloat_fuzz_exports_dslx_fmt_test",
+    src = "apfloat_fuzz_exports.x",
+)
+
+cc_test(
+    name = "apfloat_fuzz_test",
+    srcs = ["apfloat_fuzz_test.cc"],
+    deps = [
+        "//xls/common:xls_gunit_main",
+        "//xls/common/fuzzing:fuzztest",
+        "//xls/common/status:matchers",
+        "@abseil-cpp//absl/base",
+        "@abseil-cpp//absl/base:no_destructor",
+        "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/strings:str_format",
+        "@eigen",
+        "@googletest//:gtest",
+        "@llvm-project//llvm:Support",
+    ] + [":apfloat_fuzz_" + top + "_jit_wrapper" for (top, _) in APFLOAT_FUZZ_TOPS],
+)
