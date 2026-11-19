@@ -315,5 +315,24 @@ TEST(BinaryDecisionDiagramTest, ThreeVariableExhaustive) {
   }
 }
 
+TEST(BinaryDecisionDiagramTest,
+     GarbageCollectRetainsBaseVariableForCompositeOnlyRoot) {
+  BinaryDecisionDiagram gc_bdd(256);
+  std::vector<BddNodeIndex> gvars = gc_bdd.NewVariables(10);
+  BddNodeIndex comp_only = gc_bdd.Not(gvars[0]);
+  for (int i = 1; i < 9; ++i) {
+    gc_bdd.Or(gvars[i], gvars[i + 1]);
+  }
+  ASSERT_THAT(gc_bdd.GarbageCollect({comp_only}, /*gc_threshold=*/0.8),
+              absl_testing::IsOk());
+  BddNodeIndex fresh_var = gc_bdd.NewVariable();
+  EXPECT_THAT(gc_bdd.Evaluate(comp_only, {{gvars[0], false}}),
+              IsOkAndHolds(true));
+  BddNodeIndex combined = gc_bdd.Or(gvars[0], fresh_var);
+  EXPECT_NE(combined, BinaryDecisionDiagram::kInfeasible);
+  EXPECT_THAT(gc_bdd.Evaluate(combined, {{gvars[0], false}, {fresh_var, true}}),
+              IsOkAndHolds(true));
+}
+
 }  // namespace
 }  // namespace xls

@@ -595,6 +595,11 @@ absl::StatusOr<std::vector<BddNodeIndex>> BinaryDecisionDiagram::GarbageCollect(
     ++cnt_live;
     live_nodes.Set(node.value());
     live_variables.Set(bdd_node.variable.value());
+    if (std::optional<BddNodeIndex> base =
+            variable_base_nodes_[bdd_node.variable.value()];
+        base.has_value() && !live_nodes.Get(base->value())) {
+      worklist.push_back(*base);
+    }
     if (bdd_node.high != one() && bdd_node.high != zero()) {
       worklist.push_back(bdd_node.high);
     }
