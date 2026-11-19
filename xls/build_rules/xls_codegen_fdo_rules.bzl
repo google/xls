@@ -127,7 +127,7 @@ xls_ir_verilog_attrs = {
     ),
     "standard_cells": attr.label(
         providers = [StandardCellInfo],
-        default = "@com_google_skywater_pdk_sky130_fd_sc_hd//:sky130_fd_sc_hd",
+        default = Label("@com_google_skywater_pdk_sky130_fd_sc_hd//:sky130_fd_sc_hd"),
     ),
     "synthesizer_linear_interpolation_factor": attr.string(
         default = "",

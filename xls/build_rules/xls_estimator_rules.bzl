@@ -99,14 +99,14 @@ def _xls_default_estimator_models(ctx, reg):
     return [reg, cc_info, default_info]
 
 def _xls_default_delay_models(ctx):
-    reg = ctx.toolchains["//xls/common/toolchains:toolchain_type"].configuration.delay_model_registry
+    reg = ctx.toolchains[Label("//xls/common/toolchains:toolchain_type")].configuration.delay_model_registry
     return _xls_default_estimator_models(ctx, reg)
 
 _xls_default_delay_models_rule = rule(
     implementation = _xls_default_delay_models,
     doc = """A library which includes the default delay models""",
     provides = [XlsEstimatorRegistryInfo, CcInfo],
-    toolchains = use_cpp_toolchain() + ["//xls/common/toolchains:toolchain_type"],
+    toolchains = use_cpp_toolchain() + [Label("//xls/common/toolchains:toolchain_type")],
     fragments = ["cpp"],
     attrs = {
         "_default_registry_deps": attr.label_list(
@@ -133,14 +133,14 @@ def xls_default_delay_models(name, tags = None):
     )
 
 def _xls_default_area_models(ctx):
-    reg = ctx.toolchains["//xls/common/toolchains:toolchain_type"].configuration.area_model_registry
+    reg = ctx.toolchains[Label("//xls/common/toolchains:toolchain_type")].configuration.area_model_registry
     return _xls_default_estimator_models(ctx, reg)
 
 _xls_default_area_models_rule = rule(
     implementation = _xls_default_area_models,
     doc = """A library which includes the default area models""",
     provides = [XlsEstimatorRegistryInfo, CcInfo],
-    toolchains = use_cpp_toolchain() + ["//xls/common/toolchains:toolchain_type"],
+    toolchains = use_cpp_toolchain() + [Label("//xls/common/toolchains:toolchain_type")],
     fragments = ["cpp"],
     attrs = {
         "_default_registry_deps": attr.label_list(

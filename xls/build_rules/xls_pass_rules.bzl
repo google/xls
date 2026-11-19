@@ -193,8 +193,8 @@ def _xls_pass_impl_macro(
         deps = [
             "%s_impl" % name,
             registry_dep,
-            "//xls/common:module_initializer",
-            "@abseil-cpp//absl/log:check",
+            Label("//xls/common:module_initializer"),
+            Label("@abseil-cpp//absl/log:check"),
         ],
         alwayslink = True,
     )
@@ -241,8 +241,8 @@ def xls_pass(name, pass_class, tags = [], **kwargs):
     _xls_pass_impl_macro(
         name = name,
         pass_class = pass_class,
-        registration_template = "//xls/passes/tools:pass_registration.cc.tmpl",
-        registry_dep = "//xls/passes:optimization_pass_registry",
+        registration_template = Label("//xls/passes/tools:pass_registration.cc.tmpl"),
+        registry_dep = Label("//xls/passes:optimization_pass_registry"),
         pass_and_registration_rule = _xls_pass_and_registration,
         tags = tags,
         **kwargs
@@ -276,8 +276,8 @@ def xls_codegen_pass(name, pass_class, tags = [], **kwargs):
     _xls_pass_impl_macro(
         name = name,
         pass_class = pass_class,
-        registration_template = "//xls/codegen_v_1_5/tools:codegen_pass_registration.cc.tmpl",
-        registry_dep = "//xls/codegen_v_1_5:codegen_pass_registry",
+        registration_template = Label("//xls/codegen_v_1_5/tools:codegen_pass_registration.cc.tmpl"),
+        registry_dep = Label("//xls/codegen_v_1_5:codegen_pass_registry"),
         pass_and_registration_rule = _xls_codegen_pass_and_registration,
         tags = tags,
         **kwargs
@@ -577,7 +577,7 @@ xls_codegen_pass_registry = rule(
 )
 
 def _xls_default_pass_registry(ctx):
-    config = ctx.toolchains["//xls/common/toolchains:toolchain_type"].configuration
+    config = ctx.toolchains[Label("//xls/common/toolchains:toolchain_type")].configuration
     return [
         config.pass_registry,
         config.pass_registry.cc_library,
@@ -592,7 +592,7 @@ xls_default_pass_registry = rule(
     implementation = _xls_default_pass_registry,
     doc = """A pass registry with the default pipeline.""",
     provides = [XlsOptimizationPassRegistryInfo, XlsOptimizationPassRegistryConfigInfo, CcInfo],
-    toolchains = ["//xls/common/toolchains:toolchain_type"],
+    toolchains = [Label("//xls/common/toolchains:toolchain_type")],
     attrs = {
         "_default_registry_deps": attr.label_list(
             default = CONFIG["static_query_optimization_pass_pipeline_deps"],
@@ -602,7 +602,7 @@ xls_default_pass_registry = rule(
 )
 
 def _xls_default_codegen_pass_registry(ctx):
-    config = ctx.toolchains["//xls/common/toolchains:toolchain_type"].configuration
+    config = ctx.toolchains[Label("//xls/common/toolchains:toolchain_type")].configuration
     return [
         config.codegen_pass_registry,
         config.codegen_pass_registry.cc_library,
@@ -617,7 +617,7 @@ xls_default_codegen_pass_registry = rule(
     implementation = _xls_default_codegen_pass_registry,
     doc = """A pass registry with the default codegen pipeline.""",
     provides = [CcInfo, XlsCodegenPassRegistryInfo, XlsCodegenPassRegistryConfigInfo],
-    toolchains = ["//xls/common/toolchains:toolchain_type"],
+    toolchains = [Label("//xls/common/toolchains:toolchain_type")],
     attrs = {
         "_default_registry_deps": attr.label_list(
             default = CONFIG["static_query_codegen_pass_pipeline_deps"],

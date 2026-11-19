@@ -447,13 +447,13 @@ def xls_dslx_cpp_type_library(
         # TODO: bazelbuild/bazel#14843 - Remove this once no longer needed.
         linkstatic = True,
         deps = [
-            "@abseil-cpp//absl/base:core_headers",
-            "@abseil-cpp//absl/status:status",
-            "@abseil-cpp//absl/strings:str_format",
-            "@abseil-cpp//absl/status:statusor",
-            "@abseil-cpp//absl/types:span",
-            "//xls/public:status_macros",
-            "//xls/public:value",
+            Label("@abseil-cpp//absl/base:core_headers"),
+            Label("@abseil-cpp//absl/status:status"),
+            Label("@abseil-cpp//absl/strings:str_format"),
+            Label("@abseil-cpp//absl/status:statusor"),
+            Label("@abseil-cpp//absl/types:span"),
+            Label("//xls/public:status_macros"),
+            Label("//xls/public:value"),
         ] + cpp_deps,
     )
 
@@ -481,14 +481,14 @@ def xls_synthesis_metrics(
               For post-synth, use "synthesize_rtl" and "run_opensta" targets.
         **kwargs: Accepts add'l keyword arguments. Passed to native.genrule().
     """
+    gather_design_stats = Label("//xls/tools:gather_design_stats")
     native.genrule(
         name = name,
         srcs = srcs,
         outs = [name + ".textproto"],
-        cmd = "$(location //xls/tools:gather_design_stats) " +
-              "--out $@ " +
-              " ".join(["$(locations {}) ".format(s) for s in srcs]),
-        tools = ["//xls/tools:gather_design_stats"],
+        cmd = "$(execpath {}) --out $@ ".format(gather_design_stats) +
+              " ".join(["$(execpaths {}) ".format(s) for s in srcs]),
+        tools = [gather_design_stats],
         **kwargs
     )
 
@@ -505,7 +505,7 @@ def xls_dslx_fmt_test_macro(name, src, opportunistic_postcondition = False):
     """
     out = name + ".fmt.x"
     flag = "--opportunistic_postcondition" if opportunistic_postcondition else ""
-    cmd = "$(location %s) %s $< > $@" % (Label(DEFAULT_DSLX_FMT_TARGET), flag)
+    cmd = "$(execpath %s) %s $< > $@" % (Label(DEFAULT_DSLX_FMT_TARGET), flag)
     native.genrule(
         name = name + "_dslx_fmt",
         srcs = [src],
