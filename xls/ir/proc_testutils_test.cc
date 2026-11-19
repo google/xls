@@ -933,6 +933,53 @@ TEST_F(UnrollProcTest, NonBlockingReceiveParamCountIndependentOfReceiveNodes) {
               IsOkAndHolds(IsProvenTrue()));
 }
 
+TEST_F(UnrollProcTest, NewStyleProcWithInstantiationFails) {
+  auto p = CreatePackage();
+  Type* u32 = p->GetBitsType(32);
+  Proc* leaf_proc;
+  {
+    ProcBuilder pb(NewStyleProc{}, "leaf", p.get());
+    BSendChannel ch = pb.AddOutputChannel("out", u32);
+    pb.Send(ch, pb.Literal(Value::Token()), pb.Literal(UBits(0, 32)));
+    XLS_ASSERT_OK_AND_ASSIGN(leaf_proc, pb.Build());
+  }
+
+  // Wrapper proc with no local sends or state.
+  Proc* wrapper_proc;
+  {
+    ProcBuilder pb(NewStyleProc{}, "wrapper_proc", p.get());
+    BChannelWithInterfaces int_ch = pb.AddChannel("ch", u32);
+    pb.InstantiateProc("leaf_inst", leaf_proc, {int_ch.send_interface});
+    XLS_ASSERT_OK_AND_ASSIGN(wrapper_proc, pb.Build());
+  }
+
+  // Stateful proc that also instantiates a child proc.
+  Proc* stateful_parent;
+  {
+    ProcBuilder pb(NewStyleProc{}, "stateful_parent", p.get());
+    BChannelWithInterfaces int_ch = pb.AddChannel("ch", u32);
+    pb.InstantiateProc("leaf_inst", leaf_proc, {int_ch.send_interface});
+    BValue st = pb.ReadStateElement("cnt", UBits(0, 4));
+    pb.Next(st, pb.Add(st, pb.Literal(UBits(1, 4))));
+    XLS_ASSERT_OK_AND_ASSIGN(stateful_parent, pb.Build());
+  }
+
+  EXPECT_THAT(UnrollProcToFunction(wrapper_proc, /*activation_count=*/2,
+                                   /*include_state=*/false),
+              StatusIs(absl::StatusCode::kUnimplemented,
+                       testing::HasSubstr("proc instantiations")));
+  EXPECT_THAT(UnrollProcToFunction(stateful_parent, /*activation_count=*/2,
+                                   /*include_state=*/true),
+              StatusIs(absl::StatusCode::kUnimplemented,
+                       testing::HasSubstr("proc instantiations")));
+  EXPECT_THAT(
+      UnrollProcToUntimedFunction(stateful_parent, /*activation_count=*/2,
+                                  /*input_value_count=*/0,
+                                  /*output_value_count=*/2),
+      StatusIs(absl::StatusCode::kUnimplemented,
+               testing::HasSubstr("proc instantiations")));
+}
+
 TEST_F(UnrollProcTest, ConditionalReadNextStateNoOp) {
   auto p = CreatePackage();
   ProcBuilder pb(absl::StrCat(TestName(), "_proc"), p.get());

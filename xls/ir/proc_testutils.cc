@@ -422,6 +422,16 @@ class UnrollProcVisitor final : public DfsVisitorWithDefault {
   OutputConsumer& output_consumer_;
 };
 
+absl::Status CheckNoProcInstantiations(Proc* p) {
+  if (p->is_new_style_proc() && !p->proc_instantiations().empty()) {
+    return absl::UnimplementedError(absl::StrFormat(
+        "Unrolling procs with proc instantiations is not supported (proc '%s' "
+        "has %d instantiation(s)); inline procs first.",
+        p->name(), p->proc_instantiations().size()));
+  }
+  return absl::OkStatus();
+}
+
 // Unrolls the proc 'activation_count' times, returning the unrolled function
 // data.
 //
@@ -437,6 +447,7 @@ absl::StatusOr<UnrolledProc> UnrollProcToFunctionInternal(
     OutputConsumer& output_consumer) {
   XLS_RET_CHECK_GT(activation_count, 0)
       << "At least one activation is required.";
+  XLS_RETURN_IF_ERROR(CheckNoProcInstantiations(p));
   UnrolledProc result;
   for (StateElement* state_element : p->StateElements()) {
     if (state_element->type()->IsToken()) {
@@ -499,6 +510,7 @@ absl::StatusOr<UnrolledProc> UnrollProc(Proc* p, int64_t activation_count,
                                         bool cleanup) {
   XLS_RET_CHECK_GT(activation_count, 0)
       << "At least one activation is required.";
+  XLS_RETURN_IF_ERROR(CheckNoProcInstantiations(p));
   if (include_state) {
     XLS_RET_CHECK(
         !p->StateElements().empty() ||
@@ -899,6 +911,7 @@ class UntimedOutputConsumer {
 absl::StatusOr<Function*> UnrollProcToUntimedFunction(
     Proc* p, int64_t activation_count, int64_t input_value_count,
     int64_t output_value_count, bool count_recvs) {
+  XLS_RETURN_IF_ERROR(CheckNoProcInstantiations(p));
   Package* pkg = p->package();
   NameUniquer name_uniquer = pkg->NameUniquerForPackage();
   FunctionBuilder fb(
