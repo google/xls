@@ -18,6 +18,7 @@ load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
 load("@bazel_skylib//rules:build_test.bzl", "build_test")
 load(
     "//xls/build_rules:xls_build_defs.bzl",
+    "dslx_fuzz_test",
     "xls_dslx_ir",
     "xls_dslx_library",
     "xls_dslx_opt_ir",
@@ -1421,6 +1422,20 @@ dslx_lang_test(
 dslx_lang_test(
     name = "new_style_proc_spawn_test",
     convert_to_ir = False,
+)
+
+dslx_lang_test(
+    name = "exhaustive",
+    # Standalone syntax showcase and editor stress test; no single top-level
+    # entry point for IR conversion.
+    convert_to_ir = False,
+    dslx_deps = [":mod_imported_dslx"],
+)
+
+dslx_fuzz_test(
+    name = "exhaustive_fuzz_test",
+    library = ":exhaustive_dslx",
+    test_function = "fuzz_property_with_domains",
 )
 
 xls_dslx_test(
