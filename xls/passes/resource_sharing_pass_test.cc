@@ -77,6 +77,8 @@ using ::testing::Field;
 using ::testing::HasSubstr;
 using ::testing::IsEmpty;
 using ::testing::IsNull;
+using ::testing::Key;
+using ::testing::Optional;
 using ::testing::Pointee;
 using ::testing::Property;
 using ::testing::UnorderedElementsAre;
@@ -109,7 +111,7 @@ class ResourceSharingPassTest : public IrTestBase {
     XLS_RETURN_IF_ERROR(bdd_engine_.Populate(f).status());
     XLS_RETURN_IF_ERROR(nda_.Attach(f).status());
     XLS_RETURN_IF_ERROR(bpa_.Populate(f));
-    visibility_builder_.emplace(next_node_id, &bdd_engine_, nda_, bpa_);
+    visibility_builder_.emplace(next_node_id - 1, &bdd_engine_, nda_, bpa_);
     return &*visibility_builder_;
   }
 
@@ -846,6 +848,193 @@ TEST_F(ResourceSharingPassTest,
                   f, mutual_exclusivity, visibilities,
                   ResourceSharingPass::kDefaultConfig),
               IsOkAndHolds(IsEmpty()));
+}
+
+absl::StatusOr<CompositionPart> DecomposeFirstPart(Node* node, Op op) {
+  XLS_ASSIGN_OR_RETURN(std::vector<std::shared_ptr<EquivalenceMapping>> decomps,
+                       GetNodeEquivalenceMapper().ComputeDecompositions(node));
+  for (const std::shared_ptr<EquivalenceMapping>& decomp : decomps) {
+    for (Node* part : decomp->dst()->function_base()->nodes()) {
+      if (part->op() == op) {
+        return CompositionPart{.mapping = decomp, .part = part};
+      }
+    }
+  }
+  return absl::NotFoundError("Decomposition part not found");
+}
+
+// Skipping conflicting actions (targeting an already decomposed destination or
+// decomposing an already folded source) neither decomposes the skipped source
+// nor pollutes accumulated visibility for subsequent actions.
+TEST_F(
+    ResourceSharingPassTest,
+    PerformFoldingActionsSkipsConflictingActionsWithoutCorruptingVisibility) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue cond = fb.Param("cond", p->GetBitsType(2));
+  BValue c = fb.Param("c", p->GetBitsType(1));
+  BValue d = fb.Param("d", p->GetBitsType(1));
+  BValue u = fb.Param("u", p->GetBitsType(2));
+  BValue x = fb.Param("x", p->GetBitsType(4));
+  BValue mul_a = fb.UMul(u, u, /*result_width=*/4);
+  BValue mul_b = fb.UMul(x, x, /*result_width=*/8);
+  BValue mul_c = fb.UMul(c, d, /*result_width=*/2);
+  BValue mul_d = fb.UMul(d, d, /*result_width=*/2);
+  BValue case0 = fb.ZeroExtend(fb.Concat({mul_a, mul_d}), 8);
+  BValue case2 = fb.ZeroExtend(mul_c, 8);
+  BValue sel =
+      fb.Select(cond, /*cases=*/{case0, mul_b, case2, fb.Literal(UBits(0, 8))});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(sel));
+  XLS_ASSERT_OK_AND_ASSIGN(ResourceSharingPass::VisibilityAnalyses visibility,
+                           ResourceSharingPass::VisibilityAnalyses::Create(
+                               f, ResourceSharingPass::kDefaultConfig));
+  XLS_ASSERT_OK_AND_ASSIGN(CompositionPart a_part,
+                           DecomposeFirstPart(mul_a.node(), Op::kUMul));
+  XLS_ASSERT_OK_AND_ASSIGN(CompositionPart b_part,
+                           DecomposeFirstPart(mul_b.node(), Op::kUMul));
+
+  NodeVisibility from_a = {.node = mul_a.node(),
+                           .edges = {{case0.node(), sel.node()}},
+                           .sinks = {sel.node()}};
+  NodeVisibility from_a_part = {.node = mul_a.node(),
+                                .edges = from_a.edges,
+                                .sinks = {sel.node()},
+                                .composition = a_part};
+  NodeVisibility from_c = {.node = mul_c.node(),
+                           .edges = {{case2.node(), sel.node()}},
+                           .sinks = {sel.node()}};
+  VisibilityEdges edges_b = {{mul_b.node(), sel.node()}};
+
+  // Action 0 runs: `mul_a -> mul_b:b_part` (decomposes `mul_b`, folds `mul_a`).
+  auto action0 = std::make_unique<NaryFoldingAction>(
+      std::vector<NodeVisibility>{from_a}, mul_b.node(), edges_b,
+      /*area_saved=*/0.0, ResourceSharingPass::NodeToMappings{}, b_part);
+  // Action 1 is skipped: `mul_c -> mul_b` (`mul_b` was already decomposed).
+  auto action1 = std::make_unique<NaryFoldingAction>(
+      std::vector<NodeVisibility>{from_c}, mul_b.node(), edges_b);
+  // Action 2 is skipped: `mul_a:a_part -> mul_c` (`mul_a` was already folded).
+  auto action2 = std::make_unique<NaryFoldingAction>(
+      std::vector<NodeVisibility>{from_a_part}, mul_c.node(), from_c.edges);
+  // Action 3 runs: `mul_c -> mul_d` with uncorrupted visibility.
+  auto action3 = std::make_unique<NaryFoldingAction>(
+      std::vector<NodeVisibility>{from_c}, mul_d.node(), from_a.edges);
+
+  const NaryFoldingAction* expected0 = action0.get();
+  const NaryFoldingAction* expected3 = action3.get();
+  auto actions = make_unique_vector<NaryFoldingAction>(
+      std::move(action0), std::move(action1), std::move(action2),
+      std::move(action3));
+
+  ScopedVerifyEquivalence sve(f);
+  EXPECT_THAT(
+      ResourceSharingPass::PerformFoldingActions(f, visibility, actions),
+      IsOkAndHolds(ElementsAre(expected0, expected3)));
+  EXPECT_EQ(NumberOfMultiplications(f), 5);
+}
+
+// PerformFoldingActions returns an error if asked to decompose a destination
+// node that was already mutated in-place by an earlier undecomposed fold.
+TEST_F(ResourceSharingPassTest,
+       PerformFoldingActionsErrorsOnDecomposingAlreadyMutatedTarget) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue cond = fb.Param("cond", p->GetBitsType(1));
+  BValue a = fb.Param("a", p->GetBitsType(2));
+  BValue b = fb.Param("b", p->GetBitsType(2));
+  BValue c = fb.Param("c", p->GetBitsType(1));
+  BValue mul4_dst = fb.UMul(a, b, /*result_width=*/4);
+  BValue mul4_src = fb.UMul(b, a, /*result_width=*/4);
+  BValue mul2_src = fb.UMul(c, c, /*result_width=*/2);
+  BValue case1 = fb.Add(mul4_src, fb.ZeroExtend(mul2_src, 4));
+  BValue sel = fb.Select(cond, {mul4_dst, case1});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(sel));
+  XLS_ASSERT_OK_AND_ASSIGN(ResourceSharingPass::VisibilityAnalyses visibility,
+                           ResourceSharingPass::VisibilityAnalyses::Create(
+                               f, ResourceSharingPass::kDefaultConfig));
+  XLS_ASSERT_OK_AND_ASSIGN(CompositionPart dst_part,
+                           DecomposeFirstPart(mul4_dst.node(), Op::kUMul));
+
+  VisibilityEdges edges_dst = {{mul4_dst.node(), sel.node()}};
+  VisibilityEdges edges_src = {{case1.node(), sel.node()}};
+  auto action0 = std::make_unique<NaryFoldingAction>(
+      std::vector<NodeVisibility>{
+          {.node = mul4_src.node(), .edges = edges_src, .sinks = {sel.node()}}},
+      mul4_dst.node(), edges_dst);
+  auto action1 = std::make_unique<NaryFoldingAction>(
+      std::vector<NodeVisibility>{
+          {.node = mul2_src.node(), .edges = edges_src, .sinks = {sel.node()}}},
+      mul4_dst.node(), edges_dst, /*area_saved=*/0.0,
+      ResourceSharingPass::NodeToMappings{}, dst_part);
+  auto actions = make_unique_vector<NaryFoldingAction>(std::move(action0),
+                                                       std::move(action1));
+
+  EXPECT_THAT(
+      ResourceSharingPass::PerformFoldingActions(f, visibility, actions),
+      StatusIs(absl::StatusCode::kInternal, HasSubstr("already mutated")));
+}
+
+// Transformation supports mixed `from`-side and `to`-side decompositions
+// without mutating the input NaryFoldingAction.
+TEST_F(ResourceSharingPassTest,
+       PerformFoldingActionsRealizesFromAndToDecompositionsWithoutMutating) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue sel = fb.Param("sel", p->GetBitsType(2));
+  BValue a = fb.Param("a", p->GetBitsType(2));
+  BValue b = fb.Param("b", p->GetBitsType(2));
+  BValue c = fb.Param("c", p->GetBitsType(1));
+  BValue from_mul4 = fb.UMul(a, b, /*result_width=*/4);
+  BValue from_smul2 = fb.SMul(c, c, /*result_width=*/2);
+  BValue to_mul4 = fb.UMul(b, a, /*result_width=*/4);
+  BValue case1 = fb.ZeroExtend(from_smul2, 4);
+  BValue out = fb.PrioritySelect(sel, {from_mul4, case1}, to_mul4);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(out));
+  XLS_ASSERT_OK_AND_ASSIGN(ResourceSharingPass::VisibilityAnalyses visibility,
+                           ResourceSharingPass::VisibilityAnalyses::Create(
+                               f, ResourceSharingPass::kDefaultConfig));
+
+  XLS_ASSERT_OK_AND_ASSIGN(CompositionPart from_comp,
+                           DecomposeFirstPart(from_mul4.node(), Op::kUMul));
+  XLS_ASSERT_OK_AND_ASSIGN(CompositionPart to_comp,
+                           DecomposeFirstPart(to_mul4.node(), Op::kUMul));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::optional<ResourceSharingPass::NodeToMappings> mappings,
+      GetNodeEquivalenceMapper().ComputeMappings(
+          {from_comp.part, from_smul2.node()}, to_comp.part));
+  ASSERT_THAT(mappings, Optional(UnorderedElementsAre(Key(from_comp.part),
+                                                      Key(from_smul2.node()),
+                                                      Key(to_comp.part))));
+
+  Node* orig_from_mul = from_mul4.node();
+  Node* orig_from_smul = from_smul2.node();
+  Node* orig_to_mul = to_mul4.node();
+  auto make_actions = [&]() -> std::vector<std::unique_ptr<NaryFoldingAction>> {
+    auto action = std::make_unique<NaryFoldingAction>(
+        std::vector<NodeVisibility>{{.node = orig_from_mul,
+                                     .edges = {{orig_from_mul, out.node()}},
+                                     .sinks = {out.node()},
+                                     .composition = from_comp},
+                                    {.node = orig_from_smul,
+                                     .edges = {{case1.node(), out.node()}},
+                                     .sinks = {out.node()}}},
+        orig_to_mul, VisibilityEdges{{orig_to_mul, out.node()}},
+        /*area_saved=*/10.0, std::move(*mappings), to_comp);
+    return make_unique_vector<NaryFoldingAction>(std::move(action));
+  };
+
+  std::vector<std::unique_ptr<NaryFoldingAction>> actions = make_actions();
+  ScopedVerifyEquivalence sve(f);
+  EXPECT_THAT(
+      ResourceSharingPass::PerformFoldingActions(f, visibility, actions),
+      IsOkAndHolds(ElementsAre(actions[0].get())));
+  // There are 9 muls after both decompositions and 7 after the 2->1 nary fold.
+  EXPECT_EQ(NumberOfMultiplications(f), 7);
+
+  // Expect that the nary folds are not mutated.
+  std::vector<std::unique_ptr<NaryFoldingAction>> expected_actions =
+      make_actions();
+  EXPECT_EQ(actions[0]->GetFrom(), expected_actions[0]->GetFrom());
+  EXPECT_EQ(actions[0]->GetTo(), expected_actions[0]->GetTo());
 }
 
 void IrFuzzResourceSharing(FuzzPackageWithArgs fuzz_package_with_args) {
