@@ -46,7 +46,14 @@ namespace internal {
 ////////////////////////////////////////////////////
 template <typename ValueT>
 void GenerateRandomValue(absl::BitGen& gen, int64_t index, ValueT* value) {
-  // Fallback case - unknown ValueT. Do nothing.
+  LOG(FATAL) << "No default random value generator for this type; "
+                "call TestbenchBuilder::SetIndexToInputFn().";
+}
+
+template <>
+inline void GenerateRandomValue<uint16_t>(absl::BitGen& gen, int64_t index,
+                                          uint16_t* value) {
+  *value = absl::Uniform<uint16_t>(gen);
 }
 
 template <>

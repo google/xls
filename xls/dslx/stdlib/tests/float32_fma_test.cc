@@ -13,19 +13,19 @@
 // limitations under the License.
 
 // Random-sampling test for the 32-bit FMA (fused multiply-add) module.
+#include <array>
 #include <cmath>
 #include <cstdint>
-#include <limits>
 #include <string>
 #include <tuple>
 
 #include "absl/base/casts.h"
 #include "absl/flags/flag.h"
-#include "absl/random/random.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_format.h"
 #include "xls/common/exit_status.h"
 #include "xls/common/init_xls.h"
+#include "xls/common/status/status_macros.h"
 #include "xls/dslx/stdlib/float32_fma_jit_wrapper.h"
 #include "xls/dslx/stdlib/tests/float32_test_utils.h"
 #include "xls/tests/testbench.h"
@@ -37,38 +37,48 @@ ABSL_FLAG(int64_t, num_samples, 1024 * 1024,
           "Number of random samples to test.");
 
 namespace xls {
+namespace {
 
 using Float3x32 = std::tuple<float, float, float>;
 
-static uint32_t fp_sign(uint32_t f) { return f >> 31; }
+uint32_t fp_sign(uint32_t f) { return f >> 31; }
 
-static uint32_t fp_exp(uint32_t f) { return (f >> 23) & 0xff; }
+uint32_t fp_exp(uint32_t f) { return (f >> 23) & 0xff; }
 
-static uint32_t fp_fraction(uint32_t f) { return f & 0x7fffff; }
+uint32_t fp_fraction(uint32_t f) { return f & 0x7fffff; }
 
-static Float3x32 IndexToInput(uint64_t index) {
-  // Skip subnormal inputs - we currently don't handle them.
-  thread_local absl::BitGen bitgen;
-  auto generate_non_subnormal = []() {
-    uint32_t value = 0;
-    while (fp_exp(value) == 0) {
-      value = absl::Uniform(bitgen, 0u, std::numeric_limits<uint32_t>::max());
-    }
-    return value;
-  };
+constexpr std::array<uint32_t, 12> kSpecials = {
+    0x00000000u,  // +0.0
+    0x80000000u,  // -0.0
+    0x00000001u,  // +min_subnormal
+    0x807fffffu,  // -max_subnormal
+    0x00800000u,  // +min_normal
+    0x80800000u,  // -min_normal
+    0x3f800000u,  // +1.0
+    0xbf800000u,  // -1.0
+    0x7f7fffffu,  // +max_normal
+    0x7f800000u,  // +inf
+    0xff800000u,  // -inf
+    0x7fc00000u,  // +qNaN
+};
 
-  uint32_t a = generate_non_subnormal();
-  uint32_t b = generate_non_subnormal();
-  uint32_t c = generate_non_subnormal();
+Float3x32 SpecialIndexToInput(int64_t index) {
+  constexpr uint64_t kNumSpecials = kSpecials.size();
+  uint32_t a = kSpecials[index % kNumSpecials];
+  uint32_t b = kSpecials[(index / kNumSpecials) % kNumSpecials];
+  uint32_t c =
+      kSpecials[(index / (kNumSpecials * kNumSpecials)) % kNumSpecials];
   return Float3x32(absl::bit_cast<float>(a), absl::bit_cast<float>(b),
                    absl::bit_cast<float>(c));
 }
 
-static float ComputeExpected(fp::Float32Fma* jit_wrapper, Float3x32 input) {
-  return fmaf(std::get<0>(input), std::get<1>(input), std::get<2>(input));
+float ComputeExpected(fp::Float32Fma* jit_wrapper, Float3x32 input) {
+  return fmaf(FlushSubnormal(std::get<0>(input)),
+              FlushSubnormal(std::get<1>(input)),
+              FlushSubnormal(std::get<2>(input)));
 }
 
-static float ComputeActual(fp::Float32Fma* jit_wrapper, Float3x32 input) {
+float ComputeActual(fp::Float32Fma* jit_wrapper, Float3x32 input) {
   float result =
       jit_wrapper
           ->Run(std::get<0>(input), std::get<1>(input), std::get<2>(input))
@@ -76,13 +86,13 @@ static float ComputeActual(fp::Float32Fma* jit_wrapper, Float3x32 input) {
   return result;
 }
 
-static std::string PrintFloat(float a) {
+std::string PrintFloat(float a) {
   uint32_t a_int = absl::bit_cast<uint32_t>(a);
-  return absl::StrFormat("0x%016x (0x%01x, 0x%03x, 0x%013x)", a_int,
+  return absl::StrFormat("0x%08x (0x%01x, 0x%02x, 0x%06x)", a_int,
                          fp_sign(a_int), fp_exp(a_int), fp_fraction(a_int));
 }
 
-static std::string PrintInput(const Float3x32& input) {
+std::string PrintInput(const Float3x32& input) {
   return absl::StrFormat(
       "  A       : %s\n"
       "  B       : %s\n"
@@ -91,21 +101,38 @@ static std::string PrintInput(const Float3x32& input) {
       PrintFloat(std::get<2>(input)));
 }
 
-static absl::Status RealMain(int64_t num_samples, int num_threads) {
-  TestbenchBuilder<Float3x32, float, fp::Float32Fma> builder(
+absl::Status RealMain(int64_t num_samples, int num_threads) {
+  constexpr int64_t kNumSpecialTriples = static_cast<int64_t>(
+      kSpecials.size() * kSpecials.size() * kSpecials.size());
+  TestbenchBuilder<Float3x32, float, fp::Float32Fma> special_builder(
       ComputeExpected, ComputeActual,
       []() { return fp::Float32Fma::Create().value(); });
-  builder.SetCompareResultsFn(CompareResults)
-      .SetIndexToInputFn(IndexToInput)
+  special_builder.SetCompareResultsFn(CompareResults)
+      .SetIndexToInputFn(SpecialIndexToInput)
+      .SetPrintInputFn(PrintInput)
+      .SetPrintResultFn(PrintFloat)
+      .SetNumSamples(kNumSpecialTriples);
+  if (num_threads != 0) {
+    special_builder.SetNumThreads(num_threads);
+  }
+  XLS_RETURN_IF_ERROR(special_builder.Build().Run());
+
+  // Rely on TestbenchBuilder's default random generator for uniform bit-pattern
+  // coverage across all 2^32 float values (including zeros and subnormals).
+  TestbenchBuilder<Float3x32, float, fp::Float32Fma> random_builder(
+      ComputeExpected, ComputeActual,
+      []() { return fp::Float32Fma::Create().value(); });
+  random_builder.SetCompareResultsFn(CompareResults)
       .SetPrintInputFn(PrintInput)
       .SetPrintResultFn(PrintFloat)
       .SetNumSamples(num_samples);
   if (num_threads != 0) {
-    builder.SetNumThreads(num_threads);
+    random_builder.SetNumThreads(num_threads);
   }
-  return builder.Build().Run();
+  return random_builder.Build().Run();
 }
 
+}  // namespace
 }  // namespace xls
 
 int main(int argc, char** argv) {

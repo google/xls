@@ -17,10 +17,12 @@
 #include <cstdint>
 #include <tuple>
 
+#include "absl/base/casts.h"
 #include "absl/flags/flag.h"
 #include "absl/status/status.h"
 #include "xls/common/exit_status.h"
 #include "xls/common/init_xls.h"
+#include "xls/common/math_util.h"
 #include "xls/dslx/stdlib/float64_mul_jit_wrapper.h"
 #include "xls/tests/testbench.h"
 #include "xls/tests/testbench_builder.h"
@@ -31,48 +33,46 @@ ABSL_FLAG(int64_t, num_samples, 1024 * 1024,
           "Number of random samples to test.");
 
 namespace xls {
+namespace {
 
 using Float2x64 = std::tuple<double, double>;
-
-static double FlushSubnormals(double value) {
-  if (std::fpclassify(value) == FP_SUBNORMAL) {
-    return 0;
-  }
-
-  return value;
-}
-
-static bool ZeroOrSubnormal(double value) {
-  return value == 0 || std::fpclassify(value) == FP_SUBNORMAL;
-}
 
 // The DSLX implementation uses the "round to nearest (half to even)"
 // rounding mode, which is the default on most systems, hence we don't need
 // to call fesetround().
 // The DSLX implementation also flushes input subnormals to 0, so we do that
 // here as well.
-static double ComputeExpected(fp::Float64Mul* jit_wrapper, Float2x64 input) {
-  double x = FlushSubnormals(std::get<0>(input));
-  double y = FlushSubnormals(std::get<1>(input));
+double ComputeExpected(fp::Float64Mul* jit_wrapper, Float2x64 input) {
+  double x = FlushSubnormal(std::get<0>(input));
+  double y = FlushSubnormal(std::get<1>(input));
   return x * y;
 }
 
-// Computes FP addition via DSLX & the JIT.
-static double ComputeActual(fp::Float64Mul* jit_wrapper, Float2x64 input) {
+// Computes FP multiplication via DSLX & the JIT.
+double ComputeActual(fp::Float64Mul* jit_wrapper, Float2x64 input) {
   return jit_wrapper->Run(std::get<0>(input), std::get<1>(input)).value();
 }
 
 // Compares expected vs. actual results, taking into account two special cases.
-static bool CompareResults(double a, double b) {
-  // DSLX flushes subnormal outputs, while regular FP addition does not, so
-  // just check for that here.
-  return a == b || (std::isnan(a) && std::isnan(b)) ||
-         (ZeroOrSubnormal(a) && ZeroOrSubnormal(b));
+bool CompareResults(double expected, double actual) {
+  // IEEE-754 leaves host NaN sign and payload bits implementation-defined
+  // (e.g., x86 produces -qNaN for 0 * inf and propagates NaN input payloads),
+  // whereas DSLX apfloat always returns canonical +qNaN.
+  if (std::isnan(expected)) {
+    constexpr uint64_t kCanonicalQNaN = 0x7ff8000000000000ull;
+    return absl::bit_cast<uint64_t>(actual) == kCanonicalQNaN;
+  }
+  // DSLX flushes subnormal outputs, while regular FP multiplication does not,
+  // so flush subnormals (preserving sign) and compare exact bits to distinguish
+  // -0.0 from +0.0.
+  uint64_t expected_bits = absl::bit_cast<uint64_t>(FlushSubnormal(expected));
+  uint64_t actual_bits = absl::bit_cast<uint64_t>(FlushSubnormal(actual));
+  return expected_bits == actual_bits;
 }
 
-static absl::Status RealMain(uint64_t num_samples, int num_threads) {
+absl::Status RealMain(uint64_t num_samples, int num_threads) {
   TestbenchBuilder<Float2x64, double, fp::Float64Mul> builder(
-      ComputeActual, ComputeExpected,
+      ComputeExpected, ComputeActual,
       []() { return fp::Float64Mul::Create().value(); });
   builder.SetCompareResultsFn(CompareResults).SetNumSamples(num_samples);
   if (num_threads != 0) {
@@ -81,11 +81,11 @@ static absl::Status RealMain(uint64_t num_samples, int num_threads) {
   return builder.Build().Run();
 }
 
+}  // namespace
 }  // namespace xls
 
 int main(int argc, char** argv) {
   xls::InitXls(argv[0], argc, argv);
   return xls::ExitStatus(xls::RealMain(absl::GetFlag(FLAGS_num_samples),
                                        absl::GetFlag(FLAGS_num_threads)));
-  return 0;
 }

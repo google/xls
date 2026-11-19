@@ -42,8 +42,10 @@ TEST(Float32Test, ToInt32) {
   XLS_ASSERT_OK_AND_ASSIGN(auto jit, Float32ToInt32::Create());
   absl::BitGen bitgen;
   bool exhaustive = absl::GetFlag(FLAGS_exhaustive);
+  // +1 so the `< num_iters` loop includes 0xffffffff (-1 / -qNaN).
   uint64_t num_iters =
-      exhaustive ? std::numeric_limits<uint32_t>::max() : 1024 * 1024;
+      exhaustive ? (uint64_t{std::numeric_limits<uint32_t>::max()} + 1)
+                 : 1024 * 1024;
   for (uint64_t i = 0; i < num_iters; i++) {
     float input = absl::bit_cast<float>(static_cast<uint32_t>(i));
     if (!exhaustive) {
@@ -82,10 +84,12 @@ TEST(Float32Test, FromInt32) {
   XLS_ASSERT_OK_AND_ASSIGN(auto jit, Float32FromInt32::Create());
   absl::BitGen bitgen;
   bool exhaustive = absl::GetFlag(FLAGS_exhaustive);
+  // +1 so the `< num_iters` loop includes 0xffffffff (-1 / -qNaN).
   uint64_t num_iters =
-      exhaustive ? std::numeric_limits<uint32_t>::max() : 1024 * 1024;
-  for (int i = 0; i < num_iters; i++) {
-    int32_t input = i;
+      exhaustive ? (uint64_t{std::numeric_limits<uint32_t>::max()} + 1)
+                 : 1024 * 1024;
+  for (uint64_t i = 0; i < num_iters; i++) {
+    int32_t input = static_cast<int32_t>(i);
     if (!exhaustive) {
       input = absl::Uniform<int32_t>(absl::IntervalClosedClosed, bitgen,
                                      std::numeric_limits<int32_t>::min(),

@@ -14,10 +14,12 @@
 
 #include <cmath>
 #include <cstdint>
+#include <string>
 #include <tuple>
 
 #include "absl/flags/flag.h"
 #include "absl/status/status.h"
+#include "absl/strings/str_format.h"
 #include "absl/types/span.h"
 #include "Eigen/Core"
 #include "xls/common/exit_status.h"
@@ -35,36 +37,61 @@ ABSL_FLAG(int64_t, num_samples, 1024 * 1024,
 
 namespace xls {
 namespace dslx {
+namespace {
 
-using BF16Tuple = std::tuple<uint8_t, uint8_t, uint8_t>;
-using BF16Input = std::tuple<Eigen::bfloat16, Eigen::bfloat16>;
+using BF16Input = std::tuple<uint16_t, uint16_t>;
 
-static Eigen::bfloat16 FlushSubnormal(Eigen::bfloat16 bf) {
-  if (std::fpclassify(static_cast<float>(bf)) == FP_SUBNORMAL) {
-    return Eigen::bfloat16(0.0f);
+Eigen::bfloat16 FlushSubnormal(Eigen::bfloat16 bf) {
+  float f = static_cast<float>(bf);
+  if (std::fpclassify(f) == FP_SUBNORMAL) {
+    return Eigen::bfloat16(std::copysign(0.0f, f));
   }
   return bf;
 }
 
-static bool CompareResults(Eigen::bfloat16 a, Eigen::bfloat16 b) {
-  if (std::isnan(static_cast<float>(a)) && std::isnan(static_cast<float>(b))) {
-    return true;
-  }
-  return Eigen::numext::bit_cast<uint16_t>(FlushSubnormal(a)) ==
-         Eigen::numext::bit_cast<uint16_t>(FlushSubnormal(b));
+// Bijectively enumerates all 2^32 (a, b) bit pairs for exhaustive runs.
+BF16Input IndexToInputExhaustive(int64_t index) {
+  uint32_t bits = static_cast<uint32_t>(index);
+  return BF16Input(static_cast<uint16_t>(bits),
+                   static_cast<uint16_t>(bits >> 16));
 }
 
-static Eigen::bfloat16 ComputeExpected(Bfloat16Mul* jit_wrapper,
-                                       BF16Input input) {
-  float x = static_cast<float>(FlushSubnormal(std::get<0>(input)));
-  float y = static_cast<float>(FlushSubnormal(std::get<1>(input)));
+std::string PrintBF16(const Eigen::bfloat16& bf) {
+  uint16_t bits = Eigen::numext::bit_cast<uint16_t>(bf);
+  return absl::StrFormat("0x%04x (%g)", bits, static_cast<float>(bf));
+}
+
+std::string PrintInput(const BF16Input& input) {
+  return absl::StrFormat(
+      "(%s, %s)",
+      PrintBF16(Eigen::numext::bit_cast<Eigen::bfloat16>(std::get<0>(input))),
+      PrintBF16(Eigen::numext::bit_cast<Eigen::bfloat16>(std::get<1>(input))));
+}
+
+bool CompareResults(Eigen::bfloat16 expected, Eigen::bfloat16 actual) {
+  // IEEE-754 leaves host NaN sign and payload bits implementation-defined
+  // (e.g., x86 produces -qNaN for 0 * inf and propagates NaN input payloads),
+  // whereas DSLX apfloat always returns canonical +qNaN.
+  if (std::isnan(static_cast<float>(expected))) {
+    constexpr uint16_t kCanonicalQNaN = 0x7fc0u;
+    return Eigen::numext::bit_cast<uint16_t>(actual) == kCanonicalQNaN;
+  }
+  return Eigen::numext::bit_cast<uint16_t>(FlushSubnormal(expected)) ==
+         Eigen::numext::bit_cast<uint16_t>(FlushSubnormal(actual));
+}
+
+Eigen::bfloat16 ComputeExpected(Bfloat16Mul* jit_wrapper, BF16Input input) {
+  Eigen::bfloat16 a =
+      Eigen::numext::bit_cast<Eigen::bfloat16>(std::get<0>(input));
+  Eigen::bfloat16 b =
+      Eigen::numext::bit_cast<Eigen::bfloat16>(std::get<1>(input));
+  float x = static_cast<float>(FlushSubnormal(a));
+  float y = static_cast<float>(FlushSubnormal(b));
   return Eigen::bfloat16(x * y);
 }
 
-static Eigen::bfloat16 ComputeActual(Bfloat16Mul* jit_wrapper,
-                                     BF16Input input) {
-  auto to_value = [](Eigen::bfloat16 bf) {
-    uint16_t u = Eigen::numext::bit_cast<uint16_t>(bf);
+Eigen::bfloat16 ComputeActual(Bfloat16Mul* jit_wrapper, BF16Input input) {
+  auto to_value = [](uint16_t u) {
     bool sign = (u >> 15) & 1;
     uint8_t exp = (u >> 7) & 0xff;
     uint8_t frac = u & 0x7f;
@@ -88,17 +115,27 @@ static Eigen::bfloat16 ComputeActual(Bfloat16Mul* jit_wrapper,
   return Eigen::numext::bit_cast<Eigen::bfloat16>(result_u16);
 }
 
-static absl::Status RealMain(uint64_t num_samples, int num_threads) {
+absl::Status RealMain(uint64_t num_samples, int num_threads) {
+  constexpr uint64_t kExhaustiveSamples = uint64_t{1} << 32;
   TestbenchBuilder<BF16Input, Eigen::bfloat16, Bfloat16Mul> builder(
-      ComputeActual, ComputeExpected,
+      ComputeExpected, ComputeActual,
       []() { return Bfloat16Mul::Create().value(); });
-  builder.SetCompareResultsFn(CompareResults).SetNumSamples(num_samples);
+  // Use the bijective enumerator for exhaustive sweeps; otherwise rely on
+  // TestbenchBuilder's default random uint16_t tuple generator.
+  if (num_samples >= kExhaustiveSamples) {
+    builder.SetIndexToInputFn(IndexToInputExhaustive);
+  }
+  builder.SetCompareResultsFn(CompareResults)
+      .SetPrintInputFn(PrintInput)
+      .SetPrintResultFn(PrintBF16)
+      .SetNumSamples(num_samples);
   if (num_threads != 0) {
     builder.SetNumThreads(num_threads);
   }
   return builder.Build().Run();
 }
 
+}  // namespace
 }  // namespace dslx
 }  // namespace xls
 
