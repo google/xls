@@ -524,7 +524,9 @@ fn round_up_ne_test() {
 // TODO(google/xls#1656): Consolidate apfloat "round with ties to nearest even" logic
 pub fn cast_from_fixed_using_rne<EXP_SZ: u32, FRACTION_SZ: u32, NUM_SRC_BITS: u32>
     (to_cast: sN[NUM_SRC_BITS]) -> APFloat<EXP_SZ, FRACTION_SZ> {
-    const UEXP_SZ: u32 = EXP_SZ + 1;
+    // Wide enough to hold both max_exp_exclusive (2^(EXP_SZ - 1)) and num_trailing_nonzeros
+    // (up to NUM_SRC_BITS) without truncating or wrapping when NUM_SRC_BITS > 2^(EXP_SZ + 1).
+    const UEXP_SZ: u32 = std::max(EXP_SZ + 1, std::clog2(NUM_SRC_BITS + 1));
     const EXTENDED_FRACTION_SZ: u32 = FRACTION_SZ + NUM_SRC_BITS;
 
     // Determine sign.
@@ -535,8 +537,6 @@ pub fn cast_from_fixed_using_rne<EXP_SZ: u32, FRACTION_SZ: u32, NUM_SRC_BITS: u3
     let lz = clz(abs_magnitude);
     let num_trailing_nonzeros = (NUM_SRC_BITS as uN[NUM_SRC_BITS]) - lz;
 
-    // TODO(sameeragarwal): The following computation of exp can overflow if
-    // num_trailing_nonzeros is larger than what uN[UEXP_SZ] can hold.
     let exp = (num_trailing_nonzeros as uN[UEXP_SZ]) - 1;
     let max_exp_exclusive = uN[UEXP_SZ]:1 << ((EXP_SZ as uN[UEXP_SZ]) - 1);
     let is_inf = exp >= max_exp_exclusive;
@@ -642,11 +642,29 @@ fn cast_from_fixed_using_rne_test() {
     assert_eq(cast_from_fixed_using_rne<4, 4>(sN[32]:254), inf<4, 4>(0));
 }
 
+#[test]
+fn cast_from_fixed_using_rne_exp_overflow_test() {
+    // Regression test: when NUM_SRC_BITS > 2^(EXP_SZ + 1), num_trailing_nonzeros must not wrap
+    // around when computing the unbiased exponent (e.g., 1 << 32 has 33 trailing bits, which
+    // previously truncated to 1 in u5 and returned 1.0 instead of +inf).
+    assert_eq(cast_from_fixed_using_rne<4, 4>(s64:1 << 32), inf<4, 4>(false));
+    assert_eq(cast_from_fixed_using_rne<4, 4>(-(s64:1 << 32)), inf<4, 4>(true));
+    assert_eq(cast_from_fixed_using_rne<4, 4>(s64:1 << 33), inf<4, 4>(false));
+    assert_eq(cast_from_fixed_using_rne<4, 4>(std::signed_min_value<64>()), inf<4, 4>(true));
+    assert_eq(cast_from_fixed_using_rne<4, 4>(std::signed_max_value<64>()), inf<4, 4>(false));
+    // Also check FP8 E4M3 (EXP_SZ=4, FRACTION_SZ=3) and HF16 (EXP_SZ=5, FRACTION_SZ=10) with s65.
+    assert_eq(cast_from_fixed_using_rne<4, 3>(s64:1 << 32), inf<4, 3>(false));
+    assert_eq(cast_from_fixed_using_rne<5, 10>(sN[65]:1 << 63), inf<5, 10>(false));
+    assert_eq(cast_from_fixed_using_rne<5, 10>(std::signed_min_value<65>()), inf<5, 10>(true));
+}
+
 // Casts the fixed point number to a floating point number using RZ
 // (Round to Zero) as the rounding mode.
 pub fn cast_from_fixed_using_rz<EXP_SZ: u32, FRACTION_SZ: u32, NUM_SRC_BITS: u32>
     (to_cast: sN[NUM_SRC_BITS]) -> APFloat<EXP_SZ, FRACTION_SZ> {
-    const UEXP_SZ: u32 = EXP_SZ + 1;
+    // Wide enough to hold both max_exp_exclusive (2^(EXP_SZ - 1)) and num_trailing_nonzeros
+    // (up to NUM_SRC_BITS) without truncating or wrapping when NUM_SRC_BITS > 2^(EXP_SZ + 1).
+    const UEXP_SZ: u32 = std::max(EXP_SZ + 1, std::clog2(NUM_SRC_BITS + 1));
     const EXTENDED_FRACTION_SZ: u32 = FRACTION_SZ + NUM_SRC_BITS;
 
     // Determine sign.
@@ -657,8 +675,6 @@ pub fn cast_from_fixed_using_rz<EXP_SZ: u32, FRACTION_SZ: u32, NUM_SRC_BITS: u32
     let lz = clz(abs_magnitude);
     let num_trailing_nonzeros = (NUM_SRC_BITS as uN[NUM_SRC_BITS]) - lz;
 
-    // TODO(sameeragarwal): The following computation of exp can overflow if
-    // num_trailing_nonzeros is larger than what uN[UEXP_SZ] can hold.
     let exp = (num_trailing_nonzeros as uN[UEXP_SZ]) - 1;
     let max_exp_exclusive = uN[UEXP_SZ]:1 << ((EXP_SZ as uN[UEXP_SZ]) - 1);
     let is_inf = exp >= max_exp_exclusive;
@@ -815,6 +831,21 @@ fn cast_from_fixed_using_rz_test() {
     assert_eq(
         cast_from_fixed_using_rz<EXP_SZ, FRAC_SZ>(-sN[30]:0b010001110000000000),
         max_normal<EXP_SZ, FRAC_SZ>(true));
+}
+
+#[test]
+fn cast_from_fixed_using_rz_exp_overflow_test() {
+    // Regression test: when NUM_SRC_BITS > 2^(EXP_SZ + 1), num_trailing_nonzeros must not wrap
+    // around when computing the unbiased exponent.
+    assert_eq(cast_from_fixed_using_rz<4, 4>(s64:1 << 32), max_normal<4, 4>(false));
+    assert_eq(cast_from_fixed_using_rz<4, 4>(-(s64:1 << 32)), max_normal<4, 4>(true));
+    assert_eq(cast_from_fixed_using_rz<4, 4>(s64:1 << 33), max_normal<4, 4>(false));
+    assert_eq(cast_from_fixed_using_rz<4, 4>(std::signed_min_value<64>()), max_normal<4, 4>(true));
+    assert_eq(cast_from_fixed_using_rz<4, 4>(std::signed_max_value<64>()), max_normal<4, 4>(false));
+    // Also check FP8 E4M3 (EXP_SZ=4, FRACTION_SZ=3) and HF16 (EXP_SZ=5, FRACTION_SZ=10) with s65.
+    assert_eq(cast_from_fixed_using_rz<4, 3>(s64:1 << 32), max_normal<4, 3>(false));
+    assert_eq(cast_from_fixed_using_rz<5, 10>(sN[65]:1 << 63), max_normal<5, 10>(false));
+    assert_eq(cast_from_fixed_using_rz<5, 10>(std::signed_min_value<65>()), max_normal<5, 10>(true));
 }
 
 // Returns true if x == 0 or x is a subnormal number.
