@@ -898,9 +898,16 @@ absl::Status IrTranslator::HandleUMulp(PartialProductOp* mul) {
 absl::Status IrTranslator::HandleSDiv(BinOp* div) {
   Term lhs = GetTranslation(div->operand(0));
   Term rhs = GetTranslation(div->operand(1));
+  uint64_t width = lhs.sort().bv_size();
   Term zero = tm_.mk_bv_value_uint64(rhs.sort(), 0);
   Term is_zero = tm_.mk_term(Kind::EQUAL, {rhs, zero});
-  Term res = tm_.mk_term(Kind::ITE, {is_zero, ZeroOfSort(lhs.sort()),
+  Term msb = tm_.mk_term(Kind::BV_EXTRACT, {lhs}, {width - 1, width - 1});
+  Term is_neg =
+      tm_.mk_term(Kind::EQUAL, {msb, tm_.mk_bv_value_uint64(msb.sort(), 1)});
+  Term div_by_zero = tm_.mk_term(
+      Kind::ITE,
+      {is_neg, MinSignedOfSort(lhs.sort()), MaxSignedOfSort(lhs.sort())});
+  Term res = tm_.mk_term(Kind::ITE, {is_zero, div_by_zero,
                                      tm_.mk_term(Kind::BV_SDIV, {lhs, rhs})});
   NoteTranslation(div, res);
   return absl::OkStatus();

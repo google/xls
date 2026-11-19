@@ -707,6 +707,62 @@ TEST_F(BitwuzlaIrTranslatorTest, WideLiteralTranslation) {
   }
 }
 
+TEST_F(BitwuzlaIrTranslatorTest, HandlesSDiv) {
+  auto package = CreatePackage();
+  FunctionBuilder fb("f", package.get());
+  Type* s8 = package->GetBitsType(8);
+  BValue lhs = fb.Param("lhs", s8);
+  BValue rhs = fb.Literal(SBits(0, 8));
+  BValue sdiv_zero = fb.SDiv(lhs, rhs);
+  BValue is_neg = fb.SLt(lhs, fb.Literal(SBits(0, 8)));
+  BValue expected =
+      fb.Select(is_neg, fb.Literal(SBits(-128, 8)), fb.Literal(SBits(127, 8)));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Function * f, fb.BuildWithReturnValue(fb.Tuple({sdiv_zero, expected})));
+  EXPECT_THAT(
+      solver_->TryProve(f, sdiv_zero.node(),
+                        Predicate::IsEqualTo(expected.node()), SolverLimit()),
+      IsOkAndHolds(IsProvenTrue()));
+
+  for (int64_t a : {-128, -127, -4, -1, 0, 1, 4, 126, 127}) {
+    for (int64_t b : {-128, -4, -1, 0, 1, 4, 127}) {
+      auto pkg = CreatePackage();
+      FunctionBuilder cfb("c", pkg.get());
+      Bits lhs_bits = SBits(a, 8);
+      Bits rhs_bits = SBits(b, 8);
+      BValue res = cfb.SDiv(cfb.Literal(lhs_bits), cfb.Literal(rhs_bits));
+      BValue exp = cfb.Literal(bits_ops::SDiv(lhs_bits, rhs_bits));
+      XLS_ASSERT_OK_AND_ASSIGN(Function * cf,
+                               cfb.BuildWithReturnValue(cfb.Tuple({res, exp})));
+      EXPECT_THAT(
+          solver_->TryProve(cf, res.node(), Predicate::IsEqualTo(exp.node()),
+                            SolverLimit()),
+          IsOkAndHolds(IsProvenTrue()))
+          << a << " sdiv " << b;
+    }
+  }
+}
+
+TEST_F(BitwuzlaIrTranslatorTest, HandlesSDiv1BitWide) {
+  for (int64_t a : {0, -1}) {
+    for (int64_t b : {0, -1}) {
+      auto pkg = CreatePackage();
+      FunctionBuilder cfb("c", pkg.get());
+      Bits lhs_bits = SBits(a, 1);
+      Bits rhs_bits = SBits(b, 1);
+      BValue res = cfb.SDiv(cfb.Literal(lhs_bits), cfb.Literal(rhs_bits));
+      BValue exp = cfb.Literal(bits_ops::SDiv(lhs_bits, rhs_bits));
+      XLS_ASSERT_OK_AND_ASSIGN(Function * cf,
+                               cfb.BuildWithReturnValue(cfb.Tuple({res, exp})));
+      EXPECT_THAT(
+          solver_->TryProve(cf, res.node(), Predicate::IsEqualTo(exp.node()),
+                            SolverLimit()),
+          IsOkAndHolds(IsProvenTrue()))
+          << a << " sdiv " << b;
+    }
+  }
+}
+
 // Microbenchmarks comparing Bitwuzla against Z3 on representative IR operations
 
 static void BM_OneHotLsb(benchmark::State& state, SolverKind kind) {
