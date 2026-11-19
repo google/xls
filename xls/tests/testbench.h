@@ -15,6 +15,7 @@
 #ifndef XLS_TESTS_TESTBENCH_H_
 #define XLS_TESTS_TESTBENCH_H_
 
+#include <algorithm>
 #include <cmath>
 #include <cstdint>
 #include <functional>
@@ -167,10 +168,14 @@ class TestbenchBase {
 
   // Sets the number of threads to use. Must be called before Run().
   absl::Status SetNumThreads(int num_threads) {
-    absl::MutexLock lock(&mutex_);
+    absl::MutexLock lock(mutex_);
     if (this->started_) {
       return absl::FailedPreconditionError(
           "Can't change the number of threads after starting execution.");
+    }
+    if (num_threads <= 0) {
+      return absl::InvalidArgumentError(absl::StrFormat(
+          "num_threads must be positive; got %d.", num_threads));
     }
     num_threads_ = num_threads;
     return absl::OkStatus();
@@ -178,79 +183,91 @@ class TestbenchBase {
 
   // Executes the test.
   absl::Status Run() {
-    // Lock before spawning threads to prevent missing any early wakeup signals
-    // here.
-    mutex_.Lock();
-    started_ = true;
+    if (start_ > end_) {
+      return absl::InvalidArgumentError(
+          absl::StrFormat("Invalid testbench range: [%u, %u).", start_, end_));
+    }
+    const uint64_t total_size = end_ - start_;
 
-    // Set up all the workers.
-    uint64_t chunk_size = (end_ - start_) / num_threads_;
-    uint64_t chunk_remainder =
-        chunk_size == 0 ? (end_ - start_) : (end_ - start_) % chunk_size;
-    uint64_t first = 0;
-    uint64_t last;
-    for (int i = 0; i < num_threads_; i++) {
-      last = first + chunk_size;
-      // Distribute any remainder evenly amongst the threads.
-      if (chunk_remainder > 0) {
-        last++;
-        chunk_remainder--;
+    // Hold `mutex_` across worker startup and monitoring so `wake_me_` never
+    // misses an early wakeup signal, then release it before joining workers
+    // (which acquire `mutex_` in `WakeParent()`).
+    {
+      absl::MutexLock lock(mutex_);
+      if (num_threads_ <= 0) {
+        return absl::InvalidArgumentError(absl::StrFormat(
+            "num_threads must be positive; got %d.", num_threads_));
+      }
+      started_ = true;
+      if (total_size == 0) {
+        return absl::OkStatus();
       }
 
-      threads_.push_back(thread_create_fn_(first, last));
-      threads_.back()->Run();
-
-      first = last + 1;
-    }
-
-    // Wait for all to be ready.
-    bool all_ready = false;
-    while (!all_ready) {
-      int64_t num_ready = 0;
-      wake_me_.Wait(&mutex_);
-
-      for (int64_t i = 0; i < threads_.size(); i++) {
-        if (threads_[i]->ready()) {
-          num_ready++;
+      // Set up all the workers.
+      const uint64_t active_threads =
+          std::min<uint64_t>(num_threads_, total_size);
+      const uint64_t chunk_size = total_size / active_threads;
+      uint64_t chunk_remainder = total_size % active_threads;
+      uint64_t first = start_;
+      for (uint64_t i = 0; i < active_threads; i++) {
+        uint64_t last = first + chunk_size;
+        // Distribute any remainder evenly amongst the threads.
+        if (chunk_remainder > 0) {
+          last++;
+          chunk_remainder--;
         }
+
+        threads_.push_back(thread_create_fn_(first, last));
+        threads_.back()->Run();
+
+        first = last;
       }
-      all_ready = num_ready == threads_.size();
-    }
 
-    // Don't include startup time.
-    start_time_ = absl::Now();
+      // Wait for all to be ready.
+      bool all_ready = false;
+      while (!all_ready) {
+        int64_t num_ready = 0;
+        wake_me_.Wait(&mutex_);
 
-    for (int i = 0; i < threads_.size(); i++) {
-      threads_[i]->SignalStart();
-    }
-
-    // Now monitor them.
-    bool done = false;
-    while (!done) {
-      int64_t num_done = 0;
-      wake_me_.WaitWithTimeout(&mutex_, kPrintInterval);
-
-      PrintStatus();
-
-      // See if everyone's done or if someone blew up.
-      for (int64_t i = 0; i < threads_.size(); i++) {
-        if (!threads_[i]->running()) {
-          num_done++;
-          absl::Status status = threads_[i]->status();
-          if (!status.ok()) {
-            Cancel();
-            num_done = threads_.size();
-            break;
+        for (int64_t i = 0; i < threads_.size(); i++) {
+          if (threads_[i]->ready()) {
+            num_ready++;
           }
         }
+        all_ready = num_ready == threads_.size();
       }
 
-      done = num_done == threads_.size();
-    }
+      // Don't include startup time.
+      start_time_ = absl::Now();
 
-    // When exiting the loop, we'll be holding the lock (due to
-    // WaitWithTimeout).
-    mutex_.Unlock();
+      for (int i = 0; i < threads_.size(); i++) {
+        threads_[i]->SignalStart();
+      }
+
+      // Now monitor them.
+      bool done = false;
+      while (!done) {
+        int64_t num_done = 0;
+        wake_me_.WaitWithTimeout(&mutex_, kPrintInterval);
+
+        PrintStatus();
+
+        // See if everyone's done or if someone blew up.
+        for (int64_t i = 0; i < threads_.size(); i++) {
+          if (!threads_[i]->running()) {
+            num_done++;
+            absl::Status status = threads_[i]->status();
+            if (!status.ok()) {
+              Cancel();
+              num_done = threads_.size();
+              break;
+            }
+          }
+        }
+
+        done = num_done == threads_.size();
+      }
+    }
 
     // Join threads at the end because we are polite.
     for (int i = 0; i < threads_.size(); i++) {
@@ -274,11 +291,10 @@ class TestbenchBase {
   // Prints the current execution status across all threads.
   void PrintStatus() {
     // Get the remainder-adjusted chunk size for this thread.
-    auto thread_chunk_size = [this](int thread_index) {
+    auto thread_chunk_size = [this](uint64_t thread_index) {
       uint64_t total_size = end_ - start_;
       uint64_t chunk_size = total_size / threads_.size();
-      uint64_t remainder =
-          chunk_size == 0 ? total_size : total_size % chunk_size;
+      uint64_t remainder = total_size % threads_.size();
       if (thread_index < remainder) {
         chunk_size++;
       }
@@ -328,8 +344,8 @@ class TestbenchBase {
     }
   }
 
-  bool started_;
-  int num_threads_;
+  bool started_ ABSL_GUARDED_BY(mutex_);
+  int num_threads_ ABSL_GUARDED_BY(mutex_);
   absl::Time start_time_;
   uint64_t start_;
   uint64_t end_;
