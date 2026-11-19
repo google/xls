@@ -2478,6 +2478,42 @@ fn fail_case_aa() {
 }
 
 #[test]
+fn fma_subnormal_to_normal_rounding_test() {
+    type F32 = apfloat::APFloat<8, 23>;
+    let pos_zero = apfloat::zero<8, 23>(false);
+    let neg_zero = apfloat::zero<8, 23>(true);
+    let min_normal = F32 { sign: 0, bexp: 1, fraction: 0 };
+    let neg_min_normal = F32 { sign: 1, bexp: 1, fraction: 0 };
+
+    // Exact halfway between largest subnormal (2^-126 - 2^-149) and min_normal (2^-126):
+    // 2^-126 - 2^-150 rounds to even -> min_normal.
+    let a = F32 { sign: 0, bexp: 63, fraction: 0x7fffff };
+    let b = F32 { sign: 0, bexp: 64, fraction: 0 };
+    assert_eq(apfloat::fma<8, 23>(a, b, pos_zero), min_normal);
+    assert_eq(apfloat::fma<8, 23>(apfloat::negate(a), b, neg_zero), neg_min_normal);
+
+    // Same boundary via cancellation: 2^-126 - 2^-150 -> min_normal.
+    let neg_2_m75 = F32 { sign: 1, bexp: 52, fraction: 0 };
+    let pos_2_m75 = F32 { sign: 0, bexp: 52, fraction: 0 };
+    assert_eq(apfloat::fma<8, 23>(neg_2_m75, pos_2_m75, min_normal), min_normal);
+
+    // Strictly above midpoint: 2^-126 - 2^-151 -> min_normal.
+    let neg_2_m76 = F32 { sign: 1, bexp: 51, fraction: 0 };
+    assert_eq(apfloat::fma<8, 23>(neg_2_m76, pos_2_m75, min_normal), min_normal);
+
+    // Largest subnormal (below midpoint): 2^-126 - 2^-149 stays subnormal and flushes to +0.0.
+    let neg_2_m74 = F32 { sign: 1, bexp: 53, fraction: 0 };
+    assert_eq(apfloat::fma<8, 23>(neg_2_m74, pos_2_m75, min_normal), pos_zero);
+
+    // Same midpoint boundary for BF16: (2 - 2^-7) * 2^-64 * 2^-63 = 2^-126 - 2^-134 -> min_normal.
+    type BF16 = apfloat::APFloat<8, 7>;
+    let bf_a = BF16 { sign: 0, bexp: 63, fraction: 0x7f };
+    let bf_b = BF16 { sign: 0, bexp: 64, fraction: 0 };
+    let bf_min_normal = BF16 { sign: 0, bexp: 1, fraction: 0 };
+    assert_eq(apfloat::fma<8, 7>(bf_a, bf_b, apfloat::zero<8, 7>(false)), bf_min_normal);
+}
+
+#[test]
 fn fma_subnormal_intermediate_rounding_test() {
     type F32 = apfloat::APFloat<8, 23>;
     let a = F32 { sign: 0, bexp: 0x6d, fraction: 0x694e0d };

@@ -1395,6 +1395,69 @@ pub fn sub<EXP_SZ: u32, FRACTION_SZ: u32, USE_LZA: bool = {false}>
     add<EXP_SZ, FRACTION_SZ, USE_LZA>(x, y)
 }
 
+// Rounds a normalized significand `norm_sig` (explicit leading 1 at MSB,
+// followed by `FRACTION_SZ` fraction bits and `ROUND_BITS` rounding bits) with
+// biased pre-rounding exponent `bexp_pre_round` using Round-to-Nearest-Even
+// (RNE), flushing subnormals (post-rounding `bexp <= 0`) to zero and
+// saturating overflows (`bexp >= max_exp`) to infinity.
+//
+// When `bexp_pre_round <= 0`, the significand is shifted right by 1 bit
+// (preserving the sticky bit) before rounding so values in
+// `[min_normal - 0.5 * ULP_subnormal, min_normal)` round up and carry into
+// `min_normal` (`bexp == 1`) rather than flushing to zero.
+fn round_and_saturate_ftz
+    <EXP_SZ: u32, FRACTION_SZ: u32, NORM_WIDTH: u32, SIGNED_EXP: u32 = {EXP_SZ + 2}>
+    (bexp_pre_round: sN[SIGNED_EXP], norm_sig: uN[NORM_WIDTH], is_zero: bool)
+    -> (uN[EXP_SZ], uN[FRACTION_SZ]) {
+    const_assert!(NORM_WIDTH >= FRACTION_SZ + 2);
+    const ROUND_BITS: u32 = NORM_WIDTH - 1 - FRACTION_SZ;
+    const MAX_EXPONENT: uN[EXP_SZ] = std::mask_bits<EXP_SZ>();
+
+    let sig = if bexp_pre_round <= sN[SIGNED_EXP]:0 {
+        or_last_bit(norm_sig >> 1, norm_sig[0:1])
+    } else {
+        norm_sig
+    };
+
+    let unrounded_frac = sig[ROUND_BITS+:uN[FRACTION_SZ]];
+    let lsb = unrounded_frac[0:1];
+    let guard = sig[(ROUND_BITS - u32:1)+:u1];
+    let sticky = if ROUND_BITS > u32:1 { or_reduce(sig[0:(ROUND_BITS - 1) as s32]) } else { false };
+    let do_round_up = round_to_nearest_even(lsb, guard, sticky);
+    let (rounded_frac, rounding_carry) = apply_rounding(unrounded_frac, do_round_up);
+
+    let bexp = if rounding_carry { bexp_pre_round + sN[SIGNED_EXP]:1 } else { bexp_pre_round };
+    let is_underflow_or_zero = is_zero || bexp <= sN[SIGNED_EXP]:0;
+    let is_overflow = bexp >= (MAX_EXPONENT as sN[SIGNED_EXP]);
+    let result_exp = if is_underflow_or_zero {
+        uN[EXP_SZ]:0
+    } else if is_overflow {
+        MAX_EXPONENT
+    } else {
+        bexp as uN[EXP_SZ]
+    };
+    let result_fraction =
+        if is_underflow_or_zero || is_overflow { uN[FRACTION_SZ]:0 } else { rounded_frac };
+    (result_exp, result_fraction)
+}
+
+#[test]
+fn round_and_saturate_ftz_test() {
+    // E4M3 (EXP_SZ=4, FRACTION_SZ=3), NORM_WIDTH=7 (1 implicit + 3 frac + 3 round bits).
+    // Normal tie-to-even: even LSB rounds down, odd LSB rounds up.
+    assert_eq(round_and_saturate_ftz<4, 3>(s6:7, u7:0b1_010_100, false), (u4:7, u3:0b010));
+    assert_eq(round_and_saturate_ftz<4, 3>(s6:7, u7:0b1_011_100, false), (u4:7, u3:0b100));
+    // Normal carry into next exponent binade.
+    assert_eq(round_and_saturate_ftz<4, 3>(s6:7, u7:0b1_111_100, false), (u4:8, u3:0b000));
+    // Subnormal boundary (bexp_pre_round == 0): midpoint 1.111 * 2^-7 carries into min_normal.
+    assert_eq(round_and_saturate_ftz<4, 3>(s6:0, u7:0b1_111_000, false), (u4:1, u3:0b000));
+    // Just below midpoint stays subnormal and flushes to zero.
+    assert_eq(round_and_saturate_ftz<4, 3>(s6:0, u7:0b1_110_111, false), (u4:0, u3:0b000));
+    // Overflow saturates to infinity; is_zero always flushes to zero.
+    assert_eq(round_and_saturate_ftz<4, 3>(s6:14, u7:0b1_111_100, false), (u4:15, u3:0b000));
+    assert_eq(round_and_saturate_ftz<4, 3>(s6:7, u7:0b1_111_100, true), (u4:0, u3:0b000));
+}
+
 // Returns the product of `x` and `y`, with the following exceptions:
 //  - Both input and output denormals are treated as/flushed to 0.
 //  - Only round-to-nearest mode is supported.
@@ -1404,24 +1467,12 @@ pub fn sub<EXP_SZ: u32, FRACTION_SZ: u32, USE_LZA: bool = {false}>
 pub fn mul<EXP_SZ: u32, FRACTION_SZ: u32>
     (x: APFloat<EXP_SZ, FRACTION_SZ>, y: APFloat<EXP_SZ, FRACTION_SZ>)
     -> APFloat<EXP_SZ, FRACTION_SZ> {
-    // WIDE_EXP: Widened exponent to capture a possible carry bit.
-    const WIDE_EXP: u32 = EXP_SZ + 1;
-    // SIGNED_EXP: WIDE_EXP plus one sign bit.
-    const SIGNED_EXP: u32 = WIDE_EXP + 1;
-
-    // ROUNDING_FRACTION: Result fraction with one extra bit to capture
-    // potential carry if rounding up.
-    const ROUNDING_FRACTION: u32 = FRACTION_SZ + 1;
+    // SIGNED_EXP: Exponent width plus one carry bit and one sign bit.
+    const SIGNED_EXP: u32 = EXP_SZ + 2;
 
     // WIDE_FRACTION: Widened fraction to contain full precision + rounding
     // (guard & sticky) bits.
     const WIDE_FRACTION: u32 = FRACTION_SZ + FRACTION_SZ + 2;
-    // FRACTION_ROUNDING_BIT: Position of the first rounding bit in the "wide" FRACTION.
-    const FRACTION_ROUNDING_BIT: u32 = FRACTION_SZ - 1;
-
-    // STICKY_FRACTION: Location of the sticky bit in the wide FRACTION (same as
-    // "ROUNDING_FRACTION", but it's easier to understand the code if it has its own name).
-    const STICKY_FRACTION: u32 = FRACTION_SZ + 1;
 
     // 0. Check if either operand is 0 (flushing subnorms to 0).
     let has_0_arg = is_zero_or_subnormal(x) || is_zero_or_subnormal(y);
@@ -1469,61 +1520,13 @@ pub fn mul<EXP_SZ: u32, FRACTION_SZ: u32>
     // Update the exponent if we shifted.
     let exp = exp + (fraction_shift as sN[SIGNED_EXP]);
 
-    // If the value is currently subnormal, then we need to shift right by one
-    // space: a subnormal value doesn't have the leading 1, and thus has one
-    // fewer significant digits than normal numbers - in a sense, the -1th bit
-    // is the least significant (0) bit.
-    // Rounding (below) expects the least significant digit to start at position
-    // 0, so we shift subnormals to the left by one position to match normals.
-    // Again, track the sticky bit. This could be combined with the shift
-    // above, but it's easier to understand (and comment) if separated, and the
-    // optimizer will clean it up anyway.
-    let sticky = fraction[0:1] as uN[WIDE_FRACTION];
-    let fraction = if exp <= 0 { fraction >> 1 } else { fraction };
-    let fraction = fraction | sticky;
-
-    // 5. Round - we use nearest, half to even rounding.
-    // - We round down if less than 1/2 way between values, i.e.
-    //   if bit 23 is 0. Rounding down is equivalent to doing nothing.
-    // - We round up if we're more than 1/2 way, i.e., if bit 23
-    //   is set along with any bit lower than 23.
-    // - If halfway (bit 23 set and no bit lower), then we round;
-    //   whichever direction makes the result even. In other words,
-    //   we round up if bit 25 is set.
-    let is_half_way = fraction[FRACTION_ROUNDING_BIT as s32:FRACTION_SZ as s32] &
-                      (fraction[0:FRACTION_ROUNDING_BIT as s32] == 0);
-    let greater_than_half_way = fraction[FRACTION_ROUNDING_BIT as s32:FRACTION_SZ as s32] &
-                                (fraction[0:FRACTION_ROUNDING_BIT as s32] != 0);
-    let do_round_up = greater_than_half_way ||
-                      (is_half_way & fraction[FRACTION_SZ as s32:STICKY_FRACTION as s32]);
-
-    // We're done with the extra precision bits now, so shift the
-    // fraction into its almost-final width, adding one extra
-    // bit for potential rounding overflow.
-    let fraction = (fraction >> (FRACTION_SZ as uN[WIDE_FRACTION])) as uN[FRACTION_SZ];
-    let fraction = fraction as uN[ROUNDING_FRACTION];
-    let fraction = if do_round_up { fraction + 1 } else { fraction };
-
-    // Adjust the exponent if we overflowed during rounding.
-    // After checking for subnormals, we don't need the sign bit anymore.
-    let exp = if fraction[-1:] { exp + 1 } else { exp };
-    let is_subnormal = exp <= 0;
-
-    // We're done - except for special cases...
+    // Round (RNE), flush subnormals to zero, and saturate overflows to infinity.
     let result_sign = x.sign != y.sign;
-    let result_exp = exp as uN[WIDE_EXP];
-    let result_fraction = fraction as uN[FRACTION_SZ];
-
-    // 6. Special cases!
-    // - Subnormals: flush to 0.
-    let result_exp = if is_subnormal { 0 } else { result_exp };
-    let result_fraction = if is_subnormal { 0 } else { result_fraction };
-
-    // - Overflow infinites - saturate exp, clear fraction.
     let high_exp = std::mask_bits<EXP_SZ>();
-    let result_fraction = if result_exp < (high_exp as uN[WIDE_EXP]) { result_fraction } else { 0 };
-    let result_exp =
-        if result_exp < (high_exp as uN[WIDE_EXP]) { result_exp as uN[EXP_SZ] } else { high_exp };
+    let (result_exp, result_fraction) =
+        round_and_saturate_ftz<EXP_SZ, FRACTION_SZ>(exp, fraction[:-1], has_0_arg);
+
+    // Special cases (operand infinities and NaNs).
 
     // - Arg infinites. Any arg is infinite == result is infinite.
     let is_operand_inf = is_inf<EXP_SZ, FRACTION_SZ>(x) || is_inf<EXP_SZ, FRACTION_SZ>(y);
@@ -1704,14 +1707,6 @@ pub fn fma<EXP_SZ: u32, FRACTION_SZ: u32>
     // WIDE_FRACTION_SIGN_CARRY: WIDE_FRACTION_CARRY plus one sign bit.
     const WIDE_FRACTION_SIGN_CARRY: u32 = WIDE_FRACTION_CARRY + 1;
 
-    // WIDE_FRACTION_LOW_BIT: Position of the LSB in the final fraction within a
-    // WIDE_FRACTION element. All bits with lower index are for rounding.
-    const WIDE_FRACTION_LOW_BIT: u32 = WIDE_FRACTION - FRACTION_SZ;
-
-    // WIDE_FRACTION_TOP_ROUNDING: One less than WIDE_FRACTION_LOW_BIT, in other words the
-    // most-significant rounding bit.
-    const WIDE_FRACTION_TOP_ROUNDING: u32 = WIDE_FRACTION_LOW_BIT - 1;
-
     let ab = raw_mul(a, b);
 
     let (ab_exp_smaller, exp_difference) =
@@ -1780,43 +1775,10 @@ pub fn fma<EXP_SZ: u32, FRACTION_SZ: u32>
         _ => fail!("carry_and_cancel", uN[WIDE_FRACTION]:0),
     };
 
-    // Similar to the rounding in apfloat_add_2, except that the fraction
-    // starts at the bit below instead of bit 3.
-    // For binary32, normal_chunk will be bits 0-48 (inclusive), stopping
-    // immediately below the first bit in the final fraction.
-    let normal_chunk = shifted_fraction[0:(WIDE_FRACTION_LOW_BIT - 1) as s32];
-    let half_way_chunk =
-        shifted_fraction[(WIDE_FRACTION_LOW_BIT - 2) as s32:(WIDE_FRACTION_LOW_BIT as s32)];
-    let half_of_extra = uN[WIDE_FRACTION_TOP_ROUNDING]:1 << (WIDE_FRACTION_LOW_BIT - 2);
-    let do_round_up =
-        if (normal_chunk > half_of_extra) | (half_way_chunk == 0x3) { u1:1 } else { 0 };
-    let rounded_fraction = if do_round_up {
-        shifted_fraction as uN[WIDE_FRACTION_CARRY] +
-        (uN[WIDE_FRACTION_CARRY]:1 << (WIDE_FRACTION_LOW_BIT - 1))
-    } else {
-        shifted_fraction as uN[WIDE_FRACTION_CARRY]
-    };
-
-    let rounding_carry = rounded_fraction[-1:];
-    let result_fraction = (rounded_fraction >>
-                          ((WIDE_FRACTION_LOW_BIT - 1) as uN[WIDE_FRACTION_CARRY])) as
-                          uN[FRACTION_SZ];
-
-    let bexp = greater_exp + rounding_carry as sN[EXP_SIGN_CARRY] + 1 -
-               leading_zeroes as sN[EXP_SIGN_CARRY];
-    let bexp = if fraction_is_zero { 0 } else { bexp };
-    let bexp = if bexp < 0 { 0 } else { (bexp as uN[EXP_CARRY]) };
-
-    // Standard special case handling follows.
-
-    // If the exponent underflowed, don't bother with denormals. Just flush to 0.
-    let result_fraction = if bexp == 0 { 0 } else { result_fraction };
-
-    // Handle exponent overflow infinities.
-    let saturated_exp = std::mask_bits<EXP_SZ>() as uN[EXP_CARRY];
+    let bexp_pre_round = greater_exp + 1 - leading_zeroes as sN[EXP_SIGN_CARRY];
     let max_exp = std::mask_bits<EXP_SZ>();
-    let result_fraction = if bexp < saturated_exp { result_fraction } else { 0 };
-    let result_exp = if bexp < saturated_exp { bexp as uN[EXP_SZ] } else { max_exp };
+    let (result_exp, result_fraction) = round_and_saturate_ftz<EXP_SZ, FRACTION_SZ>(
+        bexp_pre_round, shifted_fraction, fraction_is_zero);
 
     // Handle arg infinities.
     let is_ab_inf = is_raw_product_inf(ab);
