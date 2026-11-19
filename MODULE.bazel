@@ -4,9 +4,15 @@ module(
 )
 
 # Compiler toolchain
+# Note: llvm stays non-dev because xls/build_rules/xls_ir_rules.bzl references
+# @llvm//tools:clang-format at load time; only the toolchain registration is
+# dev-only so downstream modules keep their own C++ toolchain.
 bazel_dep(name = "llvm", version = "0.8.21")
 
-register_toolchains("@llvm//toolchain:all")
+register_toolchains(
+    "@llvm//toolchain:all",
+    dev_dependency = True,
+)
 
 # Python toolchain
 bazel_dep(name = "rules_python", version = "2.3.2")
@@ -141,7 +147,7 @@ use_repo(perfetto_ext, "perfetto_cfg")
 bazel_dep(name = "rules_android", version = "0.6.0")
 
 # Pin this as otherwise we encounter some bazel analysis failure.
-bazel_dep(name = "rules_jvm_external", version = "6.8")
+bazel_dep(name = "rules_jvm_external", version = "6.8", dev_dependency = True)
 
 # Pinning some maven versions seems necessary to make things resolve correctly.
 # As of 2025-11-07, this seems necessary. If unspecified, junit and mockito have
@@ -150,7 +156,7 @@ bazel_dep(name = "rules_jvm_external", version = "6.8")
 # solve this, but somehow it didn't for junit. Specifying a specific version of
 # junit seems to make things work.
 # TODO: bazelbuild/bazel-central-registry#1020 - revisit when perfetto is in BCR.
-maven = use_extension("@rules_jvm_external//:extensions.bzl", "maven")
+maven = use_extension("@rules_jvm_external//:extensions.bzl", "maven", dev_dependency = True)
 maven.install(
     artifacts = ["junit:junit:4.13.2"],
     known_contributing_modules = [
@@ -171,7 +177,7 @@ maven.artifact(
 
 # Used both by XLS and rules_hdl.
 bazel_dep(name = "eigen", version = "4.0.0-20241125.bcr.2")
-bazel_dep(name = "rules_pkg", version = "1.2.0")
+bazel_dep(name = "rules_pkg", version = "1.2.0", dev_dependency = True)
 
 # rules_hdl deps with bzlmod support.
 bazel_dep(name = "rules_bison", version = "0.4")
@@ -270,6 +276,8 @@ single_version_override(
 # Dev dependencies
 bazel_dep(name = "fuzztest", version = "20260629.0", dev_dependency = True, repo_name = "com_google_fuzztest")
 bazel_dep(name = "google_benchmark", version = "1.9.5", dev_dependency = True)
+# Non-dev because non-test libraries depend on @googletest//:gtest_prod
+# (FRIEND_TEST) and xls/build_rules/xls_fuzz_rules.bzl references :gtest.
 bazel_dep(name = "googletest", version = "1.17.0.bcr.2")
 
 # compilation DB; build_cleaner
@@ -286,7 +294,7 @@ git_override(
 )
 
 # Documentation generator
-bazel_dep(name = "stardoc", version = "0.8.1")
+bazel_dep(name = "stardoc", version = "0.8.1", dev_dependency = True)
 
 register_toolchains("//xls/common/toolchains:all")
 
