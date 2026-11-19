@@ -192,6 +192,9 @@ class IrTranslator : public DfsVisitorWithDefault {
 
   ::bitwuzla::Term ComputeNe(::bitwuzla::Term lhs, ::bitwuzla::Term rhs,
                              const Type* type);
+  ::bitwuzla::Term BuildOneHotSel(const Type* type,
+                                  absl::Span<const ::bitwuzla::Term> sel_conds,
+                                  absl::Span<const ::bitwuzla::Term> cases);
   ::bitwuzla::Term CoerceShiftAmount(::bitwuzla::Term val, Node* shamt_node);
   ::bitwuzla::Term ExtendOrTruncate(Node* operand, int64_t width,
                                     bool is_signed);

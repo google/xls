@@ -1359,44 +1359,60 @@ absl::Status IrTranslator::HandleOneHot(OneHot* one_hot) {
   return absl::OkStatus();
 }
 
-absl::Status IrTranslator::HandleOneHotSel(OneHotSelect* one_hot_sel) {
-  Term sel = GetTranslation(one_hot_sel->selector());
-  uint64_t w = sel.sort().bv_size();
-  Sort sort = TypeToSort(one_hot_sel->GetType());
-  if (sort.is_array()) {
-    Term res = ZeroOfSort(sort);
-    for (uint64_t i = 0; i < w && i < one_hot_sel->cases().size(); ++i) {
-      Term bit = tm_.mk_term(Kind::BV_EXTRACT, {sel}, {i, i});
-      Term c_val = GetTranslation(one_hot_sel->cases()[i]);
-      Term cond = tm_.mk_term(Kind::EQUAL,
-                              {bit, tm_.mk_bv_value_uint64(bit.sort(), 1)});
-      res = tm_.mk_term(Kind::ITE, {cond, c_val, res});
+Term IrTranslator::BuildOneHotSel(const Type* type,
+                                  absl::Span<const Term> sel_conds,
+                                  absl::Span<const Term> cases) {
+  Sort sort = TypeToSort(type);
+  Term zero = ZeroOfSort(sort);
+  if (cases.empty() || type->GetFlatBitCount() == 0) {
+    return zero;
+  }
+  if (type->IsArray()) {
+    const ArrayType* at = type->AsArrayOrDie();
+    Term res = zero;
+    std::vector<Term> elem_cases;
+    elem_cases.reserve(cases.size());
+    for (int64_t j = 0; j < at->size(); ++j) {
+      Term idx = GetAsFormattedArrayIndex(j, at);
+      elem_cases.clear();
+      for (const Term& c : cases) {
+        elem_cases.push_back(tm_.mk_term(Kind::ARRAY_SELECT, {c, idx}));
+      }
+      Term elem_res = BuildOneHotSel(at->element_type(), sel_conds, elem_cases);
+      res = tm_.mk_term(Kind::ARRAY_STORE, {res, idx, elem_res});
     }
-    NoteTranslation(one_hot_sel, res);
-    return absl::OkStatus();
+    return res;
   }
 
   std::vector<Term> masked_terms;
+  masked_terms.reserve(cases.size());
+  for (size_t i = 0; i < cases.size(); ++i) {
+    masked_terms.push_back(
+        tm_.mk_term(Kind::ITE, {sel_conds[i], cases[i], zero}));
+  }
+  if (masked_terms.size() == 1) {
+    return masked_terms[0];
+  }
+  return tm_.mk_term(Kind::BV_OR, masked_terms);
+}
+
+absl::Status IrTranslator::HandleOneHotSel(OneHotSelect* one_hot_sel) {
+  Term sel = GetTranslation(one_hot_sel->selector());
+  uint64_t w = sel.sort().bv_size();
   uint64_t num_cases =
       std::min(w, static_cast<uint64_t>(one_hot_sel->cases().size()));
-  masked_terms.reserve(num_cases);
-  Term zero = ZeroOfSort(sort);
+  std::vector<Term> sel_conds;
+  std::vector<Term> cases;
+  sel_conds.reserve(num_cases);
+  cases.reserve(num_cases);
+  Term one = tm_.mk_bv_value_uint64(tm_.mk_bv_sort(1), 1);
   for (uint64_t i = 0; i < num_cases; ++i) {
     Term bit = tm_.mk_term(Kind::BV_EXTRACT, {sel}, {i, i});
-    Term c_val = GetTranslation(one_hot_sel->cases()[i]);
-    Term cond =
-        tm_.mk_term(Kind::EQUAL, {bit, tm_.mk_bv_value_uint64(bit.sort(), 1)});
-    masked_terms.push_back(tm_.mk_term(Kind::ITE, {cond, c_val, zero}));
+    sel_conds.push_back(tm_.mk_term(Kind::EQUAL, {bit, one}));
+    cases.push_back(GetTranslation(one_hot_sel->cases()[i]));
   }
-  Term res;
-  if (masked_terms.empty()) {
-    res = zero;
-  } else if (masked_terms.size() == 1) {
-    res = masked_terms[0];
-  } else {
-    res = tm_.mk_term(Kind::BV_OR, masked_terms);
-  }
-  NoteTranslation(one_hot_sel, res);
+  NoteTranslation(one_hot_sel,
+                  BuildOneHotSel(one_hot_sel->GetType(), sel_conds, cases));
   return absl::OkStatus();
 }
 
