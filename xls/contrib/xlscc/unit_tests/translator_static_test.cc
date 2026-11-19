@@ -1293,6 +1293,334 @@ TEST_F(TranslatorStaticTest, StaticDecomposed) {
   EXPECT_EQ(total_64bit_elems, 1);
 }
 
+TEST_F(TranslatorStaticTest, StaticCallConditionalInterleaved) {
+  const std::string content = R"(
+    int leaf(int delta) {
+      static int s = 10;
+      s += delta;
+      return s;
+    }
+
+    int mid(int en_leaf, int delta) {
+      static int m = 100;
+      m += 1;
+      if (en_leaf != 0) {
+        return m + leaf(delta);
+      }
+      return m;
+    }
+
+    #pragma hls_top
+    void my_package(__xls_channel<int>& in, __xls_channel<int>& out) {
+      int en_mid = in.read();
+      int en_leaf = in.read();
+      int delta = in.read();
+      if (en_mid != 0) {
+        out.write(mid(en_leaf, delta));
+      } else {
+        out.write(-1);
+      }
+    })";
+
+  HLSBlock block_spec;
+  block_spec.set_name("my_package");
+  {
+    HLSChannel* ch_in = block_spec.add_channels();
+    ch_in->set_name("in");
+    ch_in->set_is_input(true);
+    ch_in->set_type(CHANNEL_TYPE_FIFO);
+
+    HLSChannel* ch_out = block_spec.add_channels();
+    ch_out->set_name("out");
+    ch_out->set_is_input(false);
+    ch_out->set_type(CHANNEL_TYPE_FIFO);
+  }
+
+  const int kCalls[][3] = {
+      {0, 1, 50}, {1, 0, 50}, {1, 1, 5}, {0, 1, 99}, {1, 0, 77}, {1, 1, 3},
+  };
+
+  absl::flat_hash_map<std::string, std::list<xls::Value>> inputs;
+  absl::flat_hash_map<std::string, std::list<xls::Value>> outputs;
+  int s = 10;
+  int m = 100;
+  for (const auto& call : kCalls) {
+    inputs["in"].push_back(xls::Value(xls::SBits(call[0], 32)));
+    inputs["in"].push_back(xls::Value(xls::SBits(call[1], 32)));
+    inputs["in"].push_back(xls::Value(xls::SBits(call[2], 32)));
+    if (call[0] != 0) {
+      m += 1;
+      int res = m;
+      if (call[1] != 0) {
+        s += call[2];
+        res += s;
+      }
+      outputs["out"].push_back(xls::Value(xls::SBits(res, 32)));
+    } else {
+      outputs["out"].push_back(xls::Value(xls::SBits(-1, 32)));
+    }
+  }
+
+  ProcTest(content, block_spec, inputs, outputs);
+}
+
+TEST_F(TranslatorStaticTest, StaticDeclaredInConditionalAndSwitchBranches) {
+  const std::string content = R"(
+    #pragma hls_top
+    void my_package(__xls_channel<int>& in, __xls_channel<int>& out) {
+      int sel = in.read();
+      int inner = in.read();
+      int ret = 0;
+      if (sel == 1) {
+        static int a = 10;
+        a += 1;
+        ret = a;
+        if (inner != 0) {
+          static int b = 200;
+          b += 10;
+          ret += b;
+        }
+      } else if (sel == 2) {
+        static int c = 50;
+        c += 5;
+        ret = c;
+      } else {
+        switch (sel) {
+          case 3: {
+            static int d = 7;
+            d *= 2;
+            ret = d;
+            break;
+          }
+          default:
+            ret = -1;
+            break;
+        }
+      }
+      out.write(ret);
+    })";
+
+  HLSBlock block_spec;
+  block_spec.set_name("my_package");
+  {
+    HLSChannel* ch_in = block_spec.add_channels();
+    ch_in->set_name("in");
+    ch_in->set_is_input(true);
+    ch_in->set_type(CHANNEL_TYPE_FIFO);
+
+    HLSChannel* ch_out = block_spec.add_channels();
+    ch_out->set_name("out");
+    ch_out->set_is_input(false);
+    ch_out->set_type(CHANNEL_TYPE_FIFO);
+  }
+
+  const int kSteps[][2] = {
+      {0, 1}, {1, 0}, {2, 1}, {1, 1}, {3, 0},
+      {0, 0}, {1, 0}, {1, 1}, {2, 0}, {3, 1},
+  };
+
+  absl::flat_hash_map<std::string, std::list<xls::Value>> inputs;
+  absl::flat_hash_map<std::string, std::list<xls::Value>> outputs;
+  int a = 10, b = 200, c = 50, d = 7;
+  for (const auto& step : kSteps) {
+    inputs["in"].push_back(xls::Value(xls::SBits(step[0], 32)));
+    inputs["in"].push_back(xls::Value(xls::SBits(step[1], 32)));
+    int ret = 0;
+    if (step[0] == 1) {
+      a += 1;
+      ret = a;
+      if (step[1] != 0) {
+        b += 10;
+        ret += b;
+      }
+    } else if (step[0] == 2) {
+      c += 5;
+      ret = c;
+    } else if (step[0] == 3) {
+      d *= 2;
+      ret = d;
+    } else {
+      ret = -1;
+    }
+    outputs["out"].push_back(xls::Value(xls::SBits(ret, 32)));
+  }
+
+  ProcTest(content, block_spec, inputs, outputs);
+}
+
+TEST_F(TranslatorStaticTest, StaticCallAcrossSiblingBranchesAndUnrolledLoop) {
+  const std::string content = R"(
+    int bump(int delta) {
+      static int acc = 5;
+      acc += delta;
+      return acc;
+    }
+
+    #pragma hls_top
+    void my_package(__xls_channel<int>& in, __xls_channel<int>& out) {
+      int mode = in.read();
+      int res = 0;
+      if (mode == 1) {
+        res = bump(10);
+      } else if (mode == 2) {
+        res = bump(100);
+      }
+      #pragma hls_unroll yes
+      for (int i = 0; i < 3; ++i) {
+        if (mode == 3 && i != 1) {
+          static int loop_s = 1;
+          loop_s += i + 1;
+          res += loop_s;
+        }
+      }
+      out.write(res);
+    })";
+
+  HLSBlock block_spec;
+  block_spec.set_name("my_package");
+  {
+    HLSChannel* ch_in = block_spec.add_channels();
+    ch_in->set_name("in");
+    ch_in->set_is_input(true);
+    ch_in->set_type(CHANNEL_TYPE_FIFO);
+
+    HLSChannel* ch_out = block_spec.add_channels();
+    ch_out->set_name("out");
+    ch_out->set_is_input(false);
+    ch_out->set_type(CHANNEL_TYPE_FIFO);
+  }
+
+  const int kModes[] = {0, 1, 0, 2, 3, 0, 1, 3};
+  absl::flat_hash_map<std::string, std::list<xls::Value>> inputs;
+  absl::flat_hash_map<std::string, std::list<xls::Value>> outputs;
+  int acc = 5;
+  int loop_s = 1;
+  for (int mode : kModes) {
+    inputs["in"].push_back(xls::Value(xls::SBits(mode, 32)));
+    int res = 0;
+    if (mode == 1) {
+      acc += 10;
+      res = acc;
+    } else if (mode == 2) {
+      acc += 100;
+      res = acc;
+    }
+    for (int i = 0; i < 3; ++i) {
+      if (mode == 3 && i != 1) {
+        loop_s += i + 1;
+        res += loop_s;
+      }
+    }
+    outputs["out"].push_back(xls::Value(xls::SBits(res, 32)));
+  }
+
+  ProcTest(content, block_spec, inputs, outputs);
+}
+
+TEST_F(TranslatorStaticTest, StaticOnResetInitializerPreservesCalleeStatic) {
+  const std::string content = R"(
+    int next_seed() {
+      static int seed = 40;
+      seed += 2;
+      return seed;
+    }
+
+    #pragma hls_top
+    void my_package(__xls_channel<int>& in, __xls_channel<int>& out) {
+      int call_seed = in.read();
+      static int cached = next_seed();
+      int res = cached;
+      if (call_seed != 0) {
+        res += next_seed();
+      }
+      out.write(res);
+    })";
+
+  HLSBlock block_spec;
+  block_spec.set_name("my_package");
+  {
+    HLSChannel* ch_in = block_spec.add_channels();
+    ch_in->set_name("in");
+    ch_in->set_is_input(true);
+    ch_in->set_type(CHANNEL_TYPE_FIFO);
+
+    HLSChannel* ch_out = block_spec.add_channels();
+    ch_out->set_name("out");
+    ch_out->set_is_input(false);
+    ch_out->set_type(CHANNEL_TYPE_FIFO);
+  }
+
+  absl::flat_hash_map<std::string, std::list<xls::Value>> inputs;
+  inputs["in"] = {xls::Value(xls::SBits(0, 32)), xls::Value(xls::SBits(0, 32)),
+                  xls::Value(xls::SBits(1, 32)), xls::Value(xls::SBits(0, 32)),
+                  xls::Value(xls::SBits(1, 32))};
+
+  absl::flat_hash_map<std::string, std::list<xls::Value>> outputs;
+  outputs["out"] = {
+      xls::Value(xls::SBits(42, 32)), xls::Value(xls::SBits(42, 32)),
+      xls::Value(xls::SBits(42 + 44, 32)), xls::Value(xls::SBits(42, 32)),
+      xls::Value(xls::SBits(42 + 46, 32))};
+
+  ProcTest(content, block_spec, inputs, outputs);
+}
+
+TEST_F(TranslatorStaticTest, ConditionalCalleeAndBlockStaticMinimalRepro) {
+  const std::string content = R"(
+    int callee(int x) {
+      static int s = 3;
+      int prev = s;
+      s = x;
+      return prev;
+    }
+
+    #pragma hls_top
+    void top(__xls_channel<int>& in, __xls_channel<int>& out) {
+      int mode = in.read();
+      int x = in.read();
+      if (mode == 1) {
+        out.write(callee(x));
+      } else if (mode == 2) {
+        static int b = 10;
+        out.write(b);
+        b += x;
+      }
+    })";
+
+  HLSBlock block_spec;
+  block_spec.set_name("top");
+  {
+    HLSChannel* ch_in = block_spec.add_channels();
+    ch_in->set_name("in");
+    ch_in->set_is_input(true);
+    ch_in->set_type(CHANNEL_TYPE_FIFO);
+
+    HLSChannel* ch_out = block_spec.add_channels();
+    ch_out->set_name("out");
+    ch_out->set_is_input(false);
+    ch_out->set_type(CHANNEL_TYPE_FIFO);
+  }
+
+  absl::flat_hash_map<std::string, std::list<xls::Value>> inputs;
+  inputs["in"] = {
+      xls::Value(xls::SBits(0, 32)), xls::Value(xls::SBits(99, 32)),
+      xls::Value(xls::SBits(1, 32)), xls::Value(xls::SBits(7, 32)),
+      xls::Value(xls::SBits(2, 32)), xls::Value(xls::SBits(5, 32)),
+      xls::Value(xls::SBits(0, 32)), xls::Value(xls::SBits(88, 32)),
+      xls::Value(xls::SBits(1, 32)), xls::Value(xls::SBits(4, 32)),
+      xls::Value(xls::SBits(2, 32)), xls::Value(xls::SBits(1, 32)),
+  };
+
+  absl::flat_hash_map<std::string, std::list<xls::Value>> outputs;
+  outputs["out"] = {
+      xls::Value(xls::SBits(3, 32)),
+      xls::Value(xls::SBits(10, 32)),
+      xls::Value(xls::SBits(7, 32)),
+      xls::Value(xls::SBits(15, 32)),
+  };
+
+  ProcTest(content, block_spec, inputs, outputs);
+}
+
 }  // namespace
 
 }  // namespace xlscc

@@ -1410,7 +1410,8 @@ class Translator final : public GeneratorBase,
 
   absl::Status DeclareVariable(const clang::NamedDecl* lvalue,
                                const CValue& rvalue, const xls::SourceInfo& loc,
-                               bool check_unique_ids = true);
+                               bool check_unique_ids = true,
+                               bool declare_up_stack = false);
 
   absl::Status DeclareStatic(const clang::NamedDecl* lvalue,
                              const ConstValue& init,

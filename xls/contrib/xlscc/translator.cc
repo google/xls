@@ -317,8 +317,7 @@ absl::Status Translator::PropagateVariables(TranslationContext& from,
         // Prevent extra selects from being generated in future propagations
         from.variables.at(name) = prepared;
       }
-    } else if (to.sf->static_values.contains(name) ||
-               from.propagate_declarations) {
+    } else if (from.propagate_declarations) {
       to.variables[name] = from.variables.at(name);
     }
   }
@@ -2760,14 +2759,21 @@ absl::Status Translator::Assign(const clang::Expr* lvalue, const CValue& rvalue,
 absl::Status Translator::DeclareVariable(const clang::NamedDecl* lvalue,
                                          const CValue& rvalue,
                                          const xls::SourceInfo& loc,
-                                         bool check_unique_ids) {
+                                         bool check_unique_ids,
+                                         bool declare_up_stack) {
   unique_decl_ids_.insert(lvalue);
   context().sf->declaration_order_by_name_[lvalue] =
       ++context().sf->declaration_count;
 
   XLS_RETURN_IF_ERROR(ValidateLValue(rvalue.lvalue(), loc));
 
-  context().variables[lvalue] = rvalue;
+  for (TranslationContext& context : context_stack_) {
+    context.variables[lvalue] = rvalue;
+
+    if (!context.propagate_up || !declare_up_stack) {
+      break;
+    }
+  }
   return absl::OkStatus();
 }
 
@@ -2779,12 +2785,17 @@ absl::Status Translator::DeclareStatic(
                   context().sf->static_values.at(lvalue) == init,
               loc);
 
+  // Avoid multiple declaration in unrolled loops
+  if (context().sf->static_values.contains(lvalue)) {
+    return absl::OkStatus();
+  }
+
   // Static declarations containing only LValues
   if (init.rvalue().kind() == xls::ValueKind::kInvalid) {
     return DeclareVariable(lvalue,
                            CValue(TrackedBValue(), init.type(),
                                   /*disable_type_check=*/false, init_lvalue),
-                           loc, check_unique_ids);
+                           loc, check_unique_ids, /*declare_up_stack=*/true);
   }
 
   context().sf->declaration_order_by_name_[lvalue] =
@@ -2821,7 +2832,8 @@ absl::Status Translator::DeclareStatic(
   const CValue init_cval(bval, init.type(), /*disable_type_check=*/false,
                          init_lvalue);
 
-  return DeclareVariable(lvalue, init_cval, loc, check_unique_ids);
+  return DeclareVariable(lvalue, init_cval, loc, check_unique_ids,
+                         /*declare_up_stack=*/true);
 }
 
 absl::StatusOr<CValue> Translator::Generate_Synthetic_ByOne(
