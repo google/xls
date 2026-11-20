@@ -3820,6 +3820,7 @@ cc_test(
     srcs = ["union_query_engine_test.cc"],
     deps = [
         ":query_engine",
+        ":stateless_query_engine",
         ":union_query_engine",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
@@ -3833,6 +3834,8 @@ cc_test(
         "//xls/ir:ir_test_base",
         "//xls/ir:ternary",
         "//xls/ir:type",
+        "//xls/ir:value",
+        "@abseil-cpp//absl/algorithm:container",
         "@abseil-cpp//absl/container:btree",
         "@abseil-cpp//absl/container:flat_hash_map",
         "@abseil-cpp//absl/container:flat_hash_set",

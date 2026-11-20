@@ -15,6 +15,7 @@
 #include "xls/passes/union_query_engine.h"
 
 #include <algorithm>
+#include <cstddef>
 #include <cstdint>
 #include <memory>
 #include <optional>
@@ -33,6 +34,7 @@
 #include "xls/ir/bits_ops.h"
 #include "xls/ir/interval_set.h"
 #include "xls/ir/node.h"
+#include "xls/ir/nodes.h"
 #include "xls/ir/ternary.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
@@ -40,6 +42,105 @@
 #include "xls/passes/query_engine.h"
 
 namespace xls {
+namespace {
+
+bool IsAllTernaryValue(absl::Span<QueryEngine* const> engines, Node* n,
+                       bool target_bit) {
+  if (TypeHasToken(n->GetType())) {
+    return false;
+  }
+  // A literal whose value is not all `target_bit` cannot be all `target_bit`,
+  // so fail fast before querying slower engines (such as BDDs or ternary
+  // caches).
+  if (n->Is<Literal>()) {
+    const Value& value = n->As<Literal>()->value();
+    if (target_bit) {
+      if (!value.IsAllOnes()) {
+        return false;
+      }
+    } else {
+      if (!value.IsAllZeros()) {
+        return false;
+      }
+    }
+  }
+  for (const QueryEngine* engine : engines) {
+    if (target_bit ? engine->IsAllOnes(n) : engine->IsAllZeros(n)) {
+      return true;
+    }
+  }
+  // A single engine cannot combine partial knowledge with another engine, and a
+  // 0- or 1-bit value has no distinct bits to split across multiple engines.
+  if (engines.size() <= 1 || n->GetType()->GetFlatBitCount() <= 1) {
+    return false;
+  }
+  // No single engine proved `n` is all `target_bit`. Check whether combining
+  // partial ternary knowledge across at least two engines proves it, failing
+  // fast on any known opposite bit and ignoring engines that contribute no
+  // `target` bits (so the last engine is skipped if no earlier engine knew any
+  // `target` bit).
+  const TernaryValue target =
+      target_bit ? TernaryValue::kKnownOne : TernaryValue::kKnownZero;
+  const TernaryValue opposite =
+      target_bit ? TernaryValue::kKnownZero : TernaryValue::kKnownOne;
+  auto is_all_target =
+      [target_bit](const LeafTypeTreeView<TernaryVector>& tree) {
+        return absl::c_all_of(tree.elements(),
+                              [target_bit](const TernaryVector& v) {
+                                return target_bit ? ternary_ops::IsKnownOne(v)
+                                                  : ternary_ops::IsKnownZero(v);
+                              });
+      };
+  std::optional<SharedLeafTypeTree<TernaryVector>> shared;
+  std::optional<LeafTypeTree<TernaryVector>> owned;
+  for (size_t i = 0; i < engines.size(); ++i) {
+    if (i + 1 == engines.size() && !shared.has_value() && !owned.has_value()) {
+      return false;
+    }
+    const QueryEngine* engine = engines[i];
+    if (!engine->IsTracked(n)) {
+      continue;
+    }
+    std::optional<SharedLeafTypeTree<TernaryVector>> ternary =
+        engine->GetTernary(n);
+    if (!ternary.has_value()) {
+      continue;
+    }
+    bool has_target = false;
+    for (const TernaryVector& v : ternary->elements()) {
+      for (TernaryValue bit : v) {
+        if (bit == opposite) {
+          return false;
+        }
+        if (bit == target) {
+          has_target = true;
+        }
+      }
+    }
+    if (!has_target) {
+      continue;
+    }
+    if (owned.has_value() || shared.has_value()) {
+      if (shared.has_value()) {
+        owned = std::move(shared).value().ToOwned();
+        shared.reset();
+      }
+      leaf_type_tree::SimpleUpdateFrom<TernaryVector, TernaryVector>(
+          owned->AsMutableView(), ternary->AsView(),
+          [](TernaryVector& lhs, const TernaryVector& rhs) {
+            CHECK_OK(ternary_ops::UpdateWithUnion(lhs, rhs));
+          });
+      if (is_all_target(owned->AsView())) {
+        return true;
+      }
+    } else {
+      shared = *std::move(ternary);
+    }
+  }
+  return false;
+}
+
+}  // namespace
 
 bool UnownedUnionQueryEngine::IsKnown(const TreeBitLocation& bit) const {
   return absl::c_any_of(engines_, [&](const QueryEngine* qe) -> bool {
@@ -81,27 +182,11 @@ std::optional<bool> UnownedUnionQueryEngine::KnownValue(
 }
 
 bool UnownedUnionQueryEngine::IsAllOnes(Node* n) const {
-  for (const QueryEngine* engine : engines_) {
-    if (engine->IsFullyKnown(n)) {
-      return engine->IsAllOnes(n);
-    }
-  }
-  if (engines_.size() <= 1) {
-    return false;
-  }
-  return QueryEngine::IsAllOnes(n);
+  return IsAllTernaryValue(engines_, n, /*target_bit=*/true);
 }
 
 bool UnownedUnionQueryEngine::IsAllZeros(Node* n) const {
-  for (const QueryEngine* engine : engines_) {
-    if (engine->IsFullyKnown(n)) {
-      return engine->IsAllZeros(n);
-    }
-  }
-  if (engines_.size() <= 1) {
-    return false;
-  }
-  return QueryEngine::IsAllZeros(n);
+  return IsAllTernaryValue(engines_, n, /*target_bit=*/false);
 }
 
 absl::StatusOr<ReachedFixpoint> UnownedUnionQueryEngine::Populate(
