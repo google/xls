@@ -17,16 +17,17 @@
 
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <string>
 #include <utility>
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
-#include "absl/log/check.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/types/span.h"
+#include "xls/common/status/status_macros.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/node.h"
 #include "xls/ir/op.h"
@@ -36,6 +37,16 @@
 #include "ortools/graph/graph.h"
 
 namespace xls {
+
+// Identifies a node `part` produced by an EquivalenceMapping application.
+struct CompositionPart {
+  std::shared_ptr<EquivalenceMapping> mapping;
+  Node* part;
+
+  bool operator==(const CompositionPart& other) const {
+    return part == other.part;
+  }
+};
 
 // This class represents a single folding action where the destination of the
 // folding operation is a single IR node.
@@ -76,13 +87,25 @@ class FoldingAction {
   // This function returns the destination of the folding action.
   Node* GetTo() const { return to_; }
 
+  // This function returns the destination of the folding action, or the part
+  // of the destination that will be shared once the destination is decomposed.
+  Node* GetToOrPart() const {
+    return to_composition_.has_value() ? to_composition_->part : to_;
+  }
+
+  std::optional<int64_t> GetToPartId() const {
+    return to_composition_.has_value()
+               ? std::make_optional(to_composition_->part->id())
+               : std::nullopt;
+  }
+
   // The (operand -> node) edges that impact visibility of the 'to' node. Each
   // edge indicates that the visibility of operand through node is conditional.
   const VisibilityEdges& GetToVisibilityEdges() const { return to_edges_; }
 
   // This function returns true if the operation performed by the nodes involved
   // is signed (e.g., smul), false otherwise (e.g., umul).
-  bool IsSigned() const { return this->to_->op() == Op::kSMul; }
+  bool IsSigned() const { return GetToOrPart()->op() == Op::kSMul; }
 
   // Return the estimate on the amount of area that will be saved if this
   // folding is performed
@@ -93,20 +116,27 @@ class FoldingAction {
     return mappings_;
   }
 
+  const std::optional<CompositionPart>& to_composition() const {
+    return to_composition_;
+  }
+
  protected:
   FoldingAction(Node* to, VisibilityEdges to_edges, double area_saved,
                 absl::flat_hash_map<Node*, std::unique_ptr<EquivalenceMapping>>
-                    mappings = {})
+                    mappings = {},
+                std::optional<CompositionPart> to_composition = std::nullopt)
       : to_(to),
         to_edges_(std::move(to_edges)),
         area_saved_(area_saved),
-        mappings_(std::move(mappings)) {}
+        mappings_(std::move(mappings)),
+        to_composition_(std::move(to_composition)) {}
 
  private:
   Node* to_;
   VisibilityEdges to_edges_;
   double area_saved_;
   absl::flat_hash_map<Node*, std::unique_ptr<EquivalenceMapping>> mappings_;
+  std::optional<CompositionPart> to_composition_;
 };
 
 // This class represents a single folding action from an IR node into another IR
@@ -135,26 +165,54 @@ class BinaryFoldingAction : public FoldingAction {
       VisibilityEdges to_edges = {}, double area_saved = 0.0,
       absl::flat_hash_map<Node*, std::unique_ptr<EquivalenceMapping>> mappings =
           {},
-      absl::flat_hash_set<Node*> sinks = {})
-      : FoldingAction{to, std::move(to_edges), area_saved, std::move(mappings)},
+      absl::flat_hash_set<Node*> sinks = {},
+      std::optional<CompositionPart> from_composition = std::nullopt,
+      std::optional<CompositionPart> to_composition = std::nullopt)
+      : FoldingAction{to, std::move(to_edges), area_saved, std::move(mappings),
+                      std::move(to_composition)},
         from_{from},
         from_edges_{std::move(from_edges)},
-        sinks_{std::move(sinks)} {}
+        sinks_{std::move(sinks)},
+        from_composition_{std::move(from_composition)} {}
 
   Node* GetFrom() const { return from_; }
+
+  // This function returns the source of the folding action, or the part
+  // of the source that will be shared once the source is decomposed.
+  Node* GetFromOrPart() const {
+    return from_composition_.has_value() ? from_composition_->part : from_;
+  }
+
+  std::optional<int64_t> GetFromPartId() const {
+    return from_composition_.has_value()
+               ? std::make_optional(from_composition_->part->id())
+               : std::nullopt;
+  }
 
   const VisibilityEdges& GetFromVisibilityEdges() const { return from_edges_; }
 
   const absl::flat_hash_set<Node*>& GetSinks() const { return sinks_; }
 
+  const std::optional<CompositionPart>& from_composition() const {
+    return from_composition_;
+  }
+
   std::string GetName() const {
-    return absl::StrCat(from_->GetName(), "->", GetTo()->GetName());
+    auto name_with_part = [](Node* node, Node* node_or_part) {
+      if (node_or_part == node) {
+        return node->GetName();
+      }
+      return absl::StrCat(node->GetName(), ":", node_or_part->GetName());
+    };
+    return absl::StrCat(name_with_part(from_, GetFromOrPart()), "->",
+                        name_with_part(GetTo(), GetToOrPart()));
   }
 
  private:
   Node* from_;
   VisibilityEdges from_edges_;
   absl::flat_hash_set<Node*> sinks_;
+  std::optional<CompositionPart> from_composition_;
 };
 
 // This class represents a single folding action from a set of IR nodes into
@@ -184,17 +242,46 @@ class NaryFoldingAction : public FoldingAction {
     Node* node;
     VisibilityEdges edges;
     absl::flat_hash_set<Node*> sinks;
+    std::optional<CompositionPart> composition = std::nullopt;
+
+    Node* GetNodeOrPart() const {
+      return composition.has_value() ? composition->part : node;
+    }
+
+    bool operator==(const NodeVisibility& other) const = default;
   };
 
   NaryFoldingAction(
       std::vector<NodeVisibility>&& froms, Node* to, VisibilityEdges to_edges,
       double area_saved = 0.0,
       absl::flat_hash_map<Node*, std::unique_ptr<EquivalenceMapping>> mappings =
-          {})
-      : FoldingAction{to, std::move(to_edges), area_saved, std::move(mappings)},
+          {},
+      std::optional<CompositionPart> to_composition = std::nullopt)
+      : FoldingAction{to, std::move(to_edges), area_saved, std::move(mappings),
+                      std::move(to_composition)},
         from_(std::move(froms)) {}
 
   absl::Span<const NodeVisibility> GetFrom() const { return from_; }
+
+  std::optional<CompositionPart> from_composition(Node* from) const {
+    for (const NodeVisibility& nv : from_) {
+      if (nv.node == from) {
+        return nv.composition;
+      }
+    }
+    return std::nullopt;
+  }
+
+  // This function returns the given source of the folding action, or the part
+  // of it that will be shared once decomposed.
+  Node* GetFromOrPart(Node* from) const {
+    for (const NodeVisibility& nv : from_) {
+      if (nv.node == from) {
+        return nv.GetNodeOrPart();
+      }
+    }
+    return from;
+  }
 
   static absl::StatusOr<std::unique_ptr<NaryFoldingAction>> Clone(
       const NaryFoldingAction& other,
@@ -243,7 +330,8 @@ class FoldingGraph {
   // In other words, these are edges that have @n as head.
   std::vector<BinaryFoldingAction*> GetEdgesTo(Node* n) const;
 
-  // Returns the edge from @from to @to, or nullptr if no such edge exists.
+  // Returns the edge that shares `from` into `to`, or nullptr if no such edge
+  // exists. Each argument is a node or a part of a decomposition.
   BinaryFoldingAction* GetEdge(Node* from, Node* to) const;
 
  private:
@@ -266,7 +354,7 @@ class FoldingGraph {
 
 // Checks if building visibility expression as result of performing this folding
 // would create a data cycle.
-bool WouldCommittingFoldingActionCreateDataCycle(
+absl::StatusOr<bool> WouldCommittingFoldingActionCreateDataCycle(
     const NodeForwardDependencyAnalysis& nda, const BinaryFoldingAction& fold);
 
 // Checks if building visibility expression as result of performing this folding
@@ -276,7 +364,9 @@ absl::StatusOr<bool> WouldCommittingFoldingActionCreateVisibilityCycle(
 
 inline absl::StatusOr<bool> WouldCommittingFoldingActionCreateCycle(
     const NodeForwardDependencyAnalysis& nda, const BinaryFoldingAction& fold) {
-  if (WouldCommittingFoldingActionCreateDataCycle(nda, fold)) {
+  XLS_ASSIGN_OR_RETURN(bool data_cycle,
+                       WouldCommittingFoldingActionCreateDataCycle(nda, fold));
+  if (data_cycle) {
     return true;
   }
   return WouldCommittingFoldingActionCreateVisibilityCycle(nda, fold);
