@@ -187,6 +187,14 @@ class BddQueryEngine
  private:
   class AssumingQueryEngine;
 
+  static absl::btree_map<Node*, ValueKnowledge, Node::NodeIdLessThan>
+  PredicateStatesToGivens(const absl::btree_set<PredicateState>& state);
+
+  BddNodeIndex ConjoinGivens(
+      BddNodeIndex base_assumption,
+      const absl::btree_map<Node*, ValueKnowledge, Node::NodeIdLessThan>&
+          givens) const;
+
   std::optional<SharedLeafTypeTree<TernaryVector>> GetTernary(
       Node* node, std::optional<BddNodeIndex> assumption) const;
 

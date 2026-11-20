@@ -23,6 +23,7 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "xls/common/status/matchers.h"
+#include "xls/data_structures/leaf_type_tree.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/format_preference.h"
 #include "xls/ir/function.h"
@@ -31,8 +32,12 @@
 #include "xls/ir/interval_set.h"
 #include "xls/ir/ir_matcher.h"
 #include "xls/ir/ir_test_base.h"
+#include "xls/ir/node.h"
+#include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
 #include "xls/ir/package.h"
+#include "xls/ir/ternary.h"
+#include "xls/passes/predicate_state.h"
 #include "xls/passes/query_engine.h"
 #include "xls/solvers/prover_matchers.h"
 #include "xls/solvers/solver.h"
@@ -414,6 +419,140 @@ TEST_F(BddQueryEngineTest, DetectKeepLsbsLeavesHighBitsZero) {
   EXPECT_THAT(query_engine.ExactlyOneBitTrue(lz_one_hot), true);
   EXPECT_THAT(query_engine.KnownLeadingZeros(res.node()),
               testing::Optional(60));
+}
+
+TEST_F(BddQueryEngineTest, NestedSpecializeGiven) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetBitsType(1));
+  BValue y = fb.Param("y", p->GetBitsType(1));
+  BValue both = fb.And(x, y);
+  BValue not_both = fb.Not(both);
+  BValue a = fb.Param("a", p->GetBitsType(4));
+  BValue b = fb.Param("b", p->GetBitsType(4));
+  BValue sum = fb.Add(a, b);
+  BValue sel = fb.Select(x, {fb.Literal(UBits(0, 1)), y});
+  fb.Tuple({both, not_both, sum, sel});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  BddQueryEngine query_engine;
+  XLS_ASSERT_OK(query_engine.Populate(f).status());
+
+  auto bit_one = [&](Node* n) {
+    return ValueKnowledge{
+        .ternary = TernaryTree::CreateSingleElementTree(
+            n->GetType(), TernaryVector{TernaryValue::kKnownOne})};
+  };
+  auto precise_u4 = [&](Node* n, uint64_t val) {
+    return ValueKnowledge{
+        .intervals = IntervalSetTree::CreateSingleElementTree(
+            n->GetType(), IntervalSet::Precise(UBits(val, 4)))};
+  };
+
+  // Nested SpecializeGiven with ternary givens: outer assumes x == 1, inner
+  // assumes y == 1. Both assumptions should hold in the nested engine without
+  // mutating the outer engine.
+  std::unique_ptr<QueryEngine> s1 =
+      query_engine.SpecializeGiven({{x.node(), bit_one(x.node())}});
+  EXPECT_TRUE(s1->IsAllOnes(x.node()));
+  EXPECT_FALSE(s1->IsAllOnes(y.node()));
+  EXPECT_FALSE(s1->IsAllOnes(both.node()));
+  EXPECT_FALSE(s1->IsAllZeros(not_both.node()));
+
+  std::unique_ptr<QueryEngine> s2 =
+      s1->SpecializeGiven({{y.node(), bit_one(y.node())}});
+  EXPECT_TRUE(s2->IsAllOnes(x.node()));
+  EXPECT_TRUE(s2->IsAllOnes(y.node()));
+  EXPECT_TRUE(s2->IsAllOnes(both.node()));
+  EXPECT_TRUE(s2->IsAllZeros(not_both.node()));
+  // Outer specialized engine must remain unaffected.
+  EXPECT_FALSE(s1->IsAllOnes(y.node()));
+  EXPECT_FALSE(s1->IsAllOnes(both.node()));
+
+  // Nested SpecializeGiven with interval givens: outer assumes a == 3, inner
+  // assumes b == 4, so a + b == 7.
+  std::unique_ptr<QueryEngine> i1 =
+      query_engine.SpecializeGiven({{a.node(), precise_u4(a.node(), 3)}});
+  EXPECT_EQ(i1->KnownValueAsBits(sum.node()), std::nullopt);
+  std::unique_ptr<QueryEngine> i2 =
+      i1->SpecializeGiven({{b.node(), precise_u4(b.node(), 4)}});
+  EXPECT_EQ(i2->KnownValueAsBits(a.node()), UBits(3, 4));
+  EXPECT_EQ(i2->KnownValueAsBits(b.node()), UBits(4, 4));
+  EXPECT_EQ(i2->KnownValueAsBits(sum.node()), UBits(7, 4));
+
+  // Combining SpecializeGivenPredicate and SpecializeGiven in both orders.
+  PredicateState arm1(sel.node()->As<Select>(), /*arm_index=*/1);
+  std::unique_ptr<QueryEngine> pred_then_given =
+      query_engine.SpecializeGivenPredicate({arm1})->SpecializeGiven(
+          {{y.node(), bit_one(y.node())}});
+  EXPECT_TRUE(pred_then_given->IsAllOnes(x.node()));
+  EXPECT_TRUE(pred_then_given->IsAllOnes(y.node()));
+  EXPECT_TRUE(pred_then_given->IsAllOnes(both.node()));
+
+  std::unique_ptr<QueryEngine> given_then_pred =
+      query_engine.SpecializeGiven({{y.node(), bit_one(y.node())}})
+          ->SpecializeGivenPredicate({arm1});
+  EXPECT_TRUE(given_then_pred->IsAllOnes(x.node()));
+  EXPECT_TRUE(given_then_pred->IsAllOnes(y.node()));
+  EXPECT_TRUE(given_then_pred->IsAllOnes(both.node()));
+
+  // Contradictory nested givens (both via conflicting bits and via an empty
+  // interval set) produce an unsatisfiable assumption, and further nesting
+  // stays unsatisfiable.
+  std::unique_ptr<QueryEngine> conflicting_bits = s1->SpecializeGiven(
+      {{x.node(),
+        ValueKnowledge{
+            .ternary = TernaryTree::CreateSingleElementTree(
+                x.GetType(), TernaryVector{TernaryValue::kKnownZero})}}});
+  EXPECT_TRUE(conflicting_bits->IsAllZeros(y.node()));
+  EXPECT_TRUE(conflicting_bits->IsAllOnes(y.node()));
+
+  std::unique_ptr<QueryEngine> empty_interval = s1->SpecializeGiven(
+      {{a.node(),
+        ValueKnowledge{.intervals = IntervalSetTree::CreateSingleElementTree(
+                           a.GetType(), IntervalSet(4))}}});
+  EXPECT_TRUE(empty_interval->IsAllZeros(y.node()));
+  EXPECT_TRUE(empty_interval->IsAllOnes(y.node()));
+  std::unique_ptr<QueryEngine> after_empty =
+      empty_interval->SpecializeGiven({{y.node(), bit_one(y.node())}});
+  EXPECT_TRUE(after_empty->IsAllZeros(y.node()));
+  EXPECT_TRUE(after_empty->IsAllOnes(y.node()));
+}
+
+TEST_F(BddQueryEngineTest, NestedSpecializeGivenRespectsPathLimit) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetBitsType(1));
+  BValue y = fb.Param("y", p->GetBitsType(1));
+  BValue z = fb.Param("z", p->GetBitsType(1));
+  BValue w = fb.Param("w", p->GetBitsType(1));
+  BValue extra = fb.Param("extra", p->GetBitsType(1));
+  // e1 = x ^ y (4 paths), e2 = z ^ w (4 paths); e1 & e2 has 10 paths > 8.
+  BValue e1 = fb.Xor(x, y);
+  BValue e2 = fb.Xor(z, w);
+  fb.Tuple({e1, e2, extra});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  BddQueryEngine query_engine(/*path_limit=*/8);
+  XLS_ASSERT_OK(query_engine.Populate(f).status());
+
+  auto bit_one = [&](Node* n) {
+    return ValueKnowledge{
+        .ternary = TernaryTree::CreateSingleElementTree(
+            n->GetType(), TernaryVector{TernaryValue::kKnownOne})};
+  };
+
+  std::unique_ptr<QueryEngine> s1 =
+      query_engine.SpecializeGiven({{e1.node(), bit_one(e1.node())}});
+  EXPECT_TRUE(s1->IsAllOnes(e1.node()));
+
+  // Conjoining e2 into e1 exceeds path_limit=8, so e2 is skipped while the
+  // smaller given `extra == 1` is still conjoined.
+  std::unique_ptr<QueryEngine> s2 = s1->SpecializeGiven(
+      {{e2.node(), bit_one(e2.node())}, {extra.node(), bit_one(extra.node())}});
+  EXPECT_TRUE(s2->IsAllOnes(e1.node()));
+  EXPECT_FALSE(s2->IsAllOnes(e2.node()));
+  EXPECT_TRUE(s2->IsAllOnes(extra.node()));
 }
 
 }  // namespace
