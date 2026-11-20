@@ -2211,5 +2211,20 @@ const_assert!(s32::ZERO == 0);
 )"));
 }
 
+TEST(TypecheckV2Test, ChannelConfigFromExplicitEnums) {
+  EXPECT_THAT(R"(
+#![feature(io_objects)]
+const C = ChannelConfig {
+  fifo_depth: u32:4,
+  strictness: ChannelStrictness::TOTAL_ORDER,
+  flow_control: FlowControl::READY_VALID,
+};
+)",
+              TypecheckSucceeds(HasNodeWithType(
+                  "C",
+                  "ChannelConfig { fifo_depth: uN[32], strictness: "
+                  "ChannelStrictness, flow_control: FlowControl }")));
+}
+
 }  // namespace
 }  // namespace xls::dslx

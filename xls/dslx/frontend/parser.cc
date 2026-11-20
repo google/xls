@@ -485,6 +485,11 @@ absl::StatusOr<std::unique_ptr<Module>> Parser::ParseModule(
   }
   if (builtin_stubs != nullptr) {
     for (const std::string& name : GetIoObjectBuiltins()) {
+      if (std::optional<EnumDef*> enum_def =
+              builtin_stubs->GetMember<EnumDef>(name)) {
+        bindings->Add(name, *enum_def);
+        continue;
+      }
       XLS_ASSIGN_OR_RETURN(StructDef * struct_def,
                            builtin_stubs->GetMemberOrError<StructDef>(name));
       bindings->Add(name, struct_def);
@@ -1614,13 +1619,7 @@ absl::StatusOr<TypeRefOrAnnotation> Parser::ParseTypeRef(Bindings& bindings,
             *tok.GetValue(), BoundNodeGetTypeString(type_def)));
   }
 
-  if (!parse_fn_stubs_ &&
-      !module_->attributes().contains(ModuleAttribute::kIoObjects) &&
-      GetIoObjectBuiltins().contains(*tok.GetValue())) {
-    return ParseErrorStatus(
-        tok.span(), absl::StrFormat("`%s` requires #![feature(io_objects)]",
-                                    *tok.GetValue()));
-  }
+  XLS_RETURN_IF_ERROR(CheckIoObjectsFeature(tok));
 
   XLS_ASSIGN_OR_RETURN(TypeDefinition type_definition,
                        BoundNodeToTypeDefinition(type_def));
@@ -1811,8 +1810,22 @@ absl::StatusOr<NameRef*> Parser::ParseNameRef(Bindings& bindings,
   XLS_ASSIGN_OR_RETURN(
       BoundNode bn,
       bindings.ResolveNodeOrError(*tok->GetValue(), tok->span(), file_table()));
+  if (std::holds_alternative<EnumDef*>(bn)) {
+    XLS_RETURN_IF_ERROR(CheckIoObjectsFeature(*tok));
+  }
   AnyNameDef name_def = BoundNodeToAnyNameDef(bn);
   return module_->Make<NameRef>(tok->span(), *tok->GetValue(), name_def);
+}
+
+absl::Status Parser::CheckIoObjectsFeature(const Token& tok) {
+  if (!parse_fn_stubs_ &&
+      !module_->attributes().contains(ModuleAttribute::kIoObjects) &&
+      GetIoObjectBuiltins().contains(*tok.GetValue())) {
+    return ParseErrorStatus(
+        tok.span(), absl::StrFormat("`%s` requires #![feature(io_objects)]",
+                                    *tok.GetValue()));
+  }
+  return absl::OkStatus();
 }
 
 absl::StatusOr<ColonRef*> Parser::ParseColonRef(Bindings& bindings,
