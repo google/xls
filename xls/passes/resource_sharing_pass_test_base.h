@@ -1505,7 +1505,8 @@ GetBinaryFoldings(Function* f,
       ResourceSharingPass::ComputeMutualExclusionAnalysis(
           f, context, [](Node* n) { return true; }, visibilities));
   return ResourceSharingPass::ComputeFoldableActions(
-      f, mutual_exclusivity, visibilities, ResourceSharingPass::kDefaultConfig);
+      f, mutual_exclusivity, visibilities, [](Node* n) { return true; },
+      ResourceSharingPass::kDefaultConfig);
 }
 
 // Wraps nary folding creation, analysis construction, and folding application
