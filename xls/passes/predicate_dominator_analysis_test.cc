@@ -618,14 +618,14 @@ void BM_ShareAllBalancedTree(benchmark::State& state) {
   }
 }
 
-BENCHMARK(BM_NoShareBalancedTreeShareContext)->DenseRange(2, 20, 2);
-BENCHMARK(BM_ShareReturnBalancedTreeShareContext)->DenseRange(2, 20, 2);
-BENCHMARK(BM_ShareSelectorBalancedTreeShareContext)->DenseRange(2, 20, 2);
-BENCHMARK(BM_ShareAllBalancedTreeShareContext)->DenseRange(2, 20, 2);
-BENCHMARK(BM_NoShareBalancedTree)->DenseRange(2, 20, 2);
-BENCHMARK(BM_ShareReturnBalancedTree)->DenseRange(2, 20, 2);
-BENCHMARK(BM_ShareSelectorBalancedTree)->DenseRange(2, 20, 2);
-BENCHMARK(BM_ShareAllBalancedTree)->DenseRange(2, 20, 2);
+BENCHMARK(BM_NoShareBalancedTreeShareContext)->DenseRange(2, 12, 2);
+BENCHMARK(BM_ShareReturnBalancedTreeShareContext)->DenseRange(2, 12, 2);
+BENCHMARK(BM_ShareSelectorBalancedTreeShareContext)->DenseRange(2, 12, 2);
+BENCHMARK(BM_ShareAllBalancedTreeShareContext)->DenseRange(2, 12, 2);
+BENCHMARK(BM_NoShareBalancedTree)->DenseRange(2, 12, 2);
+BENCHMARK(BM_ShareReturnBalancedTree)->DenseRange(2, 12, 2);
+BENCHMARK(BM_ShareSelectorBalancedTree)->DenseRange(2, 12, 2);
+BENCHMARK(BM_ShareAllBalancedTree)->DenseRange(2, 12, 2);
 
 }  // namespace
 }  // namespace xls

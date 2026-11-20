@@ -257,6 +257,7 @@ cc_library(
 cc_test(
     name = "z3_ir_translator_test",
     srcs = ["z3_ir_translator_test.cc"],
+    tags = ["xls_benchmark"],
     deps = [
         ":prover_matchers",
         ":solver",
@@ -345,6 +346,7 @@ cc_library(
 cc_test(
     name = "bitwuzla_ir_translator_test",
     srcs = ["bitwuzla_ir_translator_test.cc"],
+    tags = ["xls_benchmark"],
     deps = [
         ":bitwuzla_ir_translator",
         ":prover_matchers",
