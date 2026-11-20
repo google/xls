@@ -1500,5 +1500,49 @@ TEST_F(VisibilityAnalysisTest, EdgesForVisibilityExcludeDependencies) {
                   OperandNode(one_and_other_if_op_0.node(), select.node())));
 }
 
+TEST_F(VisibilityAnalysisTest, UnboundedBddQueryEngineDoesNotFalselySaturate) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetBitsType(9));
+  BValue y = fb.Param("y", p->GetBitsType(9));
+  BValue a = fb.Param("a", p->GetBitsType(8));
+  BValue b = fb.Param("b", p->GetBitsType(8));
+  BValue zero = fb.Literal(UBits(0, 8));
+  BValue add1 = fb.Add(a, b);
+  BValue add2 = fb.Add(a, fb.Literal(UBits(1, 8)));
+
+  // Non-interleaved 9-bit carry-out (`x + y >= 512`) and its commuted
+  // complement (`!(y + x >= 512)`) exceed the default bounded BDD limit while
+  // remaining exact in an unbounded engine.
+  BValue carry_xy =
+      fb.BitSlice(fb.Add(fb.ZeroExtend(x, 10), fb.ZeroExtend(y, 10)), 9, 1);
+  BValue no_carry_yx = fb.Not(
+      fb.BitSlice(fb.Add(fb.ZeroExtend(y, 10), fb.ZeroExtend(x, 10)), 9, 1));
+  BValue gated1 = fb.PrioritySelect(carry_xy, {add1}, zero);
+  BValue gated2 = fb.PrioritySelect(no_carry_yx, {add2}, zero);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
+                           fb.BuildWithReturnValue(fb.Tuple({gated1, gated2})));
+
+  XLS_ASSERT_OK_AND_ASSIGN(VisibilityAnalyses bounded_analyses,
+                           CreateVisibilityAnalyses(f));
+  EXPECT_FALSE(bounded_analyses.visibility->IsMutuallyExclusive(add1.node(),
+                                                                add2.node()));
+
+  NodeForwardDependencyAnalysis nda;
+  XLS_ASSERT_OK(nda.Attach(f));
+  LazyPostDominatorAnalysis post_dom;
+  XLS_ASSERT_OK(post_dom.Attach(f));
+  BddQueryEngine unbounded_engine(/*path_limit=*/0);
+  XLS_ASSERT_OK(unbounded_engine.Populate(f));
+  XLS_ASSERT_OK_AND_ASSIGN(auto operand_vis, OperandVisibilityAnalysis::Create(
+                                                 unbounded_engine.path_limit(),
+                                                 &nda, &unbounded_engine));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto visibility,
+      VisibilityAnalysis::Create(&operand_vis, &unbounded_engine, &post_dom));
+
+  EXPECT_TRUE(visibility->IsMutuallyExclusive(add1.node(), add2.node()));
+}
+
 }  // namespace
 }  // namespace xls

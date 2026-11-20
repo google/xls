@@ -69,8 +69,7 @@ class QueryEngineTest : public IrTestBase,
       return engine;
     }
     if (GetParam() == QueryEngineType::kBdd) {
-      std::unique_ptr<BddQueryEngine> engine =
-          std::make_unique<BddQueryEngine>();
+      std::unique_ptr<BddQueryEngine> engine = BddQueryEngine::MakeDefault();
       XLS_RETURN_IF_ERROR(engine->Populate(f).status());
       return engine;
     }

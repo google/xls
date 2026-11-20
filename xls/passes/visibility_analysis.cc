@@ -314,7 +314,8 @@ BddNodeIndex OperandVisibilityAnalysis::AndAggregateSubsetThatFitsTermLimit(
     }
     BddNodeIndex next_result =
         bdd_query_engine_->bdd().And(result, operands[i]);
-    if (bdd_query_engine_->bdd().path_count(next_result) > edge_term_limit_) {
+    if (edge_term_limit_ > 0 &&
+        bdd_query_engine_->bdd().path_count(next_result) > edge_term_limit_) {
       break;
     }
     result = next_result;
@@ -583,8 +584,8 @@ BddNodeIndex OperandVisibilityAnalysis::OperandVisibilityThroughNode(
     return it->second;
   }
   BddNodeIndex node_uses_operand = ConditionOfUse(pair.operand, pair.node);
-  if (bdd_query_engine_->bdd().path_count(node_uses_operand) >
-      edge_term_limit_) {
+  if (edge_term_limit_ > 0 && bdd_query_engine_->bdd().path_count(
+                                  node_uses_operand) > edge_term_limit_) {
     node_uses_operand = bdd_query_engine_->bdd().one();
   }
   pair_to_op_vis_[pair] = node_uses_operand;
@@ -650,7 +651,8 @@ VisibilityAnalysis::SaturatingVisibility VisibilityAnalysis::ComputeAnyUsesNode(
     user_conditions.push_back(bdd.And(info->visibility, user_uses_node));
   }
   BddNodeIndex any_uses_node = OrAggregate(user_conditions, bdd_query_engine_);
-  if (bdd.path_count(any_uses_node) > bdd_query_engine_->path_limit()) {
+  if (bdd_query_engine_->path_limit() > 0 &&
+      bdd.path_count(any_uses_node) > bdd_query_engine_->path_limit()) {
     return {.visibility = bdd.one(), .saturated = true};
   }
   return {.visibility = any_uses_node, .saturated = false};
@@ -911,7 +913,8 @@ VisibilityAnalysis::ComputeInfoOnContractedDag(
         adj_conditions.push_back(user_vis);
       }
       BddNodeIndex adj_vis = OrAggregate(adj_conditions, bdd_query_engine_);
-      if (bdd.path_count(adj_vis) > bdd_query_engine_->path_limit()) {
+      if (bdd_query_engine_->path_limit() > 0 &&
+          bdd.path_count(adj_vis) > bdd_query_engine_->path_limit()) {
         adj_vis = bdd.one();
         any_saturated = true;
       }
@@ -922,7 +925,8 @@ VisibilityAnalysis::ComputeInfoOnContractedDag(
     }
     BddNodeIndex any_uses_node =
         OrAggregate(user_conditions, bdd_query_engine_);
-    if (bdd.path_count(any_uses_node) > bdd_query_engine_->path_limit()) {
+    if (bdd_query_engine_->path_limit() > 0 &&
+        bdd.path_count(any_uses_node) > bdd_query_engine_->path_limit()) {
       any_saturated = true;
       any_uses_node = bdd.one();
     }
