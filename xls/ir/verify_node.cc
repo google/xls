@@ -1405,16 +1405,17 @@ class NodeChecker : public DfsVisitor {
     return absl::OkStatus();
   }
 
-  // Verifies all operands are the same type, and that type is not Token.
+  // Verifies all operands have the same type and that it contains no tokens.
   absl::Status ExpectOperandsSameTypeNoToken(Node* node) const {
     if (node->operand_count() == 0) {
       return absl::OkStatus();
     }
     Type* type = node->operand(0)->GetType();
-    if (type->IsToken()) {
+    if (TypeHasToken(type)) {
       return absl::InternalError(absl::StrFormat(
-          "Operand 0 of %s cannot be Token type for this operation: %s",
-          node->GetName(), node->ToString()));
+          "Operand 0 of %s cannot %s for this operation: %s", node->GetName(),
+          type->IsToken() ? "be Token type" : "contain a token",
+          node->ToString()));
     }
     for (int64_t i = 1; i < node->operand_count(); ++i) {
       XLS_RETURN_IF_ERROR(ExpectOperandHasType(node, i, type));

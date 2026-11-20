@@ -116,6 +116,18 @@ fn f(x: u32, y: u32) {
               TypecheckSucceeds(HasNodeWithType("x", "uN[32]")));
 }
 
+TEST(TypecheckV2BuiltinTest, AssertEqWithTokenTupleFails) {
+  EXPECT_THAT("fn f(a: (token,), b: (token,)) { assert_eq(a, b); }",
+              TypecheckFails(HasSubstr(
+                  "'assert_eq' requires operands that support equality")));
+}
+
+TEST(TypecheckV2BuiltinTest, AssertNeWithTokenFails) {
+  EXPECT_THAT("fn f(a: token, b: token) { assert_ne(a, b); }",
+              TypecheckFails(HasSubstr(
+                  "'assert_ne' requires operands that support equality")));
+}
+
 TEST(TypecheckV2BuiltinTest, AssertEqExplicitParametricTypeConstants) {
   EXPECT_THAT(R"(
 fn f() {

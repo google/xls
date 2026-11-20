@@ -390,6 +390,36 @@ fn f() -> bits[1] {
                                  "for this operation")));
 }
 
+TEST_F(VerifierTest, EqCompareTupleContainingToken) {
+  std::string input = R"(
+package p
+
+fn f(a: (token), b: (token)) -> bits[1] {
+  ret eq_val: bits[1] = eq(a, b)
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(auto p, ParsePackageNoVerify(input));
+  EXPECT_THAT(
+      VerifyPackage(p.get()),
+      StatusIs(absl::StatusCode::kInternal,
+               HasSubstr("Operand 0 of eq_val cannot contain a token")));
+}
+
+TEST_F(VerifierTest, NeCompareNestedTokenOperands) {
+  std::string input = R"(
+package p
+
+fn f(a: (bits[8], (token)[2]), b: (bits[8], (token)[2])) -> bits[1] {
+  ret ne_val: bits[1] = ne(a, b)
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(auto p, ParsePackageNoVerify(input));
+  EXPECT_THAT(
+      VerifyPackage(p.get()),
+      StatusIs(absl::StatusCode::kInternal,
+               HasSubstr("Operand 0 of ne_val cannot contain a token")));
+}
+
 TEST_F(VerifierTest, SelectWithTooNarrowSelector) {
   std::string input = R"(
 package p

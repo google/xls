@@ -927,11 +927,10 @@ TEST(FunctionJitTest, TokenCompareError) {
                        HasSubstr("cannot be Token type for this operation")));
 }
 
-// Make sure the token comparison error is still reported when the token is
-// inside a larger structure.
+// Exercise the JIT's token comparison check with unverified IR.
 TEST(FunctionJitTest, CompoundTokenCompareError) {
   Package p("compound_token_eq");
-  FunctionBuilder b("fun", &p);
+  FunctionBuilder b("fun", &p, /*should_verify=*/false);
 
   auto p0 = b.Param("tkn", p.GetTokenType());
   BValue two = b.Literal(Value(UBits(2, 32)));
