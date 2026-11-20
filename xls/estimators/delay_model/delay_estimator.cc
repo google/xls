@@ -309,10 +309,20 @@ namespace {
 
 DecoratingDelayEstimator::DecoratingDelayEstimator(
     std::string_view name, const DelayEstimator& decorated,
-    std::function<int64_t(Node*, int64_t)> modifier)
+    std::function<absl::StatusOr<int64_t>(Node*, int64_t)> modifier)
     : DelayEstimator(name),
       decorated_(decorated),
       modifier_(ABSL_DIE_IF_NULL(std::move(modifier))) {}
+
+DecoratingDelayEstimator::DecoratingDelayEstimator(
+    std::string_view name, const DelayEstimator& decorated,
+    std::function<int64_t(Node*, int64_t)> modifier)
+    : DecoratingDelayEstimator(
+          name, decorated,
+          [modifier = ABSL_DIE_IF_NULL(std::move(modifier))](
+              Node* node, int64_t original) -> absl::StatusOr<int64_t> {
+            return modifier(node, original);
+          }) {}
 
 absl::StatusOr<int64_t> DecoratingDelayEstimator::GetOperationDelayInPs(
     Node* node) const {

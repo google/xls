@@ -21,6 +21,7 @@
 #include <memory>
 #include <string>
 #include <string_view>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -67,9 +68,32 @@ class DelayEstimator {
 // Decorates an underlying delay estimator with an overriding modifier function.
 class DecoratingDelayEstimator : public DelayEstimator {
  public:
+  DecoratingDelayEstimator(
+      std::string_view name, const DelayEstimator& decorated,
+      std::function<absl::StatusOr<int64_t>(Node*, int64_t)> modifier);
+
   DecoratingDelayEstimator(std::string_view name,
                            const DelayEstimator& decorated,
                            std::function<int64_t(Node*, int64_t)> modifier);
+
+  // Disambiguates non-`std::function` callables whose return type converts to
+  // `int64_t`, which would otherwise match both `std::function` overloads via
+  // `int64_t` -> `absl::StatusOr<int64_t>`.
+  template <typename Modifier>
+    requires(!std::is_same_v<std::remove_cvref_t<Modifier>,
+                             std::function<int64_t(Node*, int64_t)>> &&
+             !std::is_same_v<
+                 std::remove_cvref_t<Modifier>,
+                 std::function<absl::StatusOr<int64_t>(Node*, int64_t)>> &&
+             std::is_invocable_r_v<int64_t, std::decay_t<Modifier>&, Node*,
+                                   int64_t> &&
+             std::is_constructible_v<std::function<int64_t(Node*, int64_t)>,
+                                     Modifier>)
+  DecoratingDelayEstimator(std::string_view name,
+                           const DelayEstimator& decorated, Modifier&& modifier)
+      : DecoratingDelayEstimator(name, decorated,
+                                 std::function<int64_t(Node*, int64_t)>(
+                                     std::forward<Modifier>(modifier))) {}
 
   ~DecoratingDelayEstimator() override = default;
 
@@ -77,7 +101,7 @@ class DecoratingDelayEstimator : public DelayEstimator {
 
  private:
   const DelayEstimator& decorated_;
-  std::function<int64_t(Node*, int64_t)> modifier_;
+  std::function<absl::StatusOr<int64_t>(Node*, int64_t)> modifier_;
 };
 
 // Delay estimator delegating to a sequence of other DelayEstimators until
