@@ -118,6 +118,22 @@ cc_library(
     ],
 )
 
+cc_test(
+    name = "testbench_test",
+    srcs = ["testbench_test.cc"],
+    deps = [
+        ":testbench",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:status_macros",
+        "@abseil-cpp//absl/algorithm:container",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:status_matchers",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/synchronization",
+        "@googletest//:gtest",
+    ],
+)
+
 cc_library(
     name = "testbench_builder",
     hdrs = ["testbench_builder.h"],
