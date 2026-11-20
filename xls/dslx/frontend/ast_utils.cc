@@ -62,6 +62,11 @@ void FlattenToSetInternal(const AstNode* node,
 }
 
 BuiltinNameDef* GetBuiltinNameDef(Expr* callee) {
+  if (const auto* function_ref = dynamic_cast<const FunctionRef*>(callee)) {
+    // In a specialized reference such as encode<2, 1>, the underlying NameRef
+    // still identifies the builtin. The FunctionRef carries the parametrics.
+    return GetBuiltinNameDef(function_ref->callee());
+  }
   NameRef* name_ref = dynamic_cast<NameRef*>(callee);
   if (name_ref == nullptr) {
     return nullptr;

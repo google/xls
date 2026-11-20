@@ -414,6 +414,13 @@ TEST(TypecheckV2BuiltinTest, CeilLog2) {
               TypecheckSucceeds(HasNodeWithType("Y", "uN[8]")));
 }
 
+TEST(TypecheckV2BuiltinTest, CeilLog2ConstexprPreservesWidth) {
+  XLS_EXPECT_OK(TypecheckV2(R"(
+const_assert!((ceillog2<3>)(u3:0) == u3:0);
+const_assert!(map([u3:1, u3:5], ceillog2<3>) == [u3:0, u3:3]);
+)"));
+}
+
 TEST(TypecheckV2BuiltinTest, Clz) {
   EXPECT_THAT(R"(const Y = clz(u8:3);)",
               TypecheckSucceeds(HasNodeWithType("Y", "uN[8]")));
@@ -554,6 +561,18 @@ TEST(TypecheckV2BuiltinTest, EncodeExplicitParametrics) {
               TypecheckSucceeds(HasNodeWithType("Y", "uN[5]")));
 }
 
+TEST(TypecheckV2BuiltinTest, EncodeExplicitResultWidthMismatch) {
+  EXPECT_THAT(R"(
+fn g(x: bool) -> u2 {
+  signex(x, encode<2, 2>(u2:1)) as u2
+}
+const K = g(true);
+pub fn f(x: bool) -> bool { g(x) == K }
+)",
+              TypecheckFails(HasSubstr(
+                  "`encode` result width must be 1 for input width 2, got 2")));
+}
+
 TEST(TypecheckV2BuiltinTest, EncodeOfEncode) {
   EXPECT_THAT(R"(
 const X0 = encode(u32:0x00010000);
@@ -561,6 +580,36 @@ const X1 = encode(X0);
 const X2 = encode(X1);
 )",
               TypecheckSucceeds(HasNodeWithType("X2", "uN[2]")));
+}
+
+TEST(TypecheckV2BuiltinTest, ParenthesizedEncodeWrongResultWidth) {
+  EXPECT_THAT(R"(const Y = (encode<2, 2>)(u2:1);)",
+              TypecheckFails(HasSubstr(
+                  "`encode` result width must be 1 for input width 2, got 2")));
+}
+
+TEST(TypecheckV2BuiltinTest, ParenthesizedOneHotWrongResultWidth) {
+  EXPECT_THAT(
+      R"(const Y = (one_hot<2, 2>)(u2:1, true);)",
+      TypecheckFails(HasSubstr(
+          "`one_hot` result width must be 3 for input width 2, got 2")));
+}
+
+TEST(TypecheckV2BuiltinTest, ParenthesizedEncodeMatchingResultWidth) {
+  EXPECT_THAT(R"(
+const Y = (encode<3, 2>)(u3:4);
+const_assert!(Y == u2:2);
+)",
+              TypecheckSucceeds(HasNodeWithType("Y", "uN[2]")));
+}
+
+TEST(TypecheckV2BuiltinTest, RepeatedBuiltinSpecialization) {
+  EXPECT_THAT(
+      R"(fn f(x: u2) -> u1 { (encode<2, 2>)<2, 1>(x) })",
+      TypecheckFails(HasSubstr("Function already has explicit parametrics.")));
+  EXPECT_THAT(
+      R"(const Y = map([u2:1], (encode<2, 2>)<2, 1>);)",
+      TypecheckFails(HasSubstr("Function already has explicit parametrics.")));
 }
 
 TEST(TypecheckV2BuiltinTest, ElementCountArray) {
@@ -918,6 +967,17 @@ const Y = map([u30:5, u30:6], rev<u32:30>);
       TypecheckSucceeds(HasNodeWithType("Y", "uN[30][2]")));
 }
 
+TEST(TypecheckV2BuiltinTest, MapEncodeExplicitResultWidthMismatch) {
+  EXPECT_THAT(R"(const K: u2[1] = map([u2:1], encode<2, 2>);)",
+              TypecheckFails(HasSubstr(
+                  "`encode` result width must be 1 for input width 2, got 2")));
+}
+
+TEST(TypecheckV2BuiltinTest, MapEncodeMatchingExplicitResultWidth) {
+  EXPECT_THAT(R"(fn f(x: u2) -> u1[1] { map([x], encode<2, 1>) })",
+              TypecheckSucceeds(HasNodeWithType("f", "(uN[2]) -> uN[1][1]")));
+}
+
 TEST(TypecheckV2BuiltinTest, MapParametricMapperExplicitReturnParametric) {
   EXPECT_THAT(
       R"(
@@ -1032,6 +1092,18 @@ const_assert!(Y == [u32:20, 11, 15]);
 TEST(TypecheckV2BuiltinTest, OneHot) {
   EXPECT_THAT(R"(const Y = one_hot(u32:2, true);)",
               TypecheckSucceeds(HasNodeWithType("Y", "uN[33]")));
+}
+
+TEST(TypecheckV2BuiltinTest, OneHotExplicitParametrics) {
+  EXPECT_THAT(R"(const Y = one_hot<2, 3>(u2:0, true);)",
+              TypecheckSucceeds(HasNodeWithType("Y", "uN[3]")));
+}
+
+TEST(TypecheckV2BuiltinTest, OneHotExplicitResultWidthMismatch) {
+  EXPECT_THAT(
+      R"(fn f(x: u2) -> u2 { one_hot<2, 2>(x, true) })",
+      TypecheckFails(HasSubstr(
+          "`one_hot` result width must be 3 for input width 2, got 2")));
 }
 
 TEST(TypecheckV2BuiltinTest, MyOneHot) {

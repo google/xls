@@ -65,8 +65,8 @@ bool IsTestProcDef(const ProcDef* p);
 // Returns true if `fn` is a test function or part of a test proc.
 bool IsTestFn(const Function* fn);
 
-// Returns true if `callee` refers to a builtin function. If `callee` isn't a
-// NameRef, then this always returns false.
+// Returns true if `callee` refers to a builtin function, either directly or
+// through a FunctionRef (e.g. a specialized mapper).
 //
 // If "target" is provided, only returns true iff it is a builtin function with
 // the given "target" name.

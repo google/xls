@@ -1016,12 +1016,12 @@ absl::StatusOr<InterpValue> InterpValue::ArithmeticNegate() const {
 absl::StatusOr<InterpValue> InterpValue::CeilOfLog2() const {
   XLS_ASSIGN_OR_RETURN(Bits arg, GetBits());
   if (arg.IsZero()) {
-    return InterpValue(tag_, UBits(0, 32));
+    return InterpValue(tag_, UBits(0, arg.bit_count()));
   }
   // Subtract one to make sure we get the right result for exact powers of 2.
   int64_t min_bit_width =
       arg.bit_count() - bits_ops::Decrement(arg).CountLeadingZeros();
-  return InterpValue(tag_, UBits(min_bit_width, 32));
+  return InterpValue(tag_, UBits(min_bit_width, arg.bit_count()));
 }
 
 absl::StatusOr<Bits> InterpValue::GetBits() const {

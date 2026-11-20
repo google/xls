@@ -58,6 +58,19 @@ fn map_unary_builtins() {
     assert_eq(u2[8]:[0, 0, 1, 1, 2, 2, 3, 3], map(x, encode));
 }
 
+fn map_specialized_encode(xs: u2[2]) -> u1[2] { map(xs, encode<2, 1>) }
+
+const_assert!(map([u2:1, u2:2], encode<2, 1>) == [u1:0, u1:1]);
+
+// Shadow the builtin after map_specialized_encode so both are called with <2, 1>.
+fn encode<N: u32, M: u32>(x: uN[N]) -> uN[M] { x as uN[M] }
+
+#[test]
+fn map_specialized_encode_test() {
+    assert_eq(encode<2, 1>(u2:2), u1:0);
+    assert_eq(map_specialized_encode([u2:2, u2:1]), [u1:1, u1:0]);
+}
+
 #[quickcheck]
 fn map_array_rev(x: bool, y: u8) -> bool {
     let rows = [[y, !y], [y, y]];

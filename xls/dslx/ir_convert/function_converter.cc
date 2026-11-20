@@ -55,6 +55,7 @@
 #include "xls/dslx/frontend/ast_node.h"
 #include "xls/dslx/frontend/ast_node_visitor_with_default.h"
 #include "xls/dslx/frontend/ast_utils.h"
+#include "xls/dslx/frontend/builtins_metadata.h"
 #include "xls/dslx/frontend/module.h"
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/frontend/proc_id.h"
@@ -2112,23 +2113,24 @@ absl::StatusOr<BValue> FunctionConverter::HandleMatcher(
 }
 
 absl::StatusOr<BValue> FunctionConverter::DefMapWithBuiltin(
-    const Invocation* parent_node, NameRef* node, AstNode* arg,
-    const ParametricEnv& parametric_env) {
+    const Invocation* parent_node, std::string_view builtin_name,
+    BValue arg_value, const ParametricEnv& parametric_env) {
   // Builtins always use the "typical" calling convention (are never "implicit
   // token").
-  XLS_ASSIGN_OR_RETURN(const std::string mangled_name,
-                       MangleDslxName(module_->name(), node->identifier(),
-                                      CallingConvention::kTypical,
-                                      /*free_keys=*/{}, parametric_env));
-  XLS_ASSIGN_OR_RETURN(BValue arg_value, Use(arg));
+  XLS_ASSIGN_OR_RETURN(
+      const std::string mangled_name,
+      MangleDslxName(module_->name(), builtin_name, CallingConvention::kTypical,
+                     /*free_keys=*/{}, parametric_env));
+  // Mangled DSLX functions start with "__". Keep the builtin mapper in a
+  // separate namespace so a user function shadowing the builtin can coexist.
+  const std::string mapper_name = absl::StrCat("builtin_map", mangled_name);
   VLOG(5) << "Mapping with builtin; arg: " << arg_value.GetType()->ToString();
   auto* array_type = arg_value.GetType()->AsArrayOrDie();
-  std::optional<xls::Function*> f = package()->TryGetFunction(mangled_name);
+  std::optional<xls::Function*> f = package()->TryGetFunction(mapper_name);
   if (!f.has_value()) {
-    FunctionBuilder fb(mangled_name, package());
+    FunctionBuilder fb(mapper_name, package());
 
     BValue param = fb.Param("arg", array_type->element_type());
-    const std::string& builtin_name = node->identifier();
     BValue result;
     if (builtin_name == "clz") {
       result = fb.Clz(param);
@@ -2147,8 +2149,9 @@ absl::StatusOr<BValue> FunctionConverter::DefMapWithBuiltin(
     } else if (builtin_name == "array_rev") {
       XLS_ASSIGN_OR_RETURN(result, ReverseArray(param));
     } else if (builtin_name == "array_size") {
-      XLS_ASSIGN_OR_RETURN(const FunctionType* mapper_type,
-                           current_type_info_->GetItemAs<FunctionType>(node));
+      XLS_ASSIGN_OR_RETURN(
+          const FunctionType* mapper_type,
+          current_type_info_->GetItemAs<FunctionType>(parent_node->args()[1]));
       const Type* mapper_arg_type = mapper_type->params()[0].get();
       XLS_ASSIGN_OR_RETURN(InterpValue size,
                            GetElementCountAsInterpValue(mapper_arg_type));
@@ -2161,7 +2164,7 @@ absl::StatusOr<BValue> FunctionConverter::DefMapWithBuiltin(
     // Add an interface entry.
     PackageInterfaceProto::Function* fp =
         package_data_.conversion_info->interface.add_functions();
-    *fp->mutable_base()->mutable_name() = mangled_name;
+    *fp->mutable_base()->mutable_name() = mapper_name;
     auto* param_proto = fp->add_parameters();
     param_proto->set_name("arg");
     *param_proto->mutable_type() = array_type->element_type()->ToProto();
@@ -2233,6 +2236,13 @@ absl::StatusOr<BValue> FunctionConverter::HandleMap(const Invocation* node) {
   VLOG(5) << "Function being mapped AST: " << fn_node->ToString();
   absl::optional_ref<const ParametricEnv> node_parametric_env =
       GetInvocationCalleeBindings(node);
+  if (std::optional<std::string_view> builtin = GetBuiltinFnName(fn_node);
+      builtin.has_value() && IsNameParametricBuiltin(*builtin)) {
+    // A specialized builtin also arrives as a FunctionRef. Its DSLX stub has
+    // no body to convert, so build the IR mapper before looking up a function.
+    XLS_RET_CHECK(node_parametric_env.has_value());
+    return DefMapWithBuiltin(node, *builtin, arg, *node_parametric_env);
+  }
 
   const Function* mapped_fn;
   Expr* self = nullptr;
@@ -2258,11 +2268,6 @@ absl::StatusOr<BValue> FunctionConverter::HandleMap(const Invocation* node) {
       }
     }
   } else if (auto* name_ref = dynamic_cast<NameRef*>(fn_node)) {
-    if (IsBuiltinParametricNameRef(name_ref)) {
-      VLOG(5) << "Map of parametric builtin: " << name_ref->identifier();
-      return DefMapWithBuiltin(node, name_ref, node->args()[0],
-                               node_parametric_env.value());
-    }
     XLS_ASSIGN_OR_RETURN(
         mapped_fn, module_->GetMemberOrError<Function>(name_ref->identifier()));
   } else if (auto* colon_ref = dynamic_cast<ColonRef*>(fn_node)) {
