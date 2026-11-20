@@ -268,6 +268,21 @@ TEST(InterpValueHelpersTest, CastBitsToArray) {
   }
 }
 
+TEST(InterpValueHelpersTest, CastBitsToArrayOfSignedBits) {
+  ArrayType array_type(std::make_unique<BitsType>(/*is_signed=*/true, 4),
+                       TypeDim::CreateU32(2));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      InterpValue converted,
+      CastBitsToArray(InterpValue::MakeU8(0x83), array_type));
+
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue first, converted.Index(0));
+  EXPECT_TRUE(first.IsSBits());
+  EXPECT_THAT(first.GetBitValueViaSign(), IsOkAndHolds(-8));
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue second, converted.Index(1));
+  EXPECT_TRUE(second.IsSBits());
+  EXPECT_THAT(second.GetBitValueViaSign(), IsOkAndHolds(3));
+}
+
 TEST(InterpValueHelpersTest, CastBitsToEnumAndCreatZeroValue) {
   constexpr int kBitCount = 13;
   constexpr int kNumMembers = 16;
