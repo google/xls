@@ -381,6 +381,33 @@ const_assert!(ARR[5] == u16:5);
       TypecheckSucceeds(HasNodeWithType("ARR", "uN[16][6]")));
 }
 
+TEST(TypecheckV2Test, LambdaDestructuresTupleParam) {
+  EXPECT_THAT(
+      R"(
+fn muladd(a: u8, b: u8, c: u8) -> u8 {
+  let p = [(a, b, c)];
+  map(p, |(a, b, c)| {
+    a * b + c
+  })[0]
+}
+const R = muladd(u8:2, u8:3, u8:4);
+const_assert!(R == u8:10);
+)",
+      TypecheckSucceeds(HasNodeWithType("R", "uN[8]")));
+}
+
+TEST(TypecheckV2Test, FnDestructuresTupleParam) {
+  EXPECT_THAT(
+      R"(
+fn sum_pair((a, b): (u8, u8)) -> u8 {
+  a + b
+}
+const S = sum_pair((u8:2, u8:3));
+const_assert!(S == u8:5);
+)",
+      TypecheckSucceeds(HasNodeWithType("S", "uN[8]")));
+}
+
 TEST(TypecheckV2Test, LambdaUsesMapResult) {
   EXPECT_THAT(R"(
 fn is_odd(i: u32) -> bool {
