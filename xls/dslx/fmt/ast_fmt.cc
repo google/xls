@@ -1791,40 +1791,6 @@ DocRef Formatter::FormatStructInstance(const StructInstance& n) {
       leader, arena_.MakeGroup(arena_.MakeFlatChoice(on_flat, on_break)));
 }
 
-DocRef Formatter::FormatSumInstance(const SumInstance& n) {
-  if (n.is_unit()) {
-    return FormatColonRef(*n.constructor_ref());
-  } else if (n.is_tuple()) {
-    DocRef args = FormatJoin<Expr*>(
-        n.tuple_payload_args(), Joiner::kCommaBreak1AsGroupNoTrailingComma,
-        [this](Expr* arg) { return FormatExpr(*arg); });
-    return ConcatNGroup(arena_, {FormatColonRef(*n.constructor_ref()),
-                                 arena_.oparen(), args, arena_.cparen()});
-  } else {
-    std::vector<DocRef> pieces = {FormatColonRef(*n.constructor_ref()),
-                                  arena_.space(), arena_.ocurl()};
-    if (n.struct_payload_field_args().empty()) {
-      pieces.push_back(arena_.space());
-    } else {
-      pieces.push_back(arena_.space());
-      for (int64_t i = 0; i < n.struct_payload_field_args().size(); ++i) {
-        const auto& [name, arg] = n.struct_payload_field_args()[i];
-        pieces.push_back(arena_.MakeText(name));
-        pieces.push_back(arena_.colon());
-        pieces.push_back(arena_.space());
-        pieces.push_back(FormatExpr(*arg));
-        if (i != n.struct_payload_field_args().size() - 1) {
-          pieces.push_back(arena_.comma());
-          pieces.push_back(arena_.break1());
-        }
-      }
-      pieces.push_back(arena_.space());
-    }
-    pieces.push_back(arena_.ccurl());
-    return ConcatNGroup(arena_, pieces);
-  }
-}
-
 DocRef Formatter::FormatSplatStructInstance(const SplatStructInstance& n) {
   DocRef leader = FormatStructLeader(n.struct_ref());
   DocRef splatted = Format(n.splatted());
@@ -2142,16 +2108,6 @@ DocRef Formatter::FormatBlockedExprLeader(const Expr& e) {
       const StructInstance& n = static_cast<const StructInstance&>(e);
       return ConcatN(arena_, {FormatStructLeader(n.struct_ref()),
                               arena_.space(), arena_.ocurl()});
-    }
-    case AstNodeKind::kSumInstance: {
-      const SumInstance& n = static_cast<const SumInstance&>(e);
-      if (n.is_tuple()) {
-        return arena_.MakeConcat(FormatColonRef(*n.constructor_ref()),
-                                 arena_.oparen());
-      } else {
-        return ConcatN(arena_, {FormatColonRef(*n.constructor_ref()),
-                                arena_.space(), arena_.ocurl()});
-      }
     }
     case AstNodeKind::kSplatStructInstance: {
       const SplatStructInstance& n = static_cast<const SplatStructInstance&>(e);

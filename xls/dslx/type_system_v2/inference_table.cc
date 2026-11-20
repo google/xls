@@ -18,6 +18,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <iterator>
+#include <map>
 #include <memory>
 #include <optional>
 #include <string>
@@ -42,6 +43,7 @@
 #include "absl/strings/substitute.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/dslx/frontend/aggregate_construction.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/ast_cloner.h"
 #include "xls/dslx/frontend/ast_node_visitor_with_default.h"
@@ -599,6 +601,26 @@ class InferenceTableImpl : public InferenceTable {
         node, [=](NodeData& data) { data.type_variable = variable; });
   }
 
+  const BoundConstruction* RegisterBoundConstruction(
+      BoundConstruction construction) override {
+    const Expr* expression = GetConstructionSource(construction.expression());
+    auto [it, inserted] = bound_constructions_.try_emplace(expression, nullptr);
+    if (inserted) {
+      it->second = std::make_unique<const BoundConstruction>(
+          expression, construction.declaration(),
+          construction.correspondence());
+    }
+    return it->second.get();
+  }
+
+  std::optional<const BoundConstruction*> GetBoundConstruction(
+      const Expr* expression) const override {
+    auto it = bound_constructions_.find(GetConstructionSource(expression));
+    return it == bound_constructions_.end()
+               ? std::nullopt
+               : std::make_optional(it->second.get());
+  }
+
   std::optional<const TypeAnnotation*> GetTypeAnnotation(
       const AstNode* node) const override {
     const auto it = node_data_.find(node);
@@ -675,11 +697,16 @@ class InferenceTableImpl : public InferenceTable {
   absl::StatusOr<std::vector<const Invocation*>>
   GetInvocationsFeedingTypeVariable(const NameRef* ref) const override {
     XLS_ASSIGN_OR_RETURN(const InferenceVariable* variable, GetVariable(ref));
+    std::vector<const Invocation*> result;
     const auto it = invocations_feeding_type_variable_.find(variable);
-    if (it == invocations_feeding_type_variable_.end()) {
-      return std::vector<const Invocation*>{};
+    if (it != invocations_feeding_type_variable_.end()) {
+      for (const Invocation* invocation : it->second) {
+        if (!IsSumConstructor(invocation)) {
+          result.push_back(invocation);
+        }
+      }
     }
-    return it->second;
+    return result;
   }
 
   void SetColonRefTarget(const ColonRef* colon_ref,
@@ -767,7 +794,8 @@ class InferenceTableImpl : public InferenceTable {
                 absl::down_cast<const TypeAnnotation*>(new_node), flag);
           }
         }
-        if (old_node->kind() == AstNodeKind::kColonRef) {
+        if (old_node->kind() == AstNodeKind::kColonRef &&
+            new_node->kind() == AstNodeKind::kColonRef) {
           const auto* old_node_as_colon_ref =
               absl::down_cast<const ColonRef*>(old_node);
           std::optional<const AstNode*> target =
@@ -775,6 +803,18 @@ class InferenceTableImpl : public InferenceTable {
           if (target.has_value()) {
             SetColonRefTarget(absl::down_cast<const ColonRef*>(new_node),
                               *target);
+          }
+        }
+        if (old_node->kind() == new_node->kind()) {
+          // Clone intentionally represents the same use, sharing variables.
+          // Keep its canonical borrowed source even if a generic target is
+          // bound only later. Fresh uses go through normal AST repopulation.
+          if (old_node->kind() == AstNodeKind::kInvocation ||
+              old_node->kind() == AstNodeKind::kStructInstance ||
+              old_node->kind() == AstNodeKind::kSplatStructInstance ||
+              old_node->kind() == AstNodeKind::kColonRef) {
+            construction_sources_[absl::down_cast<const Expr*>(new_node)] =
+                GetConstructionSource(absl::down_cast<const Expr*>(old_node));
           }
         }
       }
@@ -1036,6 +1076,11 @@ class InferenceTableImpl : public InferenceTable {
                               variable->name_ref());
   }
 
+  const Expr* GetConstructionSource(const Expr* expression) const {
+    const auto source = construction_sources_.find(expression);
+    return source == construction_sources_.end() ? expression : source->second;
+  }
+
   // The variables of all kinds that have been defined by the user or
   // internally.
   absl::flat_hash_map<const NameDef*, std::unique_ptr<InferenceVariable>>
@@ -1072,6 +1117,11 @@ class InferenceTableImpl : public InferenceTable {
       parametric_value_exprs_;
   absl::flat_hash_map<const InferenceVariable*, std::vector<const Invocation*>>
       invocations_feeding_type_variable_;
+  absl::flat_hash_map<
+      const Expr*, std::unique_ptr<const BoundConstruction>>
+      bound_constructions_;
+  // Only equivalent-use Clone aliases live here, never fresh generated uses.
+  absl::flat_hash_map<const Expr*, const Expr*> construction_sources_;
   absl::flat_hash_map<const Invocation*, const Function*>
       callees_with_no_caller_context_;
   // Invocations that have functional arguments, each mapped to the set of

@@ -33,9 +33,10 @@ namespace {
 
 class Flattener : public AstNodeVisitorWithDefault {
  public:
-  explicit Flattener(const ImportData& import_data, const AstNode* root,
-                     bool include_parametric_entities)
+  explicit Flattener(const ImportData& import_data, const InferenceTable& table,
+                     const AstNode* root, bool include_parametric_entities)
       : import_data_(import_data),
+        table_(table),
         root_(root),
         include_parametric_entities_(include_parametric_entities) {}
 
@@ -76,15 +77,63 @@ class Flattener : public AstNodeVisitorWithDefault {
   }
 
   absl::Status HandleStructInstance(const StructInstance* node) override {
-    XLS_RETURN_IF_ERROR(node->struct_ref()->Accept(this));
-    for (const auto& [_, member] : node->GetUnorderedMembers()) {
-      XLS_RETURN_IF_ERROR(member->Accept(this));
+    XLS_ASSIGN_OR_RETURN(
+        std::optional<SumConstructorRef> constructor,
+        ResolveSumConstructor(node->struct_ref(), import_data_));
+    if (constructor.has_value()) {
+      return HandleSumConstructor(node, *constructor);
+    } else {
+      XLS_RETURN_IF_ERROR(node->struct_ref()->Accept(this));
+      for (const auto& [_, member] : node->GetUnorderedMembers()) {
+        XLS_RETURN_IF_ERROR(member->Accept(this));
+      }
+      nodes_.push_back(node);
+      return absl::OkStatus();
     }
-    nodes_.push_back(node);
+  }
+
+  absl::Status HandleColonRef(const ColonRef* node) override {
+    XLS_ASSIGN_OR_RETURN(std::optional<SumConstructorRef> constructor,
+                         ResolveSumConstructor(node, import_data_));
+    if (constructor.has_value() && constructor->variant->is_unit()) {
+      return HandleSumConstructor(node, *constructor);
+    } else {
+      return DefaultHandler(node);
+    }
+  }
+
+  absl::Status HandleSumConstructor(SumConstructorExpr expression,
+                                    const SumConstructorRef& constructor) {
+    const SumConstructorView view(expression);
+    for (const ExprOrType& argument : constructor.sum_ref.parametrics) {
+      XLS_RETURN_IF_ERROR(ToAstNode(argument)->Accept(this));
+    }
+    // The constructor reference is syntax, like an invocation's callee. Its
+    // standalone annotation lacks context supplied to the owning instance.
+    for (const Expr* argument : view.tuple_args()) {
+      XLS_RETURN_IF_ERROR(argument->Accept(this));
+    }
+    for (const auto& [_, argument] : view.struct_args()) {
+      XLS_RETURN_IF_ERROR(argument->Accept(this));
+    }
+    nodes_.push_back(view.expression());
     return absl::OkStatus();
   }
 
   absl::Status HandleInvocation(const Invocation* node) override {
+    if (table_.IsSumConstructor(node)) {
+      XLS_ASSIGN_OR_RETURN(
+          std::optional<SumConstructorRef> constructor,
+          ResolveSumConstructor(SumConstructorView(node).constructor_ref(),
+                                import_data_));
+      XLS_RET_CHECK(constructor.has_value());
+      return HandleSumConstructor(node, *constructor);
+    } else {
+      return HandleFunctionInvocation(node);
+    }
+  }
+
+  absl::Status HandleFunctionInvocation(const Invocation* node) {
     // Do the equivalent `DefaultHandler`, but exclude most of the arguments.
     // We exclude the arguments because when an argument should
     // be converted depends on whether its type is determining or determined by
@@ -221,6 +270,14 @@ class Flattener : public AstNodeVisitorWithDefault {
     return HandleStructDefBaseInternal(node);
   }
 
+  absl::Status HandleSumDef(const SumDef* node) override {
+    if (node->IsParametric() && node != root_) {
+      return absl::OkStatus();
+    } else {
+      return DefaultHandler(node);
+    }
+  }
+
   absl::Status HandleTypeRef(const TypeRef* node) override {
     // A `TypeRef` does not expose its definition via GetChildren(), probably
     // because it is not seen as owning the definition. A definition like an
@@ -271,7 +328,8 @@ class Flattener : public AstNodeVisitorWithDefault {
           child == current_invocation->callee()) {
         continue;
       }
-      if (child->kind() == AstNodeKind::kInvocation) {
+      if (const auto* invocation = dynamic_cast<const Invocation*>(child);
+          invocation != nullptr && !table_.IsSumConstructor(invocation)) {
         invocations.push_back(child);
       } else {
         non_invocations.push_back(child);
@@ -318,6 +376,7 @@ class Flattener : public AstNodeVisitorWithDefault {
   }
 
   const ImportData& import_data_;
+  const InferenceTable& table_;
   const AstNode* const root_;
   const bool include_parametric_entities_;
   std::vector<const AstNode*> nodes_;
@@ -326,9 +385,9 @@ class Flattener : public AstNodeVisitorWithDefault {
 }  // namespace
 
 absl::StatusOr<std::vector<const AstNode*>> FlattenInTypeOrder(
-    const ImportData& import_data, const AstNode* root,
-    bool include_parametric_entities) {
-  Flattener flattener(import_data, root, include_parametric_entities);
+    const ImportData& import_data, const InferenceTable& table,
+    const AstNode* root, bool include_parametric_entities) {
+  Flattener flattener(import_data, table, root, include_parametric_entities);
   XLS_RETURN_IF_ERROR(root->Accept(&flattener));
   return flattener.nodes();
 }

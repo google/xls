@@ -180,7 +180,6 @@ class Formatter {
   virtual DocRef FormatStructInstance(const StructInstance& n);
   virtual DocRef FormatStructPattern(const StructPattern& n);
   virtual DocRef FormatSumDef(const SumDef& n);
-  virtual DocRef FormatSumInstance(const SumInstance& n);
   virtual DocRef FormatSumVariantPayloadPattern(
       const SumVariantPayloadPattern& n);
   virtual DocRef FormatTestFunction(const TestFunction& n);

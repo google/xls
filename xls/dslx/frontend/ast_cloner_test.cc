@@ -2346,6 +2346,150 @@ struct Point {
   EXPECT_EQ(annotation->ToString(), clone->ToString());
 }
 
+TEST(AstClonerTest, DeclaredMemberInSubtree) {
+  FileTable file_table;
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto module,
+      ParseModule("struct S { x: u32 } const VALUE = S { x: u32:1 };", "test.x",
+                  "test", file_table));
+  XLS_ASSERT_OK_AND_ASSIGN(StructDef * s,
+                           module->GetMemberOrError<StructDef>("S"));
+  XLS_ASSERT_OK_AND_ASSIGN(ConstantDef * value,
+                           module->GetMemberOrError<ConstantDef>("VALUE"));
+  auto* instance = absl::down_cast<StructInstance*>(value->value());
+  auto* aggregate =
+      instance->struct_ref()->AsAnnotation<TypeRefTypeAnnotation>();
+  auto* member =
+      module->Make<DeclaredMemberTypeAnnotation>(Span::Fake(), aggregate, s, 0);
+  auto* operand =
+      absl::down_cast<Number*>(instance->GetUnorderedMembers()[0].second);
+  operand->SetTypeAnnotation(member, /*update_span=*/false);
+
+  XLS_ASSERT_OK_AND_ASSIGN(auto pairs,
+                           CloneAstAndGetAllPairs(instance, std::nullopt));
+  auto* cloned_instance = absl::down_cast<StructInstance*>(pairs.at(instance));
+  auto* cloned_aggregate =
+      cloned_instance->struct_ref()->AsAnnotation<TypeRefTypeAnnotation>();
+  auto* cloned_member =
+      absl::down_cast<DeclaredMemberTypeAnnotation*>(pairs.at(member));
+  EXPECT_EQ(cloned_member->aggregate_type(), cloned_aggregate);
+  EXPECT_EQ(std::get<const StructDefBase*>(cloned_member->declaration()),
+            pairs.at(s));
+  EXPECT_EQ(cloned_member->member_index(), 0);
+  EXPECT_THAT(cloned_member->GetChildren(true),
+              ::testing::ElementsAre(cloned_aggregate));
+  EXPECT_EQ(cloned_member->ToString(), member->ToString());
+  EXPECT_NE(pairs.at(operand), operand);
+}
+
+TEST(AstClonerTest, ModuleCloneRemapsSumDeclaration) {
+  FileTable file_table;
+  XLS_ASSERT_OK_AND_ASSIGN(auto module,
+                           ParseModule(R"(enum E { Some(u32) }
+type Alias = E;
+const VALUE = E::Some(u32:1);
+)",
+                                       "test.x", "test", file_table));
+  XLS_ASSERT_OK_AND_ASSIGN(SumDef * sum, module->GetMemberOrError<SumDef>("E"));
+  XLS_ASSERT_OK_AND_ASSIGN(TypeAlias * alias,
+                           module->GetMemberOrError<TypeAlias>("Alias"));
+  XLS_ASSERT_OK_AND_ASSIGN(ConstantDef * value,
+                           module->GetMemberOrError<ConstantDef>("VALUE"));
+  auto* aggregate =
+      alias->type_annotation().AsAnnotation<TypeRefTypeAnnotation>();
+  auto* projection = module->Make<DeclaredMemberTypeAnnotation>(
+      Span::Fake(), aggregate, sum->variants()[0], 0);
+  auto* name = module->Make<NameDef>(Span::Fake(), "Projection", nullptr);
+  auto* projection_alias =
+      module->Make<TypeAlias>(Span::Fake(), *name, *projection, false);
+  name->set_definer(projection_alias);
+  XLS_ASSERT_OK(module->InsertTopBefore(value, projection_alias));
+
+  // Removing-members cloning accumulates one map across separate subtree
+  // clones. Both entry points must fix references to a later module member.
+  for (bool removing_members : {false, true}) {
+    XLS_ASSERT_OK_AND_ASSIGN(
+        auto clone, removing_members ? CloneModuleRemovingMembers(*module, {})
+                                     : CloneModule(*module));
+    XLS_ASSERT_OK_AND_ASSIGN(TypeAlias * cloned_alias,
+                             clone->GetMemberOrError<TypeAlias>("Alias"));
+    XLS_ASSERT_OK_AND_ASSIGN(SumDef * cloned_sum,
+                             clone->GetMemberOrError<SumDef>("E"));
+    XLS_ASSERT_OK_AND_ASSIGN(TypeAlias * cloned_projection_alias,
+                             clone->GetMemberOrError<TypeAlias>("Projection"));
+    const auto* cloned_aggregate =
+        cloned_alias->type_annotation().AsAnnotation<TypeRefTypeAnnotation>();
+    const auto* cloned_projection =
+        cloned_projection_alias->type_annotation()
+            .AsAnnotation<DeclaredMemberTypeAnnotation>();
+    EXPECT_EQ(cloned_projection->aggregate_type(), cloned_aggregate);
+    EXPECT_EQ(std::get<const SumVariant*>(cloned_projection->declaration()),
+              cloned_sum->variants()[0]);
+  }
+}
+
+TEST(AstClonerTest, AnnotationReplacementsKeepBorrowedReferences) {
+  FileTable file_table;
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto module,
+      ParseModule("struct S { x: u32 } const VALUE = S { x: u32:1 };", "test.x",
+                  "test", file_table));
+  XLS_ASSERT_OK_AND_ASSIGN(StructDef * s,
+                           module->GetMemberOrError<StructDef>("S"));
+  XLS_ASSERT_OK_AND_ASSIGN(ConstantDef * value,
+                           module->GetMemberOrError<ConstantDef>("VALUE"));
+  auto* instance = absl::down_cast<StructInstance*>(value->value());
+  auto* aggregate =
+      instance->struct_ref()->AsAnnotation<TypeRefTypeAnnotation>();
+  auto* member =
+      module->Make<DeclaredMemberTypeAnnotation>(Span::Fake(), aggregate, s, 0);
+  absl::down_cast<Number*>(instance->GetUnorderedMembers()[0].second)
+      ->SetTypeAnnotation(member, /*update_span=*/false);
+  CloneReplacer borrow_annotations =
+      [&](const AstNode* node, Module*,
+          const absl::flat_hash_map<const AstNode*, AstNode*>&)
+      -> std::optional<AstNode*> {
+    if (node == aggregate || node == member) {
+      return const_cast<AstNode*>(node);
+    } else {
+      return std::nullopt;
+    }
+  };
+  XLS_ASSERT_OK_AND_ASSIGN(auto clone,
+                           CloneModule(*module, std::move(borrow_annotations)));
+  XLS_ASSERT_OK_AND_ASSIGN(ConstantDef * cloned_value,
+                           clone->GetMemberOrError<ConstantDef>("VALUE"));
+  auto* cloned_instance =
+      absl::down_cast<StructInstance*>(cloned_value->value());
+  EXPECT_NE(cloned_instance, instance);
+  EXPECT_EQ(cloned_instance->struct_ref(), aggregate);
+  EXPECT_EQ(std::get<const StructDefBase*>(member->declaration()), s);
+}
+
+TEST(AstClonerTest, DeclaredMemberClonePreservesExternalDeclaration) {
+  FileTable file_table;
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto external,
+      ParseModule("enum E { Some(u32) } const VALUE = E::Some(u32:1);", "ext.x",
+                  "ext", file_table));
+  XLS_ASSERT_OK_AND_ASSIGN(SumDef * sum,
+                           external->GetMemberOrError<SumDef>("E"));
+  Module local("local", std::nullopt, file_table);
+  auto* aggregate = local.Make<TypeRefTypeAnnotation>(
+      Span::Fake(), local.Make<TypeRef>(Span::Fake(), sum),
+      std::vector<ExprOrType>{});
+  auto* member = local.Make<DeclaredMemberTypeAnnotation>(
+      Span::Fake(), aggregate, sum->variants()[0], 0);
+  XLS_ASSERT_OK_AND_ASSIGN(auto* clone, CloneNode(member));
+  const auto* cloned_aggregate =
+      clone->aggregate_type()->AsAnnotation<TypeRefTypeAnnotation>();
+  EXPECT_NE(cloned_aggregate, aggregate);
+  EXPECT_EQ(std::get<SumDef*>(cloned_aggregate->type_ref()->type_definition()),
+            sum);
+  EXPECT_EQ(std::get<const SumVariant*>(clone->declaration()),
+            sum->variants()[0]);
+}
+
 TEST(AstClonerTest, ElementAnnotation) {
   constexpr std::string_view kProgram =
       R"(

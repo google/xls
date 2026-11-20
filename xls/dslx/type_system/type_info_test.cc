@@ -16,21 +16,25 @@
 
 #include <optional>
 #include <string>
+#include <variant>
 #include <vector>
 
-#include "gmock/gmock.h"
-#include "gtest/gtest.h"
 #include "absl/base/casts.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
 #include "absl/strings/substitute.h"
+#include "gmock/gmock.h"
+#include "gtest/gtest.h"
 #include "xls/common/status/matchers.h"
 #include "xls/dslx/create_import_data.h"
+#include "xls/dslx/frontend/aggregate_construction.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/builtin_stubs_utils.h"
 #include "xls/dslx/frontend/module.h"
+#include "xls/dslx/frontend/parser.h"
 #include "xls/dslx/frontend/pos.h"
+#include "xls/dslx/frontend/scanner.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/interp_value.h"
 #include "xls/dslx/parse_and_typecheck.h"
@@ -65,6 +69,43 @@ TEST(TypeInfoTest, Instantiate) {
   XLS_ASSERT_OK_AND_ASSIGN(TypeInfo * type_info,
                            owner.New(file_table, TypeInfo::kRootName));
   EXPECT_EQ(type_info->parent(), nullptr);
+}
+
+TEST(TypeInfoTest, SumConstructorSubjectsAreInherited) {
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckedModule tm,
+                           ParseAndTypecheck(R"(
+enum E { Unit, Tuple(u32) }
+const UNIT = E::Unit;
+const TUPLE = E::Tuple(u32:0);
+)",
+                                             "test.x", "test", &import_data));
+  XLS_ASSERT_OK_AND_ASSIGN(SumDef * sum,
+                           tm.module->GetMemberOrError<SumDef>("E"));
+  XLS_ASSERT_OK_AND_ASSIGN(ConstantDef * unit,
+                           tm.module->GetConstantDef("UNIT"));
+  XLS_ASSERT_OK_AND_ASSIGN(ConstantDef * tuple,
+                           tm.module->GetConstantDef("TUPLE"));
+  auto* unit_ref = dynamic_cast<const ColonRef*>(unit->value());
+  auto* invocation = dynamic_cast<const Invocation*>(tuple->value());
+  ASSERT_NE(unit_ref, nullptr);
+  ASSERT_NE(invocation, nullptr);
+  auto* tuple_ref = dynamic_cast<const ColonRef*>(invocation->callee());
+  ASSERT_NE(tuple_ref, nullptr);
+
+  TypeInfoOwner owner;
+  XLS_ASSERT_OK_AND_ASSIGN(TypeInfo * child, owner.New(import_data.file_table(),
+                                                       "child", tm.type_info));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypeInfo * grandchild,
+      owner.New(import_data.file_table(), "grandchild", child));
+  for (const TypeInfo* type_info : {tm.type_info, child, grandchild}) {
+    XLS_ASSERT_OK_AND_ASSIGN(TypeInfo::ResolvedColonRefSubject subject,
+                             type_info->GetResolvedColonRefSubject(tuple_ref));
+    EXPECT_EQ(std::get<SumDef*>(subject), sum);
+    EXPECT_TRUE(type_info->IsSumConstructor(unit_ref));
+    EXPECT_TRUE(type_info->IsSumConstructor(invocation));
+  }
 }
 
 // Tests our internal-error reporting path if a bad parametric environment is

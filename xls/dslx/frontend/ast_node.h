@@ -93,7 +93,6 @@ enum class AstNodeKind : uint8_t {
   kStructMember,
   kStructPattern,
   kSumDef,
-  kSumInstance,
   kSumVariant,
   kSumVariantPayloadPattern,
   kTestFunction,
