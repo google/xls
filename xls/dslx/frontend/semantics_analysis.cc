@@ -204,6 +204,46 @@ void WarnIfConfusinglyNamedLikeTest(const Function& f,
   }
 }
 
+absl::Status ValidateTabulateAttribute(const Function& f,
+                                       const FileTable& file_table) {
+  std::optional<const Attribute*> tabulate_attr =
+      GetAttribute(&f, AttributeKind::kTabulate);
+  if (!tabulate_attr.has_value()) {
+    return absl::OkStatus();
+  }
+  if (f.IsParametric()) {
+    return TypeInferenceErrorStatus(
+        f.span(), nullptr,
+        absl::StrFormat("Function `%s` is parametric; #[tabulate] only "
+                        "supports non-parametric functions",
+                        f.identifier()),
+        file_table);
+  }
+  if (f.params().empty()) {
+    return TypeInferenceErrorStatus(
+        f.span(), nullptr,
+        absl::StrFormat("Function `%s` has no parameters; #[tabulate] "
+                        "requires at least one parameter",
+                        f.identifier()),
+        file_table);
+  }
+  if (f.tabulate_domains().has_value()) {
+    const XlsTuple* domains = *f.tabulate_domains();
+    int64_t domain_count = domains->members().size();
+    if (domain_count != f.params().size()) {
+      return TypeInferenceErrorStatus(
+          *(*tabulate_attr)->GetSpan(), nullptr,
+          absl::StrFormat(
+              "tabulate attribute has %d domain argument%s, but function "
+              "`%s` has %d parameter%s",
+              domain_count, domain_count == 1 ? "" : "s", f.identifier(),
+              f.params().size(), f.params().size() == 1 ? "" : "s"),
+          file_table);
+    }
+  }
+  return absl::OkStatus();
+}
+
 // Warn folks if it's not following
 // https://doc.rust-lang.org/1.0.0/style/style/naming/README.html
 void WarnOnInappropriateMemberName(std::string_view member_name,
@@ -401,6 +441,12 @@ class PreTypecheckPass : public AstNodeRecursiveVisitor {
 
   absl::Status HandleFunction(const Function* node) override {
     WarnIfConfusinglyNamedLikeTest(*node, warning_collector_);
+    XLS_RETURN_IF_ERROR(ValidateTabulateAttribute(*node, file_table_));
+    if (node->tabulate_domains().has_value()) {
+      for (const Expr* domain : (*node->tabulate_domains())->members()) {
+        XLS_RETURN_IF_ERROR(domain->Accept(this));
+      }
+    }
 
     // If this function is an instance method on a parametric struct, ensure
     // that it doesn't duplicate any parametric bindings from the struct.
@@ -739,6 +785,13 @@ class ConfiguredValueUsageVisitor : public AstNodeRecursiveVisitor {
       : AstNodeRecursiveVisitor(/*want_types=*/true),
         module_name_(module_name),
         import_data_(import_data) {}
+
+  absl::Status HandleFunction(const Function* node) override {
+    if (node->tabulate_domains().has_value()) {
+      XLS_RETURN_IF_ERROR((*node->tabulate_domains())->Accept(this));
+    }
+    return DefaultHandler(node);
+  }
 
   absl::Status HandleInvocation(const Invocation* node) override {
     if (node->callee() != nullptr &&

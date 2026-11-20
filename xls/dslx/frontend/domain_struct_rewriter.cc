@@ -159,8 +159,17 @@ class StructInstanceCompleter : public AstNodeRecursiveVisitor {
       XLS_RETURN_IF_ERROR((*node->domains())->Accept(this));
       is_inside_domain_attr_ = false;
     }
-    // Don't need to recurse into the function body, as the struct completion
-    // doesn't apply there.
+    // Visit `fn` in case it also carries `#[tabulate(domains=`...`)]`;
+    // `HandleFunction` does not recurse into the function body.
+    return node->fn().Accept(this);
+  }
+
+  absl::Status HandleFunction(const Function* node) override {
+    if (node->tabulate_domains().has_value()) {
+      is_inside_domain_attr_ = true;
+      XLS_RETURN_IF_ERROR((*node->tabulate_domains())->Accept(this));
+      is_inside_domain_attr_ = false;
+    }
     return absl::OkStatus();
   }
 
@@ -201,7 +210,8 @@ class StructInstanceCompleter : public AstNodeRecursiveVisitor {
         XLS_RETURN_IF_ERROR(mutable_node->AddMember(member_name, unit_expr));
       }
     }
-    return absl::OkStatus();
+    mutable_node->SetParentage();
+    return is_inside_domain_attr_ ? DefaultHandler(node) : absl::OkStatus();
   }
 
  private:

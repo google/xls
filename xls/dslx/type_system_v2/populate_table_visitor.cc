@@ -1579,7 +1579,15 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
     auto body_status = node->body()->Accept(this);
     in_test_fn_ = was_in_test_fn;
     in_parametric_fn_ = false;
-    return body_status;
+    XLS_RETURN_IF_ERROR(body_status);
+
+    if (node->tabulate_domains().has_value()) {
+      in_domains_arg_ = true;
+      absl::Status status = (*node->tabulate_domains())->Accept(this);
+      in_domains_arg_ = false;
+      XLS_RETURN_IF_ERROR(status);
+    }
+    return absl::OkStatus();
   }
 
   absl::Status HandleFuzzTestFunction(const FuzzTestFunction* node) override {
@@ -1587,9 +1595,9 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
     XLS_RETURN_IF_ERROR(node->fn().Accept(this));
 
     if (node->domains().has_value()) {
-      in_fuzz_test_domain_ = true;
+      in_domains_arg_ = true;
       absl::Status status = (*node->domains())->Accept(this);
-      in_fuzz_test_domain_ = false;
+      in_domains_arg_ = false;
       XLS_RETURN_IF_ERROR(status);
     }
     return absl::OkStatus();
@@ -2305,8 +2313,8 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
       const StructDef* concrete_struct_def =
           dynamic_cast<const StructDef*>(struct_def);
       allow_missing_members =
-          in_fuzz_test_domain_ || (concrete_struct_def != nullptr &&
-                                   concrete_struct_def->is_domain_struct());
+          in_domains_arg_ || (concrete_struct_def != nullptr &&
+                              concrete_struct_def->is_domain_struct());
       XLS_RETURN_IF_ERROR(ValidateStructInstanceMemberNames(
           *node, *struct_def, allow_missing_members));
       formal_member_map.reserve(struct_def->members().size());
@@ -2319,11 +2327,11 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
         module_.Make<TypeVariableTypeAnnotation>(type_variable);
     for (const auto& [name, actual_member] : node->members()) {
       if (allow_missing_members) {
-        // In a fuzz test domain, the actual member expression represents a
-        // domain (e.g. `u32:0..10` which has type `u32[10]`) rather than a
-        // value of the member's type (`u32`). We typecheck it without
-        // constraining it to the formal member type to avoid type mismatch
-        // errors.
+        // In a domains argument (or domain struct), the actual member
+        // expression represents a domain (e.g. `u32:0..10` which has type
+        // `u32[10]`) rather than a value of the member's type (`u32`). We
+        // typecheck it without constraining it to the formal member type to
+        // avoid type mismatch errors.
         XLS_RETURN_IF_ERROR(
             DefineAndSetTypeVariable(actual_member, "actual_member_domain"));
         XLS_RETURN_IF_ERROR(actual_member->Accept(this));
@@ -2363,7 +2371,7 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
   ImportData& import_data_;
   TypecheckModuleFn typecheck_imported_module_;
   bool handle_proc_functions_ = false;
-  bool in_fuzz_test_domain_ = false;
+  bool in_domains_arg_ = false;
   bool in_test_fn_ = false;
   bool in_parametric_fn_ = false;
 };

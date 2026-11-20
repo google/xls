@@ -1302,6 +1302,16 @@ fn f<N: u32>(x: uN[N]) {
       TypecheckFails(HasSubstr("Cannot fuzz test parametric function `f`")));
 }
 
+TEST(TypecheckV2FunctionTest, TabulateAttributeWithZeroArguments) {
+  EXPECT_THAT(R"(
+#[tabulate]
+fn f(x: u2, flag: bool) -> u2 {
+    if flag { x } else { u2:0 }
+}
+)",
+              TypecheckSucceeds(::testing::_));
+}
+
 TEST(TypecheckV2FunctionTest, CallingTestUtilitySucceeds) {
   EXPECT_THAT(R"(
 #[cfg(test)]

@@ -114,5 +114,92 @@ fn f(s: MyStruct) {}
   EXPECT_TRUE(y_tuple->members().empty());
 }
 
+TEST(DomainStructRewriterTest,
+     RewriteTabulateInlineNestedStructInstanceDomain) {
+  constexpr std::string_view kProgram = R"(
+struct Inner {
+    a: u32,
+    b: bool,
+}
+
+struct Outer {
+    inner: Inner,
+    tag: u2,
+}
+
+#[tabulate(domains=`Outer { inner: Inner { a: u32:0..2 } }`)]
+fn f(s: Outer) -> u32 {
+    s.inner.a + (s.tag as u32)
+}
+)";
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * fn,
+                           tm.module->GetMemberOrError<Function>("f"));
+  ASSERT_TRUE(fn->tabulate_domains().has_value());
+  XlsTuple* domains = *fn->tabulate_domains();
+  ASSERT_EQ(domains->members().size(), 1);
+  ASSERT_EQ(domains->members()[0]->kind(), AstNodeKind::kStructInstance);
+  auto* outer_inst = absl::down_cast<StructInstance*>(domains->members()[0]);
+  EXPECT_EQ(outer_inst->members().size(), 2);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Expr * tag_expr, outer_inst->GetExpr("tag"));
+  ASSERT_EQ(tag_expr->kind(), AstNodeKind::kXlsTuple);
+  EXPECT_TRUE(absl::down_cast<XlsTuple*>(tag_expr)->members().empty());
+
+  XLS_ASSERT_OK_AND_ASSIGN(Expr * inner_expr, outer_inst->GetExpr("inner"));
+  ASSERT_EQ(inner_expr->kind(), AstNodeKind::kStructInstance);
+  auto* inner_inst = absl::down_cast<StructInstance*>(inner_expr);
+  EXPECT_EQ(inner_inst->members().size(), 2);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Expr * b_expr, inner_inst->GetExpr("b"));
+  ASSERT_EQ(b_expr->kind(), AstNodeKind::kXlsTuple);
+  EXPECT_TRUE(absl::down_cast<XlsTuple*>(b_expr)->members().empty());
+}
+
+TEST(DomainStructRewriterTest,
+     RewriteDivergingFuzzTestAndTabulateStructDomains) {
+  constexpr std::string_view kProgram = R"(
+struct S {
+    x: u32,
+    y: bool,
+}
+
+#[fuzz_test(domains=`S { x: u32:0..100 }`)]
+#[tabulate(domains=`S { y: [true] }`)]
+fn f(s: S) -> u32 {
+    if s.y { s.x } else { u32:0 }
+}
+)";
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
+
+  XLS_ASSERT_OK_AND_ASSIGN(FuzzTestFunction * ftf,
+                           tm.module->GetMemberOrError<FuzzTestFunction>("f"));
+  ASSERT_TRUE(ftf->domains().has_value());
+  ASSERT_EQ((*ftf->domains())->members().size(), 1);
+  auto* fuzz_struct =
+      absl::down_cast<StructInstance*>((*ftf->domains())->members()[0]);
+  EXPECT_EQ(fuzz_struct->members().size(), 2);
+  XLS_ASSERT_OK_AND_ASSIGN(Expr * fuzz_y, fuzz_struct->GetExpr("y"));
+  ASSERT_EQ(fuzz_y->kind(), AstNodeKind::kXlsTuple);
+  EXPECT_TRUE(absl::down_cast<XlsTuple*>(fuzz_y)->members().empty());
+
+  Function& fn = ftf->fn();
+  ASSERT_TRUE(fn.tabulate_domains().has_value());
+  ASSERT_EQ((*fn.tabulate_domains())->members().size(), 1);
+  auto* tab_struct =
+      absl::down_cast<StructInstance*>((*fn.tabulate_domains())->members()[0]);
+  EXPECT_EQ(tab_struct->members().size(), 2);
+  XLS_ASSERT_OK_AND_ASSIGN(Expr * tab_x, tab_struct->GetExpr("x"));
+  ASSERT_EQ(tab_x->kind(), AstNodeKind::kXlsTuple);
+  EXPECT_TRUE(absl::down_cast<XlsTuple*>(tab_x)->members().empty());
+}
+
 }  // namespace
 }  // namespace xls::dslx

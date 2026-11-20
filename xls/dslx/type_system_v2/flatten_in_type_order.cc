@@ -43,6 +43,9 @@ class Flattener : public AstNodeVisitorWithDefault {
     if (!include_parametric_entities_ && node->IsParametric()) {
       return absl::OkStatus();
     }
+    if (node->tabulate_domains().has_value()) {
+      XLS_RETURN_IF_ERROR((*node->tabulate_domains())->Accept(this));
+    }
     return DefaultHandler(node);
   }
 

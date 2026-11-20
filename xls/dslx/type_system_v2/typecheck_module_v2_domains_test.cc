@@ -945,5 +945,98 @@ fn f(t: u32[2], s: u32) {}
       TypecheckSucceeds(::testing::_));
 }
 
+TEST(TypecheckV2DomainsTest, TabulateDomainsCompositeAndHelperSuccess) {
+  EXPECT_THAT(
+      R"(
+#[fuzz_domain("PointDomain")]
+struct Point {
+    x: u32,
+    y: bool,
+}
+
+fn make_point_domain() -> PointDomain {
+    PointDomain { x: u32:10..12 }
+}
+
+#[tabulate(domains=`make_point_domain(), (u16:0..=2, [true, false]), (u8:1..3,), ()`)]
+fn f(p: Point, pair: (u16, bool), arr: u8[2], flag: bool) -> u32 {
+    if flag && p.y && pair.1 {
+        p.x + (pair.0 as u32) + (arr[0] as u32) + (arr[1] as u32)
+    } else {
+        u32:0
+    }
+}
+)",
+      TypecheckSucceeds(::testing::_));
+}
+
+TEST(TypecheckV2DomainsTest, TabulateDomainsCountMismatchTooMany) {
+  EXPECT_THAT(
+      R"(
+#[tabulate(domains=`u32:0..2, u32:0..2`)]
+fn f(x: u32) -> u32 { x }
+)",
+      TypecheckFails(HasSubstr("tabulate attribute has 2 domain arguments, "
+                               "but function `f` has 1 parameter")));
+}
+
+TEST(TypecheckV2DomainsTest, TabulateDomainsBitSizeMismatch) {
+  EXPECT_THAT(
+      R"(
+#[tabulate(domains=`u32:0..10`)]
+fn f(x: u8) -> u8 { x }
+)",
+      TypecheckFails(
+          HasSubstr("bit count (32) does not match parameter bit count (8)")));
+}
+
+TEST(TypecheckV2DomainsTest, TabulateDomainsStructFieldTypeMismatch) {
+  EXPECT_THAT(
+      R"(
+struct S { x: u32, y: u8 }
+#[tabulate(domains=`S { x: u8:0..5 }`)]
+fn f(s: S) -> u32 { s.x }
+)",
+      TypecheckFails(
+          HasSubstr("bit count (8) does not match parameter bit count (32)")));
+}
+
+TEST(TypecheckV2DomainsTest, DivergingFuzzTestAndTabulateDomainsSuccess) {
+  EXPECT_THAT(
+      R"(
+struct S { x: u32, y: bool }
+const TAB_XS = [u8:1, u8:2];
+
+#[fuzz_test(domains=`S { x: u32:0..1000 }, ()`)]
+#[tabulate(domains=`S { x: [u32:10, u32:20], y: [true] }, TAB_XS`)]
+fn f(s: S, k: u8) -> u32 {
+    if s.y { s.x + (k as u32) } else { u32:0 }
+}
+)",
+      TypecheckSucceeds(::testing::_));
+}
+
+TEST(TypecheckV2DomainsTest, FuzzTestValidButTabulateDomainInvalidIsRejected) {
+  EXPECT_THAT(
+      R"(
+#[fuzz_test(domains=`u8:0..10`)]
+#[tabulate(domains=`u32:0..4`)]
+fn f(x: u8) -> u8 { x }
+)",
+      TypecheckFails(
+          HasSubstr("bit count (32) does not match parameter bit count (8)")));
+}
+
+TEST(TypecheckV2DomainsTest, TabulateValidButFuzzTestDomainInvalidIsRejected) {
+  EXPECT_THAT(
+      R"(
+#[fuzz_test(domains=`u32:0..10`)]
+#[tabulate(domains=`u8:0..4`)]
+fn f(x: u8) -> u8 { x }
+)",
+      TypecheckFails(
+          HasSubstr("bit count (32) does not match parameter bit count (8)")));
+}
+
 }  // namespace
 }  // namespace xls::dslx

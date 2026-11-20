@@ -380,21 +380,24 @@ class TypeValidator : public AstNodeVisitorWithDefault {
       return ValidateProcDefNextFunction(node);
     }
 
+    XLS_RETURN_IF_ERROR(DefaultHandler(node));
+
     AstNode* parent = node->parent();
-    if (parent == nullptr || parent->kind() != AstNodeKind::kFuzzTestFunction) {
-      return DefaultHandler(node);
+    if (parent != nullptr && parent->kind() == AstNodeKind::kFuzzTestFunction) {
+      const auto* ftf = absl::down_cast<const FuzzTestFunction*>(parent);
+      if (ftf->domains().has_value()) {
+        XLS_RETURN_IF_ERROR(ValidateFunctionDomains(*node, *ftf->domains(), ti_,
+                                                    warning_collector_,
+                                                    import_data_, file_table_));
+      }
     }
-    const FuzzTestFunction* ftf =
-        absl::down_cast<const FuzzTestFunction*>(parent);
-    if (!ftf->domains().has_value()) {
-      return DefaultHandler(node);
+    if (node->tabulate_domains().has_value()) {
+      XLS_RETURN_IF_ERROR(ValidateFunctionDomains(
+          *node, *node->tabulate_domains(), ti_, warning_collector_,
+          import_data_, file_table_));
     }
 
-    XLS_RETURN_IF_ERROR(ValidateFunctionDomains(*node, *ftf->domains(), ti_,
-                                                warning_collector_,
-                                                import_data_, file_table_));
-
-    return DefaultHandler(node);
+    return absl::OkStatus();
   }
 
   // TODO: In type_annotation_resolver.cc ResolveElementType, if the container

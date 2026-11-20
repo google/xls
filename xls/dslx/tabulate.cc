@@ -28,6 +28,7 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
+#include "absl/strings/str_join.h"
 #include "absl/types/span.h"
 #include "xls/common/attribute_data.h"
 #include "xls/common/status/ret_check.h"
@@ -56,18 +57,41 @@ struct ColumnSpec {
   const Type* type = nullptr;
 };
 
+std::optional<Function*> FindFunctionByName(Module* module,
+                                            std::string_view fn_name) {
+  if (std::optional<Function*> fn = module->GetFunction(fn_name);
+      fn.has_value()) {
+    return *fn;
+  }
+  if (std::optional<FuzzTestFunction*> ftf =
+          module->GetMember<FuzzTestFunction>(fn_name);
+      ftf.has_value()) {
+    return &(*ftf)->fn();
+  }
+  if (std::optional<QuickCheck*> qc = module->GetMember<QuickCheck>(fn_name);
+      qc.has_value()) {
+    return (*qc)->fn();
+  }
+  if (std::optional<TestFunction*> tf =
+          module->GetMember<TestFunction>(fn_name);
+      tf.has_value()) {
+    return &(*tf)->fn();
+  }
+  return std::nullopt;
+}
+
 absl::StatusOr<Function*> GetTabulatedFunction(Module* module,
                                                std::string_view fn_name) {
   if (fn_name.empty()) {
     return absl::InvalidArgumentError(
         "Function name must be specified for tabulation");
   }
-  std::optional<Function*> maybe_fn = module->GetFunction(fn_name);
-  if (!maybe_fn.has_value()) {
+  std::optional<Function*> fn_opt = FindFunctionByName(module, fn_name);
+  if (!fn_opt.has_value()) {
     return absl::NotFoundError(absl::StrFormat(
         "Function `%s` not found in module `%s`", fn_name, module->name()));
   }
-  Function* fn = *maybe_fn;
+  Function* fn = *fn_opt;
   if (fn->IsParametric()) {
     return absl::InvalidArgumentError(absl::StrFormat(
         "Function `%s` is parametric; #[tabulate] only supports non-parametric "
@@ -165,7 +189,7 @@ absl::Status EvaluateAndAppendOutputs(
   return absl::OkStatus();
 }
 
-std::string FormatScalarValue(const InterpValue& val, const Type& type) {
+std::string FormatValue(const InterpValue& val, const Type& type) {
   if (type.IsEnum()) {
     const EnumType& enum_type = type.AsEnum();
     const EnumDef& enum_def = enum_type.nominal_type();
@@ -179,6 +203,44 @@ std::string FormatScalarValue(const InterpValue& val, const Type& type) {
   }
   if (IsBool(type)) {
     return val.IsTrue() ? "true" : "false";
+  }
+  if (type.IsStruct()) {
+    const StructType& struct_type = type.AsStruct();
+    std::string_view struct_name = struct_type.nominal_type().identifier();
+    if (struct_type.size() == 0) {
+      return absl::StrFormat("%s {}", struct_name);
+    }
+    const std::vector<InterpValue>& fields = val.GetValuesOrDie();
+    std::vector<std::string> formatted_fields;
+    formatted_fields.reserve(struct_type.size());
+    for (size_t i = 0; i < struct_type.size(); ++i) {
+      formatted_fields.push_back(absl::StrFormat(
+          "%s: %s", struct_type.GetMemberName(i),
+          FormatValue(fields[i], struct_type.GetMemberType(i))));
+    }
+    return absl::StrFormat("%s { %s }", struct_name,
+                           absl::StrJoin(formatted_fields, ", "));
+  }
+  if (type.IsTuple()) {
+    const TupleType& tuple_type = type.AsTuple();
+    const std::vector<InterpValue>& elems = val.GetValuesOrDie();
+    std::vector<std::string> formatted_elems;
+    formatted_elems.reserve(tuple_type.size());
+    for (size_t i = 0; i < tuple_type.size(); ++i) {
+      formatted_elems.push_back(
+          FormatValue(elems[i], tuple_type.GetMemberType(i)));
+    }
+    return absl::StrFormat("(%s)", absl::StrJoin(formatted_elems, ", "));
+  }
+  if (type.IsArray()) {
+    const ArrayType& array_type = type.AsArray();
+    const std::vector<InterpValue>& elems = val.GetValuesOrDie();
+    std::vector<std::string> formatted_elems;
+    formatted_elems.reserve(elems.size());
+    for (const InterpValue& elem : elems) {
+      formatted_elems.push_back(FormatValue(elem, array_type.element_type()));
+    }
+    return absl::StrFormat("[%s]", absl::StrJoin(formatted_elems, ", "));
   }
   return val.ToString(/*humanize=*/true, FormatPreference::kDefault);
 }
@@ -198,7 +260,7 @@ std::string RenderMarkdownTable(
     std::vector<std::string> cells;
     cells.reserve(total_cols);
     for (size_t c = 0; c < total_cols; ++c) {
-      std::string text = FormatScalarValue(row[c], *columns[c].type);
+      std::string text = FormatValue(row[c], *columns[c].type);
       widths[c] = std::max(widths[c], text.size());
       cells.push_back(std::move(text));
     }
@@ -238,19 +300,19 @@ absl::StatusOr<std::string> TabulateFunction(ImportData* import_data,
 
   XLS_ASSIGN_OR_RETURN(Function * fn, GetTabulatedFunction(tm.module, fn_name));
 
-  std::optional<Type*> maybe_fn_type = tm.type_info->GetItem(fn);
-  if (!maybe_fn_type.has_value() || !(*maybe_fn_type)->IsFunction()) {
+  std::optional<Type*> fn_type_opt = tm.type_info->GetItem(fn);
+  if (!fn_type_opt.has_value() || !(*fn_type_opt)->IsFunction()) {
     return absl::InternalError(absl::StrFormat(
         "Could not resolve FunctionType for `%s`", fn->identifier()));
   }
-  const FunctionType& fn_type = (*maybe_fn_type)->AsFunction();
+  const FunctionType& fn_type = (*fn_type_opt)->AsFunction();
 
   XLS_ASSIGN_OR_RETURN(std::vector<ColumnSpec> columns,
                        BuildColumns(*fn, fn_type));
-  XLS_ASSIGN_OR_RETURN(std::vector<std::vector<InterpValue>> rows,
-                       EnumerateFunctionDomains(
-                           import_data, tm.type_info, *fn, fn_type,
-                           /*domains_tuple=*/std::nullopt, kMaxDomainPoints));
+  XLS_ASSIGN_OR_RETURN(
+      std::vector<std::vector<InterpValue>> rows,
+      EnumerateFunctionDomains(import_data, tm.type_info, *fn, fn_type,
+                               fn->tabulate_domains(), kMaxDomainPoints));
   XLS_RETURN_IF_ERROR(EvaluateAndAppendOutputs(import_data, tm.type_info, *fn,
                                                fn_type.return_type(),
                                                columns.size(), rows));

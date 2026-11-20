@@ -1629,5 +1629,52 @@ fn f(x: u32) -> u32 { x }
             std::string("\xff\xc9\x9a\x3b", 4));
 }
 
+TEST(FunctionConverterFuzzTestTest, DivergingTabulateDomainsIgnoredByFuzzTest) {
+  ImportData import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(R"(
+#[fuzz_test(domains = `u32:0..10, ()`)]
+#[tabulate(domains = `[u32:1, u32:2], u32:20..25`)]
+fn f(x: u32, y: u32) -> u32 { x + y }
+)",
+                        "test_module.x", "test_module", &import_data));
+
+  XLS_ASSERT_OK_AND_ASSIGN(FuzzTestFunction * ft,
+                           tm.module->GetMemberOrError<FuzzTestFunction>("f"));
+  Function* f = &ft->fn();
+
+  const ConvertOptions convert_options;
+  PackageConversionData package = MakeConversionData("test_module_package");
+  PackageData package_data{&package};
+  FunctionConverter converter(package_data, tm.module, &import_data,
+                              convert_options, /*proc_data=*/nullptr,
+                              /*channel_scope=*/nullptr,
+                              /*is_top=*/true);
+  XLS_ASSERT_OK(converter.HandleFunction(f, tm.type_info, ParametricEnv{}));
+
+  ASSERT_FALSE(package_data.conversion_info->package->functions().empty());
+  auto* ir_fn =
+      package_data.conversion_info->package->functions().front().get();
+
+  EXPECT_TRUE(ir_fn->HasAttribute(AttributeKind::kFuzzTest));
+  absl::Span<const AttributeData> attributes = ir_fn->attributes();
+  ASSERT_EQ(attributes.size(), 1);
+  const AttributeData::Argument& arg = attributes[0].args()[0];
+  const auto& skv = std::get<AttributeData::StringKeyValueArgument>(arg);
+
+  xls::PackageInterfaceProto::Function function_proto;
+  ASSERT_TRUE(google::protobuf::TextFormat::ParseFromString(skv.second, &function_proto));
+  EXPECT_THAT(function_proto, EqualsProto(R"pb(
+                parameter_domains {
+                  range {
+                    min { bits { bit_count: 32 data: "\000\000\000\000" } }
+                    max { bits { bit_count: 32 data: "\t\000\000\000" } }
+                  }
+                }
+                parameter_domains { arbitrary: true }
+              )pb"));
+}
+
 }  // namespace
 }  // namespace xls::dslx

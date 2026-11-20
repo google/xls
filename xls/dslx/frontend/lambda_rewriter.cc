@@ -286,6 +286,20 @@ class LambdaRewriter : public AstNodeRecursiveVisitor {
   explicit LambdaRewriter(const ImportData& import_data)
       : import_data_(import_data) {}
 
+  absl::Status HandleFunction(const Function* node) override {
+    if (node->tabulate_domains().has_value()) {
+      std::optional<ModuleMember> prev = current_module_member_;
+      current_module_member_ = GetContainingModuleMember(node);
+      if (!current_module_member_.has_value()) {
+        current_module_member_ = const_cast<Function*>(node);
+      }
+      absl::Status status = (*node->tabulate_domains())->Accept(this);
+      current_module_member_ = prev;
+      XLS_RETURN_IF_ERROR(status);
+    }
+    return DefaultHandler(node);
+  }
+
   absl::Status HandleLambda(const Lambda* node) override {
     XLS_RETURN_IF_ERROR(DefaultHandler(node));
     Module* module = node->owner();
@@ -452,7 +466,8 @@ class LambdaRewriter : public AstNodeRecursiveVisitor {
     // Swap the Lambda in its parent with the attr invocation. After this step,
     // Lambdas should no longer appear in the AST.
     std::optional<ModuleMember> containing_member =
-        GetContainingModuleMember(node);
+        current_module_member_.has_value() ? current_module_member_
+                                           : GetContainingModuleMember(node);
     XLS_RET_CHECK(containing_member.has_value());
     auto* parent_inv = dynamic_cast<Invocation*>(node->parent());
     if (parent_inv == nullptr) {
@@ -667,6 +682,7 @@ class LambdaRewriter : public AstNodeRecursiveVisitor {
   }
 
   const ImportData& import_data_;
+  std::optional<ModuleMember> current_module_member_;
 };
 
 }  // namespace
