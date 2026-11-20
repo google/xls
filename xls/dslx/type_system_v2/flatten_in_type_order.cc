@@ -221,6 +221,14 @@ class Flattener : public AstNodeVisitorWithDefault {
     return HandleStructDefBaseInternal(node);
   }
 
+  absl::Status HandleSumDef(const SumDef* node) override {
+    if (node->IsParametric() && node != root_) {
+      return absl::OkStatus();
+    } else {
+      return DefaultHandler(node);
+    }
+  }
+
   absl::Status HandleTypeRef(const TypeRef* node) override {
     // A `TypeRef` does not expose its definition via GetChildren(), probably
     // because it is not seen as owning the definition. A definition like an

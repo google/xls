@@ -380,7 +380,10 @@ class StatefulResolver : public TypeAnnotationResolver {
     absl::StatusOr<const TypeAnnotation*> result = UnifyTypeAnnotations(
         module_, table_, file_table_, error_generator_, evaluator_,
         parametric_struct_instantiator_, parametric_context, annotations, span,
-        import_data_);
+        import_data_, [&](const TypeAnnotation* annotation) {
+          return ResolveIndirectTypeAnnotations(parametric_context, context_node,
+                                                annotation, filter);
+        });
     if (!result.ok() && error_handler_ && context_node.has_value()) {
       absl::StatusOr<const TypeAnnotation*> handler_result =
           error_handler_(parametric_context, result.status(), *context_node,
