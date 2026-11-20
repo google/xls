@@ -27,6 +27,7 @@
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_cat.h"
 #include "absl/strings/str_split.h"
 #include "absl/types/span.h"
 #include "xls/codegen/codegen_options.h"
@@ -60,6 +61,7 @@ namespace {
 
 using ::absl_testing::IsOkAndHolds;
 using ::absl_testing::StatusIs;
+using ::testing::AllOf;
 using ::testing::ElementsAre;
 using ::testing::HasSubstr;
 using ::testing::IsEmpty;
@@ -1030,6 +1032,106 @@ TEST_P(SideEffectConditionPassTest, FunctionWithActiveLowReset) {
 
     EXPECT_THAT(RunInterpreterWithEvents(block, inputs),
                 StatusIs(absl::StatusCode::kAborted, HasSubstr("x > y")));
+  }
+}
+
+TEST_P(SideEffectConditionPassTest,
+       AssertionInLastStageOfFunctionWithoutValidControl) {
+  for (bool flop_inputs : {false, true}) {
+    SCOPED_TRACE(absl::StrCat("flop_inputs=", flop_inputs));
+    Package package("test_package");
+    Type* u32 = package.GetBitsType(32);
+    ScheduledBlockBuilder bb("f", &package);
+    bb.ResetPort("rst", {.asynchronous = false, .active_low = false});
+    Function* source;
+    {
+      auto owned_source = std::make_unique<Function>("__f_source", &package);
+      source = owned_source.get();
+      bb.SetSource(std::move(owned_source));
+    }
+
+    BValue p0_input_valid = bb.Literal(UBits(1, 1));
+    bb.StartStage(p0_input_valid, bb.Literal(UBits(1, 1)));
+    XLS_ASSERT_OK_AND_ASSIGN(Node * source_tkn,
+                             source->MakeNodeWithName<Param>(
+                                 SourceInfo(), package.GetTokenType(), "tkn"));
+    XLS_ASSERT_OK_AND_ASSIGN(Node * source_x, source->MakeNodeWithName<Param>(
+                                                  SourceInfo(), u32, "x"));
+    XLS_ASSERT_OK_AND_ASSIGN(Node * source_y, source->MakeNodeWithName<Param>(
+                                                  SourceInfo(), u32, "y"));
+    BValue tkn = bb.SourceNode(source_tkn);
+    BValue x = bb.SourceNode(source_x);
+    BValue y = bb.SourceNode(source_y);
+    BValue xy_plus_1 = bb.Add(bb.UMul(x, y), bb.Literal(UBits(1, 32)),
+                              SourceInfo(), "xy_plus_1");
+    BValue p0_aiv = bb.Literal(UBits(1, 1));
+    bb.EndStage(p0_aiv, bb.Literal(UBits(1, 1)),
+                bb.And(p0_input_valid, p0_aiv));
+
+    BValue p1_input_valid = bb.Literal(UBits(1, 1));
+    bb.StartStage(p1_input_valid, bb.Literal(UBits(1, 1)));
+    BValue xy_plus_1_gt_4 = bb.UGt(xy_plus_1, bb.Literal(UBits(4, 32)),
+                                   SourceInfo(), "xy_plus_1_gt_4");
+    BValue assertion_bval =
+        bb.Assert(tkn, xy_plus_1_gt_4, /*message=*/"bar",
+                  /*label=*/"foo", SourceInfo(), "assertion");
+    bb.SetSourceReturnValue(bb.Tuple({assertion_bval, xy_plus_1}).node());
+    BValue p1_aiv = bb.Literal(UBits(1, 1));
+    bb.EndStage(p1_aiv, bb.Literal(UBits(1, 1)),
+                bb.And(p1_input_valid, p1_aiv));
+
+    XLS_ASSERT_OK(bb.Build().status());
+
+    BlockConversionPassOptions options = CreateBlockConversionPassOptions(
+        verilog::CodegenOptions()
+            .flop_inputs(flop_inputs)
+            .clock_name("clk")
+            .reset("rst", /*asynchronous=*/false,
+                   /*active_low=*/false,
+                   /*reset_data_path=*/true));
+    EXPECT_THAT(Run(&package, options), IsOkAndHolds(true));
+    XLS_ASSERT_OK_AND_ASSIGN(Block * block, package.GetBlock("f"));
+    XLS_ASSERT_OK_AND_ASSIGN(Node * assertion, block->GetNode("assertion"));
+    ASSERT_NE(assertion, nullptr);
+    Node* condition = assertion->As<xls::Assert>()->condition();
+    EXPECT_THAT(condition,
+                m::Or(m::Not(AllOf(m::Name(HasSubstr("p1_all_inputs_valid")),
+                                   m::And(m::RegisterRead("p1_inputs_valid"),
+                                          m::Literal(1)))),
+                      m::Name("xy_plus_1_gt_4"), m::Name("rst")));
+
+    if (GetParam() == CodegenPassType::kDefault) {
+      constexpr int64_t kNumCycles = 10;
+      std::vector<absl::flat_hash_map<std::string, Value>> inputs(
+          kNumCycles, {
+                          {"tkn", Value::Token()},
+                          {"rst", Value(UBits(1, 1))},
+                          {"x", Value(UBits(4, 32))},
+                          {"y", Value(UBits(4, 32))},
+                      });
+      for (int64_t cycle = 0; cycle < 5; ++cycle) {
+        // During reset cycles, put in inputs that would otherwise trigger the
+        // assertion.
+        inputs[cycle]["x"] = Value(UBits(2, 32));
+        inputs[cycle]["y"] = Value(UBits(1, 32));
+      }
+      for (int64_t cycle = 5; cycle < kNumCycles; ++cycle) {
+        inputs[cycle]["rst"] = Value(UBits(0, 1));
+      }
+
+      // Immediately after reset deasserts at cycle 5, pipeline registers hold
+      // reset values (0) while valid inputs drain through the pipeline (1 cycle
+      // when flop_inputs=false, 2 cycles when flop_inputs=true). The assertion
+      // in stage 1 must not fire during those post-reset drain cycles.
+      XLS_EXPECT_OK(RunInterpreterWithEvents(block, inputs).status());
+
+      // Now inject failing inputs on cycle 5 (the first post-reset cycle); the
+      // assertion must fire once those inputs reach stage 1.
+      inputs[5]["x"] = Value(UBits(2, 32));
+      inputs[5]["y"] = Value(UBits(1, 32));
+      EXPECT_THAT(RunInterpreterWithEvents(block, inputs),
+                  StatusIs(absl::StatusCode::kAborted, HasSubstr("bar")));
+    }
   }
 }
 

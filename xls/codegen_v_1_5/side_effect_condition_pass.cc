@@ -17,6 +17,7 @@
 #include <cstdint>
 #include <memory>
 #include <optional>
+#include <string>
 #include <vector>
 
 #include "absl/base/casts.h"
@@ -24,19 +25,24 @@
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
 #include "xls/codegen/conversion_utils.h"
 #include "xls/codegen_v_1_5/block_conversion_pass.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/ir/bits.h"
 #include "xls/ir/block.h"
+#include "xls/ir/function_base.h"
 #include "xls/ir/node.h"
 #include "xls/ir/node_util.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
 #include "xls/ir/package.h"
+#include "xls/ir/register.h"
 #include "xls/ir/source_location.h"
+#include "xls/ir/value.h"
 #include "xls/passes/pass_base.h"
 
 namespace xls::codegen {
@@ -122,6 +128,44 @@ absl::StatusOr<Node*> MakeGuardedConditionForOp(Op op, Node* condition,
   }
 }
 
+absl::StatusOr<Node*> GetOrCreateResetDrainValid(
+    ScheduledBlock* scheduled_block, int64_t stage_index, bool has_input_flops,
+    std::vector<Node*>& reset_drain_valid_chain) {
+  int64_t drain_stages = stage_index + (has_input_flops ? 1 : 0);
+  if (drain_stages == 0) {
+    return scheduled_block->stages()[stage_index].inputs_valid();
+  }
+  if (reset_drain_valid_chain.empty()) {
+    XLS_ASSIGN_OR_RETURN(Node * lit_one,
+                         scheduled_block->MakeNode<xls::Literal>(
+                             SourceInfo(), Value(UBits(1, 1))));
+    reset_drain_valid_chain.push_back(lit_one);
+  }
+  while (reset_drain_valid_chain.size() <= drain_stages) {
+    int64_t hop = reset_drain_valid_chain.size();
+    int64_t valid_stage_index = has_input_flops ? (hop - 1) : hop;
+    std::string reg_name =
+        absl::StrFormat("p%d_inputs_valid", valid_stage_index);
+    XLS_ASSIGN_OR_RETURN(
+        Register * valid_reg,
+        scheduled_block->AddRegisterWithZeroResetValue(
+            reg_name, scheduled_block->package()->GetBitsType(1)));
+    XLS_RETURN_IF_ERROR(
+        scheduled_block
+            ->MakeNodeWithName<RegisterWrite>(
+                SourceInfo(), /*data=*/reset_drain_valid_chain.back(),
+                /*load_enable=*/std::nullopt,
+                /*reset=*/scheduled_block->GetResetPort(),
+                /*reg=*/valid_reg, absl::StrCat(reg_name, "_write"))
+            .status());
+    XLS_ASSIGN_OR_RETURN(RegisterRead * valid_read,
+                         scheduled_block->MakeNodeWithName<RegisterRead>(
+                             SourceInfo(), valid_reg, reg_name));
+    reset_drain_valid_chain.push_back(valid_read);
+  }
+  return reset_drain_valid_chain[drain_stages];
+}
+
 }  // namespace
 
 absl::StatusOr<bool> SideEffectConditionPass::RunInternal(
@@ -135,13 +179,30 @@ absl::StatusOr<bool> SideEffectConditionPass::RunInternal(
     ScheduledBlock* scheduled_block =
         absl::down_cast<ScheduledBlock*>(block.get());
 
-    // Don't rewrite side-effecting ops for functions without valid control:
-    // every input is presumed valid and the op should fire every cycle.
+    // For functions, side-effecting ops are rewritten according to the
+    // pipeline and valid/reset configuration:
+    // - Functions with `valid_control` (with or without reset): rewritten to
+    //   be gated by the stage's `inputs_valid` signal (and reset if present).
+    // - Pipelined functions without `valid_control` but with reset: rewritten
+    //   to be gated by a synthesized reset-drain valid chain (and reset) so ops
+    //   do not fire on transient post-reset pipeline state.
+    // - Combinational functions without `valid_control`, or pipelined functions
+    //   without `valid_control` and without reset: not rewritten, as every
+    //   input is presumed valid on every cycle.
     bool is_function = scheduled_block->source() != nullptr &&
                        scheduled_block->source()->IsFunction();
-    if (is_function && !options.codegen_options.valid_control().has_value()) {
+    bool has_valid_control =
+        options.codegen_options.valid_control().has_value();
+    if (is_function && !has_valid_control &&
+        (options.codegen_options.generate_combinational() ||
+         !scheduled_block->GetResetPort().has_value())) {
       continue;
     }
+
+    const bool has_input_flops =
+        is_function && options.codegen_options.flop_inputs() &&
+        !scheduled_block->source()->AsFunctionOrDie()->params().empty();
+    std::vector<Node*> reset_drain_valid_chain;
 
     absl::FixedArray<Node*> internal_condition_by_stage(
         scheduled_block->stages().size(), nullptr);
@@ -158,14 +219,21 @@ absl::StatusOr<bool> SideEffectConditionPass::RunInternal(
                                     stage_index);
       if (internal_condition_by_stage[stage_index] == nullptr) {
         if (is_function || options.codegen_options.generate_combinational()) {
+          Node* stage_inputs_valid =
+              scheduled_block->stages()[stage_index].inputs_valid();
+          if (is_function && !has_valid_control) {
+            XLS_ASSIGN_OR_RETURN(stage_inputs_valid,
+                                 GetOrCreateResetDrainValid(
+                                     scheduled_block, stage_index,
+                                     has_input_flops, reset_drain_valid_chain));
+          }
           XLS_ASSIGN_OR_RETURN(
               internal_condition_by_stage[stage_index],
               scheduled_block->MakeNodeWithName<NaryOp>(
                   SourceInfo(),
-                  absl::MakeConstSpan(
-                      {scheduled_block->stages()[stage_index].inputs_valid(),
-                       scheduled_block->stages()[stage_index]
-                           .active_inputs_valid()}),
+                  absl::MakeConstSpan({stage_inputs_valid,
+                                       scheduled_block->stages()[stage_index]
+                                           .active_inputs_valid()}),
                   Op::kAnd,
                   absl::StrFormat("p%d_all_inputs_valid", stage_index)));
         } else {
