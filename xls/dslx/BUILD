@@ -1233,6 +1233,7 @@ cc_test(
 cc_binary(
     name = "dslx_fmt",
     srcs = ["dslx_fmt.cc"],
+    visibility = ["//xls:xls_users"],
     deps = [
         ":command_line_utils",
         ":create_import_data",

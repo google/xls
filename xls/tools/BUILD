@@ -1316,7 +1316,10 @@ py_proto_library(
 pytype_strict_binary(
     name = "gather_design_stats",
     srcs = ["gather_design_stats.py"],
-    visibility = ["//xls:xls_utility_users"],
+    visibility = [
+        "//xls:xls_users",
+        "//xls:xls_utility_users",
+    ],
     deps = [
         ":design_stats_py_pb2",
         "//xls/common:gfile",
