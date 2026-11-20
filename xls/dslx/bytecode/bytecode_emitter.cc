@@ -1001,7 +1001,8 @@ absl::Status BytecodeEmitter::HandleFor(const For* node) {
                                Bytecode::SlotIndex(index_slot)));
   bytecode_.push_back(
       Bytecode(node->span(), Bytecode::Op::kJumpRel,
-               Bytecode::JumpTarget(top_of_loop - bytecode_.size())));
+               Bytecode::JumpTarget(static_cast<int64_t>(top_of_loop) -
+                                    static_cast<int64_t>(bytecode_.size()))));
 
   // Finally, we're done with the loop!
   bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kJumpDest));

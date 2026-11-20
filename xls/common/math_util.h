@@ -150,8 +150,8 @@ std::tuple<T, int> FactorizePowerOfTwo(T x) {
 
 // Returns the number of leading zeros in the given value.
 inline uint64_t Clz(uint64_t value) {
-#if __has_builtin(__builtin_clzl)
-  return value == 0 ? 64 : __builtin_clzl(value);
+#if __has_builtin(__builtin_clzll)
+  return value == 0 ? 64 : __builtin_clzll(value);
 #else
   for (int i = 0; i < 64; ++i) {
     if ((value >> (64 - i - 1)) & 1) {

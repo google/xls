@@ -51,6 +51,9 @@ absl::StatusOr<std::filesystem::path> GetSelfExecutablePath() {
     return std::filesystem::path(path);
   }
   return absl::InvalidArgumentError("Self path could not fit into buffer");
+#elif defined(__EMSCRIPTEN__)
+  return absl::UnimplementedError(
+      "Self executable path is not available under Emscripten");
 #else
 #error "Unknown platform"
 #endif

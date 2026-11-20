@@ -212,7 +212,7 @@ class AbstractEvaluator {
 
   Vector Concat(SpanOfSpan inputs) {
     Vector result;
-    for (int64_t i = inputs.size() - 1; i >= 0; --i) {
+    for (int64_t i = static_cast<int64_t>(inputs.size()) - 1; i >= 0; --i) {
       result.insert(result.end(), inputs[i].begin(), inputs[i].end());
     }
     return result;
@@ -245,7 +245,7 @@ class AbstractEvaluator {
     CHECK_EQ(a.size(), b.size());
     Element result = Zero();
     Element upper_bits_lte = One();
-    for (int64_t i = a.size() - 1; i >= 0; --i) {
+    for (int64_t i = static_cast<int64_t>(a.size()) - 1; i >= 0; --i) {
       result = Or(result, And(upper_bits_lte, And(Not(a[i]), b[i])));
       upper_bits_lte = And(upper_bits_lte, Or(Not(a[i]), b[i]));
     }
@@ -282,7 +282,7 @@ class AbstractEvaluator {
     Element all_zero = One();
     Element any_one = Zero();
     Vector result;
-    for (int64_t i = input.size() - 1; i >= 0; --i) {
+    for (int64_t i = static_cast<int64_t>(input.size()) - 1; i >= 0; --i) {
       result.push_back(And(all_zero, input[i]));
       all_zero = And(all_zero, Not(input[i]));
       any_one = Or(any_one, input[i]);
@@ -713,7 +713,7 @@ class AbstractEvaluator {
 
     Vector q(n.size(), Zero());
     Vector r(d.size(), Zero());
-    for (int64_t i = q.size() - 1; i >= 0; --i) {
+    for (int64_t i = static_cast<int64_t>(q.size()) - 1; i >= 0; --i) {
       // Shift the next bit of n into r.
       r.insert(r.begin(), n[i]);
       // Now: r.size() == d.size() + 1 == divisor.size().
@@ -917,7 +917,7 @@ class AbstractEvaluator {
       cases.remove_suffix(1);
     }
     Vector result(default_value.begin(), default_value.end());
-    for (int64_t i = selector.size() - 1; i >= 0; --i) {
+    for (int64_t i = static_cast<int64_t>(selector.size()) - 1; i >= 0; --i) {
       result = IfBits(selector[i], /*consequent=*/cases[i],
                       /*alternate=*/result);
     }

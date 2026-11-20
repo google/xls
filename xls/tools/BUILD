@@ -19,6 +19,12 @@ load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_cc//cc:cc_test.bzl", "cc_test")
 load("//xls/build_rules:py_oss_defs.bzl", "pytype_strict_binary", "pytype_strict_contrib_test")
+load(
+    "//xls/build_rules:xls_internal_build_defs.bzl",
+    "XLS_BINARY_HEAP_PROFILER_DEPS",
+    "XLS_BINARY_STACKTRACE_DEPS",
+    "XLS_RPC_CLIENT_EXTRA_DEPS",
+)
 
 package(
     default_applicable_licenses = ["//:license"],
@@ -476,7 +482,7 @@ cc_binary(
         "@abseil-cpp//absl/strings:str_format",
         "@abseil-cpp//absl/types:optional_ref",
         "@protobuf",
-    ],
+    ] + XLS_BINARY_HEAP_PROFILER_DEPS + XLS_BINARY_STACKTRACE_DEPS,
 )
 
 pytype_strict_contrib_test(
@@ -889,7 +895,7 @@ cc_binary(
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/strings:str_format",
-    ],
+    ] + XLS_BINARY_STACKTRACE_DEPS,
 )
 
 cc_binary(
@@ -1214,7 +1220,6 @@ cc_library(
         "//xls/estimators/delay_model:analyze_critical_path",
         "//xls/estimators/delay_model:delay_estimator",
         "//xls/estimators/delay_model:delay_info_cc_proto",
-        "//xls/fdo:grpc_synthesizer",
         "//xls/fdo:synthesized_delay_diff_utils",
         "//xls/fdo:synthesizer",
         "//xls/ir",
@@ -1228,7 +1233,12 @@ cc_library(
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings:str_format",
-    ],
+    ] + select({
+        "@platforms//cpu:wasm32": [],
+        "//conditions:default": [
+            "//xls/fdo:grpc_synthesizer",
+        ],
+    }),
 )
 
 cc_binary(
@@ -1242,11 +1252,15 @@ cc_binary(
         "//xls/common/status:status_macros",
         "//xls/dev_tools:tool_timeout",
         "//xls/estimators/delay_model/models",
-        "//xls/fdo:grpc_synthesizer",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/strings:str_format",
-    ],
+    ] + XLS_RPC_CLIENT_EXTRA_DEPS + select({
+        "@platforms//cpu:wasm32": [],
+        "//conditions:default": [
+            "//xls/fdo:grpc_synthesizer",
+        ],
+    }),
 )
 
 cc_binary(
