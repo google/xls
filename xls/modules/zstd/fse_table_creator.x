@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#![feature(channel_attributes)]
+
 // FseTableCreator generates a decoding table from a probability distribution.
 // The algorithm for creating the decoding lookup is described in:
 // https://datatracker.ietf.org/doc/html/rfc8878#section-4.1.1.
@@ -165,8 +167,8 @@ pub proc FseTableCreator<
         tmp2_wr_req_s: chan<Tmp2RamWriteReq> out,
         tmp2_wr_resp_r: chan<Tmp2RamWriteResp> in,
     ) {
-        let (it_ctrl_s, it_ctrl_r) = chan<IterCtrl, u32:1>("it_ctrl");
-        let (it_index_s, it_index_r) = chan<IterIndex, u32:1>("it_index");
+        let (it_ctrl_s, it_ctrl_r) = #[channel(depth=1, bypass=false, register_push_outputs=true, register_pop_outputs=false)] chan<IterCtrl>("it_ctrl");
+        let (it_index_s, it_index_r) = #[channel(depth=2, bypass=true, register_push_outputs=true, register_pop_outputs=false)] chan<IterIndex>("it_index");
         spawn fse_table_iterator::FseTableIterator(it_ctrl_r, it_index_s);
 
         (
