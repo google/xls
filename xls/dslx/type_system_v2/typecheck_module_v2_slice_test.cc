@@ -14,12 +14,13 @@
 
 #include <string_view>
 
-#include "gmock/gmock.h"
-#include "gtest/gtest.h"
 #include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
+#include "gmock/gmock.h"
+#include "gtest/gtest.h"
 #include "xls/common/status/matchers.h"
 #include "xls/dslx/create_import_data.h"
+#include "xls/dslx/frontend/bindings.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/type_system/typecheck_test_utils.h"
 #include "xls/dslx/type_system_v2/matchers.h"
@@ -384,6 +385,39 @@ fn f(x: u32) -> u20 {
   EXPECT_THAT(TypecheckV2(kProgram, "main", &import_data),
               StatusIs(absl::StatusCode::kInvalidArgument,
                        HasSubstr("Expected a type, got `imported::A`")));
+}
+
+TEST(TypecheckV2Test, InvalidSliceTypeInAggregateKeepsLocalDiagnostic) {
+  struct Case {
+    std::string_view program;
+    std::string_view error_span;
+  };
+  for (const Case& test : {
+           Case{"import imported;\n"
+                "fn f(x: u32) -> (uN[imported::A], u1) {\n"
+                "  (x[0+:imported::A], x[imported::A+:u1])\n}",
+                "main.x:5:9-5:20"},
+           Case{"import imported;\n"
+                "fn f(x: u32) -> (uN[imported::A], u1)[1] {\n"
+                "  [(x[0+:imported::A], x[imported::A+:u1])]\n}",
+                "main.x:5:10-5:21"},
+       }) {
+    SCOPED_TRACE(test.program);
+    ImportData import_data = CreateImportDataForTest();
+    XLS_ASSERT_OK(
+        TypecheckV2("pub const A = u32:20;", "imported", &import_data));
+    absl::Status status =
+        TypecheckV2(test.program, "main", &import_data).status();
+    ASSERT_EQ(status.code(), absl::StatusCode::kInvalidArgument);
+    XLS_ASSERT_OK_AND_ASSIGN(
+        PositionalErrorData error,
+        GetPositionalErrorData(status, "TypeInferenceError",
+                               import_data.file_table()));
+    EXPECT_EQ(error.message, "Expected a type, got `imported::A`.");
+    ASSERT_EQ(error.spans.size(), 1);
+    EXPECT_EQ(error.spans[0].ToString(import_data.file_table()),
+              test.error_span);
+  }
 }
 
 }  // namespace

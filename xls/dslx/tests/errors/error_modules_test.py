@@ -993,9 +993,8 @@ class ImportModuleWithTypeErrorTest(parameterized.TestCase):
     stderr = self._run(
         'xls/dslx/tests/errors/use_imported_type_as_expr.x',
     )
-    self.assertIn(
-        "Member named 'MyStruct' in module was not a constant", stderr
-    )
+    self.assertIn('use_imported_type_as_expr.x:18:5-18:32', stderr)
+    self.assertIn('Cannot use a type as a value.', stderr)
 
   def test_imports_and_calls_nonexistent_fn(self):
     stderr = self._run(

@@ -16,21 +16,25 @@
 
 #include <optional>
 #include <string>
+#include <variant>
 #include <vector>
 
-#include "gmock/gmock.h"
-#include "gtest/gtest.h"
 #include "absl/base/casts.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
 #include "absl/strings/substitute.h"
+#include "gmock/gmock.h"
+#include "gtest/gtest.h"
 #include "xls/common/status/matchers.h"
 #include "xls/dslx/create_import_data.h"
+#include "xls/dslx/frontend/aggregate_construction.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/builtin_stubs_utils.h"
 #include "xls/dslx/frontend/module.h"
+#include "xls/dslx/frontend/parser.h"
 #include "xls/dslx/frontend/pos.h"
+#include "xls/dslx/frontend/scanner.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/interp_value.h"
 #include "xls/dslx/parse_and_typecheck.h"
@@ -65,6 +69,88 @@ TEST(TypeInfoTest, Instantiate) {
   XLS_ASSERT_OK_AND_ASSIGN(TypeInfo * type_info,
                            owner.New(file_table, TypeInfo::kRootName));
   EXPECT_EQ(type_info->parent(), nullptr);
+}
+
+TEST(TypeInfoTest, SumConstructorSubjectsAreInherited) {
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckedModule tm,
+                           ParseAndTypecheck(R"(
+enum E { Unit, Tuple(u32) }
+const UNIT = E::Unit;
+const TUPLE = E::Tuple(u32:0);
+)",
+                                             "test.x", "test", &import_data));
+  XLS_ASSERT_OK_AND_ASSIGN(SumDef * sum,
+                           tm.module->GetMemberOrError<SumDef>("E"));
+  XLS_ASSERT_OK_AND_ASSIGN(ConstantDef * unit,
+                           tm.module->GetConstantDef("UNIT"));
+  XLS_ASSERT_OK_AND_ASSIGN(ConstantDef * tuple,
+                           tm.module->GetConstantDef("TUPLE"));
+  auto* unit_ref = dynamic_cast<const ColonRef*>(unit->value());
+  auto* invocation = dynamic_cast<const Invocation*>(tuple->value());
+  ASSERT_NE(unit_ref, nullptr);
+  ASSERT_NE(invocation, nullptr);
+  auto* tuple_ref = dynamic_cast<const ColonRef*>(invocation->callee());
+  ASSERT_NE(tuple_ref, nullptr);
+
+  TypeInfoOwner owner;
+  XLS_ASSERT_OK_AND_ASSIGN(TypeInfo * child, owner.New(import_data.file_table(),
+                                                       "child", tm.type_info));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypeInfo * grandchild,
+      owner.New(import_data.file_table(), "grandchild", child));
+  for (const TypeInfo* type_info : {tm.type_info, child, grandchild}) {
+    XLS_ASSERT_OK_AND_ASSIGN(TypeInfo::ResolvedColonRefSubject subject,
+                             type_info->GetResolvedColonRefSubject(tuple_ref));
+    EXPECT_EQ(std::get<SumDef*>(subject), sum);
+    EXPECT_TRUE(type_info->IsSumConstructor(unit_ref));
+    EXPECT_TRUE(type_info->IsSumConstructor(invocation));
+  }
+}
+
+TEST(TypeInfoTest, BoundConstructionFollowsCallerContextAndParentLookup) {
+  FileTable file_table;
+  Scanner scanner(file_table, file_table.GetOrCreate("test.x"), R"(
+    #![feature(generics)]
+    struct A { x: u8, y: u8 }
+    struct B { y: u8, x: u8 }
+    fn make<T: type>() -> T { T { y: u8:2, x: u8:1 } }
+)");
+  Parser parser("test", &scanner);
+  XLS_ASSERT_OK_AND_ASSIGN(auto module, parser.ParseModule());
+  XLS_ASSERT_OK_AND_ASSIGN(StructDef * a,
+                           module->GetMemberOrError<StructDef>("A"));
+  XLS_ASSERT_OK_AND_ASSIGN(StructDef * b,
+                           module->GetMemberOrError<StructDef>("B"));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * make,
+                           module->GetMemberOrError<Function>("make"));
+  const auto* expression = absl::down_cast<const StructInstance*>(
+      ToAstNode(make->body()->statements()[0]->wrapped()));
+  const BoundConstruction bound_a(expression, a,
+                                  NamedFieldCorrespondence{1, 0});
+  const BoundConstruction bound_b(expression, b,
+                                  NamedFieldCorrespondence{0, 1});
+  TypeInfoOwner owner;
+  XLS_ASSERT_OK_AND_ASSIGN(TypeInfo * root,
+                           owner.New(file_table, TypeInfo::kRootName));
+  XLS_ASSERT_OK_AND_ASSIGN(TypeInfo * caller_a,
+                           owner.New(file_table, "caller_a", root));
+  XLS_ASSERT_OK_AND_ASSIGN(TypeInfo * caller_b,
+                           owner.New(file_table, "caller_b", root));
+  XLS_ASSERT_OK_AND_ASSIGN(TypeInfo * nested,
+                           owner.New(file_table, "nested", caller_a));
+  caller_a->SetBoundConstruction(expression, &bound_a);
+  caller_b->SetBoundConstruction(expression, &bound_b);
+  EXPECT_EQ(root->GetBoundConstruction(expression), std::nullopt);
+  ASSERT_EQ(nested->GetBoundConstruction(expression), &bound_a);
+  ASSERT_EQ(caller_b->GetBoundConstruction(expression), &bound_b);
+  EXPECT_EQ((*nested->GetBoundConstruction(expression))->GetMember(0),
+            expression->members()[1].second);
+  EXPECT_EQ((*caller_b->GetBoundConstruction(expression))->GetMember(0),
+            expression->members()[0].second);
+  nested->SetBoundConstruction(expression, &bound_b);
+  EXPECT_EQ(nested->GetBoundConstruction(expression), &bound_b);
+  EXPECT_EQ(caller_a->GetBoundConstruction(expression), &bound_a);
 }
 
 // Tests our internal-error reporting path if a bad parametric environment is

@@ -103,6 +103,8 @@ enum AstNodeKindProto {
   AST_NODE_KIND_SUM_VARIANT_PAYLOAD_PATTERN = 77;
   AST_NODE_KIND_SUM_DEF = 78;
   AST_NODE_KIND_SUM_VARIANT = 79;
+  // Retained for reading metadata emitted before constructors kept their
+  // original expression nodes. Never assign this number to another kind.
   AST_NODE_KIND_SUM_INSTANCE = 80;
   AST_NODE_KIND_STRUCT_PATTERN = 81;
 }

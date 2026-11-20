@@ -204,11 +204,12 @@ TypeAnnotationFilter TypeAnnotationFilter::FilterMultiAny() {
 }
 
 TypeAnnotationFilter TypeAnnotationFilter::FilterParamTypes() {
-  return TypeAnnotationFilter(std::make_unique<Impl>(
-      FilterElement(TypeAnnotationFilterKind::kMultiAny,
-                    [](const TypeAnnotation* annotation) {
-                      return annotation->IsAnnotation<ParamTypeAnnotation>();
-                    })));
+  return TypeAnnotationFilter(std::make_unique<Impl>(FilterElement(
+      TypeAnnotationFilterKind::kMultiAny,
+      [](const TypeAnnotation* annotation) {
+        return annotation->IsAnnotation<ParamTypeAnnotation>() ||
+               annotation->IsAnnotation<DeclaredMemberTypeAnnotation>();
+      })));
 }
 
 TypeAnnotationFilter TypeAnnotationFilter::FilterRefsToUnknownParametrics(

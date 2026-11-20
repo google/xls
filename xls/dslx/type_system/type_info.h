@@ -39,6 +39,7 @@
 #include "absl/types/optional_ref.h"
 #include "absl/types/span.h"
 #include "xls/common/status/ret_check.h"
+#include "xls/dslx/frontend/aggregate_construction.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/interp_value.h"
@@ -201,8 +202,8 @@ class TypeInfo {
   static constexpr std::string_view kRootName = "root";
 
   using ResolvedColonRefSubject =
-      std::variant<Module*, EnumDef*, BuiltinNameDef*, ArrayTypeAnnotation*,
-                   Impl*>;
+      std::variant<Module*, EnumDef*, SumDef*, BuiltinNameDef*,
+                   ArrayTypeAnnotation*, Impl*>;
 
   ~TypeInfo();
 
@@ -313,11 +314,26 @@ class TypeInfo {
                                   ResolvedColonRefSubject subject);
 
   // Retrieves the resolved subject that was set by type inference for the given
-  // ColonRef. Note that in some cases, there isn't one, even for a node that
+  // ColonRef, consulting parent TypeInfos when it is not recorded locally.
+  // Note that in some cases, there isn't one, even for a node that
   // has been through type inference, e.g. if it's a reference to a member of a
   // built-in type.
   absl::StatusOr<ResolvedColonRefSubject> GetResolvedColonRefSubject(
       const ColonRef* node) const;
+
+  // Queries recorded declaration identity for tuple and unit constructors.
+  // These queries require constructor conversion to have recorded its subject;
+  // absence of that metadata during early type inference is not evidence that
+  // the expression is a function call.
+  bool IsSumConstructor(const Invocation* node) const;
+  bool IsSumConstructor(const ColonRef* node) const;
+
+  // Borrows a compilation-lifetime record owned by the inference table. The
+  // local entry describes this TypeInfo's caller context and shadows parents.
+  void SetBoundConstruction(const Expr* expression,
+                            const BoundConstruction* construction);
+  std::optional<const BoundConstruction*> GetBoundConstruction(
+      const Expr* expression) const;
 
   // Sets the type info for the given proc when typechecked at top-level (i.e.,
   // not via an instantiation). Can only be called on the module root TypeInfo.
@@ -634,6 +650,8 @@ class TypeInfo {
 
   absl::flat_hash_map<const ColonRef*, ResolvedColonRefSubject>
       resolved_colon_ref_subjects_;
+  absl::flat_hash_map<const Expr*, const BoundConstruction*>
+      bound_constructions_;
 
   TypeInfo* parent_;  // Note: may be nullptr.
 };
