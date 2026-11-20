@@ -393,7 +393,6 @@ pub fn fma(a: F32, b: F32, c: F32) -> F32 { apfloat::fma(a, b, c) }
 // Computes an approximation of 1.0 / sqrt(x). NUM_REFINEMENTS can be increased
 // to tradeoff more hardware resources for more accuracy.
 pub fn fast_rsqrt_config_refinements<NUM_REFINEMENTS: u32 = {u32:1}>(x: F32) -> F32 {
-    const ZERO_POINT_FIVE = F32 { sign: u1:0, bexp: u8:0x7e, fraction: u23:0 };
     const ONE_POINT_FIVE = F32 { sign: u1:0, bexp: u8:0x7f, fraction: u1:1 ++ u22:0 };
     const MAGIC_NUMBER = u32:0x5f3759df;
 
@@ -401,12 +400,21 @@ pub fn fast_rsqrt_config_refinements<NUM_REFINEMENTS: u32 = {u32:1}>(x: F32) -> 
     let x = subnormals_to_zero(x);
 
     let approx = unflatten(MAGIC_NUMBER - (flatten(x) >> u32:1));
-    let half_x = mul(x, ZERO_POINT_FIVE);
 
-    // Refine solution w/ Newton's method.
+    // Refine solution w/ Newton's method: y_{n+1} = y_n * (1.5 - 0.5 * x * y_n^2).
+    // Scale `approx` rather than `x` so that `bexp == 1` inputs do not underflow
+    // to subnormal and flush to zero in `0.5 * x`.
+    //
+    // Decrement `approx.bexp` directly instead of calling `mul(approx, 0.5)`:
+    // for all positive normal `x` (`bexp` in `[1, 254]`), `approx.bexp` stays
+    // strictly in `[62, 190]` across refinement iterations (and non-positive,
+    // zero, subnormal, infinity, and NaN inputs are overridden after the loop),
+    // so `bexp - u8:1` is bit-identical to `mul(approx, 0.5)` without leaving
+    // residual special-case/FTZ logic after IR optimization.
     let result = for (idx, approx): (u32, F32) in u32:0..NUM_REFINEMENTS {
-        let prod = mul(half_x, approx);
-        let prod = mul(prod, approx);
+        let half_approx =
+            F32 { sign: approx.sign, bexp: approx.bexp - u8:1, fraction: approx.fraction };
+        let prod = mul(mul(x, approx), half_approx);
         let nprod = F32 { sign: !prod.sign, bexp: prod.bexp, fraction: prod.fraction };
         let diff = add(ONE_POINT_FIVE, nprod);
         mul(approx, diff)
@@ -423,7 +431,7 @@ pub fn fast_rsqrt_config_refinements<NUM_REFINEMENTS: u32 = {u32:1}>(x: F32) -> 
     // 1/sqrt(x < 0) -> NaN
     let result = if x.sign == u1:1 { qnan() } else { result };
     // 1/sqrt(NaN) -> NaN.
-    let result = if is_nan(x) { x } else { result };
+    let result = if is_nan(x) { qnan() } else { result };
     // 1/sqrt(0) -> inf, 1/sqrt(-0) -> -inf
     let result = if is_zero_or_subnormal(x) { inf(x.sign) } else { result };
     result
@@ -447,6 +455,43 @@ fn fast_sqrt_test() {
     assert_eq(fast_rsqrt(pos_denormal), inf(u1:0));
     let neg_denormal = F32 { sign: u1:1, bexp: ExpBits:0, fraction: FractionBits:99 };
     assert_eq(fast_rsqrt(neg_denormal), inf(u1:1));
+}
+
+#[test]
+fn fast_rsqrt_min_normal_test() {
+    // 1 / sqrt(2^-126) = 2^63 (bexp = 190). Verify small normal inputs with
+    // bexp == 1 do not underflow to zero in the Newton-Raphson 0.5 scaling.
+    let min_normal = F32 { sign: u1:0, bexp: u8:1, fraction: u23:0 };
+    let actual = fast_rsqrt(min_normal);
+    let lower_bound = F32 { sign: u1:0, bexp: u8:189, fraction: u23:0x7f0000 };
+    let upper_bound = F32 { sign: u1:0, bexp: u8:190, fraction: u23:0x008000 };
+    assert_eq(gt_2(actual, lower_bound), true);
+    assert_eq(lt_2(actual, upper_bound), true);
+
+    // Also check N=2 refinements at the extreme normal exponents (`min_normal`
+    // and `max_normal`), where `approx.bexp` reaches the ends of `[62, 190]`.
+    let actual_n2 = fast_rsqrt_config_refinements<u32:2>(min_normal);
+    assert_eq(gt_2(actual_n2, lower_bound), true);
+    assert_eq(lt_2(actual_n2, upper_bound), true);
+
+    // 1 / sqrt((2 - 2^-23) * 2^127) ~= 0.70710678 * 2^-63.5 = 2^-64 (bexp = 63).
+    let max_normal = F32 { sign: u1:0, bexp: u8:254, fraction: u23:0x7fffff };
+    let max_lower = F32 { sign: u1:0, bexp: u8:62, fraction: u23:0x7f0000 };
+    let max_upper = F32 { sign: u1:0, bexp: u8:63, fraction: u23:0x008000 };
+    let actual_max = fast_rsqrt(max_normal);
+    assert_eq(gt_2(actual_max, max_lower), true);
+    assert_eq(lt_2(actual_max, max_upper), true);
+    let actual_max_n2 = fast_rsqrt_config_refinements<u32:2>(max_normal);
+    assert_eq(gt_2(actual_max_n2, max_lower), true);
+    assert_eq(lt_2(actual_max_n2, max_upper), true);
+}
+
+#[test]
+fn fast_rsqrt_nan_canonicalization_test() {
+    let neg_snan = F32 { sign: u1:1, bexp: u8:0xff, fraction: u23:1 };
+    assert_eq(fast_rsqrt(neg_snan), qnan());
+    let payload_nan = F32 { sign: u1:0, bexp: u8:0xff, fraction: u23:0x123456 };
+    assert_eq(fast_rsqrt(payload_nan), qnan());
 }
 
 pub fn has_fractional_part(f: F32) -> bool { apfloat::has_fractional_part(f) }
