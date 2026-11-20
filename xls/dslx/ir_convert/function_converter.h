@@ -606,6 +606,9 @@ class FunctionConverter {
                                                   const TypeInfo* ti);
   void PopulateChannelOrArrayIdToObject(const InterpValue& value,
                                         const ChannelOrArray& channel_or_array);
+  // Returns an error if `decl`, a channel that connects to an element of an io
+  // object array, has a name from `set_name`, which is not supported yet.
+  absl::Status CheckArrayElementNotNamed(const ImplicitChannelDecl& decl) const;
   // Returns the channel for a `bind`, creating it on first use so both ends
   // share it. The payload type comes from `member`'s own proc.
   absl::StatusOr<Channel*> GetOrDefineImplicitChannel(
@@ -616,7 +619,7 @@ class FunctionConverter {
       std::vector<ChannelInterface*>& out);
   // Adds the parent's channels for a spawned child's `Source` or `Sink` member
   // to `channel_args`. Endpoints the child binds itself are skipped; the rest
-  // must be bound by the parent.
+  // must be bound or forwarded by the parent.
   absl::Status AddProcDefIoObjectArgs(
       const ProcDef* proc_def, const ProcDef* callee,
       const StructMemberNode* member, const InterpValue& external_arg,

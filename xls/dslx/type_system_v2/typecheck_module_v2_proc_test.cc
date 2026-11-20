@@ -1670,6 +1670,391 @@ impl Top {
   XLS_EXPECT_OK(TypecheckV2(kProgram, "main", &import_data));
 }
 
+TEST(TypecheckV2ProcTest, ForwardRecordsBothEndpoints) {
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result,
+                           TypecheckV2(absl::StrCat(kLoopbackProc, R"(
+proc Top { input: Source<u32>, output: Sink<u32> }
+impl Top {
+  fn new() -> Self {
+    let top = Top {};
+    let c = Loopback::new();
+    top.input.forward(c.input);
+    c.output.forward(top.output);
+    c.spawn();
+    top
+  }
+}
+)")));
+  XLS_ASSERT_OK_AND_ASSIGN(ProcDef * top,
+                           result.tm.module->GetMemberOrError<ProcDef>("Top"));
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue top_init,
+                           GetCanonicalInitializer(result.tm, "Top"));
+  XLS_ASSERT_OK_AND_ASSIGN(std::vector<InterpValue> spawns,
+                           result.tm.type_info->GetProcDefSpawnsFrom(top));
+  ASSERT_EQ(spawns.size(), 1);
+
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue top_input,
+                           GetMemberValue(top_init, "input"));
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue top_output,
+                           GetMemberValue(top_init, "output"));
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue child_input,
+                           GetMemberValue(spawns[0], "input"));
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue child_output,
+                           GetMemberValue(spawns[0], "output"));
+
+  const ChannelManager& manager = result.tm.type_info->channel_manager();
+  std::optional<const ForwardedChannel*> input_fwd =
+      manager.GetForwardedChannel(top, top_input);
+  ASSERT_TRUE(input_fwd.has_value());
+  EXPECT_EQ(manager.GetForwardedChannel(top, child_input), input_fwd);
+  EXPECT_EQ((*input_fwd)->from_end, top_input);
+  EXPECT_EQ((*input_fwd)->to_end, child_input);
+  EXPECT_EQ((*input_fwd)->GetCallerEnd(), top_input);
+
+  std::optional<const ForwardedChannel*> output_fwd =
+      manager.GetForwardedChannel(top, top_output);
+  ASSERT_TRUE(output_fwd.has_value());
+  EXPECT_EQ(manager.GetForwardedChannel(top, child_output), output_fwd);
+  EXPECT_EQ((*output_fwd)->from_end, child_output);
+  EXPECT_EQ((*output_fwd)->to_end, top_output);
+  EXPECT_EQ((*output_fwd)->GetCallerEnd(), top_output);
+}
+
+TEST(TypecheckV2ProcTest, ForwardEndpointTwiceIsRejected) {
+  EXPECT_THAT(absl::StrCat(kLoopbackProc, R"(
+proc Top { input: Source<u32> }
+impl Top {
+  fn new() -> Self {
+    let top = Top {};
+    let c = Loopback::new();
+    let d = Loopback::new();
+    top.input.forward(c.input);
+    top.input.forward(d.input);
+    c.spawn();
+    d.spawn();
+    top
+  }
+}
+)"),
+              TypecheckFails(HasSubstr("`top.input` is already forwarded by "
+                                       "`top.input.forward(c.input)`.")));
+}
+
+TEST(TypecheckV2ProcTest, ForwardAndBindSameEndpointIsRejected) {
+  EXPECT_THAT(absl::StrCat(kLoopbackProc, R"(
+proc Top { input: Source<u32>, to_child: Sink<u32> }
+impl Top {
+  fn new() -> Self {
+    let top = Top {};
+    let c = Loopback::new();
+    top.input.forward(c.input);
+    top.to_child.bind(c.input);
+    c.spawn();
+    top
+  }
+}
+)"),
+              TypecheckFails(HasSubstr("`c.input` is already forwarded by "
+                                       "`top.input.forward(c.input)`.")));
+
+  EXPECT_THAT(absl::StrCat(kLoopbackProc, R"(
+proc Top { input: Source<u32>, to_child: Sink<u32> }
+impl Top {
+  fn new() -> Self {
+    let top = Top {};
+    let c = Loopback::new();
+    top.to_child.bind(c.input);
+    top.input.forward(c.input);
+    c.spawn();
+    top
+  }
+}
+)"),
+              TypecheckFails(HasSubstr("`c.input` is already bound by "
+                                       "`top.to_child.bind(c.input)`.")));
+}
+
+TEST(TypecheckV2ProcTest, ForwardInvalidDirectionIsRejected) {
+  // Child Source forwarded to parent Source (backwards).
+  EXPECT_THAT(absl::StrCat(kLoopbackProc, R"(
+proc Top { input: Source<u32> }
+impl Top {
+  fn new() -> Self {
+    let top = Top {};
+    let c = Loopback::new();
+    c.input.forward(top.input);
+    c.spawn();
+    top
+  }
+}
+)"),
+              TypecheckFails(HasSubstr(
+                  "`forward` on a `Source` must forward from a member of "
+                  "`Top` to a child proc's `Source`; got `c.input` to "
+                  "`top.input`.")));
+
+  // Parent Sink forwarded to child Sink (backwards).
+  EXPECT_THAT(absl::StrCat(kLoopbackProc, R"(
+proc Top { output: Sink<u32> }
+impl Top {
+  fn new() -> Self {
+    let top = Top {};
+    let c = Loopback::new();
+    top.output.forward(c.output);
+    c.spawn();
+    top
+  }
+}
+)"),
+              TypecheckFails(HasSubstr(
+                  "`forward` on a `Sink` must forward from a child proc's "
+                  "`Sink` to a member of `Top`; got `top.output` to "
+                  "`c.output`.")));
+}
+
+TEST(TypecheckV2ProcTest, ForwardOutsideProcImplIsRejected) {
+  EXPECT_THAT(R"(
+#![feature(io_objects)]
+fn pass(a: Source<u32>, b: Source<u32>) { a.forward(b) }
+)",
+              TypecheckFails(
+                  HasSubstr("`forward` can only be called in a proc impl.")));
+}
+
+TEST(TypecheckV2ProcTest, SetNameRecordsNameOnBind) {
+  // `to_child` is named before its `bind` and `c.output` after its `bind`.
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result,
+                           TypecheckV2(absl::StrCat(kLoopbackProc, R"(
+proc Top { to_child: Sink<u32>, from_child: Source<u32> }
+impl Top {
+  fn new() -> Self {
+    let top = Top {};
+    let c = Loopback::new();
+    top.to_child.set_name("req");
+    top.to_child.bind(c.input);
+    c.output.bind(top.from_child);
+    c.output.set_name("resp");
+    c.spawn();
+    top
+  }
+}
+)")));
+  XLS_ASSERT_OK_AND_ASSIGN(ProcDef * top,
+                           result.tm.module->GetMemberOrError<ProcDef>("Top"));
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue top_init,
+                           GetCanonicalInitializer(result.tm, "Top"));
+  XLS_ASSERT_OK_AND_ASSIGN(std::vector<InterpValue> spawns,
+                           result.tm.type_info->GetProcDefSpawnsFrom(top));
+  ASSERT_EQ(spawns.size(), 1);
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue to_child,
+                           GetMemberValue(top_init, "to_child"));
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue from_child,
+                           GetMemberValue(top_init, "from_child"));
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue child_output,
+                           GetMemberValue(spawns[0], "output"));
+
+  const ChannelManager& manager = result.tm.type_info->channel_manager();
+  std::optional<const ImplicitChannelDecl*> to_child_decl =
+      manager.GetImplicitChannelDecl(top, to_child);
+  ASSERT_TRUE(to_child_decl.has_value());
+  ASSERT_TRUE((*to_child_decl)->name.has_value());
+  EXPECT_EQ((*to_child_decl)->name->name, "req");
+
+  std::optional<const ImplicitChannelDecl*> from_child_decl =
+      manager.GetImplicitChannelDecl(top, from_child);
+  ASSERT_TRUE(from_child_decl.has_value());
+  ASSERT_TRUE((*from_child_decl)->name.has_value());
+  EXPECT_EQ((*from_child_decl)->name->name, "resp");
+  EXPECT_TRUE(manager.GetName(top, child_output).has_value());
+  EXPECT_FALSE(manager.GetName(top, from_child).has_value());
+}
+
+TEST(TypecheckV2ProcTest, SetNameTwiceWithDifferentNamesIsRejected) {
+  EXPECT_THAT(absl::StrCat(kLoopbackProc, R"(
+proc Top { to_child: Sink<u32> }
+impl Top {
+  fn new() -> Self {
+    let top = Top {};
+    let c = Loopback::new();
+    top.to_child.bind(c.input);
+    top.to_child.set_name("req");
+    top.to_child.set_name("ack");
+    c.spawn();
+    top
+  }
+}
+)"),
+              TypecheckFails(HasSubstr("`top.to_child` is already named "
+                                       "`req`, so it can't be named `ack`.")));
+}
+
+TEST(TypecheckV2ProcTest, SetNameWithSameNameIsAllowed) {
+  constexpr std::string_view kProgram = R"(
+proc Top { to_child: Sink<u32> }
+impl Top {
+  fn new() -> Self {
+    let top = Top {};
+    let c = Loopback::new();
+    $0
+    c.spawn();
+    top
+  }
+}
+)";
+  // The same end twice, both ends after the `bind`, and both ends before it.
+  for (std::string_view calls : {
+           R"(top.to_child.bind(c.input);
+              top.to_child.set_name("req");
+              top.to_child.set_name("req");)",
+           R"(top.to_child.bind(c.input);
+              top.to_child.set_name("req");
+              c.input.set_name("req");)",
+           R"(top.to_child.set_name("req");
+              c.input.set_name("req");
+              top.to_child.bind(c.input);)",
+       }) {
+    XLS_EXPECT_OK(TypecheckV2(
+        absl::StrCat(kLoopbackProc, absl::Substitute(kProgram, calls))));
+  }
+}
+
+TEST(TypecheckV2ProcTest, SetNameOnBothEndsOfBindWithDifferentNamesIsRejected) {
+  // Both ends are named after the `bind`.
+  EXPECT_THAT(
+      absl::StrCat(kLoopbackProc, R"(
+proc Top { to_child: Sink<u32> }
+impl Top {
+  fn new() -> Self {
+    let top = Top {};
+    let c = Loopback::new();
+    top.to_child.bind(c.input);
+    top.to_child.set_name("a");
+    c.input.set_name("b");
+    c.spawn();
+    top
+  }
+}
+)"),
+      TypecheckFails(HasSubstr(
+          "The channel of `c.input` is already named `a` by `top.to_child`.")));
+
+  // Both ends are named before the `bind`.
+  EXPECT_THAT(
+      absl::StrCat(kLoopbackProc, R"(
+proc Top { to_child: Sink<u32> }
+impl Top {
+  fn new() -> Self {
+    let top = Top {};
+    let c = Loopback::new();
+    top.to_child.set_name("a");
+    c.input.set_name("b");
+    top.to_child.bind(c.input);
+    c.spawn();
+    top
+  }
+}
+)"),
+      TypecheckFails(HasSubstr(
+          "`top.to_child.bind(c.input)` joins `top.to_child` and `c.input`, "
+          "which are named by `top.to_child.set_name(\"a\")` and "
+          "`c.input.set_name(\"b\")`; a channel can only have one name.")));
+}
+
+TEST(TypecheckV2ProcTest, SetNameOnForwardedChildEndIsRejected) {
+  EXPECT_THAT(absl::StrCat(kLoopbackProc, R"(
+proc Top { input: Source<u32> }
+impl Top {
+  fn new() -> Self {
+    let top = Top {};
+    let c = Loopback::new();
+    top.input.forward(c.input);
+    c.input.set_name("x");
+    c.spawn();
+    top
+  }
+}
+)"),
+              TypecheckFails(HasSubstr(
+                  "`c.input` is forwarded by `top.input.forward(c.input)`, "
+                  "so `Top` can't name it; only the proc that creates a "
+                  "channel can name it.")));
+
+  EXPECT_THAT(absl::StrCat(kLoopbackProc, R"(
+proc Top { input: Source<u32> }
+impl Top {
+  fn new() -> Self {
+    let top = Top {};
+    let c = Loopback::new();
+    c.input.set_name("x");
+    top.input.forward(c.input);
+    c.spawn();
+    top
+  }
+}
+)"),
+              TypecheckFails(HasSubstr(
+                  "`c.input` is named by `c.input.set_name(\"x\")`, so `Top` "
+                  "can't forward it; only the proc that creates a channel "
+                  "can name it.")));
+}
+
+TEST(TypecheckV2ProcTest, SetNameWithInvalidNameIsRejected) {
+  constexpr std::string_view kProgram = R"(
+proc Top { to_child: Sink<u32> }
+impl Top {
+  fn new() -> Self {
+    let top = Top {};
+    let c = Loopback::new();
+    top.to_child.bind(c.input);
+    top.to_child.set_name($0);
+    c.spawn();
+    top
+  }
+}
+)";
+  // The parser rejects `""`, so the empty name is an empty array.
+  EXPECT_THAT(
+      absl::StrCat(kLoopbackProc, absl::Substitute(kProgram, "u8[0]:[]")),
+      TypecheckFails(HasSubstr("Channel name `` is not a valid identifier.")));
+  EXPECT_THAT(
+      absl::StrCat(kLoopbackProc, absl::Substitute(kProgram, "\"a b\"")),
+      TypecheckFails(
+          HasSubstr("Channel name `a b` is not a valid identifier.")));
+  EXPECT_THAT(
+      absl::StrCat(kLoopbackProc, absl::Substitute(kProgram, "\"x__0\"")),
+      TypecheckFails(HasSubstr("Channel name `x__0` contains `__`, which is "
+                               "reserved for array element suffixes.")));
+}
+
+TEST(TypecheckV2ProcTest, SetNameToMemberNameIsRejected) {
+  EXPECT_THAT(absl::StrCat(kLoopbackProc, R"(
+proc Top { a: Sink<u32>, output: Sink<u32> }
+impl Top {
+  fn new() -> Self {
+    let top = Top {};
+    let c = Loopback::new();
+    top.a.bind(c.input);
+    top.a.set_name("output");
+    c.output.forward(top.output);
+    c.spawn();
+    top
+  }
+}
+)"),
+              TypecheckFails(HasSubstr("`output` is the name of a member of "
+                                       "`Top`; choose a different channel "
+                                       "name.")));
+}
+
+TEST(TypecheckV2ProcTest, SetNameOutsideProcImplIsRejected) {
+  EXPECT_THAT(R"(
+#![feature(io_objects)]
+fn name(s: Sink<u32>) { s.set_name("x") }
+)",
+              TypecheckFails(
+                  HasSubstr("`set_name` can only be called in a proc impl.")));
+}
+
 TEST(TypecheckV2ProcTest, ProcDefWithArrayTypeAliasState) {
   EXPECT_THAT(R"(
 #![feature(explicit_state_access)]

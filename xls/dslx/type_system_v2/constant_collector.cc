@@ -19,6 +19,7 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <variant>
 #include <vector>
@@ -30,6 +31,7 @@
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/substitute.h"
@@ -63,6 +65,7 @@
 #include "xls/dslx/type_system_v2/type_annotation_utils.h"
 #include "xls/dslx/type_system_v2/type_system_tracer.h"
 #include "xls/dslx/warning_collector.h"
+#include "xls/ir/name_uniquer.h"
 
 namespace xls::dslx {
 namespace {
@@ -666,8 +669,10 @@ class Visitor : public AstNodeVisitorWithDefault {
       XLS_RET_CHECK(f.has_value());
 
       if (IsBuiltin(*f) && (*f)->IsMethod()) {
-        if ((*f)->identifier() == "bind") {
-          return HandleIoObjectBindInvocation(invocation);
+        if ((*f)->identifier() == "bind" || (*f)->identifier() == "forward" ||
+            (*f)->identifier() == "set_name") {
+          return HandleIoObjectConstructorMethodInvocation(invocation,
+                                                           (*f)->identifier());
         }
       }
 
@@ -881,10 +886,10 @@ class Visitor : public AstNodeVisitorWithDefault {
     return absl::OkStatus();
   }
 
-  // Records `sink.bind(source)`, which connects the two endpoints with one
-  // channel. The IR converter reads the record when it converts the calling
-  // proc.
-  absl::Status HandleIoObjectBindInvocation(const Invocation* invocation) {
+  // Records the io object constructor method call `sink.bind(source)`,
+  // `from.forward(to)`, or `endpoint.set_name(name)` in `ChannelManager`.
+  absl::Status HandleIoObjectConstructorMethodInvocation(
+      const Invocation* invocation, std::string_view method) {
     XLS_RET_CHECK_EQ(invocation->callee()->kind(), AstNodeKind::kAttr);
     XLS_RET_CHECK_EQ(invocation->args().size(), 1);
     XLS_ASSIGN_OR_RETURN(
@@ -893,21 +898,66 @@ class Visitor : public AstNodeVisitorWithDefault {
     if (!caller.has_value() || (*caller)->kind() != AstNodeKind::kProcDef) {
       return TypeInferenceErrorStatus(
           invocation->span(), nullptr,
-          "`bind` can only be called in a proc impl.", file_table_);
+          absl::Substitute("`$0` can only be called in a proc impl.", method),
+          file_table_);
     }
 
-    const Expr* sink_expr =
+    const Expr* lhs_expr =
         absl::down_cast<const Attr*>(invocation->callee())->lhs();
-    const Expr* source_expr = invocation->args()[0];
-    XLS_ASSIGN_OR_RETURN(InterpValue sink, Evaluate(sink_expr));
-    XLS_ASSIGN_OR_RETURN(InterpValue source, Evaluate(source_expr));
-    XLS_RET_CHECK(sink.IsChannelReference());
-    XLS_RET_CHECK(source.IsChannelReference());
+    const Expr* rhs_expr = invocation->args()[0];
+    XLS_ASSIGN_OR_RETURN(InterpValue lhs, Evaluate(lhs_expr));
+    XLS_ASSIGN_OR_RETURN(InterpValue rhs, Evaluate(rhs_expr));
+    XLS_RET_CHECK(lhs.IsChannelReference());
     const auto* proc_def = absl::down_cast<const ProcDef*>(*caller);
-    XLS_RETURN_IF_ERROR(ti_->channel_manager().Bind(proc_def, sink, source,
-                                                    sink_expr, source_expr,
-                                                    invocation, file_table_));
+    if (method == "bind") {
+      XLS_RET_CHECK(rhs.IsChannelReference());
+      XLS_RETURN_IF_ERROR(ti_->channel_manager().Bind(
+          proc_def, lhs, rhs, lhs_expr, rhs_expr, invocation, file_table_));
+    } else if (method == "forward") {
+      XLS_RET_CHECK(rhs.IsChannelReference());
+      XLS_RETURN_IF_ERROR(ti_->channel_manager().Forward(
+          proc_def, lhs, rhs, lhs_expr, rhs_expr, invocation, file_table_));
+    } else {
+      XLS_RET_CHECK_EQ(method, "set_name");
+      XLS_ASSIGN_OR_RETURN(std::string name, InterpValueAsString(rhs));
+      XLS_RETURN_IF_ERROR(ValidateChannelName(name, proc_def, invocation));
+      XLS_RETURN_IF_ERROR(ti_->channel_manager().SetName(
+          proc_def, lhs, std::move(name), lhs_expr, invocation, file_table_));
+    }
     ti_->NoteConstExpr(invocation, InterpValue::MakeTuple({}));
+    return absl::OkStatus();
+  }
+
+  // Returns a `TypeInferenceErrorStatus` if `name` given by `invocation` in
+  // `proc_def` can't be used as a channel name.
+  absl::Status ValidateChannelName(std::string_view name,
+                                   const ProcDef* proc_def,
+                                   const Invocation* invocation) {
+    if (!NameUniquer::IsValidIdentifier(name)) {
+      return TypeInferenceErrorStatus(
+          invocation->span(), nullptr,
+          absl::Substitute("Channel name `$0` is not a valid identifier.",
+                           name),
+          file_table_);
+    }
+    if (absl::StrContains(name, "__")) {
+      return TypeInferenceErrorStatus(
+          invocation->span(), nullptr,
+          absl::Substitute("Channel name `$0` contains `__`, which is "
+                           "reserved for array element suffixes.",
+                           name),
+          file_table_);
+    }
+    // A member of `proc_def` may lower to a channel or port named after the
+    // member, which must not be renamed to make room for `name`.
+    if (proc_def->GetMemberByName(name).has_value()) {
+      return TypeInferenceErrorStatus(
+          invocation->span(), nullptr,
+          absl::Substitute("`$0` is the name of a member of `$1`; choose a "
+                           "different channel name.",
+                           name, proc_def->identifier()),
+          file_table_);
+    }
     return absl::OkStatus();
   }
 

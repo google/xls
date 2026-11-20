@@ -806,8 +806,9 @@ absl::Status BytecodeEmitter::HandleBuiltinBitCount(const Invocation* node) {
   return absl::OkStatus();
 }
 
-absl::Status BytecodeEmitter::HandleBuiltinBind(const Invocation* node) {
-  VLOG(5) << "BytecodeEmitter::HandleInvocation - Bind @ "
+absl::Status BytecodeEmitter::HandleBuiltinIoObjectConstructorMethod(
+    const Invocation* node) {
+  VLOG(5) << "BytecodeEmitter::HandleInvocation - IoObjectConstructorMethod @ "
           << node->span().ToString(file_table());
   Add(Bytecode::MakeLiteral(node->span(), InterpValue::MakeTuple({})));
   return absl::OkStatus();
@@ -1259,8 +1260,9 @@ absl::Status BytecodeEmitter::HandleInvocation(const Invocation* node) {
   if (node->callee()->kind() == AstNodeKind::kAttr) {
     XLS_ASSIGN_OR_RETURN(const Function* callee, type_info_->GetCallee(node));
     if (IsBuiltin(callee) && callee->IsMethod()) {
-      if (callee->identifier() == "bind") {
-        return HandleBuiltinBind(node);
+      if (callee->identifier() == "bind" || callee->identifier() == "forward" ||
+          callee->identifier() == "set_name") {
+        return HandleBuiltinIoObjectConstructorMethod(node);
       }
     }
   }
