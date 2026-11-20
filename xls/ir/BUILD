@@ -468,6 +468,7 @@ cc_library(
     name = "type",
     srcs = ["type.cc"],
     hdrs = ["type.h"],
+    visibility = ["//xls:xls_users"],
     deps = [
         ":xls_type_cc_proto",
         "//xls/common/status:ret_check",
@@ -584,6 +585,7 @@ cc_library(
     name = "events",
     srcs = ["events.cc"],
     hdrs = ["events.h"],
+    visibility = ["//xls:xls_users"],
     deps = [
         ":evaluator_result_cc_proto",
         ":format_preference",
@@ -1179,6 +1181,7 @@ cc_library(
     name = "value",
     srcs = ["value.cc"],
     hdrs = ["value.h"],
+    visibility = ["//xls:xls_users"],
     deps = [
         ":bit_push_buffer",
         ":bits",
@@ -1394,6 +1397,7 @@ cc_library(
     testonly = True,
     srcs = ["value_test_util.cc"],
     hdrs = ["value_test_util.h"],
+    visibility = ["//xls:xls_users"],
     deps = [
         ":bits",
         ":bits_test_utils",

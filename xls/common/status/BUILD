@@ -88,7 +88,10 @@ cc_test(
 cc_library(
     name = "status_macros",
     hdrs = ["status_macros.h"],
-    visibility = ["//xls:xls_utility_users"],
+    visibility = [
+        "//xls:xls_users",
+        "//xls:xls_utility_users",
+    ],
     deps = ["@abseil-cpp//absl/status:status_macros"],
 )
 
@@ -110,6 +113,7 @@ cc_library(
     testonly = True,
     srcs = ["matchers.cc"],
     hdrs = ["matchers.h"],
+    visibility = ["//xls:xls_users"],
     deps = [
         ":status_macros",
         "@abseil-cpp//absl/status",
