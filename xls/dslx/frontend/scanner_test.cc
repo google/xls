@@ -260,20 +260,74 @@ TEST(ScannerTest, IncompleteCharacter) {
                        HasSubstr("Expected character after single quote")));
 }
 
+#define EXPECT_TOKENIS(t, k, val) EXPECT_EQ(t.kind(), TokenKind::k); EXPECT_EQ(t.GetValue(), val)
+#define EXPECT_IDENTIF(t, val) EXPECT_TOKENIS(t, kIdentifier, val)
+#define EXPECT_TOKKIND(t, k) EXPECT_EQ(t.kind(), TokenKind::k)
+#define EXPECT_WHITESP(t) EXPECT_EQ(t.kind(), TokenKind::kWhitespace)
+
 TEST(ScannerTest, WhitespaceAndCommentsMode) {
   FileTable file_table;
   Scanner s(file_table, Fileno(0), R"(// Hello comment world.
   42
+  /* comment */
+  /* empty comments */ /**/
+  /* consecutive comments *//*withoutwhitespace*/
+  /* comments surrounding */43/*valid tokens*/
+  /* multi line
+    block comment
+  */
+  /* nested
+    /* block/**/comments */
+    // and line comments
+  are fun */
+  fun(/*arg1*/foo, /* arg2 */ bar );
   // EOF)",
             /*include_whitespace_and_comments=*/true);
+
   XLS_ASSERT_OK_AND_ASSIGN(std::vector<Token> tokens, s.PopAll());
-  EXPECT_EQ(tokens.size(), 5);
-  EXPECT_EQ(tokens[0].kind(), TokenKind::kComment);
-  EXPECT_EQ(tokens[1].kind(), TokenKind::kWhitespace);
-  EXPECT_EQ(tokens[2].kind(), TokenKind::kNumber);
-  EXPECT_EQ(tokens[3].kind(), TokenKind::kWhitespace);
-  EXPECT_EQ(tokens[4].kind(), TokenKind::kComment);
+  EXPECT_EQ(tokens.size(), 35);
+
+  EXPECT_TOKENIS(tokens[0], kComment, " Hello comment world.\n");
+  EXPECT_WHITESP(tokens[1]);
+  EXPECT_TOKKIND(tokens[2], kNumber);
+  EXPECT_WHITESP(tokens[3]);
+  EXPECT_TOKENIS(tokens[4], kBlockComment, " comment ");
+  EXPECT_WHITESP(tokens[5]);
+  EXPECT_TOKENIS(tokens[6], kBlockComment, " empty comments ");
+  EXPECT_WHITESP(tokens[7]);
+  EXPECT_TOKENIS(tokens[8], kBlockComment, "");
+  EXPECT_WHITESP(tokens[9]);
+  EXPECT_TOKENIS(tokens[10], kBlockComment, " consecutive comments ");
+  EXPECT_TOKENIS(tokens[11], kBlockComment, "withoutwhitespace");
+  EXPECT_WHITESP(tokens[12]);
+  EXPECT_TOKENIS(tokens[13], kBlockComment, " comments surrounding ");
+  EXPECT_TOKKIND(tokens[14], kNumber);
+  EXPECT_TOKENIS(tokens[15], kBlockComment, "valid tokens");
+  EXPECT_WHITESP(tokens[16]);
+  EXPECT_TOKENIS(tokens[17], kBlockComment, " multi line\n    block comment\n  ");
+  EXPECT_WHITESP(tokens[18]);
+  EXPECT_TOKENIS(tokens[19], kBlockComment, " nested\n    /* block/**/comments */\n    // and line comments\n  are fun ");
+  EXPECT_WHITESP(tokens[20]);
+  EXPECT_TOKKIND(tokens[21], kIdentifier);
+  EXPECT_TOKKIND(tokens[22], kOParen);
+  EXPECT_TOKENIS(tokens[23], kBlockComment, "arg1");
+  EXPECT_TOKKIND(tokens[24], kIdentifier);
+  EXPECT_TOKKIND(tokens[25], kComma);
+  EXPECT_WHITESP(tokens[26]);
+  EXPECT_TOKENIS(tokens[27], kBlockComment, " arg2 ");
+  EXPECT_WHITESP(tokens[28]);
+  EXPECT_TOKKIND(tokens[29], kIdentifier);
+  EXPECT_WHITESP(tokens[30]);
+  EXPECT_TOKKIND(tokens[31], kCParen);
+  EXPECT_TOKKIND(tokens[32], kSemi);
+  EXPECT_WHITESP(tokens[33]);
+  EXPECT_TOKENIS(tokens[34], kComment, " EOF");
 }
+
+#undef EXPECT_WHITESP
+#undef EXPECT_TOKKIND
+#undef EXPECT_IDENTIF
+#undef EXPECT_TOKENIS
 
 TEST(ScannerTest, PopSeveral) {
   FileTable file_table;

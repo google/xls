@@ -84,6 +84,7 @@ namespace xls::dslx {
   /* When in whitespace/comment mode; e.g. for syntax highlighting. */ \
   X(kWhitespace, WHITESPACE, "whitespace")                             \
   X(kComment, COMMENT, "comment")                                      \
+  X(kBlockComment, BLOCK_COMMENT, "block_comment")                     \
   X(kBacktickString, BACKTICK_STRING, "backtick_string")
 
 #define XLS_FIRST_COMMA(A, ...) A,
