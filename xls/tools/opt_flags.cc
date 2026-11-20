@@ -61,7 +61,7 @@ ABSL_FLAG(
     "quality by replacing MUX trees with separate equality checks.");
 ABSL_FLAG(int64_t, opt_level, xls::kMaxOptLevel, []() -> const std::string& {
   static const std::string kDescription = absl::StrFormat(
-      "Optimization level. Ranges from 1 to %d.", xls::kMaxOptLevel);
+      "Optimization level. Ranges from 0 to %d.", xls::kMaxOptLevel);
   return kDescription;
 }());
 ABSL_FLAG(std::string, ram_rewrites_pb, "",

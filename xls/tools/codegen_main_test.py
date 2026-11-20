@@ -808,6 +808,18 @@ class CodeGenMainTest(parameterized.TestCase):
     ]).decode('utf-8')
     self.assertNotIn('assert', verilog_without.lower())
 
+  def test_opt_level_help(self):
+    result = subprocess.run(
+        [CODEGEN_MAIN_PATH, '--helpmatch=scheduling_options_flags'],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        check=False,
+    )
+    output = result.stdout + result.stderr
+    self.assertIn('--opt_level', output)
+    self.assertIn('Ranges from 0 to 3.', output)
+
 
 if __name__ == '__main__':
   absltest.main()

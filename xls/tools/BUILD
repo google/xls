@@ -1169,9 +1169,22 @@ cc_binary(
         "@abseil-cpp//absl/container:btree",
         "@abseil-cpp//absl/container:flat_hash_map",
         "@abseil-cpp//absl/flags:flag",
-        "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/strings",
+    ],
+)
+
+pytype_strict_contrib_test(
+    name = "print_bom_test",
+    srcs = ["print_bom_test.py"],
+    data = [
+        ":print_bom",
+        "//xls/tools/testdata:bom.metrics.textproto",
+    ],
+    deps = [
+        "//xls/common:runfiles",
+        "//xls/common:test_base",
     ],
 )
 

@@ -386,6 +386,18 @@ class OptMainTest(parameterized.TestCase):
     # elimination).
     self.assertIn('cse', metrics_output)
 
+  def test_opt_level_help(self):
+    result = subprocess.run(
+        [OPT_MAIN_PATH, '--helpmatch=opt_flags'],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        check=False,
+    )
+    output = result.stdout + result.stderr
+    self.assertIn('--opt_level', output)
+    self.assertIn('Ranges from 0 to 3.', output)
+
 
 if __name__ == '__main__':
   absltest.main()

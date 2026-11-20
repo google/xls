@@ -120,7 +120,7 @@ std::string AbslUnparseFlag(const ArcThroughputMap& map) {
 // LINT.IfChange
 ABSL_FLAG(int64_t, opt_level, xls::kMaxOptLevel, []() -> const std::string& {
   static const std::string kDescription = absl::StrFormat(
-      "Optimization level. Ranges from 1 to %d.", xls::kMaxOptLevel);
+      "Optimization level. Ranges from 0 to %d.", xls::kMaxOptLevel);
   return kDescription;
 }());
 ABSL_FLAG(int64_t, clock_period_ps, 0,

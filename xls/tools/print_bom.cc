@@ -27,7 +27,7 @@
 #include "absl/container/btree_map.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/flags/flag.h"
-#include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "xls/codegen/xls_metrics.pb.h"
@@ -35,6 +35,19 @@
 #include "xls/common/init_xls.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/tools/bom.h"
+
+static constexpr std::string_view kUsage = R"(
+Calculates and prints a combined BOM (bill of materials) summary across one or
+more XlsMetricsProto protobuf files produced using `codegen_main
+--block_metrics_path`.
+
+Usage:
+  print_bom [--root_path=PATH] [--file_pattern=REGEX] [--output_as=table|csv]
+            [--op_kind=KIND1,KIND2,...]
+
+Positional arguments are not accepted; specify input files via --root_path and
+--file_pattern.
+)";
 
 namespace {
 
@@ -71,7 +84,9 @@ ABSL_FLAG(std::string, root_path, ".",
           "Path to start the recursive search at.");
 
 ABSL_FLAG(std::string, file_pattern, ".*\\.metrics\\.(text)?proto",
-          "Regex pattern used to find `XlsMetricsProto` (text)proto files.");
+          "Full-path regex matched against each file path under --root_path "
+          "(include a leading '.*' when matching by filename). Matched files "
+          "must end in '.textproto' or '.proto'.");
 
 ABSL_FLAG(PrintBomOutputMode, output_as, PrintBomOutputMode::kTable,
           "Format to output the BOM.");
@@ -130,6 +145,10 @@ static absl::Status RealMain() {
 }  // namespace xls
 
 int main(int argc, char** argv) {
-  xls::InitXls(argv[0], argc, argv);
+  std::vector<std::string_view> positional_arguments =
+      xls::InitXls(kUsage, argc, argv);
+  if (!positional_arguments.empty()) {
+    LOG(QFATAL) << "Unexpected positional arguments.\n" << kUsage;
+  }
   return xls::ExitStatus(xls::RealMain());
 }

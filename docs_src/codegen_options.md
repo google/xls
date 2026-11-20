@@ -62,9 +62,10 @@ control the scheduler.
     `pipeline` and `combinational`. The `pipeline` generator runs a scheduler
     that partitions the IR ops into pipeline stages.
 
--   `--opt_level=...` controls the optimization level to apply when using the
-    `pipeline` generator, to take advantage of any discovered optimization
-    opportunities.
+-   `--opt_level=...` controls the scheduling-time optimization level applied
+    when using the `pipeline` generator, to take advantage of any optimization
+    opportunities discovered during scheduling. Valid values are `0` to `3`
+    (default `3`); `0` disables scheduling-time optimization entirely.
 
 -   `--delay_model=...` selects the delay model to use when scheduling. See the
     [page here](delay_estimation.md) for more detail.

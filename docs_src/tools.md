@@ -230,6 +230,14 @@ available. Care should be used when modifying the values of these flags.
     dimensions an array can have to allow xls to convert accesses to the array
     into select chains. This can have complicated impacts on the area and delay
     of the generated code.
+-   `--split_next_value_selects=NUMBER`: Controls the maximum number of cases a
+    `sel` assigned to a state parameter in a `next_value` node may have and
+    still be split into separate predicated `next_value` nodes by
+    [`next_value_opt`](passes_list.md#next_value_opt) (which codegen combines
+    using a `one_hot_sel` mask). Defaults to `4`. Setting this to `0` preserves
+    explicit multiplexers driving state registers, which can help downstream
+    synthesis tools infer dedicated synchronous-reset or clock-enable
+    flip-flops.
 -   `--use_context_narrowing_analysis=true|false`: Controls whether to use
     contextual information to optimize range calculations. This can in some
     circumstances reveal additional optimization opportunities but it can be
@@ -285,17 +293,27 @@ purposes only.
 
 ## [`print_bom`](https://github.com/google/xls/tree/main/xls/tools/print_bom.cc) {#print-bom}
 
-Tool to calculate and print a summary of the BOM (bill of materials) elements
-from `XlsMetricsProto` protobuf files produced using the `--block_metrics_path`
-`codegen_main` argument.
+Tool to calculate and print a combined BOM (bill of materials) summary across
+one or more `XlsMetricsProto` protobuf files produced using the
+`--block_metrics_path` `codegen_main` argument.
 
-Features include;
+Key flags include:
 
--   Combining the data from multiple protobuf files.
--   Output in fancy human readable table.
--   Output machine readable CSV (common separate values) file for loading into
-    other tools (like Google Sheets).
--   Filtering output to a single value type like `BOM_KIND_ADDER`.
+-   `--root_path=PATH`: Directory at which to start searching recursively for
+    metrics files to combine. Defaults to `.`.
+-   `--file_pattern=REGEX`: Full-path regular expression matched against each
+    file path under `--root_path` (include a leading `.*` when matching by
+    filename, e.g. `.*metrics\.textproto`). Matched files must end in
+    `.textproto` or `.proto`. Defaults to `.*\.metrics\.(text)?proto`.
+-   `--output_as=table|csv`: Output format. `table` prints a human-readable
+    ASCII table; `csv` prints machine-readable comma-separated values for
+    loading into other tools (like Google Sheets). Defaults to `table`.
+-   `--op_kind=KIND1,KIND2,...`: Filters output to a comma-separated list of
+    `BomKind` values (for example, `BOM_KIND_COMPARISON` or `BOM_KIND_ADDER`).
+
+!!! NOTE
+    Positional file paths are not accepted; specify input files via
+    `--root_path` and `--file_pattern`.
 
 Running the following commands;
 
