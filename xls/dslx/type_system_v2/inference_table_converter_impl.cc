@@ -59,6 +59,7 @@
 #include "xls/dslx/frontend/semantics_analysis.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/interp_value.h"
+#include "xls/dslx/mangle.h"
 #include "xls/dslx/status_payload_utils.h"
 #include "xls/dslx/type_system/parametric_env.h"
 #include "xls/dslx/type_system/type.h"
@@ -102,7 +103,7 @@ class CheckedTypeReferenceData final : public InterpValue::TypeReferenceData {
   }
 
   absl::StatusOr<std::string> GetSpecializationName() const override {
-    return type_->GetSpecializationName();
+    return MangleType(*type_);
   }
 
  private:

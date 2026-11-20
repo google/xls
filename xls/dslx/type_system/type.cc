@@ -46,6 +46,7 @@
 #include "xls/dslx/frontend/module.h"
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/interp_value.h"
+#include "xls/dslx/type_system/type_specialization.h"
 #include "xls/ir/bits_ops.h"
 
 namespace xls::dslx {
@@ -70,57 +71,74 @@ void ValidateSumTypeVariantPayload(
   }
 }
 
-bool SameDimension(const TypeDim& lhs, const TypeDim& rhs) {
-  absl::StatusOr<int64_t> a = lhs.GetAsInt64();
-  absl::StatusOr<int64_t> b = rhs.GetAsInt64();
-  return a.ok() && b.ok() && *a == *b;
-}
-
 std::optional<BitsLikeProperties> SpecializationBitsLike(const Type& type) {
   if (auto properties = GetBitsLike(type); properties.has_value()) {
     return properties;
-  }
-  if (const auto* constructor =
-          dynamic_cast<const BitsConstructorType*>(&type)) {
+  } else if (const auto* constructor =
+                 dynamic_cast<const BitsConstructorType*>(&type)) {
     return BitsLikeProperties{.is_signed = constructor->is_signed(),
                               .size = TypeDim::CreateU32(0)};
+  } else {
+    return std::nullopt;
   }
-  return std::nullopt;
 }
 
-// Escape source identifiers before framing them so every resulting character
-// is legal in an IR identifier. Escaping underscores makes the escape itself
-// unambiguous.
-std::string EscapeIdentifier(std::string_view text) {
-  constexpr char kHex[] = "0123456789ABCDEF";
-  std::string result;
-  for (unsigned char c : text) {
-    if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
-        (c >= '0' && c <= '9')) {
-      result.push_back(c);
-    } else {
-      result.push_back('_');
-      result.push_back(kHex[c >> 4]);
-      result.push_back(kHex[c & 0xf]);
-    }
+using type_system_internal::BindingKind;
+using type_system_internal::GetBindingKind;
+using type_system_internal::NominalPart;
+using type_system_internal::SpecializationKind;
+using type_system_internal::SpecializationPart;
+
+bool SameBinding(const InterpValue& lhs, const InterpValue& rhs) {
+  BindingKind kind = GetBindingKind(lhs);
+  return kind != BindingKind::kUnsupported && kind == GetBindingKind(rhs) &&
+         lhs.EqForSpecialization(rhs);
+}
+
+bool SamePart(const SpecializationPart& lhs, const SpecializationPart& rhs) {
+  if (lhs.index() != rhs.index()) {
+    return false;
+  } else if (const auto* child = std::get_if<const Type*>(&lhs)) {
+    return (*child)->IsSameSpecialization(*std::get<const Type*>(rhs));
+  } else if (const auto* binding = std::get_if<const InterpValue*>(&lhs)) {
+    return SameBinding(**binding, *std::get<const InterpValue*>(rhs));
+  } else {
+    return lhs == rhs;
   }
-  return result;
 }
 
-void AppendFrame(std::string* result, std::string_view component) {
-  absl::StrAppend(result, component.size(), "_", component);
+template <typename Definition>
+NominalPart DescribeNominal(const Definition& def) {
+  return NominalPart{&def, def.owner(), def.identifier()};
 }
 
-// Type categories, binding categories, and sequence counts determine where a
-// recursive component ends. Fixed markers avoid adding a growing decimal
-// length at every level of a nested type.
-void AppendRecursiveFrame(std::string* result, char marker,
-                          std::string_view component) {
-  result->push_back(marker);
-  absl::StrAppend(result, component, "_");
+void AppendTypes(std::vector<SpecializationPart>& parts,
+                 absl::Span<const std::unique_ptr<Type>> types) {
+  parts.emplace_back(static_cast<int64_t>(types.size()));
+  for (const auto& type : types) {
+    parts.emplace_back(type.get());
+  }
 }
 
-enum class BindingKind { kType, kBits, kTuple, kArray, kUnsupported };
+void AppendBindings(
+    std::vector<SpecializationPart>& parts,
+    const absl::flat_hash_map<std::string, InterpValue>& bindings) {
+  std::vector<std::string_view> names;
+  names.reserve(bindings.size());
+  for (const auto& binding : bindings) {
+    names.push_back(binding.first);
+  }
+  absl::c_sort(names);
+  parts.emplace_back(static_cast<int64_t>(names.size()));
+  for (std::string_view name : names) {
+    parts.emplace_back(name);
+    parts.emplace_back(&bindings.at(name));
+  }
+}
+
+}  // namespace
+
+namespace type_system_internal {
 
 BindingKind GetBindingKind(const InterpValue& value) {
   if (value.IsTypeReference()) {
@@ -136,240 +154,79 @@ BindingKind GetBindingKind(const InterpValue& value) {
   }
 }
 
-bool SameBinding(const InterpValue& lhs, const InterpValue& rhs) {
-  BindingKind kind = GetBindingKind(lhs);
-  return kind != BindingKind::kUnsupported && kind == GetBindingKind(rhs) &&
-         lhs.EqForSpecialization(rhs);
-}
-
-absl::StatusOr<std::string> BindingName(const InterpValue& value) {
-  switch (GetBindingKind(value)) {
-    case BindingKind::kType: {
-      XLS_ASSIGN_OR_RETURN(std::string name,
-                           value.GetTypeReferenceSpecializationName());
-      return absl::StrCat("t", name);
-    }
-    case BindingKind::kBits: {
-      const Bits& bits = value.GetBitsOrDie();
-      std::string result = "v";
-      AppendFrame(&result, absl::StrCat(bits.bit_count()));
-      AppendFrame(&result, EscapeIdentifier(BitsToString(bits)));
-      return result;
-    }
-    case BindingKind::kTuple:
-    case BindingKind::kArray: {
-      std::string result = value.IsTuple() ? "q" : "a";
-      XLS_ASSIGN_OR_RETURN(int64_t length, value.GetLength());
-      absl::StrAppend(&result, length, "_");
-      for (int64_t i = 0; i < length; ++i) {
-        XLS_ASSIGN_OR_RETURN(InterpValue element, value.Index(i));
-        XLS_ASSIGN_OR_RETURN(std::string name, BindingName(element));
-        AppendRecursiveFrame(&result, 'b', name);
-      }
-      return result;
-    }
-    case BindingKind::kUnsupported:
-      return absl::InvalidArgumentError(
-          absl::StrCat("Unsupported nominal specialization binding: ",
-                       TagToString(value.tag())));
-  }
-}
-
-// A specialization has one ordered semantic structure. Equality compares the
-// actual declarations and checked children, while naming renders those same
-// components in deterministic, framed form.
-struct LiteralPart {
-  std::string text;
-};
-struct IdentifierPart {
-  std::string_view text;
-};
-struct NominalPart {
-  const AstNode* declaration;
-  const Module* module;
-  std::optional<std::string_view> identifier;
-};
-struct BindingPart {
-  const InterpValue* value;
-};
-using SpecializationPart =
-    std::variant<LiteralPart, IdentifierPart, NominalPart, TypeDim, const Type*,
-                 BindingPart>;
-
-struct SpecializationStructure {
-  std::string prefix;
-  std::vector<SpecializationPart> parts;
-
-  void AddCount(int64_t count) {
-    parts.emplace_back(LiteralPart{absl::StrCat(count, "_")});
-  }
-  void AddTypes(absl::Span<const std::unique_ptr<Type>> types) {
-    AddCount(types.size());
-    for (const auto& type : types) {
-      parts.emplace_back(type.get());
-    }
-  }
-  void AddBindings(
-      const absl::flat_hash_map<std::string, InterpValue>& bindings) {
-    std::vector<const std::string*> names;
-    names.reserve(bindings.size());
-    for (const auto& binding : bindings) {
-      names.push_back(&binding.first);
-    }
-    std::sort(names.begin(), names.end(),
-              [](const std::string* lhs, const std::string* rhs) {
-                return *lhs < *rhs;
-              });
-    AddCount(names.size());
-    for (const std::string* name : names) {
-      parts.emplace_back(IdentifierPart{*name});
-      parts.emplace_back(BindingPart{&bindings.at(*name)});
-    }
-  }
-  void AddNominal(const AstNode& declaration, std::string_view identifier) {
-    parts.emplace_back(
-        NominalPart{&declaration, declaration.owner(), identifier});
-  }
-};
-
-absl::StatusOr<SpecializationStructure> DescribeSpecialization(
+absl::StatusOr<std::vector<SpecializationPart>> DescribeSpecialization(
     const Type& type) {
-  SpecializationStructure result;
+  std::vector<SpecializationPart> parts;
   if (auto bits = SpecializationBitsLike(type); bits.has_value()) {
     XLS_ASSIGN_OR_RETURN(bool is_signed, bits->is_signed.GetAsBool());
-    result.prefix = is_signed ? "s" : "u";
-    result.parts.emplace_back(bits->size);
+    XLS_ASSIGN_OR_RETURN(int64_t size, bits->size.GetAsInt64());
+    parts = {is_signed ? SpecializationKind::kSignedBits
+                       : SpecializationKind::kUnsignedBits,
+             size};
   } else if (const auto* nominal = dynamic_cast<const EnumType*>(&type)) {
-    result.prefix = "e";
-    result.AddNominal(nominal->nominal_type(),
-                      nominal->nominal_type().identifier());
-    result.parts.emplace_back(LiteralPart{nominal->is_signed() ? "s" : "u"});
-    result.parts.emplace_back(nominal->size());
+    XLS_ASSIGN_OR_RETURN(int64_t size, nominal->size().GetAsInt64());
+    parts = {SpecializationKind::kEnum,
+             DescribeNominal(nominal->nominal_type()),
+             nominal->is_signed() ? SpecializationKind::kSignedBits
+                                  : SpecializationKind::kUnsignedBits,
+             size};
   } else if (const auto* nominal = dynamic_cast<const StructTypeBase*>(&type)) {
-    result.prefix = type.IsProc() ? "p" : "r";
-    result.AddNominal(nominal->struct_def_base(),
-                      nominal->struct_def_base().identifier());
-    // Concrete members are determined by the declaration and complete checked
-    // bindings. Encoding them again doubles work for every Box<T> level.
-    result.AddBindings(nominal->nominal_type_bindings());
+    parts = {
+        type.IsProc() ? SpecializationKind::kProc : SpecializationKind::kStruct,
+        DescribeNominal(nominal->struct_def_base())};
+    // The declaration and complete bindings determine the concrete members.
+    // Including the members too would visit T twice at each level of Box<T>.
+    AppendBindings(parts, nominal->nominal_type_bindings());
   } else if (const auto* sum = dynamic_cast<const SumType*>(&type)) {
-    result.prefix = "z";
-    result.AddNominal(sum->nominal_type(), sum->nominal_type().identifier());
-    result.AddCount(sum->variant_count());
+    parts = {SpecializationKind::kSum, DescribeNominal(sum->nominal_type()),
+             sum->variant_count()};
     for (const SumTypeVariant& variant : sum->variants()) {
-      result.parts.emplace_back(LiteralPart{variant.is_unit()    ? "u"
-                                            : variant.is_tuple() ? "t"
-                                                                 : "r"});
-      result.AddCount(variant.size());
+      parts.emplace_back(variant.is_unit() ? SpecializationKind::kUnitVariant
+                         : variant.is_tuple()
+                             ? SpecializationKind::kTupleVariant
+                             : SpecializationKind::kStructVariant);
+      parts.emplace_back(variant.size());
       for (int64_t i = 0; i < variant.size(); ++i) {
-        result.parts.emplace_back(&variant.GetMemberType(i));
+        parts.emplace_back(&variant.GetMemberType(i));
       }
     }
   } else if (const auto* tuple = dynamic_cast<const TupleType*>(&type)) {
-    result.prefix = "q";
-    result.AddTypes(tuple->members());
+    parts = {SpecializationKind::kTuple};
+    AppendTypes(parts, tuple->members());
   } else if (const auto* array = dynamic_cast<const ArrayType*>(&type)) {
-    result.prefix = "a";
-    result.parts.emplace_back(array->size());
-    result.parts.emplace_back(&array->element_type());
+    XLS_ASSIGN_OR_RETURN(int64_t size, array->size().GetAsInt64());
+    parts = {SpecializationKind::kArray, size, &array->element_type()};
   } else if (const auto* function = dynamic_cast<const FunctionType*>(&type)) {
-    result.prefix = "f";
-    result.AddTypes(function->params());
-    result.parts.emplace_back(&function->return_type());
+    parts = {SpecializationKind::kFunction};
+    AppendTypes(parts, function->params());
+    parts.emplace_back(&function->return_type());
   } else if (const auto* channel = dynamic_cast<const ChannelType*>(&type)) {
-    result.prefix = channel->direction() == ChannelDirection::kIn ? "ci" : "co";
-    result.parts.emplace_back(&channel->payload_type());
+    parts = {channel->direction() == ChannelDirection::kIn
+                 ? SpecializationKind::kChannelIn
+                 : SpecializationKind::kChannelOut,
+             &channel->payload_type()};
   } else if (const auto* meta = dynamic_cast<const MetaType*>(&type)) {
-    result.prefix = "m";
-    result.parts.emplace_back(meta->wrapped().get());
+    parts = {SpecializationKind::kMeta, meta->wrapped().get()};
   } else if (const auto* module = dynamic_cast<const ModuleType*>(&type)) {
-    result.prefix = "d";
-    result.parts.emplace_back(
-        NominalPart{nullptr, &module->module(), std::nullopt});
+    parts = {SpecializationKind::kModule,
+             NominalPart{nullptr, &module->module(), std::nullopt}};
   } else if (type.IsToken()) {
-    result.prefix = "token";
+    parts = {SpecializationKind::kToken};
   } else {
     return absl::InvalidArgumentError(absl::StrCat(
         "Unsupported specialization type: ", type.GetDebugTypeName()));
   }
-  return result;
+  return parts;
 }
 
-bool SamePart(const SpecializationPart& lhs, const SpecializationPart& rhs) {
-  if (lhs.index() != rhs.index()) {
-    return false;
-  } else if (const auto* literal = std::get_if<LiteralPart>(&lhs)) {
-    return literal->text == std::get<LiteralPart>(rhs).text;
-  } else if (const auto* identifier = std::get_if<IdentifierPart>(&lhs)) {
-    return identifier->text == std::get<IdentifierPart>(rhs).text;
-  } else if (const auto* nominal = std::get_if<NominalPart>(&lhs)) {
-    const NominalPart& other = std::get<NominalPart>(rhs);
-    return nominal->declaration == other.declaration &&
-           nominal->module == other.module;
-  } else if (const auto* dim = std::get_if<TypeDim>(&lhs)) {
-    return SameDimension(*dim, std::get<TypeDim>(rhs));
-  } else if (const auto* child = std::get_if<const Type*>(&lhs)) {
-    return (*child)->IsSameSpecialization(*std::get<const Type*>(rhs));
-  } else {
-    return SameBinding(*std::get<BindingPart>(lhs).value,
-                       *std::get<BindingPart>(rhs).value);
-  }
-}
-
-absl::Status AppendPart(std::string* result, const SpecializationPart& part) {
-  if (const auto* literal = std::get_if<LiteralPart>(&part)) {
-    absl::StrAppend(result, literal->text);
-  } else if (const auto* identifier = std::get_if<IdentifierPart>(&part)) {
-    AppendFrame(result, EscapeIdentifier(identifier->text));
-  } else if (const auto* nominal = std::get_if<NominalPart>(&part)) {
-    AppendFrame(result, EscapeIdentifier(nominal->module->name()));
-    if (nominal->identifier.has_value()) {
-      AppendFrame(result, EscapeIdentifier(*nominal->identifier));
-    }
-  } else if (const auto* dim = std::get_if<TypeDim>(&part)) {
-    XLS_ASSIGN_OR_RETURN(int64_t value, dim->GetAsInt64());
-    if (value < 0) {
-      return absl::InvalidArgumentError("Negative specialization dimension");
-    }
-    AppendFrame(result, absl::StrCat(value));
-  } else if (const auto* child = std::get_if<const Type*>(&part)) {
-    XLS_ASSIGN_OR_RETURN(std::string name, (*child)->GetSpecializationName());
-    AppendRecursiveFrame(result, 'x', name);
-  } else {
-    XLS_ASSIGN_OR_RETURN(std::string name,
-                         BindingName(*std::get<BindingPart>(part).value));
-    AppendRecursiveFrame(result, 'b', name);
-  }
-  return absl::OkStatus();
-}
-
-}  // namespace
+}  // namespace type_system_internal
 
 Type::~Type() = default;
 
 bool Type::IsSameSpecialization(const Type& other) const {
-  absl::StatusOr<SpecializationStructure> lhs = DescribeSpecialization(*this);
-  absl::StatusOr<SpecializationStructure> rhs = DescribeSpecialization(other);
-  if (!lhs.ok() || !rhs.ok() || lhs->prefix != rhs->prefix ||
-      lhs->parts.size() != rhs->parts.size()) {
-    return false;
-  }
-  for (int64_t i = 0; i < lhs->parts.size(); ++i) {
-    if (!SamePart(lhs->parts[i], rhs->parts[i])) {
-      return false;
-    }
-  }
-  return true;
-}
-
-absl::StatusOr<std::string> Type::GetSpecializationName() const {
-  XLS_ASSIGN_OR_RETURN(SpecializationStructure structure,
-                       DescribeSpecialization(*this));
-  std::string result = std::move(structure.prefix);
-  for (const SpecializationPart& part : structure.parts) {
-    XLS_RETURN_IF_ERROR(AppendPart(&result, part));
-  }
-  return result;
+  auto lhs = type_system_internal::DescribeSpecialization(*this);
+  auto rhs = type_system_internal::DescribeSpecialization(other);
+  return lhs.ok() && rhs.ok() && absl::c_equal(*lhs, *rhs, SamePart);
 }
 
 /* static */ bool Type::Equal(absl::Span<const std::unique_ptr<Type>> a,

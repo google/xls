@@ -516,7 +516,10 @@ cc_library(
     deps = [
         ":interp_value",
         "//xls/common/status:status_macros",
+        "//xls/dslx/frontend:module",
         "//xls/dslx/type_system:parametric_env",
+        "//xls/dslx/type_system:type",
+        "//xls/ir:bits_ops",
         "//xls/ir:format_preference",
         "@abseil-cpp//absl/algorithm:container",
         "@abseil-cpp//absl/container:btree",
@@ -539,6 +542,7 @@ cc_test(
         "//xls/dslx/frontend:module",
         "//xls/dslx/frontend:pos",
         "//xls/dslx/type_system:parametric_env",
+        "//xls/dslx/type_system:type",
         "@abseil-cpp//absl/hash",
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/status:status_matchers",

@@ -233,6 +233,7 @@ cc_library(
         "//xls/dslx:errors",
         "//xls/dslx:import_data",
         "//xls/dslx:interp_value",
+        "//xls/dslx:mangle",
         "//xls/dslx:status_payload_utils",
         "//xls/dslx:warning_collector",
         "//xls/dslx/frontend:ast",

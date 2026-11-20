@@ -14,11 +14,12 @@
 
 #include "xls/dslx/mangle.h"
 
-#include <cstddef>
+#include <cstdint>
 #include <iterator>
 #include <string>
 #include <string_view>
 #include <utility>
+#include <variant>
 #include <vector>
 
 #include "absl/algorithm/container.h"
@@ -26,17 +27,162 @@
 #include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/ascii.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_replace.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/dslx/frontend/module.h"
 #include "xls/dslx/interp_value.h"
 #include "xls/dslx/type_system/parametric_env.h"
+#include "xls/dslx/type_system/type_specialization.h"
+#include "xls/ir/bits_ops.h"
 #include "xls/ir/format_preference.h"
 
 namespace xls::dslx {
 namespace {
+
+using type_system_internal::BindingKind;
+using type_system_internal::NominalPart;
+using type_system_internal::SpecializationKind;
+using type_system_internal::SpecializationPart;
+
+// MangleType grammar. N is a nonnegative decimal integer terminated by '_'.
+// I is N followed by exactly that many escaped identifier bytes. [X] is a
+// count N followed by that many Xs. T is one of:
+//
+//   u N | s N                    unsigned or signed bits
+//   a N T | q [T]                array or tuple
+//   e I I (u | s) N              enum (module, declaration, underlying bits)
+//   (r | p) I I [I B]            struct or proc (bindings sorted by name)
+//   z I I [(u | t | r) [T]]      sum (unit, tuple, or struct variants)
+//   f [T] T                      function (parameters, return)
+//   (ci | co) T | m T            channel or meta-type
+//   d I | token                  module or token
+//
+// A nominal binding B is t T (type), v N H (bits or enum, width then
+// unsigned hexadecimal digits terminated by '_'), q [B] (tuple), or a [B]
+// (array). Each child ends where its grammar says, so it needs no length
+// prefix. For example, u32[4] is a4_u32_.
+std::string_view KindTag(SpecializationKind kind) {
+  switch (kind) {
+    case SpecializationKind::kUnsignedBits:
+    case SpecializationKind::kUnitVariant:
+      return "u";
+    case SpecializationKind::kSignedBits:
+      return "s";
+    case SpecializationKind::kEnum:
+      return "e";
+    case SpecializationKind::kProc:
+      return "p";
+    case SpecializationKind::kStruct:
+    case SpecializationKind::kStructVariant:
+      return "r";
+    case SpecializationKind::kSum:
+      return "z";
+    case SpecializationKind::kTupleVariant:
+      return "t";
+    case SpecializationKind::kTuple:
+      return "q";
+    case SpecializationKind::kArray:
+      return "a";
+    case SpecializationKind::kFunction:
+      return "f";
+    case SpecializationKind::kChannelIn:
+      return "ci";
+    case SpecializationKind::kChannelOut:
+      return "co";
+    case SpecializationKind::kMeta:
+      return "m";
+    case SpecializationKind::kModule:
+      return "d";
+    case SpecializationKind::kToken:
+      return "token";
+  }
+}
+
+// LINT.IfChange
+std::string Frame(std::string_view value) {
+  return absl::StrCat(value.size(), "_", value);
+}
+
+// Each non-alphanumeric byte becomes _HH (uppercase hex), including '_'
+// so a literal "_2E" remains distinct from ".".
+std::string FrameIdentifier(std::string_view identifier) {
+  constexpr char kHex[] = "0123456789ABCDEF";
+  std::string escaped;
+  for (unsigned char c : identifier) {
+    if (absl::ascii_isalnum(c)) {
+      escaped.push_back(c);
+    } else {
+      escaped.push_back('_');
+      escaped.push_back(kHex[c >> 4]);
+      escaped.push_back(kHex[c & 0xf]);
+    }
+  }
+  return Frame(escaped);
+}
+// LINT.ThenChange(//xls/build_rules/xls_ir_rules.bzl)
+
+absl::Status AppendBinding(std::string& result, const InterpValue& value) {
+  switch (type_system_internal::GetBindingKind(value)) {
+    case BindingKind::kType: {
+      XLS_ASSIGN_OR_RETURN(std::string name,
+                           value.GetTypeReferenceSpecializationName());
+      absl::StrAppend(&result, "t", name);
+      return absl::OkStatus();
+    }
+    case BindingKind::kBits: {
+      const auto& bits = value.GetBitsOrDie();
+      absl::StrAppend(&result, "v", bits.bit_count(), "_",
+                      BitsToRawDigits(bits, FormatPreference::kPlainHex), "_");
+      return absl::OkStatus();
+    }
+    case BindingKind::kTuple:
+    case BindingKind::kArray: {
+      XLS_ASSIGN_OR_RETURN(int64_t length, value.GetLength());
+      absl::StrAppend(&result, value.IsTuple() ? "q" : "a", length, "_");
+      for (int64_t i = 0; i < length; ++i) {
+        XLS_ASSIGN_OR_RETURN(InterpValue element, value.Index(i));
+        XLS_RETURN_IF_ERROR(AppendBinding(result, element));
+      }
+      return absl::OkStatus();
+    }
+    case BindingKind::kUnsupported:
+      return absl::InvalidArgumentError(
+          absl::StrCat("Unsupported nominal specialization binding: ",
+                       TagToString(value.tag())));
+  }
+}
+
+absl::Status AppendType(std::string& result, const Type& type) {
+  XLS_ASSIGN_OR_RETURN(std::vector<SpecializationPart> parts,
+                       type_system_internal::DescribeSpecialization(type));
+  for (const SpecializationPart& part : parts) {
+    if (const auto* kind = std::get_if<SpecializationKind>(&part)) {
+      result.append(KindTag(*kind));
+    } else if (const auto* number = std::get_if<int64_t>(&part)) {
+      if (*number < 0) {
+        return absl::InvalidArgumentError("Negative specialization dimension");
+      }
+      absl::StrAppend(&result, *number, "_");
+    } else if (const auto* identifier = std::get_if<std::string_view>(&part)) {
+      result.append(FrameIdentifier(*identifier));
+    } else if (const auto* nominal = std::get_if<NominalPart>(&part)) {
+      result.append(FrameIdentifier(nominal->module->name()));
+      if (nominal->identifier.has_value()) {
+        result.append(FrameIdentifier(*nominal->identifier));
+      }
+    } else if (const auto* child = std::get_if<const Type*>(&part)) {
+      XLS_RETURN_IF_ERROR(AppendType(result, **child));
+    } else {
+      XLS_RETURN_IF_ERROR(
+          AppendBinding(result, *std::get<const InterpValue*>(part)));
+    }
+  }
+  return absl::OkStatus();
+}
 
 // Converts the given InterpValue into a string form appropriate for name
 // mangling: we need a means of disambiguating value- or struct-parameterized
@@ -69,11 +215,13 @@ absl::StatusOr<std::string> MangleInterpValue(const InterpValue& value) {
                          absl::StrJoin(members, "_"));
 }
 
-std::string Frame(std::string_view value) {
-  return absl::StrCat(value.size(), "_", value);
-}
-
 }  // namespace
+
+absl::StatusOr<std::string> MangleType(const Type& type) {
+  std::string result;
+  XLS_RETURN_IF_ERROR(AppendType(result, type));
+  return result;
+}
 
 // LINT.IfChange
 absl::StatusOr<std::string> MangleDslxName(
@@ -82,12 +230,18 @@ absl::StatusOr<std::string> MangleDslxName(
     const ParametricEnv& parametric_env, std::string_view scope) {
   absl::btree_set<std::string> parametric_env_keys;
   std::vector<std::string> parametric_env_values;
-  bool has_type_parametric = false;
+  bool has_type_parametric = absl::c_any_of(
+      parametric_env.bindings(), [](const ParametricEnvItem& item) {
+        return item.value.IsTypeReference();
+      });
   for (const ParametricEnvItem& item : parametric_env.bindings()) {
     parametric_env_keys.insert(item.identifier);
     const InterpValue& value = item.value;
     XLS_ASSIGN_OR_RETURN(std::string mangled_value, MangleInterpValue(value));
-    has_type_parametric |= value.IsTypeReference();
+    if (has_type_parametric) {
+      mangled_value = absl::StrCat(value.IsTypeReference() ? "T" : "V",
+                                   Frame(mangled_value));
+    }
     parametric_env_values.push_back(std::move(mangled_value));
   }
   absl::btree_set<std::string> difference;
@@ -106,6 +260,24 @@ absl::StatusOr<std::string> MangleDslxName(
     // Note that this is an implicit token threaded call target.
     convention_str = "itok__";
   }
+  std::string suffix;
+  if (!parametric_env_values.empty()) {
+    suffix = absl::StrCat("__", absl::StrJoin(parametric_env_values, "_"));
+  }
+
+  if (has_type_parametric) {
+    // _0T__ separates specializations with type arguments from the ordinary
+    // __ namespace. Each component has a byte length, including an empty
+    // scope. T and V introduce a mangled type and a mangled value respectively.
+    if (convention == CallingConvention::kProcNext) {
+      convention_str = "pnext__";
+      suffix += "_next";
+    }
+    return absl::StrCat("_0T__", convention_str, FrameIdentifier(module_name),
+                        "_", FrameIdentifier(scope), "_",
+                        FrameIdentifier(function_name), suffix);
+  }
+
   std::string module_name_str = absl::StrReplaceAll(module_name, {{".", "_"}});
 
   std::string scope_str = "";
@@ -124,32 +296,6 @@ absl::StatusOr<std::string> MangleDslxName(
                              "__");
   }
 
-  std::string suffix;
-  if (has_type_parametric) {
-    // Framing the complete name makes argument and function-name boundaries
-    // unambiguous even when a type's encoding contains underscores. The
-    // single-leading-underscore namespace cannot collide with the existing
-    // double-leading-underscore namespace for ordinary and value-only names.
-    std::vector<std::string> framed_values;
-    for (size_t i = 0; i < parametric_env_values.size(); ++i) {
-      const InterpValue& value = parametric_env.bindings()[i].value;
-      framed_values.push_back(absl::StrCat(value.IsTypeReference() ? "T" : "V",
-                                           Frame(parametric_env_values[i])));
-    }
-    std::string function_name_str(function_name);
-    if (convention == CallingConvention::kProcNext) {
-      convention_str = "pnext__";
-      function_name_str =
-          absl::StrReplaceAll(function_name_str, {{":", "_"}, {"->", "__"}});
-    }
-    return absl::StrCat(
-        "_0T__", convention_str, Frame(module_name_str), "_", Frame(scope_str),
-        "_", Frame(function_name_str), "__", absl::StrJoin(framed_values, "_"),
-        convention == CallingConvention::kProcNext ? "_next" : "");
-  }
-  if (!parametric_env_values.empty()) {
-    suffix = absl::StrCat("__", absl::StrJoin(parametric_env_values, "_"));
-  }
   std::string mangled_name =
       absl::StrFormat("__%s%s__%s%s%s", convention_str, module_name_str,
                       scope_str, function_name, suffix);

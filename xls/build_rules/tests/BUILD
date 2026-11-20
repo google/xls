@@ -414,7 +414,7 @@ xls_eval_ir_test(
     top = get_mangled_ir_symbol(
         "typed_symbol",
         "typed_identity",
-        parametric_values = ("T5_u2_32",),
+        parametric_values = ("T4_u32_",),
     ),
 )
 
@@ -427,7 +427,7 @@ xls_eval_ir_test(
     top = get_mangled_ir_symbol(
         "typed_symbol",
         "typed_values",
-        parametric_values = (True, "V3_255", "T5_u2_32"),
+        parametric_values = (True, "V3_255", "T4_u32_"),
     ),
 )
 
@@ -438,7 +438,7 @@ xls_eval_ir_test(
     top = get_mangled_ir_symbol(
         "typed_symbol",
         "typed_values",
-        parametric_values = (False, "V3_255", "T5_u2_32"),
+        parametric_values = (False, "V3_255", "T4_u32_"),
     ),
 )
 

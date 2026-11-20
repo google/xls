@@ -30,6 +30,7 @@
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/interp_value.h"
 #include "xls/dslx/type_system/parametric_env.h"
+#include "xls/dslx/type_system/type.h"
 
 namespace xls::dslx {
 namespace {
@@ -140,29 +141,78 @@ TEST(MangleTest, ParametricEnvHashesSymbolicRangesWithoutExpansion) {
   EXPECT_TRUE(huge_range.bindings()[0].value.GetRangeData().has_value());
 }
 
-// Verifies: Type arguments use distinct framed symbols and compatible hashes.
-// Catches: Ambiguous boundaries or unequal hashes for equivalent types.
-TEST(MangleTest, TypeArgumentsUseFramedCompilerEncoding) {
-  FileTable file_table;
-  Module module("my_mod", /*fs_path=*/std::nullopt, file_table);
-  auto* annotation = module.Make<BuiltinTypeAnnotation>(
-      Span::Fake(), BuiltinType::kU32,
-      module.GetOrCreateBuiltinNameDef(BuiltinType::kU32));
-  auto type_reference = [annotation](std::string name) {
+TEST(MangleTest, TypeNamesEncodeDimensionsAndChildrenDirectly) {
+  ArrayType array(BitsType::MakeU32(), TypeDim::CreateU32(4));
+  EXPECT_THAT(MangleType(array.element_type()), IsOkAndHolds("u32_"));
+  EXPECT_THAT(MangleType(array), IsOkAndHolds("a4_u32_"));
+
+  auto tuple = TupleType::Create2(
+      array.CloneToUnique(), std::make_unique<BitsType>(/*is_signed=*/true, 8));
+  EXPECT_THAT(MangleType(*tuple), IsOkAndHolds("q2_a4_u32_s8_"));
+}
+
+class TypedMangleTest : public ::testing::Test {
+ protected:
+  InterpValue TypeReference(std::string name) {
+    auto* annotation = module.Make<BuiltinTypeAnnotation>(
+        Span::Fake(), BuiltinType::kU32,
+        module.GetOrCreateBuiltinNameDef(BuiltinType::kU32));
     return InterpValue::MakeTypeReference(
         annotation, std::make_shared<TestTypeReferenceData>(std::move(name)));
-  };
+  }
 
+  FileTable file_table;
+  Module module{"my_mod", /*fs_path=*/std::nullopt, file_table};
+};
+
+TEST_F(TypedMangleTest, NominalNameFramesIdentifiersAndSortsBindings) {
+  auto* def = module.Make<StructDef>(
+      Span::Fake(), module.Make<NameDef>(Span::Fake(), "S", nullptr),
+      std::vector<ParametricBinding*>{}, std::vector<StructMemberNode*>{},
+      /*is_public=*/false);
+  StructType type({}, *def);
+  type.SetNominalTypeBindings(
+      {{"T", TypeReference("u32_")}, {"N", InterpValue::MakeU8(255)}});
+  EXPECT_THAT(MangleType(type),
+              IsOkAndHolds("r8_my_5Fmod1_S2_1_Nv8_ff_1_Ttu32_"));
+}
+
+TEST_F(TypedMangleTest, DistinguishesDottedAndUnderscoredModules) {
+  std::vector<std::pair<std::string, InterpValue>> bindings = {
+      {"T", TypeReference("u32_")}};
+  ParametricEnv env(bindings);
+  auto dotted =
+      MangleDslxName("a.b", "f", CallingConvention::kTypical, {"T"}, env);
+  auto underscored =
+      MangleDslxName("a_b", "f", CallingConvention::kTypical, {"T"}, env);
+  ASSERT_TRUE(dotted.ok()) << dotted.status();
+  ASSERT_TRUE(underscored.ok()) << underscored.status();
+  EXPECT_NE(*dotted, *underscored);
+}
+
+TEST_F(TypedMangleTest, FramesRawScopeAndProcNameAfterEscaping) {
+  std::vector<std::pair<std::string, InterpValue>> bindings = {
+      {"T", TypeReference("u32_")}};
+  EXPECT_THAT(
+      MangleDslxName("m", "p->q:0", CallingConvention::kProcNext, {"T"},
+                     ParametricEnv(bindings), "a b"),
+      IsOkAndHolds("_0T__pnext__1_m_5_a_20b_12_p_2D_3Eq_3A0__T4_u32__next"));
+}
+
+// Verifies: Type arguments use distinct framed symbols and compatible hashes.
+// Catches: Ambiguous boundaries or unequal hashes for equivalent types.
+TEST_F(TypedMangleTest, TypeArgumentsUseFramedCompilerEncoding) {
   std::vector<std::pair<std::string, InterpValue>> mixed = {
-      {"T", type_reference("a_b")}, {"V", InterpValue::MakeU8(255)}};
+      {"T", TypeReference("a_b")}, {"V", InterpValue::MakeU8(255)}};
   std::vector<std::pair<std::string, InterpValue>> equivalent = {
-      {"T", type_reference("a_b")}, {"V", InterpValue::MakeSBits(8, -1)}};
+      {"T", TypeReference("a_b")}, {"V", InterpValue::MakeSBits(8, -1)}};
   EXPECT_EQ(ParametricEnv(mixed), ParametricEnv(equivalent));
   EXPECT_EQ(absl::HashOf(ParametricEnv(mixed)),
             absl::HashOf(ParametricEnv(equivalent)));
   auto mixed_name = MangleDslxName("my_mod", "p", CallingConvention::kTypical,
                                    {"T", "V"}, ParametricEnv(mixed));
-  EXPECT_THAT(mixed_name, IsOkAndHolds("_0T__6_my_mod_0__1_p__T3_a_b_V3_255"));
+  EXPECT_THAT(mixed_name,
+              IsOkAndHolds("_0T__8_my_5Fmod_0__1_p__T3_a_b_V3_255"));
 
   auto* enum_name = module.Make<NameDef>(Span::Fake(), "E", nullptr);
   auto* enum_def =
@@ -214,9 +264,9 @@ TEST(MangleTest, TypeArgumentsUseFramedCompilerEncoding) {
             absl::HashOf(ParametricEnv(equivalent)));
 
   std::vector<std::pair<std::string, InterpValue>> first = {
-      {"A", type_reference("a_b")}, {"B", type_reference("c")}};
+      {"A", TypeReference("a_b")}, {"B", TypeReference("c")}};
   std::vector<std::pair<std::string, InterpValue>> second = {
-      {"A", type_reference("a")}, {"B", type_reference("b_c")}};
+      {"A", TypeReference("a")}, {"B", TypeReference("b_c")}};
   auto first_name = MangleDslxName("my_mod", "p", CallingConvention::kTypical,
                                    {"A", "B"}, ParametricEnv(first));
   auto second_name = MangleDslxName("my_mod", "p", CallingConvention::kTypical,

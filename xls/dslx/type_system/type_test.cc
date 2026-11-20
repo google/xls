@@ -32,6 +32,7 @@
 #include "xls/dslx/frontend/module.h"
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/interp_value.h"
+#include "xls/dslx/mangle.h"
 #include "xls/ir/bits.h"
 
 namespace xls::dslx {
@@ -93,7 +94,7 @@ class TestCheckedTypeReferenceData final
   }
 
   absl::StatusOr<std::string> GetSpecializationName() const override {
-    return type_->GetSpecializationName();
+    return MangleType(*type_);
   }
 
  private:
@@ -122,18 +123,16 @@ TEST(TypeTest, SpecializationNormalizesBitsRepresentationsSymmetrically) {
       TypeDim::CreateU32(8));
   EXPECT_TRUE(bits.IsSameSpecialization(constructed));
   EXPECT_TRUE(constructed.IsSameSpecialization(bits));
-  XLS_ASSERT_OK_AND_ASSIGN(std::string bits_name, bits.GetSpecializationName());
+  XLS_ASSERT_OK_AND_ASSIGN(std::string bits_name, MangleType(bits));
   XLS_ASSERT_OK_AND_ASSIGN(std::string constructed_name,
-                           constructed.GetSpecializationName());
+                           MangleType(constructed));
   EXPECT_EQ(bits_name, constructed_name);
   BitsConstructorType unsized(TypeDim::CreateBool(false));
   BitsType zero_width(false, 0);
   EXPECT_TRUE(unsized.IsSameSpecialization(zero_width));
   EXPECT_TRUE(zero_width.IsSameSpecialization(unsized));
-  XLS_ASSERT_OK_AND_ASSIGN(std::string unsized_name,
-                           unsized.GetSpecializationName());
-  XLS_ASSERT_OK_AND_ASSIGN(std::string zero_width_name,
-                           zero_width.GetSpecializationName());
+  XLS_ASSERT_OK_AND_ASSIGN(std::string unsized_name, MangleType(unsized));
+  XLS_ASSERT_OK_AND_ASSIGN(std::string zero_width_name, MangleType(zero_width));
   EXPECT_EQ(unsized_name, zero_width_name);
 }
 
@@ -150,14 +149,12 @@ TEST(TypeTest, SpecializationRetainsPhantomNominalBindingsAndClones) {
   EXPECT_EQ(first, *second);
   EXPECT_FALSE(first.IsSameSpecialization(*second));
   EXPECT_FALSE(second->IsSameSpecialization(first));
-  XLS_ASSERT_OK_AND_ASSIGN(std::string first_name,
-                           first.GetSpecializationName());
-  XLS_ASSERT_OK_AND_ASSIGN(std::string second_name,
-                           second->GetSpecializationName());
+  XLS_ASSERT_OK_AND_ASSIGN(std::string first_name, MangleType(first));
+  XLS_ASSERT_OK_AND_ASSIGN(std::string second_name, MangleType(*second));
   EXPECT_NE(first_name, second_name);
   std::unique_ptr<Type> clone = first.CloneToUnique();
   EXPECT_TRUE(first.IsSameSpecialization(*clone));
-  EXPECT_THAT(clone->GetSpecializationName(), IsOkAndHolds(first_name));
+  EXPECT_THAT(MangleType(*clone), IsOkAndHolds(first_name));
 }
 
 TEST(TypeTest, NominalArrayBindingsCompareTheirEncodedSequences) {
@@ -177,12 +174,9 @@ TEST(TypeTest, NominalArrayBindingsCompareTheirEncodedSequences) {
 
   EXPECT_FALSE(unsigned_range->IsSameSpecialization(*signed_range));
   EXPECT_TRUE(unsigned_range->IsSameSpecialization(*empty_array));
-  XLS_ASSERT_OK_AND_ASSIGN(std::string empty_name,
-                           empty_array->GetSpecializationName());
-  EXPECT_THAT(unsigned_range->GetSpecializationName(),
-              IsOkAndHolds(empty_name));
-  XLS_ASSERT_OK_AND_ASSIGN(std::string signed_name,
-                           signed_range->GetSpecializationName());
+  XLS_ASSERT_OK_AND_ASSIGN(std::string empty_name, MangleType(*empty_array));
+  EXPECT_THAT(MangleType(*unsigned_range), IsOkAndHolds(empty_name));
+  XLS_ASSERT_OK_AND_ASSIGN(std::string signed_name, MangleType(*signed_range));
   EXPECT_NE(empty_name, signed_name);
 }
 
@@ -199,7 +193,7 @@ TEST(TypeTest, NominalOversizedRangeComparisonDoesNotAbort) {
 
   EXPECT_FALSE(huge.IsSameSpecialization(*empty));
   EXPECT_TRUE(huge.IsSameSpecialization(*huge.CloneToUnique()));
-  EXPECT_FALSE(huge.GetSpecializationName().ok());
+  EXPECT_FALSE(MangleType(huge).ok());
 }
 
 TEST(TypeTest, NominalDimensionsAreDerivedFromResolvedBindings) {
@@ -239,8 +233,8 @@ TEST(TypeTest, NestedNominalSpecializationNamesGrowLinearly) {
       /*is_public=*/false);
 
   std::shared_ptr<const Type> nested = std::make_shared<BitsType>(false, 32);
-  XLS_ASSERT_OK_AND_ASSIGN(std::string name, nested->GetSpecializationName());
-  EXPECT_EQ(name, "u2_32");
+  XLS_ASSERT_OK_AND_ASSIGN(std::string name, MangleType(*nested));
+  EXPECT_EQ(name, "u32_");
   std::optional<std::string::size_type> growth_per_level;
   for (int64_t depth = 1; depth <= 12; ++depth) {
     std::string::size_type previous_size = name.size();
@@ -252,7 +246,7 @@ TEST(TypeTest, NestedNominalSpecializationNamesGrowLinearly) {
                    annotation,
                    std::make_shared<TestCheckedTypeReferenceData>(nested))}});
     nested = std::move(box);
-    XLS_ASSERT_OK_AND_ASSIGN(name, nested->GetSpecializationName());
+    XLS_ASSERT_OK_AND_ASSIGN(name, MangleType(*nested));
     std::string::size_type growth = name.size() - previous_size;
     if (!growth_per_level.has_value()) {
       growth_per_level = growth;
@@ -271,8 +265,7 @@ TEST(TypeTest, NestedNominalSpecializationNamesGrowLinearly) {
                      std::make_shared<BitsType>(false, 16)))}});
   EXPECT_FALSE(nested->IsSameSpecialization(*different));
   EXPECT_FALSE(different->IsSameSpecialization(*nested));
-  XLS_ASSERT_OK_AND_ASSIGN(std::string different_name,
-                           different->GetSpecializationName());
+  XLS_ASSERT_OK_AND_ASSIGN(std::string different_name, MangleType(*different));
   EXPECT_NE(name, different_name);
 }
 
@@ -292,10 +285,8 @@ TEST(TypeTest, SpecializationFramesNominalIdentifiers) {
   EnumType first = make_enum(first_module, "C");
   EnumType second = make_enum(second_module, "b__C");
   EXPECT_FALSE(first.IsSameSpecialization(second));
-  XLS_ASSERT_OK_AND_ASSIGN(std::string first_name,
-                           first.GetSpecializationName());
-  XLS_ASSERT_OK_AND_ASSIGN(std::string second_name,
-                           second.GetSpecializationName());
+  XLS_ASSERT_OK_AND_ASSIGN(std::string first_name, MangleType(first));
+  XLS_ASSERT_OK_AND_ASSIGN(std::string second_name, MangleType(second));
   EXPECT_NE(first_name, second_name);
 }
 

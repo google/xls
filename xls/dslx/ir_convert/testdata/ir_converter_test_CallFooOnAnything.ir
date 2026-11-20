@@ -8,7 +8,7 @@ fn __test_module__U32Wrapper__foo(self: (bits[32]) id=1) -> bits[32] {
   ret add.4: bits[32] = add(self_a, literal.3, id=4)
 }
 
-fn _0T__11_test_module_0__8_call_foo__T5_u2_32_T32_r13_test_5Fmodule10_U32Wrapper0_(value: (bits[32]) id=9) -> bits[32] {
+fn _0T__13_test_5Fmodule_0__10_call_5Ffoo__T4_u32__T32_r13_test_5Fmodule10_U32Wrapper0_(value: (bits[32]) id=9) -> bits[32] {
   ret invoke.10: bits[32] = invoke(value, to_apply=__test_module__U32Wrapper__foo, id=10)
 }
 
@@ -18,7 +18,7 @@ fn __test_module__S64Wrapper__foo(self: (bits[64]) id=5) -> bits[64] {
   ret smul.8: bits[64] = smul(self_a, self_a__1, id=8)
 }
 
-fn _0T__11_test_module_0__8_call_foo__T5_s2_64_T32_r13_test_5Fmodule10_S64Wrapper0_(value: (bits[64]) id=11) -> bits[64] {
+fn _0T__13_test_5Fmodule_0__10_call_5Ffoo__T4_s64__T32_r13_test_5Fmodule10_S64Wrapper0_(value: (bits[64]) id=11) -> bits[64] {
   ret invoke.12: bits[64] = invoke(value, to_apply=__test_module__S64Wrapper__foo, id=12)
 }
 
@@ -27,7 +27,7 @@ fn __test_module__main() -> (bits[32], bits[64]) {
   literal.16: bits[64] = literal(value=18446744073709551614, id=16)
   tuple.14: (bits[32]) = tuple(literal.13, id=14)
   tuple.17: (bits[64]) = tuple(literal.16, id=17)
-  invoke.15: bits[32] = invoke(tuple.14, to_apply=_0T__11_test_module_0__8_call_foo__T5_u2_32_T32_r13_test_5Fmodule10_U32Wrapper0_, id=15)
-  invoke.18: bits[64] = invoke(tuple.17, to_apply=_0T__11_test_module_0__8_call_foo__T5_s2_64_T32_r13_test_5Fmodule10_S64Wrapper0_, id=18)
+  invoke.15: bits[32] = invoke(tuple.14, to_apply=_0T__13_test_5Fmodule_0__10_call_5Ffoo__T4_u32__T32_r13_test_5Fmodule10_U32Wrapper0_, id=15)
+  invoke.18: bits[64] = invoke(tuple.17, to_apply=_0T__13_test_5Fmodule_0__10_call_5Ffoo__T4_s64__T32_r13_test_5Fmodule10_S64Wrapper0_, id=18)
   ret tuple.19: (bits[32], bits[64]) = tuple(invoke.15, invoke.18, id=19)
 }

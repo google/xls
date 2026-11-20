@@ -660,6 +660,18 @@ def get_benchmark_ir_cmd(ctx, src, append_cmd_line_args = True):
 def _mangled_component_frame(value):
     return "{}_{}".format(len(value), value)
 
+def _typed_identifier_frame(identifier):
+    hex_digits = "0123456789ABCDEF"
+    escaped = []
+    for c in identifier.elems():
+        if c.isalnum():
+            escaped.append(c)
+        else:
+            # Bazel's hash of a single-byte string is the byte's numeric value.
+            byte = hash(c)
+            escaped.append("_" + hex_digits[byte // 16] + hex_digits[byte % 16])
+    return _mangled_component_frame("".join(escaped))
+
 def _is_mangled_component(value, kind):
     if type(value) != "string":
         return False
@@ -713,7 +725,7 @@ def get_mangled_ir_symbol(
         For other values, pass the compiler-encoded `V<length>_<value>` string.
         In particular, s8:-1 is `V3_255`. A bare Starlark -1 lacks the DSLX bit
         width and is rejected. For `f<Z: type, A: bool>` instantiated with u32
-        and true, pass `parametric_values = (True, "T5_u2_32")`.
+        and true, pass `parametric_values = (True, "T4_u32_")`.
       is_implicit_token: A boolean flag denoting whether the symbol contains an
         implicit token. The argument is mutually exclusive with argument
         'is_proc_next'.
@@ -740,6 +752,16 @@ def get_mangled_ir_symbol(
     if is_implicit_token:
         prefix_str = "itok__"
 
+    if parametric_values and any([_is_mangled_component(v, "T") for v in parametric_values]):
+        components = [_mangled_typed_component(v) for v in parametric_values]
+        return "_0T__{}{}_{}_{}__{}".format(
+            prefix_str,
+            _typed_identifier_frame(module_name),
+            _typed_identifier_frame(scope),
+            _typed_identifier_frame(function_name),
+            "_".join(components),
+        )
+
     if scope != "":
         scope = scope + "__"
         scope = scope.replace("<", "_")
@@ -754,18 +776,6 @@ def get_mangled_ir_symbol(
     suffix = ""
 
     if parametric_values:
-        if any([_is_mangled_component(v, "T") for v in parametric_values]):
-            components = [
-                _mangled_typed_component(v)
-                for v in parametric_values
-            ]
-            return "_0T__{}{}_{}_{}__{}".format(
-                prefix_str,
-                _mangled_component_frame(module_name.replace(".", "_")),
-                _mangled_component_frame(scope),
-                _mangled_component_frame(function_name),
-                "_".join(components),
-            )
         suffix = "__" + "_".join(
             [
                 str(v)

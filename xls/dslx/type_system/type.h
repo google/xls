@@ -243,10 +243,6 @@ class Type {
   // bindings and is symmetric across equivalent bits representations.
   bool IsSameSpecialization(const Type& other) const;
 
-  // Returns a deterministic, unambiguous IR-identifier component for this
-  // concrete specialization. Unresolved or unsupported types return an error.
-  absl::StatusOr<std::string> GetSpecializationName() const;
-
   // Returns a string representation of this type.
   std::string ToString() const {
     return ToStringInternal(FullyQualify::kNo, /*file_table=*/nullptr);
