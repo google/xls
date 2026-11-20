@@ -2211,9 +2211,22 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
 
   absl::StatusOr<InterpValue> MakeCheckedTypeReference(
       const TypeAnnotation* annotation,
-      std::optional<const ParametricContext*> parametric_context) {
-    XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> type,
-                         Concretize(annotation, parametric_context));
+      std::optional<const ParametricContext*> parametric_context,
+      std::optional<const AstNode*> original_argument = std::nullopt) {
+    std::unique_ptr<Type> type;
+    if (original_argument.has_value()) {
+      // Concretizing the callee's copy would reevaluate its cloned dimensions,
+      // repeating the width calculations for every nested concatenation.
+      // Reuse the original argument only if checked in this caller context.
+      XLS_ASSIGN_OR_RETURN(TypeInfo * ti, GetTypeInfo(parametric_context));
+      auto it = ti->dict().find(*original_argument);
+      if (it != ti->dict().end() && it->second->IsMeta()) {
+        type = it->second->AsMeta().wrapped()->CloneToUnique();
+      }
+    }
+    if (type == nullptr) {
+      XLS_ASSIGN_OR_RETURN(type, Concretize(annotation, parametric_context));
+    }
     return InterpValue::MakeTypeReference(
         annotation,
         std::make_shared<CheckedTypeReferenceData>(std::move(type)));
@@ -2422,9 +2435,10 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
         XLS_RETURN_IF_ERROR(
             table_.AddTypeAnnotationToVariableForParametricContext(
                 invocation_context, binding, type));
-        XLS_ASSIGN_OR_RETURN(InterpValue type_ref,
-                             MakeCheckedTypeReference(
-                                 type, invocation_context->parent_context()));
+        XLS_ASSIGN_OR_RETURN(
+            InterpValue type_ref,
+            MakeCheckedTypeReference(type, invocation_context->parent_context(),
+                                     ToAstNode(actual_parametric_type)));
         values.emplace(binding->name_def()->identifier(), std::move(type_ref));
         continue;
       }
