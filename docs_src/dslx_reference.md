@@ -241,6 +241,12 @@ fn self_append<A: u32, B: u32 = {double(A)}>(x: bits[A]) -> bits[B] { x ++ x }
 fn main() -> bits[10] { self_append(u5:1) }
 ```
 
+Parametric bindings cannot be shadowed by another lexical binding in their scope,
+including nested blocks. For example, `const A = A % u32:4;` inside a function
+parameterized by `A` is rejected; use a distinct name such as `A_MOD` instead.
+Ordinary local bindings can still be shadowed, and unrelated functions can use
+the same parametric names.
+
 In `self_append(bits[5]:1)`, we see that `A = 5` based off of formal argument
 instantiation. Using that value, we can evaluate `B = double(A=5)`. This derived
 expression is analogous to C++'s constexpr – a simple expression that can be

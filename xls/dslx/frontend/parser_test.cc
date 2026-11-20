@@ -1282,6 +1282,105 @@ TEST_F(ParserTest, ParseLetExpressionWithShadowing) {
             std::get<NameDef*>(second_let->pattern()));
 }
 
+TEST_F(ParserTest, RejectsParametricShadowing) {
+  for (std::string_view program : {
+           "fn f<N: u32>() { const N = u32:0; }",
+           "fn f<N: u32>() { let N = u32:0; }",
+           "fn f<N: u32>() { let (x, (N,)) = (u32:0, (u32:0,)); }",
+           "fn f<N: u32>() { { let N = u32:0; }; }",
+           "fn f<N: u32>() { for (N, acc) in u32:0..4 { acc }(u32:0) }",
+           "fn f<N: u32>() { const for (i, N) in u32:0..4 { N }(u32:0) }",
+           "fn f<N: u32>() { unroll_for! (N, acc) in u32:0..4 { acc }(u32:0) }",
+           "fn f<N: u32>(N: u32) { N }",
+           "fn f<N: u32>() { |N: u32| { N } }",
+           "fn f<N: u32>() { |N| N }",
+           "fn f<N: u32>() { type N = u32; }",
+           "fn f<N: u32, M: u32 = {{ let N = u32:0; N }}>() {}",
+           "fn f<N: u32 = {{ let N = u32:0; N }}>() {}",
+       }) {
+    SCOPED_TRACE(program);
+    EXPECT_THAT(Parse(program),
+                StatusIs(absl::StatusCode::kInvalidArgument,
+                         HasSubstr("Cannot shadow parametric binding `N`")));
+  }
+}
+
+TEST_F(ParserTest, RejectsInheritedParametricShadowing) {
+  for (std::string_view program : {
+           "struct S<N: u32> {} impl S<N> { fn f(self) { let N = u32:0; } }",
+           "struct S<N: u32> {} impl S<N> { fn f(N: u32) {} }",
+           "struct S<N: u32> {} impl S<N> { fn f<N: u32>() {} }",
+           "struct S<N: u32> {} impl S<N> { fn N(self) {} }",
+           "struct S<N: u32> {} impl S<N> { const N = u32:0; }",
+           "struct S<N: u32> {} impl S<N> { type N = u32; }",
+           "proc P<N: u32> { N: u32, }",
+           "proc P<N: u32> { config(N: u32) { () } init { () } "
+           "next(state: ()) { state } }",
+           "proc P<N: u32> {} impl P<N> { fn f(self) { const N = u32:0; } }",
+       }) {
+    SCOPED_TRACE(program);
+    EXPECT_THAT(Parse(program),
+                StatusIs(absl::StatusCode::kInvalidArgument,
+                         HasSubstr("Cannot shadow parametric binding `N`")));
+  }
+}
+
+TEST_F(ParserTest, RejectsTypeParametricShadowing) {
+  for (std::string_view program : {
+           "#![feature(generics)] fn f<T: type>() { type T = u32; }",
+           "#![feature(generics)] fn f<T: type>(T: u32) {}",
+           "#![feature(generics)] struct S<T: type> {} "
+           "impl S<T> { fn f(self) { let T = u32:0; } }",
+       }) {
+    SCOPED_TRACE(program);
+    EXPECT_THAT(Parse(program),
+                StatusIs(absl::StatusCode::kInvalidArgument,
+                         HasSubstr("Cannot shadow parametric binding `T`")));
+  }
+}
+
+TEST_F(ParserTest, DuplicateParametricBinding) {
+  EXPECT_THAT(Parse("fn f<N: u32, N: u32>() {}"),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Duplicate parametric binding: `N`")));
+}
+
+TEST_F(ParserTest, ParametricShadowingDiagnostic) {
+  EXPECT_THAT(
+      Parse("fn f<N: u32>() { let N = u32:0; }").status(),
+      IsPosError("ParseError",
+                 HasSubstr("Cannot shadow parametric binding `N` defined at "
+                           "<no-file>:1:6-1:7")));
+}
+
+TEST_F(ParserTest, ParametricNamesDoNotLeakAcrossScopes) {
+  ExpectParsesSuccessfully(R"(
+fn f<N: u32>() { const N_MOD = N % u32:4; N_MOD }
+fn g<N: u32>() { N }
+fn h() { let N = u32:0; let N = N + u32:1; N }
+struct S<N: u32> { N: u32 }
+struct T<N: u32> {}
+impl T<N> { fn f(self) { N } }
+fn k() { |N: u32| { N } }
+fn match_parametric<N: u32>(x: u32) { match x { N => u32:0, _ => x } }
+)");
+}
+
+TEST(BindingsTest, ParametricBindingsFollowScope) {
+  FileTable file_table;
+  Module module("test", /*fs_path=*/std::nullopt, file_table);
+  NameDef* name_def = module.Make<NameDef>(FakeSpan(), "N", nullptr);
+  Bindings outer;
+  Bindings inner(&outer);
+  inner.AddParametricBinding(name_def);
+  Bindings nested(&inner);
+  EXPECT_EQ(nested.GetParametricBinding("N"), name_def);
+  EXPECT_EQ(outer.GetParametricBinding("N"), nullptr);
+  outer.ConsumeChild(&inner);
+  EXPECT_EQ(outer.GetParametricBinding("N"), name_def);
+  EXPECT_EQ(outer.ResolveNameOrNullopt("N"), AnyNameDef{name_def});
+}
+
 TEST_F(ParserTest, ParseBlockMultiLet) {
   const char* kProgram = R"({
     let x = f();

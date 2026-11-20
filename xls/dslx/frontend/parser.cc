@@ -291,7 +291,7 @@ void LoadParametricBindings(const StructDefBase& struct_or_proc,
                             Bindings& bindings) {
   for (const ParametricBinding* binding :
        struct_or_proc.parametric_bindings()) {
-    bindings.Add(binding->identifier(), binding->name_def());
+    bindings.AddParametricBinding(binding->name_def());
   }
 }
 
@@ -1549,6 +1549,7 @@ absl::StatusOr<TypeAlias*> Parser::ParseTypeAlias(const Pos& start_pos,
                                                   Bindings& bindings) {
   XLS_RETURN_IF_ERROR(DropKeywordOrError(Keyword::kType));
   XLS_ASSIGN_OR_RETURN(NameDef * name_def, ParseNameDefNoBind());
+  XLS_RETURN_IF_ERROR(CheckForParametricShadowing(name_def, bindings));
   XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kEquals));
   XLS_ASSIGN_OR_RETURN(TypeAnnotation * type, ParseTypeAnnotation(bindings));
   XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kSemi));
@@ -2057,8 +2058,23 @@ absl::StatusOr<NameDef*> Parser::ParseNameDefNoBind() {
 
 absl::StatusOr<NameDef*> Parser::ParseNameDef(Bindings& bindings) {
   XLS_ASSIGN_OR_RETURN(NameDef * name_def, ParseNameDefNoBind());
+  XLS_RETURN_IF_ERROR(CheckForParametricShadowing(name_def, bindings));
   bindings.Add(name_def->identifier(), name_def);
   return name_def;
+}
+
+absl::Status Parser::CheckForParametricShadowing(
+    const NameDef* name_def, const Bindings& bindings) const {
+  if (const NameDef* parametric =
+          bindings.GetParametricBinding(name_def->identifier());
+      parametric != nullptr) {
+    return ParseErrorStatus(
+        name_def->span(),
+        absl::StrFormat("Cannot shadow parametric binding `%s` defined at %s",
+                        name_def->identifier(),
+                        parametric->span().ToString(file_table())));
+  }
+  return absl::OkStatus();
 }
 
 absl::StatusOr<PatternTree> Parser::ParseNameDefPattern(Bindings& bindings) {
@@ -2591,6 +2607,7 @@ absl::StatusOr<UseTreeEntry*> Parser::ParseUseTreeEntry(Bindings& bindings) {
     // subsequent level.
     XLS_ASSIGN_OR_RETURN(NameDef * name_def, TokenToNameDef(tok));
     auto* use_tree_entry = module_->Make<UseTreeEntry>(name_def, tok.span());
+    XLS_RETURN_IF_ERROR(CheckForParametricShadowing(name_def, bindings));
     bindings.Add(name_def->identifier(), use_tree_entry);
     name_def->set_definer(use_tree_entry);
     return use_tree_entry;
@@ -2672,6 +2689,7 @@ absl::StatusOr<Import*> Parser::ParseImport(Bindings& bindings) {
     alias = name_def->identifier();
   } else {
     XLS_ASSIGN_OR_RETURN(name_def, TokenToNameDef(toks.back()));
+    XLS_RETURN_IF_ERROR(CheckForParametricShadowing(name_def, bindings));
   }
 
   if (std::optional<ModuleMember*> existing_member =
@@ -2705,6 +2723,7 @@ absl::StatusOr<Function*> Parser::ParseFunctionInternal(
   // parsed; this prevents self-references inside the signature (e.g., in
   // return type or parametric defaults).
   XLS_ASSIGN_OR_RETURN(NameDef * name_def, ParseNameDefNoBind());
+  XLS_RETURN_IF_ERROR(CheckForParametricShadowing(name_def, outer_bindings));
 
   Bindings bindings(&outer_bindings);
   bindings.NoteFunctionScoped();
@@ -4495,6 +4514,7 @@ absl::StatusOr<std::variant<EnumDef*, SumDef*>> Parser::ParseEnumDef(
   // We don't bind the enum's name until the end to prevent recursive references
   // to itself in its body.
   XLS_ASSIGN_OR_RETURN(NameDef * name_def, ParseNameDefNoBind());
+  XLS_RETURN_IF_ERROR(CheckForParametricShadowing(name_def, bindings));
 
   Bindings enum_bindings(&bindings);
 
@@ -4842,6 +4862,7 @@ absl::StatusOr<ProcMember*> Parser::ParseProcMember(
     std::optional<ChannelStrictness> strictness,
     std::optional<FlowControl> flow_control) {
   XLS_ASSIGN_OR_RETURN(NameDef * name, TokenToNameDef(identifier_tok));
+  XLS_RETURN_IF_ERROR(CheckForParametricShadowing(name, bindings));
   XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kColon, /*start=*/nullptr,
                                        "Expect type annotation on parameters"));
   XLS_ASSIGN_OR_RETURN(TypeAnnotation * type, ParseTypeAnnotation(bindings));
@@ -5260,9 +5281,18 @@ absl::StatusOr<StatementBlock*> Parser::ParseBlockExpression(Bindings& bindings,
 
 absl::StatusOr<std::vector<ParametricBinding*>> Parser::ParseParametricBindings(
     Bindings& bindings) {
+  absl::flat_hash_set<std::string> seen;
   auto parse_parametric_binding =
-      [this, &bindings]() -> absl::StatusOr<ParametricBinding*> {
-    XLS_ASSIGN_OR_RETURN(NameDef * name_def, ParseNameDef(bindings));
+      [this, &bindings, &seen]() -> absl::StatusOr<ParametricBinding*> {
+    XLS_ASSIGN_OR_RETURN(NameDef * name_def, ParseNameDefNoBind());
+    if (!seen.insert(name_def->identifier()).second) {
+      return ParseErrorStatus(
+          name_def->span(),
+          absl::StrFormat("Duplicate parametric binding: `%s`",
+                          name_def->identifier()));
+    }
+    XLS_RETURN_IF_ERROR(CheckForParametricShadowing(name_def, bindings));
+    bindings.AddParametricBinding(name_def);
     XLS_RETURN_IF_ERROR(
         DropTokenOrError(TokenKind::kColon, /*start=*/nullptr,
                          "Expect type annotation on parametric"));
@@ -5301,20 +5331,8 @@ absl::StatusOr<std::vector<ParametricBinding*>> Parser::ParseParametricBindings(
     return module_->Make<ParametricBinding>(name_def, type,
                                             default_expr_or_type);
   };
-  XLS_ASSIGN_OR_RETURN(std::vector<ParametricBinding*> parametric_bindings,
-                       ParseCommaSeq<ParametricBinding*>(
-                           parse_parametric_binding, TokenKind::kCAngle));
-  absl::flat_hash_map<std::string, ParametricBinding*> seen;
-  for (ParametricBinding* binding : parametric_bindings) {
-    if (seen.contains(binding->name_def()->identifier())) {
-      return ParseErrorStatus(
-          binding->name_def()->span(),
-          absl::StrFormat("Duplicate parametric binding: `%s`",
-                          binding->name_def()->identifier()));
-    }
-    seen[binding->name_def()->identifier()] = binding;
-  }
-  return parametric_bindings;
+  return ParseCommaSeq<ParametricBinding*>(parse_parametric_binding,
+                                           TokenKind::kCAngle);
 }
 
 absl::StatusOr<ExprOrType> Parser::ParseParametricArg(Bindings& bindings) {
