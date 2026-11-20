@@ -30,6 +30,7 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/flags/flag.h"
+#include "absl/functional/function_ref.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
@@ -61,6 +62,7 @@
 #include "xls/interpreter/block_interpreter.h"
 #include "xls/interpreter/function_interpreter.h"
 #include "xls/interpreter/random_value.h"
+#include "xls/interpreter/serial_proc_runtime.h"
 #include "xls/ir/block.h"
 #include "xls/ir/events.h"
 #include "xls/ir/function_base.h"
@@ -69,16 +71,14 @@
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
 #include "xls/ir/package.h"
+#include "xls/ir/proc.h"
 #include "xls/ir/state_element.h"
 #include "xls/ir/topo_sort.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
 #include "xls/jit/block_jit.h"
 #include "xls/jit/function_jit.h"
-#include "xls/jit/jit_channel_queue.h"
 #include "xls/jit/jit_runtime.h"
-#include "xls/jit/orc_jit.h"
-#include "xls/jit/proc_jit.h"
 #include "xls/passes/bdd_query_engine.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/optimization_pass_pipeline.h"
@@ -92,6 +92,7 @@
 #include "xls/tools/codegen.h"
 #include "xls/tools/codegen_flags.h"
 #include "xls/tools/codegen_flags.pb.h"
+#include "xls/tools/eval_proc.h"
 #include "xls/tools/schedule.h"
 #include "xls/tools/scheduling_options_flags.h"
 #include "xls/tools/scheduling_options_flags.pb.h"
@@ -456,9 +457,9 @@ absl::StatusOr<std::string> ProcInfo(Proc* p) {
   return absl::StrFormat("Total state flops: %d\n", total_flops);
 }
 
-// Invokes `f` until (approximately) at least`duration_ms` milliseconds have
+// Invokes `f` until (approximately) at least `duration_ms` milliseconds have
 // passed and returns the number of calls per second.
-absl::StatusOr<float> CountRate(const std::function<void()>& f,
+absl::StatusOr<float> CountRate(absl::FunctionRef<absl::Status()> f,
                                 int64_t duration_ms) {
   // To avoid including absl::Now() calls in the time measurement, first
   // estimate how many calls it will take for `duration_ms` milliseconds to
@@ -467,7 +468,7 @@ absl::StatusOr<float> CountRate(const std::function<void()>& f,
   int64_t call_count = 0;
   absl::Time start_estimate = absl::Now();
   while (DurationToMs(absl::Now() - start_estimate) < duration_ms / 10) {
-    f();
+    XLS_RETURN_IF_ERROR(f());
     ++call_count;
   }
 
@@ -475,7 +476,7 @@ absl::StatusOr<float> CountRate(const std::function<void()>& f,
   // run time.
   absl::Time start_actual = absl::Now();
   for (int64_t i = 0; i < call_count * 10; ++i) {
-    f();
+    XLS_RETURN_IF_ERROR(f());
   }
   int64_t elapsed_ms = DurationToMs(absl::Now() - start_actual);
   return elapsed_ms == 0 ? 0.0f : (1000.0 * call_count) / elapsed_ms;
@@ -670,25 +671,71 @@ absl::Status RunBlockInterpreterAndJit(Block* block,
   return absl::OkStatus();
 }
 
+absl::Status TickProcBatch(SerialProcRuntime& runtime, int64_t batch_ticks) {
+  for (int64_t i = 0; i < batch_ticks; ++i) {
+    absl::Status tick_status = runtime.Tick();
+    if (!tick_status.ok()) {
+      runtime.ClearInterpreterEvents();
+      DrainOutputChannels(runtime);
+      return tick_status;
+    }
+  }
+  runtime.ClearInterpreterEvents();
+  DrainOutputChannels(runtime);
+  return absl::OkStatus();
+}
+
 template <typename Rng>
 absl::Status RunProcInterpreterAndJit(Proc* proc, std::string_view description,
                                       Rng& rng_engine) {
+  constexpr int64_t kJitBatchTicks = 100;
+  constexpr int64_t kInterpreterBatchTicks = 1;
+
   absl::Time start_jit_compile = absl::Now();
-  // Technically the creation cost to get the data layout is amortized over all
-  // the procs in the elaboration.
-  XLS_ASSIGN_OR_RETURN(std::unique_ptr<OrcJit> layout_source, OrcJit::Create());
-  XLS_ASSIGN_OR_RETURN(auto data_layout, layout_source->CreateDataLayout());
-  XLS_ASSIGN_OR_RETURN(
-      std::unique_ptr<JitChannelQueueManager> queue_manager,
-      JitChannelQueueManager::CreateThreadSafe(
-          proc->package(), std::make_unique<JitRuntime>(data_layout)));
-  XLS_ASSIGN_OR_RETURN(
-      std::unique_ptr<ProcJit> jit,
-      ProcJit::Create(proc, &queue_manager->runtime(), queue_manager.get()));
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<SerialProcRuntime> jit_runtime,
+                       CreateSerialProcRuntime(proc, {.use_jit = true}));
   std::cout << absl::StreamFormat(
       "JIT compile time (%s): %dms\n", description,
       DurationToMs(absl::Now() - start_jit_compile));
-  // TODO(meheff): 2022/5/16 Run the proc as well.
+
+  XLS_RETURN_IF_ERROR(AttachRandomInputGenerators(*jit_runtime, rng_engine));
+  // `CountRate` runs `10 * call_count` batches and returns
+  // `(1000.0 * call_count) / elapsed_ms` (i.e. `batches_per_sec / 10`).
+  if (absl::StatusOr<float> jit_run_rate = CountRate(
+          [&]() { return TickProcBatch(*jit_runtime, kJitBatchTicks); },
+          kRunDurationMs);
+      jit_run_rate.ok() && *jit_run_rate > 0.0f) {
+    int64_t jit_kcalls_per_sec = std::max<int64_t>(
+        1, static_cast<int64_t>((10.0 * kJitBatchTicks * *jit_run_rate) /
+                                kJitRunMultiplier));
+    std::cout << absl::StreamFormat("JIT run time (%s): %d Kcalls/s\n",
+                                    description, jit_kcalls_per_sec);
+  } else {
+    LOG(INFO) << "Skipping JIT throughput for proc `" << proc->name() << "` ("
+              << description
+              << ") due to deadlock or assertion abort on random inputs.";
+  }
+
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<SerialProcRuntime> interpreter_runtime,
+                       CreateSerialProcRuntime(proc, {.use_jit = false}));
+  XLS_RETURN_IF_ERROR(
+      AttachRandomInputGenerators(*interpreter_runtime, rng_engine));
+  if (absl::StatusOr<float> interpreter_run_rate = CountRate(
+          [&]() {
+            return TickProcBatch(*interpreter_runtime, kInterpreterBatchTicks);
+          },
+          kRunDurationMs);
+      interpreter_run_rate.ok() && *interpreter_run_rate > 0.0f) {
+    int64_t interpreter_calls_per_sec = std::max<int64_t>(
+        1, static_cast<int64_t>(10.0 * kInterpreterBatchTicks *
+                                *interpreter_run_rate));
+    std::cout << absl::StreamFormat("Interpreter run time (%s): %d calls/s\n",
+                                    description, interpreter_calls_per_sec);
+  } else {
+    LOG(INFO) << "Skipping interpreter throughput for proc `" << proc->name()
+              << "` (" << description
+              << ") due to deadlock or assertion abort on random inputs.";
+  }
 
   return absl::OkStatus();
 }
