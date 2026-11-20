@@ -16,6 +16,7 @@ load("@llvm-project//mlir:tblgen.bzl", "gentbl_cc_library", "td_library")
 load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_cc//cc:cc_test.bzl", "cc_test")
+load("//xls/build_rules:xls_build_defs.bzl", "xls_dslx_test")
 
 package(
     default_applicable_licenses = ["//:license"],
@@ -514,6 +515,12 @@ cc_binary(
 filegroup(
     name = "stdlib",
     srcs = glob(["stdlib/*.x"]),
+)
+
+xls_dslx_test(
+    name = "fp_ext_trunc_dslx_test",
+    srcs = ["stdlib/fp_ext_trunc.x"],
+    dslx_test_args = {"compare": "jit"},
 )
 
 cc_library(
