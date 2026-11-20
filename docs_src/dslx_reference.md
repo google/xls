@@ -111,17 +111,17 @@ the language, they cannot be used as identifiers in your DSLX code.
 All identifiers, e.g., for function names, parameters, and values, follow the
 typical naming rules of other languages. The identifiers can start with a
 character or an underscore, and can then contain more characters, underscores,
-or numbers. They must not be DSLX [keywords](#dslx-keywords). Valid examples
-are:
+or numbers. They must not be DSLX [keywords](#dslx-keywords). The double
+underscore sequence (`__`) is reserved for the toolchain. Examples:
 
 ```
 a                 // valid
 CamelCase         // valid
 like_under_scores // valid
-__also_ok         // valid
 _Ok123_321        // valid
 _                 // valid
 
+user__name        // reserved for the toolchain
 2ab               // not valid
 &ade              // not valid
 ```

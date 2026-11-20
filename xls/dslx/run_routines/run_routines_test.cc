@@ -146,6 +146,25 @@ class RunRoutinesTest : public testing::TestWithParam<RunnerType> {
 
 using ParseAndTestTest = RunRoutinesTest;
 
+TEST_P(RunRoutinesTest, GenericTupleAndArraySpecializations) {
+  constexpr std::string_view kProgram = R"(
+#![feature(generics)]
+
+fn n<T: type>() -> u32 { element_count<T>() }
+
+#[test]
+fn test_tuple_and_array_element_count() {
+  assert_eq(n<(u8, u8)[3]>(), u32:3);
+  assert_eq(n<(u8, u8[3])>(), u32:2);
+}
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TestResultData result,
+      ParseAndTest(kProgram, "test", "test.x", ParseAndTestOptions{}));
+  EXPECT_THAT(result, IsTestResult(TestResult::kAllPassed, 1, 0, 0));
+}
+
 TEST_P(RunRoutinesTest, TestInvokedFunctionDoesJit) {
   constexpr const char* kProgram = R"(
 fn unit() -> () { () }
