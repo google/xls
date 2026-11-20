@@ -67,16 +67,18 @@ module ii_greater_than_one(
   assign or_1176 = out_load_en | p0_stage_done;
   assign in_load_en = in_vld & in_flop_rdy;
   always_ff @ (posedge clk) begin
+    __in_reg <= in_load_en ? in : __in_reg;
+    __in_out_reg <= in_out_load_en ? __in_reg : __in_out_reg;
+    __out_reg <= out_load_en ? __st : __out_reg;
+  end
+  always_ff @ (posedge clk) begin
     if (rst) begin
       __st <= 32'h0000_0000;
       __st_full <= 1'h1;
       __in_out_already_done_reg <= 1'h0;
       __out_already_done_reg <= 1'h0;
-      __in_reg <= 32'h0000_0000;
       __in_valid_reg <= 1'h0;
-      __in_out_reg <= 32'h0000_0000;
       __in_out_valid_reg <= 1'h0;
-      __out_reg <= 32'h0000_0000;
       __out_valid_reg <= 1'h0;
       p1_inputs_valid <= 1'h0;
     end else begin
@@ -84,11 +86,8 @@ module ii_greater_than_one(
       __st_full <= or_1170 ? p1_stage_done : __st_full;
       __in_out_already_done_reg <= or_1174 ? and_1173 : __in_out_already_done_reg;
       __out_already_done_reg <= or_1176 ? and_1175 : __out_already_done_reg;
-      __in_reg <= in_load_en ? in : __in_reg;
       __in_valid_reg <= in_flop_rdy ? in_vld : __in_valid_reg;
-      __in_out_reg <= in_out_load_en ? __in_reg : __in_out_reg;
       __in_out_valid_reg <= in_out_flop_rdy ? __in_out_vld_buf : __in_out_valid_reg;
-      __out_reg <= out_load_en ? __st : __out_reg;
       __out_valid_reg <= out_flop_rdy ? __out_vld_buf : __out_valid_reg;
       p1_inputs_valid <= or_1170 ? p0_stage_done : p1_inputs_valid;
     end

@@ -871,6 +871,107 @@ TEST_F(CollapseSelectChainsPassTest, CollapseSelectNodeChainBasic) {
           {m::Param("y"), m::Param("x0"), m::Param("x1"), m::Param("x2")}));
 }
 
+TEST_F(CollapseSelectChainsPassTest, DoesNotCollapseAcrossMultiUseInnerSelect) {
+  {
+    auto p = CreatePackage();
+    FunctionBuilder fb(TestName(), p.get());
+    BValue s = fb.Param("s", p->GetBitsType(3));
+    BValue pred0 = fb.Eq(s, fb.Literal(UBits(0, 3)));
+    BValue pred1 = fb.Eq(s, fb.Literal(UBits(1, 3)));
+    BValue pred2 = fb.Eq(s, fb.Literal(UBits(2, 3)));
+    BValue pred3 = fb.Eq(s, fb.Literal(UBits(3, 3)));
+    BValue pred4 = fb.Eq(s, fb.Literal(UBits(4, 3)));
+    BValue pred5 = fb.Eq(s, fb.Literal(UBits(5, 3)));
+    auto param = [&](std::string_view name) {
+      return fb.Param(name, p->GetBitsType(8));
+    };
+    BValue sel0 = fb.Select(pred0, param("x0"), param("y"));
+    BValue sel1 = fb.Select(pred1, param("x1"), sel0);
+    BValue sel2 = fb.Select(pred2, param("x2"), sel1);
+    BValue sel3 = fb.Select(pred3, param("x3"), sel2);
+    BValue sel4 = fb.Select(pred4, param("x4"), sel3);
+    BValue sel5 = fb.Select(pred5, param("x5"), sel4);
+    fb.Tuple({sel5, sel0});
+    XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+    ScopedVerifyEquivalence sve(f);
+    EXPECT_THAT(Run(f), IsOkAndHolds(true));
+    EXPECT_THAT(
+        f->return_value(),
+        m::Tuple(m::OneHotSelect(
+                     m::Concat(m::Eq(m::Param("s"), m::Literal(5)),
+                               m::Eq(m::Param("s"), m::Literal(4)),
+                               m::Eq(m::Param("s"), m::Literal(3)),
+                               m::Eq(m::Param("s"), m::Literal(2)),
+                               m::Eq(m::Param("s"), m::Literal(1)), m::And()),
+                     {m::Select(m::Eq(m::Param("s"), m::Literal(0)),
+                                {m::Param("y"), m::Param("x0")}),
+                      m::Param("x1"), m::Param("x2"), m::Param("x3"),
+                      m::Param("x4"), m::Param("x5")}),
+                 m::Select(m::Eq(m::Param("s"), m::Literal(0)),
+                           {m::Param("y"), m::Param("x0")})));
+    EXPECT_EQ(f->return_value()->operand(0)->As<OneHotSelect>()->get_case(0),
+              f->return_value()->operand(1));
+  }
+
+  // When a multi-use inner select splits a 6-select chain into two 3-case
+  // subchains (each <= 4 cases), neither subchain is collapsed.
+  {
+    auto p = CreatePackage();
+    FunctionBuilder fb("mid_chain_multi_use", p.get());
+    BValue s = fb.Param("s", p->GetBitsType(3));
+    BValue pred0 = fb.Eq(s, fb.Literal(UBits(0, 3)));
+    BValue pred1 = fb.Eq(s, fb.Literal(UBits(1, 3)));
+    BValue pred2 = fb.Eq(s, fb.Literal(UBits(2, 3)));
+    BValue pred3 = fb.Eq(s, fb.Literal(UBits(3, 3)));
+    BValue pred4 = fb.Eq(s, fb.Literal(UBits(4, 3)));
+    BValue pred5 = fb.Eq(s, fb.Literal(UBits(5, 3)));
+    auto param = [&](std::string_view name) {
+      return fb.Param(name, p->GetBitsType(8));
+    };
+    BValue sel0 = fb.Select(pred0, param("x0"), param("y"));
+    BValue sel1 = fb.Select(pred1, param("x1"), sel0);
+    BValue sel2 = fb.Select(pred2, param("x2"), sel1);
+    BValue sel3 = fb.Select(pred3, param("x3"), sel2);
+    BValue sel4 = fb.Select(pred4, param("x4"), sel3);
+    BValue sel5 = fb.Select(pred5, param("x5"), sel4);
+    fb.Tuple({sel5, sel2});
+    XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+    ScopedVerifyEquivalence sve(f);
+    EXPECT_THAT(Run(f), IsOkAndHolds(false));
+  }
+
+  // When both the outer subchain and the multi-use inner subchain exceed 4
+  // cases, both collapse into OneHotSelects and the outer OneHotSelect shares
+  // the collapsed inner OneHotSelect as its fallthrough default case rather
+  // than retaining a stale pointer to the dead uncollapsed inner Select chain.
+  {
+    auto p = CreatePackage();
+    FunctionBuilder fb("both_subchains_collapse", p.get());
+    BValue s = fb.Param("s", p->GetBitsType(4));
+    auto param = [&](std::string_view name) {
+      return fb.Param(name, p->GetBitsType(8));
+    };
+    BValue cur = param("y");
+    BValue inner_root;
+    for (int64_t i = 0; i < 10; ++i) {
+      BValue pred = fb.Eq(s, fb.Literal(UBits(i, 4)));
+      cur = fb.Select(pred, param(absl::StrCat("x", i)), cur);
+      if (i == 4) {
+        inner_root = cur;
+      }
+    }
+    fb.Tuple({cur, inner_root});
+    XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+    ScopedVerifyEquivalence sve(f);
+    EXPECT_THAT(Run(f), IsOkAndHolds(true));
+    ASSERT_THAT(f->return_value(),
+                m::Tuple(m::OneHotSelect(), m::OneHotSelect()));
+    OneHotSelect* outer_ohs = f->return_value()->operand(0)->As<OneHotSelect>();
+    OneHotSelect* inner_ohs = f->return_value()->operand(1)->As<OneHotSelect>();
+    EXPECT_EQ(outer_ohs->get_case(0), inner_ohs);
+  }
+}
+
 void IrFuzzCollapseSelectChains(FuzzPackageWithArgs fuzz_package_with_args) {
   CollapseSelectChainsPass pass;
   OptimizationPassChangesOutputs(std::move(fuzz_package_with_args), pass);
