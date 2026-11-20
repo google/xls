@@ -520,7 +520,8 @@ class FunctionConverter {
 
   // Makes the specified builtin available to the package.
   absl::StatusOr<BValue> DefMapWithBuiltin(const Invocation* parent_node,
-                                           NameRef* node, AstNode* arg,
+                                           std::string_view builtin_name,
+                                           BValue arg_value,
                                            const ParametricEnv& parametric_env);
 
   absl::StatusOr<BValue> HandleMap(const Invocation* node);

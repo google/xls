@@ -3184,6 +3184,13 @@ absl::StatusOr<Expr*> Parser::ParseTermRhs(Expr* lhs, Bindings& outer_bindings,
         }
       }
 
+      if (lhs->kind() == AstNodeKind::kFunctionRef) {
+        // An invocation carries one list of explicit parametrics. Reject
+        // (f<N>)<M> here to avoid silently dropping one of the lists.
+        return ParseErrorStatus(Span(parametric_start, GetPos()),
+                                "Function already has explicit parametrics.");
+      }
+
       if (!has_open_paren) {
         if (lhs->kind() == AstNodeKind::kNumber) {
           return ParseErrorStatus(Span(parametric_start, GetPos()),
@@ -3376,6 +3383,12 @@ absl::StatusOr<Expr*> Parser::BuildAssertFmtMacro(
 absl::StatusOr<Expr*> Parser::BuildMacroOrInvocation(
     const Span& span, Bindings& bindings, Expr* callee, std::vector<Expr*> args,
     std::vector<ExprOrType> parametrics) {
+  // In (f<N>)(x), the explicit parametrics are on the function reference.
+  // Move them onto the invocation so type inference uses N just as in f<N>(x).
+  if (auto* function_ref = dynamic_cast<FunctionRef*>(callee)) {
+    parametrics = function_ref->explicit_parametrics();
+    callee = function_ref->callee();
+  }
   if (auto* name_ref = dynamic_cast<NameRef*>(callee)) {
     if (auto* builtin = TryGet<BuiltinNameDef*>(name_ref->name_def())) {
       std::string name = builtin->identifier();
