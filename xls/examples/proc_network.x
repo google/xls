@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#![feature(channel_attributes)]
 #![feature(explicit_state_access)]
 #![feature(generics)]
 
@@ -86,7 +87,12 @@ impl Initiator {
     fn new(ext_in: chan<s32> in, ext_out: chan<s32> out) -> Self {
         let (c_ext, init_rcv) = chan<s32>("init_in_chans");
         let (init_snd, a_ext) = chan<s32>("init_out_chans");
-        let (a_to_b1_out, a_to_b1_in) = chan<s32>("a_to_b1");
+
+        // Register push outputs on one edge shared by both the A->B->C->A and
+        // Initiator->A->B->C->Initiator loops so ready backpressure does not
+        // form a combinational cycle.
+        let (a_to_b1_out, a_to_b1_in) = #[channel(depth=2, bypass=true, register_push_outputs=true, register_pop_outputs=false)]
+                                        chan<s32>("a_to_b1");
         let (b1_to_b2_out, b1_to_b2_in) = chan<s32>("b1_to_b2");
         let (b2_to_b3_out, b2_to_b3_in) = chan<s32>("b2_to_b3");
         let (b3_to_c_out, b3_to_c_in) = chan<s32>("b3_to_c");
