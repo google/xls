@@ -530,6 +530,18 @@ class LambdaRewriter : public AstNodeRecursiveVisitor {
       LambdaStructBindings* bindings,
       absl::flat_hash_set<const NameDef*>& parametric_nds,
       absl::flat_hash_map<const AstNode*, AstNode*>& node_replacements) {
+    if (const auto* alias =
+            dynamic_cast<const TypeAlias*>(original_nd->definer())) {
+      XLS_ASSIGN_OR_RETURN(
+          std::optional<StructOrProcRef> ref,
+          GetStructOrProcRef(&alias->type_annotation(), import_data_));
+      if (ref.has_value() && ref->def->IsParametric() &&
+          ref->parametrics.empty()) {
+        // For `type MyS = S`, each use such as `MyS<N>` instantiates S
+        // inside the lambda. Keep those uses intact and capture N as usual.
+        return absl::OkStatus();
+      }
+    }
     NameDef* lambda_struct_nd = module->Make<NameDef>(
         original_nd->span(),
         absl::Substitute("$0_ls", original_nd->identifier()),
