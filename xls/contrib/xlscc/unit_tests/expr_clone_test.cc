@@ -118,6 +118,33 @@ void CheckStmtsEq(const clang::Stmt* first, const clang::Stmt* second) {
       ASSERT_FIELDS_EQ(ExprWithCleanups, cleanupsHaveSideEffects);
       ASSERT_FIELDS_EQ(ExprWithCleanups, getObjects);
       break;
+    case clang::Stmt::OffsetOfExprClass: {
+      ASSERT_FIELDS_EQ(OffsetOfExpr, getTypeSourceInfo);
+      ASSERT_FIELDS_EQ(OffsetOfExpr, getNumComponents);
+      ASSERT_FIELDS_EQ(OffsetOfExpr, getNumExpressions);
+      const auto* first_oo = clang::cast<clang::OffsetOfExpr>(first);
+      const auto* second_oo = clang::cast<clang::OffsetOfExpr>(second);
+      for (unsigned i = 0; i < first_oo->getNumComponents(); ++i) {
+        const clang::OffsetOfNode& c1 = first_oo->getComponent(i);
+        const clang::OffsetOfNode& c2 = second_oo->getComponent(i);
+        ASSERT_EQ(c1.getKind(), c2.getKind());
+        switch (c1.getKind()) {
+          case clang::OffsetOfNode::Array:
+            ASSERT_EQ(c1.getArrayExprIndex(), c2.getArrayExprIndex());
+            break;
+          case clang::OffsetOfNode::Field:
+            ASSERT_EQ(c1.getField(), c2.getField());
+            break;
+          case clang::OffsetOfNode::Base:
+            ASSERT_EQ(c1.getBase(), c2.getBase());
+            break;
+          case clang::OffsetOfNode::Identifier:
+            ASSERT_EQ(c1.getFieldName(), c2.getFieldName());
+            break;
+        }
+      }
+      break;
+    }
     case clang::Stmt::CompoundLiteralExprClass:
     case clang::Stmt::CallExprClass:
     case clang::Stmt::ConditionalOperatorClass:
@@ -351,6 +378,21 @@ TEST_F(ExprCloneTest, CloneTemporaryExprWithCleanups) {
     };
     int foo() {
       return bar{}();
+    }
+  )");
+}
+
+TEST_F(ExprCloneTest, CloneOffsetOfExpr) {
+  CloneCheckReturnExpr("foo", R"(
+    struct Inner {
+      int vals[4];
+    };
+    struct Outer {
+      char head;
+      Inner items[3];
+    };
+    unsigned long foo(int i, int j) {
+      return __builtin_offsetof(Outer, items[i].vals[j]);
     }
   )");
 }
