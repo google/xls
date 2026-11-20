@@ -25,7 +25,13 @@ load(
     "get_transitive_built_files_for_xls",
 )
 load("//xls/build_rules:xls_config_rules.bzl", "CONFIG")
-load("//xls/build_rules:xls_dslx_common.bzl", "get_src_files_from_dslx_library_as_input", "xls_dslx_library_as_input_attrs")
+load(
+    "//xls/build_rules:xls_dslx_common.bzl",
+    "build_dslx_path",
+    "get_src_files_from_dslx_library_as_input",
+    "get_transitive_dslx_srcs_from_ctx",
+    "xls_dslx_library_as_input_attrs",
+)
 load(
     "//xls/build_rules:xls_providers.bzl",
     "DslxInfo",
@@ -108,20 +114,11 @@ def _get_dslx_prove_quickcheck_test_cmdline(ctx, src, all_srcs, append_cmd_line_
     if test_filter:
         dslx_prove_quickcheck_test_args["test_filter"] = test_filter
 
-    # With runs outside a monorepo, the execution root for the workspace of
-    # the binary can be different with the execroot, requiring to change
-    # the dslx stdlib search path accordingly.
-    # e.g., Label("@repo//pkg/xls:binary").workspace_root == "external/repo"
-    wsroot = ctx.attr._xls_dslx_prove_quickcheck_tool.label.workspace_root
-    wsroot_dslx_path = ":{}".format(wsroot) if wsroot != "" else ""
-    dslx_srcs_wsroot = ":".join([s.owner.workspace_root for s in all_srcs] +
-                                [ctx.genfiles_dir.path + "/" + s.owner.workspace_root for s in all_srcs])
-    dslx_srcs_wsroot_path = ":{}".format(dslx_srcs_wsroot) if dslx_srcs_wsroot != "" else ""
-
-    dslx_prove_quickcheck_test_args["dslx_path"] = (
-        "${PWD}:" +
-        ctx.genfiles_dir.path + ":" + ctx.bin_dir.path +
-        dslx_srcs_wsroot_path + wsroot_dslx_path
+    dslx_prove_quickcheck_test_args["dslx_path"] = build_dslx_path(
+        ctx = ctx,
+        tool_label = ctx.attr._xls_dslx_prove_quickcheck_tool.label,
+        dslx_srcs = all_srcs,
+        is_test = True,
     )
     my_args = args_to_string(dslx_prove_quickcheck_test_args)
 
@@ -264,23 +261,16 @@ def _xls_dslx_library_impl(ctx):
     dslx_srcs_str = " ".join([s.path for s in my_srcs_list])
     placeholder_file = ctx.actions.declare_file(ctx.attr.name + ".placeholder")
 
-    # With runs outside a monorepo, the execution root for the workspace of
-    # the binary can be different with the execroot, requiring to change
-    # the dslx stdlib search path accordingly.
-    # e.g., Label("@repo//pkg/xls:binary").workspace_root == "external/repo"
-    wsroot = ctx.attr._xls_dslx_parse_and_typecheck_tool.label.workspace_root
-    wsroot_dslx_path = ":{}".format(wsroot) if wsroot != "" else ""
     all_library_srcs = get_transitive_dslx_srcs_files_depset(
         my_srcs_list,
         ctx.attr.deps,
     ).to_list()
-    dslx_srcs_wsroot = ":".join(
-        [s.root.path for s in all_library_srcs if s.root.path] +
-        [s.owner.workspace_root for s in all_library_srcs] +
-        [ctx.genfiles_dir.path + "/" + s.owner.workspace_root for s in all_library_srcs] +
-        [ctx.bin_dir.path + "/" + s.owner.workspace_root for s in all_library_srcs],
+    dslx_path = build_dslx_path(
+        ctx = ctx,
+        tool_label = ctx.attr._xls_dslx_parse_and_typecheck_tool.label,
+        dslx_srcs = all_library_srcs,
+        is_test = False,
     )
-    dslx_srcs_wsroot_path = ":{}".format(dslx_srcs_wsroot) if dslx_srcs_wsroot != "" else ""
 
     direct_scoped_values = format_scoped_configured_values(
         my_srcs_list,
@@ -304,8 +294,7 @@ def _xls_dslx_library_impl(ctx):
             "if [ -n \"$FILES\" ]; then",
             "{} $FILES --dslx_path={}{}{}".format(
                 dslx_parse_and_typecheck_tool.path,
-                ":${PWD}:" + ctx.genfiles_dir.path + ":" + ctx.bin_dir.path +
-                dslx_srcs_wsroot_path + wsroot_dslx_path,
+                dslx_path,
                 " --warnings_as_errors=false" if not ctx.attr.warnings_as_errors else "",
                 configured_values_flag,
             ),
@@ -414,9 +403,10 @@ def get_dslx_prove_quickcheck_test_cmd(ctx, src_files_to_test):
         src_files_to_test,
     )
 
+    all_dslx_srcs = get_transitive_dslx_srcs_from_ctx(ctx, src_files_to_test)
     cmds = []
     for src in src_files_to_test:
-        cmds.append(_get_dslx_prove_quickcheck_test_cmdline(ctx, src, src_files_to_test))
+        cmds.append(_get_dslx_prove_quickcheck_test_cmdline(ctx, src, all_dslx_srcs))
     return runfiles, cmds
 
 def _xls_dslx_prove_quickcheck_test_impl(ctx):
@@ -567,20 +557,13 @@ def _xls_dslx_generate_cpp_type_files_impl(ctx):
 
     src = dslx_srcs[0]
 
-    # Obtain dslx path.
-    # With runs outside a monorepo, the execution root for the workspace of
-    # the binary can be different with the execroot, requiring to change
-    # the dslx stdlib search path accordingly.
-    # e.g., Label("@repo//pkg/xls:binary").workspace_root == "external/repo"
-    wsroot = ctx.attr._xls_cpp_transpiler_tool.label.workspace_root
-    wsroot_dslx_path = ":{}".format(wsroot) if wsroot != "" else ""
-
-    # Get workspaces for the source as well.
-    dslx_srcs_wsroot = ":".join([s.owner.workspace_root for s in dslx_srcs] +
-                                [ctx.genfiles_dir.path + "/" + s.owner.workspace_root for s in dslx_srcs])
-    dslx_srcs_wsroot_path = ":{}".format(dslx_srcs_wsroot) if dslx_srcs_wsroot != "" else ""
-
-    dslx_path = ":${PWD}:" + ctx.genfiles_dir.path + ":" + ctx.bin_dir.path + dslx_srcs_wsroot_path + wsroot_dslx_path
+    all_dslx_srcs = get_transitive_dslx_srcs_from_ctx(ctx, dslx_srcs)
+    dslx_path = build_dslx_path(
+        ctx = ctx,
+        tool_label = ctx.attr._xls_cpp_transpiler_tool.label,
+        dslx_srcs = all_dslx_srcs,
+        is_test = False,
+    )
 
     # Make arguments for the cpp_transpiler tool.
     # Add an extension to the directory that helps bazel classify the contents
@@ -604,7 +587,7 @@ def _xls_dslx_generate_cpp_type_files_impl(ctx):
 
     my_args.add("--output_source_path_prefix={}/{}".format(cc_source_dir.path, h_file.basename.removesuffix(_H_FILE_EXTENSION)))
     my_args.add("--output_header_path={}".format(h_file.path))
-    my_args.add("--dslx_path=={}".format(dslx_path))
+    my_args.add("--dslx_path={}".format(dslx_path))
     my_args.add_joined("--include_headers", include_header_files, join_with = ",")
 
     if ctx.attr.namespace:
@@ -687,20 +670,13 @@ def _xls_dslx_to_verilog_package_impl(ctx):
     # Check and obtain source file for conversion.
     dslx_srcs = get_src_files_from_dslx_library_as_input(ctx)
 
-    # Obtain dslx path.
-    # With runs outside a monorepo, the execution root for the workspace of
-    # the binary can be different with the execroot, requiring to change
-    # the dslx stdlib search path accordingly.
-    # e.g., Label("@repo//pkg/xls:binary").workspace_root == "external/repo"
-    wsroot = ctx.attr._xls_dslx_to_verilog_tool.label.workspace_root
-    wsroot_dslx_path = ":{}".format(wsroot) if wsroot != "" else ""
-
-    # Get workspaces for the source as well.
-    dslx_srcs_wsroot = ":".join([s.owner.workspace_root for s in dslx_srcs] +
-                                [ctx.genfiles_dir.path + "/" + s.owner.workspace_root for s in dslx_srcs])
-    dslx_srcs_wsroot_path = ":{}".format(dslx_srcs_wsroot) if dslx_srcs_wsroot != "" else ""
-
-    dslx_path = ":${PWD}:" + ctx.genfiles_dir.path + ":" + ctx.bin_dir.path + dslx_srcs_wsroot_path + wsroot_dslx_path
+    all_dslx_srcs = get_transitive_dslx_srcs_from_ctx(ctx, dslx_srcs)
+    dslx_path = build_dslx_path(
+        ctx = ctx,
+        tool_label = ctx.attr._xls_dslx_to_verilog_tool.label,
+        dslx_srcs = all_dslx_srcs,
+        is_test = False,
+    )
 
     # Make arguments for the dslx_to_verilog translator.
     sv_file = ctx.outputs.package_file
@@ -716,7 +692,7 @@ def _xls_dslx_to_verilog_package_impl(ctx):
     for src in dslx_srcs:
         my_args.add(src.path)
 
-    my_args.add("--dslx_path=={}".format(dslx_path))
+    my_args.add("--dslx_path={}".format(dslx_path))
     my_args.add("--output_file={}".format(sv_file.path))
 
     if lint_waivers:

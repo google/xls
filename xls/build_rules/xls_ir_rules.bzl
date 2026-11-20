@@ -39,6 +39,7 @@ load(
 )
 load(
     "//xls/build_rules:xls_dslx_common.bzl",
+    "build_dslx_path",
     "get_src_files_from_dslx",
     "get_src_files_from_dslx_library_as_input",
     "xls_dslx_library_as_input_attrs",
@@ -135,7 +136,7 @@ def get_xls_ir_opt_ir_generated_files(args):
     """
     return [args.get("opt_ir_file")]
 
-def _convert_to_ir(ctx, src, dslx_top = None, ir_file = None, ir_conv_args = None):
+def _convert_to_ir(ctx, src, dslx_top = None, ir_file = None, ir_conv_args = None, all_dslx_srcs = None):
     """Returns the runfiles and a File referencing the converted IR file.
 
     Creates an action in the context to convert a DSLX source file to an
@@ -147,6 +148,7 @@ def _convert_to_ir(ctx, src, dslx_top = None, ir_file = None, ir_conv_args = Non
       dslx_top: Optional override for the top-level DSLX function name.
       ir_file: Optional output File object for the converted IR file.
       ir_conv_args: Optional override dictionary for IR converter arguments.
+      all_dslx_srcs: Optional list of all transitive DSLX source Files.
     Returns:
       A tuple with the following elements in the order presented:
         1. The runfiles to convert the IR file.
@@ -168,28 +170,15 @@ def _convert_to_ir(ctx, src, dslx_top = None, ir_file = None, ir_conv_args = Non
         "force_implicit_token_calling_convention",
     )
 
-    # With runs outside a monorepo, the execution root for the workspace of
-    # the binary can be different with the execroot, requiring to change
-    # the dslx stdlib search path accordingly.
-    # e.g., Label("@repo//pkg/xls:binary").workspace_root == "external/repo"
-    wsroot = ctx.attr._xls_ir_converter_tool.label.workspace_root
-    wsroot_dslx_path = ":{}".format(wsroot) if wsroot != "" else ""
-
-    # Get workspaces for the source as well.
-    dslx_srcs = [src]
-    dslx_srcs_wsroot = ":".join(
-        [s.root.path for s in dslx_srcs if s.root.path] +
-        [s.owner.workspace_root for s in dslx_srcs] +
-        [ctx.genfiles_dir.path + "/" + s.owner.workspace_root for s in dslx_srcs] +
-        [ctx.bin_dir.path + "/" + s.owner.workspace_root for s in dslx_srcs],
-    )
-    dslx_srcs_wsroot_path = ":{}".format(dslx_srcs_wsroot) if dslx_srcs_wsroot != "" else ""
+    dslx_srcs = all_dslx_srcs if all_dslx_srcs != None else [src]
 
     ir_conv_args = dict(ir_conv_args if ir_conv_args != None else ctx.attr.ir_conv_args)
-    ir_conv_args["dslx_path"] = (
-        ir_conv_args.get("dslx_path", "") + ":${PWD}:" +
-        ctx.genfiles_dir.path + ":" + ctx.bin_dir.path +
-        dslx_srcs_wsroot_path + wsroot_dslx_path
+    ir_conv_args["dslx_path"] = build_dslx_path(
+        ctx = ctx,
+        tool_label = ctx.attr._xls_ir_converter_tool.label,
+        dslx_srcs = dslx_srcs,
+        user_dslx_path = ir_conv_args.get("dslx_path", ""),
+        is_test = False,
     )
 
     is_args_valid(ir_conv_args, IR_CONV_FLAGS)
@@ -526,31 +515,13 @@ def get_eval_ir_test_cmd(ctx, src, append_cmd_line_args = True):
         "trace_zstd_window_log",
     )
 
-    # With runs outside a monorepo, the execution root for the workspace of
-    # the binary can be different with the execroot, requiring to change
-    # the dslx stdlib search path accordingly.
-    # e.g., Label("@repo//pkg/xls:binary").workspace_root == "external/repo"
-    wsroot = ctx.attr._xls_ir_eval_tool.label.workspace_root
-    wsroot_dslx_path = ":{}".format(wsroot) if wsroot != "" else ""
-
-    # Get workspaces for the source as well.
-    dslx_srcs = [src.ir_file]
-    dslx_srcs_wsroot = ":".join([s.owner.workspace_root for s in dslx_srcs] +
-                                [ctx.genfiles_dir.path + "/" + s.owner.workspace_root for s in dslx_srcs])
-    dslx_srcs_wsroot_path = ":{}".format(dslx_srcs_wsroot) if dslx_srcs_wsroot != "" else ""
-
     ir_eval_args = append_default_to_args(
         ctx.attr.ir_eval_args,
         _DEFAULT_IR_EVAL_TEST_ARGS,
     )
 
-    ir_eval_args["dslx_path"] = (
-        ir_eval_args.get("dslx_path", "") + ":${PWD}:" +
-        ctx.genfiles_dir.path + ":" + ctx.bin_dir.path +
-        dslx_srcs_wsroot_path + wsroot_dslx_path
-    )
-
     my_runfiles = []
+    dslx_srcs = [src.ir_file]
 
     is_args_valid(ir_eval_args, IR_EVAL_FLAGS)
     if ctx.attr.input_validator:
@@ -562,10 +533,20 @@ def get_eval_ir_test_cmd(ctx, src, append_cmd_line_args = True):
             )
         dslx_source_file = src_files[0]
         ir_eval_args["input_validator_path"] = dslx_source_file.short_path
+        validator_srcs = validator_info.dslx_source_files.to_list()
         my_runfiles.append(dslx_source_file)
-        my_runfiles = my_runfiles + validator_info.dslx_source_files.to_list()
+        my_runfiles = my_runfiles + validator_srcs
+        dslx_srcs = dslx_srcs + validator_srcs
     elif ctx.attr.input_validator_expr:
         ir_eval_args["input_validator_expr"] = "\"" + ctx.attr.input_validator_expr + "\""
+
+    ir_eval_args["dslx_path"] = build_dslx_path(
+        ctx = ctx,
+        tool_label = ctx.attr._xls_ir_eval_tool.label,
+        dslx_srcs = dslx_srcs,
+        user_dslx_path = ir_eval_args.get("dslx_path", ""),
+        is_test = True,
+    )
     if ctx.attr.top:
         ir_eval_args.setdefault("top", ctx.attr.top)
     my_args = args_to_string(ir_eval_args)
@@ -833,14 +814,6 @@ def xls_dslx_ir_impl(
 
     src = dslx_srcs[0]
 
-    runfiles, ir_file, interface_proto = _convert_to_ir(
-        ctx,
-        src,
-        dslx_top = dslx_top,
-        ir_file = ir_file,
-        ir_conv_args = ir_conv_args,
-    )
-
     if library != None or srcs != None or deps != None:
         dslx_info = get_DslxInfo_from_dslx(
             library = library,
@@ -850,6 +823,15 @@ def xls_dslx_ir_impl(
         )
     else:
         dslx_info = get_DslxInfo_from_dslx_library_as_input(ctx)
+
+    runfiles, ir_file, interface_proto = _convert_to_ir(
+        ctx,
+        src,
+        dslx_top = dslx_top,
+        ir_file = ir_file,
+        ir_conv_args = ir_conv_args,
+        all_dslx_srcs = dslx_info.dslx_source_files.to_list(),
+    )
     return [
         IrFileInfo(ir_file = ir_file),
         dslx_info,

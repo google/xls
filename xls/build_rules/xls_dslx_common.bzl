@@ -85,3 +85,85 @@ def get_src_files_from_dslx_library_as_input(ctx):
         srcs = ctx.files.srcs,
         deps = ctx.attr.deps,
     )
+
+def get_transitive_dslx_srcs_from_ctx(ctx, extra_srcs = []):
+    """Returns all transitive DSLX source files reachable from ctx.
+
+    Args:
+      ctx: The current rule's context object.
+      extra_srcs: Optional list of additional Files to include.
+
+    Returns:
+      A list of transitive DSLX source Files.
+    """
+    depsets = []
+    if getattr(ctx.attr, "library", None) and DslxInfo in ctx.attr.library:
+        depsets.append(ctx.attr.library[DslxInfo].dslx_source_files)
+    if getattr(ctx.attr, "dep", None) and DslxInfo in ctx.attr.dep:
+        depsets.append(ctx.attr.dep[DslxInfo].dslx_source_files)
+    for dep in getattr(ctx.attr, "deps", []):
+        if DslxInfo in dep:
+            depsets.append(dep[DslxInfo].dslx_source_files)
+    return depset(direct = list(extra_srcs), transitive = depsets).to_list()
+
+def build_dslx_path(
+        ctx,
+        tool_label,
+        dslx_srcs,
+        user_dslx_path = "",
+        is_test = False):
+    """Builds a colon-separated --dslx_path value for DSLX tools and tests.
+
+    Args:
+      ctx: The current rule's context object (uses genfiles_dir and bin_dir).
+      tool_label: Label of the XLS tool target being invoked (used to locate
+        the XLS repository root for the DSLX standard library when XLS is an
+        external repository).
+      dslx_srcs: Sequence of DSLX source Files (direct and transitive) whose
+        workspaces and output roots should be searchable.
+      user_dslx_path: Optional user-provided colon-separated search path prefix.
+      is_test: True when building a command line for a test shell wrapper
+        (runs in $TEST_SRCDIR/<main_repo>, where external repos live at
+        ../<workspace_name>); False for build actions (runs in execroot, where
+        external repos live at external/<workspace_name>).
+
+    Returns:
+      A colon-separated search path string suitable for --dslx_path.
+    """
+    entries = []
+    seen = {}
+
+    def _add(path):
+        if path and path not in seen:
+            seen[path] = True
+            entries.append(path)
+
+    if user_dslx_path:
+        for part in user_dslx_path.split(":"):
+            _add(part)
+
+    _add("${PWD}" if is_test else ".")
+    _add(ctx.genfiles_dir.path)
+    _add(ctx.bin_dir.path)
+
+    for src in dslx_srcs:
+        if src.root.path:
+            _add(src.root.path)
+        owner = src.owner
+        if owner:
+            if is_test and owner.workspace_name:
+                _add("../" + owner.workspace_name)
+            if owner.workspace_root:
+                _add(owner.workspace_root)
+                if src.root.path:
+                    _add(src.root.path + "/" + owner.workspace_root)
+                _add(ctx.genfiles_dir.path + "/" + owner.workspace_root)
+                _add(ctx.bin_dir.path + "/" + owner.workspace_root)
+
+    if tool_label:
+        if is_test and tool_label.workspace_name:
+            _add("../" + tool_label.workspace_name)
+        if tool_label.workspace_root:
+            _add(tool_label.workspace_root)
+
+    return ":".join(entries)

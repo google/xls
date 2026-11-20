@@ -49,6 +49,7 @@ load(
     xls_ir_verilog_native_rule = "xls_ir_verilog",
     xls_ir_wrapper_native_rule = "xls_ir_wrapper",
 )
+load("//xls/build_rules/tests:dslx_path_test.bzl", "dslx_path_test_suite")
 load(
     "//xls/build_rules/tests:test_build_defs.bzl",
     "codegen_args_proto",
@@ -1106,3 +1107,5 @@ bzl_library(
     srcs = ["test_build_defs.bzl"],
     visibility = ["//visibility:private"],
 )
+
+dslx_path_test_suite(name = "dslx_path_test")

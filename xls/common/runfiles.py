@@ -23,10 +23,19 @@ _BASE_PATH = 'com_google_xls'
 
 
 def get_path(relpath: str, *, repository: str = _BASE_PATH) -> str:
+  """Returns the resolved filesystem path for a runfile under `repository`."""
   path = os.path.join(repository, relpath)
   r = runfiles.Create()
-  runfile_path = r.Rlocation(path)
-  if not os.path.exists(runfile_path):
+  if r is None:
+    raise FileNotFoundError(
+        f'Cannot initialize runfiles for {relpath} (repository: {repository})'
+    )
+  try:
+    source_repo = r.CurrentRepository()
+  except ValueError:
+    source_repo = None
+  runfile_path = r.Rlocation(path, source_repo=source_repo)
+  if not runfile_path or not os.path.exists(runfile_path):
     raise FileNotFoundError(
         f'Cannot find runfile {relpath} (repository: {repository})'
     )

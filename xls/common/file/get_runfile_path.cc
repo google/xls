@@ -69,7 +69,8 @@ absl::StatusOr<Runfiles*> GetRunfiles(
     }
 
     std::string error;
-    runfiles = Runfiles::Create(path.string(), &error);
+    runfiles =
+        Runfiles::Create(path.string(), BAZEL_CURRENT_REPOSITORY, &error);
     if (runfiles == nullptr) {
       return absl::UnknownError(
           absl::StrCat("Failed to initialize Runfiles: ", error));

@@ -25,7 +25,13 @@ load(
     "get_transitive_built_files_for_xls",
     "is_args_valid",
 )
-load("//xls/build_rules:xls_dslx_common.bzl", "get_src_files_from_dslx_library_as_input", "xls_dslx_library_as_input_attrs")
+load(
+    "//xls/build_rules:xls_dslx_common.bzl",
+    "build_dslx_path",
+    "get_src_files_from_dslx_library_as_input",
+    "get_transitive_dslx_srcs_from_ctx",
+    "xls_dslx_library_as_input_attrs",
+)
 load(
     "//xls/build_rules:xls_toolchains.bzl",
     "xls_toolchain_attrs",
@@ -83,9 +89,10 @@ def get_dslx_test_cmd(ctx, src_files_to_test):
         src_files_to_test,
     )
 
+    all_dslx_srcs = get_transitive_dslx_srcs_from_ctx(ctx, src_files_to_test)
     cmds = []
     for src in src_files_to_test:
-        cmds.append(_get_dslx_test_cmdline(ctx, src, src_files_to_test))
+        cmds.append(_get_dslx_test_cmdline(ctx, src, all_dslx_srcs))
     return runfiles, cmds
 
 def _get_dslx_test_cmdline(ctx, src, all_srcs, append_cmd_line_args = True):
@@ -125,24 +132,12 @@ def _get_dslx_test_cmdline(ctx, src, all_srcs, append_cmd_line_args = True):
 
     dslx_test_args = dict(_dslx_test_args)
 
-    # With runs outside a monorepo, the execution root for the workspace of
-    # the binary can be different with the execroot, requiring to change
-    # the dslx stdlib search path accordingly.
-    # e.g., Label("@repo//pkg/xls:binary").workspace_root == "external/repo"
-    wsroot = ctx.attr._xls_dslx_interpreter_tool.label.workspace_root
-    wsroot_dslx_path = ":{}".format(wsroot) if wsroot != "" else ""
-    dslx_srcs_wsroot = ":".join(
-        [s.root.path for s in all_srcs if s.root.path] +
-        [s.owner.workspace_root for s in all_srcs] +
-        [ctx.genfiles_dir.path + "/" + s.owner.workspace_root for s in all_srcs] +
-        [ctx.bin_dir.path + "/" + s.owner.workspace_root for s in all_srcs],
-    )
-    dslx_srcs_wsroot_path = ":{}".format(dslx_srcs_wsroot) if dslx_srcs_wsroot != "" else ""
-
-    dslx_test_args["dslx_path"] = (
-        dslx_test_args.get("dslx_path", "") + ":${PWD}:" +
-        ctx.genfiles_dir.path + ":" + ctx.bin_dir.path +
-        dslx_srcs_wsroot_path + wsroot_dslx_path
+    dslx_test_args["dslx_path"] = build_dslx_path(
+        ctx = ctx,
+        tool_label = ctx.attr._xls_dslx_interpreter_tool.label,
+        dslx_srcs = all_srcs,
+        user_dslx_path = dslx_test_args.get("dslx_path", ""),
+        is_test = True,
     )
     all_configured_values = collect_dslx_configured_values(ctx)
     if all_configured_values:
