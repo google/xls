@@ -18,6 +18,8 @@
 #include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <optional>
+#include <tuple>
 #include <type_traits>
 #include <utility>
 #include <vector>
@@ -84,10 +86,10 @@ FoldingGraph::FoldingGraph(
   std::sort(foldable_actions.begin(), foldable_actions.end(),
             [](const std::unique_ptr<BinaryFoldingAction>& a,
                const std::unique_ptr<BinaryFoldingAction>& b) {
-              if (a->GetFrom()->id() == b->GetFrom()->id()) {
-                return a->GetTo()->id() < b->GetTo()->id();
-              }
-              return a->GetFrom()->id() < b->GetFrom()->id();
+              return std::make_tuple(a->GetFrom()->id(), a->GetTo()->id(),
+                                     a->GetFromPartId(), a->GetToPartId()) <
+                     std::make_tuple(b->GetFrom()->id(), b->GetTo()->id(),
+                                     b->GetFromPartId(), b->GetToPartId());
             });
 
   // Add the nodes
@@ -116,8 +118,8 @@ FoldingGraph::FoldingGraph(
       for (EdgeIndex edge_index : graph_->OutgoingArcs(node_index)) {
         NodeIndex to_node_index = graph_->Head(edge_index);
         Node* to_node = nodes_[to_node_index];
-        CHECK_EQ(edges_[edge_index]->GetFrom(), from_node);
-        CHECK_EQ(edges_[edge_index]->GetTo(), to_node);
+        CHECK_EQ(edges_[edge_index]->GetFromOrPart(), from_node);
+        CHECK_EQ(edges_[edge_index]->GetToOrPart(), to_node);
         VLOG(2) << "      -> [" << to_node_index << "] " << to_node->ToString();
       }
     }
@@ -134,8 +136,8 @@ FoldingGraph::FoldingGraph(
         CHECK_EQ(graph_->Head(edge_index), node_index);
         NodeIndex from_node_index = graph_->Tail(edge_index);
         Node* from_node = nodes_[from_node_index];
-        CHECK_EQ(edges_[edge_index]->GetFrom(), from_node);
-        CHECK_EQ(edges_[edge_index]->GetTo(), to_node);
+        CHECK_EQ(edges_[edge_index]->GetFromOrPart(), from_node);
+        CHECK_EQ(edges_[edge_index]->GetToOrPart(), to_node);
         VLOG(2) << "      <- [" << from_node_index << "] "
                 << from_node->ToString();
       }
@@ -153,8 +155,8 @@ void FoldingGraph::AddNodes(
   for (const std::unique_ptr<BinaryFoldingAction>& f : foldable_actions) {
     // Add the nodes to our internal representation if they were not added
     // already
-    Node* from_node = f->GetFrom();
-    Node* to_node = f->GetTo();
+    Node* from_node = f->GetFromOrPart();
+    Node* to_node = f->GetToOrPart();
     if (!already_added.contains(from_node)) {
       already_added.insert(from_node);
       nodes_.push_back(from_node);
@@ -182,8 +184,8 @@ void FoldingGraph::AddEdges(
   // Add all edges to the graph
   for (std::unique_ptr<BinaryFoldingAction>& f : foldable_actions) {
     // Add a new edge into the graph to represent the current folding action
-    NodeIndex from_index = node_to_index_.at(f->GetFrom());
-    NodeIndex to_index = node_to_index_.at(f->GetTo());
+    NodeIndex from_index = node_to_index_.at(f->GetFromOrPart());
+    NodeIndex to_index = node_to_index_.at(f->GetToOrPart());
     CHECK(graph_->IsNodeValid(from_index));
     CHECK(graph_->IsNodeValid(to_index));
     graph_->AddArc(from_index, to_index);
@@ -228,8 +230,8 @@ FoldingGraph::GetConnectedComponents() {
     cc.AddNode(i);
   }
   for (const auto& edge : edges_) {
-    cc.AddEdge(node_to_index_.at(edge->GetFrom()),
-               node_to_index_.at(edge->GetTo()));
+    cc.AddEdge(node_to_index_.at(edge->GetFromOrPart()),
+               node_to_index_.at(edge->GetToOrPart()));
   }
 
   // Find the connected components
@@ -367,6 +369,27 @@ absl::StatusOr<std::unique_ptr<NaryFoldingAction>> NaryFoldingAction::Clone(
   const BinaryFoldingAction::VisibilityEdges& original_to_edges =
       other.GetToVisibilityEdges();
 
+  absl::flat_hash_map<Node*, Node*> extended_node_to_clone =
+      original_node_to_clone;
+  absl::flat_hash_map<const EquivalenceMapping*,
+                      std::shared_ptr<EquivalenceMapping>>
+      cloned_decomp_mappings;
+  auto clone_composition =
+      [&](const CompositionPart& comp) -> absl::StatusOr<CompositionPart> {
+    extended_node_to_clone.try_emplace(comp.part, comp.part);
+    std::shared_ptr<EquivalenceMapping>& shared_cloned =
+        cloned_decomp_mappings[comp.mapping.get()];
+    if (shared_cloned == nullptr) {
+      XLS_ASSIGN_OR_RETURN(std::unique_ptr<EquivalenceMapping> cloned_mapping,
+                           comp.mapping->Clone(extended_node_to_clone));
+      shared_cloned = std::move(cloned_mapping);
+    }
+    return CompositionPart{
+        .mapping = shared_cloned,
+        .part = comp.part,
+    };
+  };
+
   // Fetch the clones of the Node instances referenced by @other.
   std::vector<NaryFoldingAction::NodeVisibility> clone_froms;
   for (const NaryFoldingAction::NodeVisibility& original_from :
@@ -400,10 +423,16 @@ absl::StatusOr<std::unique_ptr<NaryFoldingAction>> NaryFoldingAction::Clone(
       XLS_RET_CHECK(sink_it != original_node_to_clone.end());
       clone_sinks.insert(sink_it->second);
     }
+    std::optional<CompositionPart> clone_from_composition;
+    if (original_from.composition.has_value()) {
+      XLS_ASSIGN_OR_RETURN(clone_from_composition,
+                           clone_composition(*original_from.composition));
+    }
     clone_froms.push_back(NaryFoldingAction::NodeVisibility{
         .node = clone_from,
         .edges = std::move(clone_visibility_edges),
-        .sinks = std::move(clone_sinks)});
+        .sinks = std::move(clone_sinks),
+        .composition = std::move(clone_from_composition)});
   }
   auto it = original_node_to_clone.find(other.GetTo());
   if (it == original_node_to_clone.end()) {
@@ -430,29 +459,38 @@ absl::StatusOr<std::unique_ptr<NaryFoldingAction>> NaryFoldingAction::Clone(
     clone_to_edges.insert({clone_operand, clone_node});
   }
 
+  std::optional<CompositionPart> clone_to_composition;
+  if (other.to_composition().has_value()) {
+    XLS_ASSIGN_OR_RETURN(clone_to_composition,
+                         clone_composition(*other.to_composition()));
+  }
+
   absl::flat_hash_map<Node*, std::unique_ptr<EquivalenceMapping>>
       clone_mappings;
   for (const auto& [orig_node, mapping] : other.mappings()) {
-    auto it = original_node_to_clone.find(orig_node);
-    XLS_RET_CHECK(it != original_node_to_clone.end())
+    auto it = extended_node_to_clone.find(orig_node);
+    XLS_RET_CHECK(it != extended_node_to_clone.end())
         << "Mapped node " << orig_node->ToString()
         << " not found in original_node_to_clone map";
     XLS_ASSIGN_OR_RETURN(std::unique_ptr<EquivalenceMapping> cloned_mapping,
-                         mapping->Clone(original_node_to_clone));
+                         mapping->Clone(extended_node_to_clone));
     clone_mappings[it->second] = std::move(cloned_mapping);
   }
 
   // Create the cloned object
   auto clone_action = std::make_unique<NaryFoldingAction>(
       std::move(clone_froms), clone_to, std::move(clone_to_edges),
-      other.area_saved(), std::move(clone_mappings));
+      other.area_saved(), std::move(clone_mappings),
+      std::move(clone_to_composition));
 
   return clone_action;
 }
 
-bool WouldCommittingFoldingActionCreateDataCycle(
+absl::StatusOr<bool> WouldCommittingFoldingActionCreateDataCycle(
     const NodeForwardDependencyAnalysis& nda, const BinaryFoldingAction& fold) {
   const FunctionBase* f = nda.bound_function();
+  XLS_RET_CHECK_EQ(fold.GetFrom()->operand_count(),
+                   fold.GetTo()->operand_count());
   for (int64_t op_id = 0; op_id < fold.GetTo()->operand_count(); ++op_id) {
     Node* from_op = fold.GetFrom()->operand(op_id);
     Node* to_op = fold.GetTo()->operand(op_id);
