@@ -360,9 +360,11 @@ class InterpValue {
     virtual ~TypeReferenceData() = default;
     // Defines a symmetric equivalence relation on concrete specializations.
     virtual bool IsSameSpecialization(const TypeReferenceData& other) const = 0;
-    // Returns a deterministic name for this specialization. Equivalent
-    // specializations must either both fail or return identical names.
-    // Distinct specializations must have distinct successful names.
+    // Returns exactly one complete type (T) in the MangleType grammar in
+    // mangle.cc. The mangler embeds it directly in a nominal binding, so the
+    // grammar must determine where the encoded type ends.
+    // Equivalent specializations must either both fail or return identical
+    // names. Distinct specializations must have distinct successful names.
     // Environment hashing and IR symbol naming rely on this contract.
     virtual absl::StatusOr<std::string> GetSpecializationName() const = 0;
   };

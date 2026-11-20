@@ -181,10 +181,13 @@ absl::StatusOr<std::vector<SpecializationPart>> DescribeSpecialization(
     parts = {SpecializationKind::kSum, DescribeNominal(sum->nominal_type()),
              sum->variant_count()};
     for (const SumTypeVariant& variant : sum->variants()) {
-      parts.emplace_back(variant.is_unit() ? SpecializationKind::kUnitVariant
-                         : variant.is_tuple()
-                             ? SpecializationKind::kTupleVariant
-                             : SpecializationKind::kStructVariant);
+      if (variant.is_unit()) {
+        parts.emplace_back(SpecializationKind::kUnitVariant);
+      } else if (variant.is_tuple()) {
+        parts.emplace_back(SpecializationKind::kTupleVariant);
+      } else {
+        parts.emplace_back(SpecializationKind::kStructVariant);
+      }
       parts.emplace_back(variant.size());
       for (int64_t i = 0; i < variant.size(); ++i) {
         parts.emplace_back(&variant.GetMemberType(i));

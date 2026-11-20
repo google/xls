@@ -14,14 +14,19 @@
 
 #![feature(generics)]
 
-fn typed_identity<T: type>(value: T) -> T { value }
+struct Box<T: type> { value: T }
+
+impl Box<T> {
+    fn unbox(self) -> T { self.value }
+}
 
 fn typed_values<Z: type, A: bool, B: s8>(value: Z) -> Z {
     if A && B == s8:-1 { value } else { value }
 }
 
 fn typed_entry(value: u32) -> u32 {
-    let value = typed_identity(value);
+    let boxed = Box { value };
+    let value = boxed.unbox();
     let value = typed_values<u32, true, s8:-1>(value);
     typed_values<u32, false, s8:-1>(value)
 }

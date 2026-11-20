@@ -178,6 +178,16 @@ TEST(TypeTest, NominalArrayBindingsCompareTheirEncodedSequences) {
   EXPECT_THAT(MangleType(*unsigned_range), IsOkAndHolds(empty_name));
   XLS_ASSERT_OK_AND_ASSIGN(std::string signed_name, MangleType(*signed_range));
   EXPECT_NE(empty_name, signed_name);
+
+  const InterpValue one = InterpValue::MakeU8(1);
+  const InterpValue two = InterpValue::MakeU8(2);
+  auto ascending = bind(InterpValue::MakeArray({one, two}).value());
+  auto descending = bind(InterpValue::MakeArray({two, one}).value());
+  EXPECT_FALSE(ascending->IsSameSpecialization(*descending));
+  XLS_ASSERT_OK_AND_ASSIGN(std::string ascending_name, MangleType(*ascending));
+  XLS_ASSERT_OK_AND_ASSIGN(std::string descending_name,
+                           MangleType(*descending));
+  EXPECT_NE(ascending_name, descending_name);
 }
 
 TEST(TypeTest, NominalOversizedRangeComparisonDoesNotAbort) {

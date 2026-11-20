@@ -154,20 +154,20 @@ TEST(MangleTest, TypeNamesEncodeDimensionsAndChildrenDirectly) {
 class TypedMangleTest : public ::testing::Test {
  protected:
   InterpValue TypeReference(std::string name) {
-    auto* annotation = module.Make<BuiltinTypeAnnotation>(
+    auto* annotation = module_.Make<BuiltinTypeAnnotation>(
         Span::Fake(), BuiltinType::kU32,
-        module.GetOrCreateBuiltinNameDef(BuiltinType::kU32));
+        module_.GetOrCreateBuiltinNameDef(BuiltinType::kU32));
     return InterpValue::MakeTypeReference(
         annotation, std::make_shared<TestTypeReferenceData>(std::move(name)));
   }
 
-  FileTable file_table;
-  Module module{"my_mod", /*fs_path=*/std::nullopt, file_table};
+  FileTable file_table_;
+  Module module_{"my_mod", /*fs_path=*/std::nullopt, file_table_};
 };
 
 TEST_F(TypedMangleTest, NominalNameFramesIdentifiersAndSortsBindings) {
-  auto* def = module.Make<StructDef>(
-      Span::Fake(), module.Make<NameDef>(Span::Fake(), "S", nullptr),
+  auto* def = module_.Make<StructDef>(
+      Span::Fake(), module_.Make<NameDef>(Span::Fake(), "S", nullptr),
       std::vector<ParametricBinding*>{}, std::vector<StructMemberNode*>{},
       /*is_public=*/false);
   StructType type({}, *def);
@@ -214,10 +214,10 @@ TEST_F(TypedMangleTest, TypeArgumentsUseFramedCompilerEncoding) {
   EXPECT_THAT(mixed_name,
               IsOkAndHolds("_0T__8_my_5Fmod_0__1_p__T3_a_b_V3_255"));
 
-  auto* enum_name = module.Make<NameDef>(Span::Fake(), "E", nullptr);
+  auto* enum_name = module_.Make<NameDef>(Span::Fake(), "E", nullptr);
   auto* enum_def =
-      module.Make<EnumDef>(Span::Fake(), enum_name,
-                           /*type=*/nullptr, std::vector<EnumMember>{}, false);
+      module_.Make<EnumDef>(Span::Fake(), enum_name,
+                            /*type=*/nullptr, std::vector<EnumMember>{}, false);
   equivalent[1].second = InterpValue::MakeEnum(
       InterpValue::MakeU8(255).GetBitsOrDie(), /*is_signed=*/false, enum_def);
   EXPECT_EQ(ParametricEnv(mixed), ParametricEnv(equivalent));

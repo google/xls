@@ -406,15 +406,16 @@ xls_dslx_ir(
     dslx_top = "typed_entry",
 )
 
-# The helper receives the compiler's framed checked-type component for u32.
+# The scope comes from the impl declaration, while T is bound to u32.
 xls_eval_ir_test(
     name = "typed_symbol_eval_ir_test",
     ir_eval_args = {"random_inputs": "1", "optimize_ir": "false"},
     src = ":typed_symbol_ir",
     top = get_mangled_ir_symbol(
         "typed_symbol",
-        "typed_identity",
+        "unbox",
         parametric_values = ("T4_u32_",),
+        scope = "Box<T>",
     ),
 )
 
