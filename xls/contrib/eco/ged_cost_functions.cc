@@ -17,6 +17,8 @@
 #include <cstdint>
 
 #include "absl/log/log.h"
+#include "xls/contrib/eco/ged.h"
+#include "xls/contrib/eco/graph.h"
 
 namespace {
 

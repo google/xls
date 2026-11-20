@@ -34,7 +34,6 @@
 #include "xls/ir/package.h"
 #include "xls/scheduling/pipeline_schedule.h"
 #include "xls/scheduling/pipeline_schedule.pb.h"
-#include "xls/scheduling/scheduling_options.h"
 
 ABSL_FLAG(std::string, input_ir_path, "",
           "Path to the IR file to patch.");

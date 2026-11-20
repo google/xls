@@ -20,6 +20,8 @@
 #include <vector>
 
 #include "gtest/gtest.h"
+#include "xls/contrib/eco/graph.h"
+#include "xls/ir/op.h"
 
 namespace mcs {
 namespace {

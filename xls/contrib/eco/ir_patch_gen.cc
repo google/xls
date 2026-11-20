@@ -20,6 +20,7 @@
 #include "xls/contrib/eco/graph.h"
 #include "xls/contrib/eco/ir_patch.pb.h"
 #include "xls/ir/op.h"
+#include "xls/visualization/ir_viz/visualization.pb.h"
 
 namespace {
 

@@ -35,7 +35,6 @@
 #include "xls/ir/package.h"
 #include "xls/ir/type.h"
 #include "xls/ir/xls_type.pb.h"
-#include "xls/ir/xls_value.pb.h"
 #include "xls/scheduling/pipeline_schedule.h"
 
 namespace xls {
@@ -83,7 +82,7 @@ class PatchIr {
   Package* package_;
   std::optional<PipelineSchedule> schedule_;
   absl::flat_hash_map<Node*, std::vector<Node*>> dummy_nodes_map_;
-  absl::flat_hash_map<std::pair<Node*, uint>, uint>
+  absl::flat_hash_map<std::pair<Node*, int64_t>, int64_t>
       commutative_edge_index_map_;
   // Tracks available slots (dummy operands) on commutative nodes.
   absl::flat_hash_map<Node*, int64_t> commutative_free_slots_;

@@ -30,6 +30,7 @@
 #include "absl/log/log.h"
 #include "absl/time/time.h"
 #include "xls/common/stopwatch.h"
+#include "xls/contrib/eco/graph.h"
 
 // Maximum Common Subgraph search based on the RRSplit paper:
 //   Kaiqiang Yu, Kaixin Wang, Cheng Long, Laks Lakshmanan, and Reynold Cheng.

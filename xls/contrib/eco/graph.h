@@ -71,8 +71,8 @@ struct XLSNode {
   std::size_t signature = 0;
   std::vector<std::size_t> incoming_labels;
   std::vector<std::size_t> outgoing_labels;
-  XLSNode(const std::string& node_name,
-          const NodeCostAttributes& cost_attrs = {});
+  explicit XLSNode(const std::string& node_name,
+                   const NodeCostAttributes& cost_attrs = {});
 };
 
 struct XLSEdge {

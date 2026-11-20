@@ -47,12 +47,13 @@
 #include "xls/ir/value.h"
 #include "xls/ir/value_utils.h"
 #include "xls/ir/xls_type.pb.h"
-#include "xls/ir/xls_value.pb.h"
 #include "xls/scheduling/pipeline_schedule.h"
+#include "xls/scheduling/pipeline_schedule.pb.h"
 #include "xls/scheduling/run_pipeline_schedule.h"
 #include "xls/scheduling/scheduling_options.h"
 #include "xls/tools/codegen_flags.h"
 #include "xls/tools/scheduling_options_flags.h"
+#include "xls/tools/scheduling_options_flags.pb.h"
 
 namespace xls {
 
@@ -720,7 +721,7 @@ absl::Status PatchIr::ApplyInsertPath(
           ? function_base_->GetNode(patch_to_ir_node_map_[patch_edge.to_node()])
           : function_base_->GetNode(patch_edge.to_node()));
   const bool is_commutative = OpIsCommutative(to_node->op());
-  uint position = patch_edge.index();
+  int64_t position = patch_edge.index();
   if (!is_commutative) {
     auto map_it =
         commutative_edge_index_map_.find({to_node, patch_edge.index()});
@@ -746,7 +747,7 @@ absl::Status PatchIr::ApplyInsertPath(
           std::find(dummy_nodes_map_[to_node].begin(),
                     dummy_nodes_map_[to_node].end(), existing_operand);
       if (it_dummy != dummy_nodes_map_[to_node].end()) {
-        position = static_cast<uint>(i);
+        position = i;
         found_dummy = true;
         break;
       }
@@ -757,7 +758,7 @@ absl::Status PatchIr::ApplyInsertPath(
           " but none were found; free_slots=", free_slots));
     }
   } else {
-    while (position < to_node->operands().size()) {
+    while (position < to_node->operand_count()) {
       Node* existing_operand = to_node->operands()[position];
       auto it_dummy =
           std::find(dummy_nodes_map_[to_node].begin(),
@@ -776,7 +777,7 @@ absl::Status PatchIr::ApplyInsertPath(
     }
   }
   Node* node_to_remove = nullptr;
-  if (position < to_node->operands().size()) {
+  if (position < to_node->operand_count()) {
     node_to_remove = to_node->operands()[position];
   }
 

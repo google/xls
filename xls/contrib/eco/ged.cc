@@ -15,12 +15,16 @@
 #include "xls/contrib/eco/ged.h"
 
 #include <algorithm>
+#include <cstddef>
+#include <cstdint>
+#include <functional>
 
 #include "absl/algorithm/container.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/log.h"
 #include "absl/time/time.h"
 #include "xls/common/stopwatch.h"
+#include "xls/contrib/eco/graph.h"
 #include "xls/contrib/eco/lap_solver.h"
 
 /* Algorithm based on:
@@ -334,7 +338,9 @@ MatchEdgesResult MatchEdges(int u, int v, const std::vector<int>& pending_g,
           }
         }
       }
-      if (include) g_ind.push_back(i);
+      if (include) {
+        g_ind.push_back(i);
+      }
     }
 
     for (int j = 0; j < N; ++j) {
@@ -403,9 +409,13 @@ MatchEdgesResult MatchEdges(int u, int v, const std::vector<int>& pending_g,
           }
         }
       }
-      if (allowed) continue;
+      if (allowed) {
+        continue;
+      }
 
-      if ((u != -1 && g_src == u && g_dst == u)) continue;
+      if (u != -1 && g_src == u && g_dst == u) {
+        continue;
+      }
       {
         bool g_self_matched = false;
         for (const auto& pq : matched_uv) {
@@ -415,10 +425,14 @@ MatchEdgesResult MatchEdges(int u, int v, const std::vector<int>& pending_g,
             break;
           }
         }
-        if (g_self_matched) continue;
+        if (g_self_matched) {
+          continue;
+        }
       }
 
-      if ((v != -1 && h_src == v && h_dst == v)) continue;
+      if (v != -1 && h_src == v && h_dst == v) {
+        continue;
+      }
       {
         bool h_self_matched = false;
         for (const auto& pq : matched_uv) {
@@ -428,7 +442,9 @@ MatchEdgesResult MatchEdges(int u, int v, const std::vector<int>& pending_g,
             break;
           }
         }
-        if (h_self_matched) continue;
+        if (h_self_matched) {
+          continue;
+        }
       }
 
       C.Set(k, l, RawCostMatrix::INF);
@@ -443,7 +459,9 @@ MatchEdgesResult MatchEdges(int u, int v, const std::vector<int>& pending_g,
   for (size_t t = 0; t < localCe.lsa_row_ind.size(); ++t) {
     int k = localCe.lsa_row_ind[t];
     int l = localCe.lsa_col_ind[t];
-    if (!(k < m || l < n)) continue;
+    if (!(k < m || l < n)) {
+      continue;
+    }
 
     int left = (k < m) ? g_ind[k] : (M + h_ind[l]);
     int right = (l < n) ? h_ind[l] : (N + g_ind[k]);

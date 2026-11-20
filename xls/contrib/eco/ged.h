@@ -16,6 +16,7 @@
 #define XLS_ECO_GED_H_
 
 #include <climits>
+#include <cstdint>
 #include <functional>
 #include <limits>
 #include <utility>
@@ -135,7 +136,7 @@ struct GEDResult {
   int total_cost = INT_MAX;
 };
 
-GEDResult SolveGED(const XLSGraph& graph1, const XLSGraph& graph2,
+GEDResult SolveGED(const XLSGraph& G1, const XLSGraph& G2,
                    const GEDOptions& options);
 
 }  // namespace ged

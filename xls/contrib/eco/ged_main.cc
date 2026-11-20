@@ -22,6 +22,7 @@
 #include <iostream>
 #include <sstream>
 #include <string>
+#include <system_error>
 #include <vector>
 
 #include "absl/flags/flag.h"
@@ -36,6 +37,8 @@
 #include "xls/common/stopwatch.h"
 #include "xls/contrib/eco/ged.h"
 #include "xls/contrib/eco/ged_cost_functions.h"
+#include "xls/contrib/eco/graph.h"
+#include "xls/contrib/eco/ir_patch.pb.h"
 #include "xls/contrib/eco/ir_patch_gen.h"
 #include "xls/contrib/eco/mcs.h"
 #include "xls/contrib/eco/xls_ir_to_graph.h"
