@@ -13,3 +13,8 @@
 # limitations under the License.
 
 # Required to make this a package.
+
+exports_files([
+    "bundled.BUILD.bazel",
+    "skip_makefile.patch",
+])

@@ -1271,7 +1271,7 @@
     },
     "//dependency_support/z3:extension.bzl%z3_extension": {
       "general": {
-        "bzlTransitiveDigest": "lNs9XjpYtDen4RMrzi4fp3k7OhTTUrigrusmop6b2Qo=",
+        "bzlTransitiveDigest": "M9yETzMg6TF5m8PV5FJiI4NHPLlouwsKBl4cJGiwfnM=",
         "usagesDigest": "GQ/QfxkeWdFqa9bJ7YsP+/HdfMRc82BJCfYGpX4byiI=",
         "recordedFileInputs": {},
         "recordedDirentsInputs": {},
@@ -1285,7 +1285,13 @@
               ],
               "integrity": "sha256-gaAsLGTGTWw98jP1kYa5VieZCtoMTC/JAcnCWnByZyo=",
               "strip_prefix": "z3-z3-4.14.1",
-              "build_file": "@@//dependency_support/z3:bundled.BUILD.bazel"
+              "build_file": "@@//dependency_support/z3:bundled.BUILD.bazel",
+              "patches": [
+                "@@//dependency_support/z3:skip_makefile.patch"
+              ],
+              "patch_args": [
+                "-p1"
+              ]
             }
           }
         },

@@ -24,6 +24,10 @@ def _z3_extension_impl(
         integrity = "sha256-gaAsLGTGTWw98jP1kYa5VieZCtoMTC/JAcnCWnByZyo=",
         strip_prefix = "z3-z3-4.14.1",
         build_file = Label("//dependency_support/z3:bundled.BUILD.bazel"),
+        patches = [
+            Label("//dependency_support/z3:skip_makefile.patch"),
+        ],
+        patch_args = ["-p1"],
     )
 
 z3_extension = module_extension(

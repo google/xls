@@ -1,0 +1,10 @@
+diff --git a/scripts/mk_make.py b/scripts/mk_make.py
+--- a/scripts/mk_make.py
++++ b/scripts/mk_make.py
+@@ -16,6 +16,3 @@ API_files = init_project_def()
+ update_version()
+ mk_auto_src()
+ mk_bindings(API_files)
+-mk_vs_proj('z3', ['shell'])
+-mk_vs_proj_dll('libz3', ['api_dll'])
+-mk_makefile()
