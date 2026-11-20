@@ -1546,7 +1546,7 @@ selector bits are mutually exclusive and collapses them into a single
     function in reverse topological order (`ReverseTopoSort`) to build chains
     of `bits`-typed select operations (`IsChainableSelect`, sorted by root
     node ID in ascending order) where the fall-through branch of one select
-    feeds into another:
+    feeds into a single-use inner select:
     *   **Binary `sel`**: Either a 2-case `sel` without a default (where
         `case[1]` is the selected value when `selector == 1` and `case[0]` is
         the fall-through) or a 1-case `sel` with a 1-bit selector and a

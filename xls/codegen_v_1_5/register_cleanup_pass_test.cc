@@ -31,6 +31,7 @@
 #include "xls/ir/register.h"
 #include "xls/ir/scheduled_builder.h"
 #include "xls/ir/source_location.h"
+#include "xls/ir/value.h"
 #include "xls/passes/pass_base.h"
 
 namespace m = xls::op_matchers;
@@ -75,6 +76,24 @@ TEST_F(RegisterCleanupPassTest, AssertConditionFromPriorStage) {
   XLS_ASSERT_OK(Run(p.get()).status());
   XLS_ASSERT_OK_AND_ASSIGN(Node * assert0, sb->GetNode("assert0"));
   EXPECT_THAT(assert0->operands()[1], Not(m::Literal()));
+}
+
+TEST_F(RegisterCleanupPassTest, RemoveImpossibleWritesReturnsChanged) {
+  auto p = CreatePackage();
+  BlockBuilder bb(TestName(), p.get());
+  XLS_ASSERT_OK(bb.block()->AddClockPort("clk"));
+  BValue rst = bb.ResetPort(
+      "rst", ResetBehavior{.asynchronous = false, .active_low = false});
+  BValue x = bb.InputPort("x", p->GetBitsType(8));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Register * reg, bb.block()->AddRegister("reg_zero", p->GetBitsType(8),
+                                              Value(UBits(0, 8))));
+  bb.RegisterWrite(reg, x, bb.Literal(UBits(0, 1)), rst);
+  bb.OutputPort("out", bb.RegisterRead(reg));
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block, bb.Build());
+
+  EXPECT_THAT(Run(p.get()), absl_testing::IsOkAndHolds(true));
+  EXPECT_TRUE(block->GetRegisters().empty());
 }
 
 }  // namespace
