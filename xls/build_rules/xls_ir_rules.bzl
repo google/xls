@@ -732,7 +732,10 @@ def get_mangled_ir_symbol(
       is_proc_next: A boolean flag denoting whether the symbol is a
         next proc function. The argument is mutually exclusive with arguments:
         'parametric_values' and 'is_implicit_token'.
-      scope: The scope of the function.
+      scope: For a method, pass the impl target as printed by DSLX, including
+        the parameter names and a space after each comma. For example, methods
+        in `impl Pair<T, U>` use `scope = "Pair<T, U>"` for every specialization.
+        Leave the scope empty for a free function.
 
     Returns:
       The "mangled" symbol string.
