@@ -56,6 +56,7 @@
 #include "clang/include/clang/AST/Attr.h"
 #include "clang/include/clang/AST/AttrIterator.h"
 #include "clang/include/clang/AST/Attrs.inc"
+#include "clang/include/clang/AST/CharUnits.h"
 #include "clang/include/clang/AST/Decl.h"
 #include "clang/include/clang/AST/DeclCXX.h"
 #include "clang/include/clang/AST/DeclTemplate.h"
@@ -63,6 +64,7 @@
 #include "clang/include/clang/AST/ExprCXX.h"
 #include "clang/include/clang/AST/Mangle.h"
 #include "clang/include/clang/AST/OperationKinds.h"
+#include "clang/include/clang/AST/RecordLayout.h"
 #include "clang/include/clang/AST/Stmt.h"
 #include "clang/include/clang/AST/TemplateBase.h"
 #include "clang/include/clang/AST/TypeBase.h"
@@ -5568,6 +5570,9 @@ absl::StatusOr<CValue> Translator::GenerateIR_Expr(const clang::Expr* expr,
 
     return CreateInitListValue(ctype, init_list, loc);
   }
+  if (auto* offsetof_expr = clang::dyn_cast<const clang::OffsetOfExpr>(expr)) {
+    return GenerateIR_OffsetOfExpr(offsetof_expr, loc);
+  }
   expr->dump();
   return absl::UnimplementedError(ErrorMessage(
       loc, "Unimplemented expression %s", expr->getStmtClassName()));
@@ -5721,6 +5726,153 @@ absl::StatusOr<CValue> Translator::GenerateIR_MemberExpr(
   XLSCC_CHECK(type_contains_lval || bval.valid(), loc);
 
   return CValue(bval, cfield.type(), /*disable_type_check=*/false, lval);
+}
+
+absl::StatusOr<CValue> Translator::GenerateIR_OffsetOfExpr(
+    const clang::OffsetOfExpr* expr, const xls::SourceInfo& loc) {
+  XLSCC_CHECK_NE(expr, nullptr, loc);
+  XLSCC_CHECK_NE(context().ast_context, nullptr, loc);
+  const clang::ASTContext& ast_context = *context().ast_context;
+
+  XLS_ASSIGN_OR_RETURN(std::shared_ptr<CType> result_type,
+                       TranslateTypeFromClang(expr->getType(), loc));
+  if (!result_type->Is<CIntType>()) {
+    return absl::UnimplementedError(
+        ErrorMessage(loc, "Unsupported OffsetOfExpr result type %s",
+                     std::string(*result_type)));
+  }
+  const int64_t result_width = result_type->GetBitWidth();
+  XLSCC_CHECK_EQ(result_width, 64, loc);
+  XLSCC_CHECK(!result_type->As<CIntType>()->is_signed(), loc);
+
+  const unsigned num_components = expr->getNumComponents();
+  if (num_components == 0 || expr->getTypeSourceInfo() == nullptr) {
+    return absl::InvalidArgumentError(
+        ErrorMessage(loc, "OffsetOfExpr has no components or base type"));
+  }
+
+  auto make_offset_literal = [&](uint64_t value) -> TrackedBValue {
+    return context().fb->Literal(xls::UBits(value, result_width), loc);
+  };
+
+  clang::QualType current_type = expr->getTypeSourceInfo()->getType();
+  uint64_t static_offset_bytes = 0;
+  std::optional<TrackedBValue> dynamic_offset;
+
+  for (unsigned i = 0; i < num_components; ++i) {
+    const clang::OffsetOfNode& comp = expr->getComponent(i);
+    switch (comp.getKind()) {
+      case clang::OffsetOfNode::Field: {
+        const clang::FieldDecl* member_decl = comp.getField();
+        XLSCC_CHECK_NE(member_decl, nullptr, loc);
+        const clang::RecordDecl* record_decl = current_type->getAsRecordDecl();
+        if (record_decl != nullptr) {
+          record_decl = record_decl->getDefinition();
+        }
+        if (record_decl == nullptr || record_decl->isInvalidDecl() ||
+            !record_decl->isCompleteDefinition()) {
+          return absl::InvalidArgumentError(ErrorMessage(
+              loc,
+              "OffsetOfExpr field access on incomplete or non-record type"));
+        }
+        const clang::ASTRecordLayout& layout =
+            ast_context.getASTRecordLayout(record_decl);
+        const unsigned field_idx = member_decl->getFieldIndex();
+        XLSCC_CHECK_LT(field_idx, layout.getFieldCount(), loc);
+        const uint64_t bit_offset = layout.getFieldOffset(field_idx);
+        if (bit_offset % ast_context.getCharWidth() != 0) {
+          return absl::UnimplementedError(ErrorMessage(
+              loc, "OffsetOfExpr on non-byte-aligned field '%s' is unsupported",
+              member_decl->getNameAsString()));
+        }
+        static_offset_bytes += static_cast<uint64_t>(
+            ast_context.toCharUnitsFromBits(bit_offset).getQuantity());
+        current_type = member_decl->getType().getNonReferenceType();
+        break;
+      }
+      case clang::OffsetOfNode::Base: {
+        const clang::CXXBaseSpecifier* base_spec = comp.getBase();
+        XLSCC_CHECK_NE(base_spec, nullptr, loc);
+        if (base_spec->isVirtual()) {
+          return absl::UnimplementedError(
+              ErrorMessage(loc, "Virtual base in OffsetOfExpr is unsupported"));
+        }
+        const clang::CXXRecordDecl* record_decl =
+            current_type->getAsCXXRecordDecl();
+        if (record_decl != nullptr) {
+          record_decl = record_decl->getDefinition();
+        }
+        if (record_decl == nullptr || record_decl->isInvalidDecl() ||
+            !record_decl->isCompleteDefinition()) {
+          return absl::InvalidArgumentError(ErrorMessage(
+              loc,
+              "OffsetOfExpr base access on incomplete or non-record type"));
+        }
+        const clang::ASTRecordLayout& layout =
+            ast_context.getASTRecordLayout(record_decl);
+        current_type = base_spec->getType();
+        const clang::CXXRecordDecl* base_rd =
+            current_type->getAsCXXRecordDecl();
+        if (base_rd != nullptr) {
+          base_rd = base_rd->getDefinition();
+        }
+        if (base_rd == nullptr || base_rd->isInvalidDecl()) {
+          return absl::InvalidArgumentError(
+              ErrorMessage(loc, "OffsetOfExpr has invalid base class"));
+        }
+        static_offset_bytes += static_cast<uint64_t>(
+            layout.getBaseClassOffset(base_rd).getQuantity());
+        break;
+      }
+      case clang::OffsetOfNode::Array: {
+        const clang::ArrayType* arr_type =
+            ast_context.getAsArrayType(current_type);
+        if (arr_type == nullptr ||
+            clang::isa<clang::VariableArrayType>(arr_type)) {
+          return absl::UnimplementedError(
+              ErrorMessage(loc, "Unsupported array type in OffsetOfExpr"));
+        }
+        current_type = arr_type->getElementType();
+        const int64_t elem_size_bytes =
+            ast_context.getTypeSizeInChars(current_type).getQuantity();
+
+        const clang::Expr* idx_expr =
+            expr->getIndexExpr(comp.getArrayExprIndex());
+        XLSCC_CHECK_NE(idx_expr, nullptr, loc);
+        XLS_ASSIGN_OR_RETURN(CValue idx_cval, GenerateIR_Expr(idx_expr, loc));
+        if (idx_cval.type()->Is<CReferenceType>()) {
+          XLSCC_CHECK_NE(idx_cval.lvalue(), nullptr, loc);
+          XLS_ASSIGN_OR_RETURN(idx_cval,
+                               GenerateIR_Expr(idx_cval.lvalue(), loc));
+        }
+        XLS_ASSIGN_OR_RETURN(TrackedBValue idx_bval,
+                             GenTypeConvert(idx_cval, result_type, loc));
+        TrackedBValue elem_size_bval =
+            make_offset_literal(static_cast<uint64_t>(elem_size_bytes));
+        TrackedBValue term = context().fb->UMul(idx_bval, elem_size_bval, loc);
+        if (dynamic_offset.has_value()) {
+          dynamic_offset = context().fb->Add(*dynamic_offset, term, loc);
+        } else {
+          dynamic_offset = term;
+        }
+        break;
+      }
+      case clang::OffsetOfNode::Identifier: {
+        return absl::UnimplementedError(ErrorMessage(
+            loc, "Dependent OffsetOfExpr identifier is unsupported"));
+      }
+    }
+  }
+
+  if (!dynamic_offset.has_value()) {
+    return CValue(make_offset_literal(static_offset_bytes), result_type);
+  }
+  if (static_offset_bytes == 0) {
+    return CValue(*dynamic_offset, result_type);
+  }
+  TrackedBValue total_offset = context().fb->Add(
+      make_offset_literal(static_offset_bytes), *dynamic_offset, loc);
+  return CValue(total_offset, result_type);
 }
 
 absl::StatusOr<TrackedBValue> Translator::CreateDefaultValue(
