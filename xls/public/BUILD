@@ -349,7 +349,10 @@ cc_library(
         "//xls/ir:value",
         "//xls/ir:verifier",
         "//xls/jit:aot_entrypoint",
+        "//xls/jit:aot_entrypoint_cc_proto",
         "//xls/jit:function_jit",
+        "//xls/jit:jit_callbacks",
+        "//xls/jit:jit_runtime",
         "//xls/jit:llvm_type_converter",
         "//xls/jit:orc_jit",
         "//xls/solvers:z3_ir_translator",
@@ -363,7 +366,6 @@ cc_library(
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings:str_format",
         "@abseil-cpp//absl/types:span",
-        "@llvm-project//llvm:Support",
         "@llvm-project//llvm:ir_headers",
     ],
 )

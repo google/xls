@@ -18,7 +18,6 @@
 #include <memory>
 #include <optional>
 #include <string>
-#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -29,7 +28,6 @@
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
 #include "llvm/include/llvm/IR/DataLayout.h"
-#include "llvm/include/llvm/Support/Error.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/interpreter/evaluator_options.h"
@@ -105,18 +103,13 @@ absl::StatusOr<std::unique_ptr<FunctionJit>> FunctionJit::Create(
 // function.
 /* static */ absl::StatusOr<std::unique_ptr<FunctionJit>>
 FunctionJit::CreateFromAot(const AotEntrypointProto& entrypoint,
-                           std::string_view data_layout,
+                           const TargetLayoutInfo& target_layout,
                            JitFunctionType function_unpacked,
                            std::optional<JitFunctionType> function_packed,
                            const EvaluatorOptions& options) {
   XLS_ASSIGN_OR_RETURN(JittedFunctionBase jfb,
                        JittedFunctionBase::BuildFromAot(
                            entrypoint, function_unpacked, function_packed));
-  llvm::Expected<llvm::DataLayout> layout =
-      llvm::DataLayout::parse(data_layout);
-  XLS_RET_CHECK(layout) << "Unable to parse '" << data_layout
-                        << "' to an llvm data-layout.";
-
   XLS_ASSIGN_OR_RETURN(InterfaceMetadata metadata,
                        InterfaceMetadata::CreateFromAotEntrypoint(entrypoint));
 
@@ -127,7 +120,8 @@ FunctionJit::CreateFromAot(const AotEntrypointProto& entrypoint,
   // around some extra .so's isn't a huge deal.
   return std::unique_ptr<FunctionJit>(new FunctionJit(
       std::move(metadata), std::unique_ptr<OrcJit>(nullptr), std::move(jfb),
-      /*has_observer_callbacks=*/false, std::make_unique<JitRuntime>(*layout)));
+      /*has_observer_callbacks=*/false,
+      std::make_unique<JitRuntime>(target_layout)));
 }
 
 absl::StatusOr<JitObjectCode> FunctionJit::CreateObjectCode(
@@ -136,6 +130,8 @@ absl::StatusOr<JitObjectCode> FunctionJit::CreateObjectCode(
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<AotCompiler> comp,
                        AotCompiler::Create(jit_options));
   XLS_ASSIGN_OR_RETURN(llvm::DataLayout data_layout, comp->CreateDataLayout());
+  TargetLayoutInfo target_layout =
+      TargetLayoutInfo::FromDataLayout(data_layout, *comp->GetContext());
   XLS_ASSIGN_OR_RETURN(JittedFunctionBase jfb,
                        JittedFunctionBase::Build(xls_function, *comp, options,
                                                  jit_options.symbol_salt()));
@@ -148,7 +144,8 @@ absl::StatusOr<JitObjectCode> FunctionJit::CreateObjectCode(
                                    .jit_info = std::move(jfb),
                                },
                            },
-                       .data_layout = data_layout};
+                       .data_layout = data_layout,
+                       .target_layout = target_layout};
 }
 
 absl::StatusOr<std::unique_ptr<FunctionJit>> FunctionJit::CreateInternal(
@@ -160,6 +157,8 @@ absl::StatusOr<std::unique_ptr<FunctionJit>> FunctionJit::CreateInternal(
                                       jit_options.jit_observer()));
   XLS_ASSIGN_OR_RETURN(llvm::DataLayout data_layout,
                        orc_jit->CreateDataLayout());
+  TargetLayoutInfo target_layout =
+      TargetLayoutInfo::FromDataLayout(data_layout, *orc_jit->GetContext());
   EvaluatorOptions eval_options = options;
   eval_options.set_support_observers(jit_options.include_observer_callbacks());
   XLS_ASSIGN_OR_RETURN(
@@ -172,7 +171,7 @@ absl::StatusOr<std::unique_ptr<FunctionJit>> FunctionJit::CreateInternal(
   return std::unique_ptr<FunctionJit>(new FunctionJit(
       std::move(metadata), std::move(orc_jit), std::move(function_base),
       jit_options.include_observer_callbacks(),
-      std::make_unique<JitRuntime>(data_layout)));
+      std::make_unique<JitRuntime>(target_layout)));
 }
 
 absl::StatusOr<InterpreterResult<Value>> FunctionJit::Run(
