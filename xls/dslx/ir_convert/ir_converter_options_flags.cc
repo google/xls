@@ -52,12 +52,15 @@ ABSL_FLAG(
 
 ABSL_RETIRED_FLAG(bool, emit_fail_as_assert, true,
                   "Use --emit_assert instead.");
-ABSL_FLAG(bool, emit_assert, true,
+ABSL_FLAG(bool, emit_assert,
+          xls::IrConverterOptionsFlagsProto::default_instance().emit_assert(),
           "Feature flag for emitting fail!() and assert!() in the DSL as an "
           "assert IR op.");
-ABSL_FLAG(bool, emit_trace, true,
+ABSL_FLAG(bool, emit_trace,
+          xls::IrConverterOptionsFlagsProto::default_instance().emit_trace(),
           "Feature flag for emitting trace!() in the DSL as a trace IR op.");
-ABSL_FLAG(bool, emit_cover, true,
+ABSL_FLAG(bool, emit_cover,
+          xls::IrConverterOptionsFlagsProto::default_instance().emit_cover(),
           "Feature flag for emitting cover!() in the DSL as a cover IR op.");
 ABSL_FLAG(
     std::optional<std::string>, emit_auto_cover, std::nullopt,
@@ -66,9 +69,11 @@ ABSL_FLAG(
     "--emit_cover is enabled). Supported values: "
     "\"branch\" (a cover IR op for each if/else branch and match arm). e.g. "
     "--emit_auto_cover=branch");
-ABSL_FLAG(bool, convert_tests, false,
+ABSL_FLAG(bool, convert_tests,
+          xls::IrConverterOptionsFlagsProto::default_instance().convert_tests(),
           "Feature flag for emitting test procs/functions to IR.");
-ABSL_FLAG(bool, verify, true,
+ABSL_FLAG(bool, verify,
+          xls::IrConverterOptionsFlagsProto::default_instance().verify(),
           "If true, verifies the generated IR for correctness.");
 
 ABSL_FLAG(std::optional<std::string>, disable_warnings, std::nullopt,
@@ -77,8 +82,10 @@ ABSL_FLAG(std::optional<std::string>, disable_warnings, std::nullopt,
 ABSL_FLAG(std::optional<std::string>, enable_warnings, std::nullopt,
           "Comma-delimited list of warnings to enable -- this is only useful "
           "if/when some warnings are disabled in the default warning set");
-ABSL_FLAG(bool, warnings_as_errors, true,
-          "Whether to fail early, as an error, if warnings are detected");
+ABSL_FLAG(
+    bool, warnings_as_errors,
+    xls::IrConverterOptionsFlagsProto::default_instance().warnings_as_errors(),
+    "Whether to fail early, as an error, if warnings are detected");
 ABSL_FLAG(std::optional<std::string>, interface_proto_file, std::nullopt,
           "File to store a xls.PackageInterfaceProto containing extern type "
           "information and interface specs");
@@ -92,21 +99,28 @@ ABSL_FLAG(std::optional<std::string>, default_fifo_config, std::nullopt,
           "no default FIFO config is specified and codegen may fail.");
 ABSL_RETIRED_FLAG(bool, proc_scoped_channels, false,
                   "Deprecated. Use lower_to_proc_scoped_channels instead.");
-ABSL_FLAG(bool, type_inference_v2, false,
-          "Whether to use type system v2 when type checking the input.");
-ABSL_FLAG(bool, lower_to_proc_scoped_channels, false,
+ABSL_FLAG(
+    bool, type_inference_v2,
+    xls::IrConverterOptionsFlagsProto::default_instance().type_inference_v2(),
+    "Whether to use type system v2 when type checking the input.");
+ABSL_FLAG(bool, lower_to_proc_scoped_channels,
+          xls::IrConverterOptionsFlagsProto::default_instance()
+              .lower_to_proc_scoped_channels(),
           "Whether to generate proc-scoped channels as it goes along; if "
           "false, generates global channels. This is a temporary flag that "
           "will not be used after the full implementation is complete. ");
-ABSL_FLAG(bool, force_implicit_token_calling_convention, false,
+ABSL_FLAG(bool, force_implicit_token_calling_convention,
+          xls::IrConverterOptionsFlagsProto::default_instance()
+              .force_implicit_token_calling_convention(),
           "Force every DSLX function to use the implicit-token calling "
           "convention during IR conversion.");
-ABSL_FLAG(
-    std::optional<std::vector<std::string>>, configured_values, std::nullopt,
-    "Dictionary of overrides to use for overridable constants "
-    "in IR conversion. Format is \"key\":\"value\" pairs, e.g. "
-    "--configured_values="
-    "{\"supported_opcodes\":\"OpcodeSet::SmallSubset\",\"foo\":\"true\"}");
+ABSL_FLAG(std::optional<std::vector<std::string>>, configured_values,
+          std::nullopt,
+          "Comma-separated list of overrides for overridable constants in IR "
+          "conversion, each formatted as key:value (or "
+          "key@module[+module...]:value), "
+          "e.g. --configured_values="
+          "supported_opcodes:OpcodeSet::SmallSubset,foo:true");
 // LINT.ThenChange(//xls/build_rules/xls_ir_rules.bzl)
 ABSL_FLAG(std::optional<std::string>, ir_converter_options_used_textproto_file,
           std::nullopt,
