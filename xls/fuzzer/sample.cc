@@ -124,18 +124,21 @@ bool SampleOptions::operator==(const SampleOptions& other) const {
 }
 
 /* static */ fuzzer::SampleOptionsProto SampleOptions::DefaultOptionsProto() {
+  const fuzzer::SampleOptionsProto& defaults =
+      fuzzer::SampleOptionsProto::default_instance();
   fuzzer::SampleOptionsProto proto;
-  proto.set_input_is_dslx(true);
-  proto.set_sample_type(fuzzer::SAMPLE_TYPE_FUNCTION);
-  proto.set_convert_to_ir(true);
-  proto.set_optimize_ir(true);
-  proto.set_use_jit(true);
-  proto.set_codegen(false);
-  proto.set_codegen_ng(false);
-  proto.set_simulate(false);
-  proto.set_use_system_verilog(true);
-  proto.set_calls_per_sample(1);
-  proto.set_lower_to_proc_scoped_channels(false);
+  proto.set_input_is_dslx(defaults.input_is_dslx());
+  proto.set_sample_type(defaults.sample_type());
+  proto.set_convert_to_ir(defaults.convert_to_ir());
+  proto.set_optimize_ir(defaults.optimize_ir());
+  proto.set_use_jit(defaults.use_jit());
+  proto.set_codegen(defaults.codegen());
+  proto.set_codegen_ng(defaults.codegen_ng());
+  proto.set_simulate(defaults.simulate());
+  proto.set_use_system_verilog(defaults.use_system_verilog());
+  proto.set_calls_per_sample(defaults.calls_per_sample());
+  proto.set_lower_to_proc_scoped_channels(
+      defaults.lower_to_proc_scoped_channels());
   // TODO(https://github.com/google/xls/issues/1140): Remove when fixed.
   auto* pipeline = proto.add_known_failure();
   pipeline->set_tool(".*codegen_main");

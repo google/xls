@@ -148,5 +148,35 @@ TEST(SampleCcTest, SerializeDeserializeLlvmOptLevel) {
   EXPECT_EQ(copy.options().llvm_opt_level(), 1);
 }
 
+TEST(SampleCcTest, ProtoDefaultInstanceMatchesDefaultSampleOptions) {
+  const fuzzer::SampleOptionsProto& defaults =
+      fuzzer::SampleOptionsProto::default_instance();
+  SampleOptions cpp_defaults;
+  XLS_ASSERT_OK_AND_ASSIGN(
+      SampleOptions from_empty,
+      SampleOptions::FromProto(fuzzer::SampleOptionsProto()));
+
+  EXPECT_TRUE(defaults.input_is_dslx());
+  EXPECT_EQ(defaults.sample_type(), fuzzer::SAMPLE_TYPE_FUNCTION);
+  EXPECT_TRUE(defaults.convert_to_ir());
+  EXPECT_TRUE(defaults.optimize_ir());
+  EXPECT_TRUE(defaults.use_jit());
+  EXPECT_TRUE(defaults.use_system_verilog());
+  EXPECT_EQ(defaults.calls_per_sample(), 1);
+
+  EXPECT_EQ(from_empty.input_is_dslx(), cpp_defaults.input_is_dslx());
+  EXPECT_EQ(from_empty.sample_type(), cpp_defaults.sample_type());
+  EXPECT_EQ(from_empty.convert_to_ir(), cpp_defaults.convert_to_ir());
+  EXPECT_EQ(from_empty.optimize_ir(), cpp_defaults.optimize_ir());
+  EXPECT_EQ(from_empty.use_jit(), cpp_defaults.use_jit());
+  EXPECT_EQ(from_empty.codegen(), cpp_defaults.codegen());
+  EXPECT_EQ(from_empty.codegen_ng(), cpp_defaults.codegen_ng());
+  EXPECT_EQ(from_empty.simulate(), cpp_defaults.simulate());
+  EXPECT_EQ(from_empty.use_system_verilog(), cpp_defaults.use_system_verilog());
+  EXPECT_EQ(from_empty.calls_per_sample(), cpp_defaults.calls_per_sample());
+  EXPECT_EQ(from_empty.lower_to_proc_scoped_channels(),
+            cpp_defaults.lower_to_proc_scoped_channels());
+}
+
 }  // namespace
 }  // namespace xls
