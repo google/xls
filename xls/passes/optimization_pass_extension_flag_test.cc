@@ -17,10 +17,12 @@
 #include <cstdint>
 #include <optional>
 #include <string>
+#include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/flags/flag.h"
+#include "absl/flags/parse.h"
 #include "absl/flags/reflection.h"
 #include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
@@ -124,6 +126,36 @@ TEST(OptimizationPassExtensionFlagTest, DuplicateProcessReturnsError) {
   XLS_ASSERT_OK(OptFlagsHandlerRegistry::Process(proto, options));
   EXPECT_THAT(OptFlagsHandlerRegistry::Process(proto, options),
               StatusIs(absl::StatusCode::kInternal));
+}
+
+TEST(OptimizationPassExtensionFlagTest,
+     ParseFlagsPreservesExtensionAlreadySetInProto) {
+  absl::FlagSaver flag_saver;
+  OptFlagsProto proto;
+  proto.SetExtension(ext_flags_test::test_ext_str_flag, "from_proto");
+  proto.SetExtension(ext_flags_test::test_ext_int_flag, 999);
+
+  XLS_ASSERT_OK(OptFlagsHandlerRegistry::ParseFlags(proto));
+  EXPECT_EQ(proto.GetExtension(ext_flags_test::test_ext_str_flag),
+            "from_proto");
+  EXPECT_EQ(proto.GetExtension(ext_flags_test::test_ext_int_flag), 999);
+}
+
+TEST(OptimizationPassExtensionFlagTest,
+     ParseFlagsCommandLineOverridesProtoExtension) {
+  absl::FlagSaver flag_saver;
+  std::string prog = "optimization_pass_extension_flag_test";
+  std::string flag_arg = "--test_ext_str_flag=from_cli";
+  std::vector<char*> argv = {prog.data(), flag_arg.data()};
+  absl::ParseCommandLine(static_cast<int>(argv.size()), argv.data());
+
+  OptFlagsProto proto;
+  proto.SetExtension(ext_flags_test::test_ext_str_flag, "from_proto");
+  proto.SetExtension(ext_flags_test::test_ext_int_flag, 999);
+
+  XLS_ASSERT_OK(OptFlagsHandlerRegistry::ParseFlags(proto));
+  EXPECT_EQ(proto.GetExtension(ext_flags_test::test_ext_str_flag), "from_cli");
+  EXPECT_EQ(proto.GetExtension(ext_flags_test::test_ext_int_flag), 999);
 }
 
 }  // namespace

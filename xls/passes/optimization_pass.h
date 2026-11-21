@@ -65,6 +65,8 @@
 namespace xls {
 
 inline constexpr int64_t kMaxOptLevel = 3;
+// TODO(rigge): Remove once benchmark_main and OptimizationPassOptions derive
+// this default directly from OptFlagsProto.
 inline constexpr int64_t kDefaultSplitNextValueSelects = 4;
 
 // Metadata for RAMs.
