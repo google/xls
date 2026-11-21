@@ -698,9 +698,12 @@ cc_test(
         "//xls/common:proto_test_utils",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
+        "//xls/passes:optimization_pass",
+        "//xls/scheduling:scheduling_options",
         "@abseil-cpp//absl/flags:commandlineflag",
         "@abseil-cpp//absl/flags:reflection",
         "@googletest//:gtest",
+        "@or-tools//ortools/math_opt:parameters_cc_proto",
     ],
 )
 

@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-syntax = "proto3";
+edition = "2023";
 
 package xls;
 
@@ -57,9 +57,9 @@ enum SolverKind {
 }
 
 message SchedulingFailureBehaviorProto {
-  optional bool explain_infeasibility = 1
-      [(google.api.field_behavior) = REQUIRED];
-  optional double infeasible_per_state_backedge_slack_pool = 2
+  bool explain_infeasibility = 1
+      [default = true, (google.api.field_behavior) = REQUIRED];
+  double infeasible_per_state_backedge_slack_pool = 2
       [(google.api.field_behavior) = OPTIONAL];
 }
 
@@ -73,51 +73,55 @@ message ReadToThroughputProto {
 // See scheduling_options_flags.cc ABSL_FLAG()
 // definitions for the meaning of these fields.
 message SchedulingOptionsFlagsProto {
-  optional int64 clock_period_ps = 1;
-  optional int64 pipeline_stages = 2;
-  optional string delay_model = 3;
-  optional int64 clock_margin_percent = 4;
-  optional int64 period_relaxation_percent = 5;
-  optional int64 worst_case_throughput = 6;
-  optional int64 additional_input_delay_ps = 7;
-  optional int64 additional_output_delay_ps = 31;
+  int64 clock_period_ps = 1;
+  int64 pipeline_stages = 2;
+  string delay_model = 3;
+  int64 clock_margin_percent = 4;
+  int64 period_relaxation_percent = 5;
+  // Intentionally has no explicit default: when unset, CLI behavior depends on
+  // `minimize_worst_case_throughput` (0 if true, 1 otherwise).
+  int64 worst_case_throughput = 6;
+  int64 additional_input_delay_ps = 7;
+  int64 additional_output_delay_ps = 31;
   map<string, int64> additional_channel_delay_ps = 33;
-  optional int64 ffi_fallback_delay_ps = 8;
+  int64 ffi_fallback_delay_ps = 8;
   repeated string io_constraints = 9;
-  optional bool receives_first_sends_last = 10;
-  optional int64 mutual_exclusion_z3_rlimit = 11;
-  optional int64 default_next_value_z3_rlimit = 25;
-  optional SchedulingFailureBehaviorProto failure_behavior = 23;
-  optional bool use_fdo = 22;
-  optional int64 fdo_iteration_number = 12;
-  optional int64 fdo_delay_driven_path_number = 13;
-  optional int64 fdo_fanout_driven_path_number = 14;
-  optional float fdo_refinement_stochastic_ratio = 15;
-  optional string fdo_path_evaluate_strategy = 16;
-  optional string fdo_synthesizer_name = 17;
-  optional string fdo_yosys_path = 18;
-  optional string fdo_sta_path = 19;
-  optional string fdo_synthesis_libraries = 20;
-  optional string fdo_default_driver_cell = 28;
-  optional string fdo_default_load = 29;
-  optional bool minimize_clock_on_failure = 21;
-  optional bool multi_proc = 24;
-  optional bool minimize_worst_case_throughput = 26;
-  optional bool recover_after_minimizing_clock = 27;
-  optional int64 opt_level = 30;
-  optional double dynamic_throughput_objective_weight = 32;
-  optional bool merge_on_mutual_exclusion = 34;
-  optional double sdc_solution_tolerance = 35;
-  optional operations_research.math_opt.SolverTypeProto solver_type = 36;
-  optional operations_research.math_opt.SolveParametersProto solve_parameters =
-      37;
+  bool receives_first_sends_last = 10;
+  int64 mutual_exclusion_z3_rlimit = 11 [default = -1];
+  int64 default_next_value_z3_rlimit = 25 [default = -1];
+  SchedulingFailureBehaviorProto failure_behavior = 23;
+  bool use_fdo = 22;
+  int64 fdo_iteration_number = 12 [default = 5];
+  int64 fdo_delay_driven_path_number = 13 [default = 1];
+  int64 fdo_fanout_driven_path_number = 14;
+  float fdo_refinement_stochastic_ratio = 15 [default = 1.0];
+  string fdo_path_evaluate_strategy = 16 [default = "window"];
+  string fdo_synthesizer_name = 17 [default = "yosys"];
+  string fdo_yosys_path = 18;
+  string fdo_sta_path = 19;
+  string fdo_synthesis_libraries = 20;
+  string fdo_default_driver_cell = 28;
+  string fdo_default_load = 29;
+  bool minimize_clock_on_failure = 21 [default = true];
+  bool multi_proc = 24 [default = true];
+  bool minimize_worst_case_throughput = 26;
+  bool recover_after_minimizing_clock = 27;
+  int64 opt_level = 30 [default = 3];
+  double dynamic_throughput_objective_weight = 32;
+  bool merge_on_mutual_exclusion = 34 [default = true];
+  double sdc_solution_tolerance = 35 [default = 0.001];
+  operations_research.math_opt.SolverTypeProto solver_type = 36
+      [default = SOLVER_TYPE_GLOP];
+  operations_research.math_opt.SolveParametersProto solve_parameters = 37;
   // What sort of scheduler one should use.
-  optional ProtoSchedulingStrategy scheduling_strategy = 38;
-  // What sort of scheduler to use when finding bounds.
-  optional ProtoSchedulingStrategy find_bounds_strategy = 39;
+  ProtoSchedulingStrategy scheduling_strategy = 38
+      [default = SCHEDULER_TYPE_SDC];
+  // What sort of scheduler to use when finding bounds. Intentionally has no
+  // explicit default so unset inherits `scheduling_strategy`.
+  ProtoSchedulingStrategy find_bounds_strategy = 39;
   // What sort of SMT solver to use for logical analysis (e.g., mutual
   // exclusion).
-  optional SolverKind solver_kind = 42;
-  optional int64 default_arc_worst_case_throughput = 40;
+  SolverKind solver_kind = 42 [default = SOLVER_KIND_Z3];
+  int64 default_arc_worst_case_throughput = 40;
   map<string, ReadToThroughputProto> arc_worst_case_throughput = 41;
 }

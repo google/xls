@@ -137,5 +137,57 @@ TEST_F(SchedulingOptionsTest, SetUpSchedulingOptionsWithArcThroughput) {
                                    Pair(Pair("L_W2", "L_R2"), 2)));
 }
 
+TEST_F(SchedulingOptionsTest, EmptyProtoMatchesDefaultSchedulingOptions) {
+  SchedulingOptions defaults;
+  SchedulingOptionsFlagsProto empty_proto;
+  XLS_ASSERT_OK_AND_ASSIGN(SchedulingOptions from_empty,
+                           SetUpSchedulingOptions(empty_proto, /*p=*/nullptr));
+
+  EXPECT_EQ(from_empty.strategy(), defaults.strategy());
+  EXPECT_EQ(from_empty.find_bounds_strategy(), defaults.find_bounds_strategy());
+  EXPECT_EQ(from_empty.opt_level(), defaults.opt_level());
+  EXPECT_EQ(from_empty.minimize_clock_on_failure(),
+            defaults.minimize_clock_on_failure());
+  EXPECT_TRUE(from_empty.minimize_clock_on_failure().value());
+  EXPECT_EQ(from_empty.recover_after_minimizing_clock(),
+            defaults.recover_after_minimizing_clock());
+  EXPECT_EQ(from_empty.minimize_worst_case_throughput(),
+            defaults.minimize_worst_case_throughput());
+  EXPECT_EQ(from_empty.use_fdo(), defaults.use_fdo());
+  EXPECT_EQ(from_empty.fdo_iteration_number(), defaults.fdo_iteration_number());
+  EXPECT_EQ(from_empty.fdo_delay_driven_path_number(),
+            defaults.fdo_delay_driven_path_number());
+  EXPECT_EQ(from_empty.fdo_fanout_driven_path_number(),
+            defaults.fdo_fanout_driven_path_number());
+  EXPECT_FLOAT_EQ(from_empty.fdo_refinement_stochastic_ratio(),
+                  defaults.fdo_refinement_stochastic_ratio());
+  EXPECT_EQ(from_empty.fdo_path_evaluate_strategy(),
+            defaults.fdo_path_evaluate_strategy());
+  EXPECT_EQ(from_empty.fdo_synthesizer_name(), defaults.fdo_synthesizer_name());
+  EXPECT_EQ(from_empty.schedule_all_procs(), defaults.schedule_all_procs());
+  EXPECT_TRUE(from_empty.schedule_all_procs());
+  EXPECT_DOUBLE_EQ(from_empty.sdc_solution_tolerance(),
+                   defaults.sdc_solution_tolerance());
+  EXPECT_EQ(from_empty.solver_type(), defaults.solver_type());
+  EXPECT_EQ(from_empty.solver_kind(), defaults.solver_kind());
+  EXPECT_EQ(from_empty.merge_on_mutual_exclusion(),
+            defaults.merge_on_mutual_exclusion());
+  EXPECT_TRUE(from_empty.merge_on_mutual_exclusion());
+  EXPECT_EQ(from_empty.failure_behavior().explain_infeasibility,
+            defaults.failure_behavior().explain_infeasibility);
+  EXPECT_TRUE(from_empty.failure_behavior().explain_infeasibility);
+}
+
+TEST_F(SchedulingOptionsTest, PartialFailureBehaviorPreservesDefaultExplain) {
+  SchedulingOptionsFlagsProto proto;
+  proto.mutable_failure_behavior()
+      ->set_infeasible_per_state_backedge_slack_pool(2.5);
+  XLS_ASSERT_OK_AND_ASSIGN(SchedulingOptions options,
+                           SetUpSchedulingOptions(proto, /*p=*/nullptr));
+  EXPECT_TRUE(options.failure_behavior().explain_infeasibility);
+  EXPECT_EQ(options.failure_behavior().infeasible_per_state_backedge_slack_pool,
+            2.5);
+}
+
 }  // namespace
 }  // namespace xls
