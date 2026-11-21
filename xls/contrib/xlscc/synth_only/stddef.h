@@ -18,4 +18,8 @@
 
 typedef unsigned long size_t;
 
+#ifndef offsetof
+#define offsetof(type, member) __builtin_offsetof(type, member)
+#endif
+
 #endif  //__STDDEF_H__
