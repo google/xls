@@ -750,9 +750,9 @@ xls_dslx_ir_attrs = dicts.add(
         ),
         "configured_values": attr.string_dict(
             doc = "Dictionary of overrides to use for overridable constants " +
-                  "in IR conversion. Format is \"key\":\"value\" pairs, e.g. " +
-                  "--configured_value_overrides=" +
-                  "{\"supported_opcodes\":\"OpcodeSet::SmallSubset\",\"foo\":\"true\"}",
+                  "in IR conversion. Format is \"key\": \"value\" pairs, " +
+                  "e.g. {\"supported_opcodes\": \"OpcodeSet::SmallSubset\", " +
+                  "\"foo\": \"true\"}.",
         ),
         "dslx_top": attr.string(
             doc = "Defines the 'top' argument of the" +
