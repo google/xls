@@ -13399,6 +13399,312 @@ TEST_P(TranslatorProcTest_NewFSMOnly, SharedProcedureTemplated) {
   }
 }
 
+TEST_P(TranslatorProcTest, ConditionalBlockStaticWithChannelIO) {
+  const std::string content = R"(
+    #pragma hls_top
+    void foo(__xls_channel<int>& cmd,
+             __xls_channel<int>& data,
+             __xls_channel<int>& out) {
+      int cond = cmd.read();
+      if (cond != 0) {
+        static int s1 = 10;
+        int d = data.read();
+        static int s2 = 100;
+        out.write(s1 + s2);
+        s1 += d;
+        s2 += d * 10;
+      } else {
+        out.write(-1);
+      }
+    })";
+
+  HLSBlock block_spec;
+  block_spec.set_name("foo");
+  {
+    HLSChannel* ch_cmd = block_spec.add_channels();
+    ch_cmd->set_name("cmd");
+    ch_cmd->set_is_input(true);
+    ch_cmd->set_type(CHANNEL_TYPE_FIFO);
+
+    HLSChannel* ch_data = block_spec.add_channels();
+    ch_data->set_name("data");
+    ch_data->set_is_input(true);
+    ch_data->set_type(CHANNEL_TYPE_FIFO);
+
+    HLSChannel* ch_out = block_spec.add_channels();
+    ch_out->set_name("out");
+    ch_out->set_is_input(false);
+    ch_out->set_type(CHANNEL_TYPE_FIFO);
+  }
+
+  absl::flat_hash_map<std::string, std::list<xls::Value>> inputs;
+  inputs["cmd"] = {
+      xls::Value(xls::SBits(0, 32)), xls::Value(xls::SBits(1, 32)),
+      xls::Value(xls::SBits(0, 32)), xls::Value(xls::SBits(0, 32)),
+      xls::Value(xls::SBits(1, 32)), xls::Value(xls::SBits(1, 32)),
+      xls::Value(xls::SBits(0, 32)), xls::Value(xls::SBits(1, 32))};
+  inputs["data"] = {
+      xls::Value(xls::SBits(5, 32)), xls::Value(xls::SBits(7, 32)),
+      xls::Value(xls::SBits(3, 32)), xls::Value(xls::SBits(9, 32))};
+
+  absl::flat_hash_map<std::string, std::list<xls::Value>> outputs;
+  outputs["out"] = {
+      xls::Value(xls::SBits(-1, 32)),  xls::Value(xls::SBits(110, 32)),
+      xls::Value(xls::SBits(-1, 32)),  xls::Value(xls::SBits(-1, 32)),
+      xls::Value(xls::SBits(165, 32)), xls::Value(xls::SBits(242, 32)),
+      xls::Value(xls::SBits(-1, 32)),  xls::Value(xls::SBits(275, 32))};
+
+  ProcTest(content, block_spec, inputs, outputs, /*min_ticks=*/1,
+           /*max_ticks=*/200);
+}
+
+TEST_P(TranslatorProcTest, ConditionalCalleeStaticPreservedAcrossUntakenCalls) {
+  const std::string content = R"(
+    int update_plane(int plane, int val, int& acc) {
+      static int prev_plane = 3;
+      static int need_clear = 0;
+      if (prev_plane != plane) {
+        need_clear = 1;
+        acc = 0;
+        prev_plane = plane;
+      }
+      int base = need_clear ? 0 : acc;
+      need_clear = 0;
+      acc = base + val;
+      return acc;
+    }
+
+#define DECLARE_INNER 1
+
+    #pragma hls_top
+    void foo(__xls_channel<int>& in, __xls_channel<int>& out) {
+#if !DECLARE_INNER
+      static int prev_plane = 3;
+      static int need_clear = 0;
+#endif
+      static int acc = 0;
+      int en = in.read();
+      int plane = in.read();
+      int val = in.read();
+      #pragma hls_unroll yes
+      for (int c = 0; c < 2; ++c) {
+        bool pre = (c == 0);
+        if (pre) {
+          out.write(-100 - c);
+        } else {
+          if (en != 0) {
+            // out.write(update_plane(plane, val, acc));
+#if DECLARE_INNER
+          static int prev_plane = 3;
+          static int need_clear = 0;
+#endif
+
+          if (prev_plane != plane) {
+            need_clear = 1;
+            acc = 0;
+            prev_plane = plane;
+          }
+          int base = need_clear ? 0 : acc;
+          need_clear = 0;
+          acc = base + val;
+          // return acc;
+          out.write(acc);
+          }
+        }
+      }
+    })";
+
+  HLSBlock block_spec;
+  block_spec.set_name("foo");
+  {
+    HLSChannel* ch_in = block_spec.add_channels();
+    ch_in->set_name("in");
+    ch_in->set_is_input(true);
+    ch_in->set_type(CHANNEL_TYPE_FIFO);
+
+    HLSChannel* ch_out = block_spec.add_channels();
+    ch_out->set_name("out");
+    ch_out->set_is_input(false);
+    ch_out->set_type(CHANNEL_TYPE_FIFO);
+  }
+
+  struct Cmd {
+    int en;
+    int plane;
+    int val;
+  };
+  const Cmd kCmds[] = {
+      {1, 0, 10}, {1, 0, 20}, {1, 1, 5},  {0, 2, 99},
+      {1, 1, 7},  {1, 2, 3},  {0, 0, 88}, {1, 0, 4},
+  };
+
+  absl::flat_hash_map<std::string, std::list<xls::Value>> inputs;
+  absl::flat_hash_map<std::string, std::list<xls::Value>> outputs;
+  int prev_plane = 3;
+  int need_clear = 0;
+  int acc = 0;
+  for (const Cmd& cmd : kCmds) {
+    inputs["in"].push_back(xls::Value(xls::SBits(cmd.en, 32)));
+    inputs["in"].push_back(xls::Value(xls::SBits(cmd.plane, 32)));
+    inputs["in"].push_back(xls::Value(xls::SBits(cmd.val, 32)));
+    outputs["out"].push_back(xls::Value(xls::SBits(-100, 32)));
+    if (cmd.en != 0) {
+      if (prev_plane != cmd.plane) {
+        need_clear = 1;
+        acc = 0;
+        prev_plane = cmd.plane;
+      }
+      int base = need_clear ? 0 : acc;
+      need_clear = 0;
+      acc = base + cmd.val;
+      outputs["out"].push_back(xls::Value(xls::SBits(acc, 32)));
+    }
+  }
+
+  ProcTest(content, block_spec, inputs, outputs, /*min_ticks=*/1,
+           /*max_ticks=*/300);
+}
+
+TEST_P(TranslatorProcTest_OldFSMOnly,
+       ConditionalCalleeWithPipelinedLoopAndStaticLocals) {
+  const std::string content = R"(
+    void correlate(int plane, int first, int last, int val,
+                   int& auto_acc, int& cross_acc) {
+      static int prev_plane = 3;
+      static int init_cross = 0;
+      static int delay_valid = 0;
+      int init_acc = first && (prev_plane != plane);
+      if (init_acc) {
+        init_cross = 1;
+        auto_acc = 0;
+      }
+      if (first) {
+        prev_plane = plane;
+      }
+      if (last) {
+        prev_plane = 3;
+      }
+      int valid = 1;
+      #pragma hls_pipeline_init_interval 1
+      while (valid || (last && delay_valid)) {
+        int fire = delay_valid;
+        delay_valid = valid;
+        if (fire) {
+          static int pipe_en = 0;
+          pipe_en = 1;
+          #pragma hls_pipeline_init_interval 1
+          for (int k = 0; k < 2; ++k) {
+            cross_acc = (init_cross ? 0 : cross_acc) + val;
+            init_cross = 0;
+            if (pipe_en) {
+              auto_acc += val * 2;
+            }
+          }
+        }
+        valid = 0;
+      }
+    }
+
+    #pragma hls_top
+    void foo(__xls_channel<int>& in, __xls_channel<int>& out) {
+      static int auto_acc = 0;
+      static int cross_acc = 0;
+      int en = in.read();
+      int plane = in.read();
+      #pragma hls_pipeline_init_interval 1
+      for (int x = 0; x < 3; ++x) {
+        int val = in.read();
+        #pragma hls_unroll yes
+        for (int c = 0; c < 2; ++c) {
+          if (c == 0) {
+            (void)0;
+          } else if (en != 0) {
+            correlate(plane, x == 0, x == 2, val, auto_acc, cross_acc);
+          }
+        }
+      }
+      if (en != 0) {
+        out.write(auto_acc * 1000 + cross_acc);
+      }
+    })";
+
+  HLSBlock block_spec;
+  block_spec.set_name("foo");
+  {
+    HLSChannel* ch_in = block_spec.add_channels();
+    ch_in->set_name("in");
+    ch_in->set_is_input(true);
+    ch_in->set_type(CHANNEL_TYPE_FIFO);
+
+    HLSChannel* ch_out = block_spec.add_channels();
+    ch_out->set_name("out");
+    ch_out->set_is_input(false);
+    ch_out->set_type(CHANNEL_TYPE_FIFO);
+  }
+
+  struct PlaneRun {
+    int en;
+    int plane;
+    int vals[3];
+  };
+  const PlaneRun kRuns[] = {
+      {1, 0, {5, 6, 7}}, {1, 1, {1, 2, 3}}, {0, 1, {9, 9, 9}},
+      {1, 2, {0, 0, 0}}, {1, 0, {4, 1, 2}},
+  };
+
+  absl::flat_hash_map<std::string, std::list<xls::Value>> inputs;
+  absl::flat_hash_map<std::string, std::list<xls::Value>> outputs;
+  int auto_acc = 0;
+  int cross_acc = 0;
+  int prev_plane = 3;
+  int init_cross = 0;
+  int delay_valid = 0;
+  int pipe_en = 0;
+  for (const PlaneRun& run : kRuns) {
+    inputs["in"].push_back(xls::Value(xls::SBits(run.en, 32)));
+    inputs["in"].push_back(xls::Value(xls::SBits(run.plane, 32)));
+    for (int x = 0; x < 3; ++x) {
+      inputs["in"].push_back(xls::Value(xls::SBits(run.vals[x], 32)));
+      if (run.en != 0) {
+        int init_acc = (x == 0) && (prev_plane != run.plane);
+        if (init_acc) {
+          init_cross = 1;
+          auto_acc = 0;
+        }
+        if (x == 0) {
+          prev_plane = run.plane;
+        }
+        if (x == 2) {
+          prev_plane = 3;
+        }
+        int valid = 1;
+        while (valid || ((x == 2) && delay_valid)) {
+          int fire = delay_valid;
+          delay_valid = valid;
+          if (fire) {
+            pipe_en = 1;
+            for (int k = 0; k < 2; ++k) {
+              cross_acc = (init_cross ? 0 : cross_acc) + run.vals[x];
+              init_cross = 0;
+              if (pipe_en) {
+                auto_acc += run.vals[x] * 2;
+              }
+            }
+          }
+          valid = 0;
+        }
+      }
+    }
+    if (run.en != 0) {
+      outputs["out"].push_back(
+          xls::Value(xls::SBits(auto_acc * 1000 + cross_acc, 32)));
+    }
+  }
+
+  ProcTest(content, block_spec, inputs, outputs, /*min_ticks=*/1,
+           /*max_ticks=*/400);
+}
+
 }  // namespace
 
 }  // namespace xlscc
