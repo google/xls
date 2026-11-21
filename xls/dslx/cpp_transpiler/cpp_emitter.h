@@ -26,6 +26,7 @@
 #include "absl/types/span.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/import_data.h"
+#include "xls/dslx/type_system/type.h"
 #include "xls/dslx/type_system/type_info.h"
 
 namespace xls::dslx {
@@ -159,6 +160,15 @@ class CppEmitter {
       const TypeAnnotation* type_annotation, std::string_view dslx_type,
       TypeInfo* type_info, ImportData* import_data,
       std::string_view parent_namespaces, bool for_enum = false);
+
+  // Factory which creates and returns a CppEmitter from a resolved DSLX type
+  // (a `Type` object from the type checker, rather than an AST annotation).
+  // This is useful for parametric types whose member types have been
+  // instantiated to concrete values.
+  static absl::StatusOr<std::unique_ptr<CppEmitter>> CreateFromType(
+      const Type& type, std::string_view dslx_type, TypeInfo* type_info,
+      ImportData* import_data, std::string_view parent_namespaces,
+      bool for_enum = false);
 
  private:
   CppType cpp_type_;
