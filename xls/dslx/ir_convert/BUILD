@@ -741,12 +741,15 @@ cc_test(
     name = "ir_converter_options_flags_test",
     srcs = ["ir_converter_options_flags_test.cc"],
     deps = [
+        ":convert_options",
         ":ir_converter_options_flags",
         ":ir_converter_options_flags_cc_proto",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "@abseil-cpp//absl/cleanup",
+        "@abseil-cpp//absl/flags:commandlineflag",
         "@abseil-cpp//absl/flags:flag",
+        "@abseil-cpp//absl/flags:reflection",
         "@googletest//:gtest",
     ],
 )
@@ -766,6 +769,7 @@ cc_binary(
         "//xls/common/file:filesystem",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
+        "//xls/dslx:default_dslx_stdlib_path",
         "//xls/dslx:warning_kind",
         "//xls/ir",
         "//xls/ir:channel",

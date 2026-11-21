@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-syntax = "proto3";
+edition = "2023";
 
 package xls;
 
@@ -23,31 +23,33 @@ import "xls/ir/channel.proto";
 // See ir_converter_options_flags.cc ABSL_FLAG() definitions for the meaning of
 // these fields.
 message IrConverterOptionsFlagsProto {
-  optional string output_file = 1;
-  optional string top = 2;
-  optional string dslx_stdlib_path = 3;
-  optional string dslx_path = 4;
-  optional string package_name = 5;
-  optional bool emit_fail_as_assert = 6 [deprecated = true];
-  optional bool verify = 7;
-  optional bool convert_tests = 8;
-  optional string disable_warnings = 9;
-  optional bool warnings_as_errors = 10;
-  optional string interface_proto_file = 11;
-  optional string interface_textproto_file = 12;
-  optional FifoConfigProto default_fifo_config = 13;
-  optional string enable_warnings = 14;
+  string output_file = 1;
+  string top = 2;
+  // Intentionally has no explicit default because the default stdlib path
+  // differs between internal and OSS builds (`kDefaultDslxStdlibPath`).
+  string dslx_stdlib_path = 3;
+  string dslx_path = 4;
+  string package_name = 5;
+  bool emit_fail_as_assert = 6 [deprecated = true];
+  bool verify = 7 [default = true];
+  bool convert_tests = 8;
+  string disable_warnings = 9;
+  bool warnings_as_errors = 10 [default = true];
+  string interface_proto_file = 11;
+  string interface_textproto_file = 12;
+  FifoConfigProto default_fifo_config = 13;
+  string enable_warnings = 14;
   reserved 15;
-  optional bool type_inference_v2 = 16;
-  optional bool lower_to_proc_scoped_channels = 17;
+  bool type_inference_v2 = 16;
+  bool lower_to_proc_scoped_channels = 17 [default = true];
   repeated string configured_values = 18;
-  optional bool force_implicit_token_calling_convention = 19;
+  bool force_implicit_token_calling_convention = 19;
   // If true will emit trace operations.
-  optional bool emit_trace = 20;
+  bool emit_trace = 20 [default = true];
   // If true will emit cover operations.
-  optional bool emit_cover = 21;
+  bool emit_cover = 21 [default = true];
   // If true will emit assert operations.
-  optional bool emit_assert = 22;
+  bool emit_assert = 22 [default = true];
   // If non-empty, synthesizes cover ops for the listed auto-coverage kinds.
   // E.g. "branch" synthesizes a cover op for each if/else branch and match arm.
   repeated AutoCoverKind emit_auto_cover = 23;
