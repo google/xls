@@ -597,6 +597,17 @@ TEST_P(NarrowingPassTest, DecodeWithKnownZeroPrefix) {
               m::ZeroExt(m::Decode(m::BitSlice(/*start=*/0, /*width=*/2))));
 }
 
+TEST_P(NarrowingPassTest, LeavesAggregatesContainingEmptyArraysUnchanged) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue empty = fb.Param("empty", p->GetArrayType(0, p->GetBitsType(8)));
+  BValue copies = fb.Array({empty, empty, empty}, empty.GetType());
+  fb.Tuple({fb.Literal(UBits(3, 8)), copies});
+  XLS_ASSERT_OK(fb.Build().status());
+
+  EXPECT_THAT(Run(p.get()), IsOkAndHolds(false));
+}
+
 TEST_P(NarrowingPassTest, NarrowableArrayIndex) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
