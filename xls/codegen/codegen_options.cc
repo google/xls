@@ -26,8 +26,100 @@
 #include "xls/codegen/ram_configuration.h"
 #include "xls/ir/op.h"
 #include "xls/ir/register.h"
+#include "xls/tools/codegen_flags.pb.h"
 
 namespace xls::verilog {
+namespace {
+
+CodegenOptions::IOKind FromIOKindProto(IOKindProto kind) {
+  switch (kind) {
+    case IO_KIND_INVALID:
+    case IO_KIND_FLOP:
+      return CodegenOptions::IOKind::kFlop;
+    case IO_KIND_SKID_BUFFER:
+      return CodegenOptions::IOKind::kSkidBuffer;
+    case IO_KIND_ZERO_LATENCY_BUFFER:
+      return CodegenOptions::IOKind::kZeroLatencyBuffer;
+    default:
+      LOG(FATAL) << "Invalid IOKindProto: " << static_cast<int>(kind);
+  }
+}
+
+CodegenOptions::SourceAnnotationStrategy FromSourceAnnotationStrategyProto(
+    SourceAnnotationStrategyProto strategy) {
+  switch (strategy) {
+    case ANNOTATION_STRATEGY_INVALID:
+    case ANNOTATION_STRATEGY_NONE:
+      return CodegenOptions::SourceAnnotationStrategy::kNone;
+    case ANNOTATION_STRATEGY_COMMENT:
+      return CodegenOptions::SourceAnnotationStrategy::kComment;
+    case ANNOTATION_STRATEGY_SRC_ATTRIBUTE:
+      return CodegenOptions::SourceAnnotationStrategy::kSrcAttribute;
+    case ANNOTATION_STRATEGY_DIRECTIVE:
+      return CodegenOptions::SourceAnnotationStrategy::kLineDirective;
+    default:
+      LOG(FATAL) << "Invalid SourceAnnotationStrategyProto: "
+                 << static_cast<int>(strategy);
+  }
+}
+
+CodegenOptions::Version FromCodegenVersionProto(CodegenVersionProto version) {
+  switch (version) {
+    case CODEGEN_VERSION_DEFAULT:
+      return CodegenOptions::Version::kDefault;
+    case CODEGEN_VERSION_ONE_DOT_ZERO:
+      return CodegenOptions::Version::kOneDotZero;
+    case CODEGEN_VERSION_ONE_DOT_FIVE:
+      return CodegenOptions::Version::kOneDotFive;
+    case CODEGEN_VERSION_TWO_DOT_ZERO:
+      return CodegenOptions::Version::kTwoDotZero;
+    default:
+      LOG(FATAL) << "Invalid CodegenVersionProto: "
+                 << static_cast<int>(version);
+  }
+}
+
+}  // namespace
+
+CodegenOptions::CodegenOptions()
+    : output_port_name_(
+          CodegenFlagsProto::default_instance().output_port_name()),
+      use_system_verilog_(
+          CodegenFlagsProto::default_instance().use_system_verilog()),
+      separate_lines_(CodegenFlagsProto::default_instance().separate_lines()),
+      max_inline_depth_(
+          CodegenFlagsProto::default_instance().max_inline_depth()),
+      flop_inputs_kind_(FromIOKindProto(
+          CodegenFlagsProto::default_instance().flop_inputs_kind())),
+      flop_outputs_kind_(FromIOKindProto(
+          CodegenFlagsProto::default_instance().flop_outputs_kind())),
+      add_idle_output_(CodegenFlagsProto::default_instance().add_idle_output()),
+      streaming_channel_data_suffix_(CodegenFlagsProto::default_instance()
+                                         .streaming_channel_data_suffix()),
+      streaming_channel_ready_suffix_(CodegenFlagsProto::default_instance()
+                                          .streaming_channel_ready_suffix()),
+      streaming_channel_valid_suffix_(CodegenFlagsProto::default_instance()
+                                          .streaming_channel_valid_suffix()),
+      array_index_bounds_checking_(
+          CodegenFlagsProto::default_instance().array_index_bounds_checking()),
+      gate_recvs_(CodegenFlagsProto::default_instance().gate_recvs()),
+      embed_child_block_signatures_(
+          CodegenFlagsProto::default_instance().embed_child_block_signatures()),
+      add_invariant_assertions_(
+          CodegenFlagsProto::default_instance().add_invariant_assertions()),
+      max_trace_verbosity_(
+          CodegenFlagsProto::default_instance().max_trace_verbosity()),
+      source_annotation_strategy_(FromSourceAnnotationStrategyProto(
+          CodegenFlagsProto::default_instance().source_annotation_strategy())),
+      emit_sv_types_(CodegenFlagsProto::default_instance().emit_sv_types()),
+      simulation_macro_name_(
+          CodegenFlagsProto::default_instance().simulation_macro_name()),
+      codegen_version_(FromCodegenVersionProto(
+          CodegenFlagsProto::default_instance().codegen_version())),
+      fifo_module_(CodegenFlagsProto::default_instance().fifo_module()),
+      nodata_fifo_module_(
+          CodegenFlagsProto::default_instance().nodata_fifo_module()),
+      preserve_ports_(CodegenFlagsProto::default_instance().preserve_ports()) {}
 
 /* static */ std::string_view CodegenOptions::IOKindToString(IOKind kind) {
   switch (kind) {

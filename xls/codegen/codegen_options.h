@@ -47,7 +47,7 @@ class CodegenOptionExtension {
 // Options describing how codegen should be performed.
 class CodegenOptions {
  public:
-  explicit CodegenOptions() = default;
+  explicit CodegenOptions();
 
   template <typename T>
   const T* get_extension() const {
@@ -485,50 +485,49 @@ class CodegenOptions {
  private:
   std::optional<std::string> entry_;
   std::optional<std::string> module_name_;
-  std::string output_port_name_ = "out";
+  std::string output_port_name_;
   std::optional<ResetProto> reset_proto_;
   std::optional<PipelineControl> pipeline_control_;
   std::optional<std::string> clock_name_;
   bool generate_combinational_ = false;
-  bool use_system_verilog_ = true;
-  bool separate_lines_ = false;
-  int64_t max_inline_depth_ = 5;
+  bool use_system_verilog_;
+  bool separate_lines_;
+  int64_t max_inline_depth_;
   bool flop_inputs_ = false;
   bool flop_outputs_ = false;
-  IOKind flop_inputs_kind_ = IOKind::kFlop;
-  IOKind flop_outputs_kind_ = IOKind::kFlop;
+  IOKind flop_inputs_kind_;
+  IOKind flop_outputs_kind_;
   bool split_outputs_ = false;
-  bool add_idle_output_ = false;
+  bool add_idle_output_;
   bool flop_single_value_channels_ = false;
   absl::flat_hash_map<Op, OpOverride> op_overrides_;
   bool emit_as_pipeline_ = false;
-  std::string streaming_channel_data_suffix_ = "";
-  std::string streaming_channel_ready_suffix_ = "_rdy";
-  std::string streaming_channel_valid_suffix_ = "_vld";
-  bool array_index_bounds_checking_ = true;
-  bool gate_recvs_ = true;
-  bool embed_child_block_signatures_ = false;
-  bool add_invariant_assertions_ = true;
+  std::string streaming_channel_data_suffix_;
+  std::string streaming_channel_ready_suffix_;
+  std::string streaming_channel_valid_suffix_;
+  bool array_index_bounds_checking_;
+  bool gate_recvs_;
+  bool embed_child_block_signatures_;
+  bool add_invariant_assertions_;
   std::vector<RamConfiguration> ram_configurations_;
-  int64_t max_trace_verbosity_ = 0;
+  int64_t max_trace_verbosity_;
   RegisterMergeStrategy register_merge_strategy_ =
       RegisterMergeStrategy::kDefault;
 
-  SourceAnnotationStrategy source_annotation_strategy_ =
-      SourceAnnotationStrategy::kNone;
+  SourceAnnotationStrategy source_annotation_strategy_;
   std::optional<PackageInterfaceProto> package_interface_;
   std::vector<std::string> includes_;
-  bool emit_sv_types_ = true;
-  std::string simulation_macro_name_ = "SIMULATION";
+  bool emit_sv_types_;
+  std::string simulation_macro_name_;
   std::vector<std::string> assertion_macro_names_ = {"ASSERT_ON"};
-  Version codegen_version_ = Version::kDefault;
-  std::string fifo_module_ = "xls_fifo_wrapper";
-  std::string nodata_fifo_module_ = "";
+  Version codegen_version_;
+  std::string fifo_module_;
+  std::string nodata_fifo_module_;
   std::vector<int32_t> randomize_order_seed_;
   std::optional<CodegenResidualData> residual_data_;
   std::optional<std::string> ir_dump_path_;
   bool assert_on_valid_data_not_ready_ = false;
-  bool preserve_ports_ = true;
+  bool preserve_ports_;
 
   std::vector<std::shared_ptr<CodegenOptionExtension>> extensions_;
 };

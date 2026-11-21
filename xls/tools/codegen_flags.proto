@@ -53,41 +53,48 @@ enum CodegenVersionProto {
   CODEGEN_VERSION_TWO_DOT_ZERO = 3;
 }
 
+// Wrapper for assertion macro names so field presence distinguishes unset
+// (default {"ASSERT_ON"}) from an explicitly empty list (no guards).
+message AssertionMacroConfig {
+  repeated string macro_names = 1;
+}
+
 // Flags passed to the codegen_main binary.
 //
 // See codegen_flags.cc ABSL_FLAG() definitions for the meaning of these fields.
 message CodegenFlagsProto {
   string top = 1;
-  GeneratorKind generator = 2;
+  GeneratorKind generator = 2 [default = GENERATOR_KIND_PIPELINE];
   string input_valid_signal = 3;
   string output_valid_signal = 4;
   string manual_load_enable_signal = 5;
-  bool flop_inputs = 6;
-  bool flop_outputs = 7;
-  IOKindProto flop_inputs_kind = 8;
-  IOKindProto flop_outputs_kind = 9;
-  bool flop_single_value_channels = 10;
+  bool flop_inputs = 6 [default = true];
+  bool flop_outputs = 7 [default = true];
+  IOKindProto flop_inputs_kind = 8 [default = IO_KIND_FLOP];
+  IOKindProto flop_outputs_kind = 9 [default = IO_KIND_FLOP];
+  bool flop_single_value_channels = 10 [default = true];
   bool add_idle_output = 11;
   string module_name = 12;
-  string output_port_name = 13;
+  string output_port_name = 13 [default = "out"];
   string reset = 14;
   bool reset_active_low = 15;
   bool reset_asynchronous = 16;
-  bool reset_data_path = 17;
-  bool use_system_verilog = 18;
+  bool reset_data_path = 17 [default = true];
+  bool use_system_verilog = 18 [default = true];
   bool separate_lines = 19;
-  int64 max_inline_depth = 35;
+  int64 max_inline_depth = 35 [default = 5];
   string gate_format = 20;
   string assert_format = 21;
   string smulp_format = 22;
   string umulp_format = 23;
   string streaming_channel_data_suffix = 24;
-  string streaming_channel_valid_suffix = 25;
-  string streaming_channel_ready_suffix = 26;
+  string streaming_channel_valid_suffix = 25 [default = "_vld"];
+  string streaming_channel_ready_suffix = 26 [default = "_rdy"];
   repeated string ram_configurations = 27;
-  bool gate_recvs = 28;
-  bool array_index_bounds_checking = 29;
-  RegisterMergeStrategyProto register_merge_strategy = 30;
+  bool gate_recvs = 28 [default = true];
+  bool array_index_bounds_checking = 29 [default = true];
+  RegisterMergeStrategyProto register_merge_strategy = 30
+      [default = STRATEGY_IDENTITY_ONLY];
   int64 max_trace_verbosity = 31;
   // If present details about the interface requested. Eg specific sv types to
   // use for arguments etc. Only the 'top' and channels are interpreted. Unknown
@@ -95,16 +102,23 @@ message CodegenFlagsProto {
   PackageInterfaceProto package_interface = 32;
   // Should annotated arguments be emitted with the sv_types they are annotated
   // with.
-  bool emit_sv_types = 33;
+  bool emit_sv_types = 33 [default = true];
 
-  string simulation_macro_name = 34;
+  string simulation_macro_name = 34 [default = "SIMULATION"];
+  // Legacy repeated field retained for backwards compatibility with existing
+  // textprotos. Prefer `assertion_macros`, which distinguishes unset from
+  // explicitly empty.
   repeated string assertion_macro_names = 39;
+  // Assertion guard macro names. When unset (and legacy `assertion_macro_names`
+  // is empty), defaults to {"ASSERT_ON"}. When set with empty `macro_names`,
+  // emits assertions unguarded.
+  AssertionMacroConfig assertion_macros = 48;
 
   CodegenVersionProto codegen_version = 36;
 
   // Which module to use for FIFOs. If empty, will materialize an internal
   // implementation.
-  string fifo_module = 40;
+  string fifo_module = 40 [default = "xls_fifo_wrapper"];
   string nodata_fifo_module = 41;
 
   // If present, the seed used to randomize the order of lines in the output. If
@@ -114,13 +128,14 @@ message CodegenFlagsProto {
 
   // If false, runtime invariant assertions (e.g. one-hot selector checks)
   // are omitted from generated RTL.  Default is true.
-  bool add_invariant_assertions = 42;
+  bool add_invariant_assertions = 42 [default = true];
 
   // Parsed reference residual data. When present, codegen uses this to
   // influence emission order; preferred over reading from a path at runtime.
   verilog.CodegenResidualData reference_residual_data = 43;
 
-  SourceAnnotationStrategyProto source_annotation_strategy = 44;
+  SourceAnnotationStrategyProto source_annotation_strategy = 44
+      [default = ANNOTATION_STRATEGY_NONE];
 
   // Debugging flag to cause the block conversion to dump its pass results.
   string ir_dump_path = 45;
@@ -128,7 +143,7 @@ message CodegenFlagsProto {
   // If true, use a consistent naming scheme for boundary ports. If false, may
   // vary port names and/or reuse ports at the boundary, and users are expected
   // to use the block signature to find ports.
-  bool preserve_ports = 46;
+  bool preserve_ports = 46 [default = true];
 
   // If true, recursively embed each instantiated child block's signature
   // into the parent block's signature. Default is false.

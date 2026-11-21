@@ -27,6 +27,7 @@
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/log/check.h"
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
@@ -869,6 +870,11 @@ class ScheduleCycleAnnotator final : public IrAnnotator {
 
 absl::StatusOr<SchedulingOptions> SetUpSchedulingOptions(
     const SchedulingOptionsFlagsProto& flags, const Package* p);
+
+// Validates that pipeline scheduling options specify at least one of
+// `pipeline_stages` or `clock_period_ps`, and that any specified value is
+// positive.
+absl::Status ValidatePipelineScheduleOptions(const SchedulingOptions& options);
 
 absl::StatusOr<DelayEstimator*> SetUpDelayEstimator(
     const SchedulingOptionsFlagsProto& flags);
