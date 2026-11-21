@@ -401,6 +401,49 @@ xls_eval_ir_test(
     src = ":chaining_example_ir",
 )
 
+xls_dslx_ir(
+    name = "typed_symbol_ir",
+    srcs = ["typed_symbol.x"],
+    dslx_top = "typed_entry",
+)
+
+# The scope comes from the impl declaration, while T is bound to u32.
+xls_eval_ir_test(
+    name = "typed_symbol_eval_ir_test",
+    ir_eval_args = {"random_inputs": "1", "optimize_ir": "false"},
+    src = ":typed_symbol_ir",
+    top = get_mangled_ir_symbol(
+        "typed_symbol",
+        "unbox",
+        parametric_values = ("T4_u32_",),
+        scope = "Box<T>",
+    ),
+)
+
+# Bindings are emitted alphabetically (A, B, Z), although Z is declared first.
+# The signed s8:-1 argument is represented by its unsigned bit pattern.
+xls_eval_ir_test(
+    name = "typed_symbol_true_eval_ir_test",
+    ir_eval_args = {"random_inputs": "1", "optimize_ir": "false"},
+    src = ":typed_symbol_ir",
+    top = get_mangled_ir_symbol(
+        "typed_symbol",
+        "typed_values",
+        parametric_values = (True, "V3_255", "T4_u32_"),
+    ),
+)
+
+xls_eval_ir_test(
+    name = "typed_symbol_false_eval_ir_test",
+    ir_eval_args = {"random_inputs": "1", "optimize_ir": "false"},
+    src = ":typed_symbol_ir",
+    top = get_mangled_ir_symbol(
+        "typed_symbol",
+        "typed_values",
+        parametric_values = (False, "V3_255", "T4_u32_"),
+    ),
+)
+
 xls_ir_equivalence_test(
     name = "chaining_example_ir_equivalence_test",
     src_0 = ":chaining_example_ir",

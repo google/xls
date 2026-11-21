@@ -238,6 +238,11 @@ class Type {
   virtual bool operator==(const Type& other) const = 0;
   bool operator!=(const Type& other) const { return !(*this == other); }
 
+  // Compares the complete checked identity used to specialize a generic
+  // function. Unlike substitutability, this includes nominal instantiation
+  // bindings and is symmetric across equivalent bits representations.
+  bool IsSameSpecialization(const Type& other) const;
+
   // Returns a string representation of this type.
   std::string ToString() const {
     return ToStringInternal(FullyQualify::kNo, /*file_table=*/nullptr);
@@ -508,9 +513,23 @@ class StructTypeBase : public Type {
   // would have empty nominal type dims. Either of those would have equivalent
   // `nominal_type()` results, because `StructDef` is always the abstract
   // struct.
-  const absl::flat_hash_map<std::string, TypeDim>&
-  nominal_type_dims_by_identifier() const {
-    return nominal_type_dims_by_identifier_;
+  absl::flat_hash_map<std::string, TypeDim> nominal_type_dims_by_identifier()
+      const;
+
+  // Complete resolved declaration bindings, including bindings which do not
+  // occur in any member type.
+  const absl::flat_hash_map<std::string, InterpValue>& nominal_type_bindings()
+      const {
+    return nominal_type_bindings_;
+  }
+  // Installs all resolved formal bindings before caching a concrete nominal
+  // type.
+  void SetNominalTypeBindings(
+      absl::flat_hash_map<std::string, InterpValue> bindings) {
+    for (const std::string& name : explicit_nominal_type_dim_names_) {
+      CHECK(bindings.contains(name));
+    }
+    nominal_type_bindings_ = std::move(bindings);
   }
 
   bool HasNamedMember(std::string_view target) const;
@@ -524,8 +543,9 @@ class StructTypeBase : public Type {
  private:
   std::vector<std::unique_ptr<Type>> members_;
   const StructDefBase& struct_def_base_;
-  const absl::flat_hash_map<std::string, TypeDim>
-      nominal_type_dims_by_identifier_;
+  // Explicit-argument provenance is independent of the resolved binding value.
+  std::vector<std::string> explicit_nominal_type_dim_names_;
+  absl::flat_hash_map<std::string, InterpValue> nominal_type_bindings_;
 };
 
 // Represents a struct type -- these are similar in spirit to "tuples with named
@@ -547,8 +567,11 @@ class StructType : public StructTypeBase {
   }
 
   std::unique_ptr<Type> CloneToUnique() const override {
-    return std::make_unique<StructType>(CloneSpan(members()), nominal_type(),
-                                        nominal_type_dims_by_identifier());
+    auto result =
+        std::make_unique<StructType>(CloneSpan(members()), nominal_type(),
+                                     nominal_type_dims_by_identifier());
+    result->SetNominalTypeBindings(nominal_type_bindings());
+    return result;
   }
 
   const StructDef& nominal_type() const {
@@ -577,8 +600,11 @@ class ProcType : public StructTypeBase {
   }
 
   std::unique_ptr<Type> CloneToUnique() const override {
-    return std::make_unique<ProcType>(CloneSpan(members()), nominal_type(),
-                                      nominal_type_dims_by_identifier());
+    auto result =
+        std::make_unique<ProcType>(CloneSpan(members()), nominal_type(),
+                                   nominal_type_dims_by_identifier());
+    result->SetNominalTypeBindings(nominal_type_bindings());
+    return result;
   }
 
   const ProcDef& nominal_type() const {

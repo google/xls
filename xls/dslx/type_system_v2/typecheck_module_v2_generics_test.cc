@@ -1530,6 +1530,37 @@ const FIVE_STRUCT = S<u16, FIVE>{};
       TypecheckFails(HasSizeMismatch("uN[32]", "uN[16]")));
 }
 
+// Verifies: A generic value binding has its declared nominal enum type.
+// Catches: Accepting another enum with the same width and member value.
+TEST(TypecheckV2GenericsTest, StructGenericValueRejectsDifferentEnum) {
+  EXPECT_THAT(R"(#![feature(generics)]
+enum A: u1 { X = 0 }
+enum B: u1 { X = 0 }
+struct S<T: type, C: T> {}
+const BAD = S<A, B::X>{};
+)",
+              TypecheckFails(HasTypeMismatch("B", "A")));
+}
+
+TEST(TypecheckV2GenericsTest, StructGenericValueDefaultRejectsDifferentEnum) {
+  EXPECT_THAT(R"(#![feature(generics)]
+enum A: u1 { X = 0 }
+enum B: u1 { X = 0 }
+struct S<T: type, C: T = {B::X}> {}
+type Bad = S<A>;
+)",
+              TypecheckFails(HasTypeMismatch("B", "A")));
+}
+
+TEST(TypecheckV2GenericsTest, StructGenericValueDefaultAcceptsSameEnum) {
+  EXPECT_THAT(R"(#![feature(generics)]
+enum A: u1 { X = 0 }
+struct S<T: type, C: T = {A::X}> {}
+type Good = S<A>;
+)",
+              TypecheckSucceeds(::testing::_));
+}
+
 TEST(TypecheckV2GenericsTest, StructConstantAndTypeDefinedByNestedParametrics) {
   EXPECT_THAT(
       R"(

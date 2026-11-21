@@ -33,8 +33,16 @@ bool ParametricEnv::operator==(const ParametricEnv& other) const {
   if (bindings_.size() != other.bindings_.size()) {
     return false;
   }
+  bool has_type_argument = std::any_of(bindings_.begin(), bindings_.end(),
+                                       [](const ParametricEnvItem& item) {
+                                         return item.value.IsTypeReference();
+                                       });
   for (int64_t i = 0; i < bindings_.size(); ++i) {
-    if (bindings_[i] != other.bindings_[i]) {
+    const ParametricEnvItem& lhs = bindings_[i];
+    const ParametricEnvItem& rhs = other.bindings_[i];
+    if (lhs.identifier != rhs.identifier ||
+        (has_type_argument ? !lhs.value.EqForSpecialization(rhs.value)
+                           : lhs.value != rhs.value)) {
       return false;
     }
   }
