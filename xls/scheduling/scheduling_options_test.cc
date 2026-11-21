@@ -20,6 +20,8 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/status/status.h"
+#include "absl/status/status_matchers.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/status/matchers.h"
 #include "xls/estimators/delay_model/delay_estimator.h"
@@ -35,6 +37,9 @@
 namespace xls {
 namespace {
 
+using ::absl_testing::StatusIs;
+using ::testing::AllOf;
+using ::testing::HasSubstr;
 using ::testing::Pair;
 using ::testing::UnorderedElementsAre;
 using SchedulingOptionsTest = IrTestBase;
@@ -135,6 +140,38 @@ TEST_F(SchedulingOptionsTest, SetUpSchedulingOptionsWithArcThroughput) {
   EXPECT_THAT(options.arc_worst_case_throughput(),
               UnorderedElementsAre(Pair(Pair("L_W1", "L_R1"), 1),
                                    Pair(Pair("L_W2", "L_R2"), 2)));
+}
+
+TEST_F(SchedulingOptionsTest, ValidatePipelineScheduleOptions) {
+  EXPECT_THAT(ValidatePipelineScheduleOptions(SchedulingOptions()),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       AllOf(HasSubstr("--pipeline_stages"),
+                             HasSubstr("--clock_period_ps"))));
+
+  EXPECT_THAT(
+      ValidatePipelineScheduleOptions(SchedulingOptions().pipeline_stages(0)),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("--pipeline_stages must be positive")));
+  EXPECT_THAT(ValidatePipelineScheduleOptions(
+                  SchedulingOptions().pipeline_stages(-1).clock_period_ps(100)),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("--pipeline_stages must be positive")));
+
+  EXPECT_THAT(
+      ValidatePipelineScheduleOptions(SchedulingOptions().clock_period_ps(0)),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("--clock_period_ps must be positive")));
+  EXPECT_THAT(ValidatePipelineScheduleOptions(
+                  SchedulingOptions().pipeline_stages(2).clock_period_ps(-1)),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("--clock_period_ps must be positive")));
+
+  XLS_EXPECT_OK(
+      ValidatePipelineScheduleOptions(SchedulingOptions().pipeline_stages(1)));
+  XLS_EXPECT_OK(ValidatePipelineScheduleOptions(
+      SchedulingOptions().clock_period_ps(500)));
+  XLS_EXPECT_OK(ValidatePipelineScheduleOptions(
+      SchedulingOptions().pipeline_stages(2).clock_period_ps(500)));
 }
 
 }  // namespace

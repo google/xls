@@ -433,4 +433,28 @@ absl::StatusOr<SchedulingOptions> SetUpSchedulingOptions(
   return OptionsFromFlagProto(p, flags);
 }
 
+absl::Status ValidatePipelineScheduleOptions(const SchedulingOptions& options) {
+  if (options.pipeline_stages().has_value() &&
+      *options.pipeline_stages() <= 0) {
+    return absl::InvalidArgumentError(
+        absl::StrFormat("--pipeline_stages must be positive, got %d.",
+                        *options.pipeline_stages()));
+  }
+  if (options.clock_period_ps().has_value() &&
+      *options.clock_period_ps() <= 0) {
+    return absl::InvalidArgumentError(
+        absl::StrFormat("--clock_period_ps must be positive, got %d.",
+                        *options.clock_period_ps()));
+  }
+  if (!options.pipeline_stages().has_value() &&
+      !options.clock_period_ps().has_value()) {
+    return absl::InvalidArgumentError(
+        "Pipeline scheduling requires either --pipeline_stages or "
+        "--clock_period_ps to be specified; see "
+        "https://google.github.io/xls/codegen_options/"
+        "#pipelining-and-scheduling-options for details.");
+  }
+  return absl::OkStatus();
+}
+
 }  // namespace xls
