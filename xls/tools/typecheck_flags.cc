@@ -22,19 +22,24 @@
 #include "absl/status/statusor.h"
 #include "xls/tools/typecheck_flags.pb.h"
 
-ABSL_FLAG(std::string, typecheck_trace_out_dir, "",
-          "The directory in which to output type inference trace artifacts.");
+ABSL_FLAG(
+    std::string, typecheck_trace_out_dir,
+    std::string(xls::TypecheckFlagsProto::default_instance().trace_out_dir()),
+    "The directory in which to output type inference trace artifacts.");
 
 ABSL_FLAG(
-    bool, typecheck_dump_inference_table, false,
+    bool, typecheck_dump_inference_table,
+    xls::TypecheckFlagsProto::default_instance().dump_inference_table(),
     "Whether to dump the inference table to a file in `trace_output_dir`.");
 
-ABSL_FLAG(bool, typecheck_dump_traces, false,
+ABSL_FLAG(bool, typecheck_dump_traces,
+          xls::TypecheckFlagsProto::default_instance().dump_traces(),
           "Whether to dump per-module traces of the details of what was done "
           "during type inference in `trace_ouput_dir`.");
 
 ABSL_FLAG(
-    bool, typecheck_time_every_action, false,
+    bool, typecheck_time_every_action,
+    xls::TypecheckFlagsProto::default_instance().time_every_action(),
     "Whether to time every action being traced, and output the duration along "
     "with trace outputs.");
 

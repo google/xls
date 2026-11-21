@@ -9,7 +9,7 @@ message DelayInfoFlagsProto {
   string schedule_path = 2;
   bool schedule = 3;
   bool compare_to_synthesis = 4;
-  string synthesis_server = 5;
+  string synthesis_server = 5 [default = "ipv4:///0.0.0.0:10000"];
   int32 abs_delay_diff_min_ps = 6;
   int32 stage = 7;
   string proto_out = 8;
