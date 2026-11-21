@@ -27,7 +27,6 @@
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_format.h"
-#include "xls/codegen/module_signature.h"
 #include "xls/common/exit_status.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/init_xls.h"
@@ -38,12 +37,17 @@
 #include "xls/ir/ir_parser.h"
 #include "xls/ir/verifier.h"
 #include "xls/scheduling/pipeline_schedule.h"
-#include "xls/scheduling/pipeline_schedule.pb.h"
 #include "xls/tools/codegen.h"
 #include "xls/tools/codegen_flags.h"
 #include "xls/tools/codegen_flags.pb.h"
 #include "xls/tools/scheduling_options_flags.h"
 #include "xls/tools/scheduling_options_flags.pb.h"
+
+ABSL_FLAG(std::string, input_schedule_path, "",
+          "Path to the IR file to patch.");  // NOLINT
+
+namespace xls {
+namespace {
 
 static constexpr std::string_view kUsage = R"(
 Generates Verilog RTL from a given IR file and a schedule proto. Writes a Verilog file and a module
@@ -60,10 +64,7 @@ Emit a feed-forward pipelined module:
        --input_schedule_path=SCHEDULE_FILE \
        IR_FILE
 )";
-ABSL_FLAG(std::string, input_schedule_path, "",
-          "Path to the IR file to patch.");  // NOLINT
-namespace xls {
-namespace {
+
 absl::Status RealMain(std::string_view ir_path) {
   auto timeout = StartTimeoutTimer();
   if (ir_path == "-") {
@@ -156,7 +157,7 @@ absl::Status RealMain(std::string_view ir_path) {
 
 int main(int argc, char** argv) {
   std::vector<std::string_view> positional_arguments =
-      xls::InitXls(kUsage, argc, argv);
+      xls::InitXls(xls::kUsage, argc, argv);
 
   if (positional_arguments.size() != 1) {
     LOG(QFATAL) << absl::StreamFormat("Expected invocation: %s IR_FILE",
