@@ -41,6 +41,8 @@
 #include "xls/dslx/interp_value.h"
 #include "xls/dslx/interp_value_utils.h"
 #include "xls/dslx/parse_and_typecheck.h"
+#include "xls/dslx/type_system/type.h"
+#include "xls/dslx/type_system/type_info.h"
 #include "xls/dslx/virtualizable_file_system.h"
 #include "xls/dslx/warning_kind.h"
 
@@ -55,10 +57,12 @@ Evaluate DSLX with a single input:
 
 ABSL_FLAG(std::string, dslx_paths, "",
           "Comma-separated list of paths to search for DSLX imports.");
-ABSL_FLAG(std::string, entry, "", "Entry function to test. Must be specified.");
+ABSL_FLAG(std::string, entry, "",
+          "Non-parametric entry function to test. Must be specified.");
 ABSL_FLAG(std::string, input, "",
-          "The input to the function as a semicolon-separated list of typed "
-          "values. For example: \"bits[32]:42; (bits[7]:0, bits[20]:4)\"");
+          "Arguments as semicolon-separated IR values, e.g. "
+          "\"bits[32]:42; (bits[7]:0, bits[20]:4)\". Each value is interpreted "
+          "according to the declared DSLX parameter type.");
 
 namespace xls {
 
@@ -70,9 +74,6 @@ static absl::Status RealMain(
       kDefaultDslxStdlibPath, additional_search_paths,
       dslx::kDefaultWarningsSet, std::make_unique<dslx::RealFilesystem>()));
 
-  XLS_ASSIGN_OR_RETURN(std::vector<dslx::InterpValue> args,
-                       dslx::ParseArgs(args_text));
-
   XLS_ASSIGN_OR_RETURN(std::string dslx_text, GetFileContents(dslx_path));
   XLS_ASSIGN_OR_RETURN(
       dslx::TypecheckedModule tm,
@@ -82,11 +83,16 @@ static absl::Status RealMain(
       dslx::Function * f,
       tm.module->GetMemberOrError<dslx::Function>(entry_fn_name));
   XLS_RET_CHECK(f != nullptr);
-  if (f->params().size() != args.size()) {
-    return absl::InvalidArgumentError(
-        absl::StrFormat("Incorrect number of arguments: wanted %d, got %d.",
-                        f->params().size(), args.size()));
+  if (f->IsParametric()) {
+    return absl::InvalidArgumentError(absl::StrFormat(
+        "Entry function `%s` is parametric. Use a non-parametric wrapper "
+        "as the entry function.",
+        entry_fn_name));
   }
+  XLS_ASSIGN_OR_RETURN(const dslx::FunctionType* fn_type,
+                       tm.type_info->GetItemAs<dslx::FunctionType>(f));
+  XLS_ASSIGN_OR_RETURN(std::vector<dslx::InterpValue> args,
+                       dslx::ParseArgs(args_text, *fn_type));
 
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<dslx::BytecodeFunction> bf,
                        dslx::BytecodeEmitter::Emit(&import_data, tm.type_info,

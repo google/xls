@@ -23,6 +23,7 @@
 
 #include "absl/functional/function_ref.h"
 #include "absl/status/statusor.h"
+#include "absl/types/optional_ref.h"
 #include "absl/types/span.h"
 #include "xls/dslx/channel_direction.h"
 #include "xls/dslx/frontend/ast_node.h"
@@ -109,20 +110,17 @@ absl::StatusOr<std::vector<InterpValue>> SignConvertArgs(
 absl::StatusOr<InterpValue> ValueToInterpValue(const Value& v,
                                                const Type* type = nullptr);
 
-// Parses a semicolon-delimited list of values.
+// Parses a semicolon-delimited list of IR values, e.g.
+// `bits[32]:6; (bits[8]:2, bits[16]:4)`.
 //
-// Example input:
-//  bits[32]:6; (bits[8]:2, bits[16]:4)
-//
-// Returned bits values are always unsigned.
-//
-// Note: these values are parsed to InterpValues, but really they are just IR
-// values that we're converting into InterpValues. Things like enums or structs
-// (via named tuples) can't be parsed via this mechanism, it's fairly
-// specialized for the scenario we've created in our fuzzing process.
-absl::StatusOr<std::vector<InterpValue>> ParseArgs(std::string_view args_text);
+// With a concrete fn_type, converts and validates each argument according to
+// its parameter type, including signedness within aggregates. Without fn_type,
+// preserves the IR structure and treats all bits as unsigned.
+absl::StatusOr<std::vector<InterpValue>> ParseArgs(
+    std::string_view args_text,
+    absl::optional_ref<const FunctionType> fn_type = std::nullopt);
 
-// Does the above, but for a series of argument strings, one per line of input.
+// Calls ParseArgs without a function type for each line of input.
 absl::StatusOr<std::vector<std::vector<InterpValue>>> ParseArgsBatch(
     std::string_view args_text);
 

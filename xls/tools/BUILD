@@ -170,6 +170,8 @@ cc_binary(
         "//xls/dslx/bytecode:bytecode_emitter",
         "//xls/dslx/bytecode:bytecode_interpreter",
         "//xls/dslx/frontend:ast",
+        "//xls/dslx/type_system:type",
+        "//xls/dslx/type_system:type_info",
         "@abseil-cpp//absl/flags:flag",
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/status",
@@ -1002,6 +1004,17 @@ pytype_strict_contrib_test(
         "@abseil-py//absl/testing:absltest",
         "@abseil-py//absl/testing:parameterized",
         "@protobuf//:protobuf_python",
+    ],
+)
+
+pytype_strict_contrib_test(
+    name = "eval_dslx_main_test",
+    srcs = ["eval_dslx_main_test.py"],
+    data = [":eval_dslx_main"],
+    deps = [
+        "//xls/common:runfiles",
+        "//xls/common:test_base",
+        "@abseil-py//absl/testing:parameterized",
     ],
 )
 
