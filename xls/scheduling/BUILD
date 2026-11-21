@@ -129,6 +129,8 @@ cc_test(
         "//xls/passes:optimization_pass",
         "//xls/passes:pass_base",
         "//xls/tools:scheduling_options_flags_cc_proto",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:status_matchers",
         "@googletest//:gtest",
     ],
 )

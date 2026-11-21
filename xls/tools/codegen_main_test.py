@@ -820,6 +820,23 @@ class CodeGenMainTest(parameterized.TestCase):
     self.assertIn('--opt_level', output)
     self.assertIn('Ranges from 0 to 3.', output)
 
+  def test_pipeline_requires_stages_or_clock_period(self):
+    ir_file = self.create_tempfile(content=NOT_ADD_IR)
+    proc = subprocess.run(
+        [
+            CODEGEN_MAIN_PATH,
+            '--generator=pipeline',
+            '--top=not_add',
+            ir_file.full_path,
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    self.assertGreater(proc.returncode, 0)
+    self.assertIn('--pipeline_stages', proc.stderr)
+    self.assertIn('--clock_period_ps', proc.stderr)
+
 
 if __name__ == '__main__':
   absltest.main()

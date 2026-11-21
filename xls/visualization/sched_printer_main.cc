@@ -370,9 +370,7 @@ absl::Status RealMain(std::string_view ir_path) {
       SchedulingOptions scheduling_options,
       SetUpSchedulingOptions(scheduling_options_flags_proto, p.get()));
 
-  QCHECK(scheduling_options.pipeline_stages() != 0 ||
-         scheduling_options.clock_period_ps() != 0)
-      << "Must specify --pipeline_stages or --clock_period_ps (or both).";
+  XLS_RETURN_IF_ERROR(ValidatePipelineScheduleOptions(scheduling_options));
 
   XLS_ASSIGN_OR_RETURN(const DelayEstimator* delay_estimator,
                        SetUpDelayEstimator(scheduling_options_flags_proto));

@@ -604,6 +604,7 @@ cc_library(
         "//xls/ir:op",
         "//xls/ir:register",
         "//xls/ir:xls_ir_interface_cc_proto",
+        "//xls/tools:codegen_flags_cc_proto",
         "@abseil-cpp//absl/base:core_headers",
         "@abseil-cpp//absl/container:flat_hash_map",
         "@abseil-cpp//absl/log",
