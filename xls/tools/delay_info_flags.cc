@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include "xls/tools/delay_info_flags.h"
+
 #include <optional>
 #include <string>
 #include <string_view>
@@ -20,22 +22,30 @@
 #include "xls/tools/delay_info_flags.pb.h"
 
 ABSL_FLAG(
-    std::string, top, "",
+    std::string, top,
+    std::string(xls::DelayInfoFlagsProto::default_instance().top()),
     "The name of the top entity. Currently, only functions are supported. "
     "Function to emit delay information about.");
-ABSL_FLAG(std::string, schedule_path, "",
-          "Optional path to a pipeline schedule to use for emitting per-stage "
-          "critical paths.");
-ABSL_FLAG(bool, schedule, false,
+ABSL_FLAG(
+    std::string, schedule_path,
+    std::string(xls::DelayInfoFlagsProto::default_instance().schedule_path()),
+    "Optional path to a pipeline schedule to use for emitting per-stage "
+    "critical paths.");
+ABSL_FLAG(bool, schedule,
+          xls::DelayInfoFlagsProto::default_instance().schedule(),
           "Run scheduling to generate a schedule for delay analysis, rather "
           "than reading a schedule via --schedule_path.");
-ABSL_FLAG(bool, compare_to_synthesis, false,
+ABSL_FLAG(bool, compare_to_synthesis,
+          xls::DelayInfoFlagsProto::default_instance().compare_to_synthesis(),
           "Whether to compare the delay info from the XLS delay model to "
           "synthesizer output.");
-ABSL_FLAG(std::string, synthesis_server, "ipv4:///0.0.0.0:10000",
+ABSL_FLAG(std::string, synthesis_server,
+          std::string(
+              xls::DelayInfoFlagsProto::default_instance().synthesis_server()),
           "The address, including port, of the gRPC server to use with "
           "--compare_to_synthesis.");
-ABSL_FLAG(int, abs_delay_diff_min_ps, 0,
+ABSL_FLAG(int, abs_delay_diff_min_ps,
+          xls::DelayInfoFlagsProto::default_instance().abs_delay_diff_min_ps(),
           "Return an error exit code if the absolute value of `synthesized "
           "delay - delay model prediction` is below this threshold. This "
           "enables use of delay_info_main as a helper for ir_minimizer_main, "
@@ -70,12 +80,10 @@ DelayInfoFlagsProto GetDelayInfoFlagsProto(std::string_view input_path) {
   POPULATE_FLAG(schedule_path)
   POPULATE_FLAG(schedule)
   POPULATE_FLAG(compare_to_synthesis)
+  POPULATE_FLAG(synthesis_server)
   POPULATE_FLAG(abs_delay_diff_min_ps)
   POPULATE_OPTIONAL_FLAG(stage)
   POPULATE_OPTIONAL_FLAG(proto_out)
-
-  // We want this even when defaulted (which is most common).
-  proto.set_synthesis_server(absl::GetFlag(FLAGS_synthesis_server));
   return proto;
 
 #undef POPULATE_OPTIONAL_FLAG

@@ -1213,6 +1213,19 @@ cc_library(
     ],
 )
 
+cc_test(
+    name = "delay_info_flags_test",
+    srcs = ["delay_info_flags_test.cc"],
+    deps = [
+        ":delay_info_flags",
+        ":delay_info_flags_cc_proto",
+        "//xls/common:xls_gunit_main",
+        "@abseil-cpp//absl/flags:parse",
+        "@abseil-cpp//absl/flags:reflection",
+        "@googletest//:gtest",
+    ],
+)
+
 cc_library(
     name = "delay_info_printer",
     srcs = ["delay_info_printer.cc"],
@@ -1398,6 +1411,22 @@ cc_library(
         "@abseil-cpp//absl/flags:flag",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:statusor",
+    ],
+)
+
+cc_test(
+    name = "typecheck_flags_test",
+    srcs = ["typecheck_flags_test.cc"],
+    deps = [
+        ":typecheck_flags",
+        ":typecheck_flags_cc_proto",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "@abseil-cpp//absl/flags:flag",
+        "@abseil-cpp//absl/flags:reflection",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:status_matchers",
+        "@googletest//:gtest",
     ],
 )
 
