@@ -40,6 +40,7 @@
 #include "cppitertools/imap.hpp"
 #include "cppitertools/sliding_window.hpp"
 #include "xls/common/iterator_range.h"
+#include "xls/common/math_util.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/estimators/delay_model/delay_estimator.h"
@@ -565,13 +566,25 @@ absl::StatusOr<std::optional<int64_t>> PropagateGenericBounds(
         continue;
       }
       XLS_ASSIGN_OR_RETURN(int64_t operand_delay, get_delay(operand));
+      if (operand_delay < 0) {
+        return absl::InvalidArgumentError(
+            absl::StrFormat("Node %s has a negative delay (%dps)",
+                            operand.node->GetName(), operand_delay));
+      }
+      SaturatedResult<int64_t> operand_end_delay =
+          SaturatingAdd(in_cycle_delay.at(operand.node), operand_delay);
+      if (operand_end_delay.did_overflow) {
+        return absl::InvalidArgumentError(
+            absl::StrFormat("In-cycle delay at node %s overflows int64_t",
+                            operand.node->GetName()));
+      }
       if (operand_cb > node_cb) {
         VLOG(4) << absl::StreamFormat(
             "    tightened lb to %d because of operand %s", operand_cb,
             operand.node->GetName());
         XLS_RETURN_IF_ERROR(TightenBound(node_cb, operand_cb));
         changed = true;
-        node_in_cycle_delay = in_cycle_delay.at(operand.node) + operand_delay;
+        node_in_cycle_delay = operand_end_delay.result;
         continue;
       }
       // NB MinDelay nodes are handled by constraints so no need to do anything
@@ -585,16 +598,27 @@ absl::StatusOr<std::optional<int64_t>> PropagateGenericBounds(
         node_in_cycle_delay = 0;
         continue;
       }
-      node_in_cycle_delay = std::max(
-          node_in_cycle_delay, in_cycle_delay.at(operand.node) + operand_delay);
+      node_in_cycle_delay =
+          std::max(node_in_cycle_delay, operand_end_delay.result);
     }
     XLS_ASSIGN_OR_RETURN(int64_t node_delay, get_delay(node));
+    if (node_delay < 0) {
+      return absl::InvalidArgumentError(
+          absl::StrFormat("Node %s has a negative delay (%dps)",
+                          node.node->GetName(), node_delay));
+    }
     if (node_delay > clock_period_ps) {
       return absl::ResourceExhaustedError(absl::StrFormat(
           "Node %s has a greater delay (%dps) than the clock period (%dps)",
           node.node->GetName(), node_delay, clock_period_ps));
     }
-    if (node_in_cycle_delay + node_delay > clock_period_ps) {
+    SaturatedResult<int64_t> total_in_cycle_delay =
+        SaturatingAdd(node_in_cycle_delay, node_delay);
+    if (total_in_cycle_delay.did_overflow) {
+      return absl::InvalidArgumentError(absl::StrFormat(
+          "In-cycle delay at node %s overflows int64_t", node.node->GetName()));
+    }
+    if (total_in_cycle_delay.result > clock_period_ps) {
       // Node does not fit in this cycle. Move to next cycle.
       VLOG(4) << "    overflows clock period, tightened lb to " << node_cb + 1;
       XLS_RETURN_IF_ERROR(TightenBound(node_cb, node_cb + 1));

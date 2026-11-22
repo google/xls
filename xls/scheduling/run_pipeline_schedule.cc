@@ -33,6 +33,7 @@
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/log/vlog_is_on.h"
+#include "absl/numeric/int128.h"
 #include "absl/random/random.h"
 #include "absl/status/status.h"
 #include "absl/status/status_builder.h"
@@ -118,7 +119,18 @@ absl::StatusOr<int64_t> ComputeCriticalPath(
     }
     XLS_ASSIGN_OR_RETURN(int64_t node_delay,
                          delay_estimator.GetOperationDelayInPs(sn.node));
-    node_cp[sn.node] = node_start + node_delay;
+    if (node_delay < 0) {
+      return absl::InvalidArgumentError(
+          absl::StrFormat("Node %s has a negative delay (%dps)",
+                          sn.node->GetName(), node_delay));
+    }
+    SaturatedResult<int64_t> node_end = SaturatingAdd(node_start, node_delay);
+    if (node_end.did_overflow) {
+      return absl::InvalidArgumentError(absl::StrFormat(
+          "Critical-path delay through node %s overflows int64_t",
+          sn.node->GetName()));
+    }
+    node_cp[sn.node] = node_end.result;
     function_cp = std::max(function_cp, node_cp[sn.node]);
   }
   return function_cp;
@@ -304,6 +316,36 @@ bool IsExternalIoNode(ChannelNode* node,
   return (*chan)->supported_ops() != ChannelOps::kSendReceive;
 }
 
+absl::StatusOr<int64_t> CheckedAddIoDelay(Node* node, int64_t a, int64_t b) {
+  SaturatedResult<int64_t> sum = SaturatingAdd(a, b);
+  if (sum.did_overflow) {
+    return absl::InvalidArgumentError(absl::StrFormat(
+        "Delay of node %s overflows int64_t after adding I/O delay",
+        node->GetName()));
+  }
+  return sum.result;
+}
+
+// Computes `(value * numerator + 50) / denominator` using 128-bit intermediate
+// arithmetic to avoid signed int64_t overflow when `value` or `numerator` is
+// large, saturating the result to the `int64_t` range.
+SaturatedResult<int64_t> SaturatingPercentageScale(int64_t value,
+                                                   int64_t numerator,
+                                                   int64_t denominator = 100) {
+  CHECK_GT(denominator, 0);
+  absl::int128 scaled = (absl::int128{value} * absl::int128{numerator} + 50) /
+                        absl::int128{denominator};
+  if (scaled > std::numeric_limits<int64_t>::max()) {
+    return {.result = std::numeric_limits<int64_t>::max(),
+            .did_overflow = true};
+  }
+  if (scaled < std::numeric_limits<int64_t>::min()) {
+    return {.result = std::numeric_limits<int64_t>::min(),
+            .did_overflow = true};
+  }
+  return {.result = static_cast<int64_t>(scaled), .did_overflow = false};
+}
+
 absl::StatusOr<int64_t> ApplyClockMargin(const SchedulingOptions& options,
                                          int64_t clock_period_ps) {
   if (!options.clock_margin_percent().has_value()) {
@@ -311,16 +353,24 @@ absl::StatusOr<int64_t> ApplyClockMargin(const SchedulingOptions& options,
   }
 
   int64_t original_clock_period_ps = clock_period_ps;
-  clock_period_ps -=
-      (clock_period_ps * *options.clock_margin_percent() + 50) / 100;
-  if (clock_period_ps <= 0) {
+  SaturatedResult<int64_t> margin_ps = SaturatingPercentageScale(
+      clock_period_ps, *options.clock_margin_percent());
+  SaturatedResult<int64_t> adjusted_clock_period_ps =
+      SaturatingSub(clock_period_ps, margin_ps.result);
+  if (adjusted_clock_period_ps.did_overflow) {
+    return absl::InvalidArgumentError(absl::StrFormat(
+        "Clock period overflows int64_t after adjusting for margin. "
+        "Original clock period: %dps, clock margin: %d%%",
+        original_clock_period_ps, *options.clock_margin_percent()));
+  }
+  if (adjusted_clock_period_ps.result <= 0) {
     return absl::InvalidArgumentError(absl::StrFormat(
         "Clock period non-positive (%dps) after adjusting for margin. "
         "Original clock period: %dps, clock margin: %d%%",
-        clock_period_ps, original_clock_period_ps,
+        adjusted_clock_period_ps.result, original_clock_period_ps,
         *options.clock_margin_percent()));
   }
-  return clock_period_ps;
+  return adjusted_clock_period_ps.result;
 }
 
 // Handles the case where scheduling fails, providing more informative error
@@ -349,6 +399,13 @@ absl::Status HandleScheduleFailure(
           << "Unable to schedule with the specified clock period ("
           << clock_period_ps
           << " ps); finding the shortest feasible clock period...";
+      if (clock_period_ps == std::numeric_limits<int64_t>::max()) {
+        // `clock_period_ps` may be `INT64_MAX` if `--clock_period_ps=INT64_MAX`
+        // was specified directly; `clock_period_ps + 1` below would overflow
+        // `int64_t`, and no larger clock period exists to search, so return the
+        // original scheduling failure status.
+        return schedule_status;
+      }
       int64_t target_clock_period_ps = clock_period_ps + 1;
       absl::StatusOr<int64_t> min_clock_period_ps = FindMinimumClockPeriod(
           graph, options.pipeline_stages(), worst_case_throughput,
@@ -556,6 +613,46 @@ absl::StatusOr<PipelineSchedule> RunPipelineScheduleInternal(
         "https://google.github.io/xls/codegen_options/"
         "#pipelining-and-scheduling-options for details.");
   }
+  if (options.pipeline_stages().has_value() &&
+      *options.pipeline_stages() <= 0) {
+    return absl::InvalidArgumentError("pipeline_stages must be > 0");
+  }
+  if (options.clock_period_ps().has_value() &&
+      *options.clock_period_ps() <= 0) {
+    return absl::InvalidArgumentError("clock_period_ps must be > 0");
+  }
+  if (options.clock_margin_percent().has_value() &&
+      *options.clock_margin_percent() < 0) {
+    return absl::InvalidArgumentError("clock_margin_percent must be >= 0");
+  }
+  if (options.period_relaxation_percent().has_value() &&
+      *options.period_relaxation_percent() < 0) {
+    return absl::InvalidArgumentError("period_relaxation_percent must be >= 0");
+  }
+  if (options.worst_case_throughput().has_value() &&
+      *options.worst_case_throughput() < 0) {
+    return absl::InvalidArgumentError("worst_case_throughput must be >= 0");
+  }
+  if (options.additional_input_delay_ps().has_value() &&
+      *options.additional_input_delay_ps() < 0) {
+    return absl::InvalidArgumentError("additional_input_delay_ps must be >= 0");
+  }
+  if (options.additional_output_delay_ps().has_value() &&
+      *options.additional_output_delay_ps() < 0) {
+    return absl::InvalidArgumentError(
+        "additional_output_delay_ps must be >= 0");
+  }
+  for (const auto& [channel_name, delay_ps] :
+       options.additional_channel_delay_ps()) {
+    if (delay_ps < 0) {
+      return absl::InvalidArgumentError(
+          "additional_channel_delay_ps must be >= 0");
+    }
+  }
+  if (options.ffi_fallback_delay_ps().has_value() &&
+      *options.ffi_fallback_delay_ps() < 0) {
+    return absl::InvalidArgumentError("ffi_fallback_delay_ps must be >= 0");
+  }
 
   if (f->IsProc() && f->AsProcOrDie()->is_new_style_proc() &&
       !elab.has_value()) {
@@ -591,7 +688,13 @@ absl::StatusOr<PipelineSchedule> RunPipelineScheduleInternal(
   int64_t max_io_delay = std::max(input_delay, output_delay);
 
   DecoratingDelayEstimator io_delay_added(
-      "io_delay_added", delay_estimator, [&](Node* node, int64_t base_delay) {
+      "io_delay_added", delay_estimator,
+      [&](Node* node, int64_t base_delay) -> absl::StatusOr<int64_t> {
+        if (base_delay < 0) {
+          return absl::InvalidArgumentError(
+              absl::StrFormat("Node %s has a negative delay (%dps)",
+                              node->GetName(), base_delay));
+        }
         if (node->Is<ChannelNode>()) {
           std::string_view channel_name =
               node->As<ChannelNode>()->channel_name();
@@ -612,18 +715,21 @@ absl::StatusOr<PipelineSchedule> RunPipelineScheduleInternal(
           }
 
           if (IsExternalIoNode(node->As<ChannelNode>(), elab)) {
-            return base_delay + max_io_delay + channel_delay_ps;
+            XLS_ASSIGN_OR_RETURN(
+                int64_t with_io,
+                CheckedAddIoDelay(node, base_delay, max_io_delay));
+            return CheckedAddIoDelay(node, with_io, channel_delay_ps);
           }
 
-          return base_delay + channel_delay_ps;
+          return CheckedAddIoDelay(node, base_delay, channel_delay_ps);
         }
         if (node->function_base()->IsFunction()) {
           if (node->Is<Param>()) {
-            return base_delay + input_delay;
+            return CheckedAddIoDelay(node, base_delay, input_delay);
           }
           if (node->function_base()->AsFunctionOrDie()->return_value() ==
               node) {
-            return base_delay + output_delay;
+            return CheckedAddIoDelay(node, base_delay, output_delay);
           }
         }
         return base_delay;
@@ -777,9 +883,15 @@ absl::StatusOr<PipelineSchedule> RunPipelineScheduleInternal(
         return absl::InvalidArgumentError(
             "Clock margin percent must be less than 100.");
       }
-      *min_clock_period_ps_for_tracing =
-          (*min_clock_period_ps_for_tracing * 100 + 50) /
-          (100 - *options.clock_margin_percent());
+      SaturatedResult<int64_t> padded = SaturatingPercentageScale(
+          *min_clock_period_ps_for_tracing, /*numerator=*/100,
+          /*denominator=*/100 - *options.clock_margin_percent());
+      if (padded.did_overflow || padded.result <= 0) {
+        return absl::InvalidArgumentError(absl::StrFormat(
+            "Clock period out of range after padding for clock margin: %d%%",
+            *options.clock_margin_percent()));
+      }
+      *min_clock_period_ps_for_tracing = padded.result;
     }
 
     // Set the clock period to the minimum feasible value.
@@ -789,11 +901,20 @@ absl::StatusOr<PipelineSchedule> RunPipelineScheduleInternal(
       // Apply the user-specified relaxation to allow less evenly distributed
       // slack.
       int64_t relaxation_percent = options.period_relaxation_percent().value();
-      int64_t adjustment = ((clock_period_ps * relaxation_percent + 50) / 100);
-      VLOG(4) << "Applying period relaxation of " << adjustment
+      SaturatedResult<int64_t> adjustment =
+          SaturatingPercentageScale(clock_period_ps, relaxation_percent);
+      SaturatedResult<int64_t> relaxed =
+          SaturatingAdd(clock_period_ps, adjustment.result);
+      if (adjustment.did_overflow || relaxed.did_overflow ||
+          relaxed.result <= 0) {
+        return absl::InvalidArgumentError(absl::StrFormat(
+            "Clock period out of range after applying period relaxation: %d%%",
+            relaxation_percent));
+      }
+      VLOG(4) << "Applying period relaxation of " << adjustment.result
               << " ps to clock period of " << clock_period_ps
-              << " ps. Total is: " << (clock_period_ps + adjustment) << " ps.";
-      clock_period_ps += adjustment;
+              << " ps. Total is: " << relaxed.result << " ps.";
+      clock_period_ps = relaxed.result;
     }
 
     if (options.clock_period_ps().has_value()) {
