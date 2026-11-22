@@ -2049,13 +2049,12 @@ ResourceSharingPass::SelectFoldingActionsForGraph(
 namespace {
 
 // Precomputes visibility IR expressions for all foldings on the unmodified
-// def-use DAG, accumulating expressions across chained foldings.
+// def-use DAG. We defer accumulating expressions across chained foldings.
 //
 // Constructing these expressions on the unmodified def-use DAG prevents
-// foldings from invalidating the analysis used to collect visibility edges,
-// and requires us to accumulate visibility expressions so we can OR them
-// in the event previous foldings have joined a from node of the current
-// folding into other nodes.
+// foldings from invalidating the analysis used to collect visibility edges.
+// Chained visibility accumulation, i.e. OR-ing expressions of previously folded
+// sources, is done during folding so skipped actions do not pollute selectors.
 absl::StatusOr<
     absl::flat_hash_map<const NaryFoldingAction*, std::vector<Node*>>>
 PrecomputeVisibilityExpressions(
@@ -2064,15 +2063,9 @@ PrecomputeVisibilityExpressions(
         folding_actions_to_perform) {
   absl::flat_hash_map<const NaryFoldingAction*, std::vector<Node*>>
       precomputed_from_used;
-  absl::flat_hash_map<Node*, std::vector<Node*>> accumulated_exprs;
+  precomputed_from_used.reserve(folding_actions_to_perform.size());
   for (const std::unique_ptr<NaryFoldingAction>& folding :
        folding_actions_to_perform) {
-    // Collect visibility expressions of all nodes folded into `to_node`.
-    // If `to_node` is folded into another node by a later folding, we'll know
-    // what visibility expressions to accumulate for that latter action.
-    std::vector<Node*>& to_exprs = accumulated_exprs[folding->GetTo()];
-
-    // Construct the visibility expression for each `from_node` in the action.
     std::vector<Node*> from_used_expressions;
     from_used_expressions.reserve(folding->GetFrom().size());
     for (const NaryFoldingAction::NodeVisibility& from : folding->GetFrom()) {
@@ -2080,28 +2073,116 @@ PrecomputeVisibilityExpressions(
                            visibility_builder->BuildVisibilityIRExpr(
                                f, from.node, from.edges, from.sinks));
       XLS_RET_CHECK(!IsLiteralUnsignedOne(expr));
-      std::vector<Node*> sub_exprs = {expr};
-      if (auto it = accumulated_exprs.find(from.node);
-          it != accumulated_exprs.end()) {
-        sub_exprs.insert(sub_exprs.end(), it->second.begin(), it->second.end());
-      }
-      to_exprs.insert(to_exprs.end(), sub_exprs.begin(), sub_exprs.end());
-
-      // Join the visibility expressions of `from_node` and nodes folded into it
-      // by previous folding actions.
-      XLS_RET_CHECK(!sub_exprs.empty());
-      Node* from_used = sub_exprs.front();
-      if (sub_exprs.size() > 1) {
-        XLS_ASSIGN_OR_RETURN(
-            from_used,
-            f->MakeNode<NaryOp>(sub_exprs[0]->loc(), sub_exprs, Op::kOr));
-      }
-      from_used_expressions.push_back(from_used);
+      from_used_expressions.push_back(expr);
     }
     precomputed_from_used[folding.get()] = std::move(from_used_expressions);
   }
 
   return precomputed_from_used;
+}
+
+// Replaces `node` with its decomposition in `f` and returns the mapping from
+// decomposition part temporary nodes to their materialized IR nodes.
+absl::StatusOr<absl::flat_hash_map<Node*, Node*>> RealizeDecomposition(
+    FunctionBase* f, Node* node, const EquivalenceMapping& decomp_mapping,
+    absl::flat_hash_map<Node*, Node*>& renaming_done_by_previous_folding) {
+  absl::flat_hash_map<Node*, Node*> part_to_realized;
+  XLS_ASSIGN_OR_RETURN(
+      Node * decomp_output,
+      CloneWithMapping(node, decomp_mapping, part_to_realized));
+  XLS_RETURN_IF_ERROR(node->ReplaceUsesWith(decomp_output));
+  renaming_done_by_previous_folding[node] = decomp_output;
+  return part_to_realized;
+}
+
+// Materializes any unrealized decompositions referenced by `folding`, records
+// newly decomposed original nodes in `decomposed_nodes_to_remove`, and returns
+// a new `NaryFoldingAction` referencing the realized nodes (or `nullptr` if
+// `folding` references no decompositions).
+absl::StatusOr<std::unique_ptr<NaryFoldingAction>> RealizeActionDecompositions(
+    FunctionBase* f, const NaryFoldingAction& folding,
+    absl::flat_hash_map<Node*, Node*>& part_to_realized,
+    absl::flat_hash_map<Node*, Node*>& renaming_done_by_previous_folding,
+    absl::flat_hash_set<Node*>& decomposed_nodes_to_remove,
+    const absl::flat_hash_set<Node*>& mutated_nodes) {
+  bool has_decomposition =
+      folding.to_composition().has_value() ||
+      absl::c_any_of(folding.GetFrom(),
+                     [](const NaryFoldingAction::NodeVisibility& from) {
+                       return from.composition.has_value();
+                     });
+  if (!has_decomposition) {
+    return nullptr;
+  }
+
+  auto get_realized_part =
+      [&](Node* node, const CompositionPart& comp) -> absl::StatusOr<Node*> {
+    auto it = part_to_realized.find(comp.part);
+    if (it == part_to_realized.end()) {
+      if (mutated_nodes.contains(node)) {
+        return absl::InternalError(absl::StrFormat(
+            "Cannot decompose node %s because it was already mutated by a "
+            "previous folding action",
+            node->ToString()));
+      }
+      XLS_ASSIGN_OR_RETURN(
+          (absl::flat_hash_map<Node*, Node*> newly_realized),
+          RealizeDecomposition(f, node, *comp.mapping,
+                               renaming_done_by_previous_folding));
+      decomposed_nodes_to_remove.insert(node);
+      part_to_realized.merge(newly_realized);
+      it = part_to_realized.find(comp.part);
+      XLS_RET_CHECK(it != part_to_realized.end());
+    }
+    return it->second;
+  };
+
+  absl::flat_hash_map<Node*, Node*> remap;
+  auto realize_and_track =
+      [&](Node* node,
+          const std::optional<CompositionPart>& comp) -> absl::StatusOr<Node*> {
+    Node* new_node = node;
+    if (comp.has_value()) {
+      XLS_ASSIGN_OR_RETURN(new_node, get_realized_part(node, *comp));
+      remap[comp->part] = new_node;
+    } else {
+      remap[new_node] = new_node;
+    }
+    return new_node;
+  };
+
+  XLS_ASSIGN_OR_RETURN(
+      Node * new_to,
+      realize_and_track(folding.GetTo(), folding.to_composition()));
+
+  std::vector<NaryFoldingAction::NodeVisibility> new_froms;
+  new_froms.reserve(folding.GetFrom().size());
+  for (const NaryFoldingAction::NodeVisibility& from : folding.GetFrom()) {
+    XLS_ASSIGN_OR_RETURN(Node * new_from_node,
+                         realize_and_track(from.node, from.composition));
+    new_froms.push_back(NaryFoldingAction::NodeVisibility{
+        .node = new_from_node,
+        .edges = from.edges,
+        .sinks = from.sinks,
+    });
+  }
+
+  absl::flat_hash_map<Node*, std::unique_ptr<EquivalenceMapping>> new_mappings;
+  new_mappings.reserve(folding.mappings().size());
+  for (const auto& [key, mapping] : folding.mappings()) {
+    // Track undecomposed nodes referenced by equivalence mapping
+    remap.try_emplace(mapping->src(), mapping->src());
+    remap.try_emplace(mapping->dst(), mapping->dst());
+
+    // Clone the mapping and map the key if it was decomposed
+    auto it = remap.find(key);
+    Node* new_key = it != remap.end() ? it->second : key;
+    XLS_ASSIGN_OR_RETURN(new_mappings[new_key], mapping->Clone(remap));
+  }
+
+  return std::make_unique<NaryFoldingAction>(
+      std::move(new_froms), new_to, folding.GetToVisibilityEdges(),
+      folding.area_saved(), std::move(new_mappings));
 }
 
 struct MappedNode {
@@ -2266,8 +2347,9 @@ absl::StatusOr<std::vector<Node*>> SelectFoldedOperands(
 
 // Updates or clones the folding target with `new_operands`, applies output
 // equivalence mappings, replaces uses of folded nodes, removes them from `f`,
-// and records the performed renamings in `renaming_done_by_previous_folding`.
-absl::Status UpdateTargetAndReplaceUses(
+// records the performed renamings in `renaming_done_by_previous_folding`, and
+// returns the unified target node.
+absl::StatusOr<Node*> UpdateTargetAndReplaceUses(
     FunctionBase* f, const MappedFoldingAction& folding,
     absl::Span<Node* const> new_operands,
     absl::flat_hash_map<Node*, Node*>& renaming_done_by_previous_folding) {
@@ -2301,6 +2383,63 @@ absl::Status UpdateTargetAndReplaceUses(
   if (folding.to.mapping != nullptr) {
     XLS_RETURN_IF_ERROR(replace_and_remove(folding.to));
   }
+  return unified_node;
+}
+
+// Combines each source's base visibility expression with visibility exprs for
+// nodes folded into it already, OR-ing them together, and updates the
+// accumulation map.
+absl::StatusOr<std::vector<Node*>> AccumulateVisibilityExpressions(
+    FunctionBase* f, const MappedFoldingAction& mapped_folding,
+    absl::Span<Node* const> base_from_used,
+    absl::flat_hash_map<Node*, std::vector<Node*>>& accumulated_vis_exprs) {
+  XLS_RET_CHECK_EQ(base_from_used.size(), mapped_folding.froms.size());
+  // Collect visibility expressions for each source of this folding action.
+  std::vector<Node*> from_used_expressions;
+  from_used_expressions.reserve(mapped_folding.froms.size());
+  // Collect visibility expressions to account for if folding the destination
+  // into something else in the future.
+  std::vector<Node*> newly_accumulated;
+  for (int64_t i = 0; i < mapped_folding.froms.size(); ++i) {
+    std::vector<Node*> sub_exprs = {base_from_used[i]};
+    if (auto it = accumulated_vis_exprs.find(mapped_folding.froms[i].node);
+        it != accumulated_vis_exprs.end()) {
+      sub_exprs.insert(sub_exprs.end(), it->second.begin(), it->second.end());
+      accumulated_vis_exprs.erase(it);
+    }
+    newly_accumulated.insert(newly_accumulated.end(), sub_exprs.begin(),
+                             sub_exprs.end());
+    Node* from_used = sub_exprs.front();
+    if (sub_exprs.size() > 1) {
+      XLS_ASSIGN_OR_RETURN(from_used, f->MakeNode<NaryOp>(sub_exprs[0]->loc(),
+                                                          sub_exprs, Op::kOr));
+    }
+    from_used_expressions.push_back(from_used);
+  }
+  if (!newly_accumulated.empty()) {
+    std::vector<Node*>& to_exprs =
+        accumulated_vis_exprs[mapped_folding.to.node];
+    to_exprs.insert(to_exprs.end(), newly_accumulated.begin(),
+                    newly_accumulated.end());
+  }
+  return from_used_expressions;
+}
+
+// Moves accumulated visibility expressions from `prev_to_node` to
+// `unified_node` when the destination was mapped to a new node.
+absl::Status TransferAccumulatedVisibility(
+    Node* prev_to_node, Node* unified_node,
+    absl::flat_hash_map<Node*, std::vector<Node*>>& accumulated_vis_exprs) {
+  if (unified_node == prev_to_node) {
+    return absl::OkStatus();
+  }
+  auto it = accumulated_vis_exprs.extract(prev_to_node);
+  if (it.empty()) {
+    return absl::OkStatus();
+  }
+  auto [it_unused, inserted] =
+      accumulated_vis_exprs.try_emplace(unified_node, std::move(it.mapped()));
+  XLS_RET_CHECK(inserted);
   return absl::OkStatus();
 }
 
@@ -2323,28 +2462,54 @@ ResourceSharingPass::PerformFoldingActions(
       PrecomputeVisibilityExpressions(f, visibility_builder,
                                       folding_actions_to_perform));
 
-  // Perform the folding actions specified
+  // Lazily realize decompositions and share nodes across the foldings.
+  absl::flat_hash_map<Node*, Node*> part_to_realized;
+  absl::flat_hash_set<Node*> decomposed_nodes_to_remove;
+  absl::flat_hash_set<Node*> mutated_nodes;
   absl::flat_hash_map<Node*, Node*> renaming_done_by_previous_folding;
+  absl::flat_hash_map<Node*, std::vector<Node*>> accumulated_vis_exprs;
+  auto effective_node = [&](Node* node,
+                            const std::optional<CompositionPart>& comp) {
+    if (comp.has_value()) {
+      if (auto it = part_to_realized.find(comp->part);
+          it != part_to_realized.end()) {
+        return it->second;
+      }
+    }
+    return node;
+  };
+
   std::vector<const NaryFoldingAction*> performed_folding_actions;
   performed_folding_actions.reserve(folding_actions_to_perform.size());
   for (const std::unique_ptr<NaryFoldingAction>& folding :
        folding_actions_to_perform) {
     // Disable folding already folded sources / destinations because current
     // delay estimates are invalidated and do not take this into account.
-    if (renaming_done_by_previous_folding.contains(folding->GetTo()) ||
+    if (renaming_done_by_previous_folding.contains(
+            effective_node(folding->GetTo(), folding->to_composition())) ||
         absl::c_any_of(folding->GetFrom(),
                        [&](const NaryFoldingAction::NodeVisibility& from) {
                          return renaming_done_by_previous_folding.contains(
-                             from.node);
+                             effective_node(from.node, from.composition));
                        })) {
       continue;
     }
-    const std::vector<Node*>& from_used_expressions =
-        precomputed_from_used.at(folding.get());
-    XLS_RET_CHECK_EQ(from_used_expressions.size(), folding->GetFrom().size());
+    XLS_ASSIGN_OR_RETURN(
+        std::unique_ptr<NaryFoldingAction> realized_folding,
+        RealizeActionDecompositions(f, *folding, part_to_realized,
+                                    renaming_done_by_previous_folding,
+                                    decomposed_nodes_to_remove, mutated_nodes));
+    const NaryFoldingAction& active_folding =
+        realized_folding != nullptr ? *realized_folding : *folding;
     XLS_ASSIGN_OR_RETURN(
         MappedFoldingAction mapped_folding,
-        MapFoldingAction(f, *folding, renaming_done_by_previous_folding));
+        MapFoldingAction(f, active_folding, renaming_done_by_previous_folding));
+
+    XLS_ASSIGN_OR_RETURN(
+        std::vector<Node*> from_used_expressions,
+        AccumulateVisibilityExpressions(f, mapped_folding,
+                                        precomputed_from_used.at(folding.get()),
+                                        accumulated_vis_exprs));
 
     VLOG(2) << "  Next folding to perform:\n";
     VLOG(2) << "    To: " << mapped_folding.to.node->ToString();
@@ -2366,12 +2531,25 @@ ResourceSharingPass::PerformFoldingActions(
 
     VLOG(3) << "      Step 2: update the target of the folding transformation "
                "and replace uses of the folded nodes";
-    XLS_RETURN_IF_ERROR(UpdateTargetAndReplaceUses(
-        f, mapped_folding, new_operands, renaming_done_by_previous_folding));
+    Node* prev_to_node = mapped_folding.to.node;
+    XLS_ASSIGN_OR_RETURN(
+        Node * unified_node,
+        UpdateTargetAndReplaceUses(f, mapped_folding, new_operands,
+                                   renaming_done_by_previous_folding));
+    if (mapped_folding.to.mapping == nullptr) {
+      mutated_nodes.insert(prev_to_node);
+    }
+    XLS_RETURN_IF_ERROR(TransferAccumulatedVisibility(
+        prev_to_node, unified_node, accumulated_vis_exprs));
     VLOG(3) << "      Folding completed";
 
     performed_folding_actions.push_back(folding.get());
   }
+
+  for (Node* node : decomposed_nodes_to_remove) {
+    XLS_RETURN_IF_ERROR(f->RemoveNode(node));
+  }
+  XLS_RETURN_IF_ERROR(visibility_builder->CleanUpUnusedNodes(f));
 
   return performed_folding_actions;
 }
