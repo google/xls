@@ -155,11 +155,11 @@ absl::Status Bindings::AddAssertionLabel(std::string_view builtin_name,
                                          const std::string& label,
                                          const Span& span,
                                          const FileTable& file_table) {
-  Bindings* function_scope = this;
-  while (function_scope != nullptr && !function_scope->IsFunctionScoped()) {
-    function_scope = function_scope->parent_;
+  Bindings* scope = this;
+  while (scope != nullptr && !scope->IsFunctionScoped()) {
+    scope = scope->parent_;
   }
-  if (function_scope == nullptr) {
+  if (scope == nullptr) {
     return ParseErrorStatus(
         span,
         absl::StrFormat("Cannot use the `%s` builtin at module top-level.",
@@ -167,8 +167,7 @@ absl::Status Bindings::AddAssertionLabel(std::string_view builtin_name,
         file_table);
   }
   // Speculative parsing can visit the same label more than once.
-  auto [it, inserted] =
-      function_scope->assertion_labels_->try_emplace(label, span);
+  auto [it, inserted] = scope->assertion_labels_->try_emplace(label, span);
   if (!inserted && it->second != span) {
     return ParseErrorStatus(
         span,
