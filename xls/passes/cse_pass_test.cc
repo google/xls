@@ -14,6 +14,7 @@
 
 #include "xls/passes/cse_pass.h"
 
+#include <cstdint>
 #include <string>
 #include <utility>
 
@@ -25,11 +26,13 @@
 #include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
+#include "absl/types/span.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/fuzzer/ir_fuzzer/ir_fuzz_domain.h"
 #include "xls/fuzzer/ir_fuzzer/ir_fuzz_test_library.h"
 #include "xls/ir/bits.h"
+#include "xls/ir/change_listener.h"
 #include "xls/ir/function.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/ir_matcher.h"
@@ -315,6 +318,67 @@ TEST_F(CsePassTest, AvoidsReplacingDeadNodes) {
       Function * f, fb.BuildWithReturnValue(fb.Add(concat_xyz, concat_xzy)));
 
   EXPECT_THAT(Run(f), IsOkAndHolds(false));
+}
+
+// Records the IDs of replaced operands in the order they are replaced,
+// to verify that CSE replacement order is deterministic.
+class ReplacementOrderListener : public ChangeListener {
+ public:
+  void OperandChanged(Node* user, Node* old_operand,
+                      absl::Span<const int64_t> operand_nos) override {
+    replaced_operands_.push_back(old_operand->id());
+  }
+  const std::vector<int64_t>& replaced_operands() const {
+    return replaced_operands_;
+  }
+
+ private:
+  std::vector<int64_t> replaced_operands_;
+};
+
+TEST_F(CsePassTest, DeterministicReplacementOrder) {
+  auto p = CreatePackage();
+  Type* u32 = p->GetBitsType(32);
+
+  FunctionBuilder fb_callee("callee", p.get());
+  BValue ca = fb_callee.Param("a", u32);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * callee,
+                           fb_callee.BuildWithReturnValue(fb_callee.Not(ca)));
+
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", u32);
+  std::vector<BValue> results;
+  std::vector<int64_t> expected_replaced_add_ids;
+  std::vector<int64_t> expected_replaced_invoke_ids;
+
+  // Create 16 pairs of duplicate `Invoke(Add(x, i + 1), callee)` expressions
+  // and record the IDs of the duplicate `Add` and `Invoke` nodes that should be
+  // replaced by CSE. Using multiple distinct equivalence groups ensures that
+  // replacement order is deterministic rather than depending on hash map
+  // iteration order.
+  for (int64_t i = 0; i < 16; ++i) {
+    BValue lit = fb.Literal(UBits(i + 1, 32));
+    BValue inv1 = fb.Invoke({fb.Add(x, lit)}, callee);
+    BValue inv2 = fb.Invoke({fb.Add(x, lit)}, callee);
+    expected_replaced_add_ids.push_back(inv2.node()->operand(0)->id());
+    expected_replaced_invoke_ids.push_back(inv2.node()->id());
+    results.push_back(fb.Xor(inv1, inv2));
+  }
+  std::vector<int64_t> expected_replaced_ids = expected_replaced_add_ids;
+  expected_replaced_ids.insert(expected_replaced_ids.end(),
+                               expected_replaced_invoke_ids.begin(),
+                               expected_replaced_invoke_ids.end());
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
+                           fb.BuildWithReturnValue(fb.Tuple(results)));
+
+  ReplacementOrderListener listener;
+  f->RegisterChangeListener(&listener);
+  OptimizationContext context;
+  XLS_ASSERT_OK_AND_ASSIGN(bool changed,
+                           RunCse(f, context, /*replacements=*/nullptr));
+  f->UnregisterChangeListener(&listener);
+  EXPECT_TRUE(changed);
+  EXPECT_EQ(listener.replaced_operands(), expected_replaced_ids);
 }
 
 void IrFuzzCse(FuzzPackageWithArgs fuzz_package_with_args) {

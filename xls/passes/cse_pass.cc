@@ -133,7 +133,7 @@ class CseNode {
   friend H AbslHashValue(H h, const CseNode& c) {
     h = H::combine(std::move(h), c.op_, c.misc_data_, c.type_, c.stage_index_);
     for (const CseNode* operand : c.operands_) {
-      h = H::combine(std::move(h), operand);
+      h = H::combine(std::move(h), operand->id());
     }
     return h;
   }
@@ -232,6 +232,12 @@ class CseNodeArena {
       std::array<uint8_t, 8> arr = std::bit_cast<std::array<uint8_t, 8>>(v);
       data.insert(data.end(), arr.begin(), arr.end());
     };
+    auto str_bytes = [](std::string_view s) {
+      return std::vector<uint8_t>(s.begin(), s.end());
+    };
+    auto add_str_bytes = [](std::vector<uint8_t>& data, std::string_view s) {
+      data.insert(data.end(), s.begin(), s.end());
+    };
     // Add in any extra data that is can distinguish one node of a particular
     // type, operation and operands with another.
     switch (n->op()) {
@@ -275,8 +281,7 @@ class CseNodeArena {
         std::vector<uint8_t> data;
         add_bytes(data, n->As<CountedFor>()->trip_count());
         add_bytes(data, n->As<CountedFor>()->stride());
-        add_bytes(data, static_cast<int64_t>(std::bit_cast<intptr_t>(
-                            n->As<CountedFor>()->body())));
+        add_str_bytes(data, n->As<CountedFor>()->body()->name());
         return std::make_unique<CseNode>(n, std::move(operands),
                                          std::move(data), stage_index);
       }
@@ -284,16 +289,12 @@ class CseNodeArena {
       case Op::kInvoke: {
         return std::make_unique<CseNode>(
             n, std::move(operands),
-            bytes_data(static_cast<int64_t>(
-                std::bit_cast<intptr_t>(n->As<Invoke>()->to_apply()))),
-            stage_index);
+            str_bytes(n->As<Invoke>()->to_apply()->name()), stage_index);
       }
       // function
       case Op::kMap: {
         return std::make_unique<CseNode>(
-            n, std::move(operands),
-            bytes_data(static_cast<int64_t>(
-                std::bit_cast<intptr_t>(n->As<Map>()->to_apply()))),
+            n, std::move(operands), str_bytes(n->As<Map>()->to_apply()->name()),
             stage_index);
       }
       // The actual literal value (or 'do not cse' if !common_literals_)
@@ -425,9 +426,11 @@ absl::StatusOr<bool> RunCse(FunctionBase* f, OptimizationContext& context,
   CseNodeArena arena(common_literals, f);
   // All the nodes in an equivalence set that we've found so far.
   absl::flat_hash_map<CseNode*, std::vector<Node*>> node_buckets;
+  std::vector<CseNode*> bucket_order;
 
   int64_t dead_nodes = 0;
   node_buckets.reserve(f->node_count());
+  bucket_order.reserve(f->node_count());
   // Identify all the equivalence groups.
   XLS_ASSIGN_OR_RETURN(std::vector<Node*> topo_sort_nodes, context.TopoSort(f));
   for (Node* node : topo_sort_nodes) {
@@ -441,7 +444,11 @@ absl::StatusOr<bool> RunCse(FunctionBase* f, OptimizationContext& context,
     }
     // NB arena determines what nodes are eligible for cse.
     XLS_ASSIGN_OR_RETURN(CseNode * cse, arena.GetOrCreate(node));
-    node_buckets[cse].push_back(node);
+    auto [it, inserted] = node_buckets.try_emplace(cse);
+    if (inserted) {
+      bucket_order.push_back(cse);
+    }
+    it->second.push_back(node);
   }
 
   // Short circuit. Pigeonhole principle. All groups must have only a single
@@ -450,7 +457,8 @@ absl::StatusOr<bool> RunCse(FunctionBase* f, OptimizationContext& context,
     return false;
   }
   // Actually do the replacement.
-  for (const auto& [_, bucket] : node_buckets) {
+  for (CseNode* cse : bucket_order) {
+    const std::vector<Node*>& bucket = node_buckets.at(cse);
     if (bucket.size() == 1) {
       continue;
     }
