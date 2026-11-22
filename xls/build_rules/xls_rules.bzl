@@ -461,7 +461,7 @@ currently produced should be considered INCOMPLETE.""",
             allow_single_file = True,
         ),
         "_opensta": attr.label(
-            default = Label("@org_theopenroadproject//src/sta:opensta"),
+            default = Label("@org_theopenroadproject//openroad/sta:opensta"),
             executable = True,
             cfg = "target",
         ),
