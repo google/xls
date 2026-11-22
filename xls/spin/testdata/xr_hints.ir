@@ -1,0 +1,13 @@
+package xr_hints
+
+file_number 0 "xls/spin/testdata/xr_hints.x"
+
+top proc __xr_hints__RwProc_0_next<_in_ch: bits[32] in, _out_ch: bits[32] out>(__state: bits[1], init={0}) {
+  chan_interface _in_ch(direction=receive, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
+  chan_interface _out_ch(direction=send, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
+  __state: bits[1] = state_read(state_element=__state, id=2)
+  __token: token = literal(value=token, id=1)
+  literal.3: bits[1] = literal(value=1, id=3)
+  tuple.4: () = tuple(id=4, pos=[(0,3,55)])
+  next_value.5: () = next_value(param=__state, value=__state, id=5)
+}

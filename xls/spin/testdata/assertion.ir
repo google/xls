@@ -1,0 +1,18 @@
+package assertion
+
+file_number 0 "xls/spin/testdata/assertion.x"
+
+top proc __assertion__Asserting_0_next<>(__state: bits[32], init={1}) {
+  literal.3: bits[1] = literal(value=1, id=3)
+  __state: bits[32] = state_read(state_element=__state, id=2)
+  literal.5: bits[32] = literal(value=0, id=5, pos=[(0,4,21)])
+  not.8: bits[1] = not(literal.3, id=8)
+  ne.6: bits[1] = ne(__state, literal.5, id=6, pos=[(0,4,12)])
+  __token: token = literal(value=token, id=1)
+  or.9: bits[1] = or(not.8, ne.6, id=9)
+  tuple.4: () = tuple(id=4, pos=[(0,1,13)])
+  literal.7: bits[8][7] = literal(value=[110, 111, 110, 122, 101, 114, 111], id=7, pos=[(0,4,28)])
+  assert.10: token = assert(__token, or.9, message="Assertion failure via assert! @ xls/spin/testdata/assertion.x:5:12-5:39", label="nonzero", id=10)
+  tuple.11: () = tuple(id=11)
+  next_value.12: () = next_value(param=__state, value=__state, id=12)
+}
