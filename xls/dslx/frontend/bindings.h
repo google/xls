@@ -26,7 +26,6 @@
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
-#include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -116,7 +115,7 @@ absl::StatusOr<PositionalErrorData> GetPositionalErrorData(
 // scope; new bindings in the worst case only shadow previous bindings.
 class Bindings {
  public:
-  explicit Bindings(Bindings* parent = nullptr);
+  explicit Bindings(Bindings* parent = nullptr) : parent_(parent) {}
 
   // Too easy to confuse chaining a bindings object with its parent vs copy
   // constructing so we rely on an explicit Clone() call instead.
@@ -206,14 +205,11 @@ class Bindings {
     self_ = struct_ref;
   }
 
-  // fail! labels must be unique within a function.
-  //
-  // The labels are used in Verilog assertion labels, though they are given as
-  // strings in the DSLX source.
-  //
-  // If a fail label is duplicated a parse error is returned.
-  absl::Status AddFailLabel(const std::string& label, const Span& span,
-                            const FileTable& file_table);
+  // fail! and assert! labels share a function-scoped namespace because both
+  // become Verilog assertion labels.
+  absl::Status AddAssertionLabel(std::string_view builtin_name,
+                                 const std::string& label, const Span& span,
+                                 const FileTable& file_table);
 
   // Returns the AST node bound to 'name'.
   std::optional<BoundNode> ResolveNode(std::string_view name) const {
@@ -279,13 +275,8 @@ class Bindings {
     return local_bindings_;
   }
 
-  // Some properties, such as failure labels, are uniquified at a function
-  // scope, so in parsing we mark which bindings are the "roll up point" for a
-  // function scope so we can check for uniqueness there.
-  void NoteFunctionScoped() {
-    function_scoped_ = true;
-    fail_labels_.emplace();
-  }
+  // Nested bindings register assertion labels in the nearest function scope.
+  void NoteFunctionScoped() { assertion_labels_.emplace(); }
 
   std::vector<std::string> GetLocalBindings() const {
     std::vector<std::string> result;
@@ -297,15 +288,13 @@ class Bindings {
   }
 
  private:
+  bool IsFunctionScoped() const { return assertion_labels_.has_value(); }
+
   Bindings* parent_;
   absl::flat_hash_map<std::string, BoundNode> local_bindings_;
 
-  // Indicates that these bindings were created for a function scope -- this
-  // helps us track properties that should be unique at function scope.
-  bool function_scoped_ = false;
-
-  // Note: only the function-scoped bindings will have fail_labels_.
-  std::optional<absl::flat_hash_set<std::string>> fail_labels_;
+  // Populated only for function scopes.
+  std::optional<absl::flat_hash_map<std::string, Span>> assertion_labels_;
 
   // This is a TypeAnnotation* when we are inside an impl; NameDef* when we are
   // inside a trait; nullopt otherwise.

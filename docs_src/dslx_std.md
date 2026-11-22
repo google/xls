@@ -682,7 +682,7 @@ fn assert!<N: u32>(predicate: bool, label: u8[N]) -> ()
 ```
 
 These can be thought of as "fatal assertions", and convert to
-Verilog/SytemVerilog assertions in generated code.
+Verilog/SystemVerilog assertions in generated code.
 
 !!! NOTE
     XLS hopes to permit users to optionally insert fatal-error-signaling
@@ -741,9 +741,12 @@ an error status or assertion failure respectively), but b) provides a fallback
 value to use (of the appropriate type) in case it were to happen in synthesized
 gates which did not insert fatal-error-indicating hardware.
 
-The associated label (e.g., the first argument to `fail!`) must be a valid
-Verilog identifier and is used for identifying the failure when lowered to
-SystemVerilog. At higher levels in the stack, it's unused.
+Both `fail!` and `assert!` require function scope. Their label is a string
+literal that names the assertion in generated SystemVerilog. It must start
+with an ASCII letter or underscore and contain only ASCII letters, digits, and
+underscores. Each label must be unique across all `fail!` and `assert!` calls
+in the enclosing function. Each lambda and each proc member function
+(`config`, `init`, and `next`) has its own label scope.
 
 ### `assert_fmt!`: assertion failure with constexpr formatting
 

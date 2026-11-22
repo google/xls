@@ -14,7 +14,7 @@
 
 fn main() -> () { () }
 
-fn bar() -> () { assert!(false, "Should not happen."); }
+fn bar() -> () { assert!(false, "unexpected_bar_call"); }
 
 fn foo(x: bool) -> () {
     if x {

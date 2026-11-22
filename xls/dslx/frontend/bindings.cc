@@ -19,10 +19,10 @@
 #include <string_view>
 #include <vector>
 
-#include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_format.h"
 #include "absl/strings/str_split.h"
 #include "absl/types/variant.h"
 #include "re2/re2.h"
@@ -134,12 +134,6 @@ std::string BoundNodeGetTypeString(const BoundNode& bn) {
                      bn);
 }
 
-Bindings::Bindings(Bindings* parent) : parent_(parent) {
-  if (parent_ == nullptr) {
-    fail_labels_.emplace();
-  }
-}
-
 absl::StatusOr<AnyNameDef> Bindings::ResolveNameOrError(
     std::string_view name, const Span& span,
     const FileTable& file_table) const {
@@ -157,29 +151,32 @@ std::optional<AnyNameDef> Bindings::ResolveNameOrNullopt(
   return BoundNodeToAnyNameDef(*bn);
 }
 
-absl::Status Bindings::AddFailLabel(const std::string& label, const Span& span,
-                                    const FileTable& file_table) {
-  // Traverse up to our function-scoped bindings since these labels must be
-  // unique at the function scope.
-  Bindings* top = this;
-  while (!top->function_scoped_) {
-    if (top->parent_ == nullptr) {
-      return ParseErrorStatus(
-          span, "Cannot use the `fail!` builtin at module top-level.",
-          file_table);
-    }
-    top = top->parent_;
+absl::Status Bindings::AddAssertionLabel(std::string_view builtin_name,
+                                         const std::string& label,
+                                         const Span& span,
+                                         const FileTable& file_table) {
+  Bindings* function_scope = this;
+  while (function_scope != nullptr && !function_scope->IsFunctionScoped()) {
+    function_scope = function_scope->parent_;
   }
-
-  CHECK(top->function_scoped_);
-  CHECK(top->fail_labels_.has_value());
-  auto [it, inserted] = top->fail_labels_->insert(label);
-  if (!inserted) {
+  if (function_scope == nullptr) {
     return ParseErrorStatus(
-        span, "A fail label must be unique within a function.", file_table);
+        span,
+        absl::StrFormat("Cannot use the `%s` builtin at module top-level.",
+                        builtin_name),
+        file_table);
   }
-
-  top->fail_labels_.value().insert(label);
+  // Speculative parsing can visit the same label more than once.
+  auto [it, inserted] =
+      function_scope->assertion_labels_->try_emplace(label, span);
+  if (!inserted && it->second != span) {
+    return ParseErrorStatus(
+        span,
+        absl::StrFormat("Assertion label `%s` must be unique within a "
+                        "function.",
+                        label),
+        file_table);
+  }
   return absl::OkStatus();
 }
 

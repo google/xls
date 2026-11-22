@@ -421,7 +421,6 @@ cc_library(
         "//xls/dslx:status_payload_cc_proto",
         "//xls/dslx:status_payload_utils",
         "@abseil-cpp//absl/container:flat_hash_map",
-        "@abseil-cpp//absl/container:flat_hash_set",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/status",

@@ -2368,8 +2368,8 @@ restricted to `0..10` and the second element is restricted to `1..=11`.
 ```dslx
 #[fuzz_test(domains=`(u32:0..10, u32:1..=11)`)]
 fn fuzz_custom_array_domain(t: u32[2]) -> bool {
-    assert!(t[0] >= u32:0 && t[0] < u32:10, "Invalid fuzz domain");
-    assert!(t[1] >= u32:1 && t[1] <= u32:11, "Invalid fuzz domain");
+    assert!(t[0] >= u32:0 && t[0] < u32:10, "t0_out_of_range");
+    assert!(t[1] >= u32:1 && t[1] <= u32:11, "t1_out_of_range");
     true
 }
 ```

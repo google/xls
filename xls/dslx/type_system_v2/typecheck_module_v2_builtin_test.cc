@@ -318,7 +318,8 @@ fn foo(x:u32) -> u32 {
 
 const X = foo(10);
 )",
-      TypecheckSucceeds(HasNodeWithType("[1, 2, 3]", "uN[8][3]")));
+      TypecheckFails(HasSubstr(
+          "The second argument to assert!() must be a label string.")));
 }
 
 TEST(TypecheckV2BuiltinTest, Assert) {

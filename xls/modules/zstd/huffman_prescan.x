@@ -205,7 +205,7 @@ pub proc WeightPreScan
                 (false, valid_data, false, valid_data, state.addr as ExternalRamAddr)
             },
             _ => {
-                assert!(false, "Invalid state");
+                assert!(false, "invalid_memory_access_state");
                 (false, false, false, false, u9:0 as ExternalRamAddr)
             }
         };
@@ -255,7 +255,7 @@ pub proc WeightPreScan
                 internal_addr: internal_addr as u9
             },
             _ => {
-                assert!(false, "Invalid state");
+                assert!(false, "invalid_state_transition");
                 State {
                     fsm: FSM::IDLE,
                     addr: u9:0,

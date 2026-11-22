@@ -135,7 +135,7 @@ pub proc WeightCodeBuilder
             FSM::COMPUTE_MAX_LENGTH => (false, false),
             FSM::GENERATE_CODES_RUN => (false, true),
             _ => {
-                assert!(false, "Invalid state");
+                assert!(false, "invalid_receive_state");
                 (false, false)
             }
         };
@@ -159,7 +159,7 @@ pub proc WeightCodeBuilder
                 (advance_state, advance_state, prescan_data_valid)
             },
             _ => {
-                assert!(false, "Invalid state");
+                assert!(false, "invalid_send_state");
                 (false, false, false)
             }
         };
@@ -183,7 +183,7 @@ pub proc WeightCodeBuilder
             },
             (_, false) => state.fsm,
             _ => {
-                assert!(false, "Invalid state");
+                assert!(false, "invalid_state_transition");
                 FSM::IDLE
             }
         };
@@ -326,7 +326,7 @@ pub proc WeightCodeBuilder
                 }
             },
             _ => {
-                assert!(false, "Invalid state");
+                assert!(false, "invalid_state_update");
                 zero!<State>()
             }
         };

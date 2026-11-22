@@ -82,6 +82,10 @@ constexpr std::string_view kConstAssertIdentifier = "const_assert!";
 constexpr std::string_view kAssertFmtMacroIdentifier = "assert_fmt!";
 constexpr std::string_view kSpawnIdentifier = "spawn";
 
+bool IsLabeledAssertionBuiltin(std::string_view name) {
+  return name == "assert!" || name == "fail!";
+}
+
 absl::StatusOr<std::vector<ExprOrType>> CloneParametrics(
     absl::Span<const ExprOrType> eots) {
   std::vector<ExprOrType> results;
@@ -360,6 +364,7 @@ absl::StatusOr<Lambda*> Parser::ParseLambda(Bindings& bindings) {
                                                      /*internal=*/true);
   };
   Bindings lambda_bindings(&bindings);
+  lambda_bindings.NoteFunctionScoped();
   std::vector<Param*> params;
   if (peek->kind() == TokenKind::kBar) {
     XLS_ASSIGN_OR_RETURN(
@@ -3437,25 +3442,47 @@ absl::StatusOr<Expr*> Parser::BuildMacroOrInvocation(
         return module_->Make<AllOnesMacro>(span, parametrics.at(0));
       }
 
-      if (name == "fail!") {
+      if (IsLabeledAssertionBuiltin(name)) {
+        bool is_fail = name == "fail!";
         if (args.size() != 2) {
           return ParseErrorStatus(
-              span, "fail!() requires two arguments: a label and a condition.");
+              span, absl::StrFormat("%s() requires two arguments: %s.", name,
+                                    is_fail ? "a label and a fallback value"
+                                            : "a predicate and a label"));
         }
 
-        String* label = dynamic_cast<String*>(args.at(0));
+        Expr* label_arg = args.at(is_fail ? 0 : 1);
+        auto* label = dynamic_cast<String*>(label_arg);
         if (label == nullptr) {
           return ParseErrorStatus(
-              span, "The first argument to fail!() must be a label string.");
+              label_arg->span(),
+              absl::StrFormat("The %s argument to %s() must be a label string.",
+                              is_fail ? "first" : "second", name));
         }
 
         if (!NameUniquer::IsValidIdentifier(label->text())) {
-          return ParseErrorStatus(label->span(),
-                                  "The label parameter to fail!() must be a "
-                                  "valid Verilog identifier.");
+          return ParseErrorStatus(
+              label->span(),
+              absl::StrFormat("The label parameter to %s() must be a valid "
+                              "Verilog identifier.",
+                              name));
         }
-        XLS_RETURN_IF_ERROR(
-            bindings.AddFailLabel(label->text(), label->span(), file_table()));
+        XLS_RETURN_IF_ERROR(bindings.AddAssertionLabel(
+            name, label->text(), label->span(), file_table()));
+      }
+    }
+  } else {
+    // A parenthesized specialization such as (assert!<N>)(...) puts a
+    // FunctionRef in the callee position, bypassing the direct builtin call.
+    for (auto* ref = dynamic_cast<FunctionRef*>(callee); ref != nullptr;
+         ref = dynamic_cast<FunctionRef*>(ref->callee())) {
+      std::optional<std::string_view> name = GetBuiltinFnName(ref->callee());
+      if (name.has_value() && IsLabeledAssertionBuiltin(*name)) {
+        return ParseErrorStatus(
+            ref->span(),
+            absl::StrFormat("Invoke %s directly, with the argument list "
+                            "immediately after its parametric arguments.",
+                            *name));
       }
     }
   }
@@ -3642,6 +3669,7 @@ absl::StatusOr<Function*> Parser::ParseProcConfig(
     const std::vector<ProcMember*>& proc_members, std::string_view proc_name,
     bool is_public) {
   Bindings bindings(&outer_bindings);
+  bindings.NoteFunctionScoped();
   XLS_ASSIGN_OR_RETURN(Token config_tok,
                        PopTokenOrError(TokenKind::kIdentifier));
   if (!config_tok.IsIdentifier("config")) {
@@ -3776,6 +3804,7 @@ absl::StatusOr<Function*> Parser::ParseProcInit(
     Bindings& bindings, std::vector<ParametricBinding*> parametric_bindings,
     std::string_view proc_name, bool is_public) {
   Bindings inner_bindings(&bindings);
+  inner_bindings.NoteFunctionScoped();
   XLS_ASSIGN_OR_RETURN(Token init_identifier, PopToken());
   if (!init_identifier.IsIdentifier("init")) {
     return ParseErrorStatus(init_identifier.span(),

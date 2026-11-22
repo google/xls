@@ -23,7 +23,7 @@ proc test_proc {
         let const_zero = st & u32:0;
         let trailing_zero = st << u32:2;
         let add1 = st + u32:1 + const_zero + (trailing_zero & u32:0);
-        assert!(st == st, "test assert");
+        assert!(st == st, "test_assert");
         let tok = send(join(), out_ch, add1);
         add1
     }
