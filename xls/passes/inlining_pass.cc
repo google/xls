@@ -247,6 +247,7 @@ std::vector<FunctionBase*> GetFunctionsToInlineByLeaf(Package* p,
           // and the callee is also being inlined.
           return to_inline_cnt == 0 ||
                  (to_inline_cnt == 1 &&
+                  cg.FunctionsWhichCall(called->to_apply()).size() == 1 &&
                   to_inline_set.contains(called->to_apply()));
         })) {
       functions_to_inline.push_back(f);
