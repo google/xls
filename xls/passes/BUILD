@@ -5679,6 +5679,8 @@ cc_test(
         "//xls/ir:interval_ops",
         "//xls/ir:interval_set",
         "//xls/ir:ir_test_base",
+        "//xls/ir:op",
+        "//xls/ir:source_location",
         "//xls/ir:ternary",
         "@abseil-cpp//absl/algorithm:container",
         "@abseil-cpp//absl/container:flat_hash_map",
@@ -5728,7 +5730,9 @@ cc_test(
         "//xls/ir:function_builder",
         "//xls/ir:interval_set",
         "//xls/ir:ir_test_base",
+        "//xls/ir:state_element",
         "//xls/ir:ternary",
+        "//xls/ir:value",
         "@googletest//:gtest",
     ],
 )

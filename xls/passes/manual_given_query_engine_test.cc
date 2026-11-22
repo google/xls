@@ -33,6 +33,9 @@
 #include "xls/ir/interval_set.h"
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/node.h"
+#include "xls/ir/nodes.h"
+#include "xls/ir/op.h"
+#include "xls/ir/source_location.h"
 #include "xls/ir/ternary.h"
 #include "xls/passes/lazy_ternary_query_engine.h"
 #include "xls/passes/partial_info_query_engine.h"
@@ -322,6 +325,51 @@ TEST_F(ManualGivenQueryEngineTest, IntervalsWithPartialInfoQueryEngine) {
   XLS_ASSERT_OK(mg.ClearGivens());
   EXPECT_EQ(IntervalSetTreeToString(mg.GetIntervals(f->return_value())),
             "[[0, 30]]");
+}
+
+TEST_F(ManualGivenQueryEngineTest,
+       DeletingNodeWithGivenErasesGivenAndDoesNotPoisonNewNodes) {
+  auto p = CreatePackage();
+  FunctionBuilder fb("f", p.get());
+  BValue x = fb.Param("x", p->GetBitsType(1));
+  BValue y = fb.Param("y", p->GetBitsType(4));
+  BValue dead_not = fb.Not(x);
+  fb.Identity(y);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  Node* dead_node = dead_not.node();
+  XLS_ASSERT_OK_AND_ASSIGN(TernaryVector one_bit_zero,
+                           StringToTernaryVector("0b0"));
+  DirectQueryEngine base;
+  base.Override(dead_node, one_bit_zero);
+
+  LazyTernaryQueryEngine direct_qe;
+  XLS_ASSERT_OK(direct_qe.Populate(f).status());
+  XLS_ASSERT_OK(
+      direct_qe
+          .AddGiven(dead_node, LeafTypeTree<TernaryVector>(dead_node->GetType(),
+                                                           {one_bit_zero}))
+          .status());
+  EXPECT_EQ(direct_qe.info().givens().size(), 1);
+
+  ManualGivenQueryEngine mg = ManualGivenQueryEngine::Of(
+      LazyTernaryQueryEngine(), PartialInfoQueryEngine());
+  XLS_ASSERT_OK(mg.Populate(f).status());
+  XLS_ASSERT_OK(mg.SetGivens({dead_node}, base));
+
+  XLS_ASSERT_OK(f->RemoveNode(dead_node));
+  EXPECT_TRUE(direct_qe.info().givens().empty());
+
+  // Allocate same-kind UnOp nodes of a different bit width so any heap-address
+  // reuse would collide with a stale Node* key if NodeDeleted kept it.
+  for (int i = 0; i < 64; ++i) {
+    XLS_ASSERT_OK_AND_ASSIGN(
+        Node * new_unop, f->MakeNode<UnOp>(SourceInfo(), y.node(), Op::kNot));
+    EXPECT_THAT(mg.GetTernary(new_unop),
+                testing::Optional(LttIs<TernaryVector>(
+                    testing::ElementsAre(TernaryIs("0bXXXX")))));
+    EXPECT_EQ(mg.GetIntervals(new_unop).Get({}), IntervalSet::Maximal(4));
+  }
 }
 
 }  // namespace
