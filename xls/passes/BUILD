@@ -1757,6 +1757,7 @@ cc_library(
 cc_test(
     name = "node_dependency_analysis_test",
     srcs = ["node_dependency_analysis_test.cc"],
+    tags = ["xls_benchmark"],
     deps = [
         ":node_dependency_analysis",
         "//xls/common:xls_gunit_main",
@@ -2161,6 +2162,7 @@ cc_library(
 cc_test(
     name = "lazy_ternary_query_engine_test",
     srcs = ["lazy_ternary_query_engine_test.cc"],
+    tags = ["xls_benchmark"],
     deps = [
         ":lazy_ternary_query_engine",
         ":query_engine",
@@ -2235,6 +2237,9 @@ cc_library(
     ],
 )
 
+# Intentionally omits the "xls_benchmark" continuous sweep tag: registers
+# 13,288 transfer-function microbenchmarks intended for targeted manual
+# --benchmark_filter=... profiling.
 cc_test(
     name = "partial_info_query_engine_test",
     srcs = ["partial_info_query_engine_test.cc"],
@@ -3543,6 +3548,7 @@ cc_test(
 cc_test(
     name = "ternary_query_engine_test",
     srcs = ["ternary_query_engine_test.cc"],
+    tags = ["xls_benchmark"],
     deps = [
         ":ternary_query_engine",
         ":ternary_query_engine_test_common",
@@ -3696,6 +3702,7 @@ cc_test(
 cc_test(
     name = "predicate_dominator_analysis_test",
     srcs = ["predicate_dominator_analysis_test.cc"],
+    tags = ["xls_benchmark"],
     deps = [
         ":optimization_pass",
         ":predicate_dominator_analysis",
@@ -4543,6 +4550,7 @@ cc_test(
 cc_test(
     name = "minimal_feedback_arcs_test",
     srcs = ["minimal_feedback_arcs_test.cc"],
+    tags = ["xls_benchmark"],
     deps = [
         ":minimal_feedback_arcs",
         "//xls/common:xls_gunit_main",

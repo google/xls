@@ -1135,41 +1135,41 @@ cc_library(
     ],
 )
 
-cc_binary(
-    name = "value_to_native_layout_benchmark",
-    testonly = True,
-    srcs = ["value_to_native_layout_benchmark.cc"],
+cc_test(
+    name = "value_to_native_layout_benchmark_test",
+    srcs = ["value_to_native_layout_benchmark_test.cc"],
+    tags = ["xls_benchmark"],
     deps = [
         ":llvm_type_converter",
         ":orc_jit",
         ":type_layout",
-        "//xls/common:benchmark_support",
-        "//xls/common:init_xls",
+        "//xls/common:xls_gunit_main",
         "//xls/interpreter:random_value",
         "//xls/ir",
         "//xls/ir:ir_parser",
         "//xls/ir:type",
         "//xls/ir:value",
         "@google_benchmark//:benchmark",
+        "@googletest//:gtest",
     ],
 )
 
-cc_binary(
-    name = "jit_channel_queue_benchmark",
-    testonly = True,
-    srcs = ["jit_channel_queue_benchmark.cc"],
+cc_test(
+    name = "jit_channel_queue_benchmark_test",
+    srcs = ["jit_channel_queue_benchmark_test.cc"],
+    tags = ["xls_benchmark"],
     deps = [
         ":jit_channel_queue",
         ":jit_runtime",
         ":orc_jit",
-        "//xls/common:benchmark_support",
-        "//xls/common:init_xls",
+        "//xls/common:xls_gunit_main",
         "//xls/ir",
         "//xls/ir:channel",
         "//xls/ir:channel_ops",
         "//xls/ir:proc_elaboration",
         "@abseil-cpp//absl/log:check",
         "@google_benchmark//:benchmark",
+        "@googletest//:gtest",
     ],
 )
 
@@ -1246,14 +1246,6 @@ cc_test(
         "//xls/ir",
         "@abseil-cpp//absl/log:check",
         "@googletest//:gtest",
-    ],
-)
-
-build_test(
-    name = "metadata_proto_libraries_build",
-    targets = [
-        ":jit_channel_queue_benchmark",
-        ":value_to_native_layout_benchmark",
     ],
 )
 
