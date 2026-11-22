@@ -26,7 +26,6 @@
 #include <vector>
 
 #include "absl/algorithm/container.h"
-#include "absl/base/casts.h"
 #include "absl/container/btree_map.h"
 #include "absl/container/btree_set.h"
 #include "absl/container/flat_hash_map.h"
@@ -210,34 +209,20 @@ BddQueryEngine::AssumingQueryEngine::GetTernary(Node* node) const {
 std::unique_ptr<QueryEngine>
 BddQueryEngine::AssumingQueryEngine::SpecializeGivenPredicate(
     const absl::btree_set<PredicateState>& state) const {
-  std::unique_ptr<AssumingQueryEngine> specialized(
-      absl::down_cast<AssumingQueryEngine*>(
-          query_engine_->SpecializeGivenPredicate(state).release()));
-  specialized->assumption_ =
-      query_engine_->bdd().And(assumption_, specialized->assumption_);
-  return specialized;
+  return SpecializeGiven(PredicateStatesToGivens(state));
 }
 
 std::unique_ptr<QueryEngine>
 BddQueryEngine::AssumingQueryEngine::SpecializeGiven(
     const absl::btree_map<Node*, ValueKnowledge, Node::NodeIdLessThan>& givens)
     const {
-  std::unique_ptr<AssumingQueryEngine> result;
-  if (query_engine_storage_ != nullptr) {
-    result = std::make_unique<AssumingQueryEngine>(query_engine_storage_,
-                                                   assumption_);
-  } else {
-    result = std::make_unique<AssumingQueryEngine>(query_engine_, assumption_);
-  }
   BddNodeIndex new_assumption =
-      query_engine_->bdd().And(assumption_, result->assumption_);
-  if (query_engine_->ExceedsPathLimit(result->assumption_)) {
-    // Restore the original assumption, with no updates.
-    result->assumption_ = assumption_;
-  } else {
-    result->assumption_ = new_assumption;
+      query_engine_->ConjoinGivens(assumption_, givens);
+  if (query_engine_storage_ != nullptr) {
+    return std::make_unique<AssumingQueryEngine>(query_engine_storage_,
+                                                 new_assumption);
   }
-  return result;
+  return std::make_unique<AssumingQueryEngine>(query_engine_, new_assumption);
 }
 
 LeafTypeTree<IntervalSet> BddQueryEngine::AssumingQueryEngine::GetIntervals(
@@ -438,8 +423,9 @@ absl::Status BddQueryEngine::MergeWithGiven(BddVector& info,
   return absl::OkStatus();
 }
 
-std::unique_ptr<QueryEngine> BddQueryEngine::SpecializeGivenPredicate(
-    const absl::btree_set<PredicateState>& state) const {
+absl::btree_map<Node*, ValueKnowledge, Node::NodeIdLessThan>
+BddQueryEngine::PredicateStatesToGivens(
+    const absl::btree_set<PredicateState>& state) {
   absl::btree_map<Node*, ValueKnowledge, Node::NodeIdLessThan> givens;
   for (const PredicateState& ps : state) {
     if (ps.IsBasePredicate()) {
@@ -586,12 +572,21 @@ std::unique_ptr<QueryEngine> BddQueryEngine::SpecializeGivenPredicate(
       }
     }
   }
-  return SpecializeGiven(givens);
+  return givens;
 }
 
-std::unique_ptr<QueryEngine> BddQueryEngine::SpecializeGiven(
+std::unique_ptr<QueryEngine> BddQueryEngine::SpecializeGivenPredicate(
+    const absl::btree_set<PredicateState>& state) const {
+  return SpecializeGiven(PredicateStatesToGivens(state));
+}
+
+BddNodeIndex BddQueryEngine::ConjoinGivens(
+    BddNodeIndex base_assumption,
     const absl::btree_map<Node*, ValueKnowledge, Node::NodeIdLessThan>& givens)
     const {
+  if (base_assumption == bdd().zero()) {
+    return bdd().zero();
+  }
   std::vector<BddNodeIndex> assumptions;
 
   for (const auto& [node, value_knowledge] : givens) {
@@ -632,7 +627,7 @@ std::unique_ptr<QueryEngine> BddQueryEngine::SpecializeGiven(
                            return intervals.IsEmpty();
                          })) {
         // One of the interval sets is empty, so this is impossible to satisfy.
-        return std::make_unique<AssumingQueryEngine>(this, bdd().zero());
+        return bdd().zero();
       }
       CHECK_OK(leaf_type_tree::ForEachIndex(
           value_knowledge.intervals->AsView(),
@@ -737,7 +732,7 @@ std::unique_ptr<QueryEngine> BddQueryEngine::SpecializeGiven(
   }
 
   bool already_exceeded_limit = false;
-  BddNodeIndex assumed = bdd().one();
+  BddNodeIndex assumed = base_assumption;
   for (const BddNodeIndex& assumption : assumptions) {
     BddNodeIndex new_assumed = bdd().And(assumed, assumption);
     if (ExceedsPathLimit(new_assumed)) {
@@ -748,8 +743,18 @@ std::unique_ptr<QueryEngine> BddQueryEngine::SpecializeGiven(
       continue;
     }
     assumed = new_assumed;
+    if (assumed == bdd().zero()) {
+      break;
+    }
   }
-  return std::make_unique<AssumingQueryEngine>(this, assumed);
+  return assumed;
+}
+
+std::unique_ptr<QueryEngine> BddQueryEngine::SpecializeGiven(
+    const absl::btree_map<Node*, ValueKnowledge, Node::NodeIdLessThan>& givens)
+    const {
+  return std::make_unique<AssumingQueryEngine>(
+      this, ConjoinGivens(bdd().one(), givens));
 }
 bool BddQueryEngine::AtMostOneTrue(
     absl::Span<TreeBitLocation const> bits) const {
