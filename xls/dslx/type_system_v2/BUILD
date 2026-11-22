@@ -297,6 +297,40 @@ cc_library(
     ],
 )
 
+cc_library(
+    name = "invocation_collector",
+    srcs = ["invocation_collector.cc"],
+    hdrs = ["invocation_collector.h"],
+    deps = [
+        "//xls/common/status:status_macros",
+        "//xls/dslx/frontend:ast",
+        "//xls/dslx/frontend:ast_node_visitor_with_default",
+        "@abseil-cpp//absl/base",
+        "@abseil-cpp//absl/container:flat_hash_set",
+        "@abseil-cpp//absl/status",
+    ],
+)
+
+cc_test(
+    name = "invocation_collector_test",
+    srcs = ["invocation_collector_test.cc"],
+    deps = [
+        ":invocation_collector",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/common/status:status_macros",
+        "//xls/dslx/frontend:ast",
+        "//xls/dslx/frontend:module",
+        "//xls/dslx/frontend:parser",
+        "//xls/dslx/frontend:pos",
+        "//xls/dslx/frontend:scanner",
+        "@abseil-cpp//absl/container:flat_hash_set",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
+        "@googletest//:gtest",
+    ],
+)
+
 cc_test(
     name = "fast_concretizer_test",
     srcs = ["fast_concretizer_test.cc"],
