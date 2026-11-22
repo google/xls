@@ -150,36 +150,6 @@ bool IndicesAreDefinitelyPrefixOf(absl::Span<Node* const> prefix,
                                    query_engine);
 }
 
-// Returns true if all live users of a node are ArrayIndex operations with known
-// values for all indices, and no implicit uses, e.g., function return value.
-bool ArrayOnlyConstIndexed(Node* node, const QueryEngine& query_engine) {
-  if (node->function_base()->HasImplicitUse(node)) {
-    return false;
-  }
-  int64_t live_users = 0;
-  for (Node* user : node->users()) {
-    if (user->IsDead()) {
-      continue;
-    }
-    if (!user->Is<ArrayIndex>()) {
-      return false;
-    }
-    ArrayIndex* array_idx = user->As<ArrayIndex>();
-    if (array_idx->array() != node || array_idx->indices().empty()) {
-      return false;
-    }
-    for (Node* index : array_idx->indices()) {
-      // Note: If an index is not fully known but is definitely out-of-bounds,
-      // we rely on simplification to first clamp it.
-      if (!query_engine.IsFullyKnown(index)) {
-        return false;
-      }
-    }
-    live_users++;
-  }
-  return live_users > 0;
-}
-
 // Clamp any known OOB indices in ArrayIndex ops. In this case the index is
 // replaced with a literal value equal to the maximum in-bounds index value
 // (size of array minus one). Only known-OOB are clamped. Maybe OOB indices
@@ -515,16 +485,15 @@ absl::StatusOr<SimplifyResult> SimplifyArrayIndex(
   //
   // For very small arrays (when narrowing is enabled) we will perform this
   // unconditionally since we totally remove the array in these circumstances.
-  // Also perform this optimization if all users of the select are constant
-  // indexed array_index operations.
+  // Multi-user constant-indexed array selects are handled in SimplifySelect via
+  // SimplifyConstantIndexedSelect so users sharing a clamped index share a
+  // single scalar select.
   // TODO(meheff): Consider cases where selects with multiple users are still
   // advantageous to transform.
   if (array_index->array()->OpIn(
           {Op::kSel, Op::kOneHotSel, Op::kPrioritySel}) &&
       (HasSingleUse(array_index->array()) ||
-       ((IsSmallArray(array_index->array()) ||
-         ArrayOnlyConstIndexed(array_index->array(), query_engine)) &&
-        SplitsEnabled(opt_level)))) {
+       (IsSmallArray(array_index->array()) && SplitsEnabled(opt_level)))) {
     VLOG(2) << absl::StrFormat(
         "Replacing array-index of select with select of array-indexes: %s "
         "(select array: %s)",
@@ -1670,9 +1639,145 @@ absl::StatusOr<SimplifyResult> SimplifyArraySlice(
   return SimplifyResult::Unchanged();
 }
 
+// Push constant-first-index ArrayIndex users through an array-typed select:
+//
+//   array_index(Sel(p, [A, B, ...]), {k, ...})
+//     => array_index(Sel(p, [array_index(A, {k}), array_index(B, {k}), ...]),
+//                    {...})
+//
+// When every user of an array-typed Select, PrioritySelect, or OneHotSelect
+// indexes into its outer dimension with a statically known index, replacing
+// the N-element array select with one element-typed select per distinct
+// clamped index k in [0, N - 1] never increases total mux bitwidth (U <= N)
+// and exposes per-lane constants across the select arms without duplicating
+// any trailing dynamic indices.
+absl::StatusOr<SimplifyResult> SimplifyConstantIndexedSelect(
+    Node* select, const QueryEngine& query_engine) {
+  if (!select->GetType()->IsArray()) {
+    return SimplifyResult::Unchanged();
+  }
+  ArrayType* array_type = select->GetType()->AsArrayOrDie();
+  FunctionBase* func = select->function_base();
+  if (array_type->empty() || select->users().empty() ||
+      func->HasImplicitUse(select)) {
+    return SimplifyResult::Unchanged();
+  }
+
+  std::vector<std::pair<int64_t, std::vector<ArrayIndex*>>> grouped_users;
+  for (Node* user : select->users()) {
+    if (!user->Is<ArrayIndex>()) {
+      return SimplifyResult::Unchanged();
+    }
+    ArrayIndex* ai = user->As<ArrayIndex>();
+    if (ai->array() != select || ai->indices().empty()) {
+      return SimplifyResult::Unchanged();
+    }
+    std::optional<Bits> idx_bits =
+        query_engine.KnownValueAsBits(ai->indices().front());
+    if (!idx_bits.has_value()) {
+      return SimplifyResult::Unchanged();
+    }
+    int64_t clamped_idx = array_type->size() - 1;
+    if (idx_bits->IsZero()) {
+      clamped_idx = 0;
+    } else if (idx_bits->FitsInUint64()) {
+      uint64_t raw_idx = *idx_bits->ToUint64();
+      if (raw_idx < static_cast<uint64_t>(array_type->size())) {
+        clamped_idx = static_cast<int64_t>(raw_idx);
+      }
+    }
+    auto it = absl::c_find_if(grouped_users, [&](const auto& entry) {
+      return entry.first == clamped_idx;
+    });
+    if (it == grouped_users.end()) {
+      grouped_users.push_back({clamped_idx, {ai}});
+    } else {
+      it->second.push_back(ai);
+    }
+  }
+
+  XLS_ASSIGN_OR_RETURN(GenericSelect sel, GenericSelect::From(select));
+  VLOG(2) << absl::StrFormat(
+      "Scalarize constant-indexed array select (%d accessed of %d): %s",
+      grouped_users.size(), array_type->size(), select->ToString());
+
+  std::vector<Node*> new_worklist_nodes;
+  const int64_t idx_width =
+      std::max<int64_t>(1, Bits::MinBitCountUnsigned(array_type->size() - 1));
+
+  for (const auto& [clamped_idx, index_users] : grouped_users) {
+    Node* shared_idx_literal = nullptr;
+    auto extract_arm_element = [&](Node* arm) -> absl::StatusOr<Node*> {
+      if (arm->Is<Array>()) {
+        return arm->operand(clamped_idx);
+      }
+      if (arm->Is<Literal>()) {
+        return func->MakeNode<Literal>(
+            arm->loc(), arm->As<Literal>()->value().element(clamped_idx));
+      }
+      if (shared_idx_literal == nullptr) {
+        XLS_ASSIGN_OR_RETURN(
+            shared_idx_literal,
+            func->MakeNode<Literal>(select->loc(),
+                                    Value(UBits(clamped_idx, idx_width))));
+      }
+      XLS_ASSIGN_OR_RETURN(
+          ArrayIndex * arm_ai,
+          func->MakeNode<ArrayIndex>(arm->loc(), arm,
+                                     absl::MakeConstSpan({shared_idx_literal}),
+                                     /*assumed_in_bounds=*/true));
+      new_worklist_nodes.push_back(arm_ai);
+      if (GenericSelect::IsSelect(arm) ||
+          arm->OpIn({Op::kArray, Op::kArrayUpdate, Op::kArraySlice})) {
+        new_worklist_nodes.push_back(arm);
+      }
+      return arm_ai;
+    };
+
+    std::vector<Node*> element_cases;
+    element_cases.reserve(sel.cases().size());
+    for (Node* arm : sel.cases()) {
+      XLS_ASSIGN_OR_RETURN(Node * elem, extract_arm_element(arm));
+      element_cases.push_back(elem);
+    }
+    std::optional<Node*> element_default;
+    if (sel.default_value().has_value()) {
+      XLS_ASSIGN_OR_RETURN(element_default,
+                           extract_arm_element(*sel.default_value()));
+    }
+
+    XLS_ASSIGN_OR_RETURN(
+        Node * selected_element,
+        sel.CloneSelectLike(sel.selector(), element_cases, element_default));
+    new_worklist_nodes.push_back(selected_element);
+
+    for (ArrayIndex* ai : index_users) {
+      if (ai->indices().size() == 1) {
+        XLS_RETURN_IF_ERROR(ai->ReplaceUsesWith(selected_element));
+        for (Node* downstream : selected_element->users()) {
+          if (downstream->OpIn({Op::kArray, Op::kArrayIndex, Op::kArrayUpdate,
+                                Op::kArraySlice, Op::kSel, Op::kPrioritySel,
+                                Op::kOneHotSel})) {
+            new_worklist_nodes.push_back(downstream);
+          }
+        }
+      } else {
+        XLS_ASSIGN_OR_RETURN(ArrayIndex * new_ai,
+                             ai->ReplaceUsesWithNew<ArrayIndex>(
+                                 selected_element, ai->indices().subspan(1),
+                                 ai->assumed_in_bounds()));
+        new_worklist_nodes.push_back(new_ai);
+      }
+    }
+  }
+
+  return SimplifyResult::ChangedFromVector(std::move(new_worklist_nodes));
+}
+
 // Simplify various forms of a select of array-typed values.
 absl::StatusOr<SimplifyResult> SimplifySelect(Node* select,
-                                              const QueryEngine& query_engine) {
+                                              const QueryEngine& query_engine,
+                                              int64_t opt_level) {
   XLS_RET_CHECK(GenericSelect::IsSelect(select));
 
   XLS_ASSIGN_OR_RETURN(SimplifyResult conditional_assign_result,
@@ -1685,6 +1790,14 @@ absl::StatusOr<SimplifyResult> SimplifySelect(Node* select,
                        SimplifySelectOfArrays(select));
   if (select_of_arrays_result.changed) {
     return select_of_arrays_result;
+  }
+
+  if (SplitsEnabled(opt_level)) {
+    XLS_ASSIGN_OR_RETURN(SimplifyResult constant_indexed_result,
+                         SimplifyConstantIndexedSelect(select, query_engine));
+    if (constant_indexed_result.changed) {
+      return constant_indexed_result;
+    }
   }
 
   return SimplifyResult::Unchanged();
@@ -1785,7 +1898,8 @@ absl::StatusOr<bool> ArraySimplificationPass::RunOnFunctionBaseInternal(
       XLS_ASSIGN_OR_RETURN(result,
                            SimplifyArray(node->As<Array>(), query_engine));
     } else if (GenericSelect::IsSelect(node)) {
-      XLS_ASSIGN_OR_RETURN(result, SimplifySelect(node, query_engine));
+      XLS_ASSIGN_OR_RETURN(
+          result, SimplifySelect(node, query_engine, options.opt_level));
     } else if (node->Is<ArraySlice>()) {
       XLS_ASSIGN_OR_RETURN(
           result, SimplifyArraySlice(node->As<ArraySlice>(), query_engine));

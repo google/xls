@@ -4130,6 +4130,7 @@ cc_test(
         "//xls/ir:ir_matcher",
         "//xls/ir:ir_parser",
         "//xls/ir:ir_test_base",
+        "//xls/ir:op",
         "//xls/ir:source_location",
         "//xls/ir:value",
         "//xls/solvers:ir_equivalence_testutils",
