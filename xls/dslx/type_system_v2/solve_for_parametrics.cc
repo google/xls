@@ -193,6 +193,11 @@ class Resolver {
 
   absl::Status AcceptMismatch(const AstNode* resolvable,
                               const AstNode* dependent) {
+    if (resolvable->kind() == AstNodeKind::kTypeAnnotation &&
+        absl::down_cast<const TypeAnnotation*>(resolvable)
+            ->IsAnnotation<AnyTypeAnnotation>()) {
+      return absl::OkStatus();
+    }
     XLS_RETURN_IF_ERROR(dependent->Accept(dependent_visitor_));
 
     // Scenario 1: They are 2 differently-formulated TRTAs for the same struct.
