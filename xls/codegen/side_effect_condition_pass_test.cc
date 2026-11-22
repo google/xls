@@ -158,7 +158,7 @@ class SideEffectConditionPassTest
     std::vector<absl::flat_hash_map<std::string, Value>> outputs;
     for (const absl::flat_hash_map<std::string, Value>& input_set : inputs) {
       XLS_RETURN_IF_ERROR(continuation->RunOneCycle(input_set));
-      XLS_RETURN_IF_ERROR(InterpreterEventsToStatus(continuation->events()));
+      XLS_RETURN_IF_ERROR(continuation->events().ToStatus());
       const std::vector<std::string> msgs =
           continuation->events().GetTraceMessageStrings();
       traces.insert(traces.end(), msgs.begin(), msgs.end());
