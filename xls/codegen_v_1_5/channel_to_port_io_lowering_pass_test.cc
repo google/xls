@@ -43,8 +43,10 @@
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
 #include "xls/ir/package.h"
+#include "xls/ir/register.h"
 #include "xls/ir/scheduled_builder.h"
 #include "xls/ir/value.h"
+#include "xls/ir/verifier.h"
 #include "xls/passes/pass_base.h"
 
 namespace xls::codegen {
@@ -957,6 +959,381 @@ TEST_F(ChannelToPortIoLoweringPassTest,
               m::And(_, _,
                      m::TupleIndex(m::Tuple(_, m::InputPort("p3_ch")), 1)),
               m::Literal(3))));
+}
+
+TEST_F(ChannelToPortIoLoweringPassTest,
+       MultiStageSingleSendPerStageSkipsOneShotOnFinalStage) {
+  auto p = std::make_unique<Package>("test");
+  ScheduledProcBuilder pb(NewStyleProc(), "test_main", p.get());
+  BSendChannel out0 = pb.AddOutputChannel("out0", p->GetBitsType(32));
+  BSendChannel out1 = pb.AddOutputChannel("out1", p->GetBitsType(32));
+
+  BValue tkn = pb.Literal(Value::Token());
+  BValue s0 = pb.Send(out0, tkn, pb.Literal(Value(UBits(10, 32))));
+  pb.EndStage();
+  pb.Send(out1, s0, pb.Literal(Value(UBits(20, 32))));
+  XLS_ASSERT_OK(pb.Build());
+
+  EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block, p->GetBlock("test_main"));
+
+  // Stage 0 send needs one-shot logic because stage 1 can stall on out1_rdy,
+  // while stage 1 send is alone in the final stage and needs no one-shot flop.
+  EXPECT_THAT(block->nodes(),
+              Contains(m::RegisterRead(HasSubstr("out0_already_done_reg"))));
+  EXPECT_THAT(
+      block->nodes(),
+      Not(Contains(m::RegisterRead(HasSubstr("out1_already_done_reg")))));
+}
+
+TEST_F(ChannelToPortIoLoweringPassTest,
+       SameStageMutuallyExclusiveStreamingSendsSkipOneShot) {
+  auto p = std::make_unique<Package>("test");
+  ScheduledProcBuilder pb(NewStyleProc(), "test_main", p.get());
+  BReceiveChannel sel_in = pb.AddInputChannel("sel_in", p->GetBitsType(1));
+  BSendChannel out0 = pb.AddOutputChannel("out0", p->GetBitsType(32));
+  BSendChannel out1 = pb.AddOutputChannel("out1", p->GetBitsType(32));
+
+  BValue tkn = pb.Literal(Value::Token());
+  BValue recv = pb.Receive(sel_in, tkn);
+  BValue sel = pb.TupleIndex(recv, 1);
+  BValue s0 = pb.SendIf(out0, pb.TupleIndex(recv, 0), sel,
+                        pb.Literal(Value(UBits(10, 32))));
+  pb.SendIf(out1, s0, pb.Not(sel), pb.Literal(Value(UBits(20, 32))));
+  XLS_ASSERT_OK(pb.Build());
+
+  EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block, p->GetBlock("test_main"));
+  EXPECT_THAT(block->nodes(),
+              Not(Contains(m::RegisterRead(HasSubstr("already_done")))));
+}
+
+TEST_F(ChannelToPortIoLoweringPassTest,
+       SameStageNonExclusiveStreamingSendsAddOneShot) {
+  auto p = std::make_unique<Package>("test");
+  ScheduledProcBuilder pb(NewStyleProc(), "test_main", p.get());
+  BReceiveChannel pred_in = pb.AddInputChannel("pred_in", p->GetBitsType(2));
+  BSendChannel out0 = pb.AddOutputChannel("out0", p->GetBitsType(32));
+  BSendChannel out1 = pb.AddOutputChannel("out1", p->GetBitsType(32));
+
+  BValue tkn = pb.Literal(Value::Token());
+  BValue recv = pb.Receive(pred_in, tkn);
+  BValue preds = pb.TupleIndex(recv, 1);
+  BValue s0 = pb.SendIf(out0, pb.TupleIndex(recv, 0), pb.BitSlice(preds, 0, 1),
+                        pb.Literal(Value(UBits(10, 32))));
+  pb.SendIf(out1, s0, pb.BitSlice(preds, 1, 1),
+            pb.Literal(Value(UBits(20, 32))));
+  XLS_ASSERT_OK(pb.Build());
+
+  EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block, p->GetBlock("test_main"));
+  EXPECT_THAT(block->nodes(),
+              Contains(m::RegisterRead(HasSubstr("out0_already_done"))));
+  EXPECT_THAT(block->nodes(),
+              Contains(m::RegisterRead(HasSubstr("out1_already_done"))));
+}
+
+TEST_F(ChannelToPortIoLoweringPassTest,
+       SameChannelMultipleSendsInStageSkipOneShot) {
+  auto p = std::make_unique<Package>("test");
+  ScheduledProcBuilder pb(NewStyleProc(), "test_main", p.get());
+  BReceiveChannel sel_in = pb.AddInputChannel("sel_in", p->GetBitsType(1));
+  BSendChannel out = pb.AddOutputChannel("out", p->GetBitsType(32));
+
+  BValue tkn = pb.Literal(Value::Token());
+  BValue recv = pb.Receive(sel_in, tkn);
+  BValue sel = pb.TupleIndex(recv, 1);
+  BValue s0 = pb.SendIf(out, pb.TupleIndex(recv, 0), sel,
+                        pb.Literal(Value(UBits(10, 32))));
+  pb.SendIf(out, s0, pb.Not(sel), pb.Literal(Value(UBits(20, 32))));
+  XLS_ASSERT_OK(pb.Build());
+
+  EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block, p->GetBlock("test_main"));
+  EXPECT_THAT(block->nodes(),
+              Not(Contains(m::RegisterRead(HasSubstr("already_done")))));
+}
+
+TEST_F(ChannelToPortIoLoweringPassTest,
+       ReadyValidAndValidDataCoSendOnlyAddsOneShotOnValidDataChannel) {
+  auto p = std::make_unique<Package>("test");
+  ScheduledProcBuilder pb(NewStyleProc(), "test_main", p.get());
+  BSendChannel rv_out = pb.AddOutputChannel("rv_out", p->GetBitsType(32));
+  BSendChannel vd_out = pb.AddOutputChannel("vd_out", p->GetBitsType(32));
+  vd_out.channel_interface()->SetFlowControl(FlowControl::kValidData);
+
+  BValue tkn = pb.Literal(Value::Token());
+  BValue s0 = pb.Send(rv_out, tkn, pb.Literal(Value(UBits(10, 32))));
+  pb.Send(vd_out, s0, pb.Literal(Value(UBits(20, 32))));
+  XLS_ASSERT_OK(pb.Build());
+
+  EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block, p->GetBlock("test_main"));
+  // vd_out has no ready signal so it cannot stall rv_out, whereas rv_out can
+  // stall the stage after vd_out has already pulsed valid.
+  EXPECT_THAT(block->nodes(),
+              Not(Contains(m::RegisterRead(HasSubstr("rv_out_already_done")))));
+  EXPECT_THAT(block->nodes(),
+              Contains(m::RegisterRead(HasSubstr("vd_out_already_done"))));
+}
+
+TEST_F(ChannelToPortIoLoweringPassTest,
+       AsymmetricAndIndependentChannelSubsetsOnlyAddOneShotWhereNeeded) {
+  // Three ready/valid channels A, B, C in one stage where A -> !B && A -> !C,
+  // while B and C can co-fire: A fires solo and needs no one-shot logic, while
+  // B and C both need one-shot logic.
+  {
+    auto p = std::make_unique<Package>("test");
+    ScheduledProcBuilder pb(NewStyleProc(), "test_main", p.get());
+    BReceiveChannel sel_in = pb.AddInputChannel("sel_in", p->GetBitsType(2));
+    BSendChannel out_a = pb.AddOutputChannel("out_a", p->GetBitsType(32));
+    BSendChannel out_b = pb.AddOutputChannel("out_b", p->GetBitsType(32));
+    BSendChannel out_c = pb.AddOutputChannel("out_c", p->GetBitsType(32));
+
+    BValue tkn = pb.Literal(Value::Token());
+    BValue recv = pb.Receive(sel_in, tkn);
+    BValue sel = pb.TupleIndex(recv, 1);
+    BValue pred_a = pb.Eq(sel, pb.Literal(Value(UBits(0, 2))));
+    BValue pred_b = pb.Ne(sel, pb.Literal(Value(UBits(0, 2))));
+    BValue pred_c = pb.Eq(sel, pb.Literal(Value(UBits(1, 2))));
+
+    BValue s0 = pb.SendIf(out_a, pb.TupleIndex(recv, 0), pred_a,
+                          pb.Literal(Value(UBits(10, 32))));
+    BValue s1 = pb.SendIf(out_b, s0, pred_b, pb.Literal(Value(UBits(20, 32))));
+    pb.SendIf(out_c, s1, pred_c, pb.Literal(Value(UBits(30, 32))));
+    XLS_ASSERT_OK(pb.Build());
+
+    EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
+    XLS_ASSERT_OK_AND_ASSIGN(Block * block, p->GetBlock("test_main"));
+    EXPECT_THAT(
+        block->nodes(),
+        Not(Contains(m::RegisterRead(HasSubstr("out_a_already_done")))));
+    EXPECT_THAT(block->nodes(),
+                Contains(m::RegisterRead(HasSubstr("out_b_already_done"))));
+    EXPECT_THAT(block->nodes(),
+                Contains(m::RegisterRead(HasSubstr("out_c_already_done"))));
+  }
+
+  // Subset {rv_a (ready/valid), vd_b (valid-only)} co-fires when sel == 1, and
+  // rv_c (ready/valid) fires when sel == 0: rv_a never co-fires with any other
+  // stallable channel (vd_b cannot stall, rv_c is mutually exclusive), so only
+  // vd_b needs one-shot logic.
+  {
+    auto p = std::make_unique<Package>("test");
+    ScheduledProcBuilder pb(NewStyleProc(), "test_main", p.get());
+    BReceiveChannel sel_in = pb.AddInputChannel("sel_in", p->GetBitsType(1));
+    BSendChannel rv_a = pb.AddOutputChannel("rv_a", p->GetBitsType(32));
+    BSendChannel vd_b = pb.AddOutputChannel("vd_b", p->GetBitsType(32));
+    vd_b.channel_interface()->SetFlowControl(FlowControl::kValidData);
+    BSendChannel rv_c = pb.AddOutputChannel("rv_c", p->GetBitsType(32));
+
+    BValue tkn = pb.Literal(Value::Token());
+    BValue recv = pb.Receive(sel_in, tkn);
+    BValue sel = pb.TupleIndex(recv, 1);
+
+    BValue s0 = pb.SendIf(rv_a, pb.TupleIndex(recv, 0), sel,
+                          pb.Literal(Value(UBits(10, 32))));
+    BValue s1 = pb.SendIf(vd_b, s0, sel, pb.Literal(Value(UBits(20, 32))));
+    pb.SendIf(rv_c, s1, pb.Not(sel), pb.Literal(Value(UBits(30, 32))));
+    XLS_ASSERT_OK(pb.Build());
+
+    EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
+    XLS_ASSERT_OK_AND_ASSIGN(Block * block, p->GetBlock("test_main"));
+    EXPECT_THAT(block->nodes(),
+                Not(Contains(m::RegisterRead(HasSubstr("rv_a_already_done")))));
+    EXPECT_THAT(block->nodes(),
+                Contains(m::RegisterRead(HasSubstr("vd_b_already_done"))));
+    EXPECT_THAT(block->nodes(),
+                Not(Contains(m::RegisterRead(HasSubstr("rv_c_already_done")))));
+  }
+}
+
+TEST_F(ChannelToPortIoLoweringPassTest,
+       AlwaysFalsePredicatedSendDoesNotTriggerOneShotWithUnpredicatedSend) {
+  // Literal always-false SendIf alongside an unpredicated Send: neither channel
+  // can stall while the other completes, so neither needs one-shot logic.
+  {
+    auto p = std::make_unique<Package>("test");
+    ScheduledProcBuilder pb(NewStyleProc(), "test_main", p.get());
+    BSendChannel out_a = pb.AddOutputChannel("out_a", p->GetBitsType(32));
+    BSendChannel out_b = pb.AddOutputChannel("out_b", p->GetBitsType(32));
+
+    BValue tkn = pb.Literal(Value::Token());
+    BValue s0 = pb.Send(out_a, tkn, pb.Literal(Value(UBits(10, 32))));
+    pb.SendIf(out_b, s0, pb.Literal(Value(UBits(0, 1))),
+              pb.Literal(Value(UBits(20, 32))));
+    XLS_ASSERT_OK(pb.Build());
+
+    EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
+    XLS_ASSERT_OK_AND_ASSIGN(Block * block, p->GetBlock("test_main"));
+    EXPECT_THAT(block->nodes(),
+                Not(Contains(m::RegisterRead(HasSubstr("already_done")))));
+  }
+
+  // Non-literal BDD-proven always-false predicate (`sel && !sel`) alongside an
+  // unpredicated Send: neither channel needs one-shot logic.
+  {
+    auto p = std::make_unique<Package>("test");
+    ScheduledProcBuilder pb(NewStyleProc(), "test_main", p.get());
+    BReceiveChannel sel_in = pb.AddInputChannel("sel_in", p->GetBitsType(1));
+    BSendChannel out_a = pb.AddOutputChannel("out_a", p->GetBitsType(32));
+    BSendChannel out_b = pb.AddOutputChannel("out_b", p->GetBitsType(32));
+
+    BValue tkn = pb.Literal(Value::Token());
+    BValue recv = pb.Receive(sel_in, tkn);
+    BValue sel = pb.TupleIndex(recv, 1);
+    BValue always_false = pb.And(sel, pb.Not(sel));
+    BValue s0 = pb.Send(out_a, pb.TupleIndex(recv, 0),
+                        pb.Literal(Value(UBits(10, 32))));
+    pb.SendIf(out_b, s0, always_false, pb.Literal(Value(UBits(20, 32))));
+    XLS_ASSERT_OK(pb.Build());
+
+    EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
+    XLS_ASSERT_OK_AND_ASSIGN(Block * block, p->GetBlock("test_main"));
+    EXPECT_THAT(block->nodes(),
+                Not(Contains(m::RegisterRead(HasSubstr("already_done")))));
+  }
+
+  // Positive control: satisfiable predicated SendIf alongside an unpredicated
+  // Send can co-fire when `sel == 1`, so both channels need one-shot logic.
+  {
+    auto p = std::make_unique<Package>("test");
+    ScheduledProcBuilder pb(NewStyleProc(), "test_main", p.get());
+    BReceiveChannel sel_in = pb.AddInputChannel("sel_in", p->GetBitsType(1));
+    BSendChannel out_a = pb.AddOutputChannel("out_a", p->GetBitsType(32));
+    BSendChannel out_b = pb.AddOutputChannel("out_b", p->GetBitsType(32));
+
+    BValue tkn = pb.Literal(Value::Token());
+    BValue recv = pb.Receive(sel_in, tkn);
+    BValue sel = pb.TupleIndex(recv, 1);
+    BValue s0 = pb.Send(out_a, pb.TupleIndex(recv, 0),
+                        pb.Literal(Value(UBits(10, 32))));
+    pb.SendIf(out_b, s0, sel, pb.Literal(Value(UBits(20, 32))));
+    XLS_ASSERT_OK(pb.Build());
+
+    EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
+    XLS_ASSERT_OK_AND_ASSIGN(Block * block, p->GetBlock("test_main"));
+    EXPECT_THAT(block->nodes(),
+                Contains(m::RegisterRead(HasSubstr("out_a_already_done"))));
+    EXPECT_THAT(block->nodes(),
+                Contains(m::RegisterRead(HasSubstr("out_b_already_done"))));
+  }
+}
+
+void ExpectRegisterReset(Block* block, std::string_view reg_name,
+                         bool expect_reset) {
+  XLS_ASSERT_OK_AND_ASSIGN(Register * reg, block->GetRegister(reg_name));
+  XLS_ASSERT_OK_AND_ASSIGN(RegisterWrite * reg_write,
+                           block->GetUniqueRegisterWrite(reg));
+  if (expect_reset) {
+    EXPECT_TRUE(reg->reset_value().has_value()) << reg_name;
+    EXPECT_EQ(reg_write->reset(), block->GetResetPort()) << reg_name;
+  } else {
+    EXPECT_FALSE(reg->reset_value().has_value()) << reg_name;
+    EXPECT_FALSE(reg_write->reset().has_value()) << reg_name;
+  }
+}
+
+TEST_F(ChannelToPortIoLoweringPassTest, StreamingIoFlopsRespectResetDataPath) {
+  for (FlopKind flop_kind :
+       {FlopKind::kFlop, FlopKind::kZeroLatency, FlopKind::kSkid}) {
+    for (bool reset_data_path : {false, true}) {
+      auto p = std::make_unique<Package>("test");
+      ScheduledProcBuilder pb(NewStyleProc(), "test_main", p.get());
+      BReceiveChannel a_in = pb.AddInputChannel("a_in", p->GetBitsType(32));
+      BSendChannel a_out = pb.AddOutputChannel("a_out", p->GetBitsType(32));
+      a_in.channel_interface()->SetFlopKind(flop_kind);
+      a_out.channel_interface()->SetFlopKind(flop_kind);
+
+      BValue tkn = pb.Literal(Value::Token());
+      BValue recv = pb.Receive(a_in, tkn);
+      pb.Send(a_out, pb.TupleIndex(recv, 0), pb.TupleIndex(recv, 1));
+      XLS_ASSERT_OK(pb.Build());
+
+      BlockConversionPassOptions options;
+      options.codegen_options.reset("rst", /*asynchronous=*/false,
+                                    /*active_low=*/false,
+                                    /*reset_data_path=*/reset_data_path);
+
+      ASSERT_THAT(Run(p.get(), options), IsOkAndHolds(true));
+      XLS_ASSERT_OK(VerifyPackage(p.get(), {.incomplete_lowering = true}));
+      XLS_ASSERT_OK_AND_ASSIGN(Block * block, p->GetBlock("test_main"));
+
+      if (flop_kind == FlopKind::kFlop || flop_kind == FlopKind::kSkid) {
+        ExpectRegisterReset(block, "__a_in_reg", reset_data_path);
+        ExpectRegisterReset(block, "__a_out_reg", reset_data_path);
+        ExpectRegisterReset(block, "__a_in_valid_reg", /*expect_reset=*/true);
+        ExpectRegisterReset(block, "__a_out_valid_reg", /*expect_reset=*/true);
+      }
+      if (flop_kind == FlopKind::kZeroLatency || flop_kind == FlopKind::kSkid) {
+        ExpectRegisterReset(block, "__a_in_skid_reg", reset_data_path);
+        ExpectRegisterReset(block, "__a_out_skid_reg", reset_data_path);
+        ExpectRegisterReset(block, "__a_in_valid_skid_reg",
+                            /*expect_reset=*/true);
+        ExpectRegisterReset(block, "__a_out_valid_skid_reg",
+                            /*expect_reset=*/true);
+      }
+    }
+  }
+}
+
+TEST_F(ChannelToPortIoLoweringPassTest, StreamingIoFlopsWithoutResetPort) {
+  for (FlopKind flop_kind :
+       {FlopKind::kFlop, FlopKind::kZeroLatency, FlopKind::kSkid}) {
+    auto p = std::make_unique<Package>("test");
+    ScheduledProcBuilder pb(NewStyleProc(), "test_main", p.get());
+    BReceiveChannel a_in = pb.AddInputChannel("a_in", p->GetBitsType(32));
+    BSendChannel a_out = pb.AddOutputChannel("a_out", p->GetBitsType(32));
+    a_in.channel_interface()->SetFlopKind(flop_kind);
+    a_out.channel_interface()->SetFlopKind(flop_kind);
+
+    BValue tkn = pb.Literal(Value::Token());
+    BValue recv = pb.Receive(a_in, tkn);
+    pb.Send(a_out, pb.TupleIndex(recv, 0), pb.TupleIndex(recv, 1));
+    XLS_ASSERT_OK(pb.Build());
+
+    ASSERT_THAT(Run(p.get(), BlockConversionPassOptions(),
+                    /*add_default_reset=*/false),
+                IsOkAndHolds(true));
+    XLS_ASSERT_OK(VerifyPackage(p.get(), {.incomplete_lowering = true}));
+    XLS_ASSERT_OK_AND_ASSIGN(Block * block, p->GetBlock("test_main"));
+
+    for (Register* reg : block->GetRegisters()) {
+      ExpectRegisterReset(block, reg->name(), /*expect_reset=*/false);
+    }
+  }
+}
+
+TEST_F(ChannelToPortIoLoweringPassTest,
+       SingleValueIoFlopsRespectResetDataPath) {
+  for (bool reset_data_path : {false, true}) {
+    auto p = std::make_unique<Package>("test");
+    ScheduledProcBuilder pb(NewStyleProc(), "test_main", p.get());
+    BReceiveChannel a_in = pb.AddInputChannel("a_in", p->GetBitsType(32),
+                                              ChannelKind::kSingleValue);
+    BSendChannel a_out = pb.AddOutputChannel("a_out", p->GetBitsType(32),
+                                             ChannelKind::kSingleValue);
+
+    BValue tkn = pb.Literal(Value::Token());
+    BValue recv = pb.Receive(a_in, tkn);
+    pb.Send(a_out, pb.TupleIndex(recv, 0), pb.TupleIndex(recv, 1));
+    XLS_ASSERT_OK(pb.Build());
+
+    BlockConversionPassOptions options;
+    options.codegen_options.flop_inputs(true);
+    options.codegen_options.flop_outputs(true);
+    options.codegen_options.flop_single_value_channels(true);
+    options.codegen_options.reset("rst", /*asynchronous=*/false,
+                                  /*active_low=*/false,
+                                  /*reset_data_path=*/reset_data_path);
+
+    ASSERT_THAT(Run(p.get(), options), IsOkAndHolds(true));
+    XLS_ASSERT_OK(VerifyPackage(p.get(), {.incomplete_lowering = true}));
+    XLS_ASSERT_OK_AND_ASSIGN(Block * block, p->GetBlock("test_main"));
+
+    ExpectRegisterReset(block, "__a_in_reg", reset_data_path);
+    ExpectRegisterReset(block, "__a_out_reg", reset_data_path);
+  }
 }
 
 }  // namespace

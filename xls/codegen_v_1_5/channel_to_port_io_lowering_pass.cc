@@ -33,6 +33,7 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/container/inlined_vector.h"
+#include "absl/container/linked_hash_set.h"
 #include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -58,10 +59,14 @@
 #include "xls/ir/package.h"
 #include "xls/ir/register.h"
 #include "xls/ir/source_location.h"
+#include "xls/ir/ternary.h"
 #include "xls/ir/value.h"
 #include "xls/ir/value_utils.h"
 #include "xls/passes/bdd_query_engine.h"
 #include "xls/passes/pass_base.h"
+#include "xls/passes/query_engine.h"
+#include "xls/passes/stateless_query_engine.h"
+#include "xls/passes/union_query_engine.h"
 #include "xls/public/function_builder.h"
 
 namespace xls::codegen {
@@ -1048,51 +1053,125 @@ bool UseNodeForMutualExclusionBDD(const Node* node) {
          node->Is<CompareOp>();
 }
 
-absl::StatusOr<bool> AreStreamingOutputsMutuallyExclusive(
-    ScheduledBlock* block) {
-  // Find all send nodes associated with streaming channels.
-  int64_t streaming_send_count = 0;
-  std::vector<Node*> send_predicates;
+struct StageStreamingOutputs {
+  // Whether `stage.active_outputs_ready()` already contained a non-trivial
+  // backpressure condition before `LowerIoToPorts` wired in streaming channel
+  // ready signals (for example, folded in by an earlier RAM or state lowering
+  // pass). Because that condition can stall the stage independently of any
+  // streaming `Send` predicate, any streaming `Send` in such a stage needs
+  // one-shot protection.
+  bool has_preexisting_output_backpressure = false;
 
-  for (Node* node : block->nodes()) {
+  // Number of distinct streaming output channels in this stage (used for
+  // diagnostics in combinational mode).
+  int64_t streaming_channel_count = 0;
+
+  // Streaming `Send`s in this stage whose target channel has a `ready` signal
+  // and can therefore stall `active_outputs_ready` when active.
+  struct StallableSend {
+    ChannelRef channel;
+    std::optional<Node*> predicate;
+  };
+  std::vector<StallableSend> stallable_sends;
+};
+
+absl::StatusOr<StageStreamingOutputs> CollectStageStreamingOutputs(
+    ScheduledBlock* block, int64_t stage_index,
+    const absl::flat_hash_map<DirectedChannelRef, Connector>& connections) {
+  StageStreamingOutputs info{
+      .has_preexisting_output_backpressure = !IsLiteralUnsignedOne(
+          block->stages()[stage_index].active_outputs_ready()),
+  };
+  absl::flat_hash_set<ChannelRef> distinct_streaming_channels;
+
+  for (Node* node : block->stages()[stage_index]) {
     if (!node->Is<Send>()) {
       continue;
     }
 
-    XLS_ASSIGN_OR_RETURN(ChannelRef channel, node->As<Send>()->GetChannelRef());
+    Send* send = node->As<Send>();
+    XLS_ASSIGN_OR_RETURN(ChannelRef channel, send->GetChannelRef());
     if (ChannelRefKind(channel) != ChannelKind::kStreaming) {
       continue;
     }
 
-    Send* send = node->As<Send>();
-    ++streaming_send_count;
-
-    if (send->predicate().has_value()) {
-      Node* predicate = send->predicate().value();
-      send_predicates.push_back(predicate);
+    distinct_streaming_channels.insert(channel);
+    auto conn_it =
+        connections.find(DirectedChannelRef{channel, ChannelDirection::kSend});
+    if (conn_it != connections.end() && conn_it->second.ready.has_value()) {
+      info.stallable_sends.push_back(StageStreamingOutputs::StallableSend{
+          .channel = channel,
+          .predicate = send->predicate(),
+      });
     }
   }
 
-  // If there is only <=1 streaming send node, outputs are mutually exclusive
-  if (streaming_send_count <= 1) {
+  info.streaming_channel_count = distinct_streaming_channels.size();
+  return info;
+}
+
+// Returns true if `send` (on `channel`) is proven never to fire in the same
+// cycle as any other output backpressure source in `stage_info`—neither
+// pre-existing stage output backpressure nor a stallable streaming `Send` on a
+// different channel.
+//
+// Specializing `query_engine` on `send`'s predicate (when present) and checking
+// whether each other channel's stallable `Send` predicate is implied to be zero
+// handles unpredicated sends, always-false predicates, and asymmetric subsets
+// (e.g., `A -> !B && A -> !C` while `B` and `C` can co-fire) uniformly.
+bool FiresWithoutOtherStallableStageOutputs(
+    Send* send, ChannelRef channel, const StageStreamingOutputs& stage_info,
+    const QueryEngine& query_engine) {
+  const bool has_other_stallable_channel =
+      absl::c_any_of(stage_info.stallable_sends,
+                     [&](const StageStreamingOutputs::StallableSend& other) {
+                       return other.channel != channel;
+                     });
+  if (!stage_info.has_preexisting_output_backpressure &&
+      !has_other_stallable_channel) {
     return true;
   }
 
-  // If there > 1 streaming send node and not all have predicates, then
-  // make an assumption that the streaming channels are not exclusive.
-  // TODO(tedhong): 2022-02-12 - Refine this to perform a less
-  // pessimistic assumption.
-  if (streaming_send_count != send_predicates.size()) {
+  // A send whose predicate is always false never activates, so it can never
+  // transfer twice regardless of other stage outputs.
+  if (send->predicate().has_value() &&
+      query_engine.IsAllZeros(*send->predicate())) {
+    return true;
+  }
+  if (stage_info.has_preexisting_output_backpressure) {
     return false;
   }
 
-  // Use BDD query engine to determine predicates are such that
-  // if one is true, the rest are false.
-  BddQueryEngine query_engine(BddQueryEngine::kDefaultPathLimit,
-                              UseNodeForMutualExclusionBDD);
-  XLS_RETURN_IF_ERROR(query_engine.Populate(block).status());
+  absl::linked_hash_set<Node*> other_predicates;
+  for (const StageStreamingOutputs::StallableSend& other :
+       stage_info.stallable_sends) {
+    if (other.channel == channel) {
+      continue;
+    }
+    // `send` is not proven always-false above, so an unpredicated `other` (or
+    // one sharing `send`'s predicate) cannot be proven inactive when `send`
+    // fires.
+    if (!other.predicate.has_value() || other.predicate == send->predicate()) {
+      return false;
+    }
+    other_predicates.insert(*other.predicate);
+  }
 
-  return query_engine.AtMostOneNodeTrue(send_predicates);
+  std::unique_ptr<QueryEngine> specialized_engine;
+  const QueryEngine* active_query_engine = &query_engine;
+  if (send->predicate().has_value()) {
+    Node* send_pred = *send->predicate();
+    specialized_engine = query_engine.SpecializeGiven(
+        {{send_pred,
+          ValueKnowledge{.ternary = TernaryTree::CreateSingleElementTree(
+                             send_pred->GetType(),
+                             TernaryVector{TernaryValue::kKnownOne})}}});
+    active_query_engine = specialized_engine.get();
+  }
+
+  return absl::c_all_of(other_predicates, [&](Node* other_pred) {
+    return active_query_engine->IsAllZeros(other_pred);
+  });
 }
 
 // Adds logic to ensure that an output is not transferred more than once.
@@ -1253,14 +1332,21 @@ absl::flat_hash_set<std::string> GetRamChannelNames(
 // Returns the new register added.
 absl::StatusOr<RegisterRead*> AddRegisterAfterNode(
     std::string_view name_prefix, std::optional<Node*> load_enable,
-    Node* node) {
+    bool reset_register, Node* node) {
   Block* block = node->function_base()->AsBlockOrDie();
 
   Type* node_type = node->GetType();
   std::string name = absl::StrFormat("__%s_reg", name_prefix);
 
+  const bool has_reset = reset_register && block->GetResetPort().has_value();
+  std::optional<Value> reset_value;
+  std::optional<Node*> reset_port;
+  if (has_reset) {
+    reset_value = ZeroOfType(node_type);
+    reset_port = block->GetResetPort();
+  }
   XLS_ASSIGN_OR_RETURN(Register * reg,
-                       block->AddRegisterWithZeroResetValue(name, node_type));
+                       block->AddRegister(name, node_type, reset_value));
 
   XLS_ASSIGN_OR_RETURN(RegisterRead * reg_read,
                        block->MakeNodeWithName<RegisterRead>(
@@ -1275,7 +1361,7 @@ absl::StatusOr<RegisterRead*> AddRegisterAfterNode(
                               /*loc=*/node->loc(),
                               /*data=*/node,
                               /*load_enable=*/load_enable,
-                              /*reset=*/block->GetResetPort(),
+                              /*reset=*/reset_port,
                               /*reg=*/reg)
                           .status());
 
@@ -1314,6 +1400,7 @@ absl::Status UpdateRegisterLoadEn(Node* load_en, Register* reg, Block* block) {
 absl::Status AddZeroLatencyBufferToRDVNodes(Node* from_data, Node* from_valid,
                                             std::optional<Node*> from_rdy,
                                             std::string_view name_prefix,
+                                            bool reset_data_path,
                                             Block* block) {
   bool has_ready = from_rdy.has_value();
   if (has_ready) {
@@ -1328,13 +1415,14 @@ absl::Status AddZeroLatencyBufferToRDVNodes(Node* from_data, Node* from_valid,
   XLS_ASSIGN_OR_RETURN(
       RegisterRead * data_skid_reg_read,
       AddRegisterAfterNode(/*name_prefix=*/absl::StrCat(name_prefix, "_skid"),
-                           /*load_enable=*/literal_1, from_data));
+                           /*load_enable=*/literal_1,
+                           /*reset_register=*/reset_data_path, from_data));
 
   XLS_ASSIGN_OR_RETURN(
       RegisterRead * data_valid_skid_reg_read,
       AddRegisterAfterNode(
           /*name_prefix=*/absl::StrCat(name_prefix, "_valid_skid"),
-          /*load_enable=*/literal_1, from_valid));
+          /*load_enable=*/literal_1, /*reset_register=*/true, from_valid));
 
   // If data_valid_skid_reg_read is 1, then data/valid outputs should
   // be selected from the skid set.
@@ -1443,15 +1531,18 @@ absl::Status AddZeroLatencyBufferToRDVNodes(Node* from_data, Node* from_valid,
 //
 absl::Status AddRegisterToRDVNodes(Node* from_data, Node* from_valid,
                                    std::optional<Node*> from_rdy,
-                                   std::string_view name_prefix, Block* block) {
+                                   std::string_view name_prefix,
+                                   bool reset_data_path, Block* block) {
   XLS_ASSIGN_OR_RETURN(
       RegisterRead * data_reg_read,
       AddRegisterAfterNode(/*name_prefix=*/name_prefix,
-                           /*load_enable=*/std::nullopt, from_data));
+                           /*load_enable=*/std::nullopt,
+                           /*reset_register=*/reset_data_path, from_data));
   XLS_ASSIGN_OR_RETURN(
       RegisterRead * valid_reg_read,
       AddRegisterAfterNode(/*name_prefix=*/absl::StrCat(name_prefix, "_valid"),
-                           /*load_enable=*/std::nullopt, from_valid));
+                           /*load_enable=*/std::nullopt,
+                           /*reset_register=*/true, from_valid));
 
   // 2. Construct and update the ready signal.
   Register* data_reg = data_reg_read->GetRegister();
@@ -1513,7 +1604,7 @@ absl::Status AddRegisterToRDVNodes(Node* from_data, Node* from_valid,
 absl::Status AddSkidBufferToRDVNodes(Node* from_data, Node* from_valid,
                                      std::optional<Node*> from_rdy,
                                      std::string_view name_prefix,
-                                     Block* block) {
+                                     bool reset_data_path, Block* block) {
   // A skid buffer is composed of a zero-latency buffer (skid) fed by a
   // simple pipeline register.
   //
@@ -1527,25 +1618,28 @@ absl::Status AddSkidBufferToRDVNodes(Node* from_data, Node* from_valid,
   // effectively places the register *upstream* of the skid buffer, which is
   // exactly what we want.
   XLS_RETURN_IF_ERROR(AddZeroLatencyBufferToRDVNodes(
-      from_data, from_valid, from_rdy, name_prefix, block));
+      from_data, from_valid, from_rdy, name_prefix, reset_data_path, block));
 
-  XLS_RETURN_IF_ERROR(AddRegisterToRDVNodes(from_data, from_valid, from_rdy,
-                                            name_prefix, block));
+  XLS_RETURN_IF_ERROR(AddRegisterToRDVNodes(
+      from_data, from_valid, from_rdy, name_prefix, reset_data_path, block));
 
   return absl::OkStatus();
 }
 
 absl::Status AddFlopToRDVNodes(FlopKind flop_kind, Node* data, Node* valid,
                                std::optional<Node*> ready,
-                               std::string_view name_prefix, Block* block) {
+                               std::string_view name_prefix,
+                               bool reset_data_path, Block* block) {
   switch (flop_kind) {
     case FlopKind::kZeroLatency:
       return AddZeroLatencyBufferToRDVNodes(data, valid, ready, name_prefix,
-                                            block);
+                                            reset_data_path, block);
     case FlopKind::kSkid:
-      return AddSkidBufferToRDVNodes(data, valid, ready, name_prefix, block);
+      return AddSkidBufferToRDVNodes(data, valid, ready, name_prefix,
+                                     reset_data_path, block);
     case FlopKind::kFlop:
-      return AddRegisterToRDVNodes(data, valid, ready, name_prefix, block);
+      return AddRegisterToRDVNodes(data, valid, ready, name_prefix,
+                                   reset_data_path, block);
     case FlopKind::kNone:
       return absl::OkStatus();
   }
@@ -1555,7 +1649,8 @@ absl::Status AddFlopToRDVNodes(FlopKind flop_kind, Node* data, Node* valid,
 }
 
 absl::Status AddIOFlopsForReceive(Connector& connector, FlopKind flop_kind,
-                                  ChannelRef channel, ScheduledBlock* block,
+                                  ChannelRef channel, bool reset_data_path,
+                                  ScheduledBlock* block,
                                   const BlockConversionPassOptions& options) {
   // NOTE: We control the flop insertion for single-value channels globally,
   // ignoring the flop_kind parameter. This matches the behavior in codegen v1.
@@ -1563,7 +1658,9 @@ absl::Status AddIOFlopsForReceive(Connector& connector, FlopKind flop_kind,
     if (options.codegen_options.flop_inputs() &&
         options.codegen_options.flop_single_value_channels()) {
       return AddRegisterAfterNode(/*name_prefix=*/connector.data->GetName(),
-                                  /*load_enable=*/std::nullopt, connector.data)
+                                  /*load_enable=*/std::nullopt,
+                                  /*reset_register=*/reset_data_path,
+                                  connector.data)
           .status();
     }
     // No flops needed
@@ -1588,11 +1685,13 @@ absl::Status AddIOFlopsForReceive(Connector& connector, FlopKind flop_kind,
             absl::StrCat(ChannelRefName(channel), "_consumer_ready")));
   }
   return AddFlopToRDVNodes(flop_kind, connector.data, *connector.valid,
-                           consumer_ready, ChannelRefName(channel), block);
+                           consumer_ready, ChannelRefName(channel),
+                           reset_data_path, block);
 }
 
 absl::Status AddIOFlopsForSend(Connector& connector, FlopKind flop_kind,
-                               ChannelRef channel, ScheduledBlock* block,
+                               ChannelRef channel, bool reset_data_path,
+                               ScheduledBlock* block,
                                const BlockConversionPassOptions& options) {
   // NOTE: We control the flop insertion for single-value channels globally,
   // ignoring the flop_kind parameter. This matches the behavior in codegen v1.
@@ -1632,6 +1731,7 @@ absl::Status AddIOFlopsForSend(Connector& connector, FlopKind flop_kind,
     // signal.
     return AddRegisterAfterNode(/*name_prefix=*/connector.data->GetName(),
                                 /*load_enable=*/std::nullopt,
+                                /*reset_register=*/reset_data_path,
                                 output_port_data_buf)
         .status();
   }
@@ -1666,7 +1766,7 @@ absl::Status AddIOFlopsForSend(Connector& connector, FlopKind flop_kind,
 
   return AddFlopToRDVNodes(flop_kind, output_port_data_buf,
                            output_port_valid_buf, output_port_ready_buf,
-                           ChannelRefName(channel), block);
+                           ChannelRefName(channel), reset_data_path, block);
 }
 
 absl::Status AddIOFlopsForConnector(Connector& connector, ChannelRef channel,
@@ -1675,12 +1775,16 @@ absl::Status AddIOFlopsForConnector(Connector& connector, ChannelRef channel,
   XLS_ASSIGN_OR_RETURN(
       FlopKind flop_kind,
       GetFlopKind(channel, connector.direction, block, options));
+  const bool reset_data_path =
+      options.codegen_options.reset().has_value() &&
+      options.codegen_options.reset()->reset_data_path();
   switch (connector.direction) {
     case ChannelDirection::kReceive:
-      return AddIOFlopsForReceive(connector, flop_kind, channel, block,
-                                  options);
+      return AddIOFlopsForReceive(connector, flop_kind, channel,
+                                  reset_data_path, block, options);
     case ChannelDirection::kSend:
-      return AddIOFlopsForSend(connector, flop_kind, channel, block, options);
+      return AddIOFlopsForSend(connector, flop_kind, channel, reset_data_path,
+                               block, options);
   }
   ABSL_UNREACHABLE();
   return absl::InternalError(
@@ -1758,30 +1862,22 @@ absl::StatusOr<bool> LowerIoToPorts(
   // fire again in a later cycle. To prevent this, we add "one-shot" logic that
   // suppresses the send until its stage advances. A send needs this if:
   //
-  // 1. another send in the same stage might not be ready yet. We add one-shot
-  //    logic to every streaming send unless all streaming sends are provably
-  //    mutually exclusive.
+  // 1. another output in the same stage (either a stallable send on a different
+  //    streaming channel or a pre-existing `active_outputs_ready` condition)
+  //    can be active in the same cycle and might not be ready yet.
   // 2. a later stage can stall, which keeps the send's stage from advancing.
-  //
-  // TODO: do the analysis for (1) on a per-stage basis, and apply it
-  // per-channel.
-  bool needs_one_shot_logic = false;
-  const int64_t outgoing_channel_count =
-      absl::c_count_if(io_ops, [](const auto& channel_and_io_ops) {
-        return channel_and_io_ops.first.second == ChannelDirection::kSend;
-      });
-  if (outgoing_channel_count > 1) {
-    XLS_ASSIGN_OR_RETURN(bool outputs_mutually_exclusive,
-                         AreStreamingOutputsMutuallyExclusive(block));
-    needs_one_shot_logic = !outputs_mutually_exclusive;
-  }
-  if (needs_one_shot_logic &&
-      options.codegen_options.generate_combinational()) {
-    return absl::UnimplementedError(absl::StrFormat(
-        "Proc combinational generator only supports streaming output "
-        "channels which can be determined to be mutually exclusive, got %d "
-        "output channels which were not proven to be mutually exclusive",
-        outgoing_channel_count));
+  // `BddQueryEngine` is a `LazyQueryEngine`, so `Populate(block)` only attaches
+  // a change listener without evaluating node BDDs unless queried.
+  UnionQueryEngine mutual_exclusion_query_engine = UnionQueryEngine::Of(
+      StatelessQueryEngine(), BddQueryEngine(BddQueryEngine::kDefaultPathLimit,
+                                             UseNodeForMutualExclusionBDD));
+  XLS_RETURN_IF_ERROR(mutual_exclusion_query_engine.Populate(block).status());
+  std::vector<StageStreamingOutputs> stage_outputs;
+  stage_outputs.reserve(block->stages().size());
+  for (int64_t s = 0; s < static_cast<int64_t>(block->stages().size()); ++s) {
+    XLS_ASSIGN_OR_RETURN(StageStreamingOutputs stage_info,
+                         CollectStageStreamingOutputs(block, s, connections));
+    stage_outputs.push_back(std::move(stage_info));
   }
   XLS_ASSIGN_OR_RETURN(std::optional<int64_t> last_stage_that_can_stall,
                        LastStageThatCanStall(block, io_ops, connections));
@@ -1794,16 +1890,31 @@ absl::StatusOr<bool> LowerIoToPorts(
     XLS_RET_CHECK(it != connections.end());
     Connector& connector = it->second;
 
-    bool later_stage_can_stall = false;
-    if (last_stage_that_can_stall.has_value() && connector.valid.has_value()) {
-      for (Node* send : io_ops_for_channel) {
-        XLS_ASSIGN_OR_RETURN(int64_t stage_index, block->GetStageIndex(send));
-        if (stage_index < *last_stage_that_can_stall) {
-          later_stage_can_stall = true;
+    bool channel_needs_one_shot = false;
+    for (Node* send : io_ops_for_channel) {
+      XLS_ASSIGN_OR_RETURN(int64_t stage_index, block->GetStageIndex(send));
+      const StageStreamingOutputs& stage_info = stage_outputs[stage_index];
+      const bool fires_solo = FiresWithoutOtherStallableStageOutputs(
+          send->As<Send>(), directed_channel.first, stage_info,
+          mutual_exclusion_query_engine);
+      if (!fires_solo) {
+        if (options.codegen_options.generate_combinational()) {
+          return absl::UnimplementedError(absl::StrFormat(
+              "Proc combinational generator only supports streaming output "
+              "channels which can be determined to be mutually exclusive, got "
+              "%d output channels which were not proven to be mutually "
+              "exclusive",
+              stage_info.streaming_channel_count));
         }
+        channel_needs_one_shot = true;
+      }
+      if (last_stage_that_can_stall.has_value() &&
+          connector.valid.has_value() &&
+          stage_index < *last_stage_that_can_stall) {
+        channel_needs_one_shot = true;
       }
     }
-    if (!needs_one_shot_logic && !later_stage_can_stall) {
+    if (!channel_needs_one_shot) {
       continue;
     }
     XLS_RETURN_IF_ERROR(AddOneShotLogic(
