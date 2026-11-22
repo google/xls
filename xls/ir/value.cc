@@ -271,7 +271,7 @@ absl::Status Value::PopulateFrom(BitmapView bitmap) {
       // can ascend from least significant bit up to most significant bit.
       auto& values = std::get<std::vector<Value>>(payload_);
       int64_t bit_index = 0;
-      for (int64_t i = values.size() - 1; i >= 0; --i) {
+      for (int64_t i = static_cast<int64_t>(values.size()) - 1; i >= 0; --i) {
         int64_t element_bit_count = values[i].GetFlatBitCount();
         XLS_RETURN_IF_ERROR(
             values[i].PopulateFrom(bitmap.Slice(bit_index, element_bit_count)));

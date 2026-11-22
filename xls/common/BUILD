@@ -23,6 +23,20 @@ load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_cc//cc:cc_test.bzl", "cc_test")
 load("//xls/build_rules:py_oss_defs.bzl", "pytype_strict_contrib_test", "pytype_strict_library")
 load("//xls/build_rules:xls_cc_embed_data_rules.bzl", "xls_cc_embed_data")
+load(
+    "//xls/build_rules:xls_internal_build_defs.bzl",
+    "XLS_INIT_XLS_DATA",
+    "XLS_INIT_XLS_EXTRA_DEPS",
+    "XLS_INIT_XLS_EXTRA_HDRS",
+    "XLS_INIT_XLS_LINKSTAMP",
+    "XLS_INIT_XLS_SRCS",
+    "XLS_MODULE_INITIALIZER_DEPS",
+    "XLS_MODULE_INITIALIZER_SRCS",
+    "XLS_THREAD_DEPS",
+    "XLS_THREAD_SRCS",
+    "XLS_TIMEOUT_SUPPORT_EXTRA_DEPS",
+    "XLS_TIMEOUT_SUPPORT_SRCS",
+)
 
 package(
     default_applicable_licenses = ["//:license"],
@@ -42,13 +56,13 @@ cc_library(
 
 cc_library(
     name = "timeout_support",
-    srcs = ["timeout_support.cc"],
+    srcs = XLS_TIMEOUT_SUPPORT_SRCS,
     hdrs = ["timeout_support.h"],
     deps = [
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/synchronization",
         "@abseil-cpp//absl/time",
-    ],
+    ] + XLS_TIMEOUT_SUPPORT_EXTRA_DEPS,
 )
 
 cc_library(
@@ -199,21 +213,15 @@ cc_library(
 
 cc_library(
     name = "init_xls",
-    srcs = ["init_xls.cc"],
-    hdrs = [
-        "build_embed.h",
-        "init_xls.h",
-    ],
-    linkstamp = "build_embed.cc",
+    srcs = XLS_INIT_XLS_SRCS,
+    hdrs = ["init_xls.h"] + XLS_INIT_XLS_EXTRA_HDRS,
+    data = XLS_INIT_XLS_DATA,
+    linkstamp = XLS_INIT_XLS_LINKSTAMP,
     visibility = ["//xls:xls_utility_users"],
     deps = [
-        "@abseil-cpp//absl/flags:config",
-        "@abseil-cpp//absl/flags:parse",
-        "@abseil-cpp//absl/flags:usage",
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/log:flags",
-        "@abseil-cpp//absl/log:initialize",
-    ],
+    ] + XLS_INIT_XLS_EXTRA_DEPS,
 )
 
 cc_library(
@@ -250,8 +258,9 @@ cc_test(
 
 cc_library(
     name = "module_initializer",
-    srcs = ["module_initializer.inc"],
+    srcs = XLS_MODULE_INITIALIZER_SRCS,
     hdrs = ["module_initializer.h"],
+    deps = XLS_MODULE_INITIALIZER_DEPS,
 )
 
 cc_test(
@@ -350,6 +359,10 @@ cc_library(
             "subprocess_posix.cc",
         ],
         ":subprocess_wrapper_enabled": ["subprocess_with_wrapper.cc"],
+        "//conditions:default": [
+            "subprocess_chdir_posix.cc",
+            "subprocess_posix.cc",
+        ],
     }),
     hdrs = [
         "subprocess_chdir.h",
@@ -374,6 +387,7 @@ cc_library(
             "//xls/common/file:file_descriptor",
             "//xls/common/status:status_macros",
         ],
+        "//conditions:default": [],
     }),
 )
 
@@ -533,8 +547,9 @@ cc_test(
 
 cc_library(
     name = "thread",
-    srcs = ["thread.inc"],
+    srcs = XLS_THREAD_SRCS,
     hdrs = ["thread.h"],
+    deps = XLS_THREAD_DEPS,
 )
 
 cc_library(

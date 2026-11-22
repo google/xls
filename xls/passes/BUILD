@@ -247,10 +247,12 @@ cc_library(
         "//xls/ir",
         "//xls/ir:interval_set",
         "//xls/solvers:solver",
-        "//xls/solvers:z3_ir_translator",
         "@abseil-cpp//absl/algorithm:container",
         "@abseil-cpp//absl/status:statusor",
-    ],
+    ] + select({
+        "@platforms//cpu:wasm32": [],
+        "//conditions:default": ["//xls/solvers:z3_ir_translator"],
+    }),
 )
 
 cc_library(

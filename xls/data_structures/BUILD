@@ -76,6 +76,27 @@ cc_library(
     hdrs = ["graph_coloring.h"],
     deps = [
         "@abseil-cpp//absl/container:btree",
+        "@abseil-cpp//absl/container:flat_hash_set",
+        "@abseil-cpp//absl/log:check",
+    ],
+)
+
+cc_test(
+    name = "graph_coloring_test",
+    srcs = ["graph_coloring_test.cc"],
+    deps = [
+        ":graph_coloring",
+        "//xls/common:xls_gunit_main",
+        "@abseil-cpp//absl/container:flat_hash_map",
+        "@abseil-cpp//absl/container:flat_hash_set",
+        "@googletest//:gtest",
+    ],
+)
+
+cc_library(
+    name = "z3_graph_coloring",
+    hdrs = ["z3_graph_coloring.h"],
+    deps = [
         "@abseil-cpp//absl/container:flat_hash_map",
         "@abseil-cpp//absl/container:flat_hash_set",
         "@abseil-cpp//absl/log:check",
@@ -85,10 +106,10 @@ cc_library(
 )
 
 cc_test(
-    name = "graph_coloring_test",
-    srcs = ["graph_coloring_test.cc"],
+    name = "z3_graph_coloring_test",
+    srcs = ["z3_graph_coloring_test.cc"],
     deps = [
-        ":graph_coloring",
+        ":z3_graph_coloring",
         "//xls/common:xls_gunit_main",
         "@abseil-cpp//absl/container:flat_hash_map",
         "@abseil-cpp//absl/container:flat_hash_set",
