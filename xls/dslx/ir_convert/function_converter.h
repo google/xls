@@ -616,7 +616,7 @@ class FunctionConverter {
       std::vector<ChannelInterface*>& out);
   // Adds the parent's channels for a spawned child's `Source` or `Sink` member
   // to `channel_args`. Endpoints the child binds itself are skipped; the rest
-  // must be bound by the parent.
+  // must be bound or forwarded by the parent.
   absl::Status AddProcDefIoObjectArgs(
       const ProcDef* proc_def, const ProcDef* callee,
       const StructMemberNode* member, const InterpValue& external_arg,

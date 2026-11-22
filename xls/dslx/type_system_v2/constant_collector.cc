@@ -19,6 +19,7 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <variant>
 #include <vector>
@@ -666,8 +667,9 @@ class Visitor : public AstNodeVisitorWithDefault {
       XLS_RET_CHECK(f.has_value());
 
       if (IsBuiltin(*f) && (*f)->IsMethod()) {
-        if ((*f)->identifier() == "bind") {
-          return HandleIoObjectBindInvocation(invocation);
+        if ((*f)->identifier() == "bind" || (*f)->identifier() == "forward") {
+          return HandleIoObjectConstructorMethodInvocation(invocation,
+                                                           (*f)->identifier());
         }
       }
 
@@ -881,10 +883,10 @@ class Visitor : public AstNodeVisitorWithDefault {
     return absl::OkStatus();
   }
 
-  // Records `sink.bind(source)`, which connects the two endpoints with one
-  // channel. The IR converter reads the record when it converts the calling
-  // proc.
-  absl::Status HandleIoObjectBindInvocation(const Invocation* invocation) {
+  // Records the io object constructor method call `sink.bind(source)` or
+  // `from.forward(to)` in `ChannelManager`.
+  absl::Status HandleIoObjectConstructorMethodInvocation(
+      const Invocation* invocation, std::string_view method) {
     XLS_RET_CHECK_EQ(invocation->callee()->kind(), AstNodeKind::kAttr);
     XLS_RET_CHECK_EQ(invocation->args().size(), 1);
     XLS_ASSIGN_OR_RETURN(
@@ -893,20 +895,26 @@ class Visitor : public AstNodeVisitorWithDefault {
     if (!caller.has_value() || (*caller)->kind() != AstNodeKind::kProcDef) {
       return TypeInferenceErrorStatus(
           invocation->span(), nullptr,
-          "`bind` can only be called in a proc impl.", file_table_);
+          absl::Substitute("`$0` can only be called in a proc impl.", method),
+          file_table_);
     }
 
-    const Expr* sink_expr =
+    const Expr* lhs_expr =
         absl::down_cast<const Attr*>(invocation->callee())->lhs();
-    const Expr* source_expr = invocation->args()[0];
-    XLS_ASSIGN_OR_RETURN(InterpValue sink, Evaluate(sink_expr));
-    XLS_ASSIGN_OR_RETURN(InterpValue source, Evaluate(source_expr));
-    XLS_RET_CHECK(sink.IsChannelReference());
-    XLS_RET_CHECK(source.IsChannelReference());
+    const Expr* rhs_expr = invocation->args()[0];
+    XLS_ASSIGN_OR_RETURN(InterpValue lhs, Evaluate(lhs_expr));
+    XLS_ASSIGN_OR_RETURN(InterpValue rhs, Evaluate(rhs_expr));
+    XLS_RET_CHECK(lhs.IsChannelReference());
+    XLS_RET_CHECK(rhs.IsChannelReference());
     const auto* proc_def = absl::down_cast<const ProcDef*>(*caller);
-    XLS_RETURN_IF_ERROR(ti_->channel_manager().Bind(proc_def, sink, source,
-                                                    sink_expr, source_expr,
-                                                    invocation, file_table_));
+    if (method == "bind") {
+      XLS_RETURN_IF_ERROR(ti_->channel_manager().Bind(
+          proc_def, lhs, rhs, lhs_expr, rhs_expr, invocation, file_table_));
+    } else {
+      XLS_RET_CHECK_EQ(method, "forward");
+      XLS_RETURN_IF_ERROR(ti_->channel_manager().Forward(
+          proc_def, lhs, rhs, lhs_expr, rhs_expr, invocation, file_table_));
+    }
     ti_->NoteConstExpr(invocation, InterpValue::MakeTuple({}));
     return absl::OkStatus();
   }

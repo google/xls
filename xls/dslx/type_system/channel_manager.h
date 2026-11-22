@@ -43,14 +43,37 @@ struct ImplicitChannelDecl {
   const StructMemberNode* GetNamedMember() const;
 };
 
+// A `from.forward(to)` call aliasing a parent proc's boundary `Source` or
+// `Sink` with a spawned child's (`parent -> child` for `Source`, `child ->
+// parent` for `Sink`).
+struct ForwardedChannel {
+  InterpValue from_end;
+  InterpValue to_end;
+  const Invocation* origin;
+
+  // Returns the parent proc's endpoint (`from_end` for `Source`, `to_end` for
+  // `Sink`).
+  const InterpValue& GetCallerEnd() const;
+};
+
 class ChannelManager {
  public:
   // Records `sink.bind(source)` inside `caller`. Returns a
-  // `TypeInferenceErrorStatus` if either endpoint is already bound.
+  // `TypeInferenceErrorStatus` if either endpoint is already bound or
+  // forwarded.
   absl::Status Bind(const ProcDef* caller, const InterpValue& out_end,
                     const InterpValue& in_end, const Expr* out_expr,
                     const Expr* in_expr, const Invocation* origin,
                     const FileTable& file_table);
+
+  // Records `from.forward(to)` inside `caller`. Returns a
+  // `TypeInferenceErrorStatus` if the endpoints do not follow data-flow
+  // direction (`parent.source -> child.source` or `child.sink -> parent.sink`)
+  // or if either endpoint is already bound or forwarded.
+  absl::Status Forward(const ProcDef* caller, const InterpValue& from_end,
+                       const InterpValue& to_end, const Expr* from_expr,
+                       const Expr* to_expr, const Invocation* origin,
+                       const FileTable& file_table);
 
   // Returns the `ImplicitChannelDecl` that `endpoint` belongs to (as
   // either `out_end` or `in_end`) within `caller`, or `std::nullopt` if
@@ -58,10 +81,23 @@ class ChannelManager {
   std::optional<const ImplicitChannelDecl*> GetImplicitChannelDecl(
       const ProcDef* caller, const InterpValue& endpoint) const;
 
+  // Returns the `ForwardedChannel` that `endpoint` belongs to (as either
+  // `from_end` or `to_end`) within `caller`.
+  std::optional<const ForwardedChannel*> GetForwardedChannel(
+      const ProcDef* caller, const InterpValue& endpoint) const;
+
  private:
+  absl::Status CheckEndpointAvailable(const ProcDef* caller, int64_t id,
+                                      const Expr* expr,
+                                      const Invocation* origin,
+                                      const FileTable& file_table) const;
+
   absl::flat_hash_map<std::pair<const ProcDef*, int64_t>,
                       std::shared_ptr<ImplicitChannelDecl>>
       endpoint_to_decl_;
+  absl::flat_hash_map<std::pair<const ProcDef*, int64_t>,
+                      std::shared_ptr<ForwardedChannel>>
+      endpoint_to_forward_;
 };
 
 }  // namespace xls::dslx
