@@ -35,6 +35,7 @@
 #include "xls/dslx/type_system/typecheck_test_utils.h"
 #include "xls/dslx/type_system_v2/matchers.h"
 #include "xls/dslx/virtualizable_file_system.h"
+#include "xls/dslx/warning_kind.h"
 
 // Tests for `if`, `for`, and `unroll_for` expressions.
 namespace xls::dslx {
@@ -42,7 +43,10 @@ namespace {
 
 using ::absl_testing::IsOkAndHolds;
 using ::testing::AllOf;
+using ::testing::ElementsAre;
 using ::testing::HasSubstr;
+using ::testing::IsEmpty;
+using ::testing::ResultOf;
 
 TEST(TypecheckV2Test, IfType) {
   EXPECT_THAT("const X = if true { u32:1 } else { u32:0 };",
@@ -975,6 +979,133 @@ fn f(x: u4) -> u32 {
   ASSERT_THAT(result.tm.warnings.warnings().size(), 1);
   EXPECT_EQ(result.tm.warnings.warnings()[0].message,
             "Match is already exhaustive before this pattern");
+}
+
+std::vector<std::string> NonConstMatchPatternWarningSpans(
+    const TypecheckResult& result) {
+  std::vector<std::string> spans;
+  for (const auto& warning : result.tm.warnings.warnings()) {
+    if (warning.kind == WarningKind::kNonConstMatchPattern) {
+      spans.push_back(warning.span.ToString(result.import_data->file_table()));
+    }
+  }
+  return spans;
+}
+
+TEST(TypecheckV2Test, MatchPatternAgainstConstantValuedLet) {
+  // Even with a literal initializer, y is an ordinary let binding.
+  EXPECT_THAT(TypecheckV2(R"(
+fn f(x: bool) -> bool {
+  let y = true;
+  match x { y => y, _ => false }
+}
+)"),
+              IsOkAndHolds(ResultOf(NonConstMatchPatternWarningSpans,
+                                    ElementsAre("fake.x:6:13-6:14"))));
+}
+
+TEST(TypecheckV2Test, MatchPatternInStructUpdateTypeArgument) {
+  // The outer y selects width 9. A fresh binding would select width 8.
+  EXPECT_THAT(TypecheckV2(R"(
+struct S<N: u32> { value: uN[N], flag: bool }
+fn update(prev: S<9>) -> S<9> {
+  let y = false;
+  S<{match true { y => u32:8, _ => u32:9 }}> { flag: y, ..prev }
+}
+)"),
+              IsOkAndHolds(ResultOf(NonConstMatchPatternWarningSpans,
+                                    ElementsAre("fake.x:7:19-7:20"))));
+}
+
+TEST(TypecheckV2Test, MatchPatternWithConstantsParametricAndFreshName) {
+  // Each declared constant and the value parametric match by value.
+  // Only the fresh name binds the input.
+  EXPECT_THAT(
+      TypecheckV2(R"(
+const MODULE_VALUE = u8:1;
+fn f<N: u8>(x: u8) -> u8 {
+  const LOCAL_VALUE = u8:2;
+  match x { MODULE_VALUE | LOCAL_VALUE | N => u8:0, fresh => fresh }
+}
+const_assert!(f<u8:3>(3) == u8:0);
+const_assert!(f<u8:3>(4) == u8:4);
+)"),
+      IsOkAndHolds(ResultOf(NonConstMatchPatternWarningSpans, IsEmpty())));
+}
+
+TEST(TypecheckV2Test, MatchPatternAgainstBindingFromEnclosingArm) {
+  // The tuple introduces y and repeats it within the same pattern. Only
+  // the inner match compares against a name from an enclosing arm.
+  EXPECT_THAT(TypecheckV2(R"(
+fn f(pair: (bool, bool), x: bool) -> bool {
+  match pair {
+    (y, y) => match x {
+      y => true,
+      _ => false,
+    },
+    _ => false,
+  }
+}
+)"),
+              IsOkAndHolds(ResultOf(NonConstMatchPatternWarningSpans,
+                                    ElementsAre("fake.x:7:7-7:8"))));
+}
+
+TEST(TypecheckV2Test, MatchPatternInLegacyProcWarnsOnce) {
+  // The parser also uses the state annotation as the next function's return
+  // type. Both copies refer to the same comparison in the source.
+  EXPECT_THAT(TypecheckV2(R"(
+proc P {
+  config() { () }
+  init { u1:0 }
+  next(state: uN[if true {
+    let y = true;
+    match false { y => u32:2, _ => u32:1 }
+  } else { u32:1 }]) { state }
+}
+)"),
+              IsOkAndHolds(ResultOf(NonConstMatchPatternWarningSpans,
+                                    ElementsAre("fake.x:9:19-9:20"))));
+}
+
+TEST(TypecheckV2Test, MatchPatternInLegacySpawnParametricWarnsOnce) {
+  // The parser copies the spawn parametric into the config, init, and next
+  // invocations. The source contains a single comparison.
+  EXPECT_THAT(TypecheckV2(R"(
+proc Child<N: u32> {
+  config() { () }
+  init { N }
+  next(state: u32) { state }
+}
+proc Parent {
+  config() {
+    let y = true;
+    spawn Child<{match false { y => u32:2, _ => u32:1 }}>();
+    ()
+  }
+  init { () }
+  next(state: ()) { state }
+}
+)"),
+              IsOkAndHolds(ResultOf(NonConstMatchPatternWarningSpans,
+                                    ElementsAre("fake.x:12:32-12:33"))));
+}
+
+TEST(TypecheckV2Test, MatchPatternAgainstLambdaCapture) {
+  // The bit width makes the lambda capture both names as parametrics.
+  // Only y refers to an ordinary let in the source pattern.
+  EXPECT_THAT(TypecheckV2(R"(
+fn f(arr: u32[2]) -> bool[2] {
+  let y = u32:3;
+  const EXPECTED = u32:4;
+  map(arr, |x| {
+    let _v = x as uN[y + EXPECTED];
+    match x { y | EXPECTED => true, _ => false }
+  })
+}
+)"),
+              IsOkAndHolds(ResultOf(NonConstMatchPatternWarningSpans,
+                                    ElementsAre("fake.x:9:15-9:16"))));
 }
 
 TEST(TypecheckV2Test, PatternMatch) {

@@ -872,6 +872,7 @@ cc_library(
         "//xls/dslx/type_system_v2:import_utils",
         "//xls/dslx/type_system_v2:type_annotation_utils",
         "@abseil-cpp//absl/base",
+        "@abseil-cpp//absl/container:btree",
         "@abseil-cpp//absl/container:flat_hash_map",
         "@abseil-cpp//absl/container:flat_hash_set",
         "@abseil-cpp//absl/status",

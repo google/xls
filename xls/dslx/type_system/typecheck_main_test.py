@@ -16,6 +16,7 @@
 
 """Tests for typecheck_main."""
 
+from collections.abc import Sequence
 import os
 import subprocess as subp
 
@@ -27,10 +28,12 @@ _TYPECHECK_MAIN_PATH = runfiles.get_path('xls/dslx/type_system/typecheck_main')
 
 class TypecheckMainTest(absltest.TestCase):
 
-  def _run_typecheck_main(self, content: str) -> subp.CompletedProcess[str]:
+  def _run_typecheck_main(
+      self, content: str, flags: Sequence[str] = ()
+  ) -> subp.CompletedProcess[str]:
     f = self.create_tempfile(content=content)
     return subp.run(
-        [_TYPECHECK_MAIN_PATH, f.full_path],
+        [_TYPECHECK_MAIN_PATH, f.full_path, *flags],
         encoding='utf-8',
         check=True,
         stdout=subp.PIPE,
@@ -101,6 +104,21 @@ class TypecheckMainTest(absltest.TestCase):
     )
     self.assertEqual(p.returncode, 0)
     self.assertNotIn('not used', p.stderr)
+
+  def test_non_const_match_pattern_warning(self):
+    # The pattern compares against the parameter y, even though the arm body
+    # looks like it could be returning a freshly bound y.
+    content = """fn f(x: bool, y: bool) -> bool {
+      match x { y => y, _ => false }
+    }"""
+    with self.assertRaises(subp.CalledProcessError) as error:
+      self._run_typecheck_main(content)
+    self.assertIn('compares against the outer binding', error.exception.stderr)
+
+    result = self._run_typecheck_main(
+        content, ['--disable_warnings=non_const_match_pattern']
+    )
+    self.assertNotIn('compares against the outer binding', result.stderr)
 
   def test_enable_warning(self):
     content = """fn already_exhaustive_match(x: u1) -> u32 {
