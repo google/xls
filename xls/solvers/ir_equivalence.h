@@ -16,14 +16,24 @@
 #define XLS_SOLVERS_IR_EQUIVALENCE_H_
 
 #include <functional>
+#include <optional>
 
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/time/time.h"
+#include "absl/types/optional_ref.h"
 #include "xls/ir/function.h"
 #include "xls/ir/package.h"
 #include "xls/solvers/solver.h"
 
 namespace xls::solvers {
+
+// Phase wall-clock durations recorded during an equivalence proof.
+struct EquivalenceTiming {
+  absl::Duration merge_duration;
+  absl::Duration transform_duration;
+  absl::Duration solver_duration;
+};
 
 // Verifies that the original function's behavior stays the same after running
 // 'run_pass' on it. The callback *must* use the provided package and function
@@ -41,17 +51,26 @@ absl::StatusOr<ProverResult> TryProveEquivalence(
 
 // Verifies that both functions have the same behaviors. Both functions must
 // have exactly the same signatures, or an invalid argument error is returned.
+// If `transform_merged` is provided, it is invoked on the merged test package
+// (with its merged check function set as top and asserts already removed)
+// before invoking the solver. If `timing` is provided, it is populated with
+// per-phase wall-clock durations.
 //
 // This call does not alter either function.
 //
 // Returns 'true' if the pass does not cause the result to change.
 absl::StatusOr<ProverResult> TryProveEquivalence(
     Function* a, Function* b, bool ignore_asserts,
-    SolverKind kind = SolverKind::kZ3, SolverLimit limit = {});
+    SolverKind kind = SolverKind::kZ3, SolverLimit limit = {},
+    const std::function<absl::Status(Package*)>& transform_merged = nullptr,
+    absl::optional_ref<EquivalenceTiming> timing = std::nullopt);
 inline absl::StatusOr<ProverResult> TryProveEquivalence(
     Function* a, Function* b, SolverKind kind = SolverKind::kZ3,
-    SolverLimit limit = {}) {
-  return TryProveEquivalence(a, b, /*ignore_asserts=*/false, kind, limit);
+    SolverLimit limit = {},
+    const std::function<absl::Status(Package*)>& transform_merged = nullptr,
+    absl::optional_ref<EquivalenceTiming> timing = std::nullopt) {
+  return TryProveEquivalence(a, b, /*ignore_asserts=*/false, kind, limit,
+                             transform_merged, timing);
 }
 
 }  // namespace xls::solvers

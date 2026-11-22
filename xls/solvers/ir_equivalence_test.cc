@@ -16,6 +16,7 @@
 
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <string_view>
 #include <vector>
 
@@ -35,9 +36,12 @@
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
+#include "xls/ir/op.h"
 #include "xls/ir/package.h"
+#include "xls/ir/source_location.h"
 #include "xls/ir/topo_sort.h"
 #include "xls/ir/value.h"
+#include "xls/passes/optimization_pass_pipeline.h"
 #include "xls/solvers/ir_equivalence_testutils.h"
 #include "xls/solvers/prover_matchers.h"
 #include "xls/solvers/solver.h"
@@ -507,6 +511,159 @@ TEST_F(EquivalenceTest, ExtraAssertThatIsTautologyPasses) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * with_assert, fb_extra.Build());
 
   EXPECT_THAT(TryProveEquivalence(base, with_assert),
+              IsOkAndHolds(IsProvenTrue()));
+}
+
+TEST_F(EquivalenceTest, OptimizeMergedIrSetsTopAndProvesEquivalent) {
+  std::unique_ptr<Package> p1 = CreatePackage();
+  FunctionBuilder fb1(TestName(), p1.get());
+  BValue x1 = fb1.Param("x", p1->GetBitsType(32));
+  BValue y1 = fb1.Param("y", p1->GetBitsType(32));
+  fb1.Add(fb1.Xor(x1, x1), y1);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f1, fb1.Build());
+
+  std::unique_ptr<Package> p2 = CreatePackage();
+  FunctionBuilder fb2(TestName(), p2.get());
+  fb2.Param("x", p2->GetBitsType(32));
+  BValue y2 = fb2.Param("y", p2->GetBitsType(32));
+  fb2.Identity(y2);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f2, fb2.Build());
+
+  EquivalenceTiming timing;
+  bool saw_top = false;
+  EXPECT_THAT(TryProveEquivalence(
+                  f1, f2, /*ignore_asserts=*/false, SolverKind::kZ3, {},
+                  [&](Package* merged) -> absl::Status {
+                    saw_top = merged->GetTop().has_value();
+                    return RunOptimizationPassPipeline(merged).status();
+                  },
+                  timing),
+              IsOkAndHolds(IsProvenTrue()));
+  EXPECT_TRUE(saw_top);
+}
+
+TEST_F(EquivalenceTest, OptimizeMergedIrNonEquivalentReturnsCounterexample) {
+  std::unique_ptr<Package> p1 = CreatePackage();
+  FunctionBuilder fb1(TestName(), p1.get());
+  BValue x1 = fb1.Param("x", p1->GetBitsType(8));
+  BValue y1 = fb1.Param("y", p1->GetBitsType(8));
+  fb1.Add(fb1.Xor(x1, x1), y1);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f1, fb1.Build());
+
+  std::unique_ptr<Package> p2 = CreatePackage();
+  FunctionBuilder fb2(TestName(), p2.get());
+  fb2.Param("x", p2->GetBitsType(8));
+  BValue y2 = fb2.Param("y", p2->GetBitsType(8));
+  fb2.Add(y2, fb2.Literal(UBits(1, 8)));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f2, fb2.Build());
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      ProverResult r,
+      TryProveEquivalence(f1, f2, /*ignore_asserts=*/false, SolverKind::kZ3, {},
+                          [](Package* merged) -> absl::Status {
+                            return RunOptimizationPassPipeline(merged).status();
+                          }));
+  ASSERT_THAT(r, IsProvenFalse());
+  ProvenFalse f = std::get<ProvenFalse>(r);
+  ASSERT_THAT(f.counterexample, IsOk());
+  EXPECT_TRUE(f.counterexample->contains(f1->param(0)));
+  EXPECT_TRUE(f.counterexample->contains(f1->param(1)));
+  EXPECT_TRUE(f.counterexample->contains(f2->param(0)));
+  EXPECT_TRUE(f.counterexample->contains(f2->param(1)));
+}
+
+TEST_F(EquivalenceTest, OptimizeMergedIrMatchingAndMismatchingAsserts) {
+  auto run_opt = [](Package* merged) -> absl::Status {
+    return RunOptimizationPassPipeline(merged).status();
+  };
+
+  // Matching asserts (x == y vs y == x) should prove equivalent.
+  {
+    std::unique_ptr<Package> p1 = CreatePackage();
+    FunctionBuilder fb1(TestName(), p1.get());
+    BValue x1 = fb1.Param("x", p1->GetBitsType(8));
+    BValue y1 = fb1.Param("y", p1->GetBitsType(8));
+    fb1.Assert(fb1.Literal(Value::Token()), fb1.Eq(x1, y1), "eq_msg",
+               "label_eq");
+    fb1.Add(x1, y1);
+    XLS_ASSERT_OK_AND_ASSIGN(Function * f1, fb1.Build());
+
+    std::unique_ptr<Package> p2 = CreatePackage();
+    FunctionBuilder fb2(TestName(), p2.get());
+    BValue x2 = fb2.Param("x", p2->GetBitsType(8));
+    BValue y2 = fb2.Param("y", p2->GetBitsType(8));
+    fb2.Assert(fb2.Literal(Value::Token()), fb2.Eq(y2, x2), "eq_msg",
+               "label_eq");
+    fb2.Add(y2, x2);
+    XLS_ASSERT_OK_AND_ASSIGN(Function * f2, fb2.Build());
+
+    EXPECT_THAT(TryProveEquivalence(f1, f2, /*ignore_asserts=*/false,
+                                    SolverKind::kZ3, {}, run_opt),
+                IsOkAndHolds(IsProvenTrue()));
+  }
+
+  // Mismatching assert conditions under the same label should fail with a
+  // valid counterexample even when outputs match and optimization collapses
+  // the check.
+  {
+    std::unique_ptr<Package> p1 = CreatePackage();
+    FunctionBuilder fb1(TestName(), p1.get());
+    BValue x1 = fb1.Param("x", p1->GetBitsType(1));
+    fb1.Assert(fb1.Literal(Value::Token()), x1, "must be one", "label_a");
+    fb1.Identity(x1);
+    XLS_ASSERT_OK_AND_ASSIGN(Function * f1, fb1.Build());
+
+    std::unique_ptr<Package> p2 = CreatePackage();
+    FunctionBuilder fb2(TestName(), p2.get());
+    BValue x2 = fb2.Param("x", p2->GetBitsType(1));
+    fb2.Assert(fb2.Literal(Value::Token()), fb2.Not(x2), "must be one",
+               "label_a");
+    fb2.Identity(x2);
+    XLS_ASSERT_OK_AND_ASSIGN(Function * f2, fb2.Build());
+
+    XLS_ASSERT_OK_AND_ASSIGN(
+        ProverResult r, TryProveEquivalence(f1, f2, /*ignore_asserts=*/false,
+                                            SolverKind::kZ3, {}, run_opt));
+    ASSERT_THAT(r, IsProvenFalse());
+    ProvenFalse f = std::get<ProvenFalse>(r);
+    ASSERT_THAT(f.counterexample, IsOk());
+    EXPECT_TRUE(f.counterexample->contains(f1->param(0)));
+    EXPECT_TRUE(f.counterexample->contains(f2->param(0)));
+  }
+}
+
+TEST_F(EquivalenceTest, TransformMergedSynthesizingAssertIsStripped) {
+  std::unique_ptr<Package> p1 = CreatePackage();
+  FunctionBuilder fb1(TestName(), p1.get());
+  BValue x1 = fb1.Param("x", p1->GetBitsType(8));
+  BValue y1 = fb1.Param("y", p1->GetBitsType(8));
+  fb1.Add(x1, y1);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f1, fb1.Build());
+
+  std::unique_ptr<Package> p2 = CreatePackage();
+  FunctionBuilder fb2(TestName(), p2.get());
+  BValue x2 = fb2.Param("x", p2->GetBitsType(8));
+  BValue y2 = fb2.Param("y", p2->GetBitsType(8));
+  fb2.Add(y2, x2);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f2, fb2.Build());
+
+  auto synthesize_assert = [](Package* merged) -> absl::Status {
+    Function* top = (*merged->GetTop())->AsFunctionOrDie();
+    XLS_ASSIGN_OR_RETURN(Node * tkn,
+                         top->MakeNode<Literal>(SourceInfo(), Value::Token()));
+    XLS_ASSIGN_OR_RETURN(Node * cond,
+                         top->MakeNode<CompareOp>(SourceInfo(), top->param(0),
+                                                  top->param(1), Op::kEq));
+    XLS_RETURN_IF_ERROR(
+        top->MakeNode<Assert>(SourceInfo(), tkn, cond, "synthesized invariant",
+                              "__xls_invariant_test_selector_one_hot_A",
+                              /*original_label=*/std::nullopt)
+            .status());
+    return absl::OkStatus();
+  };
+
+  EXPECT_THAT(TryProveEquivalence(f1, f2, /*ignore_asserts=*/false,
+                                  SolverKind::kZ3, {}, synthesize_assert),
               IsOkAndHolds(IsProvenTrue()));
 }
 
