@@ -63,6 +63,9 @@ def _generate_registration_impl(ctx):
             "{NAME}": ctx.attr.pass_class,
             "{WARNING}": "Generated file. Do not edit.",
             "{HEADERS}": headers,
+            # TODO(allight): Unfortunate to check only the first header; passes
+            # with multiple headers may not list the primary pass header first
+            # in direct_public_headers, breaking doc extraction.
             "{FIRST_HEADER_FILE}": _repo_relative_path(ctx.attr.lib[CcInfo].compilation_context.direct_public_headers[0]),
         },
     )
