@@ -34,6 +34,7 @@ namespace xls::dslx {
 // visitors should be used (e.g. AstNodeVisitor, ExprVisitor).
 enum class AstNodeKind : uint8_t {
   // keep-sorted start
+  kAliasDef,
   kAllOnesMacro,
   kArray,
   kAttr,
@@ -70,7 +71,6 @@ enum class AstNodeKind : uint8_t {
   kParam,
   kParametricBinding,
   kProc,
-  kProcAlias,
   kProcDef,
   kProcMember,
   kQuickCheck,
