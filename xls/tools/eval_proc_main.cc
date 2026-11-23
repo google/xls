@@ -36,7 +36,6 @@
 #include "absl/flags/flag.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
-#include "absl/random/bit_gen_ref.h"
 #include "absl/random/distributions.h"
 #include "absl/random/random.h"
 #include "absl/status/status.h"
@@ -64,9 +63,7 @@
 #include "xls/interpreter/block_interpreter.h"
 #include "xls/interpreter/channel_queue.h"
 #include "xls/interpreter/evaluator_options.h"
-#include "xls/interpreter/interpreter_proc_runtime.h"
 #include "xls/interpreter/observer.h"
-#include "xls/interpreter/random_value.h"
 #include "xls/interpreter/serial_proc_runtime.h"
 #include "xls/interpreter/tracing_observer.h"
 #include "xls/ir/bits.h"
@@ -85,8 +82,10 @@
 #include "xls/ir/value.h"
 #include "xls/ir/value_utils.h"
 #include "xls/jit/block_jit.h"
-#include "xls/jit/jit_proc_runtime.h"
+#include "xls/jit/jit_channel_queue.h"
 #include "xls/jit/jit_runtime.h"
+#include "xls/jit/llvm_compiler.h"
+#include "xls/tools/eval_proc.h"
 #include "xls/tools/eval_utils.h"
 #include "xls/tools/memory_models.h"
 #include "xls/tools/node_coverage_utils.h"
@@ -309,26 +308,6 @@ struct EvaluateProcsOptions {
   int64_t llvm_opt_level = LlvmCompiler::kDefaultOptLevel;
 };
 
-static absl::StatusOr<std::unique_ptr<SerialProcRuntime>> GetRuntime(
-    Package* package, bool use_jit, EvaluatorOptions evaluator_options,
-    int64_t llvm_opt_level) {
-  JitEvaluatorOptions jit_options;
-  jit_options.set_opt_level(llvm_opt_level);
-  if (package->ChannelsAreProcScoped()) {
-    XLS_RET_CHECK(package->HasTop());
-    XLS_ASSIGN_OR_RETURN(Proc * top, package->GetTopAsProc());
-    if (use_jit) {
-      return CreateJitSerialProcRuntime(top, evaluator_options, jit_options);
-    }
-    return CreateInterpreterSerialProcRuntime(top, evaluator_options);
-  }
-  if (use_jit) {
-    return CreateJitSerialProcRuntime(package, evaluator_options, jit_options);
-  }
-
-  return CreateInterpreterSerialProcRuntime(package, evaluator_options);
-}
-
 absl::Status EvaluateProcs(
     Package* package,
     const absl::btree_map<std::string, std::vector<Value>>& inputs_for_channels,
@@ -348,9 +327,11 @@ absl::Status EvaluateProcs(
     }
   }
   evaluator_options.set_support_observers(uses_observers);
-  XLS_ASSIGN_OR_RETURN(runtime,
-                       GetRuntime(package, options.use_jit, evaluator_options,
-                                  options.llvm_opt_level));
+  XLS_ASSIGN_OR_RETURN(
+      runtime, CreateSerialProcRuntime(
+                   package, {.use_jit = options.use_jit,
+                             .evaluator_options = evaluator_options,
+                             .llvm_opt_level = options.llvm_opt_level}));
   if (options.use_jit) {
     XLS_ASSIGN_OR_RETURN(auto jit_queue, runtime->GetJitChannelQueueManager());
     jit = &jit_queue->runtime();
@@ -1203,43 +1184,6 @@ GetValuesForEachChannels(
     values_for_channels[channel_name] = values;
   }
   return values_for_channels;
-}
-
-std::vector<Value> GenerateRandomValuesForChannel(Channel* chan,
-                                                  int64_t total_ticks,
-                                                  absl::BitGenRef rng) {
-  std::vector<Value> res;
-  int64_t cnt = absl::Uniform<int64_t>(rng, 0, total_ticks);
-  res.reserve(cnt);
-  for (int64_t i = 0; i < cnt; ++i) {
-    res.push_back(RandomValue(chan->type(), rng));
-  }
-  return res;
-}
-
-absl::StatusOr<absl::btree_map<std::string, std::vector<Value>>>
-GenerateRandomInputsForPackage(Package* package, int64_t total_ticks,
-                               absl::BitGenRef rng) {
-  std::vector<Channel*> chans;
-  if (package->ChannelsAreProcScoped()) {
-    XLS_ASSIGN_OR_RETURN(Proc * top, package->GetTopAsProc());
-    for (Channel* chan : top->channels()) {
-      if (chan->CanReceive() && !chan->CanSend()) {
-        chans.push_back(chan);
-      }
-    }
-  } else {
-    for (Channel* chan : package->channels()) {
-      if (chan->CanReceive() && !chan->CanSend()) {
-        chans.push_back(chan);
-      }
-    }
-  }
-  absl::btree_map<std::string, std::vector<Value>> res;
-  for (Channel* chan : chans) {
-    res[chan->name()] = GenerateRandomValuesForChannel(chan, total_ticks, rng);
-  }
-  return res;
 }
 
 absl::Status RealMain(
