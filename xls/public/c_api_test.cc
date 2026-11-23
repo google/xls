@@ -29,7 +29,6 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "absl/base/macros.h"
 #include "absl/cleanup/cleanup.h"
 #include "absl/log/log.h"
 #include "absl/strings/str_format.h"
@@ -2705,11 +2704,116 @@ top fn add_one(x: bits[32]) -> bits[32] {
 
   xls::AotPackageEntrypointsProto entrypoints;
   ASSERT_TRUE(entrypoints.ParseFromArray(proto_bytes, proto_byte_count));
+  EXPECT_TRUE(entrypoints.has_target_layout());
   ASSERT_EQ(entrypoints.entrypoint_size(), 1);
   EXPECT_EQ(entrypoints.entrypoint(0).type(),
             xls::AotEntrypointProto::FUNCTION);
   EXPECT_TRUE(entrypoints.entrypoint(0).has_function_symbol());
   EXPECT_TRUE(entrypoints.entrypoint(0).has_packed_function_symbol());
+}
+
+struct AotExecContextResult {
+  bool ok = false;
+  std::unique_ptr<xls_aot_exec_context, decltype(&xls_aot_exec_context_free)>
+      context{nullptr, xls_aot_exec_context_free};
+  std::string error;
+};
+
+AotExecContextResult CreateAotExecContextFromProto(
+    const xls::AotPackageEntrypointsProto& proto) {
+  std::string serialized = proto.SerializeAsString();
+  char* raw_error = nullptr;
+  absl::Cleanup free_error([&] { xls_c_str_free(raw_error); });
+  xls_aot_exec_context* raw_context = nullptr;
+  bool ok = xls_aot_exec_context_create(
+      reinterpret_cast<const uint8_t*>(serialized.data()), serialized.size(),
+      &raw_error, &raw_context);
+  AotExecContextResult result;
+  result.ok = ok;
+  result.context.reset(raw_context);
+  if (raw_error != nullptr) {
+    result.error = raw_error;
+  }
+  return result;
+}
+
+TEST(XlsCApiTest, AotExecContextCreateLayoutResolutionAndValidation) {
+  xls_package* package = xls_package_create("aot_layout_pkg");
+  absl::Cleanup free_package([=] { xls_package_free(package); });
+
+  xls_type* u8 = xls_package_get_bits_type(package, 8);
+  xls_function_builder* fb =
+      xls_function_builder_create("id", package, /*should_verify=*/true);
+  absl::Cleanup free_fb([=] { xls_function_builder_free(fb); });
+  xls_bvalue* x = xls_function_builder_add_parameter(fb, "x", u8);
+  absl::Cleanup free_x([=] { xls_bvalue_free(x); });
+
+  char* build_error = nullptr;
+  absl::Cleanup free_build_error([&] { xls_c_str_free(build_error); });
+  xls_function* function = nullptr;
+  ASSERT_TRUE(xls_function_builder_build_with_return_value(fb, x, &build_error,
+                                                           &function))
+      << "error: " << build_error;
+  ASSERT_NE(function, nullptr);
+
+  char* compile_error = nullptr;
+  absl::Cleanup free_compile_error([&] { xls_c_str_free(compile_error); });
+  uint8_t* object_bytes = nullptr;
+  size_t object_byte_count = 0;
+  uint8_t* proto_bytes = nullptr;
+  size_t proto_byte_count = 0;
+  ASSERT_TRUE(xls_aot_compile_function(function, &compile_error, &object_bytes,
+                                       &object_byte_count, &proto_bytes,
+                                       &proto_byte_count))
+      << "error: " << compile_error;
+  absl::Cleanup free_object_bytes(
+      [=] { xls_aot_object_code_free(object_bytes); });
+  absl::Cleanup free_proto_bytes(
+      [=] { xls_aot_entrypoints_proto_free(proto_bytes); });
+
+  xls::AotPackageEntrypointsProto base_proto;
+  ASSERT_TRUE(base_proto.ParseFromArray(proto_bytes, proto_byte_count));
+  ASSERT_TRUE(base_proto.has_target_layout());
+  ASSERT_TRUE(base_proto.has_data_layout());
+
+  // Succeeds with `target_layout` alone.
+  {
+    xls::AotPackageEntrypointsProto target_only = base_proto;
+    target_only.clear_data_layout();
+    AotExecContextResult result = CreateAotExecContextFromProto(target_only);
+    EXPECT_TRUE(result.ok) << "error: " << result.error;
+    EXPECT_NE(result.context, nullptr);
+  }
+
+  // Succeeds with `data_layout` alone (legacy fallback).
+  {
+    xls::AotPackageEntrypointsProto string_only = base_proto;
+    string_only.clear_target_layout();
+    AotExecContextResult result = CreateAotExecContextFromProto(string_only);
+    EXPECT_TRUE(result.ok) << "error: " << result.error;
+    EXPECT_NE(result.context, nullptr);
+  }
+
+  // Rejects proto missing both `target_layout` and `data_layout`.
+  {
+    xls::AotPackageEntrypointsProto empty_layout = base_proto;
+    empty_layout.clear_target_layout();
+    empty_layout.clear_data_layout();
+    AotExecContextResult result = CreateAotExecContextFromProto(empty_layout);
+    EXPECT_FALSE(result.ok);
+    EXPECT_EQ(result.context, nullptr);
+    EXPECT_THAT(result.error, HasSubstr("target_layout"));
+  }
+
+  // Rejects invalid `target_layout` alignment.
+  {
+    xls::AotPackageEntrypointsProto bad_layout = base_proto;
+    bad_layout.mutable_target_layout()->set_stack_alignment(0);
+    AotExecContextResult result = CreateAotExecContextFromProto(bad_layout);
+    EXPECT_FALSE(result.ok);
+    EXPECT_EQ(result.context, nullptr);
+    EXPECT_THAT(result.error, HasSubstr("stack_alignment"));
+  }
 }
 
 TEST(XlsCApiTest, AotEntrypointTrampoline) {
