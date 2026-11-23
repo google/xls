@@ -2130,6 +2130,117 @@ TEST_P(PipelineScheduleTest, ProcScheduleWithChannelDirectionSpecificDelay) {
   EXPECT_EQ(schedule.cycle(send.node()), 1);
 }
 
+TEST_P(PipelineScheduleTest, FunctionScheduleWithOverflowingIoDelay) {
+  Package p("p");
+  Type* u16 = p.GetBitsType(16);
+
+  FunctionBuilder fb("f", &p);
+  BValue x = fb.Param("x", u16);
+  BValue negate = fb.Negate(x);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(negate));
+
+  TestDelayEstimator base_estimator;
+  DecoratingDelayEstimator positive_estimator(
+      "positive", base_estimator, [](Node*, int64_t) { return 10; });
+  DecoratingDelayEstimator negative_estimator(
+      "negative", base_estimator, [](Node*, int64_t) { return -10; });
+
+  EXPECT_THAT(
+      RunPipelineSchedule(
+          f, positive_estimator,
+          options().clock_period_ps(100).additional_input_delay_ps(
+              std::numeric_limits<int64_t>::max())),
+      StatusIs(absl::StatusCode::kInvalidArgument, HasSubstr("overflow")));
+  EXPECT_THAT(
+      RunPipelineSchedule(
+          f, negative_estimator,
+          options().clock_period_ps(100).additional_input_delay_ps(
+              std::numeric_limits<int64_t>::min())),
+      StatusIs(absl::StatusCode::kInvalidArgument, HasSubstr("overflow")));
+  EXPECT_THAT(
+      RunPipelineSchedule(
+          f, TestDelayEstimator(),
+          options().clock_period_ps(100).additional_output_delay_ps(
+              std::numeric_limits<int64_t>::max())),
+      StatusIs(absl::StatusCode::kInvalidArgument, HasSubstr("overflow")));
+  EXPECT_THAT(
+      RunPipelineSchedule(
+          f, negative_estimator,
+          options().clock_period_ps(100).additional_output_delay_ps(
+              std::numeric_limits<int64_t>::min())),
+      StatusIs(absl::StatusCode::kInvalidArgument, HasSubstr("overflow")));
+}
+
+TEST_P(PipelineScheduleTest, ProcScheduleWithOverflowingChannelAndIoDelay) {
+  Package p("p");
+  Type* u16 = p.GetBitsType(16);
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ext_in_ch,
+      p.CreateStreamingChannel("ext_in", ChannelOps::kReceiveOnly, u16));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * int_ch,
+      p.CreateStreamingChannel("int_ch", ChannelOps::kSendReceive, u16));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ext_out_ch,
+      p.CreateStreamingChannel("ext_out", ChannelOps::kSendOnly, u16));
+
+  TokenlessProcBuilder pb("the_proc", "tkn", &p);
+  BValue rcv_ext = pb.Receive(ext_in_ch);
+  pb.Send(int_ch, rcv_ext);
+  BValue rcv_int = pb.Receive(int_ch);
+  pb.Send(ext_out_ch, rcv_int);
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({}));
+
+  TestDelayEstimator base_estimator;
+  DecoratingDelayEstimator positive_estimator(
+      "positive", base_estimator, [](Node*, int64_t) { return 10; });
+  DecoratingDelayEstimator negative_estimator(
+      "negative", base_estimator, [](Node*, int64_t) { return -10; });
+
+  // External channel: `base_delay + max_io_delay` overflows.
+  EXPECT_THAT(
+      RunPipelineSchedule(
+          proc, positive_estimator,
+          options().clock_period_ps(100).additional_input_delay_ps(
+              std::numeric_limits<int64_t>::max())),
+      StatusIs(absl::StatusCode::kInvalidArgument, HasSubstr("overflow")));
+
+  // External channel: `(base_delay + max_io_delay) + channel_delay_ps`
+  // overflows and underflows.
+  EXPECT_THAT(
+      RunPipelineSchedule(
+          proc, TestDelayEstimator(),
+          options()
+              .clock_period_ps(100)
+              .additional_input_delay_ps(std::numeric_limits<int64_t>::max())
+              .add_additional_channel_delay_ps("ext_in", 1)),
+      StatusIs(absl::StatusCode::kInvalidArgument, HasSubstr("overflow")));
+  EXPECT_THAT(
+      RunPipelineSchedule(
+          proc, TestDelayEstimator(),
+          options()
+              .clock_period_ps(100)
+              .additional_input_delay_ps(std::numeric_limits<int64_t>::min())
+              .additional_output_delay_ps(std::numeric_limits<int64_t>::min())
+              .add_additional_channel_delay_ps("ext_in", -1)),
+      StatusIs(absl::StatusCode::kInvalidArgument, HasSubstr("overflow")));
+
+  // Internal channel: `base_delay + channel_delay_ps` overflows and underflows.
+  EXPECT_THAT(
+      RunPipelineSchedule(
+          proc, positive_estimator,
+          options().clock_period_ps(100).add_additional_channel_delay_ps(
+              "int_ch", std::numeric_limits<int64_t>::max())),
+      StatusIs(absl::StatusCode::kInvalidArgument, HasSubstr("overflow")));
+  EXPECT_THAT(
+      RunPipelineSchedule(
+          proc, negative_estimator,
+          options().clock_period_ps(100).add_additional_channel_delay_ps(
+              "int_ch:send", std::numeric_limits<int64_t>::min())),
+      StatusIs(absl::StatusCode::kInvalidArgument, HasSubstr("overflow")));
+}
+
 TEST_P(PipelineScheduleTest, ProcScheduleWithConstraints) {
   if (is_random()) {
     GTEST_SKIP() << "Random scheduler does not fully respect this constraint "

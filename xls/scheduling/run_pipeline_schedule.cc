@@ -304,6 +304,65 @@ bool IsExternalIoNode(ChannelNode* node,
   return (*chan)->supported_ops() != ChannelOps::kSendReceive;
 }
 
+// Adds two picosecond delay values, returning InvalidArgumentError on signed
+// 64-bit integer overflow.
+absl::StatusOr<int64_t> CheckedAddDelay(int64_t lhs, int64_t rhs) {
+  SaturatedResult<int64_t> sum = SaturatingAdd(lhs, rhs);
+  if (sum.did_overflow) {
+    return absl::InvalidArgumentError(
+        absl::StrFormat("Delay addition overflowed: %d + %d", lhs, rhs));
+  }
+  return sum.result;
+}
+
+// Computes the delay of `node` including any additional input, output, or
+// channel delays configured in `options`.
+absl::StatusOr<int64_t> AddAdditionalIoDelay(
+    Node* node, int64_t base_delay, const SchedulingOptions& options,
+    absl::optional_ref<const ProcElaboration> elab) {
+  int64_t input_delay = options.additional_input_delay_ps().value_or(0);
+  int64_t output_delay = options.additional_output_delay_ps().value_or(0);
+  // Sends and receives each have inputs and outputs from the flow control
+  // signals, so the max of input and output delays is the amount needed for
+  // each channel.
+  int64_t max_io_delay = std::max(input_delay, output_delay);
+
+  if (node->Is<ChannelNode>()) {
+    ChannelNode* channel_node = node->As<ChannelNode>();
+    std::string_view channel_name = channel_node->channel_name();
+    std::string channel_op = absl::StrCat(
+        channel_name, ":",
+        channel_node->direction() == ChannelDirection::kSend ? "send" : "recv");
+    int64_t channel_delay_ps = 0;
+    if (std::optional<int64_t> op_delay =
+            options.additional_channel_delay_ps(channel_op);
+        op_delay.has_value()) {
+      channel_delay_ps = *op_delay;
+    } else if (std::optional<int64_t> channel_delay =
+                   options.additional_channel_delay_ps(channel_name);
+               channel_delay.has_value()) {
+      channel_delay_ps = *channel_delay;
+    }
+
+    if (IsExternalIoNode(channel_node, elab)) {
+      XLS_ASSIGN_OR_RETURN(int64_t with_io_delay,
+                           CheckedAddDelay(base_delay, max_io_delay));
+      return CheckedAddDelay(with_io_delay, channel_delay_ps);
+    }
+
+    return CheckedAddDelay(base_delay, channel_delay_ps);
+  }
+  if (node->function_base()->IsFunction()) {
+    if (node->Is<Param>()) {
+      return CheckedAddDelay(base_delay, input_delay);
+    }
+    if (node->function_base()->AsFunctionOrDie()->return_value() == node) {
+      return CheckedAddDelay(base_delay, output_delay);
+    }
+  }
+  return base_delay;
+}
+
 absl::StatusOr<int64_t> ApplyClockMargin(const SchedulingOptions& options,
                                          int64_t clock_period_ps) {
   if (!options.clock_margin_percent().has_value()) {
@@ -583,50 +642,10 @@ absl::StatusOr<PipelineSchedule> RunPipelineScheduleInternal(
                   ? absl::StrCat(*worst_case_throughput)
                   : "unconstrained");
 
-  int64_t input_delay = options.additional_input_delay_ps().value_or(0);
-  int64_t output_delay = options.additional_output_delay_ps().value_or(0);
-  // Sends and receives each have inputs and outputs from the flow control
-  // signals, so the max of input and output delays is the amount needed for
-  // each channel.
-  int64_t max_io_delay = std::max(input_delay, output_delay);
-
   DecoratingDelayEstimator io_delay_added(
-      "io_delay_added", delay_estimator, [&](Node* node, int64_t base_delay) {
-        if (node->Is<ChannelNode>()) {
-          std::string_view channel_name =
-              node->As<ChannelNode>()->channel_name();
-          std::string channel_op = absl::StrCat(
-              channel_name, ":",
-              node->As<ChannelNode>()->direction() == ChannelDirection::kSend
-                  ? "send"
-                  : "recv");
-          int64_t channel_delay_ps = 0;
-          if (std::optional<int64_t> op_delay =
-                  options.additional_channel_delay_ps(channel_op);
-              op_delay.has_value()) {
-            channel_delay_ps = *op_delay;
-          } else if (std::optional<int64_t> channel_delay =
-                         options.additional_channel_delay_ps(channel_name);
-                     channel_delay.has_value()) {
-            channel_delay_ps = *channel_delay;
-          }
-
-          if (IsExternalIoNode(node->As<ChannelNode>(), elab)) {
-            return base_delay + max_io_delay + channel_delay_ps;
-          }
-
-          return base_delay + channel_delay_ps;
-        }
-        if (node->function_base()->IsFunction()) {
-          if (node->Is<Param>()) {
-            return base_delay + input_delay;
-          }
-          if (node->function_base()->AsFunctionOrDie()->return_value() ==
-              node) {
-            return base_delay + output_delay;
-          }
-        }
-        return base_delay;
+      "io_delay_added", delay_estimator,
+      [&](Node* node, int64_t base_delay) -> absl::StatusOr<int64_t> {
+        return AddAdditionalIoDelay(node, base_delay, options, elab);
       });
 
   if (worst_case_throughput == 0) {

@@ -15,8 +15,10 @@
 #include "xls/estimators/delay_model/delay_estimator.h"
 
 #include <cstdint>
+#include <functional>
 #include <memory>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 #include "gmock/gmock.h"
@@ -39,6 +41,7 @@ namespace xls {
 using ::absl_testing::IsOkAndHolds;
 using ::absl_testing::StatusIs;
 using ::testing::ElementsAre;
+using ::testing::HasSubstr;
 
 // A test delay estimator that returns a fixed delay for every node.
 class FakeDelayEstimator : public DelayEstimator {
@@ -304,6 +307,95 @@ TEST_F(DelayEstimatorTest, DecoratingDelayEstimator) {
                                       });
   EXPECT_THAT(decorating.GetOperationDelayInPs(f->return_value()),
               IsOkAndHolds(42));
+
+  DecoratingDelayEstimator decorating_deduced_int(
+      "decorating_deduced_int", *one, [](Node*, int64_t) { return 7; });
+  EXPECT_THAT(decorating_deduced_int.GetOperationDelayInPs(f->return_value()),
+              IsOkAndHolds(7));
+
+  std::function<int64_t(Node*, int64_t)> int_modifier =
+      [](Node*, int64_t original) { return original + 100; };
+  DecoratingDelayEstimator decorating_int_fn_lvalue("decorating_int_fn_lvalue",
+                                                    *one, int_modifier);
+  EXPECT_THAT(decorating_int_fn_lvalue.GetOperationDelayInPs(f->return_value()),
+              IsOkAndHolds(101));
+  DecoratingDelayEstimator decorating_int_fn_rvalue(
+      "decorating_int_fn_rvalue", *one, std::move(int_modifier));
+  EXPECT_THAT(decorating_int_fn_rvalue.GetOperationDelayInPs(f->return_value()),
+              IsOkAndHolds(101));
+
+  std::function<absl::StatusOr<int64_t>(Node*, int64_t)> status_or_modifier =
+      [](Node*, int64_t original) -> absl::StatusOr<int64_t> {
+    return original + 200;
+  };
+  DecoratingDelayEstimator decorating_status_or_fn_lvalue(
+      "decorating_status_or_fn_lvalue", *one, status_or_modifier);
+  EXPECT_THAT(
+      decorating_status_or_fn_lvalue.GetOperationDelayInPs(f->return_value()),
+      IsOkAndHolds(201));
+  DecoratingDelayEstimator decorating_status_or_fn_rvalue(
+      "decorating_status_or_fn_rvalue", *one, std::move(status_or_modifier));
+  EXPECT_THAT(
+      decorating_status_or_fn_rvalue.GetOperationDelayInPs(f->return_value()),
+      IsOkAndHolds(201));
+
+  DecoratingDelayEstimator decorating_status_or_lambda(
+      "decorating_status_or_lambda", *one,
+      [](Node* n, int64_t original) -> absl::StatusOr<int64_t> {
+        EXPECT_EQ(n->GetName(), "xor.2");
+        EXPECT_EQ(original, 1);
+        return 84;
+      });
+  EXPECT_THAT(
+      decorating_status_or_lambda.GetOperationDelayInPs(f->return_value()),
+      IsOkAndHolds(84));
+
+  DecoratingDelayEstimator decorating_error(
+      "decorating_error", *one,
+      [](Node* n, int64_t original) -> absl::StatusOr<int64_t> {
+        return absl::InvalidArgumentError("modifier failed");
+      });
+  EXPECT_THAT(decorating_error.GetOperationDelayInPs(f->return_value()),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("modifier failed")));
+
+  // Also verify propagating an error from the underlying estimator.
+  DecoratingDelayEstimator decorating_unimplemented(
+      "decorating_unimplemented", *one,
+      [](Node* n, int64_t original) -> absl::StatusOr<int64_t> {
+        if (n->op() == Op::kParam) {
+          return absl::UnimplementedError("param delay unsupported");
+        }
+        return original + 10;
+      });
+  bool modifier_called = false;
+  DecoratingDelayEstimator nested_decorating("nested_decorating",
+                                             decorating_unimplemented,
+                                             [&](Node* n, int64_t original) {
+                                               modifier_called = true;
+                                               return original + 5;
+                                             });
+  EXPECT_THAT(nested_decorating.GetOperationDelayInPs(x.node()),
+              StatusIs(absl::StatusCode::kUnimplemented,
+                       HasSubstr("param delay unsupported")));
+  EXPECT_FALSE(modifier_called);
+  EXPECT_THAT(nested_decorating.GetOperationDelayInPs(f->return_value()),
+              IsOkAndHolds(16));
+  EXPECT_TRUE(modifier_called);
+}
+
+using DelayEstimatorDeathTest = DelayEstimatorTest;
+
+TEST_F(DelayEstimatorDeathTest, DecoratingDelayEstimatorNullModifierDies) {
+  FakeDelayEstimator base(1, "one");
+  std::function<int64_t(Node*, int64_t)> null_int_modifier;
+  EXPECT_DEATH(DecoratingDelayEstimator("null_int", base, null_int_modifier),
+               HasSubstr("modifier"));
+  std::function<absl::StatusOr<int64_t>(Node*, int64_t)>
+      null_status_or_modifier;
+  EXPECT_DEATH(
+      DecoratingDelayEstimator("null_status_or", base, null_status_or_modifier),
+      HasSubstr("modifier"));
 }
 
 TEST_F(DelayEstimatorTest, CachingDelayEstimator) {
