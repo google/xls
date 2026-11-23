@@ -107,14 +107,19 @@ pytype_strict_contrib_test(
 
 cc_library(
     name = "testbench",
+    srcs = ["testbench.cc"],
     hdrs = ["testbench.h"],
     deps = [
-        ":testbench_thread",
+        "//xls/common:stopwatch",
+        "//xls/common:thread",
         "@abseil-cpp//absl/base:core_headers",
+        "@abseil-cpp//absl/cleanup",
+        "@abseil-cpp//absl/functional:function_ref",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/strings:str_format",
         "@abseil-cpp//absl/synchronization",
         "@abseil-cpp//absl/time",
+        "@abseil-cpp//absl/types:span",
     ],
 )
 
@@ -163,18 +168,6 @@ cc_test(
         ":testbench_builder_utils",
         "//xls/common:xls_gunit_main",
         "@googletest//:gtest",
-    ],
-)
-
-cc_library(
-    name = "testbench_thread",
-    hdrs = ["testbench_thread.h"],
-    deps = [
-        "//xls/common:thread",
-        "//xls/ir",
-        "@abseil-cpp//absl/base:core_headers",
-        "@abseil-cpp//absl/status",
-        "@abseil-cpp//absl/synchronization",
     ],
 )
 
