@@ -22,6 +22,10 @@ load(
     "//xls/build_rules:xls_providers.bzl",
     "XlsOptimizationPassRegistryInfo",
 )
+load(
+    "//xls/build_rules:xls_utilities.bzl",
+    _repo_relative_path = "repo_relative_path",
+)
 
 def _cflags_for_info(ctx, comp_ctx, cc_toolchain, cc_feature):
     """Returns the copts and environment variables for compiling the given compilation context."""
@@ -76,25 +80,29 @@ def _generate_documentation_impl(ctx):
     for p in passes:
         i += 1
         ccinfo = p.pass_impl
+        public_headers = ccinfo.compilation_context.direct_public_headers
+        header_tag = public_headers[0].basename if public_headers else "no_hdr"
 
         out = ctx.actions.declare_file("{}_{}_{}.doc.binpb".format(
             ctx.attr.name,
             i,
-            ccinfo.compilation_context.direct_public_headers[0].basename,
+            header_tag,
         ))
 
         copts, cenv = _cflags_for_info(ctx, ccinfo.compilation_context, cc_toolchain, cc_feature)
 
         args = ctx.actions.args()
-
-        # TODO(allight): Unfortunate to check only the first header.
-        args.add("-header", ccinfo.compilation_context.direct_public_headers[0].path)
+        header_paths = [h.path.replace(",", "__ESCAPED_COMMA__") for h in public_headers]
+        header_repo_paths = [_repo_relative_path(h).replace(",", "__ESCAPED_COMMA__") for h in public_headers]
+        args.add_joined("-headers", header_paths, join_with = ",")
+        args.add_joined("-header_repo_paths", header_repo_paths, join_with = ",")
         if ctx.attr.strip_prefix:
             args.add("-strip_prefix", ctx.attr.strip_prefix)
         args.add("-output", out.path)
         copts = [x.replace(",", "__ESCAPED_COMMA__") for x in copts]
         args.add_joined("-copts", copts, join_with = ",")
 
+        progress_label = ", ".join([h.path for h in public_headers]) if public_headers else "<no headers>"
         ctx.actions.run(
             outputs = [out],
             executable = ctx.executable.generate_documentation_proto,
@@ -102,7 +110,7 @@ def _generate_documentation_impl(ctx):
             arguments = [args],
             env = cenv,
             mnemonic = "ExtractPassComments",
-            progress_message = "Parsing pass comment for %s" % ccinfo.compilation_context.direct_public_headers[0].path,
+            progress_message = "Parsing pass comment for %s" % progress_label,
             toolchain = None,
         )
         protos.append(out)

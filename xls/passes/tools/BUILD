@@ -17,8 +17,14 @@ load("@protobuf//bazel:cc_proto_library.bzl", "cc_proto_library")
 load("@protobuf//bazel:proto_library.bzl", "proto_library")
 load("@protobuf//bazel:py_proto_library.bzl", "py_proto_library")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load("@rules_cc//cc:cc_test.bzl", "cc_test")
 load("//xls/build_rules:py_oss_defs.bzl", "pytype_strict_binary")
 load("//xls/build_rules:xls_build_defs.bzl", "xls_diff_test")
+load(
+    "//xls/build_rules:xls_pass_rules.bzl",
+    "xls_pass",
+    "xls_pass_registry",
+)
 load(
     "//xls/passes/tools:generate_documentation_rule.bzl",
     "xls_generate_documentation",
@@ -87,6 +93,7 @@ bzl_library(
     visibility = ["//xls:xls_internal"],
     deps = [
         "//xls/build_rules:xls_providers_bzl",
+        "//xls/build_rules:xls_utilities_bzl",
         "@rules_cc//cc/common",
     ],
 )
@@ -107,6 +114,7 @@ cc_library(
         "//xls/common:exit_status",
         "//xls/common:init_xls",
         "//xls/common/file:filesystem",
+        "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         # NB The pass registry is intentionally not included. The regenerate
         # documentation rule will link the appropriate pass registry to ensure
@@ -129,6 +137,8 @@ cc_library(
         "//xls/common/status:status_macros",
         "//xls/passes:optimization_pass",
         "@abseil-cpp//absl/algorithm:container",
+        "@abseil-cpp//absl/container:flat_hash_map",
+        "@abseil-cpp//absl/container:flat_hash_set",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/log:vlog_is_on",
         "@abseil-cpp//absl/status:statusor",
@@ -176,5 +186,69 @@ cc_library(
         "@abseil-cpp//absl/types:span",
         "@cppitertools",
         "@pprof//:profile_cc_proto",
+    ],
+)
+
+xls_pass(
+    name = "test_multi_header_pass",
+    srcs = ["test_multi_header_pass.cc"],
+    hdrs = [
+        "test_multi_header_helper.h",
+        "test_multi_header_pass.h",
+    ],
+    pass_class = "xls::TestMultiHeaderPass",
+    visibility = ["//visibility:private"],
+    deps = [
+        "//xls/ir",
+        "//xls/passes:optimization_pass",
+        "//xls/passes:pass_base",
+        "@abseil-cpp//absl/status:statusor",
+    ],
+)
+
+xls_pass_registry(
+    name = "test_multi_header_passes",
+    passes = [":test_multi_header_pass"],
+    visibility = ["//visibility:private"],
+)
+
+xls_generate_documentation(
+    name = "test_multi_header_documentation",
+    codelink_format = "https://example.com%s",
+    passes = ":test_multi_header_passes",
+    tags = [
+        "noasan",
+        "nomsan",
+    ],
+    template = "passes.md.tmpl",
+    visibility = ["//visibility:private"],
+)
+
+cc_test(
+    name = "generate_documentation_proto_test",
+    srcs = ["generate_documentation_proto_test.cc"],
+    data = [":test_multi_header_documentation"],
+    tags = [
+        "noasan",
+        "nomsan",
+    ],
+    deps = [
+        ":generate_documentation_proto",
+        ":pass_documentation_cc_proto",
+        "//xls/common:proto_test_utils",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/file:filesystem",
+        "//xls/common/file:get_runfile_path",
+        "//xls/common/file:temp_directory",
+        "//xls/common/status:matchers",
+        "//xls/ir",
+        "//xls/passes:optimization_pass",
+        "//xls/passes:optimization_pass_registry",
+        "//xls/passes:pass_base",
+        "@abseil-cpp//absl/status:status_matchers",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/types:span",
+        "@googletest//:gtest",
     ],
 )
