@@ -190,8 +190,8 @@ class ChannelQueueManager {
   absl::StatusOr<ChannelQueue*> GetQueueByName(std::string_view name,
                                                std::string_view proc_name = "");
 
-  // Return the queue associated with the boundary channel with the given name.
-  // For proc-scoped channels, boundary channels are scoped to the top proc.
+  // Returns the queue associated with the boundary channel with the given name.
+  // Proc-scoped names resolve in the top proc of this manager's elaboration.
   absl::StatusOr<ChannelQueue*> GetBoundaryQueueByName(std::string_view name);
 
   const ProcElaboration& elaboration() const { return elaboration_; }

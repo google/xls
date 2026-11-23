@@ -233,10 +233,10 @@ absl::StatusOr<ChannelQueue*> ChannelQueueManager::GetQueueByName(
 
 absl::StatusOr<ChannelQueue*> ChannelQueueManager::GetBoundaryQueueByName(
     std::string_view name) {
-  if (package()->ChannelsAreProcScoped()) {
-    XLS_RET_CHECK(package()->HasTop());
-    XLS_ASSIGN_OR_RETURN(Proc * top, package()->GetTopAsProc());
-    return GetQueueByName(name, top->name());
+  // The package can select a different top after these queues are created.
+  // Resolve scoped names against the proc instance that owns the bindings.
+  if (ProcInstance* top = elaboration().top(); top != nullptr) {
+    return GetQueueByName(name, top->proc()->name());
   }
   return GetQueueByName(name);
 }
