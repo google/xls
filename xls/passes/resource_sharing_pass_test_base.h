@@ -1528,7 +1528,8 @@ inline absl::StatusOr<bool> ApplyBinaryFoldings(
       std::unique_ptr<NaryFoldingAction> nary_action,
       ResourceSharingPass::MakeNaryFoldingAction(
           selected_folds, /*area_saved=*/1.0, visibilities,
-          std::move(*mappings), ResourceSharingPass::kDefaultConfig));
+          std::move(*mappings), ResourceSharingPass::kDefaultConfig,
+          GetNodeEquivalenceMapper()));
 
   int64_t next_node_id = f->node_count() + 1;
   BitProvenanceAnalysis bpa;

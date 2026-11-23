@@ -509,6 +509,26 @@ ResourceSharingPass::ComputeFoldingGraph(
   };
 }
 
+namespace {
+
+// Recomputes `EquivalenceMapping`s for a pruned source list `froms` targeting
+// `to_node`.
+absl::StatusOr<std::optional<NodeToMappings>> RecomputeMappingsForPrunedSources(
+    Node* to_node, const NodeEquivalenceMapper& eq_mapper,
+    absl::Span<const NaryFoldingAction::NodeVisibility> froms) {
+  if (froms.empty()) {
+    return std::nullopt;
+  }
+  std::vector<Node*> from_nodes;
+  from_nodes.reserve(froms.size());
+  for (const NaryFoldingAction::NodeVisibility& from : froms) {
+    from_nodes.push_back(from.node);
+  }
+  return eq_mapper.ComputeMappings(from_nodes, to_node);
+}
+
+}  // namespace
+
 bool GreaterBitwidthComparator(const BinaryFoldingAction* a0,
                                const BinaryFoldingAction* a1) {
   const Node* a0_source = a0->GetFrom();
@@ -526,7 +546,8 @@ absl::StatusOr<std::unique_ptr<NaryFoldingAction>>
 ResourceSharingPass::MakeNaryFoldingAction(
     std::vector<BinaryFoldingAction*>& subset_of_edges_to_n, double area_saved,
     const VisibilityAnalyses& visibility, NodeToMappings mappings,
-    const ResourceSharingPass::Config& config) {
+    const ResourceSharingPass::Config& config,
+    const NodeEquivalenceMapper& eq_mapper) {
   XLS_RET_CHECK_NE(subset_of_edges_to_n.size(), 0);
   std::vector<NaryFoldingAction::NodeVisibility> froms;
   froms.reserve(subset_of_edges_to_n.size());
@@ -582,9 +603,17 @@ ResourceSharingPass::MakeNaryFoldingAction(
     }
   }
   XLS_RET_CHECK_GT(froms.size(), 0);
+  Node* to_node = subset_of_edges_to_n[0]->GetTo();
+  if (froms.size() < subset_of_edges_to_n.size()) {
+    XLS_ASSIGN_OR_RETURN(
+        std::optional<NodeToMappings> recomputed_mappings,
+        RecomputeMappingsForPrunedSources(to_node, eq_mapper, froms));
+    XLS_RET_CHECK(recomputed_mappings.has_value());
+    mappings = std::move(*recomputed_mappings);
+  }
   std::unique_ptr<NaryFoldingAction> new_action =
       std::make_unique<NaryFoldingAction>(
-          std::move(froms), subset_of_edges_to_n[0]->GetTo(),
+          std::move(froms), to_node,
           subset_of_edges_to_n[0]->GetToVisibilityEdges(), area_saved,
           std::move(mappings));
   return new_action;
@@ -647,9 +676,10 @@ SelectFoldingActionsBasedOnCliques(
 
     // Create a single n-ary folding action for the whole clique
     std::unique_ptr<NaryFoldingAction> new_action;
-    XLS_ASSIGN_OR_RETURN(new_action, ResourceSharingPass::MakeNaryFoldingAction(
-                                         folds, area_saved, visibility,
-                                         std::move(*mappings), config));
+    XLS_ASSIGN_OR_RETURN(
+        new_action, ResourceSharingPass::MakeNaryFoldingAction(
+                        folds, area_saved, visibility, std::move(*mappings),
+                        config, eq_mapper));
     folding_actions_to_perform.push_back(std::move(new_action));
   }
 
@@ -950,7 +980,7 @@ ListOfAllFoldingActionsWithDestination(
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<NaryFoldingAction> new_action,
                        ResourceSharingPass::MakeNaryFoldingAction(
                            estimate.folds, estimate.area_saved, visibility,
-                           std::move(*mappings), config));
+                           std::move(*mappings), config, eq_mapper));
   potential_folding_actions_to_perform.push_back(std::move(new_action));
 
   return potential_folding_actions_to_perform;
@@ -1079,7 +1109,7 @@ ListOfFoldingActionsWithDestination(
     XLS_ASSIGN_OR_RETURN(std::unique_ptr<NaryFoldingAction> new_action,
                          ResourceSharingPass::MakeNaryFoldingAction(
                              estimate.folds, estimate.area_saved, visibility,
-                             std::move(*mappings), config));
+                             std::move(*mappings), config, eq_mapper));
     potential_folding_actions_to_perform.push_back(std::move(new_action));
   }
   return potential_folding_actions_to_perform;
@@ -1229,7 +1259,8 @@ ResourceSharingPass::LegalizeSequenceOfFolding(
         mutual_exclusivity,
     const NodeBackwardDependencyAnalysis& nda,
     absl::optional_ref<const AreaEstimator> area_estimator,
-    const ResourceSharingPass::Config& config) {
+    const ResourceSharingPass::Config& config,
+    const NodeEquivalenceMapper& eq_mapper) {
   if (potential_folding_actions_to_perform.empty()) {
     return std::make_pair(std::vector<std::unique_ptr<NaryFoldingAction>>(),
                           false);
@@ -1267,8 +1298,7 @@ ResourceSharingPass::LegalizeSequenceOfFolding(
   // descending order based on the amount of area they save to give priority to
   // those that will have a bigger positive impact.
   VLOG(3) << "  Remove overlapping folding actions";
-  absl::flat_hash_map<Node*, NaryFoldingAction*>
-      nodes_already_selected_as_folding_sources;
+  absl::flat_hash_set<Node*> consumed_nodes;
   absl::flat_hash_map<Node*, NaryFoldingAction*> prior_folding_of_destination;
   for (const std::unique_ptr<NaryFoldingAction>& folding :
        potential_folding_actions_to_perform) {
@@ -1285,18 +1315,26 @@ ResourceSharingPass::LegalizeSequenceOfFolding(
 
     Node* to_node = folding->GetTo();
 
+    // Drop any fold whose destination was already consumed (folded as a source
+    // or replaced via a destination mapping) or already targeted by an earlier,
+    // higher-priority n-ary fold.
+    if (consumed_nodes.contains(to_node) ||
+        prior_folding_of_destination.contains(to_node)) {
+      modified = true;
+      continue;
+    }
+
     // Check all sources of the current n-ary folding
     std::vector<NaryFoldingAction::NodeVisibility> legal_froms;
     legal_froms.reserve(folding->GetNumberOfFroms());
     double area_saved = area_saved_without_overhead.value_or(0.0);
     for (const NaryFoldingAction::NodeVisibility& from : folding->GetFrom()) {
       Node* source = from.node;
-      // Exclude folding sources that have already been selected as source
-      // on another, previous folding action.
-      if (nodes_already_selected_as_folding_sources.contains(source)) {
-        VLOG(4)
-            << "      Excluding the following source because it was already "
-               "considered as a source of a previous n-ary folding action: ";
+      // Exclude folding sources that were already consumed by an earlier fold
+      // (either as a folded source or as a mapped destination).
+      if (consumed_nodes.contains(source)) {
+        VLOG(4) << "      Excluding the following source because it was "
+                   "already consumed by a previous n-ary folding action: ";
         VLOG(4) << "        " << source->ToString();
 
         if (area_estimator.has_value()) {
@@ -1306,19 +1344,12 @@ ResourceSharingPass::LegalizeSequenceOfFolding(
               area_estimator->GetOperationAreaInSquareMicrons(source));
           area_saved -= area_of_source;
         }
-        continue;
-      }
-
-      // Ensure any folding chains via `to_node` and/or `source` are valid.
-      XLS_ASSIGN_OR_RETURN(
-          bool dest_chain_conflict,
-          HasPriorFoldingChainConflict(
-              to_node, source, nodes_already_selected_as_folding_sources,
-              mutual_exclusivity, nda));
-      if (dest_chain_conflict) {
         modified = true;
         continue;
       }
+
+      // Ensure any folding chain via an unmapped prior destination `source` is
+      // valid.
       XLS_ASSIGN_OR_RETURN(bool src_chain_conflict,
                            HasPriorFoldingChainConflict(
                                source, to_node, prior_folding_of_destination,
@@ -1345,15 +1376,18 @@ ResourceSharingPass::LegalizeSequenceOfFolding(
       continue;
     }
 
-    // Even if safe, the current n-ary fold destination is also the destination
-    // of a previous fold, which was more valuable since foldings have been
-    // sorted by importance in descending order.
-    // NOTE: performing both folds is not ideal; if it was, the current fold's
-    // nodes would have been merged with the previous fold's nodes upon the
-    // construction of these n-ary folding actions.
-    if (prior_folding_of_destination.contains(to_node)) {
-      modified = true;
-      continue;
+    NodeToMappings legal_mappings;
+    if (legal_froms.size() < folding->GetFrom().size()) {
+      XLS_ASSIGN_OR_RETURN(
+          std::optional<NodeToMappings> recomputed_mappings,
+          RecomputeMappingsForPrunedSources(to_node, eq_mapper, legal_froms));
+      if (!recomputed_mappings.has_value()) {
+        continue;
+      }
+      legal_mappings = std::move(*recomputed_mappings);
+    } else {
+      XLS_ASSIGN_OR_RETURN(legal_mappings,
+                           CloneEquivalenceMappings(*folding, legal_froms));
     }
 
     // Track what nodes are merged together for future cycle detection.
@@ -1385,26 +1419,21 @@ ResourceSharingPass::LegalizeSequenceOfFolding(
                                                old_folded_set.end());
     }
 
-    // The current n-ary folding is worth considering. Allocate a new n-ary
-    // folding to capture it, cloning mappings for legal sources.
-    XLS_ASSIGN_OR_RETURN(NodeToMappings legal_mappings,
-                         CloneEquivalenceMappings(*folding, legal_froms));
-
     std::unique_ptr<NaryFoldingAction> new_folding =
         std::make_unique<NaryFoldingAction>(
             std::move(legal_froms), to_node, folding->GetToVisibilityEdges(),
             area_saved, std::move(legal_mappings));
 
-    // Keep track of the current n-ary folding to legalize the next ones.
+    // Keep track of the current n-ary folding and all nodes it consumes to
+    // legalize subsequent actions.
     prior_folding_of_destination[to_node] = new_folding.get();
-
-    // Keep track of all the nodes chosen as source of the folding to legalize
-    // the next ones.
+    if (new_folding->mappings().contains(to_node)) {
+      consumed_nodes.insert(to_node);
+    }
     for (const NaryFoldingAction::NodeVisibility& from :
          new_folding->GetFrom()) {
-      XLS_RET_CHECK(
-          !nodes_already_selected_as_folding_sources.contains(from.node));
-      nodes_already_selected_as_folding_sources[from.node] = new_folding.get();
+      const auto [_, inserted] = consumed_nodes.insert(from.node);
+      XLS_RET_CHECK(inserted);
     }
 
     // Add the current n-ary folding to the list of folding to perform.
@@ -1481,9 +1510,10 @@ ResourceSharingPass::LegalizeBinaryFoldingActions(
       modified = true;
       continue;
     }
-    XLS_ASSIGN_OR_RETURN(std::unique_ptr<NaryFoldingAction> new_action,
-                         MakeNaryFoldingAction(edges_to_dest, 10, visibility,
-                                               std::move(*mappings), config));
+    XLS_ASSIGN_OR_RETURN(
+        std::unique_ptr<NaryFoldingAction> new_action,
+        MakeNaryFoldingAction(edges_to_dest, 10, visibility,
+                              std::move(*mappings), config, mapper));
     if (new_action->GetFrom().size() != edges_to_dest.size()) {
       modified = true;
     }
@@ -1497,10 +1527,11 @@ ResourceSharingPass::LegalizeBinaryFoldingActions(
       f, folding_actions_to_perform, nary_to_area));
 
   bool sequence_modified = false;
-  XLS_ASSIGN_OR_RETURN(std::tie(folding_actions_to_perform, sequence_modified),
-                       LegalizeSequenceOfFolding(
-                           folding_actions_to_perform, mutual_exclusivity,
-                           *visibility.nda_backwards, std::nullopt, config));
+  XLS_ASSIGN_OR_RETURN(
+      std::tie(folding_actions_to_perform, sequence_modified),
+      LegalizeSequenceOfFolding(folding_actions_to_perform, mutual_exclusivity,
+                                *visibility.nda_backwards, std::nullopt, config,
+                                mapper));
   return std::make_pair(std::move(folding_actions_to_perform),
                         modified || sequence_modified);
 }
@@ -1866,9 +1897,10 @@ SelectRandomlyFoldingActions(
 
     // Create a single n-ary folding action
     std::unique_ptr<NaryFoldingAction> new_action;
-    XLS_ASSIGN_OR_RETURN(new_action, ResourceSharingPass::MakeNaryFoldingAction(
-                                         folds, area_saved, visibility,
-                                         std::move(final_mappings), config));
+    XLS_ASSIGN_OR_RETURN(new_action,
+                         ResourceSharingPass::MakeNaryFoldingAction(
+                             folds, area_saved, visibility,
+                             std::move(final_mappings), config, eq_mapper));
 
     // Add the new n-ary folding action to the list of actions to perform
     folding_actions_to_perform.push_back(std::move(new_action));
@@ -1941,7 +1973,7 @@ SelectFoldingActions(
   XLS_ASSIGN_OR_RETURN(std::tie(folding_actions_to_perform, std::ignore),
                        ResourceSharingPass::LegalizeSequenceOfFolding(
                            folding_actions_to_perform, mutual_exclusivity, nda,
-                           area_estimator, config));
+                           area_estimator, config, eq_mapper));
 
   TimingAnalysis ta{folding_actions_to_perform, critical_path_delay};
   std::vector<std::unique_ptr<NaryFoldingAction>>
