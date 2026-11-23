@@ -25,6 +25,7 @@ cc_library(
     name = "fuzztest",
     testonly = True,
     hdrs = ["fuzztest.h"],
+    visibility = ["//xls:xls_users"],
     deps = [
         "@com_google_fuzztest//fuzztest",
         "@com_google_fuzztest//fuzztest:domain_core",

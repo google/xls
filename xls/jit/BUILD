@@ -238,6 +238,7 @@ cc_library(
     name = "aot_runtime",
     srcs = ["aot_runtime.cc"],
     hdrs = ["aot_runtime.h"],
+    visibility = ["//xls:xls_users"],
     deps = [
         ":type_layout",
         ":type_layout_cc_proto",
@@ -1201,6 +1202,7 @@ cc_library(
     name = "type_layout",
     srcs = ["type_layout.cc"],
     hdrs = ["type_layout.h"],
+    visibility = ["//xls:xls_users"],
     deps = [
         ":type_layout_cc_proto",
         "//xls/common:math_util",
