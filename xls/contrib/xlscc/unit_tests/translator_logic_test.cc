@@ -5655,6 +5655,189 @@ TEST_F(TranslatorLogicTest, RelativeContinueLeak) {
   Run({{"a", 1}}, 1, content);
 }
 
+TEST_F(TranslatorLogicTest, OffsetOfDynamicMultiDimArray) {
+  std::string_view content = R"(
+      struct Tables {
+        unsigned short prefix[5];
+        unsigned short table[4][3][2][8];
+      };
+      int my_package(unsigned int idx0, unsigned int idx1, unsigned int idx2) {
+        return __builtin_offsetof(
+                   Tables, table[static_cast<int>(idx0)]
+                                [static_cast<int>(idx1)]
+                                [static_cast<int>(idx2)]) /
+               sizeof(unsigned short);
+      })";
+  // prefix: 5 elements (10 bytes).
+  // table strides (in unsigned short elements): dim0=48, dim1=16, dim2=8.
+  // For (0, 0, 0): 5.
+  // For (2, 1, 1): 5 + 2*48 + 1*16 + 1*8 = 125.
+  // For (3, 2, 1): 5 + 3*48 + 2*16 + 1*8 = 189.
+  XLS_ASSERT_OK_AND_ASSIGN(std::string ir, SourceToIr(content));
+  EXPECT_TRUE(absl::StrContains(ir, "umul("));
+  Run({{"idx0", 0}, {"idx1", 0}, {"idx2", 0}}, 5, content);
+  Run({{"idx0", 2}, {"idx1", 1}, {"idx2", 1}}, 125, content);
+  Run({{"idx0", 3}, {"idx1", 2}, {"idx2", 1}}, 189, content);
+}
+
+TEST_F(TranslatorLogicTest, OffsetOfNaturalPaddingAndNestedStruct) {
+  std::string_view content = R"(
+      struct Inner {
+        char tag;
+        int values[3];
+      };
+      struct Outer {
+        char flag;
+        Inner items[4];
+        short tail;
+      };
+      unsigned long my_package(unsigned int i, unsigned int j) {
+        return __builtin_offsetof(Outer, items[i].values[j]);
+      })";
+  // Inner: tag@0, values@4, sizeof(Inner)=16.
+  // Outer: flag@0, items@4.
+  // offset = 4 + i * 16 + 4 + j * 4 = 8 + 16*i + 4*j.
+  Run({{"i", 0}, {"j", 0}}, 8, content);
+  Run({{"i", 2}, {"j", 1}}, 44, content);
+  Run({{"i", 3}, {"j", 2}}, 64, content);
+}
+
+TEST_F(TranslatorLogicTest, OffsetOfPackedAttribute) {
+  std::string_view content = R"(
+      struct __attribute__((packed)) PackedInner {
+        char tag;
+        int values[3];
+      };
+      struct __attribute__((packed)) PackedOuter {
+        char flag;
+        PackedInner items[4];
+      };
+      unsigned long my_package(unsigned int i, unsigned int j) {
+        return __builtin_offsetof(PackedOuter, items[i].values[j]);
+      })";
+  // PackedInner: tag@0, values@1, sizeof(PackedInner)=13.
+  // PackedOuter: flag@0, items@1.
+  // offset = 1 + i * 13 + 1 + j * 4 = 2 + 13*i + 4*j.
+  Run({{"i", 0}, {"j", 0}}, 2, content);
+  Run({{"i", 2}, {"j", 1}}, 32, content);
+  Run({{"i", 3}, {"j", 2}}, 49, content);
+}
+
+TEST_F(TranslatorLogicTest, OffsetOfPragmaPack) {
+  std::string_view content = R"(
+      #pragma pack(push, 2)
+      struct Pack2Inner {
+        char a;
+        int b[2];
+        char c;
+      };
+      struct Pack2Outer {
+        char head;
+        Pack2Inner arr[3];
+      };
+      #pragma pack(pop)
+      unsigned long my_package(unsigned int i, unsigned int j) {
+        return __builtin_offsetof(Pack2Outer, arr[i].b[j]);
+      })";
+  // Pack2Inner: a@0, b@2, c@10, sizeof(Pack2Inner)=12 (align 2).
+  // Pack2Outer: head@0, arr@2.
+  // offset = 2 + i * 12 + 2 + j * 4 = 4 + 12*i + 4*j.
+  Run({{"i", 0}, {"j", 0}}, 4, content);
+  Run({{"i", 2}, {"j", 1}}, 32, content);
+}
+
+TEST_F(TranslatorLogicTest, OffsetOfBaseClassAndAnonUnion) {
+  std::string_view standard_layout_content = R"(
+      struct Base {
+        char pad;
+        union {
+          int vals[4];
+          short halves[8];
+        };
+      };
+      struct Derived : Base {};
+      unsigned long my_package(unsigned int i) {
+        return __builtin_offsetof(Derived, vals[i]);
+      })";
+  // Base@0 (pad@0, anon union@4 -> vals@4). offset = 4 + 4*i.
+  Run({{"i", 0}}, 4, standard_layout_content);
+  Run({{"i", 3}}, 16, standard_layout_content);
+
+  // Also test non-zero base class offset (requires -Wno-invalid-offsetof).
+  std::string_view multi_base_content = R"(
+      struct Base1 {
+        int a;
+      };
+      struct Base2 {
+        char pad;
+        union {
+          int vals[4];
+          short halves[8];
+        };
+      };
+      struct Derived : Base1, Base2 {
+        int extra;
+      };
+      unsigned long my_package(unsigned int i) {
+        return __builtin_offsetof(Derived, vals[i]);
+      })";
+  // Base1@0 (size 4), Base2@4 (pad@0, anon union@4 -> vals@8).
+  // offset = 8 + 4*i.
+  Run({{"i", 0}}, 8, multi_base_content, xabsl::SourceLocation::current(),
+      {"-Wno-invalid-offsetof"});
+  Run({{"i", 3}}, 20, multi_base_content, xabsl::SourceLocation::current(),
+      {"-Wno-invalid-offsetof"});
+}
+
+TEST_F(TranslatorLogicTest, OffsetOfStddefMacroAndSideEffect) {
+  std::string_view content = R"(
+      #include <cstddef>
+      struct S {
+        int a;
+        int arr[4][3];
+      };
+      int my_package(int i, short j) {
+        int k = i;
+        size_t off = offsetof(S, arr[k++][j]);
+        return static_cast<int>(off) + k * 1000;
+      })";
+  // offset = 4 + i * 12 + j * 4; k becomes i + 1.
+  // For (1, 2): off = 4 + 12 + 8 = 24, k = 2 -> 2024.
+  Run({{"i", 1}, {"j", 2}}, 2024, content);
+}
+
+TEST_F(TranslatorLogicTest, OffsetOfSignedIndexSignExtension) {
+  std::string_view content = R"(
+      struct S {
+        int first;
+        int arr[4];
+      };
+      unsigned long long my_package(int idx) {
+        return __builtin_offsetof(S, arr[idx]);
+      })";
+  // Signed int idx=-1 sign-extends to 64-bit size_t (-1):
+  // 4 + (-1) * 4 == 0 (mod 2^64).
+  Run({{"idx", xls::Value(xls::SBits(-1, 32))}}, xls::Value(xls::UBits(0, 64)),
+      content);
+  Run({{"idx", xls::Value(xls::SBits(2, 32))}}, xls::Value(xls::UBits(12, 64)),
+      content);
+}
+
+TEST_F(TranslatorLogicTest, OffsetOfConstExprStillFolds) {
+  std::string_view content = R"(
+      #include <cstddef>
+      struct S {
+        char a;
+        int arr[4];
+      };
+      unsigned long my_package() {
+        return offsetof(S, arr[2]);
+      })";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string ir, SourceToIr(content));
+  EXPECT_FALSE(absl::StrContains(ir, "umul("));
+  Run({}, 12, content);
+}
+
 }  // namespace
 
 }  // namespace xlscc

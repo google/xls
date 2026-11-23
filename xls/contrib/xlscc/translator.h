@@ -795,6 +795,8 @@ class Translator final : public GeneratorBase,
       const clang::Expr* expr, const xls::SourceInfo& loc);
   absl::StatusOr<CValue> GenerateIR_MemberExpr(const clang::MemberExpr* expr,
                                                const xls::SourceInfo& loc);
+  absl::StatusOr<CValue> GenerateIR_OffsetOfExpr(
+      const clang::OffsetOfExpr* expr, const xls::SourceInfo& loc);
   absl::StatusOr<std::string> GetStringLiteral(const clang::Expr* expr,
                                                const xls::SourceInfo& loc);
   // Returns true if built-in call generated

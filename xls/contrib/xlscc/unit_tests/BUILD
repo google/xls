@@ -397,6 +397,7 @@ cc_test(
         "//xls/contrib/xlscc:expr_clone",
         "@googletest//:gtest",
         "@llvm-project//clang:ast",
+        "@llvm-project//clang:basic",
     ],
 )
 

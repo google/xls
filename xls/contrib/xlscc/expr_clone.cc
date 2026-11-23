@@ -18,6 +18,7 @@
 
 #include "absl/strings/str_cat.h"
 #include "clang/include/clang/AST/DeclCXX.h"
+#include "clang/include/clang/AST/Expr.h"
 #include "clang/include/clang/AST/StmtVisitor.h"
 
 namespace xlscc {
@@ -301,6 +302,24 @@ class ExprClone
     VISIT(sub_expr, expr->getSubExpr());
     return clang::ExprWithCleanups::Create(
         ctx, sub_expr, expr->cleanupsHaveSideEffects(), expr->getObjects());
+  }
+
+  absl::StatusOr<clang::Expr*> VisitOffsetOfExpr(
+      const clang::OffsetOfExpr* expr) {
+    std::vector<clang::OffsetOfNode> comps;
+    comps.reserve(expr->getNumComponents());
+    for (unsigned i = 0; i < expr->getNumComponents(); ++i) {
+      comps.push_back(expr->getComponent(i));
+    }
+    std::vector<clang::Expr*> exprs;
+    exprs.reserve(expr->getNumExpressions());
+    for (unsigned i = 0; i < expr->getNumExpressions(); ++i) {
+      VISIT(cloned_idx, expr->getIndexExpr(i));
+      exprs.push_back(cloned_idx);
+    }
+    return clang::OffsetOfExpr::Create(
+        ctx, expr->getType(), expr->getOperatorLoc(), expr->getTypeSourceInfo(),
+        comps, exprs, expr->getRParenLoc());
   }
 
   absl::StatusOr<clang::Expr*> VisitExpr(const clang::Expr* expr) {
