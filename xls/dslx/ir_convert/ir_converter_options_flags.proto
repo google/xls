@@ -51,6 +51,8 @@ message IrConverterOptionsFlagsProto {
   // If non-empty, synthesizes cover ops for the listed auto-coverage kinds.
   // E.g. "branch" synthesizes a cover op for each if/else branch and match arm.
   repeated AutoCoverKind emit_auto_cover = 23;
+  // If true will emit position of operations.
+  optional bool emit_positions = 24;
 }
 
 // Kinds of automatically generated cover ops that can be synthesized during
