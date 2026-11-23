@@ -530,6 +530,24 @@ absl::Status NewFSMGenerator::LayoutNewFSMStateElements(
         return a_name < b_name;
       });
 
+  // This uses slice.static_values, which is reliably filled in by
+  // Translator::DeclareStatic(), and so safe to use in a way that
+  // ContinuationValue::decls is not.
+  absl::flat_hash_map<const clang::NamedDecl*, int64_t>
+      static_read_slice_by_decl;
+  int64_t static_slice_idx = 0;
+  for (const GeneratedFunctionSlice& slice : func.slices) {
+    for (const clang::NamedDecl* decl : slice.static_values) {
+      auto [it, inserted] =
+          static_read_slice_by_decl.emplace(decl, static_slice_idx);
+      // The decl should appear exactly once, in the slice's static_values that
+      // declared it.
+      XLSCC_CHECK(inserted, body_loc);
+    }
+    ++static_slice_idx;
+  }
+
+  absl::flat_hash_map<int64_t, int64_t> static_live_until_slice_by_elem;
   for (const DeclLeaf& decl_leaf : static_decls) {
     xls::StateElement* existing_state_element =
         state_element_for_static.at(decl_leaf);
@@ -539,8 +557,13 @@ absl::Status NewFSMGenerator::LayoutNewFSMStateElements(
         .existing_state_element = existing_state_element,
     };
     layout.state_elements.push_back(state_element);
-    state_element_indices_by_decl[decl_leaf].push_back(
-        layout.state_elements.size() - 1);
+    const int64_t elem_idx =
+        static_cast<int64_t>(layout.state_elements.size()) - 1;
+    state_element_indices_by_decl[decl_leaf].push_back(elem_idx);
+    if (auto it = static_read_slice_by_decl.find(decl_leaf.decl);
+        it != static_read_slice_by_decl.end() && it->second > 0) {
+      static_live_until_slice_by_elem[elem_idx] = it->second;
+    }
   }
 
   absl::flat_hash_map<const ContinuationValue*, absl::flat_hash_set<int64_t>>
@@ -565,6 +588,19 @@ absl::Status NewFSMGenerator::LayoutNewFSMStateElements(
 
     // A state element can only be used once in a given transition
     absl::flat_hash_set<int64_t> used_state_element_indices;
+
+    // Static state elements hold live state from the start of each activation
+    // until the slice that reads them runs, so earlier slices cannot overwrite
+    // them with unrelated continuation values.
+    for (const auto& [elem_idx, read_slice_idx] :
+         static_live_until_slice_by_elem) {
+      if (state.slice_index < read_slice_idx) {
+        used_state_element_indices.insert(elem_idx);
+        for (const ContinuationValue* value : state.values_to_save) {
+          disallowed_elements_by_value[value].insert(elem_idx);
+        }
+      }
+    }
 
     // Mark reserved elements
     for (const ContinuationValue* value : state.values_to_save) {
