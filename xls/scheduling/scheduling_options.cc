@@ -16,6 +16,7 @@
 
 #include <cstdint>
 #include <limits>
+#include <optional>
 #include <ostream>
 #include <string>
 #include <string_view>
@@ -108,6 +109,19 @@ std::string AbslUnparseFlag(const SchedulingStrategy& strategy) {
 }
 
 namespace {
+
+absl::StatusOr<solvers::SolverKind> FromProtoSolverKind(
+    SolverKind solver_kind) {
+  switch (solver_kind) {
+    case SolverKind::SOLVER_KIND_Z3:
+      return solvers::SolverKind::kZ3;
+    case SolverKind::SOLVER_KIND_BITWUZLA:
+      return solvers::SolverKind::kBitwuzla;
+    default:
+      return absl::InvalidArgumentError(
+          absl::StrFormat("Unknown solver kind: %v", solver_kind));
+  }
+}
 
 absl::StatusOr<SchedulingOptions> OptionsFromFlagProto(
     const Package* p, const SchedulingOptionsFlagsProto& proto) {
@@ -225,17 +239,9 @@ absl::StatusOr<SchedulingOptions> OptionsFromFlagProto(
         proto.mutual_exclusion_z3_rlimit());
   }
   if (proto.has_solver_kind()) {
-    switch (proto.solver_kind()) {
-      case SolverKind::SOLVER_KIND_Z3:
-        scheduling_options.solver_kind(solvers::SolverKind::kZ3);
-        break;
-      case SolverKind::SOLVER_KIND_BITWUZLA:
-        scheduling_options.solver_kind(solvers::SolverKind::kBitwuzla);
-        break;
-      default:
-        return absl::InvalidArgumentError(
-            absl::StrFormat("Unknown solver kind: %v", proto.solver_kind()));
-    }
+    XLS_ASSIGN_OR_RETURN(solvers::SolverKind solver_kind,
+                         FromProtoSolverKind(proto.solver_kind()));
+    scheduling_options.solver_kind(solver_kind);
   }
   if (proto.has_default_next_value_z3_rlimit() &&
       proto.default_next_value_z3_rlimit() >= 0) {
@@ -296,19 +302,8 @@ absl::StatusOr<SchedulingOptions> OptionsFromFlagProto(
         SchedulingFailureBehavior::FromProto(proto.failure_behavior()));
   }
 
-  // The following fdo_* have valid default value init in scheduling_options.
-  // Only copy proto->scheduling_options if the option is present in the proto.
-  // If we copy obliviously, we could overwrite the valid default with
-  // an invalid 0 or "" (the proto global defaults for unspecified fields).
-
-  // When options are specified individually, unspecified FDO options
-  //   will have their default value from absl flags copied to the proto.
-  // When options are provided via proto, unspecified FDO options
-  //   will get their default value from 'scheduling_options' initialization.
-
-  // The value of FDO options should only be read from scheduling_options,
-  // not the proto!
-
+  // Validate and copy explicitly set FDO options. Unspecified fields inherit
+  // the explicit defaults from SchedulingOptionsFlagsProto::default_instance().
   if (proto.has_use_fdo()) {
     scheduling_options.use_fdo(proto.use_fdo());
   }
@@ -412,6 +407,58 @@ absl::StatusOr<SchedulingOptions> OptionsFromFlagProto(
 }
 
 }  // namespace
+
+SchedulingOptions::SchedulingOptions(
+    SchedulingStrategy strategy,
+    std::optional<SchedulingStrategy> find_bounds_strategy)
+    : strategy_(strategy),
+      find_bounds_strategy_(find_bounds_strategy.value_or(strategy_)),
+      opt_level_(SchedulingOptionsFlagsProto::default_instance().opt_level()),
+      minimize_clock_on_failure_(SchedulingOptionsFlagsProto::default_instance()
+                                     .minimize_clock_on_failure()),
+      recover_after_minimizing_clock_(
+          SchedulingOptionsFlagsProto::default_instance()
+              .recover_after_minimizing_clock()),
+      minimize_worst_case_throughput_(
+          SchedulingOptionsFlagsProto::default_instance()
+              .minimize_worst_case_throughput()),
+      constraints_({
+          BackedgeConstraint(),
+          SendThenRecvConstraint(/*minimum_latency=*/1),
+          SameChannelConstraint(/*minimum_latency=*/1),
+      }),
+      solver_kind_(
+          FromProtoSolverKind(
+              SchedulingOptionsFlagsProto::default_instance().solver_kind())
+              .value()),
+      use_fdo_(SchedulingOptionsFlagsProto::default_instance().use_fdo()),
+      fdo_iteration_number_(SchedulingOptionsFlagsProto::default_instance()
+                                .fdo_iteration_number()),
+      fdo_delay_driven_path_number_(
+          SchedulingOptionsFlagsProto::default_instance()
+              .fdo_delay_driven_path_number()),
+      fdo_fanout_driven_path_number_(
+          SchedulingOptionsFlagsProto::default_instance()
+              .fdo_fanout_driven_path_number()),
+      fdo_refinement_stochastic_ratio_(
+          SchedulingOptionsFlagsProto::default_instance()
+              .fdo_refinement_stochastic_ratio()),
+      fdo_synthesizer_name_(SchedulingOptionsFlagsProto::default_instance()
+                                .fdo_synthesizer_name()),
+      schedule_all_procs_(
+          SchedulingOptionsFlagsProto::default_instance().multi_proc()),
+      sdc_solution_tolerance_(SchedulingOptionsFlagsProto::default_instance()
+                                  .sdc_solution_tolerance()),
+      solver_type_(static_cast<operations_research::math_opt::SolverType>(
+          SchedulingOptionsFlagsProto::default_instance().solver_type())),
+      solve_parameters_(),
+      default_arc_worst_case_throughput_(std::nullopt),
+      arc_worst_case_throughput_(),
+      merge_on_mutual_exclusion_(SchedulingOptionsFlagsProto::default_instance()
+                                     .merge_on_mutual_exclusion()) {
+  fdo_path_evaluate_strategy(SchedulingOptionsFlagsProto::default_instance()
+                                 .fdo_path_evaluate_strategy());
+}
 
 std::ostream& operator<<(std::ostream& os, SchedulingStrategy strategy) {
   return os << ProtoSchedulingStrategy_Name(

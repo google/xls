@@ -118,21 +118,30 @@ std::string AbslUnparseFlag(const ArcThroughputMap& map) {
 }
 
 // LINT.IfChange
-ABSL_FLAG(int64_t, opt_level, xls::kMaxOptLevel, []() -> const std::string& {
-  static const std::string kDescription = absl::StrFormat(
-      "Optimization level. Ranges from 0 to %d.", xls::kMaxOptLevel);
-  return kDescription;
-}());
-ABSL_FLAG(int64_t, clock_period_ps, 0,
-          "Target clock period, in picoseconds. See "
-          "https://google.github.io/xls/scheduling for details.");
-ABSL_FLAG(int64_t, pipeline_stages, 0,
-          "The number of stages in the generated pipeline. See "
-          "https://google.github.io/xls/scheduling for details.");
-ABSL_FLAG(std::string, delay_model, "",
+ABSL_FLAG(int64_t, opt_level,
+          xls::SchedulingOptionsFlagsProto::default_instance().opt_level(),
+          []() -> const std::string& {
+            static const std::string kDescription = absl::StrFormat(
+                "Optimization level. Ranges from 0 to %d.", xls::kMaxOptLevel);
+            return kDescription;
+          }());
+ABSL_FLAG(
+    int64_t, clock_period_ps,
+    xls::SchedulingOptionsFlagsProto::default_instance().clock_period_ps(),
+    "Target clock period, in picoseconds. See "
+    "https://google.github.io/xls/scheduling for details.");
+ABSL_FLAG(
+    int64_t, pipeline_stages,
+    xls::SchedulingOptionsFlagsProto::default_instance().pipeline_stages(),
+    "The number of stages in the generated pipeline. See "
+    "https://google.github.io/xls/scheduling for details.");
+ABSL_FLAG(std::string, delay_model,
+          xls::SchedulingOptionsFlagsProto::default_instance().delay_model(),
           "Delay model name to use from registry.");
 ABSL_FLAG(xls::SchedulingStrategy, scheduling_strategy,
-          xls::SchedulingStrategy::SDC,
+          xls::FromProtoSchedulingStrategy(
+              xls::SchedulingOptionsFlagsProto::default_instance()
+                  .scheduling_strategy()),
           "Scheduler algorithm to use.\n"
           "\n"
           "Options: [sdc, asap, min_cut, random]\n"
@@ -170,12 +179,16 @@ ABSL_FLAG(std::optional<xls::SchedulingStrategy>, find_bounds_strategy,
           "in the design.\n"
           "\n"
           "This flag is only used if one of the --minimize flags is set.");
-ABSL_FLAG(int64_t, clock_margin_percent, 0,
-          "The percentage of clock period to set aside as a margin to ensure "
-          "timing is met. Effectively, this lowers the clock period by this "
-          "percentage amount for the purposes of scheduling. See "
-          "https://google.github.io/xls/scheduling for details.");
-ABSL_FLAG(int64_t, period_relaxation_percent, 0,
+ABSL_FLAG(
+    int64_t, clock_margin_percent,
+    xls::SchedulingOptionsFlagsProto::default_instance().clock_margin_percent(),
+    "The percentage of clock period to set aside as a margin to ensure "
+    "timing is met. Effectively, this lowers the clock period by this "
+    "percentage amount for the purposes of scheduling. See "
+    "https://google.github.io/xls/scheduling for details.");
+ABSL_FLAG(int64_t, period_relaxation_percent,
+          xls::SchedulingOptionsFlagsProto::default_instance()
+              .period_relaxation_percent(),
           "The percentage of clock period that will be relaxed when "
           "scheduling without an explicit --clock_period_ps. "
           "When set to 0, the minimum period that can satisfy scheduling "
@@ -183,18 +196,24 @@ ABSL_FLAG(int64_t, period_relaxation_percent, 0,
           "increase in critical path delay in favor of decreased register "
           "count. See https://google.github.io/xls/scheduling for details.");
 ABSL_FLAG(
-    bool, minimize_clock_on_failure, true,
+    bool, minimize_clock_on_failure,
+    xls::SchedulingOptionsFlagsProto::default_instance()
+        .minimize_clock_on_failure(),
     "If true, when `--clock_period_ps` is given but is infeasible for "
     "scheduling, search for & report the shortest feasible clock period. "
     "Otherwise, just reports whether increasing the clock period can help.");
 ABSL_FLAG(
-    bool, recover_after_minimizing_clock, false,
+    bool, recover_after_minimizing_clock,
+    xls::SchedulingOptionsFlagsProto::default_instance()
+        .recover_after_minimizing_clock(),
     "If both this and `--minimize_clock_on_failure` are true and "
     "`--clock_period_ps` is given and infeasible for scheduling, search for & "
     "use the shortest feasible clock period - even if this does not meet the "
     "`--clock_period_ps` target - after printing a warning."
     "Otherwise, will stop with an error if `--clock_period_ps` is infeasible.");
-ABSL_FLAG(bool, minimize_worst_case_throughput, false,
+ABSL_FLAG(bool, minimize_worst_case_throughput,
+          xls::SchedulingOptionsFlagsProto::default_instance()
+              .minimize_worst_case_throughput(),
           "If true, when `--worst_case_throughput` is not given, search for & "
           "report the best possible worst-case throughput of the circuit "
           "(subject to all other constraints). If `--clock_period_ps` is not "
@@ -215,14 +234,18 @@ ABSL_FLAG(
     std::optional<double>, dynamic_throughput_objective_weight, std::nullopt,
     "If set, the scheduler will attempt to optimize for dynamic throughput as "
     "well as for area; the value controls how strongly this is prioritized. "
-    "e.g., if set to 1024.0 (the default value), the scheduler will consider "
-    "improving the dynamic throughput of one state element by 1 cycle "
-    "(assuming that all data-dependent feedback paths are equally likely) to "
-    "be worth adding up to 1024 flops. Only relevant if using the SDC "
-    "scheduler with --worst_case_throughput set to a value != 1.");
-ABSL_FLAG(int64_t, additional_input_delay_ps, 0,
+    "e.g., if set to 1024.0, the scheduler will consider improving the dynamic "
+    "throughput of one state element by 1 cycle (assuming that all "
+    "data-dependent feedback paths are equally likely) to be worth adding up "
+    "to 1024 flops. Only relevant if using the SDC scheduler with "
+    "--worst_case_throughput set to a value != 1.");
+ABSL_FLAG(int64_t, additional_input_delay_ps,
+          xls::SchedulingOptionsFlagsProto::default_instance()
+              .additional_input_delay_ps(),
           "The additional delay added to each input.");
-ABSL_FLAG(int64_t, additional_output_delay_ps, 0,
+ABSL_FLAG(int64_t, additional_output_delay_ps,
+          xls::SchedulingOptionsFlagsProto::default_instance()
+              .additional_output_delay_ps(),
           "The additional delay added to each output.");
 ABSL_FLAG(
     ChannelDelayMap, additional_channel_delay_ps, {},
@@ -233,7 +256,9 @@ ABSL_FLAG(
     "(and the undirected delay will be ignored for those operations). Note "
     "that the actual delay added will be the sum of this and the largest of "
     "the additional_(input|output)_delay_ps parameters, if provided.");
-ABSL_FLAG(int64_t, ffi_fallback_delay_ps, 0,
+ABSL_FLAG(int64_t, ffi_fallback_delay_ps,
+          xls::SchedulingOptionsFlagsProto::default_instance()
+              .ffi_fallback_delay_ps(),
           "Delay of foreign function calls if not otherwise specified.");
 ABSL_FLAG(std::vector<std::string>, io_constraints, {},
           "A comma-separated list of IO constraints, each of which is "
@@ -247,21 +272,30 @@ ABSL_FLAG(std::vector<std::string>, io_constraints, {},
           "If the special minimum/maximum value `none` is used, then "
           "the minimum latency will be the lowest representable int64_t, "
           "and likewise for maximum latency.");
-ABSL_FLAG(bool, receives_first_sends_last, false,
+ABSL_FLAG(bool, receives_first_sends_last,
+          xls::SchedulingOptionsFlagsProto::default_instance()
+              .receives_first_sends_last(),
           "If true, this forces receives into the first cycle and sends into "
           "the last cycle.");
-ABSL_FLAG(xls::SolverKind, solver_kind, xls::SolverKind::SOLVER_KIND_Z3,
+ABSL_FLAG(xls::SolverKind, solver_kind,
+          xls::SchedulingOptionsFlagsProto::default_instance().solver_kind(),
           "The solver backend to use for logical analysis (z3, bitwuzla).");
-ABSL_FLAG(int64_t, mutual_exclusion_z3_rlimit, -1,
+ABSL_FLAG(int64_t, mutual_exclusion_z3_rlimit,
+          xls::SchedulingOptionsFlagsProto::default_instance()
+              .mutual_exclusion_z3_rlimit(),
           "Resource limit for solver in mutual exclusion pass.");
-ABSL_FLAG(int64_t, default_next_value_z3_rlimit, -1,
+ABSL_FLAG(int64_t, default_next_value_z3_rlimit,
+          xls::SchedulingOptionsFlagsProto::default_instance()
+              .default_next_value_z3_rlimit(),
           "Resource limit for optimizer when attempting to prove a state param "
           "doesn't need a default next_value; if not specified, will not "
           "attempt this proof using Z3, but will still avoid adding a "
           "redundant default next_value in specific circumstances.");
 ABSL_FLAG(std::string, scheduling_options_proto, "",
           "Path to a protobuf containing all scheduling options args.");
-ABSL_FLAG(bool, explain_infeasibility, true,
+ABSL_FLAG(bool, explain_infeasibility,
+          xls::SchedulingFailureBehaviorProto::default_instance()
+              .explain_infeasibility(),
           "If scheduling fails, re-run scheduling with extra slack variables "
           "in an attempt to explain why scheduling failed.");
 ABSL_FLAG(
@@ -277,50 +311,80 @@ ABSL_FLAG(
     "Increasing this value should give more specific information about how "
     "much slack each failing backedge needs at the cost of less actionable and "
     "harder to understand output.");
-ABSL_FLAG(bool, use_fdo, false,
+ABSL_FLAG(bool, use_fdo,
+          xls::SchedulingOptionsFlagsProto::default_instance().use_fdo(),
           "Use FDO (feedback-directed optimization) for pipeline scheduling. "
           "If 'false', then all 'fdo_*' options are ignored.");
-ABSL_FLAG(int64_t, fdo_iteration_number, 5,
-          "The number of FDO iterations during the pipeline scheduling. Must "
-          "be an integer >= 2.");
-ABSL_FLAG(int64_t, fdo_delay_driven_path_number, 1,
+ABSL_FLAG(
+    int64_t, fdo_iteration_number,
+    xls::SchedulingOptionsFlagsProto::default_instance().fdo_iteration_number(),
+    "The number of FDO iterations during the pipeline scheduling. Must "
+    "be an integer >= 2.");
+ABSL_FLAG(int64_t, fdo_delay_driven_path_number,
+          xls::SchedulingOptionsFlagsProto::default_instance()
+              .fdo_delay_driven_path_number(),
           "The number of delay-driven subgraphs in each FDO iteration. Must be "
           "a non-negative integer.");
-ABSL_FLAG(int64_t, fdo_fanout_driven_path_number, 0,
+ABSL_FLAG(int64_t, fdo_fanout_driven_path_number,
+          xls::SchedulingOptionsFlagsProto::default_instance()
+              .fdo_fanout_driven_path_number(),
           "The number of fanout-driven subgraphs in each FDO iteration. Must "
           "be a non-negative integer.");
 ABSL_FLAG(
-    float, fdo_refinement_stochastic_ratio, 1.0,
+    float, fdo_refinement_stochastic_ratio,
+    xls::SchedulingOptionsFlagsProto::default_instance()
+        .fdo_refinement_stochastic_ratio(),
     "*path_number over refinement_stochastic_ratio paths are extracted and "
     "*path_number paths are randomly selected from them for synthesis in each "
     "FDO iteration. Must be a positive float <= 1.0.");
-ABSL_FLAG(std::string, fdo_path_evaluate_strategy, "window",
+ABSL_FLAG(std::string, fdo_path_evaluate_strategy,
+          xls::SchedulingOptionsFlagsProto::default_instance()
+              .fdo_path_evaluate_strategy(),
           "Path evaluation strategy for FDO. Supports path, cone, and window.");
-ABSL_FLAG(std::string, fdo_synthesizer_name, "yosys",
-          "Name of synthesis backend for FDO. Only supports yosys.");
-ABSL_FLAG(std::string, fdo_yosys_path, "", "Absolute path of yosys.");
-ABSL_FLAG(std::string, fdo_sta_path, "", "Absolute path of OpenSTA.");
-ABSL_FLAG(std::string, fdo_synthesis_libraries, "",
+ABSL_FLAG(
+    std::string, fdo_synthesizer_name,
+    xls::SchedulingOptionsFlagsProto::default_instance().fdo_synthesizer_name(),
+    "Name of synthesis backend for FDO. Only supports yosys.");
+ABSL_FLAG(std::string, fdo_yosys_path,
+          xls::SchedulingOptionsFlagsProto::default_instance().fdo_yosys_path(),
+          "Absolute path of yosys.");
+ABSL_FLAG(std::string, fdo_sta_path,
+          xls::SchedulingOptionsFlagsProto::default_instance().fdo_sta_path(),
+          "Absolute path of OpenSTA.");
+ABSL_FLAG(std::string, fdo_synthesis_libraries,
+          xls::SchedulingOptionsFlagsProto::default_instance()
+              .fdo_synthesis_libraries(),
           "Synthesis and STA libraries.");
-ABSL_FLAG(std::string, fdo_default_driver_cell, "",
+ABSL_FLAG(std::string, fdo_default_driver_cell,
+          xls::SchedulingOptionsFlagsProto::default_instance()
+              .fdo_default_driver_cell(),
           "Cell to assume is driving primary inputs");
-ABSL_FLAG(std::string, fdo_default_load, "",
-          "Cell to assume is being driven by primary outputs");
-ABSL_FLAG(bool, merge_on_mutual_exclusion, true,
+ABSL_FLAG(
+    std::string, fdo_default_load,
+    xls::SchedulingOptionsFlagsProto::default_instance().fdo_default_load(),
+    "Cell to assume is being driven by primary outputs");
+ABSL_FLAG(bool, merge_on_mutual_exclusion,
+          xls::SchedulingOptionsFlagsProto::default_instance()
+              .merge_on_mutual_exclusion(),
           "Use mutual exclusion to merge I/O operations aggressively. If "
           "false, relies on channel legalization for correctness.");
 // TODO: google/xls#869 - Remove when proc-scoped channels supplant old-style
 // procs.
-ABSL_FLAG(bool, multi_proc, true,
+ABSL_FLAG(bool, multi_proc,
+          xls::SchedulingOptionsFlagsProto::default_instance().multi_proc(),
           "If true, schedule all procs and codegen them all.");
-ABSL_FLAG(double, sdc_solution_tolerance, xls::kDefaultSdcSolutionTolerance,
+ABSL_FLAG(double, sdc_solution_tolerance,
+          xls::SchedulingOptionsFlagsProto::default_instance()
+              .sdc_solution_tolerance(),
           "The SDC scheduler expects integer solutions, but implementation "
           "details of the solver may result in seeing significant error (e.g. "
           "a cycle variable with exact solution 0 could be 0.11). This flag "
           "sets the tolerance for such errors.");
-ABSL_FLAG(operations_research::math_opt::SolverType, solver_type,
-          operations_research::math_opt::SolverType::kGlop,
-          "The solver to use for scheduling.");
+ABSL_FLAG(
+    operations_research::math_opt::SolverType, solver_type,
+    static_cast<operations_research::math_opt::SolverType>(
+        xls::SchedulingOptionsFlagsProto::default_instance().solver_type()),
+    "The solver to use for scheduling.");
 ABSL_FLAG(std::string, solve_parameters_proto, "",
           "Path to a protobuf containing all solver parameters.");
 ABSL_FLAG(std::optional<int64_t>, default_arc_worst_case_throughput,

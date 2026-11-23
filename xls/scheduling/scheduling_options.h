@@ -367,7 +367,9 @@ struct SchedulingFailureBehavior {
   // attempt to explain why scheduling failed.
   //
   // Only used for SDC scheduler.
-  bool explain_infeasibility = true;
+  bool explain_infeasibility =
+      SchedulingFailureBehaviorProto::default_instance()
+          .explain_infeasibility();
 
   // If specified, the specified value must be > 0. Setting this configures how
   // the scheduling problem is reformulated in the case that it fails. If
@@ -390,33 +392,10 @@ struct SchedulingFailureBehavior {
 class SchedulingOptions {
  public:
   explicit SchedulingOptions(
-      SchedulingStrategy strategy = SchedulingStrategy::SDC,
-      std::optional<SchedulingStrategy> find_bounds_strategy = std::nullopt)
-      : strategy_(strategy),
-        find_bounds_strategy_(find_bounds_strategy.value_or(strategy_)),
-        opt_level_(kMaxOptLevel),
-        minimize_clock_on_failure_(true),
-        recover_after_minimizing_clock_(false),
-        minimize_worst_case_throughput_(false),
-        constraints_({
-            BackedgeConstraint(),
-            SendThenRecvConstraint(/*minimum_latency=*/1),
-            SameChannelConstraint(/*minimum_latency=*/1),
-        }),
-        use_fdo_(false),
-        fdo_iteration_number_(5),
-        fdo_delay_driven_path_number_(1),
-        fdo_fanout_driven_path_number_(0),
-        fdo_refinement_stochastic_ratio_(1.0),
-        fdo_path_evaluate_strategy_(PathEvaluateStrategy::WINDOW),
-        fdo_synthesizer_name_("yosys"),
-        schedule_all_procs_(false),
-        sdc_solution_tolerance_(kDefaultSdcSolutionTolerance),
-        solver_type_(operations_research::math_opt::SolverType::kGlop),
-        solve_parameters_(),
-        default_arc_worst_case_throughput_(std::nullopt),
-        arc_worst_case_throughput_(),
-        merge_on_mutual_exclusion_(true) {}
+      SchedulingStrategy strategy = FromProtoSchedulingStrategy(
+          SchedulingOptionsFlagsProto::default_instance()
+              .scheduling_strategy()),
+      std::optional<SchedulingStrategy> find_bounds_strategy = std::nullopt);
 
   // Returns the scheduling strategy.
   SchedulingStrategy strategy() const { return strategy_; }
