@@ -46,6 +46,7 @@ compound_passes: [
       "global_channel_removal",
       "merge_registers",
       "merge_ports",
+      "unused_clock_reset_removal",
       "signature_generation",
       "block_finalization"
     ]

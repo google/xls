@@ -50,6 +50,7 @@ xls_codegen_pass_registry(
         ":global_channel_removal_pass",
         ":merge_ports_pass",
         ":merge_registers_pass",
+        ":unused_clock_reset_removal_pass",
         ":signature_generation_pass",
         ":block_finalization_pass",
         ":register_cleanup_pass",
@@ -191,6 +192,46 @@ xls_codegen_pass(
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/types:span",
+    ],
+)
+
+xls_codegen_pass(
+    name = "unused_clock_reset_removal_pass",
+    srcs = ["unused_clock_reset_removal_pass.cc"],
+    hdrs = ["unused_clock_reset_removal_pass.h"],
+    pass_class = "UnusedClockResetRemovalPass",
+    deps = [
+        ":block_conversion_pass",
+        "//xls/common/status:status_macros",
+        "//xls/ir",
+        "//xls/passes:pass_base",
+        "@abseil-cpp//absl/base",
+        "@abseil-cpp//absl/container:flat_hash_set",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+    ],
+)
+
+cc_test(
+    name = "unused_clock_reset_removal_pass_test",
+    srcs = ["unused_clock_reset_removal_pass_test.cc"],
+    deps = [
+        ":block_conversion_pass",
+        ":unused_clock_reset_removal_pass",
+        "//xls/codegen:module_signature_cc_proto",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/ir",
+        "//xls/ir:bits",
+        "//xls/ir:function_builder",
+        "//xls/ir:ir_test_base",
+        "//xls/ir:register",
+        "//xls/ir:value",
+        "//xls/ir:verifier",
+        "//xls/passes:pass_base",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
+        "@googletest//:gtest",
     ],
 )
 
