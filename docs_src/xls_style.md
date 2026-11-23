@@ -257,20 +257,22 @@ further support the decision.
 
 ## DSLX
 
+See the [DSLX Style Guide](dslx_style.md) for the complete set of rules. Key
+highlights:
+
 -   Write idiomatic DSLX focused on functional intent, readability, and
-    testability rather than transliterating reference Verilog RTL line-by-line:
-    -   Use `bool` instead of `u1` for 1-bit flags and conditions, `x[i+:bool]`
-        instead of `x[i+:u1] == u1:1`, `std::msb(x)` for the most-significant
-        bit, and strongly-typed `enum`s instead of raw bitvector constants.
-    -   Use `pub struct` with `impl` methods (such as `zero()` or `default()`)
-        rather than bare type aliases, standalone `foo_reset()` helpers, or
-        returning >3-element tuples from `match` arms.
-    -   Separate pure combinational datapath functions from stateful `proc` FSM
-        control logic, and prefer casts and standard library helpers (e.g.,
-        `array_rev(x as u32[8])`) over manually unrolling bit slices.
-    -   Use `PascalCase` for `proc` names, run
-        `dslx_fmt --simplify_type_annotations -i` to remove redundant type
-        annotations, and omit unused `#![feature(...)]` attributes.
+    testability rather than transliterating Verilog RTL line by line.
+-   Use `bool` instead of `u1` for flags and conditions and `u1`..`u64` /
+    `s1`..`s64` and `uN[W]` / `sN[W]` over `bits[W]`.
+-   Use `struct`s with `impl` methods rather than standalone helper methods and
+    named structs instead of tuples with more than three elements.
+-   Extract pure combinational helpers from `proc`s
+-   Keep tests (`#[test]`, `#[quickcheck]`, `#[fuzz_test]`) in the same `.x`
+    file as the code under test.
+-   Prefer casts and built-in or `std` helpers over manual bit-slicing and
+    concatenation.
+-   Run `dslx_fmt --simplify_type_annotations -i` to remove redundant type
+    annotations on literals.
 
 ## Protocol buffers
 
