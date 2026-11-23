@@ -25,6 +25,7 @@
 #include "absl/flags/flag.h"
 #include "absl/flags/marshalling.h"
 #include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/numbers.h"
@@ -38,6 +39,79 @@
 #include "xls/ir/xls_ir_interface.pb.h"
 #include "xls/tools/codegen_flags.pb.h"
 #include "xls/tools/codegen_flags_handler_registry.h"
+
+namespace {
+
+std::string GeneratorKindToString(xls::GeneratorKind kind) {
+  switch (kind) {
+    case xls::GENERATOR_KIND_PIPELINE:
+      return "pipeline";
+    case xls::GENERATOR_KIND_COMBINATIONAL:
+      return "combinational";
+    default:
+      LOG(FATAL) << "Invalid GeneratorKind: " << static_cast<int>(kind);
+  }
+}
+
+std::string IOKindProtoToString(xls::IOKindProto kind) {
+  switch (kind) {
+    case xls::IO_KIND_FLOP:
+      return "flop";
+    case xls::IO_KIND_SKID_BUFFER:
+      return "skid";
+    case xls::IO_KIND_ZERO_LATENCY_BUFFER:
+      return "zerolatency";
+    default:
+      LOG(FATAL) << "Invalid IOKindProto: " << static_cast<int>(kind);
+  }
+}
+
+std::string MergeStrategyToString(xls::RegisterMergeStrategyProto strategy) {
+  switch (strategy) {
+    case xls::STRATEGY_IDENTITY_ONLY:
+      return "IdentityOnly";
+    case xls::STRATEGY_DONT_MERGE:
+      return "DontMerge";
+    default:
+      LOG(FATAL) << "Invalid RegisterMergeStrategyProto: "
+                 << static_cast<int>(strategy);
+  }
+}
+
+std::string SourceAnnotationStrategyToString(
+    xls::SourceAnnotationStrategyProto strategy) {
+  switch (strategy) {
+    case xls::ANNOTATION_STRATEGY_NONE:
+      return "none";
+    case xls::ANNOTATION_STRATEGY_COMMENT:
+      return "comment";
+    case xls::ANNOTATION_STRATEGY_SRC_ATTRIBUTE:
+      return "attribute";
+    case xls::ANNOTATION_STRATEGY_DIRECTIVE:
+      return "directive";
+    default:
+      LOG(FATAL) << "Invalid SourceAnnotationStrategyProto: "
+                 << static_cast<int>(strategy);
+  }
+}
+
+std::string CodegenVersionToString(xls::CodegenVersionProto version) {
+  switch (version) {
+    case xls::CODEGEN_VERSION_DEFAULT:
+      return "0";
+    case xls::CODEGEN_VERSION_ONE_DOT_ZERO:
+      return "1";
+    case xls::CODEGEN_VERSION_ONE_DOT_FIVE:
+      return "1.5";
+    case xls::CODEGEN_VERSION_TWO_DOT_ZERO:
+      return "2";
+    default:
+      LOG(FATAL) << "Invalid CodegenVersionProto: "
+                 << static_cast<int>(version);
+  }
+}
+
+}  // namespace
 
 // LINT.IfChange
 ABSL_FLAG(
@@ -58,76 +132,113 @@ ABSL_FLAG(
 ABSL_FLAG(std::string, output_verilog_line_map_path, "",
           "Specific output path for Verilog line map. If not specified then "
           "Verilog line map is not generated.");
-ABSL_FLAG(std::string, top, "",
+ABSL_FLAG(std::string, top, xls::CodegenFlagsProto::default_instance().top(),
           "Top entity of the package to generate the (System)Verilog code.");
-ABSL_FLAG(std::string, generator, "pipeline",
+ABSL_FLAG(std::string, generator,
+          GeneratorKindToString(
+              xls::CodegenFlagsProto::default_instance().generator()),
           "The generator to use when emitting the device function. Valid "
           "values: pipeline, combinational.");
 ABSL_FLAG(
-    std::string, input_valid_signal, "",
+    std::string, input_valid_signal,
+    xls::CodegenFlagsProto::default_instance().input_valid_signal(),
     "If specified, the emitted module will use an external \"valid\" signal "
     "as the load enable for pipeline registers. The flag value is the "
     "name of the input port for this signal.");
 ABSL_FLAG(
-    std::string, output_valid_signal, "",
+    std::string, output_valid_signal,
+    xls::CodegenFlagsProto::default_instance().output_valid_signal(),
     "The name of the output port which holds the pipelined valid signal.");
 ABSL_FLAG(
-    std::string, manual_load_enable_signal, "",
+    std::string, manual_load_enable_signal,
+    xls::CodegenFlagsProto::default_instance().manual_load_enable_signal(),
     "If specified the load-enable of the pipeline registers of each stage is "
     "controlled via an input port of the indicated name. The width of the "
     "input port is equal to the number of pipeline stages. Bit N of the port "
     "is the load-enable signal for the pipeline registers after stage N.");
-ABSL_FLAG(bool, flop_inputs, true,
+ABSL_FLAG(bool, flop_inputs,
+          xls::CodegenFlagsProto::default_instance().flop_inputs(),
           "If true, inputs of the module are flopped into registers before "
           "use in generated pipelines. Only used with pipeline generator.");
-ABSL_FLAG(bool, flop_outputs, true,
+ABSL_FLAG(bool, flop_outputs,
+          xls::CodegenFlagsProto::default_instance().flop_outputs(),
           "If true, the module outputs are flopped into registers before "
           "leaving module. Only used with pipeline generator.");
-ABSL_FLAG(std::string, flop_inputs_kind, "flop",
+ABSL_FLAG(std::string, flop_inputs_kind,
+          IOKindProtoToString(
+              xls::CodegenFlagsProto::default_instance().flop_inputs_kind()),
           "Kind of input register to add.  "
           "Valid values: flop, skid, zerolatency.");
-ABSL_FLAG(std::string, flop_outputs_kind, "flop",
+ABSL_FLAG(std::string, flop_outputs_kind,
+          IOKindProtoToString(
+              xls::CodegenFlagsProto::default_instance().flop_outputs_kind()),
           "Kind of output register to add.  "
           "Valid values: flop, skid, zerolatency.");
-ABSL_FLAG(bool, flop_single_value_channels, true,
-          "If false, flop_inputs() and flop_outputs() will not flop "
-          "single value channels.");
-ABSL_FLAG(bool, add_idle_output, false,
+ABSL_FLAG(
+    bool, flop_single_value_channels,
+    xls::CodegenFlagsProto::default_instance().flop_single_value_channels(),
+    "If false, flop_inputs() and flop_outputs() will not flop "
+    "single value channels.");
+ABSL_FLAG(bool, add_idle_output,
+          xls::CodegenFlagsProto::default_instance().add_idle_output(),
           "If true, an additional idle signal tied to valids of input and "
           "flops is added to the block. This output signal is not registered, "
           "regardless of the setting of flop_outputs. "
           "use in generated pipelines. Only used with pipeline generator.");
-ABSL_FLAG(std::string, module_name, "",
+ABSL_FLAG(std::string, module_name,
+          xls::CodegenFlagsProto::default_instance().module_name(),
           "Explicit name to use for the generated module; if not provided the "
           "mangled IR function name is used.");
-ABSL_FLAG(std::string, output_port_name, "out",
+ABSL_FLAG(std::string, output_port_name,
+          xls::CodegenFlagsProto::default_instance().output_port_name(),
           "Explicit name to use for the output port; if not provided the name "
           "\"out\" will be used (only applies to functions).");
-ABSL_FLAG(std::string, reset, "",
+ABSL_FLAG(std::string, reset,
+          xls::CodegenFlagsProto::default_instance().reset(),
           "Name of the reset signal. If empty, no reset signal is used.");
-ABSL_FLAG(bool, reset_active_low, false,
+ABSL_FLAG(bool, reset_active_low,
+          xls::CodegenFlagsProto::default_instance().reset_active_low(),
           "Whether the reset signal is active low.");
-ABSL_FLAG(bool, reset_asynchronous, false,
+ABSL_FLAG(bool, reset_asynchronous,
+          xls::CodegenFlagsProto::default_instance().reset_asynchronous(),
           "Whether the reset signal is asynchronous.");
-ABSL_FLAG(bool, reset_data_path, true, "Whether to also reset the datapath.");
-ABSL_FLAG(bool, use_system_verilog, true,
+ABSL_FLAG(bool, reset_data_path,
+          xls::CodegenFlagsProto::default_instance().reset_data_path(),
+          "Whether to also reset the datapath.");
+ABSL_FLAG(bool, use_system_verilog,
+          xls::CodegenFlagsProto::default_instance().use_system_verilog(),
           "If true, emit SystemVerilog otherwise emit Verilog.");
-ABSL_FLAG(bool, separate_lines, false,
+ABSL_FLAG(bool, separate_lines,
+          xls::CodegenFlagsProto::default_instance().separate_lines(),
           "If true, emit every subexpression on a separate line.");
-ABSL_FLAG(int64_t, max_inline_depth, 5,
+ABSL_FLAG(int64_t, max_inline_depth,
+          xls::CodegenFlagsProto::default_instance().max_inline_depth(),
           "The maximum depth of subexpressions to include inline. Deeper "
           "expressions are emitted with extra wires/lines to reduce depth.");
-ABSL_FLAG(std::string, gate_format, "", "Format string to use for gate! ops.");
-ABSL_FLAG(std::string, assert_format, "",
+ABSL_FLAG(std::string, gate_format,
+          xls::CodegenFlagsProto::default_instance().gate_format(),
+          "Format string to use for gate! ops.");
+ABSL_FLAG(std::string, assert_format,
+          xls::CodegenFlagsProto::default_instance().assert_format(),
           "Format string to use for assertions.");
-ABSL_FLAG(std::string, smulp_format, "", "Format string to use for smulp.");
-ABSL_FLAG(std::string, streaming_channel_data_suffix, "",
-          "Suffix to append to data signals for streaming channels.");
-ABSL_FLAG(std::string, streaming_channel_valid_suffix, "_vld",
-          "Suffix to append to valid signals for streaming channels.");
-ABSL_FLAG(std::string, streaming_channel_ready_suffix, "_rdy",
-          "Suffix to append to ready signals for streaming channels.");
-ABSL_FLAG(std::string, umulp_format, "", "Format string to use for smulp.");
+ABSL_FLAG(std::string, smulp_format,
+          xls::CodegenFlagsProto::default_instance().smulp_format(),
+          "Format string to use for smulp.");
+ABSL_FLAG(
+    std::string, streaming_channel_data_suffix,
+    xls::CodegenFlagsProto::default_instance().streaming_channel_data_suffix(),
+    "Suffix to append to data signals for streaming channels.");
+ABSL_FLAG(
+    std::string, streaming_channel_valid_suffix,
+    xls::CodegenFlagsProto::default_instance().streaming_channel_valid_suffix(),
+    "Suffix to append to valid signals for streaming channels.");
+ABSL_FLAG(
+    std::string, streaming_channel_ready_suffix,
+    xls::CodegenFlagsProto::default_instance().streaming_channel_ready_suffix(),
+    "Suffix to append to ready signals for streaming channels.");
+ABSL_FLAG(std::string, umulp_format,
+          xls::CodegenFlagsProto::default_instance().umulp_format(),
+          "Format string to use for smulp.");
 ABSL_FLAG(std::vector<std::string>, ram_configurations, {},
           "A comma-separated list of ram configurations, each of the form "
           "ram_name:ram_kind[:<kind-specific configuration>]. For example, a "
@@ -146,16 +257,19 @@ ABSL_FLAG(std::vector<std::string>, ram_configurations, {},
           "conjunction with a scheduling constraint to ensure that the receive "
           "on the response channel comes a cycle after the send on the request "
           "channel.");
-ABSL_FLAG(bool, gate_recvs, true,
+ABSL_FLAG(bool, gate_recvs,
+          xls::CodegenFlagsProto::default_instance().gate_recvs(),
           "If true, emit logic to gate the data value to zero for a receive "
           "operation in Verilog. Otherwise, the data value is not gated.");
-ABSL_FLAG(std::string, fifo_module, "xls_fifo_wrapper",
+ABSL_FLAG(std::string, fifo_module,
+          xls::CodegenFlagsProto::default_instance().fifo_module(),
           "If provided, instantiates the provided module where (positive "
           "width) FIFOs are needed, passing the parameters Width, Depth, "
           "RegisterPushOutputs, RegisterPopOutputs, and EnableBypass; "
           "otherwise, materializes the FIFOs using an internal implementation."
           "See documentation for the requirements this module must meet.");
-ABSL_FLAG(std::string, nodata_fifo_module, "",
+ABSL_FLAG(std::string, nodata_fifo_module,
+          xls::CodegenFlagsProto::default_instance().nodata_fifo_module(),
           "If provided, instantiates the provided module where a no-data FIFO "
           "is required, passing the parameters Depth, RegisterPushOutputs, "
           "RegisterPopOutputs, and EnableBypass; otherwise, materializes the "
@@ -164,13 +278,17 @@ ABSL_FLAG(std::string, nodata_fifo_module, "",
 ABSL_FLAG(bool, materialize_internal_fifos, false,
           "If true and no `--fifo_module` is provided, FIFOs will be "
           "materialized using an internal implementation.");
-ABSL_FLAG(bool, array_index_bounds_checking, true,
-          "If true, emit bounds checking on array-index operations in Verilog. "
-          "Otherwise, the bounds checking is not evaluated.");
-ABSL_FLAG(int64_t, max_trace_verbosity, 0,
+ABSL_FLAG(
+    bool, array_index_bounds_checking,
+    xls::CodegenFlagsProto::default_instance().array_index_bounds_checking(),
+    "If true, emit bounds checking on array-index operations in Verilog. "
+    "Otherwise, the bounds checking is not evaluated.");
+ABSL_FLAG(int64_t, max_trace_verbosity,
+          xls::CodegenFlagsProto::default_instance().max_trace_verbosity(),
           "Maximum verbosity for traces. Traces with higher verbosity are "
           "stripped from codegen output. 0 by default.");
-ABSL_FLAG(bool, add_invariant_assertions, true,
+ABSL_FLAG(bool, add_invariant_assertions,
+          xls::CodegenFlagsProto::default_instance().add_invariant_assertions(),
           "If true, codegen will insert runtime assertions which check that "
           "certain IR-level invariants hold (e.g., one-hot selector "
           "invariants). Disable to omit these assertions.");
@@ -180,13 +298,17 @@ ABSL_FLAG(std::optional<std::string>, codegen_options_used_textproto_file,
           std::nullopt,
           "If present, path to write a protobuf recording all codegen args "
           "used (including those set on the cmd line).");
-ABSL_FLAG(std::string, register_merge_strategy, "IdentityOnly",
+ABSL_FLAG(std::string, register_merge_strategy,
+          MergeStrategyToString(xls::CodegenFlagsProto::default_instance()
+                                    .register_merge_strategy()),
           "What strategy to use for merging registers. Options are "
           "'IdentityOnly' and, 'DontMerge'/'None'.");
-ABSL_FLAG(bool, emit_sv_types, true,
+ABSL_FLAG(bool, emit_sv_types,
+          xls::CodegenFlagsProto::default_instance().emit_sv_types(),
           "Should types annotated with #[sv_type(NAME)] be emitted into "
           "verilog as NAME.");
-ABSL_FLAG(std::string, simulation_macro_name, "SIMULATION",
+ABSL_FLAG(std::string, simulation_macro_name,
+          xls::CodegenFlagsProto::default_instance().simulation_macro_name(),
           "Verilog macro name to use in an `ifdef guard for "
           "simulation-specific constructs such as $display statements. If "
           "prefixed with `!` the polarity of the guard is inverted (`ifndef).");
@@ -194,7 +316,9 @@ ABSL_FLAG(std::vector<std::string>, assertion_macro_names, {"ASSERT_ON"},
           "Verilog macro names to use in an `ifdef guard for assertions. If "
           "prefixed with `!` the polarity of the guard is inverted (`ifndef).");
 ABSL_FLAG(
-    std::string, codegen_version, "0",
+    std::string, codegen_version,
+    CodegenVersionToString(
+        xls::CodegenFlagsProto::default_instance().codegen_version()),
     "Version of codegen to use. Can be 1 or 1.0 (original codegen), 1.5 "
     "(refactored codegen), or 2 or 2.0 (revised codegen with a new "
     "architecture). If set to 0, will use the default codegen version (1.5). "
@@ -217,19 +341,25 @@ ABSL_FLAG(std::string, reference_residual_data_path, "",
 ABSL_FLAG(std::string, block_metrics_path, "",
           "The filename to write the metrics, including the bill of "
           "materials, for the generated Verilog file");
-ABSL_FLAG(std::string, source_annotation_strategy, "none",
-          "What strategy to use annotating generated code with references "
-          "the DSLX source code. Options are 'none', 'comment', 'attribute', "
-          "and 'directive'");
 ABSL_FLAG(
-    bool, preserve_ports, true,
+    std::string, source_annotation_strategy,
+    SourceAnnotationStrategyToString(xls::CodegenFlagsProto::default_instance()
+                                         .source_annotation_strategy()),
+    "What strategy to use annotating generated code with references "
+    "the DSLX source code. Options are 'none', 'comment', 'attribute', "
+    "and 'directive'");
+ABSL_FLAG(
+    bool, preserve_ports,
+    xls::CodegenFlagsProto::default_instance().preserve_ports(),
     "True by default; specifies that XLS should use a consistent naming scheme "
     "for boundary ports. If disabled (with `--nopreserve_ports`), anything "
     "that consumes the generated Verilog should use the block "
     "signature/metadata to find the ports corresponding to each channel.");
-ABSL_FLAG(bool, embed_child_block_signatures, false,
-          "If true, recursively embed each instantiated child block's "
-          "signature into the parent block's signature.");
+ABSL_FLAG(
+    bool, embed_child_block_signatures,
+    xls::CodegenFlagsProto::default_instance().embed_child_block_signatures(),
+    "If true, recursively embed each instantiated child block's "
+    "signature into the parent block's signature.");
 
 struct SeedSeq {
   std::vector<int32_t> elements;
@@ -393,6 +523,7 @@ static absl::StatusOr<bool> SetOptionsFromFlags(CodegenFlagsProto& proto) {
 
   // Generator is somewhat special, in that we need to parse it to its enum
   // form.
+  any_flags_set |= FLAGS_generator.IsSpecifiedOnCommandLine();
   std::string generator_str = absl::GetFlag(FLAGS_generator);
   if (generator_str == "pipeline") {
     proto.set_generator(GENERATOR_KIND_PIPELINE);
@@ -410,12 +541,20 @@ static absl::StatusOr<bool> SetOptionsFromFlags(CodegenFlagsProto& proto) {
   POPULATE_FLAG(flop_outputs);
   POPULATE_FLAG(emit_sv_types);
   POPULATE_FLAG(simulation_macro_name);
-  POPULATE_REPEATED_FLAG(assertion_macro_names);
+  {
+    any_flags_set |= FLAGS_assertion_macro_names.IsSpecifiedOnCommandLine();
+    auto names = absl::GetFlag(FLAGS_assertion_macro_names);
+    proto.mutable_assertion_macros()->mutable_macro_names()->Assign(
+        names.begin(), names.end());
+    proto.clear_assertion_macro_names();
+  }
 
+  any_flags_set |= FLAGS_flop_inputs_kind.IsSpecifiedOnCommandLine();
   XLS_ASSIGN_OR_RETURN(
       IOKindProto flop_inputs_kind,
       IOKindProtoFromString(absl::GetFlag(FLAGS_flop_inputs_kind)));
   proto.set_flop_inputs_kind(flop_inputs_kind);
+  any_flags_set |= FLAGS_flop_outputs_kind.IsSpecifiedOnCommandLine();
   XLS_ASSIGN_OR_RETURN(
       IOKindProto flop_outputs_kind,
       IOKindProtoFromString(absl::GetFlag(FLAGS_flop_outputs_kind)));
@@ -453,14 +592,17 @@ static absl::StatusOr<bool> SetOptionsFromFlags(CodegenFlagsProto& proto) {
   // Optimizations
   POPULATE_FLAG(gate_recvs);
   POPULATE_FLAG(array_index_bounds_checking);
+  POPULATE_FLAG(max_trace_verbosity);
+  POPULATE_FLAG(preserve_ports);
   POPULATE_FLAG(embed_child_block_signatures);
   POPULATE_FLAG(fifo_module);
   POPULATE_FLAG(nodata_fifo_module);
 
+  any_flags_set |= FLAGS_materialize_internal_fifos.IsSpecifiedOnCommandLine();
   if (absl::GetFlag(FLAGS_materialize_internal_fifos)) {
     any_flags_set = true;
     if (!FLAGS_fifo_module.IsSpecifiedOnCommandLine()) {
-      proto.clear_fifo_module();
+      proto.set_fifo_module("");
     } else {
       XLS_RET_CHECK(proto.fifo_module().empty())
           << "Cannot specify both --fifo_module and "

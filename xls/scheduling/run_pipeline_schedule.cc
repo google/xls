@@ -548,14 +548,7 @@ absl::StatusOr<PipelineSchedule> RunPipelineScheduleInternal(
     const SchedulingOptions& options,
     absl::optional_ref<const ProcElaboration> elab,
     const synthesis::Synthesizer* synthesizer) {
-  if (!options.pipeline_stages().has_value() &&
-      !options.clock_period_ps().has_value()) {
-    return absl::InvalidArgumentError(
-        "Pipeline scheduling requires either --pipeline_stages or "
-        "--clock_period_ps to be specified; see "
-        "https://google.github.io/xls/codegen_options/"
-        "#pipelining-and-scheduling-options for details.");
-  }
+  XLS_RETURN_IF_ERROR(ValidatePipelineScheduleOptions(options));
 
   if (f->IsProc() && f->AsProcOrDie()->is_new_style_proc() &&
       !elab.has_value()) {

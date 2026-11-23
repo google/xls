@@ -160,9 +160,8 @@ struct CodegenMetadata {
         metadata.scheduling_options,
         SetUpSchedulingOptions(scheduling_options_flags_proto, package));
 
-    QCHECK(metadata.scheduling_options.pipeline_stages() != 0 ||
-           metadata.scheduling_options.clock_period_ps() != 0)
-        << "Must specify --pipeline_stages or --clock_period_ps (or both).";
+    XLS_RETURN_IF_ERROR(
+        ValidatePipelineScheduleOptions(metadata.scheduling_options));
 
     // Add IO constraints for RAMs.
     for (const xls::verilog::RamConfiguration& ram_config :
@@ -342,14 +341,6 @@ absl::StatusOr<verilog::CodegenOptions> CodegenOptionsFromProto(
     options.flop_single_value_channels(p.flop_single_value_channels());
     options.add_idle_output(p.add_idle_output());
 
-    // Set invariant assertion emission regardless of generator kind.  Proto3
-    // returns the default (false) when the field is unset, so if the field is
-    // not present we emit assertions by default via the CodegenOptions default
-    // of `true`.
-    if (p.has_add_invariant_assertions()) {
-      options.add_invariant_assertions(p.add_invariant_assertions());
-    }
-
     if (!p.reset().empty()) {
       options.reset(p.reset(), p.reset_asynchronous(), p.reset_active_low(),
                     p.reset_data_path());
@@ -372,13 +363,7 @@ absl::StatusOr<verilog::CodegenOptions> CodegenOptionsFromProto(
     options.output_port_name(p.output_port_name());
   }
 
-  // Set invariant assertion emission regardless of generator kind.  Proto3
-  // returns the default (false) when the field is unset, so if the field is
-  // not present we emit assertions by default via the CodegenOptions default
-  // of `true`.
-  if (p.has_add_invariant_assertions()) {
-    options.add_invariant_assertions(p.add_invariant_assertions());
-  }
+  options.add_invariant_assertions(p.add_invariant_assertions());
 
   options.use_system_verilog(p.use_system_verilog());
   options.separate_lines(p.separate_lines());
@@ -408,13 +393,17 @@ absl::StatusOr<verilog::CodegenOptions> CodegenOptionsFromProto(
   options.streaming_channel_valid_suffix(p.streaming_channel_valid_suffix());
   options.streaming_channel_ready_suffix(p.streaming_channel_ready_suffix());
 
-  if (p.has_emit_sv_types()) {
-    options.emit_sv_types(p.emit_sv_types());
-  }
+  options.emit_sv_types(p.emit_sv_types());
 
   options.set_simulation_macro_name(p.simulation_macro_name());
-  options.set_assertion_macro_names(std::vector<std::string>(
-      p.assertion_macro_names().begin(), p.assertion_macro_names().end()));
+  if (p.has_assertion_macros()) {
+    options.set_assertion_macro_names(
+        std::vector<std::string>(p.assertion_macros().macro_names().begin(),
+                                 p.assertion_macros().macro_names().end()));
+  } else if (!p.assertion_macro_names().empty()) {
+    options.set_assertion_macro_names(std::vector<std::string>(
+        p.assertion_macro_names().begin(), p.assertion_macro_names().end()));
+  }
 
   std::vector<verilog::RamConfiguration> ram_configurations;
   ram_configurations.reserve(p.ram_configurations_size());
@@ -441,14 +430,8 @@ absl::StatusOr<verilog::CodegenOptions> CodegenOptionsFromProto(
       break;
     case STRATEGY_INVALID:
     default:
-      // If unset, use the default strategy of "don't merge".
-      if (!p.has_register_merge_strategy()) {
-        options.register_merge_strategy(
-            verilog::CodegenOptions::RegisterMergeStrategy::kDontMerge);
-      } else {
-        return absl::InvalidArgumentError(absl::StrFormat(
-            "Unknown merge strategy: %v", p.register_merge_strategy()));
-      }
+      return absl::InvalidArgumentError(absl::StrFormat(
+          "Unknown merge strategy: %v", p.register_merge_strategy()));
   }
 
   if (p.has_source_annotation_strategy()) {
@@ -504,9 +487,8 @@ absl::StatusOr<verilog::CodegenOptions> CodegenOptionsFromProto(
     options.set_ir_dump_path(p.ir_dump_path());
   }
 
-  if (p.has_preserve_ports()) {
-    options.preserve_ports(p.preserve_ports());
-  }
+  options.preserve_ports(p.preserve_ports());
+  options.set_max_trace_verbosity(p.max_trace_verbosity());
 
   XLS_RETURN_IF_ERROR(CodegenFlagsHandlerRegistry::Process(p, options));
   return options;

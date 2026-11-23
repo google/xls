@@ -18,7 +18,6 @@ module pipelined_proc__1(
   reg p1_inputs_valid;
   wire internal_valid_inv;
   wire internal_flop_rdy;
-  wire not_168;
   wire p1_stage_done;
   wire stage_outputs_ready_0;
   wire p0_stage_done;
@@ -29,9 +28,8 @@ module pipelined_proc__1(
   wire or_191;
   assign internal_valid_inv = ~__internal_valid_reg;
   assign internal_flop_rdy = internal_rdy | internal_valid_inv;
-  assign not_168 = ~p1_inputs_valid;
   assign p1_stage_done = p1_inputs_valid & internal_flop_rdy;
-  assign stage_outputs_ready_0 = not_168 | p1_stage_done;
+  assign stage_outputs_ready_0 = ~p1_inputs_valid | p1_stage_done;
   assign p0_stage_done = __in_valid_reg & stage_outputs_ready_0;
   assign in_valid_inv = ~__in_valid_reg;
   assign in_flop_rdy = p0_stage_done | in_valid_inv;
@@ -79,7 +77,6 @@ module proc_out(
   reg p1_inputs_valid;
   wire out_valid_inv;
   wire out_flop_rdy;
-  wire not_224;
   wire p1_stage_done;
   wire stage_outputs_ready_0;
   wire p0_stage_done;
@@ -90,9 +87,8 @@ module proc_out(
   wire or_247;
   assign out_valid_inv = ~__out_valid_reg;
   assign out_flop_rdy = out_rdy | out_valid_inv;
-  assign not_224 = ~p1_inputs_valid;
   assign p1_stage_done = p1_inputs_valid & out_flop_rdy;
-  assign stage_outputs_ready_0 = not_224 | p1_stage_done;
+  assign stage_outputs_ready_0 = ~p1_inputs_valid | p1_stage_done;
   assign p0_stage_done = __internal_valid_reg & stage_outputs_ready_0;
   assign internal_valid_inv = ~__internal_valid_reg;
   assign internal_flop_rdy = p0_stage_done | internal_valid_inv;
