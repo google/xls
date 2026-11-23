@@ -892,8 +892,17 @@ absl::Status RealMain(std::string_view path) {
     std::cout << proc_info;
 
     if (absl::GetFlag(FLAGS_run_evaluators)) {
-      XLS_RETURN_IF_ERROR(
-          RunInterpreterAndJit(package->blocks()[0].get(), "block"));
+      FunctionBase* top_block = nullptr;
+      if (package->GetTop().has_value() &&
+          package->GetTop().value()->IsBlock()) {
+        top_block = package->GetTop().value();
+      } else {
+        XLS_RET_CHECK(!package->blocks().empty())
+            << "Expected at least one block after codegen.";
+        top_block = package->blocks()[0].get();
+      }
+      VLOG(1) << "Evaluating block: " << top_block->name();
+      XLS_RETURN_IF_ERROR(RunInterpreterAndJit(top_block, "block"));
     }
   }
 
