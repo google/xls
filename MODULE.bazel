@@ -206,7 +206,7 @@ git_override(
 
 git_override(
     module_name = "openroad",
-    commit = "80a6c68e15351faf64a33f63ed03a3f5acfbc2a3",
+    commit = "7b26270095b3c710bdbac50d09af1767e2265572",
     init_submodules = True,
     remote = "https://github.com/The-OpenROAD-Project/OpenROAD.git",
 )

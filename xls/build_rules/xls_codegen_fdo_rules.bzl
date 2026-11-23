@@ -121,7 +121,7 @@ xls_ir_verilog_attrs = {
         cfg = "exec",
     ),
     "sta_tool": attr.label(
-        default = Label("@org_theopenroadproject//src/sta:opensta"),
+        default = Label("@org_theopenroadproject//openroad/sta:opensta"),
         executable = True,
         cfg = "exec",
     ),
