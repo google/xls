@@ -635,6 +635,31 @@ cc_test(
     ],
 )
 
+cc_test(
+    name = "function_jit_fuzz_test",
+    srcs = ["function_jit_fuzz_test.cc"],
+    deps = [
+        ":function_jit",
+        ":jit_evaluator_options",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/fuzzing:fuzztest",
+        "//xls/common/status:matchers",
+        "//xls/fuzzer/ir_fuzzer:ir_fuzz_domain",
+        "//xls/fuzzer/ir_fuzzer:ir_fuzz_test_library",
+        "//xls/interpreter:evaluator_options",
+        "//xls/interpreter:ir_interpreter",
+        "//xls/ir",
+        "//xls/ir:events",
+        "//xls/ir:op",
+        "//xls/ir:value",
+        "//xls/ir:value_utils",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/types:span",
+        "@googletest//:gtest",
+    ],
+)
+
 # Separate test since for the aot stuff to build at all function-jit needs to be *mostly* working.
 cc_test(
     name = "function_jit_aot_test",
