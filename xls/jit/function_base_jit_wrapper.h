@@ -39,7 +39,6 @@
 #include "xls/jit/aot_entrypoint.pb.h"
 #include "xls/jit/function_base_jit.h"
 #include "xls/jit/function_jit.h"
-#include "xls/jit/jit_runtime.h"
 
 namespace xls {
 
@@ -93,10 +92,8 @@ class BaseFunctionJitWrapper {
     const AotEntrypointProto& entrypoint_proto = proto.entrypoint(0);
     XLS_RET_CHECK_EQ(entrypoint_proto.type(), AotEntrypointProto::FUNCTION);
     XLS_RET_CHECK(entrypoint_proto.has_function_metadata());
-    XLS_ASSIGN_OR_RETURN(TargetLayoutInfo target_layout,
-                         ResolveTargetLayoutInfo(proto));
     XLS_ASSIGN_OR_RETURN(auto jit, FunctionJit::CreateFromAot(
-                                       proto.entrypoint(0), target_layout,
+                                       proto.entrypoint(0), proto.data_layout(),
                                        unpacked_entrypoint, packed_entrypoint));
 
     auto res = std::unique_ptr<RealType>(

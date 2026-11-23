@@ -62,8 +62,8 @@ class FunctionJit {
   // Returns an object containing an AOT-compiled version of the specified XLS
   // function.
   static absl::StatusOr<std::unique_ptr<FunctionJit>> CreateFromAot(
-      const AotEntrypointProto& entrypoint,
-      const TargetLayoutInfo& target_layout, JitFunctionType function_unpacked,
+      const AotEntrypointProto& entrypoint, std::string_view data_layout,
+      JitFunctionType function_unpacked,
       std::optional<JitFunctionType> function_packed = std::nullopt,
       const EvaluatorOptions& options = EvaluatorOptions());
 

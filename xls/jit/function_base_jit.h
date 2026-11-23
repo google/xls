@@ -268,7 +268,6 @@ struct JitObjectCode {
   std::vector<uint8_t> object_code;
   std::vector<FunctionEntrypoint> entrypoints;
   llvm::DataLayout data_layout;
-  TargetLayoutInfo target_layout;
 
   // If set a package that needs to stay alive to keep 'FunctionEntrypoint' (ie
   // FunctionBase*, type maps etc) valid.

@@ -105,23 +105,6 @@ message AotEntrypointProto {
   repeated string outputs_names = 21;
 }
 
-// Precomputed target alignment and endianness parameters extracted from the
-// compile-time `llvm::DataLayout`, allowing AOT runtimes to instantiate
-// `JitRuntime` directly without parsing a layout string or probing an
-// `LLVMContext`.
-message TargetLayoutProto {
-  bool is_little_endian = 1;
-  int64 stack_alignment = 2;
-  int64 struct_abi_alignment = 3;
-  int64 struct_pref_alignment = 4;
-  int64 token_abi_alignment = 5;
-  int64 token_pref_alignment = 6;
-  // Indexed by `log2_bits` in `[0, kMaxLog2Bits]` (`24` entries; indices `0..2`
-  // are unused `0`s and indices `3..23` correspond to `i8`..`i8388608`).
-  repeated int64 int_abi_alignments = 7;
-  repeated int64 int_pref_alignments = 8;
-}
-
 // A single object file can have entrypoints for many different targets. This is
 // a list of all of the targets contained.
 message AotPackageEntrypointsProto {
@@ -129,8 +112,4 @@ message AotPackageEntrypointsProto {
 
   // The LLVM DataLayout used in this compile.
   optional string data_layout = 2;
-
-  // Precomputed target alignment and endianness rules derived from
-  // `data_layout` during AOT compilation.
-  optional TargetLayoutProto target_layout = 4;
 }

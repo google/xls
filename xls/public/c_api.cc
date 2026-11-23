@@ -39,6 +39,7 @@
 #include "absl/types/span.h"
 #include "llvm/include/llvm/IR/DataLayout.h"
 #include "llvm/include/llvm/IR/LLVMContext.h"
+#include "llvm/include/llvm/Support/Error.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/init_xls.h"
 #include "xls/dslx/mangle.h"
@@ -57,12 +58,9 @@
 #include "xls/ir/value.h"
 #include "xls/ir/verifier.h"
 #include "xls/jit/aot_entrypoint.h"
-#include "xls/jit/aot_entrypoint.pb.h"
-#include "xls/jit/function_base_jit.h"
 #include "xls/jit/function_jit.h"
-#include "xls/jit/jit_callbacks.h"
-#include "xls/jit/jit_runtime.h"
 #include "xls/jit/llvm_type_converter.h"
+#include "xls/jit/orc_jit.h"
 #include "xls/public/c_api_format_preference.h"
 #include "xls/public/c_api_impl_helpers.h"
 #include "xls/public/runtime_codegen_actions.h"
@@ -1435,8 +1433,6 @@ bool xls_aot_compile_function(struct xls_function* function, char** error_out,
   xls::AotPackageEntrypointsProto entrypoints_proto;
   *entrypoints_proto.mutable_data_layout() =
       object_code->data_layout.getStringRepresentation();
-  *entrypoints_proto.mutable_target_layout() =
-      object_code->target_layout.ToProto();
   *entrypoints_proto.add_entrypoint() = std::move(*aot_entrypoint);
 
   *object_code_out = nullptr;
@@ -1496,10 +1492,24 @@ bool xls_aot_exec_context_create(const uint8_t* entrypoints_proto,
     *out = nullptr;
     return false;
   }
-  absl::StatusOr<xls::TargetLayoutInfo> target_layout =
-      xls::ResolveTargetLayoutInfo(proto);
-  if (!target_layout.ok()) {
-    *error_out = xls::ToOwnedCString(target_layout.status().ToString());
+  if (!proto.has_data_layout()) {
+    *error_out = xls::ToOwnedCString(
+        absl::InvalidArgumentError(
+            "AotPackageEntrypointsProto missing required `data_layout`")
+            .ToString());
+    *out = nullptr;
+    return false;
+  }
+
+  llvm::Expected<llvm::DataLayout> maybe_data_layout =
+      llvm::DataLayout::parse(proto.data_layout());
+  if (!maybe_data_layout) {
+    std::string parse_error = llvm::toString(maybe_data_layout.takeError());
+    *error_out = xls::ToOwnedCString(
+        absl::InvalidArgumentError(
+            absl::StrFormat("Unable to parse '%s' to an llvm data-layout: %s",
+                            proto.data_layout(), parse_error))
+            .ToString());
     *out = nullptr;
     return false;
   }
@@ -1512,7 +1522,7 @@ bool xls_aot_exec_context_create(const uint8_t* entrypoints_proto,
     return false;
   }
   context->jit_runtime = std::unique_ptr<xls::JitRuntime>(
-      new (std::nothrow) xls::JitRuntime(*target_layout));
+      new (std::nothrow) xls::JitRuntime(*maybe_data_layout));
   if (context->jit_runtime == nullptr) {
     delete context;
     *error_out = xls::ToOwnedCString(

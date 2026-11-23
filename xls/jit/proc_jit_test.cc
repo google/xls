@@ -34,8 +34,8 @@ namespace {
 
 JitRuntime* GetJitRuntime() {
   static auto orc_jit = OrcJit::Create().value();
-  static auto jit_runtime = std::make_unique<JitRuntime>(
-      orc_jit->CreateDataLayout().value(), *orc_jit->GetContext());
+  static auto jit_runtime =
+      std::make_unique<JitRuntime>(orc_jit->CreateDataLayout().value());
   return jit_runtime.get();
 }
 
@@ -54,8 +54,8 @@ std::unique_ptr<ProcEvaluator> EvaluatorFromProc(
 
 std::unique_ptr<ChannelQueueManager> QueueManagerForPackage(Package* package) {
   return JitChannelQueueManager::CreateThreadSafe(
-             package, std::make_unique<JitRuntime>(
-                          GetJitRuntime()->target_layout_info()))
+             package,
+             std::make_unique<JitRuntime>(GetJitRuntime()->data_layout()))
       .value();
 }
 // Instantiate and run all the tests in proc_evaluator_test_base.cc.

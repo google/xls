@@ -32,6 +32,7 @@
 #include "llvm/include/llvm/IR/DataLayout.h"
 #include "llvm/include/llvm/IR/LLVMContext.h"
 #include "llvm/include/llvm/IR/Module.h"
+#include "llvm/include/llvm/Support/Error.h"
 #include "llvm/include/llvm/Target/TargetMachine.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
@@ -131,8 +132,6 @@ absl::StatusOr<JitObjectCode> GetAotObjectCode(
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<llvm::TargetMachine> target,
                        compiler->CreateTargetMachine());
   llvm::DataLayout layout = target->createDataLayout();
-  TargetLayoutInfo target_layout =
-      TargetLayoutInfo::FromDataLayout(layout, *compiler->GetContext());
   SharedCompiler sc(elaboration.top()
                         ? elaboration.top()->GetName()
                         : elaboration.procs().front()->package()->name(),
@@ -152,7 +151,6 @@ absl::StatusOr<JitObjectCode> GetAotObjectCode(
       .object_code = std::move(object_code),
       .entrypoints = std::move(entrypoints),
       .data_layout = layout,
-      .target_layout = target_layout,
   };
 }
 
@@ -201,14 +199,18 @@ absl::StatusOr<std::unique_ptr<SerialProcRuntime>> CreateAotRuntime(
     return procs_by_name.contains(p->name()) &&
            procs_by_name[p->name()].proc == p;
   })) << "Elaboration has unknown procs";
-  XLS_ASSIGN_OR_RETURN(TargetLayoutInfo target_layout,
-                       ResolveTargetLayoutInfo(entrypoints));
+  XLS_RET_CHECK(entrypoints.has_data_layout())
+      << "Data layout required to create an aot runtime";
+  llvm::Expected<llvm::DataLayout> layout =
+      llvm::DataLayout::parse(entrypoints.data_layout());
+  XLS_RET_CHECK(layout) << "Unable to parse '" << entrypoints.data_layout()
+                        << "' to an llvm data-layout.";
   // Create a queue manager for the queues. This factory verifies that there an
   // receive only queue for every receive only channel.
   XLS_ASSIGN_OR_RETURN(
       std::unique_ptr<JitChannelQueueManager> queue_manager,
       JitChannelQueueManager::CreateThreadSafe(
-          std::move(elaboration), std::make_unique<JitRuntime>(target_layout)));
+          std::move(elaboration), std::make_unique<JitRuntime>(*layout)));
   // Create a ProcJit for each Proc.
   std::vector<std::unique_ptr<ProcEvaluator>> proc_jits;
   for (const auto& [_, jit_args] : procs_by_name) {
@@ -246,8 +248,7 @@ absl::StatusOr<std::unique_ptr<SerialProcRuntime>> CreateRuntime(
   XLS_ASSIGN_OR_RETURN(
       std::unique_ptr<JitChannelQueueManager> queue_manager,
       JitChannelQueueManager::CreateThreadSafe(
-          std::move(elaboration),
-          std::make_unique<JitRuntime>(layout, *comp->GetContext())));
+          std::move(elaboration), std::make_unique<JitRuntime>(layout)));
 
   // Create a ProcJit for each Proc.
   std::vector<std::unique_ptr<ProcEvaluator>> proc_jits;
