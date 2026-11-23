@@ -198,7 +198,9 @@ absl::StatusOr<Channel*> ChannelScope::DefineImplicitChannel(
     const ImplicitChannelDecl& decl, const StructMemberNode* member,
     const TypeInfo* type_info) {
   XLS_RET_CHECK(function_context_.has_value());
-  std::string_view name = decl.GetNamedMember()->name();
+  std::string_view name = decl.name.has_value()
+                              ? std::string_view(decl.name->name)
+                              : decl.GetNamedMember()->name();
   VLOG(4) << "ChannelScope::DefineImplicitChannel: " << name;
   XLS_ASSIGN_OR_RETURN(
       xls::Type * ir_type,
