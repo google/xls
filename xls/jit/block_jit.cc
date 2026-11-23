@@ -33,7 +33,6 @@
 #include "absl/types/optional_ref.h"
 #include "absl/types/span.h"
 #include "llvm/include/llvm/IR/DataLayout.h"
-#include "llvm/include/llvm/Support/Error.h"
 #include "xls/codegen/block_inlining_pass.h"
 #include "xls/codegen/codegen_options.h"
 #include "xls/codegen/codegen_pass.h"
@@ -354,7 +353,8 @@ absl::StatusOr<std::unique_ptr<BlockJit>> BlockJit::Create(
           opt_level,
           /*include_observer_callbacks=*/support_observer_callbacks));
   XLS_ASSIGN_OR_RETURN(auto data_layout, orc_jit->CreateDataLayout());
-  auto jit_runtime = std::make_unique<JitRuntime>(data_layout);
+  auto jit_runtime = std::make_unique<JitRuntime>(
+      TargetLayoutInfo::FromDataLayout(data_layout, *orc_jit->GetContext()));
   if (elab.top()->block() &&
       (*elab.top()->block())->GetInstantiations().empty()) {
     block = elab.blocks().front();
@@ -392,15 +392,12 @@ absl::StatusOr<std::unique_ptr<BlockJit>> BlockJit::Create(
 }
 
 /* static */ absl::StatusOr<std::unique_ptr<BlockJit>> BlockJit::CreateFromAot(
-    const AotEntrypointProto& entrypoint, std::string_view data_layout,
+    const AotEntrypointProto& entrypoint, const TargetLayoutInfo& target_layout,
     JitFunctionType func_ptr) {
   XLS_ASSIGN_OR_RETURN(
       JittedFunctionBase jfb,
       JittedFunctionBase::BuildFromAot(entrypoint, func_ptr,
                                        /*packed_entrypoint=*/std::nullopt));
-  llvm::Expected<llvm::DataLayout> layout =
-      llvm::DataLayout::parse(data_layout);
-  XLS_RET_CHECK(layout) << "bad layout: " << data_layout;
   XLS_ASSIGN_OR_RETURN(InterfaceMetadata metadata,
                        InterfaceMetadata::CreateFromAotEntrypoint(entrypoint));
   absl::flat_hash_map<std::string, std::string> renamed_regs;
@@ -418,7 +415,7 @@ absl::StatusOr<std::unique_ptr<BlockJit>> BlockJit::Create(
   }
   return std::unique_ptr<BlockJit>(new ElaboratedBlockJit(
       std::move(metadata), std::move(renamed_regs), std::move(added_regs),
-      std::make_unique<JitRuntime>(*layout),
+      std::make_unique<JitRuntime>(target_layout),
       /*orc_jit=*/nullptr, std::move(jfb),
       /*support_observer_callbacks=*/false));
 }
@@ -428,6 +425,8 @@ absl::StatusOr<std::unique_ptr<BlockJit>> BlockJit::Create(
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<AotCompiler> comp,
                        AotCompiler::Create(jit_options));
   XLS_ASSIGN_OR_RETURN(llvm::DataLayout data_layout, comp->CreateDataLayout());
+  TargetLayoutInfo target_layout =
+      TargetLayoutInfo::FromDataLayout(data_layout, *comp->GetContext());
   // NB We could avoid doing a package clone if there are no instantiations but
   // since this is aot anyway its easier to just not bother. The cloned package
   // isn't going to be long lived anyway.
@@ -450,6 +449,7 @@ absl::StatusOr<std::unique_ptr<BlockJit>> BlockJit::Create(
               },
           },
       .data_layout = data_layout,
+      .target_layout = target_layout,
       .package = std::move(jit_data.cloned_package),
   };
 }

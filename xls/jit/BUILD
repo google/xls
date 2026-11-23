@@ -169,6 +169,7 @@ cc_binary(
         ":function_jit",
         ":jit_evaluator_options",
         ":jit_proc_runtime",
+        ":jit_runtime",
         ":llvm_compiler",
         ":llvm_type_converter",
         ":observer",
@@ -300,6 +301,7 @@ cc_library(
         ":aot_entrypoint_cc_proto",
         ":function_base_jit",
         ":function_jit",
+        ":jit_runtime",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "//xls/ir:events",
@@ -326,6 +328,7 @@ cc_library(
         ":aot_entrypoint_cc_proto",
         ":block_jit",
         ":function_base_jit",
+        ":jit_runtime",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "//xls/interpreter:block_evaluator",
@@ -790,25 +793,46 @@ cc_library(
     srcs = ["jit_runtime.cc"],
     hdrs = ["jit_runtime.h"],
     deps = [
-        ":llvm_type_converter",
+        ":aot_entrypoint_cc_proto",
+        ":type_buffer_metadata",
         "//xls/common:bits_util",
         "//xls/common:math_util",
+        "//xls/common/status:status_macros",
         "//xls/ir:bits",
         "//xls/ir:type",
         "//xls/ir:value",
-        "@abseil-cpp//absl/base:core_headers",
+        "@abseil-cpp//absl/container:flat_hash_map",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/strings:str_format",
-        "@abseil-cpp//absl/synchronization",
         "@abseil-cpp//absl/types:span",
-        "@llvm-project//llvm:AArch64AsmParser",  # build_cleaner: keep
-        "@llvm-project//llvm:AArch64CodeGen",  # build_cleaner: keep
         "@llvm-project//llvm:Core",
         "@llvm-project//llvm:Support",
-        "@llvm-project//llvm:X86AsmParser",  # build_cleaner: keep
-        "@llvm-project//llvm:X86CodeGen",  # build_cleaner: keep
+    ],
+)
+
+cc_test(
+    name = "jit_runtime_test",
+    srcs = ["jit_runtime_test.cc"],
+    deps = [
+        ":aot_entrypoint_cc_proto",
+        ":jit_runtime",
+        "//xls/common:bits_util",
+        "//xls/common:math_util",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/ir",
+        "//xls/ir:bits",
+        "//xls/ir:type",
+        "//xls/ir:value",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:status_matchers",
+        "@abseil-cpp//absl/types:span",
+        "@googletest//:gtest",
+        "@llvm-project//llvm:ir_headers",
     ],
 )
 

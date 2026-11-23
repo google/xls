@@ -53,6 +53,7 @@
 #include "xls/jit/function_jit.h"
 #include "xls/jit/jit_evaluator_options.h"
 #include "xls/jit/jit_proc_runtime.h"
+#include "xls/jit/jit_runtime.h"
 #include "xls/jit/llvm_compiler.h"
 #include "xls/jit/llvm_type_converter.h"
 #include "xls/jit/observer.h"
@@ -276,6 +277,8 @@ absl::Status RealMain(const std::string& input_ir_path,
     AotPackageEntrypointsProto all_entrypoints;
     *all_entrypoints.mutable_data_layout() =
         object_code->data_layout.getStringRepresentation();
+    *all_entrypoints.mutable_target_layout() =
+        object_code->target_layout.ToProto();
 
     auto context = std::make_unique<llvm::LLVMContext>();
     LlvmTypeConverter type_converter(context.get(), object_code->data_layout);
