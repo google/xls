@@ -462,6 +462,8 @@ dslx_lang_test(
     convert_to_ir = True,
 )
 
+dslx_lang_test(name = "impl_self_struct_instance")
+
 dslx_lang_test(name = "subtract_to_negative")
 
 dslx_lang_test(name = "trace")
