@@ -312,7 +312,7 @@ absl::StatusOr<TickResult> ProcInterpreter::Tick(
       cont->SetNodeExecutionIndex(i + 1);
       // Raise a status error if interpreter events indicate failure such as a
       // failed assert.
-      XLS_RETURN_IF_ERROR(InterpreterEventsToStatus(cont->GetEvents()));
+      XLS_RETURN_IF_ERROR(cont->GetEvents().ToStatus());
       return TickResult{
           .execution_state = TickExecutionState::kSentOnChannel,
           .channel_instance = result.sent_channel_instance,
@@ -324,7 +324,7 @@ absl::StatusOr<TickResult> ProcInterpreter::Tick(
       cont->SetNodeExecutionIndex(i);
       // Raise a status error if interpreter events indicate failure such as a
       // failed assert.
-      XLS_RETURN_IF_ERROR(InterpreterEventsToStatus(cont->GetEvents()));
+      XLS_RETURN_IF_ERROR(cont->GetEvents().ToStatus());
       return TickResult{
           .execution_state = TickExecutionState::kBlockedOnReceive,
           .channel_instance = result.blocked_channel_instance,
@@ -341,7 +341,7 @@ absl::StatusOr<TickResult> ProcInterpreter::Tick(
     next_state[index] = ir_interpreter.ResolveAsValue(next_values[0]->value());
     if (next_values.size() > 1) {
       if (!cont->GetEvents().GetAssertMessages().empty()) {
-        XLS_RETURN_IF_ERROR(InterpreterEventsToStatus(cont->GetEvents()));
+        XLS_RETURN_IF_ERROR(cont->GetEvents().ToStatus());
       }
       return absl::AlreadyExistsError(absl::StrFormat(
           "Multiple active next values for state element %d (\"%s\") in a "
@@ -357,7 +357,7 @@ absl::StatusOr<TickResult> ProcInterpreter::Tick(
 
   // Raise a status error if interpreter events indicate failure such as a
   // failed assert.
-  XLS_RETURN_IF_ERROR(InterpreterEventsToStatus(cont->GetEvents()));
+  XLS_RETURN_IF_ERROR(cont->GetEvents().ToStatus());
 
   return TickResult{.execution_state = TickExecutionState::kCompleted,
                     .channel_instance = std::nullopt,
