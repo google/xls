@@ -2531,6 +2531,64 @@ top fn f_top(y: bits[32]) -> bits[32] {
 
 
 
+## equiv_simp - Equivalence Simplification {#equiv_simp}
+
+
+Fixed-point scalar and array simplification capped at opt level 2 for equivalence checking.
+
+Omits hardware QoR passes that bloat SMT formulas or disrupt cross-design structure (such as select_simp, arith_simp, reassociation, concat_simp, and table_switch) and avoids O3 splitting.
+
+
+[Text-proto](http://github.com/google/xls/tree/main/xls/passes/optimization_pass_pipeline.txtpb)
+
+
+### Options Set
+
+
+Run to a fixedpoint.
+
+
+
+
+
+Cap opt level: 2
+
+
+
+
+### Invoked Passes
+
+
+- [ident_remove](#ident_remove)
+- [const_fold](#const_fold)
+- [dce](#dce)
+- [canon](#canon)
+- [dce](#dce)
+- [basic_simp](#basic_simp)
+- [dce](#dce)
+- [comparison_simp](#comparison_simp)
+- [dce](#dce)
+- [dataflow](#dataflow)
+- [dce](#dce)
+- [bitslice_simp](#bitslice_simp)
+- [dce](#dce)
+- [array_untuple](#array_untuple)
+- [dce](#dce)
+- [array_simp](#array_simp)
+- [dce](#dce)
+- [narrow(Ternary)](#narrowTernary)
+- [dce](#dce)
+- [strength_red](#strength_red)
+- [dce](#dce)
+- [bitwise_simp](#bitwise_simp)
+- [dce](#dce)
+- [bool_simp](#bool_simp)
+- [dce](#dce)
+- [cse](#cse)
+- [dce](#dce)
+
+
+
 ## fixedpoint_proc_state_flattening - Proc State Flattening {#fixedpoint_proc_state_flattening}
 
 
@@ -4517,6 +4575,148 @@ inline one level of functions.
 - [map_inlining](#map_inlining)
 - [leaf-inlining](#leaf-inlining)
 - [dfe](#dfe)
+
+
+
+## optimize_for_equivalence - Equivalence optimization passes {#optimize_for_equivalence}
+
+
+Equivalence-focused optimization passes for functions and unrolled procs prior to miter construction or property proving.
+
+Runs O2 scalar, array, range-narrowing, non-BDD conditional specialization, and BDD simplification/CSE passes without mutating proc state elements or requiring OptimizationPassOptions delay/area estimators. Note that `bdd_cse` calls `GetStandardDelayEstimator()`, so binaries invoking this group must link a delay model plugin (`xls/estimators/delay_model/models`), and `narrow(Range)` assumes reset `initial_value()` semantics if run directly on an un-unrolled proc (use `equiv_simp` or omit pre-unroll optimization for symbolic initial state).
+
+
+[Text-proto](http://github.com/google/xls/tree/main/xls/passes/optimization_pass_pipeline.txtpb)
+
+
+### Options Set
+
+
+
+
+
+
+Cap opt level: 2
+
+
+
+
+### Invoked Passes
+
+
+- [invalidate_cached_proc_state_info](#invalidate_cached_proc_state_info)
+- [equiv_simp](#equiv_simp)
+- [narrow(Range)](#narrowRange)
+- [dce](#dce)
+- [cond_spec(noBdd)](#cond_specnoBdd)
+- [dce](#dce)
+- [bdd_simp(2)](#bdd_simp2)
+- [dce](#dce)
+- [bdd_cse](#bdd_cse)
+- [dce](#dce)
+- [basic_simp](#basic_simp)
+- [dce](#dce)
+- [useless_assert_remove](#useless_assert_remove)
+- [dce](#dce)
+
+
+
+## optimize_for_equivalence_miter - Equivalence miter optimization passes {#optimize_for_equivalence_miter}
+
+
+Post-join fixed-point simplification passes for combined equivalence miters.
+
+Runs syntactic CSE before BDD CSE and BDD simplification so identical subgraphs (including multiplier and array barriers) share BDD variables across halves, collapsing equivalent subcones and discharging trivial miters in IR. Note that `bdd_cse` calls `GetStandardDelayEstimator()`, so binaries invoking this group must link a delay model plugin (`xls/estimators/delay_model/models`).
+
+
+[Text-proto](http://github.com/google/xls/tree/main/xls/passes/optimization_pass_pipeline.txtpb)
+
+
+### Options Set
+
+
+Run to a fixedpoint.
+
+
+
+
+
+Cap opt level: 2
+
+
+
+
+### Invoked Passes
+
+
+- [ident_remove](#ident_remove)
+- [const_fold](#const_fold)
+- [dce](#dce)
+- [dataflow](#dataflow)
+- [dce](#dce)
+- [cse](#cse)
+- [dce](#dce)
+- [basic_simp](#basic_simp)
+- [dce](#dce)
+- [bdd_simp(2)](#bdd_simp2)
+- [dce](#dce)
+- [bdd_cse](#bdd_cse)
+- [dce](#dce)
+- [basic_simp](#basic_simp)
+- [dce](#dce)
+
+
+
+## optimize_for_equivalence_proc - Pre-unroll proc equivalence optimization {#optimize_for_equivalence_proc}
+
+
+Pre-unroll optimization passes for reset-state proc equivalence checking (when internal state is not directly compared).
+
+Flattens, narrows, and eliminates proc state elements interleaved with O2 scalar and array simplification. Do not use when checking explicit state equivalence (include_state=true) or symbolic initial state.
+
+
+[Text-proto](http://github.com/google/xls/tree/main/xls/passes/optimization_pass_pipeline.txtpb)
+
+
+### Options Set
+
+
+
+
+
+
+Cap opt level: 2
+
+
+
+
+### Invoked Passes
+
+
+- [invalidate_cached_proc_state_info](#invalidate_cached_proc_state_info)
+- [fixedpoint_proc_state_flattening](#fixedpoint_proc_state_flattening)
+- [ident_remove](#ident_remove)
+- [dataflow](#dataflow)
+- [dce](#dce)
+- [equiv_simp](#equiv_simp)
+- [useless_io_remove](#useless_io_remove)
+- [token_simp](#token_simp)
+- [recv_default](#recv_default)
+- [dce](#dce)
+- [next_value_opt](#next_value_opt)
+- [dce](#dce)
+- [proc_state_narrow](#proc_state_narrow)
+- [dce](#dce)
+- [proc_state_elimination](#proc_state_elimination)
+- [dce](#dce)
+- [proc_state_provenance_narrow](#proc_state_provenance_narrow)
+- [dce](#dce)
+- [proc_state_elimination](#proc_state_elimination)
+- [dce](#dce)
+- [equiv_simp](#equiv_simp)
+- [useless_io_remove](#useless_io_remove)
+- [token_simp](#token_simp)
+- [dce](#dce)
 
 
 

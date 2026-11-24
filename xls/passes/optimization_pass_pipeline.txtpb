@@ -467,6 +467,161 @@ compound_passes: [
       "[scheduling-opt](#scheduling-opt) is a massive code-smell. "
       "Significant adjustments to codegen/sched pass pipelines are likely "
       "required."
+  },
+  {
+    long_name: "Equivalence Simplification"
+    short_name: "equiv_simp"
+    passes: [
+      "ident_remove",
+      "const_fold",
+      "dce",
+      "canon",
+      "dce",
+      "basic_simp",
+      "dce",
+      "comparison_simp",
+      "dce",
+      "dataflow",
+      "dce",
+      "bitslice_simp",
+      "dce",
+      "array_untuple",
+      "dce",
+      "array_simp",
+      "dce",
+      "narrow(Ternary)",
+      "dce",
+      "strength_red",
+      "dce",
+      "bitwise_simp",
+      "dce",
+      "bool_simp",
+      "dce",
+      "cse",
+      "dce"
+    ]
+    fixedpoint: true
+    options: {
+      cap_opt_level: 2
+    }
+    comment:
+      "Fixed-point scalar and array simplification capped at opt level 2 for "
+      "equivalence checking.\n"
+      "\n"
+      "Omits hardware QoR passes that bloat SMT formulas or disrupt "
+      "cross-design structure (such as select_simp, arith_simp, "
+      "reassociation, concat_simp, and table_switch) and avoids O3 splitting."
+  },
+  {
+    long_name: "Pre-unroll proc equivalence optimization"
+    short_name: "optimize_for_equivalence_proc"
+    passes: [
+      "invalidate_cached_proc_state_info",
+      "fixedpoint_proc_state_flattening",
+      "ident_remove",
+      "dataflow",
+      "dce",
+      "equiv_simp",
+      "useless_io_remove",
+      "token_simp",
+      "recv_default",
+      "dce",
+      "next_value_opt",
+      "dce",
+      "proc_state_narrow",
+      "dce",
+      "proc_state_elimination",
+      "dce",
+      "proc_state_provenance_narrow",
+      "dce",
+      "proc_state_elimination",
+      "dce",
+      "equiv_simp",
+      "useless_io_remove",
+      "token_simp",
+      "dce"
+    ]
+    options: {
+      cap_opt_level: 2
+    }
+    comment:
+      "Pre-unroll optimization passes for reset-state proc equivalence "
+      "checking (when internal state is not directly compared).\n"
+      "\n"
+      "Flattens, narrows, and eliminates proc state elements interleaved with "
+      "O2 scalar and array simplification. Do not use when checking explicit "
+      "state equivalence (include_state=true) or symbolic initial state."
+  },
+  {
+    long_name: "Equivalence optimization passes"
+    short_name: "optimize_for_equivalence"
+    passes: [
+      "invalidate_cached_proc_state_info",
+      "equiv_simp",
+      "narrow(Range)",
+      "dce",
+      "cond_spec(noBdd)",
+      "dce",
+      "bdd_simp(2)",
+      "dce",
+      "bdd_cse",
+      "dce",
+      "basic_simp",
+      "dce",
+      "useless_assert_remove",
+      "dce"
+    ]
+    options: {
+      cap_opt_level: 2
+    }
+    comment:
+      "Equivalence-focused optimization passes for functions and unrolled "
+      "procs prior to miter construction or property proving.\n"
+      "\n"
+      "Runs O2 scalar, array, range-narrowing, non-BDD conditional "
+      "specialization, and BDD simplification/CSE passes without mutating "
+      "proc state elements or requiring OptimizationPassOptions delay/area "
+      "estimators. Note that `bdd_cse` calls `GetStandardDelayEstimator()`, "
+      "so binaries invoking this group must link a delay model plugin "
+      "(`xls/estimators/delay_model/models`), and `narrow(Range)` assumes "
+      "reset `initial_value()` semantics if run directly on an un-unrolled "
+      "proc (use `equiv_simp` or omit pre-unroll optimization for symbolic "
+      "initial state)."
+  },
+  {
+    long_name: "Equivalence miter optimization passes"
+    short_name: "optimize_for_equivalence_miter"
+    passes: [
+      "ident_remove",
+      "const_fold",
+      "dce",
+      "dataflow",
+      "dce",
+      "cse",
+      "dce",
+      "basic_simp",
+      "dce",
+      "bdd_simp(2)",
+      "dce",
+      "bdd_cse",
+      "dce",
+      "basic_simp",
+      "dce"
+    ]
+    fixedpoint: true
+    options: {
+      cap_opt_level: 2
+    }
+    comment:
+      "Post-join fixed-point simplification passes for combined equivalence "
+      "miters.\n"
+      "\n"
+      "Runs syntactic CSE before BDD CSE and BDD simplification so identical "
+      "subgraphs (including multiplier and array barriers) share BDD "
+      "variables across halves, collapsing equivalent subcones and "
+      "discharging trivial miters in IR. Note that `bdd_cse` calls "
+      "`GetStandardDelayEstimator()`, so binaries invoking this group must "
+      "link a delay model plugin (`xls/estimators/delay_model/models`)."
   }
 ]
 default_pipeline: [

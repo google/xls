@@ -19,6 +19,7 @@
 #include <string>
 #include <string_view>
 #include <utility>
+#include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
@@ -28,6 +29,7 @@
 #include "absl/time/time.h"
 #include "absl/types/span.h"
 #include "xls/common/status/matchers.h"
+#include "xls/common/status/status_macros.h"
 #include "xls/examples/sample_packages.h"
 #include "xls/fuzzer/ir_fuzzer/ir_fuzz_domain.h"
 #include "xls/ir/bits.h"
@@ -39,10 +41,14 @@
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
 #include "xls/ir/package.h"
+#include "xls/ir/proc.h"
 #include "xls/ir/source_location.h"
+#include "xls/ir/state_element.h"
+#include "xls/ir/type.h"
 #include "xls/ir/value.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/pass_base.h"
+#include "xls/passes/verifier_checker.h"
 #include "xls/solvers/ir_equivalence_testutils.h"
 
 namespace m = ::xls::op_matchers;
@@ -53,7 +59,12 @@ namespace {
 constexpr absl::Duration kProverTimeout = absl::Seconds(10);
 
 using ::absl_testing::IsOkAndHolds;
+using ::testing::Contains;
+using ::testing::Not;
+using ::testing::NotNull;
+using ::testing::UnorderedElementsAre;
 using ::xls::solvers::ScopedVerifyEquivalence;
+using ::xls::solvers::ScopedVerifyProcEquivalence;
 
 class OptimizationPipelineTest : public IrTestBase {
  protected:
@@ -61,6 +72,18 @@ class OptimizationPipelineTest : public IrTestBase {
 
   absl::StatusOr<bool> Run(Package* p, int64_t opt_level = kMaxOptLevel) {
     return RunOptimizationPassPipeline(p, opt_level);
+  }
+
+  absl::StatusOr<bool> RunPipeline(std::string_view pipeline_spec, Package* p,
+                                   int64_t opt_level = kMaxOptLevel) {
+    XLS_ASSIGN_OR_RETURN(
+        std::unique_ptr<OptimizationCompoundPass> pipeline,
+        GetOptimizationPipelineGenerator().GeneratePipeline(pipeline_spec));
+    OptimizationPassOptions options;
+    options.opt_level = opt_level;
+    PassResults results;
+    OptimizationContext ctx;
+    return pipeline->Run(p, options, &results, ctx);
   }
 
   void TestAssociativeWithConstants(std::string_view xls_op, Op op,
@@ -494,6 +517,172 @@ TEST_F(OptimizationPipelineTest,
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
   EXPECT_EQ(f->return_value()->GetName(), "sum");
 }
+
+TEST_F(OptimizationPipelineTest, EquivalencePassGroupsResolve) {
+  for (std::string_view pass_name :
+       {"equiv_simp", "optimize_for_equivalence_proc",
+        "optimize_for_equivalence", "optimize_for_equivalence_miter"}) {
+    EXPECT_THAT(GetOptimizationPipelineGenerator().GeneratePipeline(pass_name),
+                IsOkAndHolds(NotNull()))
+        << "Failed to resolve pass group: " << pass_name;
+  }
+}
+
+TEST_F(OptimizationPipelineTest, OptimizeForEquivalenceSimplifiesFunction) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetBitsType(8));
+  BValue y = fb.Param("y", p->GetBitsType(8));
+  BValue tok = fb.AfterAll({});
+  BValue tautology = fb.Eq(fb.Xor(x, x), fb.Literal(UBits(0, 8)));
+  fb.Assert(tok, tautology, "always_true");
+  BValue simplified = fb.Or(fb.And(x, y), fb.And(x, fb.Not(y)));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(simplified));
+
+  ScopedVerifyEquivalence stays_equivalent(f, kProverTimeout);
+  ASSERT_THAT(RunPipeline("optimize_for_equivalence", p.get()),
+              IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(), m::Param("x"));
+  EXPECT_THAT(f->nodes(), Not(Contains(m::Assert())));
+}
+
+TEST_F(OptimizationPipelineTest, OptimizeForEquivalenceCapsOptLevelAtTwo) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetBitsType(16));
+  BValue mask = fb.Literal(UBits(0x0ff0, 16));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
+                           fb.BuildWithReturnValue(fb.Or(x, mask)));
+
+  ScopedVerifyEquivalence stays_equivalent(f, kProverTimeout);
+  // Even when invoked with opt_level=3, cap_opt_level: 2 prevents O3-only
+  // bitwise mask decomposition into Concat(BitSlice, Literal, BitSlice).
+  ASSERT_THAT(RunPipeline("optimize_for_equivalence", p.get(), /*opt_level=*/3),
+              IsOkAndHolds(false));
+  EXPECT_THAT(f->return_value(),
+              m::Or(m::Param("x"), m::Literal(UBits(0x0ff0, 16))));
+}
+
+TEST_F(OptimizationPipelineTest, OptimizeForEquivalenceDoesNotMutateProcState) {
+  auto p = CreatePackage();
+  TokenlessProcBuilder pb(NewStyleProc(), "myproc", "tkn", p.get());
+  BReceiveChannel in = pb.AddInputChannel("in", p->GetBitsType(8));
+  BSendChannel out = pb.AddOutputChannel("out", p->GetBitsType(8));
+  BValue state = pb.ReadStateElement(
+      "st", Value::Tuple({Value(UBits(0, 8)), Value(UBits(0, 8))}));
+  BValue s0 = pb.TupleIndex(state, 0);
+  BValue one = pb.Add(pb.Literal(UBits(0, 8)), pb.Literal(UBits(1, 8)));
+  BValue next_s0 = pb.Add(s0, pb.Add(pb.Receive(in), one));
+  BValue next_state = pb.Tuple({next_s0, pb.Literal(UBits(0, 8))});
+  pb.Send(out, s0);
+  XLS_ASSERT_OK(pb.SetAsTop());
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({next_state}));
+
+  ScopedVerifyProcEquivalence stays_equivalent(
+      proc, /*activation_count=*/3, /*include_state=*/true, kProverTimeout);
+  ASSERT_THAT(RunPipeline("optimize_for_equivalence", p.get()),
+              IsOkAndHolds(true));
+  ASSERT_EQ(proc->StateElements().size(), 1);
+  EXPECT_TRUE(proc->GetStateElement(0)->type()->IsTuple());
+}
+
+TEST_F(OptimizationPipelineTest,
+       OptimizeForEquivalenceProcOptimizesStateAndCapsSplits) {
+  auto p = CreatePackage();
+  TokenlessProcBuilder pb(NewStyleProc(), "myproc", "tkn", p.get());
+  BReceiveChannel in = pb.AddInputChannel("in", p->GetBitsType(2));
+  BSendChannel out = pb.AddOutputChannel("out", p->GetBitsType(8));
+  BValue state = pb.ReadStateElement(
+      "st", Value::Tuple({Value(UBits(0, 8)), Value(UBits(0, 8))}));
+  BValue narrowable = pb.ReadStateElement("narrowable", Value(UBits(0, 8)));
+  BValue s0 = pb.TupleIndex(state, 0);
+  BValue sel_idx = pb.Receive(in);
+  BValue next_s0 =
+      pb.Select(sel_idx, {pb.Add(s0, pb.Literal(UBits(1, 8))),
+                          pb.Add(s0, pb.Literal(UBits(2, 8))),
+                          pb.Add(s0, pb.Literal(UBits(3, 8))), s0});
+  BValue next_state = pb.Tuple({next_s0, pb.Literal(UBits(0, 8))});
+  BValue next_narrowable =
+      pb.ZeroExtend(pb.Add(pb.BitSlice(narrowable, /*start=*/0, /*width=*/4),
+                           pb.ZeroExtend(sel_idx, 4)),
+                    8);
+  pb.Send(out, pb.Add(s0, narrowable));
+  XLS_ASSERT_OK(pb.SetAsTop());
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc,
+                           pb.Build({next_state, next_narrowable}));
+
+  ScopedVerifyProcEquivalence stays_equivalent(
+      proc, /*activation_count=*/3, /*include_state=*/false, kProverTimeout);
+  ASSERT_THAT(
+      RunPipeline("optimize_for_equivalence_proc", p.get(), /*opt_level=*/3),
+      IsOkAndHolds(true));
+  // Tuple state is flattened, the dead second tuple element is eliminated,
+  // `narrowable` is narrowed from bits[8] to bits[4], and no ghost state
+  // elements remain after proc_state_narrow -> proc_state_elimination ->
+  // proc_state_provenance_narrow -> proc_state_elimination.
+  ASSERT_EQ(proc->StateElements().size(), 2);
+  EXPECT_THAT(std::vector<Type*>({proc->GetStateElement(0)->type(),
+                                  proc->GetStateElement(1)->type()}),
+              UnorderedElementsAre(p->GetBitsType(8), p->GetBitsType(4)));
+  // cap_opt_level: 2 keeps next_value_opt from splitting the 4-way Select
+  // (1 Next per remaining state element).
+  EXPECT_EQ(proc->next_values().size(), 2);
+}
+
+TEST_F(OptimizationPipelineTest,
+       OptimizeForEquivalenceMiterCollapsesEquivalentSubcones) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetBitsType(8));
+  BValue y = fb.Param("y", p->GetBitsType(8));
+  // Distinct UMul nodes act as BDD barriers until syntactic CSE merges them.
+  BValue m1 = fb.UMul(x, y);
+  BValue m2 = fb.UMul(x, y);
+  BValue lhs = fb.Xor(m1, x);
+  BValue rhs = fb.Xor(fb.Not(m2), fb.Not(x));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
+                           fb.BuildWithReturnValue(fb.Eq(lhs, rhs)));
+
+  ScopedVerifyEquivalence stays_equivalent(f, kProverTimeout);
+  ASSERT_THAT(RunPipeline("optimize_for_equivalence_miter", p.get()),
+              IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(), m::Literal(UBits(1, 1)));
+}
+
+void PipelineFinishes(std::string_view pipeline_spec,
+                      std::shared_ptr<Package> package) {
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<OptimizationCompoundPass> pipeline,
+      GetOptimizationPipelineGenerator().GeneratePipeline(pipeline_spec));
+  pipeline->AddWeakInvariantChecker<VerifierChecker>();
+  OptimizationPassOptions options;
+  options.bisect_limit = kMaxPassCount;
+  PassResults res;
+  OptimizationContext ctx;
+  XLS_ASSERT_OK(pipeline->Run(package.get(), options, &res, ctx).status());
+  ASSERT_LT(res.total_invocations(), kMaxPassCount)
+      << "Took an unreasonable amount of passes to finish for pipeline: "
+      << pipeline_spec;
+}
+
+void OptimizeForEquivalenceFinishes(std::shared_ptr<Package> package) {
+  PipelineFinishes("optimize_for_equivalence", std::move(package));
+}
+
+void OptimizeForEquivalenceProcFinishes(std::shared_ptr<Package> package) {
+  PipelineFinishes("optimize_for_equivalence_proc", std::move(package));
+}
+
+void OptimizeForEquivalenceMiterFinishes(std::shared_ptr<Package> package) {
+  PipelineFinishes("optimize_for_equivalence_miter", std::move(package));
+}
+
+FUZZ_TEST(IrFuzzTest, OptimizeForEquivalenceFinishes)
+    .WithDomains(IrFuzzDomain());
+FUZZ_TEST(IrFuzzTest, OptimizeForEquivalenceProcFinishes)
+    .WithDomains(IrFuzzDomain());
+FUZZ_TEST(IrFuzzTest, OptimizeForEquivalenceMiterFinishes)
+    .WithDomains(IrFuzzDomain());
 
 }  // namespace
 }  // namespace xls
