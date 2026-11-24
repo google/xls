@@ -131,29 +131,6 @@ inline bool AnyTwoOperandsWhere(Node* node,
   return false;
 }
 
-// Returns true if `pred_a` and `pred_b` match `a` and `b` in either order.
-//
-// If a match is found, `on_match(matched_a, matched_b)` is invoked with
-// `matched_a` being the node that satisfied `pred_a` and `matched_b` being the
-// node that satisfied `pred_b`.
-//
-// This is useful for matching commutative patterns while populating additional
-// context via captures in `on_match`.
-inline bool MatchNodesInAnyOrder(
-    Node* a, Node* b, const std::function<bool(Node*)>& pred_a,
-    const std::function<bool(Node*)>& pred_b,
-    const std::function<void(Node*, Node*)>& on_match) {
-  if (pred_a(a) && pred_b(b)) {
-    on_match(a, b);
-    return true;
-  }
-  if (pred_a(b) && pred_b(a)) {
-    on_match(b, a);
-    return true;
-  }
-  return false;
-}
-
 inline bool HasSingleUse(Node* node) {
   if (node->function_base()->HasImplicitUse(node)) {
     return node->users().empty();

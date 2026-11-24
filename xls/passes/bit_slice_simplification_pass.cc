@@ -15,6 +15,7 @@
 #include "xls/passes/bit_slice_simplification_pass.h"
 
 #include <algorithm>
+#include <array>
 #include <cstdint>
 #include <deque>
 #include <functional>
@@ -30,6 +31,7 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
+#include "xls/common/matching_order.h"
 #include "xls/common/math_util.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
@@ -168,17 +170,14 @@ static absl::StatusOr<bool> SimplifyCarryExtraction(
     return false;
   }
 
-  Node* extended = nullptr;
-  Literal* literal = nullptr;
-  if (!MatchNodesInAnyOrder(
-          add->operand(0), add->operand(1), IsLiteral,
-          [](Node* n) { return !IsLiteral(n); },
-          [&](Node* constant, Node* operand) {
-            literal = constant->As<Literal>();
-            extended = operand;
-          })) {
+  std::optional<std::array<Node*, 2>> ordered_operands =
+      MatchingOrder(std::array{add->operand(0), add->operand(1)}, IsLiteral,
+                    [](Node* n) { return !IsLiteral(n); });
+  if (!ordered_operands.has_value()) {
     return false;
   }
+  Literal* literal = (*ordered_operands)[0]->As<Literal>();
+  Node* extended = (*ordered_operands)[1];
   std::optional<ZeroExtLike> extension =
       ZeroExtLike::Make(extended, query_engine);
   if (!extension.has_value()) {
