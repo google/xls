@@ -16,6 +16,8 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <memory>
+#include <optional>
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
@@ -32,6 +34,7 @@
 #include "xls/passes/bdd_query_engine.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/pass_base.h"
+#include "xls/passes/predicate_state.h"
 #include "xls/passes/query_engine.h"
 
 namespace xls {
@@ -94,6 +97,230 @@ absl::StatusOr<std::vector<Node*>> GetNodeOrder(FunctionBase* f,
     }
   }
   return nodes;
+}
+
+// Returns whether bits nodes `a` and `b` are known equal under the query engine
+// `qe` (which may already encode a guarding assumption on a select arm).
+bool ValueEqualUnder(const QueryEngine& qe, Node* a, Node* b) {
+  if (!a->GetType()->IsBits() || !b->GetType()->IsBits() ||
+      a->BitCountOrDie() != b->BitCountOrDie()) {
+    return false;
+  }
+  for (int64_t i = 0; i < a->BitCountOrDie(); ++i) {
+    if (!qe.KnownEquals(TreeBitLocation(a, i), TreeBitLocation(b, i))) {
+      return false;
+    }
+  }
+  return true;
+}
+
+// Proves `a == b` under the per-bit guard `lhs[i] == rhs[i]` for every `i`.
+bool ValueEqualUnderPerBitEq(const BddQueryEngine& qe, Node* a, Node* b,
+                             Node* lhs, Node* rhs) {
+  if (!a->GetType()->IsBits() || !b->GetType()->IsBits() ||
+      a->BitCountOrDie() != b->BitCountOrDie() || !lhs->GetType()->IsBits() ||
+      !rhs->GetType()->IsBits() ||
+      lhs->BitCountOrDie() != rhs->BitCountOrDie()) {
+    return false;
+  }
+  const int64_t width = a->BitCountOrDie();
+  for (int64_t i = 0; i < width; ++i) {
+    // Assumption: lhs[i] == rhs[i]  <=>  Xnor(lhs[i], rhs[i]).
+    std::optional<BddNodeIndex> lhs_bit =
+        qe.GetBddNode(TreeBitLocation(lhs, i));
+    std::optional<BddNodeIndex> rhs_bit =
+        qe.GetBddNode(TreeBitLocation(rhs, i));
+    if (!lhs_bit.has_value() || !rhs_bit.has_value()) {
+      return false;
+    }
+    // Xnor(x, y) = (x && y) || (!x && !y).
+    BddNodeIndex assumption = qe.bdd().Or(
+        qe.bdd().And(*lhs_bit, *rhs_bit),
+        qe.bdd().And(qe.bdd().Not(*lhs_bit), qe.bdd().Not(*rhs_bit)));
+    if (!qe.KnownEquals(TreeBitLocation(a, i), TreeBitLocation(b, i),
+                        assumption)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+// Maximum number of preceding nodes scanned as guarded-CSE candidates for a
+// given arm value.
+static constexpr int64_t kGuardedMaxCandidatesToScan = 16;
+
+// Maximum bit width of `Eq(lhs, rhs)` guard operands handled by the exact full
+// specialization path (`SpecializeGivenPredicate`). Above this width the full
+// `eq(lhs, rhs)` BDD can saturate the engine's default path limit, so wider
+// guards are rewritten via the per-bit weak surrogate instead.
+static constexpr int64_t kFullSpecEqMaxWidth = 4;
+
+// True if `arm` of a 1-bit `Eq`/`Ne`-selected `sel` is live exactly when the
+// comparator operands are equal (`selector == 1` for `Eq` arm 1, `selector ==
+// 0` for `Ne` arm 0).
+bool ArmIsLiveWhenOperandsEqual(Select* sel, const PredicateState& state) {
+  if (state.IsDefaultArm() || sel->cases().size() != 2) {
+    return false;
+  }
+  Node* selector = state.selector();
+  if (selector == nullptr || !selector->GetType()->IsBits() ||
+      selector->BitCountOrDie() != 1 || !selector->Is<CompareOp>()) {
+    return false;
+  }
+  Op compare_op = selector->As<CompareOp>()->op();
+  int64_t arm_id = state.arm_index();
+  return (compare_op == Op::kEq && arm_id == 1) ||
+         (compare_op == Op::kNe && arm_id == 0);
+}
+
+// True if the guarded rewrite should use the per-bit weak surrogate: a 1-bit
+// `Eq`/`Ne`-selected arm (see `ArmIsLiveWhenOperandsEqual`) wide enough that
+// materializing the full `eq` BDD would saturate the path limit.
+bool ShouldUsePerBitEq(Select* sel, const PredicateState& state) {
+  Node* selector = state.selector();
+  if (selector->operands().size() != 2) {
+    return false;
+  }
+  Node* lhs = selector->operand(0);
+  Node* rhs = selector->operand(1);
+  return ArmIsLiveWhenOperandsEqual(sel, state) && lhs->GetType()->IsBits() &&
+         rhs->GetType()->IsBits() &&
+         lhs->BitCountOrDie() == rhs->BitCountOrDie() &&
+         lhs->BitCountOrDie() > kFullSpecEqMaxWidth;
+}
+
+// Rewrites one guarded select-arm operand edge: `arm_value` (value of arm
+// `arm` of `sel`, position `operand_number`) to another node within the last
+// kGuardedMaxCandidatesToScan nodes of `node_order` that is BDD-equal under
+// `arm`'s guard; returns true if the edge is rewired.
+//
+// Scan only a small window of preceding nodes (see kGuardedMaxCandidatesToScan)
+// rather than the whole graph. Anchoring the window at `arm_value` keeps the
+// replacement no later in the schedule and cycle-safe.
+absl::StatusOr<bool> MaybeReplaceGuardedSelectArm(
+    BddQueryEngine* guarded_engine, absl::Span<Node* const> node_order,
+    int64_t arm_value_pos, Select* sel, int64_t operand_number, Node* arm_value,
+    const PredicateState& state) {
+  if (arm_value == nullptr || arm_value->Is<Literal>() ||
+      !arm_value->GetType()->IsBits()) {
+    return false;
+  }
+  // For a 1-bit `Eq`/`Ne` select guard pick between two sound rewrite
+  // strategies:
+  //  * Narrow operands (width <= kFullSpecEqMaxWidth): materialize the whole
+  //    `eq(lhs, rhs)` BDD once and compare arms by canonical BDD index. Exact
+  //    and cheap; the path width-1 guards take.
+  //  * Wide operands (width > kFullSpecEqMaxWidth): the full `eq` BDD would
+  //    saturate the shared engine's 1024 path limit, so prove each bit under
+  //    the tiny single-bit surrogate `lhs[i] == rhs[i]`
+  //    (`ValueEqualUnderPerBitEq`).
+  //
+  // The per-bit surrogate assumes `lhs == rhs` and is sound only where that is
+  // the arm's live predicate (`ArmIsLiveWhenOperandsEqual`); elsewhere it would
+  // be a false positive, so those arms fall back to the exact path.
+  int64_t window_start =
+      std::max(int64_t{0}, arm_value_pos - kGuardedMaxCandidatesToScan);
+  if (!ShouldUsePerBitEq(sel, state)) {
+    std::unique_ptr<QueryEngine> assumed =
+        guarded_engine->SpecializeGivenPredicate({state});
+    for (int64_t ci = window_start; ci < arm_value_pos; ++ci) {
+      Node* cand = node_order[ci];
+      if (cand == arm_value) {
+        continue;
+      }
+      if (ValueEqualUnder(*assumed, arm_value, cand)) {
+        VLOG(4) << "Guarded cond-value-prop: " << sel->GetName()
+                << " arm operand == " << cand->GetName();
+        XLS_RETURN_IF_ERROR(sel->ReplaceOperandNumber(operand_number, cand));
+        return true;
+      }
+    }
+    return false;
+  }
+  Node* eq_lhs = state.selector()->operand(0);
+  Node* eq_rhs = state.selector()->operand(1);
+  for (int64_t ci = window_start; ci < arm_value_pos; ++ci) {
+    Node* cand = node_order[ci];
+    if (cand == arm_value) {
+      continue;
+    }
+    if (ValueEqualUnderPerBitEq(*guarded_engine, arm_value, cand, eq_lhs,
+                                eq_rhs)) {
+      VLOG(4) << "Guarded cond-value-prop (per-bit eq): " << sel->GetName()
+              << " arm operand == " << cand->GetName();
+      XLS_RETURN_IF_ERROR(sel->ReplaceOperandNumber(operand_number, cand));
+      return true;
+    }
+  }
+  return false;
+}
+
+// Width gates for guarded value propagation. A wide selector or data path can
+// explode BDD re-derivation even at a bounded path limit, so skip anything
+// wider than these.
+static constexpr int64_t kGuardedMaxSelectorWidth = 64;
+static constexpr int64_t kGuardedMaxValueWidth = 64;
+
+// Tries to rewrite every arm of a plain `Select`.
+absl::StatusOr<bool> TryGuardedArmRewrite(
+    BddQueryEngine* guarded_engine, absl::Span<Node* const> node_order,
+    const absl::flat_hash_map<Node*, int64_t>& node_pos, Select* sel) {
+  if (!sel->GetType()->IsBits()) {
+    return false;
+  }
+  if (!sel->selector()->GetType()->IsBits() ||
+      sel->selector()->BitCountOrDie() > kGuardedMaxSelectorWidth ||
+      sel->BitCountOrDie() > kGuardedMaxValueWidth) {
+    return false;
+  }
+
+  auto guard_one_arm =
+      [&](Node* arm_value, int64_t operand_number,
+          const PredicateState& state) -> absl::StatusOr<bool> {
+    if (!node_pos.contains(arm_value)) {
+      return false;  // Arm not in node_order (e.g. a shared default); skip.
+    }
+    return MaybeReplaceGuardedSelectArm(guarded_engine, node_order,
+                                        node_pos.at(arm_value), sel,
+                                        operand_number, arm_value, state);
+  };
+
+  bool sel_changed = false;
+  for (int64_t i = 0; i < sel->cases().size(); ++i) {
+    XLS_ASSIGN_OR_RETURN(
+        bool arm_changed,
+        guard_one_arm(sel->get_case(i), /*operand_number=*/i + 1,
+                      PredicateState(sel, i)));
+    sel_changed = sel_changed || arm_changed;
+  }
+  if (sel->default_value().has_value()) {
+    XLS_ASSIGN_OR_RETURN(
+        bool arm_changed,
+        guard_one_arm(*sel->default_value(),
+                      /*operand_number=*/sel->operand_count() - 1,
+                      PredicateState(sel, PredicateState::kDefaultArm)));
+    sel_changed = sel_changed || arm_changed;
+  }
+  return sel_changed;
+}
+
+// Runs guarded CSE over every `Select` in `node_order` (in order) and returns
+// whether any arm was rewritten.
+absl::StatusOr<bool> RunGuardedSelectCse(
+    BddQueryEngine* guarded_engine, absl::Span<Node* const> node_order,
+    const absl::flat_hash_map<Node*, int64_t>& node_pos) {
+  bool guarded_changed = false;
+  for (Node* node : node_order) {
+    if (!node->Is<Select>()) {
+      continue;
+    }
+    Select* sel = node->As<Select>();
+    XLS_ASSIGN_OR_RETURN(
+        bool sel_changed,
+        TryGuardedArmRewrite(guarded_engine, node_order, node_pos, sel));
+    guarded_changed = guarded_changed || sel_changed;
+  }
+  return guarded_changed;
 }
 
 }  // namespace
@@ -162,6 +389,24 @@ absl::StatusOr<bool> BddCsePass::RunOnFunctionBaseInternal(
       node_buckets[hash].push_back(node);
     }
   }
+
+  // Guarded (conditional) value propagation over select arms: like classic CSE
+  // above but rewrites an arm operand to a node that is BDD-equal to it only
+  // under that arm's guarding predicate. The rewrite is per-edge (only the
+  // guarded arm operand changes), so it stays sound even if the arm value has
+  // other, unguarded uses.
+  //
+  // The guard predicate can grow exponentially in BDD size and saturate the
+  // shared engine's default path limit; this causes false negatives, never
+  // false positives.
+  absl::flat_hash_map<Node*, int64_t> node_pos;
+  node_pos.reserve(node_order.size());
+  for (int64_t i = 0; i < node_order.size(); ++i) {
+    node_pos[node_order[i]] = i;
+  }
+  XLS_ASSIGN_OR_RETURN(bool guard_changed,
+                       RunGuardedSelectCse(query_engine, node_order, node_pos));
+  changed = changed || guard_changed;
 
   return changed;
 }
