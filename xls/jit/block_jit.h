@@ -20,7 +20,6 @@
 #include <initializer_list>
 #include <memory>
 #include <string>
-#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -82,8 +81,8 @@ class BlockJit {
       int64_t opt_level = LlvmCompiler::kDefaultOptLevel);
 
   static absl::StatusOr<std::unique_ptr<BlockJit>> CreateFromAot(
-      const AotEntrypointProto& entrypoint, std::string_view data_layout,
-      JitFunctionType func_ptr);
+      const AotEntrypointProto& entrypoint,
+      const TargetLayoutInfo& target_layout, JitFunctionType func_ptr);
 
   // Returns the bytes of an object file containing the compiled XLS function.
   static absl::StatusOr<JitObjectCode> CreateObjectCode(
