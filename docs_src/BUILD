@@ -42,6 +42,7 @@ filegroup(
         "dslx_ffi.md",
         "dslx_reference.md",
         "dslx_std.md",
+        "dslx_style.md",
         "dslx_type_system.md",
         "floating_point.md",
     ],

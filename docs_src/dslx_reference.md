@@ -126,14 +126,20 @@ _                 // valid
 &ade              // not valid
 ```
 
-However, we suggest the following **DSLX style rules**, which mirror the
-[Rust naming conventions](https://doc.rust-lang.org/1.0.0/style/style/naming/README.html).
+However, we follow the [DSLX Style Guide](dslx_style.md), whose naming rules
+build on the
+[Rust naming conventions](https://doc.rust-lang.org/1.0.0/style/style/naming/README.html):
 
--   Functions are `written_like_this`
+-   Functions, local variables, parameters, struct/proc fields, and modules use
+    `snake_case` (`written_like_this`).
 
--   User-defined data types are `NamesLikeThis`
+-   User-defined types (`struct`, `enum`, and `type` aliases), `proc`s, and type
+    parametrics use `PascalCase` (`NamesLikeThis`).
 
--   Constant bindings are `NAMES_LIKE_THIS`
+-   Constant bindings, `enum` variants, and numeric/boolean parametrics use
+    `SCREAMING_SNAKE_CASE` (`NAMES_LIKE_THIS`).
+
+Two special wildcard tokens have dedicated semantics:
 
 -   `_` is the "black hole" identifier -- a name that you can bind to but should
     never read from, akin to Rust's wildcard pattern match or Python's "unused
@@ -1474,15 +1480,15 @@ fn f(t: (u8, (u16, u32))) -> u32 {
 }
 ```
 
-Here we use a "catch all" wildcard pattern in the last `match` arm to ensure the
-`match` expression always matches the input somehow.
+Here we use a "catch all" wildcard pattern in the last `match` arm to match any
+remaining values.
 
-!!! WARNING
-    This "catch all" (i.e. an
-    [irrefutable pattern](https://doc.rust-lang.org/book/ch18-02-refutability.html))
-    is [currently required](https://github.com/google/xls/issues/204) in **all**
-    `match` expressions, even if the other `match` arms form an exhaustive set of
-    refutable patterns (e.g., matching against fully specified enumerators).
+!!! NOTE
+    When matching an `enum` (or finite set of constants), omitting `_` ensures
+    all variants are handled explicitly and makes adding a new variant a
+    compile-time error at unhandled call sites. Use `_` only when intentionally
+    discarding the remaining values (and see
+    `--enable_warnings=already_exhaustive_match` to flag redundant `_` arms).
 
 We can also `match` on ranges of values using the "range" syntax:
 
@@ -2649,13 +2655,11 @@ impl CountUpTest {
 }
 ```
 
-The `#[test]` attribute on a `proc` also supports an optional
-`expected_fail_label` parameter (e.g.
-`#[test(expected_fail_label="my_label")]`). This allows writing proc tests that
-are expected to fail due to a specific `assert!` or `fail!` condition. The
-parameter value must match the label on the failing assertion; if a failure with
-the matching label occurs, the test is treated as successful, and if no such
-failure occurs, the test is treated as failed.
+Legacy `#[test_proc]` definitions also support an optional `expected_fail_label`
+parameter (e.g., `#[test_proc(expected_fail_label="my_label")]`), matching a
+failing `assert!` or `fail!` label as expected test success. Support on
+`impl`-style `#[test]` procs is not yet implemented
+([xls#4125](https://github.com/google/xls/issues/4125)).
 
 [^usebeforedef]: Otherwise there'd be a use-before-definition error.
 [hughes-paper]: https://www.cs.tufts.edu/~nr/cs257/archive/john-hughes/quick.pdf

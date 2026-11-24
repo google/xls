@@ -51,6 +51,7 @@ nav:
     - IR Fuzzer: 'ir_fuzzer.md'
   - DSLX:
     - Reference: 'dslx_reference.md'
+    - Style Guide: 'dslx_style.md'
     - Standard Library : 'dslx_std.md'
     - Floating Point: 'floating_point.md'
     - Fuzzer: 'fuzzer.md'
