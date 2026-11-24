@@ -254,6 +254,21 @@ TEST_F(BitSliceSimplificationPassTest,
   EXPECT_THAT(f->return_value(), m::UGe(m::Param("x"), m::Literal(129)));
 }
 
+TEST_F(BitSliceSimplificationPassTest, CarryExtractionKeepsSliceOfSharedSum) {
+  auto p = CreatePackage();
+  FunctionBuilder fb("f", p.get());
+  BValue x = fb.Param("x", p->GetBitsType(4));
+  BValue sum = fb.Add(fb.ZeroExtend(x, 5), fb.Literal(UBits(7, 5)));
+  BValue carry = fb.BitSlice(sum, 4, 1);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
+                           fb.BuildWithReturnValue(fb.Tuple({sum, carry})));
+
+  ScopedVerifyEquivalence eq(f, kProverTimeout);
+  EXPECT_THAT(Run(f), IsOkAndHolds(false));
+  EXPECT_THAT(f->return_value(),
+              m::Tuple(m::Add(), m::BitSlice(m::Add(), 4, 1)));
+}
+
 TEST_F(BitSliceSimplificationPassTest,
        CarryExtractionWithSetLiteralBitRewritesToULt) {
   auto p = CreatePackage();
@@ -272,18 +287,20 @@ class CarryExtractionWithZeroLowBitsTest
     : public BitSliceSimplificationPassTest,
       public ::testing::WithParamInterface<bool> {};
 
-TEST_P(CarryExtractionWithZeroLowBitsTest, ReturnsLiteralBitAtSliceStart) {
+TEST_P(CarryExtractionWithZeroLowBitsTest, FoldsCarryBitEvenWhenSumIsShared) {
   auto p = CreatePackage();
   FunctionBuilder fb("f", p.get());
   BValue x = fb.Param("x", p->GetBitsType(8));
   BValue sum =
       fb.Add(fb.ZeroExtend(x, 9), fb.Literal(UBits(GetParam() ? 256 : 0, 9)));
+  BValue carry = fb.BitSlice(sum, 8, 1);
   XLS_ASSERT_OK_AND_ASSIGN(Function * f,
-                           fb.BuildWithReturnValue(fb.BitSlice(sum, 8, 1)));
+                           fb.BuildWithReturnValue(fb.Tuple({sum, carry})));
 
   ScopedVerifyEquivalence eq(f, kProverTimeout);
   ASSERT_THAT(Run(f), IsOkAndHolds(true));
-  EXPECT_THAT(f->return_value(), m::Literal(UBits(GetParam(), 1)));
+  EXPECT_THAT(f->return_value(),
+              m::Tuple(m::Add(), m::Literal(UBits(GetParam(), 1))));
 }
 
 INSTANTIATE_TEST_SUITE_P(BothLiteralBits, CarryExtractionWithZeroLowBitsTest,

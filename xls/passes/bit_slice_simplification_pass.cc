@@ -162,7 +162,8 @@ absl::StatusOr<std::optional<Node*>> GetUnscaledIndex(
 // `v`, where `K` is a literal. `query_engine` identifies equivalent extensions.
 static absl::StatusOr<bool> SimplifyCarryExtraction(
     BitSlice* bit_slice, const QueryEngine& query_engine) {
-  if (bit_slice->width() != 1) {
+  const int64_t n_width = bit_slice->start();
+  if (bit_slice->width() != 1 || n_width == 0) {
     return false;
   }
   Node* add = bit_slice->operand(0);
@@ -178,16 +179,18 @@ static absl::StatusOr<bool> SimplifyCarryExtraction(
   }
   Literal* literal = (*ordered_operands)[0]->As<Literal>();
   Node* extended = (*ordered_operands)[1];
+  // Check the source width before querying a concat's prefix or a sign bit.
+  if ((extended->Is<Concat>() || extended->Is<ExtendOp>()) &&
+      extended->operands().back()->BitCountOrDie() != n_width) {
+    return false;
+  }
   std::optional<ZeroExtLike> extension =
       ZeroExtLike::Make(extended, query_engine);
-  if (!extension.has_value()) {
+  if (!extension.has_value() ||
+      extension->to_extend()->BitCountOrDie() != n_width) {
     return false;
   }
   Node* v = extension->to_extend();
-  const int64_t n_width = v->BitCountOrDie();
-  if (n_width == 0 || bit_slice->start() != n_width) {
-    return false;
-  }
   const Bits& k = literal->value().bits();
 
   // Let `A = zero_ext(v)` (so `A[N] = 0`) and `B = k` (so `B[N] = b_n`).
@@ -201,6 +204,11 @@ static absl::StatusOr<bool> SimplifyCarryExtraction(
         bit_slice->ReplaceUsesWithNew<Literal>(Value(UBits(b_n ? 1 : 0, 1)))
             .status());
     return true;
+  }
+
+  // If another user needs the sum, its carry bit is already available.
+  if (!HasSingleUse(add)) {
+    return false;
   }
 
   // `carry_in(v + k_low)` <=> `v >= 2^N - k_low`
