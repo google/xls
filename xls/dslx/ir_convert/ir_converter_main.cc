@@ -62,7 +62,7 @@ stderr.
 
 Example invocation for a particular function:
 
-  ir_converter_main -entry best_function path/to/frobulator.x
+  ir_converter_main --top=best_function path/to/frobulator.x
 
 If no entry point is given all functions within the module are converted:
 
@@ -160,12 +160,12 @@ absl::Status RealMain(absl::Span<const std::string_view> paths) {
   // reproduce them here to give nicer error messages.
   if (!package_name.has_value()) {
     QCHECK_EQ(paths.size(), 1)
-        << "-package_name *must* be given when multiple input paths are "
+        << "--package_name *must* be given when multiple input paths are "
            "supplied";
   }
   if (paths.size() > 1) {
     QCHECK(!top.has_value())
-        << "-entry cannot be supplied with multiple input paths (need a single "
+        << "--top cannot be supplied with multiple input paths (need a single "
            "input path to know where to resolve the entry function)";
   }
 

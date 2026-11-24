@@ -101,12 +101,13 @@ ABSL_FLAG(bool, lower_to_proc_scoped_channels, false,
 ABSL_FLAG(bool, force_implicit_token_calling_convention, false,
           "Force every DSLX function to use the implicit-token calling "
           "convention during IR conversion.");
-ABSL_FLAG(
-    std::optional<std::vector<std::string>>, configured_values, std::nullopt,
-    "Dictionary of overrides to use for overridable constants "
-    "in IR conversion. Format is \"key\":\"value\" pairs, e.g. "
-    "--configured_values="
-    "{\"supported_opcodes\":\"OpcodeSet::SmallSubset\",\"foo\":\"true\"}");
+ABSL_FLAG(std::optional<std::vector<std::string>>, configured_values,
+          std::nullopt,
+          "Comma-separated list of overrides for overridable constants in IR "
+          "conversion, each formatted as key:value (or "
+          "key@module[+module...]:value), "
+          "e.g. --configured_values="
+          "supported_opcodes:OpcodeSet::SmallSubset,foo:true");
 // LINT.ThenChange(//xls/build_rules/xls_ir_rules.bzl)
 ABSL_FLAG(std::optional<std::string>, ir_converter_options_used_textproto_file,
           std::nullopt,
