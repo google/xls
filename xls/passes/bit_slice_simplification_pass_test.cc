@@ -218,151 +218,107 @@ TEST_F(BitSliceSimplificationPassTest,
   EXPECT_THAT(Run(f), IsOkAndHolds(false));
 }
 
-// Parameterized by the *result width* (W) of the zero-extension, so we cover
-// multiple `zero_ext`/`concat(0..., x)` widths and ensure the rewrite does not
-// depend on how many leading zeros are added (so long as W > N).
-class CarryOutOfAddWithZeroExtendedOperandTest
+class CarryExtractionExtensionWidthTest
     : public BitSliceSimplificationPassTest,
       public ::testing::WithParamInterface<int64_t> {};
 
-TEST_P(CarryOutOfAddWithZeroExtendedOperandTest,
-       CarryOutOfAddWithZeroExtendedOperand) {
-  const int64_t extended_width = GetParam();
-  ASSERT_GT(extended_width, 8);
-
+TEST_P(CarryExtractionExtensionWidthTest, ZeroPrefixedConcatRewritesToUGe) {
   auto p = CreatePackage();
-  Type* u8 = p->GetBitsType(8);
-  Type* u1 = p->GetBitsType(1);
-
   FunctionBuilder fb("f", p.get());
-
-  BValue x = fb.Param("x", u8);
-  BValue not_x = fb.Not(x);
-  BValue zext_not_x =
-      fb.Concat({fb.Literal(UBits(0, extended_width - 8)), not_x});
-  BValue sum = fb.Add(zext_not_x, fb.Literal(UBits(127, extended_width)));
-  BValue carry = fb.BitSlice(sum, /*start=*/8, /*width=*/1);
-
-  // Include extra boolean context to mirror the motivating pattern.
-  BValue eq_x_ff = fb.Eq(x, fb.Literal(UBits(255, 8)));
-  BValue leaf_237 = fb.Param("leaf_237", u1);
-  BValue leaf_466 = fb.Param("leaf_466", u1);
-  BValue not_leaf_237 = fb.Not(leaf_237);
-  BValue out = fb.And({carry, eq_x_ff, leaf_466, not_leaf_237});
-
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(out));
+  BValue x = fb.Param("x", p->GetBitsType(8));
+  BValue extended = fb.Concat({fb.Literal(UBits(0, GetParam() - 8)), x});
+  BValue sum = fb.Add(extended, fb.Literal(UBits(127, GetParam())));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
+                           fb.BuildWithReturnValue(fb.BitSlice(sum, 8, 1)));
 
   ScopedVerifyEquivalence eq(f, kProverTimeout);
   ASSERT_THAT(Run(f), IsOkAndHolds(true));
-
-  // The carry bit is rewritten to a compare against a literal.
-  EXPECT_THAT(
-      f->return_value(),
-      AllOf(m::And(m::UGe(m::Not(m::Param("x")),
-                          AllOf(m::Literal(129), m::Type("bits[8]"))),
-                   m::Eq(m::Param("x"), AllOf(m::Literal(255), m::Type(u8))),
-                   m::Param("leaf_466"), m::Not(m::Param("leaf_237"))),
-            m::Type(u1)));
+  EXPECT_THAT(f->return_value(), m::UGe(m::Param("x"), m::Literal(129)));
 }
 
 INSTANTIATE_TEST_SUITE_P(VariousExtensionWidths,
-                         CarryOutOfAddWithZeroExtendedOperandTest,
-                         ::testing::Values(int64_t{9}, int64_t{12},
-                                           int64_t{16}));
+                         CarryExtractionExtensionWidthTest,
+                         ::testing::Values(9, 12, 16));
 
 TEST_F(BitSliceSimplificationPassTest,
-       CarryOutOfAddWithZeroExtendedOperand_MatchesSwappedAddOperands) {
+       CarryExtractionMatchesSwappedAddOperands) {
   auto p = CreatePackage();
-  Type* u8 = p->GetBitsType(8);
-  Type* u1 = p->GetBitsType(1);
-
   FunctionBuilder fb("f", p.get());
-  BValue x = fb.Param("x", u8);
-  BValue not_x = fb.Not(x);
-  BValue zext_not_x = fb.Concat({fb.Literal(UBits(0, 4)), not_x});
+  BValue x = fb.Param("x", p->GetBitsType(8));
+  BValue sum = fb.Add(fb.Literal(UBits(127, 12)), fb.ZeroExtend(x, 12));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
+                           fb.BuildWithReturnValue(fb.BitSlice(sum, 8, 1)));
 
-  // Put the literal on the LHS so we exercise the "either operand order"
-  // matching logic.
-  BValue sum = fb.Add(fb.Literal(UBits(127, 12)), zext_not_x);
-  BValue carry = fb.BitSlice(sum, /*start=*/8, /*width=*/1);
+  ScopedVerifyEquivalence eq(f, kProverTimeout);
+  ASSERT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(), m::UGe(m::Param("x"), m::Literal(129)));
+}
 
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(carry));
+TEST_F(BitSliceSimplificationPassTest,
+       CarryExtractionWithSetLiteralBitRewritesToULt) {
+  auto p = CreatePackage();
+  FunctionBuilder fb("f", p.get());
+  BValue x = fb.Param("x", p->GetBitsType(8));
+  BValue sum = fb.Add(fb.ZeroExtend(x, 9), fb.Literal(UBits(257, 9)));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
+                           fb.BuildWithReturnValue(fb.BitSlice(sum, 8, 1)));
+
+  ScopedVerifyEquivalence eq(f, kProverTimeout);
+  ASSERT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(), m::ULt(m::Param("x"), m::Literal(255)));
+}
+
+class CarryExtractionWithZeroLowBitsTest
+    : public BitSliceSimplificationPassTest,
+      public ::testing::WithParamInterface<bool> {};
+
+TEST_P(CarryExtractionWithZeroLowBitsTest, ReturnsLiteralBitAtSliceStart) {
+  auto p = CreatePackage();
+  FunctionBuilder fb("f", p.get());
+  BValue x = fb.Param("x", p->GetBitsType(8));
+  BValue sum =
+      fb.Add(fb.ZeroExtend(x, 9), fb.Literal(UBits(GetParam() ? 256 : 0, 9)));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
+                           fb.BuildWithReturnValue(fb.BitSlice(sum, 8, 1)));
+
+  ScopedVerifyEquivalence eq(f, kProverTimeout);
+  ASSERT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(), m::Literal(UBits(GetParam(), 1)));
+}
+
+INSTANTIATE_TEST_SUITE_P(BothLiteralBits, CarryExtractionWithZeroLowBitsTest,
+                         ::testing::Bool());
+
+TEST_F(BitSliceSimplificationPassTest,
+       CarryExtractionMatchesSignExtensionWithKnownZeroSign) {
+  auto p = CreatePackage();
+  FunctionBuilder fb("f", p.get());
+  BValue x = fb.Param("x", p->GetBitsType(3));
+  BValue nonnegative = fb.Concat({fb.Literal(UBits(0, 1)), x});
+  BValue sum = fb.Add(fb.SignExtend(nonnegative, 5), fb.Literal(UBits(9, 5)));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
+                           fb.BuildWithReturnValue(fb.BitSlice(sum, 4, 1)));
 
   ScopedVerifyEquivalence eq(f, kProverTimeout);
   ASSERT_THAT(Run(f), IsOkAndHolds(true));
   EXPECT_THAT(f->return_value(),
-              AllOf(m::UGe(m::Not(m::Param("x")),
-                           AllOf(m::Literal(129), m::Type("bits[8]"))),
-                    m::Type(u1)));
+              m::UGe(m::Concat(m::Literal(0), m::Param("x")), m::Literal(7)));
 }
 
 TEST_F(BitSliceSimplificationPassTest,
-       CarryOutOfAddWithZeroExtendedOperand_MatchesZeroExtNode) {
+       CarryExtractionPreservesSignExtensionWithUnknownSign) {
   auto p = CreatePackage();
-  Type* u8 = p->GetBitsType(8);
-  Type* u1 = p->GetBitsType(1);
-
   FunctionBuilder fb("f", p.get());
-  BValue x = fb.Param("x", u8);
-  BValue not_x = fb.Not(x);
-  BValue zext_not_x = fb.ZeroExtend(not_x, /*new_bit_count=*/12);
-  BValue sum = fb.Add(zext_not_x, fb.Literal(UBits(127, 12)));
-  BValue carry = fb.BitSlice(sum, /*start=*/8, /*width=*/1);
-
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(carry));
+  BValue x = fb.Param("x", p->GetBitsType(4));
+  BValue sum = fb.Add(fb.SignExtend(x, 5), fb.Literal(UBits(9, 5)));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
+                           fb.BuildWithReturnValue(fb.BitSlice(sum, 4, 1)));
 
   ScopedVerifyEquivalence eq(f, kProverTimeout);
-  ASSERT_THAT(Run(f), IsOkAndHolds(true));
-  EXPECT_THAT(f->return_value(),
-              AllOf(m::UGe(m::Not(m::Param("x")),
-                           AllOf(m::Literal(129), m::Type("bits[8]"))),
-                    m::Type(u1)));
-}
-
-TEST_F(BitSliceSimplificationPassTest,
-       CarryOutOfAddWithZeroExtendedOperand_MsbOneRewritesToULt) {
-  auto p = CreatePackage();
-  Type* u8 = p->GetBitsType(8);
-  Type* u1 = p->GetBitsType(1);
-
-  FunctionBuilder fb("f", p.get());
-  BValue x = fb.Param("x", u8);
-  BValue not_x = fb.Not(x);
-  BValue zext_not_x = fb.ZeroExtend(not_x, /*new_bit_count=*/9);
-
-  // Here we choose a `k` with `k[8] == 1` and non-zero low 8 bits, which makes
-  // the carry bit rewrite to a `ult` comparison.
-  BValue sum = fb.Add(zext_not_x, fb.Literal(UBits(257, 9)));
-  BValue carry = fb.BitSlice(sum, /*start=*/8, /*width=*/1);
-
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(carry));
-
-  ScopedVerifyEquivalence eq(f, kProverTimeout);
-  ASSERT_THAT(Run(f), IsOkAndHolds(true));
-  EXPECT_THAT(f->return_value(),
-              AllOf(m::ULt(m::Not(m::Param("x")),
-                           AllOf(m::Literal(255), m::Type("bits[8]"))),
-                    m::Type(u1)));
-}
-
-TEST_F(BitSliceSimplificationPassTest,
-       CarryOutOfAddWithZeroExtendedOperand_KLowZeroRewritesToLiteral) {
-  auto p = CreatePackage();
-  Type* u8 = p->GetBitsType(8);
-  Type* u1 = p->GetBitsType(1);
-
-  FunctionBuilder fb("f", p.get());
-  BValue x = fb.Param("x", u8);
-  BValue not_x = fb.Not(x);
-  BValue zext_not_x = fb.ZeroExtend(not_x, /*new_bit_count=*/12);
-  BValue sum = fb.Add(zext_not_x, fb.Literal(UBits(0, 12)));
-  BValue carry = fb.BitSlice(sum, /*start=*/8, /*width=*/1);
-
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(carry));
-
-  ScopedVerifyEquivalence eq(f, kProverTimeout);
-  ASSERT_THAT(Run(f), IsOkAndHolds(true));
-  EXPECT_THAT(f->return_value(), AllOf(m::Literal(0), m::Type(u1)));
+  EXPECT_THAT(Run(f), IsOkAndHolds(false));
+  EXPECT_THAT(
+      f->return_value(),
+      m::BitSlice(m::Add(m::SignExt(m::Param("x")), m::Literal(9)), 4, 1));
 }
 
 TEST_F(BitSliceSimplificationPassTest, SliceOfSignExtCaseOne) {

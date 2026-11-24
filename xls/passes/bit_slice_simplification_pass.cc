@@ -156,17 +156,10 @@ absl::StatusOr<std::optional<Node*>> GetUnscaledIndex(
   return unscaled_index;
 }
 
-// Simplifies bit-slices that extract the carry bit from an addition of a
-// zero-extended value and a literal:
-//
-//   x: bits[N]
-//   zext: bits[W] = zero_ext(x) or concat(0..., x)   (W > N)
-//   sum: bits[W] = add(zext, K)                      (K is a literal)
-//   ret: bits[1] = bit_slice(sum, start=N, width=1)
-//
-// This bit slice extracts the carry-out bit of x + K (in N bits). Rewrite it
-// into a simpler comparison against a literal.
-static absl::StatusOr<bool> SimplifyCarryExtraction(BitSlice* bit_slice) {
+// Simplifies a one-bit slice of add(zero_ext(v), K) at the original width of
+// `v`, where `K` is a literal. `query_engine` identifies equivalent extensions.
+static absl::StatusOr<bool> SimplifyCarryExtraction(
+    BitSlice* bit_slice, const QueryEngine& query_engine) {
   if (bit_slice->width() != 1) {
     return false;
   }
@@ -174,38 +167,29 @@ static absl::StatusOr<bool> SimplifyCarryExtraction(BitSlice* bit_slice) {
   if (add->op() != Op::kAdd) {
     return false;
   }
-  const int64_t add_width = add->BitCountOrDie();
-  Node* add_lhs = add->operand(0);
-  Node* add_rhs = add->operand(1);
 
-  // Match (zero_ext(v), literal) in either operand order.
-  std::optional<ZeroExtendedBitsView> maybe_v;
+  Node* extended = nullptr;
   Literal* literal = nullptr;
   if (!MatchNodesInAnyOrder(
-          add_lhs, add_rhs,
-          [](Node* n) { return MatchZeroExtendedBits(n).has_value(); },
-          [](Node* n) { return n->Is<Literal>(); },
-          [&](Node* zeroext_node, Node* literal_node) {
-            maybe_v = MatchZeroExtendedBits(zeroext_node);
-            literal = literal_node->As<Literal>();
+          add->operand(0), add->operand(1), IsLiteral,
+          [](Node* n) { return !IsLiteral(n); },
+          [&](Node* constant, Node* operand) {
+            literal = constant->As<Literal>();
+            extended = operand;
           })) {
     return false;
   }
-  DCHECK(maybe_v.has_value());
-  DCHECK(literal != nullptr);
-  DCHECK_EQ(maybe_v->result_width, add_width);
-
-  Node* v = maybe_v->base;  // bits[N]
-  const int64_t n_width = maybe_v->base_width;
-  DCHECK_LT(n_width, add_width);
-  if (n_width <= 0) {
+  std::optional<ZeroExtLike> extension =
+      ZeroExtLike::Make(extended, query_engine);
+  if (!extension.has_value()) {
     return false;
   }
-  if (bit_slice->start() != n_width) {
+  Node* v = extension->to_extend();
+  const int64_t n_width = v->BitCountOrDie();
+  if (n_width == 0 || bit_slice->start() != n_width) {
     return false;
   }
-  const Bits k = literal->value().bits();
-  DCHECK_EQ(k.bit_count(), add_width);
+  const Bits& k = literal->value().bits();
 
   // Let `A = zero_ext(v)` (so `A[N] = 0`) and `B = k` (so `B[N] = b_n`).
   // Then `sum[N] = b_n XOR carry_in`, where `carry_in` is the carry-out from
@@ -255,12 +239,13 @@ static absl::StatusOr<bool> SimplifyCarryExtraction(BitSlice* bit_slice) {
 // form. Returns true if the bit slice was replaced. Any newly created
 // bit-slices are added to the worklist.
 absl::StatusOr<bool> SimplifyBitSlice(BitSlice* bit_slice, int64_t opt_level,
+                                      const QueryEngine& query_engine,
                                       std::deque<BitSlice*>* worklist) {
   Node* operand = bit_slice->operand(0);
   BitsType* operand_type = operand->GetType()->AsBitsOrDie();
 
   XLS_ASSIGN_OR_RETURN(bool carry_rewritten,
-                       SimplifyCarryExtraction(bit_slice));
+                       SimplifyCarryExtraction(bit_slice, query_engine));
   if (carry_rewritten) {
     return true;
   }
@@ -1222,9 +1207,9 @@ absl::StatusOr<bool> BitSliceSimplificationPass::RunOnFunctionBaseInternal(
   while (!worklist.empty()) {
     BitSlice* bit_slice = worklist.front();
     worklist.pop_front();
-    XLS_ASSIGN_OR_RETURN(
-        bool node_changed,
-        SimplifyBitSlice(bit_slice, options.opt_level, &worklist));
+    XLS_ASSIGN_OR_RETURN(bool node_changed,
+                         SimplifyBitSlice(bit_slice, options.opt_level,
+                                          query_engine, &worklist));
     changed = changed || node_changed;
   }
 
