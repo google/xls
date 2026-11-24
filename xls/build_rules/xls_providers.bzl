@@ -68,6 +68,32 @@ OptIrArgInfo = provider(
     },
 )
 
+# CLI flags backing OPT_IR_FIELDS, CODEGEN_FIELDS, and SCHEDULING_FIELDS are
+# defined across opt_flags.cc, pass_pipeline_flags.cc, area_model_flags.cc,
+# delay_model_flags.cc, codegen_flags.cc, scheduling_options_flags.cc, and
+# common_flags.cc.
+OPT_IR_FIELDS = {
+    "ir_dump_path": "Optional(string): Location to dump intermediate IR files.",
+    "passes": "Optional(string): Explicit space-separated list of passes to run.",
+    "skip_passes": "Comma-separated list of (short) pass names to skip.",
+    "split_next_value_selects": "Optional(int): Maximum number of cases for " +
+                                "splitting `next_value` selects.",
+    "opt_level": "Optional(int): Optimization level used during IR optimization.",
+    "convert_array_index_to_select": "Optional(int): Maximum number of indices " +
+                                     "for converting array indexes into select chains.",
+    "use_context_narrowing_analysis": "Whether to use context-sensitive narrowing analysis.",
+    "optimize_for_best_case_throughput": "Whether to optimize aggressively for best-case throughput.",
+    "decouple_state_access": "Whether proc StateRead and Next operations are decoupled.",
+    "enable_resource_sharing": "Whether to enable the resource sharing optimization.",
+    "force_resource_sharing": "Whether to force resource sharing where legal.",
+    "area_model": "Area model to use for optimizations.",
+    "delay_model": "Optional(string): Delay model to use for optimizations.",
+    "top": "String: Name of the top-level entity in the IR.",
+    "passes_bisect_limit": "Optional(int): Maximum number of passes allowed to execute.",
+    "passes_bisect_limit_is_error": "Whether reaching `passes_bisect_limit` is an error.",
+    "debug_optimizations": "Whether to run additional strict correctness-checking passes.",
+}
+
 CODEGEN_FIELDS = {
     "input_ir": "IrFileInfo: The ir set for codegen",
     "top": "String: Name of top level block in the IR.",

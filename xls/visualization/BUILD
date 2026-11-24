@@ -43,6 +43,7 @@ cc_binary(
         "//xls/scheduling:pipeline_schedule",
         "//xls/scheduling:run_pipeline_schedule",
         "//xls/scheduling:scheduling_options",
+        "//xls/tools:common_flags",
         "//xls/tools:scheduling_options_flags",
         "//xls/tools:scheduling_options_flags_cc_proto",
         "@abseil-cpp//absl/container:flat_hash_map",

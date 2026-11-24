@@ -23,11 +23,10 @@
 #include "absl/flags/flag.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
-#include "absl/strings/str_format.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/status/status_macros.h"
-#include "xls/passes/optimization_pass.h"
 #include "xls/tools/area_model_flags.h"
+#include "xls/tools/common_flags.h"
 #include "xls/tools/delay_model_flags.h"
 #include "xls/tools/opt_flags.pb.h"
 #include "xls/tools/opt_flags_handler_registry.h"
@@ -35,11 +34,7 @@
 #include "xls/tools/pass_pipeline_flags.h"
 
 // LINT.IfChange
-ABSL_FLAG(std::string, top, xls::OptFlagsProto::default_instance().top(),
-          "Top entity to optimize.");
-ABSL_FLAG(std::string, ir_dump_path,
-          xls::OptFlagsProto::default_instance().ir_dump_path(),
-          "Dump all intermediate IR files to the given directory");
+// `--top`, `--ir_dump_path`, and `--opt_level` are defined in common_flags.cc.
 ABSL_FLAG(std::optional<int64_t>, convert_array_index_to_select, std::nullopt,
           "If specified, convert array indexes with fewer than or "
           "equal to the given number of possible indices (by range analysis) "
@@ -52,13 +47,6 @@ ABSL_FLAG(
     "they have fewer than the given number of cases. This optimization is "
     "skipped for selects with more cases, since it can sometimes reduce output "
     "quality by replacing MUX trees with separate equality checks.");
-ABSL_FLAG(int64_t, opt_level,
-          xls::OptFlagsProto::default_instance().opt_level(),
-          []() -> const std::string& {
-            static const std::string kDescription = absl::StrFormat(
-                "Optimization level. Ranges from 0 to %d.", xls::kMaxOptLevel);
-            return kDescription;
-          }());
 ABSL_FLAG(std::string, ram_rewrites_pb, "",
           "Path to protobuf describing ram rewrites.");
 ABSL_FLAG(
@@ -100,7 +88,7 @@ ABSL_FLAG(std::optional<std::string>, opt_options_used_textproto_file,
           std::nullopt,
           "If present, path to write a protobuf recording all opt args "
           "used (including those set on the cmd line).");
-// LINT.ThenChange(//xls/build_rules/xls_ir_rules.bzl)
+// LINT.ThenChange(//xls/build_rules/xls_providers.bzl)
 
 namespace xls {
 namespace {
@@ -151,7 +139,7 @@ absl::StatusOr<bool> SetOptionsFromFlags(OptFlagsProto& proto) {
 
   POPULATE_FLAG(opt_level)
   POPULATE_FLAG(top)
-  POPULATE_FLAG(ir_dump_path)
+  POPULATE_OPTIONAL_FLAG(ir_dump_path)
   POPULATE_OPTIONAL_FLAG(convert_array_index_to_select)
   if (FLAGS_split_next_value_selects.IsSpecifiedOnCommandLine()) {
     any_flags_set = true;

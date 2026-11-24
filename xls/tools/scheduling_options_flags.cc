@@ -36,8 +36,8 @@
 #include "ortools/math_opt/parameters.pb.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/status/status_macros.h"
-#include "xls/passes/optimization_pass.h"
 #include "xls/scheduling/scheduling_options.h"
+#include "xls/tools/common_flags.h"
 #include "xls/tools/delay_model_flags.h"
 #include "xls/tools/scheduling_options_flags.pb.h"
 
@@ -119,11 +119,8 @@ std::string AbslUnparseFlag(const ArcThroughputMap& map) {
 }
 
 // LINT.IfChange
-ABSL_FLAG(int64_t, opt_level, xls::kMaxOptLevel, []() -> const std::string& {
-  static const std::string kDescription = absl::StrFormat(
-      "Optimization level. Ranges from 0 to %d.", xls::kMaxOptLevel);
-  return kDescription;
-}());
+// `--opt_level` is defined in common_flags.cc; `--delay_model` is defined in
+// delay_model_flags.cc.
 ABSL_FLAG(int64_t, clock_period_ps, 0,
           "Target clock period, in picoseconds. See "
           "https://google.github.io/xls/scheduling for details.");

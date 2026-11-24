@@ -38,6 +38,7 @@
 #include "xls/ir/xls_ir_interface.pb.h"
 #include "xls/tools/codegen_flags.pb.h"
 #include "xls/tools/codegen_flags_handler_registry.h"
+#include "xls/tools/common_flags.h"
 
 // LINT.IfChange
 ABSL_FLAG(
@@ -58,8 +59,7 @@ ABSL_FLAG(
 ABSL_FLAG(std::string, output_verilog_line_map_path, "",
           "Specific output path for Verilog line map. If not specified then "
           "Verilog line map is not generated.");
-ABSL_FLAG(std::string, top, "",
-          "Top entity of the package to generate the (System)Verilog code.");
+// `--top` is defined in common_flags.cc.
 ABSL_FLAG(std::string, generator, "pipeline",
           "The generator to use when emitting the device function. Valid "
           "values: pipeline, combinational.");
@@ -251,9 +251,7 @@ ABSL_FLAG(
     "An optional proto which includes details from the original DSLX about the "
     "interface. For example it holds the sv types we want modules to generate");
 
-// This flag should only be specified by the user manually on the command line.
-ABSL_FLAG(std::optional<std::string>, ir_dump_path, std::nullopt,
-          "Location to dump the ir after each pass");
+// `--ir_dump_path` is defined in common_flags.cc.
 
 // Returns a textual flag value corresponding to the SeedSeq `seed_seq`.
 std::string AbslUnparseFlag(const SeedSeq& seed_seq) {

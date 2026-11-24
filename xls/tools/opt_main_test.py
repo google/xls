@@ -484,7 +484,7 @@ class OptMainTest(parameterized.TestCase):
 
   def test_opt_level_help(self):
     result = subprocess.run(
-        [OPT_MAIN_PATH, '--helpmatch=opt_flags'],
+        [OPT_MAIN_PATH, '--helpmatch=common_flags'],
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,

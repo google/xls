@@ -810,7 +810,7 @@ class CodeGenMainTest(parameterized.TestCase):
 
   def test_opt_level_help(self):
     result = subprocess.run(
-        [CODEGEN_MAIN_PATH, '--helpmatch=scheduling_options_flags'],
+        [CODEGEN_MAIN_PATH, '--helpmatch=common_flags'],
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,

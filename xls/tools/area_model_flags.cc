@@ -31,7 +31,7 @@ ABSL_FLAG(std::string, area_model, "",
           "Area model name to use from the registry. If unspecified, uses the "
           "tool default; pass empty (--area_model=) to disable optional area "
           "estimation.");
-// LINT.ThenChange(//xls/build_rules/xls_ir_rules.bzl)
+// LINT.ThenChange(//xls/build_rules/xls_providers.bzl)
 
 namespace xls {
 

@@ -14,10 +14,10 @@ SystemVerilog.
 -   `--top` specifies the top function or proc to codegen.
 -   `--codegen_options_proto=...` specifies the filename of a protobuf
     containing the arguments to supply codegen other than the scheduling
-    arguments. Details can be found in codegen_flags.cc
+    arguments. Details can be found in `codegen_flags.cc` and `common_flags.cc`.
 -   `--scheduling_options_proto=...` specifies the filename of a protobuf
     containing the scheduling arguments. Details can be found in
-    scheduling_options_flags.cc
+    `scheduling_options_flags.cc` and `common_flags.cc`.
 
 # Output locations
 

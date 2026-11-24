@@ -568,12 +568,25 @@ cc_test(
 )
 
 cc_library(
+    name = "common_flags",
+    srcs = ["common_flags.cc"],
+    hdrs = ["common_flags.h"],
+    visibility = ["//xls:xls_internal"],
+    deps = [
+        "//xls/passes:optimization_pass",
+        "@abseil-cpp//absl/flags:flag",
+        "@abseil-cpp//absl/strings:str_format",
+    ],
+)
+
+cc_library(
     name = "opt_flags",
     srcs = ["opt_flags.cc"],
     hdrs = ["opt_flags.h"],
     visibility = ["//xls:xls_users"],
     deps = [
         ":area_model_flags",
+        ":common_flags",
         ":delay_model_flags",
         ":opt_flags_cc_proto",
         ":opt_flags_handler_registry",
@@ -581,11 +594,9 @@ cc_library(
         ":pass_pipeline_flags",
         "//xls/common/file:filesystem",
         "//xls/common/status:status_macros",
-        "//xls/passes:optimization_pass",
         "@abseil-cpp//absl/flags:flag",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:statusor",
-        "@abseil-cpp//absl/strings:str_format",
     ],
 )
 
@@ -845,11 +856,11 @@ cc_library(
     srcs = ["scheduling_options_flags.cc"],
     hdrs = ["scheduling_options_flags.h"],
     deps = [
+        ":common_flags",
         ":delay_model_flags",
         ":scheduling_options_flags_cc_proto",
         "//xls/common/file:filesystem",
         "//xls/common/status:status_macros",
-        "//xls/passes:optimization_pass",
         "//xls/scheduling:scheduling_options",
         "@abseil-cpp//absl/container:flat_hash_map",
         "@abseil-cpp//absl/flags:flag",
@@ -907,6 +918,7 @@ cc_library(
     deps = [
         ":codegen_flags_cc_proto",
         ":codegen_flags_handler_registry",
+        ":common_flags",
         "//xls/codegen:codegen_residual_data_cc_proto",
         "//xls/common/file:filesystem",
         "//xls/common/status:ret_check",
@@ -1452,6 +1464,7 @@ cc_library(
     hdrs = ["delay_info_flags.h"],
     visibility = ["//xls:xls_users"],
     deps = [
+        ":common_flags",
         ":delay_info_flags_cc_proto",
         "@abseil-cpp//absl/flags:flag",
     ],
