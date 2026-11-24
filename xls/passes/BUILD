@@ -2408,6 +2408,7 @@ cc_library(
         "@abseil-cpp//absl/time",
         "@abseil-cpp//absl/types:span",
         "@protobuf//:duration_cc_proto",
+        "@protobuf//:time_util",
     ],
 )
 
@@ -2440,6 +2441,7 @@ cc_test(
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/strings:str_format",
+        "@abseil-cpp//absl/time",
         "@abseil-cpp//absl/types:span",
         "@googletest//:gtest",
         "@protobuf//:duration_cc_proto",

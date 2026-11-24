@@ -19,6 +19,7 @@
 
 #include "google/protobuf/duration.pb.h"
 #include "absl/time/time.h"
+#include "google/protobuf/util/time_util.h"
 #include "xls/ir/package.h"
 #include "xls/passes/pass_metrics.pb.h"
 
@@ -44,13 +45,10 @@ void InvocationToProto(const PassInvocation& invocation,
   proto->set_pass_name(invocation.pass_name());
   proto->set_changed(invocation.ir_changed());
   proto->set_skip_reason(ToSkipReasonProto(invocation.skip_reason()));
-  absl::Duration rem;
-  int64_t s =
-      absl::IDivDuration(invocation.run_duration(), absl::Seconds(1), &rem);
-  int64_t n =
-      absl::IDivDuration(invocation.run_duration(), absl::Nanoseconds(1), &rem);
-  proto->mutable_duration()->set_seconds(s);
-  proto->mutable_duration()->set_nanos(n);
+  // TODO(google/xls#4734): Use util_time::EncodeGoogleApiProto once we adopt
+  // gloop.
+  *proto->mutable_duration() = google::protobuf::util::TimeUtil::NanosecondsToDuration(
+      absl::ToInt64Nanoseconds(invocation.run_duration()));
   *proto->mutable_transformation_metrics() = invocation.metrics().ToProto();
   if (invocation.fixed_point_iterations() > 0) {
     proto->set_fixed_point_iterations(invocation.fixed_point_iterations());

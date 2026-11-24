@@ -32,6 +32,7 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
+#include "absl/time/time.h"
 #include "absl/types/span.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/file/temp_directory.h"
@@ -957,6 +958,46 @@ TEST_F(PassBaseTest, IdempotentPassTracking) {
                   }
                 }
               )pb")));
+}
+
+TEST_F(PassBaseTest, ToProtoSerializesSubsecondDurationRemainder) {
+  auto record = [](absl::Duration duration) {
+    PassResults results;
+    PassInvocation& invocation = results.PushInvocation("test_pass");
+    invocation.run_duration() = duration;
+    results.PopInvocation();
+    return results.ToProto().pass_metrics().duration();
+  };
+
+  // Sub-second duration.
+  google::protobuf::Duration subsecond = record(absl::Milliseconds(42));
+  EXPECT_EQ(subsecond.seconds(), 0);
+  EXPECT_EQ(subsecond.nanos(), 42'000'000);
+
+  // >= 1s must store only the sub-second remainder in `nanos`, not the total.
+  google::protobuf::Duration over_one_sec =
+      record(absl::Seconds(1) + absl::Nanoseconds(250));
+  EXPECT_EQ(over_one_sec.seconds(), 1);
+  EXPECT_EQ(over_one_sec.nanos(), 250);
+
+  // > 2.15s previously overflowed int32_t `nanos` into negative values.
+  google::protobuf::Duration over_int32_ns =
+      record(absl::Seconds(3) + absl::Nanoseconds(500'000'000));
+  EXPECT_EQ(over_int32_ns.seconds(), 3);
+  EXPECT_EQ(over_int32_ns.nanos(), 500'000'000);
+
+  // Large multi-minute duration preserves exact nanos in [0, 1e9).
+  google::protobuf::Duration large =
+      record(absl::Seconds(123) + absl::Nanoseconds(999'999'999));
+  EXPECT_EQ(large.seconds(), 123);
+  EXPECT_EQ(large.nanos(), 999'999'999);
+
+  // Negative duration keeps matching negative sign on both `seconds` and
+  // `nanos` per google.protobuf.Duration invariants.
+  google::protobuf::Duration negative =
+      record(-absl::Seconds(2) - absl::Nanoseconds(123'456'789));
+  EXPECT_EQ(negative.seconds(), -2);
+  EXPECT_EQ(negative.nanos(), -123'456'789);
 }
 
 }  // namespace
