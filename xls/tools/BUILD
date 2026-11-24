@@ -379,6 +379,52 @@ cc_binary(
 )
 
 cc_library(
+    name = "pass_pipeline_config",
+    srcs = ["pass_pipeline_config.cc"],
+    hdrs = ["pass_pipeline_config.h"],
+    visibility = ["//xls:xls_users"],
+    deps = [
+        "//xls/common/status:status_macros",
+        "//xls/passes:optimization_pass",
+        "//xls/passes:optimization_pass_pipeline",
+        "//xls/passes:optimization_pass_pipeline_cc_proto",
+        "//xls/passes:optimization_pass_registry",
+        "//xls/passes:pass_pipeline_cc_proto",
+        "//xls/passes:query_engine_checker",
+        "//xls/passes:verifier_checker",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/types:optional_ref",
+    ],
+)
+
+cc_test(
+    name = "pass_pipeline_config_test",
+    srcs = ["pass_pipeline_config_test.cc"],
+    deps = [
+        ":pass_pipeline_config",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/common/status:status_macros",
+        "//xls/estimators/delay_model/models",  # build_cleaner: keep
+        "//xls/ir",
+        "//xls/ir:bits",
+        "//xls/ir:function_builder",
+        "//xls/ir:op",
+        "//xls/passes",
+        "//xls/passes:optimization_pass",
+        "//xls/passes:optimization_pass_pipeline_cc_proto",
+        "//xls/passes:optimization_pass_registry",
+        "//xls/passes:pass_base",
+        "//xls/passes:pass_pipeline_cc_proto",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:status_matchers",
+        "@abseil-cpp//absl/status:statusor",
+        "@googletest//:gtest",
+    ],
+)
+
+cc_library(
     name = "opt",
     srcs = ["opt.cc"],
     hdrs = ["opt.h"],
@@ -386,7 +432,7 @@ cc_library(
     deps = [
         ":opt_flags_cc_proto",
         ":opt_flags_handler_registry",
-        "//xls/common/status:ret_check",
+        ":pass_pipeline_config",
         "//xls/common/status:status_macros",
         "//xls/estimators/area_model:area_estimator",
         "//xls/estimators/area_model:area_estimators",
@@ -398,22 +444,17 @@ cc_library(
         "//xls/ir:verifier",
         "//xls/passes",
         "//xls/passes:optimization_pass",
-        "//xls/passes:optimization_pass_pipeline",
         "//xls/passes:optimization_pass_pipeline_cc_proto",
         "//xls/passes:optimization_pass_registry",
         "//xls/passes:pass_base",
         "//xls/passes:pass_metrics_cc_proto",
         "//xls/passes:pass_pipeline_cc_proto",
-        "//xls/passes:query_engine_checker",
-        "//xls/passes:verifier_checker",
-        "@abseil-cpp//absl/algorithm:container",
         "@abseil-cpp//absl/base:core_headers",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings:str_format",
         "@abseil-cpp//absl/types:optional_ref",
-        "@abseil-cpp//absl/types:span",
     ],
 )
 
@@ -450,6 +491,7 @@ cc_binary(
         ":opt",
         ":opt_flags",
         ":opt_flags_cc_proto",
+        ":pass_pipeline_config",
         "//xls/common:exit_status",
         "//xls/common:init_xls",
         "//xls/common/file:filesystem",
@@ -463,6 +505,7 @@ cc_binary(
         "//xls/passes",
         "//xls/passes:optimization_pass",
         "//xls/passes:optimization_pass_pipeline",
+        "//xls/passes:optimization_pass_pipeline_cc_proto",
         "//xls/passes:optimization_pass_registry",
         "//xls/passes:pass_base",
         "//xls/passes:pass_metrics_cc_proto",
@@ -475,6 +518,7 @@ cc_binary(
         "@abseil-cpp//absl/log:log_sink",
         "@abseil-cpp//absl/log:log_sink_registry",
         "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings:str_format",
         "@abseil-cpp//absl/types:optional_ref",
         "@protobuf",

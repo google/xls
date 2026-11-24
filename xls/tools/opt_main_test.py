@@ -386,6 +386,45 @@ class OptMainTest(parameterized.TestCase):
     # elimination).
     self.assertIn('cse', metrics_output)
 
+  def test_list_passes_with_pipeline_proto(self):
+    registry = optimization_pass_pipeline_pb2.OptimizationPipelineProto(
+        compound_passes=[
+            optimization_pass_pipeline_pb2.OptimizationPipelineProto.CompoundPass(
+                long_name='custom list pass',
+                short_name='my_custom_list_pass',
+                passes=['dce'],
+            )
+        ],
+        default_pipeline=['my_custom_list_pass'],
+    )
+    reg_file = self.create_tempfile(content=registry.SerializeToString())
+    output = subprocess.check_output([
+        OPT_MAIN_PATH,
+        '--list_passes',
+        f'--pipeline_proto={reg_file.full_path}',
+    ]).decode('utf-8')
+    self.assertIn('my_custom_list_pass', output)
+
+  def test_passes_bisect_limit_is_error(self):
+    ir_file = self.create_tempfile(content=ADD_ZERO_IR)
+    comp = subprocess.run(
+        [
+            OPT_MAIN_PATH,
+            '--passes=dce basic_simp dce',
+            '--passes_bisect_limit=1',
+            '--passes_bisect_limit_is_error',
+            ir_file.full_path,
+        ],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        check=False,
+    )
+    self.assertNotEqual(comp.returncode, 0)
+    self.assertIn('passes bisect limit was reached', comp.stderr)
+    # Optimized IR up to the bisect limit is still printed to stdout.
+    self.assertIn('bits[32] = add', comp.stdout)
+
   def test_opt_level_help(self):
     result = subprocess.run(
         [OPT_MAIN_PATH, '--helpmatch=opt_flags'],

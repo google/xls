@@ -20,17 +20,13 @@
 #include <optional>
 #include <string>
 #include <string_view>
-#include <utility>
 #include <vector>
 
-#include "absl/algorithm/container.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "absl/types/optional_ref.h"
-#include "absl/types/span.h"
-#include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/estimators/area_model/area_estimator.h"
 #include "xls/estimators/area_model/area_estimators.h"
@@ -42,16 +38,33 @@
 #include "xls/ir/ram_rewrite.pb.h"
 #include "xls/ir/verifier.h"
 #include "xls/passes/optimization_pass.h"
-#include "xls/passes/optimization_pass_pipeline.h"
+#include "xls/passes/optimization_pass_pipeline.pb.h"
 #include "xls/passes/optimization_pass_registry.h"
 #include "xls/passes/pass_base.h"
-#include "xls/passes/pass_metrics.pb.h"
-#include "xls/passes/query_engine_checker.h"
-#include "xls/passes/verifier_checker.h"
 #include "xls/tools/opt_flags.pb.h"
 #include "xls/tools/opt_flags_handler_registry.h"
+#include "xls/tools/pass_pipeline_config.h"
 
 namespace xls::tools {
+namespace {
+
+OptimizationPipelineConfig PipelineConfigFromOptFlagsProto(
+    const OptFlagsProto& options) {
+  OptimizationPipelineConfig config;
+  config.skip_passes.assign(options.skip_passes().begin(),
+                            options.skip_passes().end());
+  if (options.has_pipeline()) {
+    config.pipeline = options.pipeline();
+  }
+  if (options.has_passes_bisect_limit()) {
+    config.passes_bisect_limit = options.passes_bisect_limit();
+  }
+  config.passes_bisect_limit_is_error = options.passes_bisect_limit_is_error();
+  config.debug_optimizations = options.debug_optimizations();
+  return config;
+}
+
+}  // namespace
 
 absl::StatusOr<OptFlagsProto> OptFlagsFromOptOptions(
     const OptOptions& options) {
@@ -135,14 +148,18 @@ absl::Status OptimizeIrForTop(Package* package, const OptFlagsProto& options,
                          GetAreaEstimator(options.area_model()));
   }
 
-  std::optional<OptimizationPassRegistry> registry;
-  if (options.has_custom_registry()) {
-    registry.emplace(GetOptimizationRegistry().OverridableClone());
-    XLS_RETURN_IF_ERROR(registry->RegisterPipelineProto(
-        options.custom_registry(), "custom-registry"));
-  }
+  const absl::optional_ref<const OptimizationPipelineProto>
+      custom_registry_proto =
+          options.has_custom_registry()
+              ? absl::optional_ref<const OptimizationPipelineProto>(
+                    options.custom_registry())
+              : std::nullopt;
+  XLS_ASSIGN_OR_RETURN(
+      std::optional<OptimizationPassRegistry> custom_registry,
+      MaybeCreateCustomOptimizationRegistry(custom_registry_proto));
   const OptimizationPassRegistry& chosen_registry =
-      registry.value_or(GetOptimizationRegistry());
+      custom_registry.has_value() ? *custom_registry
+                                  : GetOptimizationRegistry();
   std::optional<std::unique_ptr<OptimizationPassRegistry>> decorated_registry;
   if (modifiers.registry_decorator.has_value()) {
     XLS_ASSIGN_OR_RETURN(
@@ -152,26 +169,11 @@ absl::Status OptimizeIrForTop(Package* package, const OptFlagsProto& options,
   const OptimizationPassRegistry& final_registry =
       decorated_registry ? **decorated_registry : chosen_registry;
 
-  std::unique_ptr<OptimizationPass> pipeline;
-  if (options.has_pipeline()) {
-    XLS_RET_CHECK(options.skip_passes().empty())
-        << "Skipping/restricting passes while running a custom "
-           "pipeline is probably not something you want to do.";
-    XLS_ASSIGN_OR_RETURN(std::unique_ptr<OptimizationCompoundPass> res,
-                         GetOptimizationPipelineGenerator(final_registry)
-                             .GeneratePipeline(options.pipeline()));
-    if (options.debug_optimizations()) {
-      res->AddInvariantChecker<VerifierChecker>();
-      res->AddInvariantChecker<QueryEngineChecker>();
-    } else {
-      res->AddWeakInvariantChecker<VerifierChecker>();
-    }
-    pipeline = std::move(res);
-  } else {
-    XLS_ASSIGN_OR_RETURN(pipeline,
-                         TryCreateOptimizationPassPipeline(
-                             options.debug_optimizations(), final_registry));
-  }
+  const OptimizationPipelineConfig pipeline_config =
+      PipelineConfigFromOptFlagsProto(options);
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<OptimizationPass> pipeline,
+                       BuildOptimizationPassPipelineWithRegistry(
+                           pipeline_config, final_registry));
 
   // Since we are running during an opt the passes might be in states which the
   // estimators might not normally expect (eg having live invoke nodes etc). We
@@ -190,12 +192,11 @@ absl::Status OptimizeIrForTop(Package* package, const OptFlagsProto& options,
   // TODO(allight): Some refactoring of how we pass around these options is
   // probably warranted. There are a lot of things here.
   OptimizationPassOptions pass_options;
+  ApplyOptimizationPipelineOptions(pipeline_config, pass_options);
   pass_options.opt_level = options.opt_level();
   pass_options.delay_estimator = delay_estimator;
   pass_options.area_estimator = area_estimator;
   pass_options.ir_dump_path = options.ir_dump_path();
-  absl::c_copy(options.skip_passes(),
-               std::back_inserter(pass_options.skip_passes));
   if (options.has_convert_array_index_to_select()) {
     pass_options.convert_array_index_to_select =
         options.convert_array_index_to_select();
@@ -218,9 +219,6 @@ absl::Status OptimizeIrForTop(Package* package, const OptFlagsProto& options,
   pass_options.decouple_state_access = options.decouple_state_access();
   pass_options.enable_resource_sharing = options.enable_resource_sharing();
   pass_options.force_resource_sharing = options.force_resource_sharing();
-  if (options.has_passes_bisect_limit()) {
-    pass_options.bisect_limit = options.passes_bisect_limit();
-  }
   XLS_RETURN_IF_ERROR(OptFlagsHandlerRegistry::Process(options, pass_options));
   PassResults results;
   OptimizationContext context;

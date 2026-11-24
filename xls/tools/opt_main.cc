@@ -35,6 +35,7 @@
 #include "absl/log/log_sink.h"
 #include "absl/log/log_sink_registry.h"
 #include "absl/status/status.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "absl/types/optional_ref.h"
 #include "google/protobuf/text_format.h"
@@ -48,12 +49,14 @@
 #include "xls/ir/package.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/optimization_pass_pipeline.h"
+#include "xls/passes/optimization_pass_pipeline.pb.h"
 #include "xls/passes/optimization_pass_registry.h"
 #include "xls/passes/pass_base.h"
 #include "xls/passes/pass_metrics.pb.h"
 #include "xls/tools/opt.h"
 #include "xls/tools/opt_flags.h"
 #include "xls/tools/opt_flags.pb.h"
+#include "xls/tools/pass_pipeline_config.h"
 
 static constexpr std::string_view kUsage = R"(
 Takes in an IR file and produces an IR file that has been run through the
@@ -245,23 +248,17 @@ absl::Status RealMain(std::string_view input_path) {
   } else {
     XLS_RETURN_IF_ERROR(SetFileContents(output_path, optimized_ir));
   }
-  if (opt_flags.passes_bisect_limit_is_error() &&
-      opt_flags.has_passes_bisect_limit() &&
-      metadata.metrics.has_total_passes() &&
-      metadata.metrics.total_passes() >= opt_flags.passes_bisect_limit()) {
-    return absl::InternalError("passes bisect limit was reached.");
+  if (opt_flags.has_passes_bisect_limit() &&
+      metadata.metrics.has_total_passes()) {
+    OptimizationPipelineConfig bisect_config{
+        .passes_bisect_limit = opt_flags.passes_bisect_limit(),
+        .passes_bisect_limit_is_error =
+            opt_flags.passes_bisect_limit_is_error(),
+    };
+    XLS_RETURN_IF_ERROR(
+        CheckPassesBisectLimit(bisect_config, metadata.metrics.total_passes()));
   }
   return absl::OkStatus();
-}
-
-absl::StatusOr<std::string> GetAvailablePassesStr(
-    const OptFlagsProto& opt_flags) {
-  OptimizationPassRegistry reg = GetOptimizationRegistry().OverridableClone();
-  if (opt_flags.has_pipeline()) {
-    XLS_RETURN_IF_ERROR(
-        reg.RegisterPipelineProto(opt_flags.custom_registry(), "<pipeline>"));
-  }
-  return GetOptimizationPipelineGenerator(reg).GetAvailablePassesStr();
 }
 }  // namespace
 }  // namespace xls::tools
@@ -276,8 +273,14 @@ int main(int argc, char** argv) {
     if (!opt_flags.ok()) {
       return xls::ExitStatus(opt_flags.status());
     }
+    const absl::optional_ref<const xls::OptimizationPipelineProto>
+        custom_registry =
+            opt_flags->has_custom_registry()
+                ? absl::optional_ref<const xls::OptimizationPipelineProto>(
+                      opt_flags->custom_registry())
+                : std::nullopt;
     absl::StatusOr<std::string> available_passes =
-        xls::tools::GetAvailablePassesStr(*opt_flags);
+        xls::GetAvailablePassesStr(custom_registry);
     if (!available_passes.ok()) {
       return xls::ExitStatus(available_passes.status());
     }
