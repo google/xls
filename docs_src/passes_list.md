@@ -1338,8 +1338,10 @@ Key canonicalizations include:
     *   If a `next_value` or `state_read` has a known `1` predicate, the
         predicate is removed to make the operation unconditional.
     *   If a `next_value` has a known `0` predicate, it is replaced with an
-        empty tuple literal `()` and removed. (Known `0` predicates on
-        `state_read` are preserved for downstream state legalization.)
+        empty tuple literal `()` and removed. When `decouple_state_access`
+        is enabled, a `state_read` with a known `0` predicate is similarly
+        replaced with a zero literal and removed (in coupled mode it is
+        preserved for downstream state legalization).
 
 
 [Header](http://github.com/google/xls/tree/main/xls/passes/canonicalization_pass.h)

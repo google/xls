@@ -84,6 +84,7 @@ absl::StatusOr<OptFlagsProto> OptFlagsFromOptOptions(
       options.use_context_narrowing_analysis);
   proto.set_optimize_for_best_case_throughput(
       options.optimize_for_best_case_throughput);
+  proto.set_decouple_state_access(options.decouple_state_access);
   proto.set_enable_resource_sharing(options.enable_resource_sharing);
   proto.set_force_resource_sharing(options.force_resource_sharing);
   proto.set_area_model(options.area_model);
@@ -214,6 +215,7 @@ absl::Status OptimizeIrForTop(Package* package, const OptFlagsProto& options,
       options.use_context_narrowing_analysis();
   pass_options.optimize_for_best_case_throughput =
       options.optimize_for_best_case_throughput();
+  pass_options.decouple_state_access = options.decouple_state_access();
   pass_options.enable_resource_sharing = options.enable_resource_sharing();
   pass_options.force_resource_sharing = options.force_resource_sharing();
   if (options.has_passes_bisect_limit()) {

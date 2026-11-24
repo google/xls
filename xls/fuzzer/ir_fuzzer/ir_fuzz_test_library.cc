@@ -175,7 +175,8 @@ void RecordFuzzInfo(const Package& args) {
 // values before and after the pass. It returns the boolean value of whether the
 // results changed.
 void OptimizationPassChangesOutputs(FuzzPackageWithArgs fuzz_package_with_args,
-                                    OptimizationPass& pass) {
+                                    OptimizationPass& pass,
+                                    const OptimizationPassOptions& options) {
   std::unique_ptr<Package>& p = fuzz_package_with_args.fuzz_package.p;
   FuzzProgramProto& fuzz_program =
       fuzz_package_with_args.fuzz_package.fuzz_program;
@@ -195,9 +196,8 @@ void OptimizationPassChangesOutputs(FuzzPackageWithArgs fuzz_package_with_args,
   // Run the optimization pass over the IR.
   PassResults results;
   OptimizationContext context;
-  XLS_ASSERT_OK_AND_ASSIGN(
-      bool ir_changed,
-      pass.Run(p.get(), OptimizationPassOptions(), &results, context));
+  XLS_ASSERT_OK_AND_ASSIGN(bool ir_changed,
+                           pass.Run(p.get(), options, &results, context));
   VLOG(3) << "IR Fuzzer-4: After Pass IR:" << "\n" << p->DumpIr() << "\n";
   ScopedMaybeRecord<std::string> post("after_pass", p->DumpIr());
   // Interpret the IR function with the arguments after optimization.
@@ -227,14 +227,15 @@ void OptimizationPassChangesOutputs(FuzzPackageWithArgs fuzz_package_with_args,
 // Accepts a FuzzProgramProto string and runs the given optimization pass over
 // the generated IR. It verifies that the results are the same before and after
 // the pass. Useful for debugging OptimizationPassChangesOutputs failures.
-absl::Status PassChangesOutputsWithProto(std::string proto_string,
-                                         int64_t arg_set_count,
-                                         OptimizationPass& pass) {
+absl::Status PassChangesOutputsWithProto(
+    std::string proto_string, int64_t arg_set_count, OptimizationPass& pass,
+    const OptimizationPassOptions& options) {
   XLS_ASSIGN_OR_RETURN(FuzzPackage fuzz_package,
                        BuildPackageFromProtoString(proto_string));
   FuzzPackageWithArgs fuzz_package_with_args =
       GenArgSetsForPackage(std::move(fuzz_package), arg_set_count);
-  OptimizationPassChangesOutputs(std::move(fuzz_package_with_args), pass);
+  OptimizationPassChangesOutputs(std::move(fuzz_package_with_args), pass,
+                                 options);
   return absl::OkStatus();
 }
 

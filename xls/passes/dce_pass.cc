@@ -41,6 +41,8 @@ absl::StatusOr<bool> DeadCodeEliminationPass::RunOnFunctionBaseInternal(
     //
     // TODO: google/xls#1806 -  consider making invokes side-effecting if we can
     // deal with FFI well.
+    // TODO(google/xls#5510): Make unused StateReads directly deletable here
+    // once legacy coupled proc state lowering is retired.
     return !n->function_base()->HasImplicitUse(n) && !n->Is<Invoke>() &&
            (!OpIsSideEffecting(n->op()) || n->Is<Gate>());
   };

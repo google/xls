@@ -608,6 +608,7 @@ Examples:
         "convert_array_index_to_select",
         "use_context_narrowing_analysis",
         "optimize_for_best_case_throughput",
+        "decouple_state_access",
         "enable_resource_sharing",
         "force_resource_sharing",
         "area_model",

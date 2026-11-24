@@ -247,6 +247,10 @@ available. Care should be used when modifying the values of these flags.
     This will aggressively optimize to create opportunities for improved
     throughput, but at the cost of constraining the schedule and thus increasing
     area. Defaults to `false`.
+-   `--decouple_state_access=true|false`: Controls whether proc `state_read` and
+    `next_value` operations are treated as decoupled (allowing `state_read`
+    predicates to be specialized strictly from data uses and always-false
+    `state_read`s to be removed). Defaults to `false`.
 
 ### Debugging/Experimenting with Optimizations {#debugging-experimenting-with-optimizations}
 

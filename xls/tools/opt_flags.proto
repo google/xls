@@ -47,6 +47,9 @@ message OptFlagsProto {
   string pass_metrics_path = 19;
   bool debug_optimizations = 20 [default = false];
   string delay_model = 21;
+  // TODO(google/xls#5510): Remove once legacy coupled proc state lowering is
+  // retired.
+  bool decouple_state_access = 22 [default = false];
 
   // Space for pass-specific configuration extensions.
   // NB Flags 20000 to 30000 should not be used.

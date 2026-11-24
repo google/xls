@@ -71,6 +71,8 @@ struct ABSL_DEPRECATED("Use OptFlagsProto to pass configuration information.")
       OptFlagsProto::default_instance().use_context_narrowing_analysis();
   bool optimize_for_best_case_throughput =
       OptFlagsProto::default_instance().optimize_for_best_case_throughput();
+  bool decouple_state_access =
+      OptFlagsProto::default_instance().decouple_state_access();
   bool enable_resource_sharing =
       OptFlagsProto::default_instance().enable_resource_sharing();
   bool force_resource_sharing =

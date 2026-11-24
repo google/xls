@@ -131,6 +131,13 @@ ABSL_FLAG(
     "Optimize for best case throughput, even at the cost of area. This will "
     "aggressively optimize to create opportunities for improved throughput, "
     "but at the cost of constraining the schedule and thus increasing area.");
+// TODO(google/xls#5510): Remove once legacy coupled proc state lowering is
+// retired.
+ABSL_FLAG(
+    bool, decouple_state_access, false,
+    "Whether proc StateRead and Next operations are decoupled (allowing writes "
+    "without an active StateRead, StateRead predicate specialization purely "
+    "from data uses, and removal of always-false StateReads).");
 ABSL_FLAG(bool, enable_resource_sharing, false,
           "Enable the resource sharing optimization to save area.");
 ABSL_FLAG(
@@ -785,6 +792,8 @@ absl::Status RealMain(std::string_view path) {
           : std::make_optional(split_next_value_selects);
   pass_options.use_context_narrowing_analysis =
       absl::GetFlag(FLAGS_use_context_narrowing_analysis);
+  pass_options.decouple_state_access =
+      absl::GetFlag(FLAGS_decouple_state_access);
   XLS_ASSIGN_OR_RETURN(pass_options.area_estimator,
                        GetAreaEstimator(absl::GetFlag(FLAGS_area_model)));
   if (!scheduling_options_flags_proto.delay_model().empty()) {

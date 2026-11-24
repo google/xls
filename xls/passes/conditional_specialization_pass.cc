@@ -54,7 +54,6 @@
 #include "xls/ir/op.h"
 #include "xls/ir/partial_information.h"
 #include "xls/ir/partial_ops.h"
-#include "xls/ir/source_location.h"
 #include "xls/ir/ternary.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
@@ -940,8 +939,9 @@ RedundancyGuard ConditionalSpecializationPass::GetRedundancyGuard(
     const OptimizationPassOptions& options,
     OptimizationContext& context) const {
   return RedundancyGuard::CanSkip(absl::StrFormat(
-      "%s,%s,%s", use_bdd_ ? "bdd" : "no_bdd",
+      "%s,%s,%s,%s", use_bdd_ ? "bdd" : "no_bdd",
       options.eliminate_noop_next ? "drop_noop_next" : "keep_noop_next",
+      options.decouple_state_access ? "decouple_state" : "couple_state",
       options.optimize_for_best_case_throughput ? "opt_throughput"
                                                 : "opt_area"));
 }
@@ -1047,9 +1047,12 @@ absl::StatusOr<bool> ConditionalSpecializationPass::RunOnFunctionBaseInternal(
         first_user = false;
       }
 
-      // Compute the intersection of the condition sets of the next values of
-      // the state element of this state read.
-      if (node->Is<StateRead>()) {
+      // TODO(google/xls#5510): Remove coupled-mode condition intersection once
+      // legacy coupled proc state lowering is retired.
+      // In legacy coupled state access mode (`!options.decouple_state_access`),
+      // every writing activation still requires a corresponding read, so keep
+      // the intersection with all `next_value` condition sets.
+      if (!options.decouple_state_access && node->Is<StateRead>()) {
         StateElement* se = node->As<StateRead>()->state_element();
         std::optional<ConditionSet> combined_next_set;
         for (Next* next : f->AsProcOrDie()->next_values(se)) {
@@ -1227,6 +1230,19 @@ absl::StatusOr<bool> ConditionalSpecializationPass::RunOnFunctionBaseInternal(
                                   set.ToString());
 
     // Now specialize the node itself based on the conditions on its access.
+    if (options.decouple_state_access && node->Is<StateRead>() &&
+        node->users().empty()) {
+      StateRead* state_read = node->As<StateRead>();
+      if (!state_read->predicate().has_value() ||
+          !IsLiteralZero(*state_read->predicate())) {
+        XLS_ASSIGN_OR_RETURN(
+            Node * zero_predicate,
+            f->MakeNode<Literal>(state_read->loc(), Value(UBits(0, 1))));
+        XLS_RETURN_IF_ERROR(state_read->SetPredicate(zero_predicate));
+        changed = true;
+      }
+      continue;
+    }
     if (options.optimize_for_best_case_throughput && node->Is<StateRead>() &&
         !set.empty()) {
       StateRead* state_read = node->As<StateRead>();

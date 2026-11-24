@@ -32,6 +32,7 @@
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
 #include "xls/ir/value.h"
+#include "xls/ir/value_utils.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/pass_base.h"
 #include "xls/passes/query_engine.h"
@@ -186,7 +187,7 @@ absl::StatusOr<bool> MaybeCanonicalizeClamp(Node* n,
 // Being able to rely on the shape of such nodes greatly simplifies
 // the implementation of transformation passes, as only one pattern needs
 // to be matched, instead of two.
-absl::StatusOr<bool> CanonicalizeNode(Node* n) {
+absl::StatusOr<bool> CanonicalizeNode(Node* n, bool decouple_state_access) {
   FunctionBase* f = n->function_base();
   StatelessQueryEngine query_engine;
 
@@ -370,9 +371,17 @@ absl::StatusOr<bool> CanonicalizeNode(Node* n) {
       XLS_RETURN_IF_ERROR(state_read->RemovePredicate());
       return true;
     }
-    // If the predicate is always false (i.e., the state is never read), it
-    // still might end up being augmented by state legalization, so we can't
-    // safely remove it here.
+    // TODO(google/xls#5510): Remove coupled-mode preservation once legacy
+    // coupled proc state lowering is retired.
+    // In legacy coupled state access mode (`!decouple_state_access`), state
+    // legalization still expects StateRead nodes to remain present.
+    if (decouple_state_access && known_predicate.has_value() &&
+        known_predicate->IsZero()) {
+      XLS_RETURN_IF_ERROR(
+          n->ReplaceUsesWithNew<Literal>(ZeroOfType(n->GetType())).status());
+      XLS_RETURN_IF_ERROR(n->function_base()->RemoveNode(n));
+      return true;
+    }
   }
 
   return false;
@@ -383,7 +392,9 @@ absl::StatusOr<bool> CanonicalizeNode(Node* n) {
 absl::StatusOr<bool> CanonicalizationPass::RunOnFunctionBaseInternal(
     FunctionBase* func, const OptimizationPassOptions& options,
     PassResults* results, OptimizationContext& context) const {
-  return TransformNodesToFixedPoint(func, CanonicalizeNode);
+  return TransformNodesToFixedPoint(func, [&](Node* n) {
+    return CanonicalizeNode(n, options.decouple_state_access);
+  });
 }
 
 }  // namespace xls

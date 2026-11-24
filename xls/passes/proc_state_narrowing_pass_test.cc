@@ -43,6 +43,7 @@ namespace m = ::xls::op_matchers;
 namespace xls {
 namespace {
 using ::absl_testing::IsOkAndHolds;
+using ::testing::IsSupersetOf;
 using ::testing::UnorderedElementsAre;
 
 class ProcStateNarrowingPassTest : public IrTestBase {
@@ -702,6 +703,37 @@ proc __sample__main_0_next(__state: bits[54], init={12009599006321322}) {
   ScopedRecordIr sri(p.get());
   EXPECT_THAT(RunPass(proc), IsOkAndHolds(false));
   EXPECT_THAT(RunProcStateCleanup(proc), IsOkAndHolds(false));
+}
+
+TEST_F(ProcStateNarrowingPassTest, ZeroReadAndZeroWidthStateElementsSucceed) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto* chan, p->CreateStreamingChannel("test_chan", ChannelOps::kSendOnly,
+                                            p->GetBitsType(32)));
+  ProcBuilder pb(TestName(), p.get());
+  BStateElement zero_read = pb.StateElement("zero_read", Value(UBits(0, 32)),
+                                            /*non_synthesizable=*/false);
+  BStateElement zero_width = pb.StateElement("zero_width", Value(UBits(0, 0)),
+                                             /*non_synthesizable=*/false);
+  BValue counter = pb.ReadStateElement("counter", UBits(0, 32));
+  BValue zw_read = pb.StateRead(zero_width);
+  pb.Next(zero_read, pb.Literal(UBits(3, 32)));
+  pb.Next(zero_width, zw_read);
+  BValue in_loop = pb.ULt(counter, pb.Literal(UBits(7, 32)));
+  pb.Next(counter, pb.Add(counter, pb.Literal(UBits(1, 32))), in_loop);
+  pb.Next(counter, pb.Literal(UBits(0, 32)), pb.Not(in_loop));
+  pb.Send(chan, pb.Literal(Value::Token()), counter);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
+  solvers::ScopedVerifyProcEquivalence svpe(proc, /*activation_count=*/8,
+                                            /*include_state=*/false);
+  EXPECT_THAT(RunPass(proc), IsOkAndHolds(true));
+  EXPECT_THAT(proc->StateElements(),
+              IsSupersetOf({m::StateElement("zero_read", p->GetBitsType(32)),
+                            m::StateElement("zero_width", p->GetBitsType(0))}));
+  EXPECT_THAT(RunProcStateCleanup(proc), IsOkAndHolds(true));
+  EXPECT_THAT(proc->StateElements(), UnorderedElementsAre(m::StateElement(
+                                         "counter", p->GetBitsType(3))));
 }
 
 void IrFuzzProcStateNarrowing(FuzzPackageWithArgs fuzz_package_with_args) {

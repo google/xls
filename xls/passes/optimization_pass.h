@@ -210,6 +210,26 @@ struct OptimizationPassOptions : public PassOptionsBase {
     return std::move(*this);
   }
 
+  // TODO(google/xls#5510): Remove once legacy coupled proc state lowering is
+  // retired.
+  // Whether proc StateRead and Next operations are decoupled (allowing writes
+  // without an active StateRead, StateRead predicate specialization purely from
+  // data uses, and removal of always-false StateReads).
+  bool decouple_state_access = false;
+
+  OptimizationPassOptions WithDecoupleStateAccess(
+      bool decouple_state_access) const& {
+    OptimizationPassOptions opt = *this;
+    opt.decouple_state_access = decouple_state_access;
+    return opt;
+  }
+
+  OptimizationPassOptions&& WithDecoupleStateAccess(
+      bool decouple_state_access) && {
+    this->decouple_state_access = decouple_state_access;
+    return std::move(*this);
+  }
+
   // Optimize for best case throughput, even at the cost of area.
   bool optimize_for_best_case_throughput = false;
 

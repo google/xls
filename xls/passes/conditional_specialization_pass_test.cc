@@ -52,24 +52,38 @@ using ::testing::Optional;
 
 class ConditionalSpecializationPassTest : public IrTestBase {
  protected:
-  absl::StatusOr<bool> Run(FunctionBase* f, bool use_bdd = true,
-                           bool optimize_for_best_case_throughput = false) {
+  absl::StatusOr<bool> Run(
+      FunctionBase* f, bool use_bdd = true,
+      bool optimize_for_best_case_throughput = false,
+      bool eliminate_noop_next = true,
+      std::optional<bool> decouple_state_access = std::nullopt) {
     PassResults results;
     OptimizationPassOptions options;
     options.optimize_for_best_case_throughput =
         optimize_for_best_case_throughput;
+    options.eliminate_noop_next = eliminate_noop_next;
+    if (decouple_state_access.has_value()) {
+      options.decouple_state_access = *decouple_state_access;
+    }
     OptimizationContext context;
     XLS_ASSIGN_OR_RETURN(
         bool changed, ConditionalSpecializationPass(use_bdd).RunOnFunctionBase(
                           f, options, &results, context));
     return changed;
   }
-  absl::StatusOr<bool> Run(Package* p, bool use_bdd = true,
-                           bool optimize_for_best_case_throughput = false) {
+  absl::StatusOr<bool> Run(
+      Package* p, bool use_bdd = true,
+      bool optimize_for_best_case_throughput = false,
+      bool eliminate_noop_next = true,
+      std::optional<bool> decouple_state_access = std::nullopt) {
     PassResults results;
     OptimizationPassOptions options;
     options.optimize_for_best_case_throughput =
         optimize_for_best_case_throughput;
+    options.eliminate_noop_next = eliminate_noop_next;
+    if (decouple_state_access.has_value()) {
+      options.decouple_state_access = *decouple_state_access;
+    }
     OptimizationContext context;
     return ConditionalSpecializationPass(use_bdd).Run(p, options, &results,
                                                       context);
@@ -1354,6 +1368,9 @@ TEST_F(ConditionalSpecializationPassTest, HarderStateReadSpecialization) {
           /*pred=*/pb.And(index_not_0, index_not_1));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
 
+  ScopedRecordIr sri(p.get());
+  solvers::ScopedVerifyProcEquivalence sve(proc, /*activation_count=*/5,
+                                           /*include_state=*/true);
   EXPECT_THAT(
       Run(proc, /*use_bdd=*/true, /*optimize_for_best_case_throughput=*/true),
       IsOkAndHolds(true));
@@ -1423,7 +1440,8 @@ TEST_F(ConditionalSpecializationPassTest,
   BValue accum = pb.ReadStateElement("accum", UBits(0, 32));
   pb.Next(index, index_is_0);
   // `accum` is only read when `index == 1`, but has non-noop writes across all
-  // possible values of `index`, so its state read cannot be specialized.
+  // possible values of `index`, so its state read cannot be specialized in
+  // coupled mode.
   pb.Next(accum, pb.Literal(UBits(0, 32)), /*pred=*/index_is_0);
   pb.Next(accum, pb.Add(accum, pb.Literal(UBits(1, 32))), /*pred=*/index_is_1);
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
@@ -1437,6 +1455,130 @@ TEST_F(ConditionalSpecializationPassTest,
       proc->GetStateReadByStateElement(*proc->GetStateElementByName("accum"))
           ->predicate(),
       std::nullopt);
+}
+
+TEST_F(ConditionalSpecializationPassTest,
+       StateReadSpecializationDecoupledBlindWrite) {
+  auto p = CreatePackage();
+
+  TokenlessProcBuilder pb(TestName(), "tkn", p.get());
+  BValue index = pb.ReadStateElement("index", UBits(0, 1));
+  BValue index_is_0 = pb.Not(index);
+  BValue index_is_1 = index;
+  BValue accum = pb.ReadStateElement("accum", UBits(0, 32));
+  pb.Next(index, index_is_0);
+  // `accum` is only read when `index == 1`, and blindly overwritten with 0 when
+  // `index == 0`; decoupled state access specializes its state read to
+  // `index == 1`.
+  pb.Next(accum, pb.Literal(UBits(0, 32)), /*pred=*/index_is_0);
+  pb.Next(accum, pb.Add(accum, pb.Literal(UBits(1, 32))), /*pred=*/index_is_1);
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
+
+  ScopedRecordIr sri(p.get());
+  solvers::ScopedVerifyProcEquivalence sve(proc, /*activation_count=*/5,
+                                           /*include_state=*/true);
+  EXPECT_THAT(
+      Run(proc, /*use_bdd=*/true, /*optimize_for_best_case_throughput=*/true,
+          /*eliminate_noop_next=*/true, /*decouple_state_access=*/true),
+      IsOkAndHolds(true));
+
+  EXPECT_THAT(
+      proc->GetStateReadByStateElement(*proc->GetStateElementByName("accum"))
+          ->predicate(),
+      Optional(m::StateRead("index")));
+}
+
+TEST_F(ConditionalSpecializationPassTest,
+       StateReadSpecializationWriteOnlyMarksReadInactive) {
+  auto p = CreatePackage();
+
+  TokenlessProcBuilder pb(TestName(), "tkn", p.get());
+  BValue accum = pb.ReadStateElement("accum", UBits(0, 32));
+  pb.Next(accum, pb.Literal(UBits(42, 32)));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
+
+  solvers::ScopedVerifyProcEquivalence sve(proc, /*activation_count=*/2,
+                                           /*include_state=*/true);
+  EXPECT_THAT(
+      Run(proc, /*use_bdd=*/false, /*optimize_for_best_case_throughput=*/false,
+          /*eliminate_noop_next=*/true, /*decouple_state_access=*/true),
+      IsOkAndHolds(true));
+  EXPECT_THAT(
+      proc->GetStateReadByStateElement(*proc->GetStateElementByName("accum"))
+          ->predicate(),
+      Optional(m::Literal(0)));
+  EXPECT_THAT(
+      Run(proc, /*use_bdd=*/false, /*optimize_for_best_case_throughput=*/false,
+          /*eliminate_noop_next=*/true, /*decouple_state_access=*/true),
+      IsOkAndHolds(false));
+}
+
+TEST_F(ConditionalSpecializationPassTest,
+       StateReadSpecializationPredicatedUnusedReadMarksReadInactive) {
+  auto p = CreatePackage();
+
+  ProcBuilder pb(TestName(), p.get());
+  BStateElement cond_elem =
+      pb.StateElement("cond", Value(UBits(1, 1)), /*non_synthesizable=*/false);
+  BStateElement accum_elem = pb.StateElement("accum", Value(UBits(0, 32)),
+                                             /*non_synthesizable=*/false);
+  BValue cond = pb.StateRead(cond_elem);
+  pb.StateRead(accum_elem, /*predicate=*/cond);
+  pb.Next(cond_elem, pb.Not(cond));
+  pb.Next(accum_elem, pb.Literal(UBits(42, 32)));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
+
+  solvers::ScopedVerifyProcEquivalence sve(proc, /*activation_count=*/3,
+                                           /*include_state=*/true);
+  EXPECT_THAT(
+      Run(proc, /*use_bdd=*/false, /*optimize_for_best_case_throughput=*/false,
+          /*eliminate_noop_next=*/true, /*decouple_state_access=*/true),
+      IsOkAndHolds(true));
+  EXPECT_THAT(
+      proc->GetStateReadByStateElement(accum_elem.state_element())->predicate(),
+      Optional(m::Literal(0)));
+  EXPECT_THAT(
+      Run(proc, /*use_bdd=*/false, /*optimize_for_best_case_throughput=*/false,
+          /*eliminate_noop_next=*/true, /*decouple_state_access=*/true),
+      IsOkAndHolds(false));
+}
+
+TEST_F(ConditionalSpecializationPassTest,
+       StateReadSpecializationLegacyModePreservesReadOnBlindWrite) {
+  auto p = CreatePackage();
+
+  TokenlessProcBuilder pb(TestName(), "tkn", p.get());
+  BValue index = pb.ReadStateElement("index", UBits(0, 1));
+  BValue index_is_0 = pb.Not(index);
+  BValue index_is_1 = index;
+  BValue accum = pb.ReadStateElement("accum", UBits(0, 32));
+  BValue write_only = pb.ReadStateElement("write_only", UBits(0, 32));
+  BValue noop = pb.ReadStateElement("noop", UBits(0, 8));
+  pb.Next(index, index_is_0);
+  pb.Next(accum, pb.Literal(UBits(0, 32)), /*pred=*/index_is_0);
+  pb.Next(accum, pb.Add(accum, pb.Literal(UBits(1, 32))), /*pred=*/index_is_1);
+  pb.Next(write_only, pb.Literal(UBits(42, 32)));
+  pb.Next(noop, noop, /*pred=*/index_is_0);
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
+
+  solvers::ScopedVerifyProcEquivalence sve(proc, /*activation_count=*/5,
+                                           /*include_state=*/true);
+  // Pre-legalization coupled mode (`eliminate_noop_next=true`,
+  // `decouple_state_access=false`) still eliminates no-op `Next`s while keeping
+  // `StateRead`s unpredicated whenever `Next` writes can fire.
+  EXPECT_THAT(
+      Run(proc, /*use_bdd=*/true, /*optimize_for_best_case_throughput=*/true,
+          /*eliminate_noop_next=*/true, /*decouple_state_access=*/false),
+      IsOkAndHolds(true));
+  EXPECT_TRUE(proc->next_values(*proc->GetStateElementByName("noop")).empty());
+  EXPECT_EQ(
+      proc->GetStateReadByStateElement(*proc->GetStateElementByName("accum"))
+          ->predicate(),
+      std::nullopt);
+  EXPECT_EQ(proc->GetStateReadByStateElement(
+                    *proc->GetStateElementByName("write_only"))
+                ->predicate(),
+            std::nullopt);
 }
 
 TEST_F(ConditionalSpecializationPassTest, StateReadSpecializationDisabled) {

@@ -398,6 +398,53 @@ class OptMainTest(parameterized.TestCase):
     self.assertIn('--opt_level', output)
     self.assertIn('Ranges from 0 to 3.', output)
 
+  def test_decouple_state_access_flag(self):
+    proc_ir = """package test
+
+top proc main<cmd_ch: bits[1] in, out_ch: bits[32] out>(accum: bits[32], noop_se: bits[32], init={0, 7}) {
+  chan_interface cmd_ch(direction=receive, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
+  chan_interface out_ch(direction=send, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
+  tkn0: token = literal(value=token)
+  accum: bits[32] = state_read(state_element=accum)
+  noop_se: bits[32] = state_read(state_element=noop_se)
+  rcv: (token, bits[1]) = receive(tkn0, channel=cmd_ch)
+  tkn1: token = tuple_index(rcv, index=0)
+  cmd: bits[1] = tuple_index(rcv, index=1)
+  not_cmd: bits[1] = not(cmd)
+  zero: bits[32] = literal(value=0)
+  one: bits[32] = literal(value=1)
+  accum_inc: bits[32] = add(accum, one)
+  noop_inc: bits[32] = add(noop_se, one)
+  out_sum: bits[32] = add(accum, noop_se)
+  send_out: token = send(tkn1, out_sum, predicate=cmd, channel=out_ch)
+  next_accum_blind: () = next_value(state_element=accum, value=zero, predicate=not_cmd)
+  next_accum_inc: () = next_value(state_element=accum, value=accum_inc, predicate=cmd)
+  next_noop_self: () = next_value(state_element=noop_se, value=noop_se, predicate=not_cmd)
+  next_noop_inc: () = next_value(state_element=noop_se, value=noop_inc, predicate=cmd)
+}
+"""
+    ir_file = self.create_tempfile(content=proc_ir)
+
+    coupled_ir = subprocess.check_output([
+        OPT_MAIN_PATH,
+        '--optimize_for_best_case_throughput=true',
+        '--decouple_state_access=false',
+        ir_file.full_path,
+    ]).decode('utf-8')
+    # Pre-legalization no-op next_value is still dropped, while accum's
+    # state_read stays unpredicated for legacy coupled lowering.
+    self.assertNotIn('value=noop_se', coupled_ir)
+    self.assertIn('state_read(state_element=accum, id=', coupled_ir)
+
+    decoupled_ir = subprocess.check_output([
+        OPT_MAIN_PATH,
+        '--optimize_for_best_case_throughput=true',
+        '--decouple_state_access=true',
+        ir_file.full_path,
+    ]).decode('utf-8')
+    self.assertNotIn('value=noop_se', decoupled_ir)
+    self.assertIn('state_read(state_element=accum, predicate=cmd', decoupled_ir)
+
 
 if __name__ == '__main__':
   absltest.main()

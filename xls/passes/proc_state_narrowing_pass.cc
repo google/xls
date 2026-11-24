@@ -161,6 +161,9 @@ absl::StatusOr<bool> ProcStateNarrowingPass::RunOnProcInternal(
     }
     absl::Span<StateRead* const> state_reads =
         proc->GetStateReadsByStateElement(state_element);
+    if (state_reads.empty()) {
+      continue;
+    }
     std::optional<TernaryVector> combined_ternary;
     for (StateRead* state_read : state_reads) {
       std::optional<SharedLeafTypeTree<TernaryVector>> ternary =
@@ -176,7 +179,9 @@ absl::StatusOr<bool> ProcStateNarrowingPass::RunOnProcInternal(
           ternary_ops::Intersection(*combined_ternary, ternary->Get({}));
     }
     int64_t known_leading =
-        ternary_ops::ToKnownBits(*combined_ternary).CountLeadingOnes();
+        combined_ternary.has_value()
+            ? ternary_ops::ToKnownBits(*combined_ternary).CountLeadingOnes()
+            : 0;
     if (known_leading != 0) {
       // TODO(allight): We could also narrow internal/trailing bits.
       TernarySpan known_leading_tern =

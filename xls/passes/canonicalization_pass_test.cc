@@ -58,11 +58,11 @@ using ::testing::Optional;
 
 class CanonicalizePassTest : public IrTestBase {
  protected:
-  absl::StatusOr<bool> Run(Package* p) {
+  absl::StatusOr<bool> Run(Package* p, const OptimizationPassOptions& options =
+                                           OptimizationPassOptions()) {
     PassResults results;
     OptimizationContext context;
-    return CanonicalizationPass().Run(p, OptimizationPassOptions(), &results,
-                                      context);
+    return CanonicalizationPass().Run(p, options, &results, context);
   }
 };
 
@@ -408,6 +408,44 @@ TEST_F(CanonicalizePassTest, StateReadWithAlwaysTruePredicate) {
   EXPECT_EQ(proc->GetStateRead(0)->predicate(), std::nullopt);
 }
 
+TEST_F(CanonicalizePassTest, StateReadWithAlwaysFalsePredicateRemoved) {
+  auto p = CreatePackage();
+  TokenlessProcBuilder pb("test", "tkn", p.get());
+  BStateElement se = pb.StateElement("x", Value(UBits(7, 32)));
+  BValue x = pb.StateRead(se, /*predicate=*/pb.Literal(UBits(0, 1)));
+  pb.Next(se, pb.Add(x, pb.Literal(UBits(1, 32))));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
+  EXPECT_EQ(proc->GetStateReadsByStateElement(se.state_element()).size(), 1);
+
+  solvers::ScopedVerifyProcEquivalence sve(proc, /*activation_count=*/2,
+                                           /*include_state=*/true);
+  EXPECT_THAT(
+      Run(p.get(), OptimizationPassOptions().WithDecoupleStateAccess(true)),
+      IsOkAndHolds(true));
+  EXPECT_TRUE(proc->GetStateReadsByStateElement(se.state_element()).empty());
+  EXPECT_THAT(proc->next_values(se.state_element()),
+              ElementsAre(m::Next(se.state_element(),
+                                  m::Add(m::Literal(0), m::Literal(1)))));
+}
+
+TEST_F(CanonicalizePassTest,
+       StateReadWithAlwaysFalsePredicatePreservedWhenCoupled) {
+  auto p = CreatePackage();
+  TokenlessProcBuilder pb("test", "tkn", p.get());
+  BStateElement se = pb.StateElement("x", Value(UBits(7, 32)));
+  BValue x = pb.StateRead(se, /*predicate=*/pb.Literal(UBits(0, 1)));
+  pb.Next(se, pb.Add(x, pb.Literal(UBits(1, 32))));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
+
+  solvers::ScopedVerifyProcEquivalence sve(proc, /*activation_count=*/2,
+                                           /*include_state=*/true);
+  OptimizationPassOptions options;
+  options.eliminate_noop_next = true;
+  options.decouple_state_access = false;
+  EXPECT_THAT(Run(p.get(), options), IsOkAndHolds(false));
+  EXPECT_EQ(proc->GetStateReadsByStateElement(se.state_element()).size(), 1);
+}
+
 TEST_F(CanonicalizePassTest, IgnoreMalformedPredicates) {
   auto p = std::make_unique<Package>(TestName());
   ProcBuilder pb("test", p.get(), /*should_verify=*/false);
@@ -432,12 +470,19 @@ TEST_F(CanonicalizePassTest, IgnoreMalformedPredicates) {
   EXPECT_THAT(Run(p.get()), IsOkAndHolds(false));
 }
 
-void IrFuzzCanonicalization(FuzzPackageWithArgs fuzz_package_with_args) {
+// Note: IrFuzzDomainWithArgs currently only generates Functions; the
+// `decouple_state_access` parameter will exercise Proc `StateRead` handling
+// once ir_fuzzer supports Procs.
+void IrFuzzCanonicalization(FuzzPackageWithArgs fuzz_package_with_args,
+                            bool decouple_state_access) {
   CanonicalizationPass pass;
-  OptimizationPassChangesOutputs(std::move(fuzz_package_with_args), pass);
+  OptimizationPassChangesOutputs(
+      std::move(fuzz_package_with_args), pass,
+      OptimizationPassOptions().WithDecoupleStateAccess(decouple_state_access));
 }
 FUZZ_TEST(IrFuzzTest, IrFuzzCanonicalization)
-    .WithDomains(IrFuzzDomainWithArgs(/*arg_set_count=*/10));
+    .WithDomains(IrFuzzDomainWithArgs(/*arg_set_count=*/10),
+                 fuzztest::Arbitrary<bool>());
 
 }  // namespace
 }  // namespace xls

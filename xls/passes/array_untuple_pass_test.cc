@@ -713,6 +713,86 @@ TEST_F(ArrayUntuplePassTest, ProcStateArrayWithMultipleReadsIdentityNoOp) {
                                    m::StateElement("cond1_state")));
 }
 
+TEST_F(ArrayUntuplePassTest, ZeroReadArrayOfTupleStateElementSucceeds) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto chan_idx,
+      p->CreateStreamingChannel("chan_idx", ChannelOps::kReceiveOnly,
+                                p->GetBitsType(1)));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto chan_out, p->CreateStreamingChannel(
+                         "chan_out", ChannelOps::kSendOnly, p->GetBitsType(8)));
+  ProcBuilder pb(TestName(), p.get());
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Value init_val,
+      ValueBuilder::Array(
+          {ValueBuilder::Tuple({Value(UBits(0, 4)), Value(UBits(0, 8))}),
+           ValueBuilder::Tuple({Value(UBits(0, 4)), Value(UBits(0, 8))})})
+          .Build());
+
+  BStateElement state_elem =
+      pb.StateElement("write_only", init_val, /*non_synthesizable=*/false);
+  BValue recv = pb.Receive(chan_idx, pb.Literal(Value::Token()));
+  BValue tok = pb.TupleIndex(recv, 0);
+  BValue idx = pb.TupleIndex(recv, 1);
+  BValue e0 = pb.Tuple({pb.Literal(UBits(1, 4)), pb.Literal(UBits(42, 8))});
+  BValue e1 = pb.Tuple({pb.Literal(UBits(2, 4)), pb.Literal(UBits(99, 8))});
+  BValue arr0 = pb.Array({e0, e1}, e0.node()->GetType());
+  BValue arr1 = pb.Array({e1, e0}, e0.node()->GetType());
+  pb.Next(state_elem, arr0, /*pred=*/idx);
+  pb.Next(state_elem, arr1, /*pred=*/pb.Not(idx));
+  BValue picked = pb.TupleIndex(pb.ArrayIndex(arr0, {idx}), 1);
+  pb.Send(chan_out, tok, picked);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * pr, pb.Build());
+  solvers::ScopedVerifyProcEquivalence svpe(pr, /*activation_count=*/2,
+                                            /*include_state=*/false);
+  ScopedRecordIr sri(p.get());
+  ASSERT_THAT(RunPass(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(pr->StateElements(),
+              UnorderedElementsAre(
+                  m::StateElement("write_only_tuple_element_0", "bits[4][2]"),
+                  m::StateElement("write_only_tuple_element_1", "bits[8][2]")));
+  // Verify a second run reaches fixed point without further changes.
+  EXPECT_THAT(RunPass(p.get()), IsOkAndHolds(false));
+}
+
+TEST_F(ArrayUntuplePassTest,
+       ZeroReadArrayOfTupleNextWithMultipleUsersSucceeds) {
+  auto p = CreatePackage();
+  ProcBuilder pb(TestName(), p.get());
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Value init_val,
+      ValueBuilder::Array(
+          {ValueBuilder::Tuple({Value(UBits(0, 4)), Value(UBits(0, 8))}),
+           ValueBuilder::Tuple({Value(UBits(0, 4)), Value(UBits(0, 8))})})
+          .Build());
+
+  BStateElement state_elem =
+      pb.StateElement("write_only", init_val, /*non_synthesizable=*/false);
+  BValue elem = pb.Tuple({pb.Literal(UBits(1, 4)), pb.Literal(UBits(42, 8))});
+  BValue arr = pb.Array({elem, elem}, elem.node()->GetType());
+  BValue next = pb.Next(state_elem, arr);
+  // Give the empty-tuple result of `next` multiple distinct users to ensure
+  // replacing uses does not invalidate `next->users()` mid-iteration.
+  BValue user0 = pb.Identity(next);
+  BValue user1 = pb.Tuple({next});
+
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * pr, pb.Build());
+  PassResults res;
+  OptimizationContext context;
+  ASSERT_THAT(ArrayUntuplePass().Run(p.get(), {}, &res, context),
+              IsOkAndHolds(true));
+  EXPECT_THAT(pr->StateElements(),
+              UnorderedElementsAre(
+                  m::StateElement("write_only_tuple_element_0", "bits[4][2]"),
+                  m::StateElement("write_only_tuple_element_1", "bits[8][2]")));
+  EXPECT_THAT(user0.node(), m::Identity(m::Literal(Value::Tuple({}))));
+  EXPECT_THAT(user1.node(), m::Tuple(m::Literal(Value::Tuple({}))));
+}
+
 void IrFuzzArrayUntuple(FuzzPackageWithArgs fuzz_package_with_args) {
   ArrayUntuplePass pass;
   OptimizationPassChangesOutputs(std::move(fuzz_package_with_args), pass);
