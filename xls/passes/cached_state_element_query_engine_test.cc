@@ -14,6 +14,8 @@
 
 #include "xls/passes/cached_state_element_query_engine.h"
 
+#include <vector>
+
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "xls/common/status/matchers.h"
@@ -24,8 +26,11 @@
 #include "xls/ir/function_builder.h"
 #include "xls/ir/interval_set.h"
 #include "xls/ir/ir_test_base.h"
+#include "xls/ir/nodes.h"
 #include "xls/ir/proc.h"
+#include "xls/ir/state_element.h"
 #include "xls/ir/ternary.h"
+#include "xls/ir/value.h"
 #include "xls/passes/lazy_ternary_query_engine.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/partial_info_query_engine.h"
@@ -138,6 +143,49 @@ TEST_F(CachedStateElementQueryEngineTest,
   XLS_ASSERT_OK(direct_qe.Populate(f).status());
   XLS_ASSERT_OK(direct_qe.Compute());
   EXPECT_FALSE(direct_qe.has_givens());
+}
+
+TEST_F(CachedStateElementQueryEngineTest,
+       DeletedStateReadGivenDoesNotCorruptSubsequentStateReads) {
+  auto p = CreatePackage();
+  ProcBuilder pb(TestName(), p.get());
+  BValue dead_flag = pb.ReadStateElement("dead_flag", UBits(0, 1));
+  BValue cnt = pb.ReadStateElement("cnt", UBits(0, 4));
+  pb.Next(dead_flag, pb.Literal(UBits(0, 1)));
+  pb.Next(cnt, pb.ZeroExtend(
+                   pb.Add(pb.BitSlice(cnt, 0, 2), pb.Literal(UBits(1, 2))), 4));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
+
+  OptimizationContext ctx;
+  auto* partial_qe =
+      CachedStateElementQueryEngine::FromContext<PartialInfoQueryEngine>(ctx,
+                                                                         proc);
+  auto* ternary_qe =
+      CachedStateElementQueryEngine::FromContext<LazyTernaryQueryEngine>(ctx,
+                                                                         proc);
+  XLS_ASSERT_OK(partial_qe->Compute());
+  XLS_ASSERT_OK(ternary_qe->Compute());
+
+  StateElement* dead_elem = proc->GetStateElement(0);
+  std::vector<Next*> dead_nexts(proc->next_values(dead_elem).begin(),
+                                proc->next_values(dead_elem).end());
+  for (Next* nxt : dead_nexts) {
+    XLS_ASSERT_OK(proc->RemoveNode(nxt));
+  }
+  XLS_ASSERT_OK(proc->RemoveStateElement(0));
+
+  for (int i = 0; i < 64; ++i) {
+    XLS_ASSERT_OK_AND_ASSIGN(
+        StateRead * new_sr,
+        proc->AppendStateElement("extra", Value(UBits(0, 4))));
+    EXPECT_THAT(ternary_qe->GetTernary(new_sr),
+                testing::Optional(LttIs<TernaryVector>(
+                    testing::ElementsAre(TernaryIs("0bXXXX")))));
+    EXPECT_EQ(partial_qe->GetIntervals(new_sr).Get({}),
+              IntervalSet::Maximal(4));
+  }
+  EXPECT_EQ(IntervalSetTreeToString(partial_qe->GetIntervals(cnt.node())),
+            "[[0, 3]]");
 }
 
 }  // namespace

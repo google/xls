@@ -286,6 +286,10 @@ class LazyNodeData : public ChangeListener,
     return ReachedFixpoint::Changed;
   }
 
+  const absl::flat_hash_map<Node*, CacheValueT>& givens() const {
+    return givens_;
+  }
+
   const CacheValueT* GetInfo(Node* node) const {
     CHECK(f_->Contains(node))
         << "Must be attached to " << node->function_base()->name()
@@ -299,6 +303,7 @@ class LazyNodeData : public ChangeListener,
         << "Received notification for unattached function "
         << node->function_base()->name() << ". Currently attached to "
         << (f_ ? f_->name() : "<nothing>");
+    CHECK(!givens_.contains(node));
     if (!GetUsers(node).empty()) {
       cache_.Forget(node);
     }
@@ -309,6 +314,7 @@ class LazyNodeData : public ChangeListener,
         << "Received notification for unattached function "
         << node->function_base()->name() << ". Currently attached to "
         << (f_ ? f_->name() : "<nothing>");
+    givens_.erase(node);
     cache_.Forget(node);
     for (Node* user : GetUsers(node)) {
       cache_.MarkUnverified(user);
