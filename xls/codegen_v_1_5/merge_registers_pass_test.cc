@@ -31,6 +31,7 @@
 #include "xls/ir/nodes.h"
 #include "xls/ir/package.h"
 #include "xls/ir/register.h"
+#include "xls/ir/scheduled_builder.h"
 #include "xls/ir/value.h"
 #include "xls/passes/cse_pass.h"
 #include "xls/passes/dce_pass.h"
@@ -254,6 +255,81 @@ TEST_F(MergeRegistersPassTest,
   EXPECT_EQ(block->GetRegisters().size(), 2);
   EXPECT_EQ(block->GetOutputPorts()[0]->operand(0),
             block->GetOutputPorts()[1]->operand(0));
+}
+
+TEST_F(MergeRegistersPassTest,
+       ScheduledBlockUnstagesAuthoritativeReadWhenDupeReadIsUnstaged) {
+  auto p = CreatePackage();
+  ScheduledBlockBuilder sbb(TestName(), p.get());
+  XLS_ASSERT_OK(sbb.block()->AddClockPort("clk"));
+  BValue in = sbb.InputPort("in", p->GetBitsType(1));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Register * reg_auth,
+      sbb.block()->AddRegister("reg_auth", p->GetBitsType(1)));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Register * reg_dupe,
+      sbb.block()->AddRegister("reg_dupe", p->GetBitsType(1)));
+  sbb.RegisterWrite(reg_auth, in);
+  sbb.RegisterWrite(reg_dupe, in);
+  // `dupe_read` is unstaged (e.g. a scoreboard register read used in stage
+  // control logic outside stages).
+  BValue dupe_read = sbb.RegisterRead(reg_dupe);
+  sbb.OutputPort("out_dupe", dupe_read);
+
+  sbb.StartStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
+  BValue auth_read = sbb.RegisterRead(reg_auth);
+  sbb.OutputPort("out_auth", auth_read);
+  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)),
+               sbb.Literal(UBits(1, 1)));
+
+  XLS_ASSERT_OK_AND_ASSIGN(ScheduledBlock * sb, sbb.Build());
+  ASSERT_TRUE(sb->IsStaged(auth_read.node()));
+  ASSERT_FALSE(sb->IsStaged(dupe_read.node()));
+
+  EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_EQ(sb->GetRegisters().size(), 1);
+  EXPECT_EQ(sb->GetOutputPorts()[0]->operand(0), auth_read.node());
+  EXPECT_EQ(sb->GetOutputPorts()[1]->operand(0), auth_read.node());
+  EXPECT_FALSE(sb->IsStaged(auth_read.node()));
+}
+
+TEST_F(MergeRegistersPassTest,
+       ScheduledBlockMovesAuthoritativeReadToEarlierDupeStage) {
+  auto p = CreatePackage();
+  ScheduledBlockBuilder sbb(TestName(), p.get());
+  XLS_ASSERT_OK(sbb.block()->AddClockPort("clk"));
+  BValue in = sbb.InputPort("in", p->GetBitsType(32));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Register * reg_auth,
+      sbb.block()->AddRegister("reg_auth", p->GetBitsType(32)));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Register * reg_dupe,
+      sbb.block()->AddRegister("reg_dupe", p->GetBitsType(32)));
+  sbb.RegisterWrite(reg_auth, in);
+  sbb.RegisterWrite(reg_dupe, in);
+
+  // Stage 0 reads `reg_dupe`, while Stage 1 reads `reg_auth`.
+  sbb.StartStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
+  BValue dupe_read = sbb.RegisterRead(reg_dupe);
+  sbb.OutputPort("out_dupe", dupe_read);
+  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)),
+               sbb.Literal(UBits(1, 1)));
+
+  sbb.StartStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
+  BValue auth_read = sbb.RegisterRead(reg_auth);
+  sbb.OutputPort("out_auth", auth_read);
+  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)),
+               sbb.Literal(UBits(1, 1)));
+
+  XLS_ASSERT_OK_AND_ASSIGN(ScheduledBlock * sb, sbb.Build());
+  ASSERT_THAT(sb->GetStageIndex(dupe_read.node()), IsOkAndHolds(0));
+  ASSERT_THAT(sb->GetStageIndex(auth_read.node()), IsOkAndHolds(1));
+
+  EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_EQ(sb->GetRegisters().size(), 1);
+  EXPECT_EQ(sb->GetOutputPorts()[0]->operand(0), auth_read.node());
+  EXPECT_EQ(sb->GetOutputPorts()[1]->operand(0), auth_read.node());
+  EXPECT_THAT(sb->GetStageIndex(auth_read.node()), IsOkAndHolds(0));
 }
 
 }  // namespace
