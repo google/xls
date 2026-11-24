@@ -14,6 +14,7 @@
 
 #include "xls/tests/testbench.h"
 
+#include <atomic>
 #include <cstdint>
 #include <limits>
 #include <memory>
@@ -32,9 +33,11 @@
 namespace xls {
 namespace {
 
+using ::absl_testing::IsOk;
 using ::absl_testing::IsOkAndHolds;
 using ::absl_testing::StatusIs;
 using ::testing::ElementsAreArray;
+using ::testing::Ge;
 using ::testing::IsEmpty;
 
 std::vector<uint64_t> MakeIota(uint64_t start, uint64_t end) {
@@ -144,7 +147,7 @@ TEST(TestbenchTest, ShardDataMultiThreadRange) {
       [](int64_t /*index*/, uint64_t /*input*/, uint64_t /*expected*/,
          uint64_t /*actual*/) {});
 
-  EXPECT_THAT(testbench.Run(), absl_testing::IsOk());
+  EXPECT_THAT(testbench.Run(), IsOk());
   absl::c_sort(visited);
   EXPECT_THAT(visited, ElementsAreArray(MakeIota(10, 23)));
 }
@@ -154,6 +157,107 @@ TEST(TestbenchTest, HighRangeNearUint64Max) {
   constexpr uint64_t kStart = kEnd - 10;
   EXPECT_THAT(RunAndCollectIndices(kStart, kEnd, /*num_threads=*/4),
               IsOkAndHolds(ElementsAreArray(MakeIota(kStart, kEnd))));
+}
+
+TEST(TestbenchTest, MaxFailuresStopsAndReturnsInternalError) {
+  std::atomic<uint64_t> eval_count{0};
+  std::atomic<uint64_t> logged_count{0};
+
+  Testbench<uint64_t, uint64_t> single_thread(
+      /*start=*/0, /*end=*/100, /*num_threads=*/1, /*max_failures=*/2,
+      [](uint64_t index) { return index; },
+      [&](uint64_t input) {
+        eval_count.fetch_add(1, std::memory_order_relaxed);
+        return input;
+      },
+      [](uint64_t input) { return input + 1; },
+      [](uint64_t expected, uint64_t actual) { return expected == actual; },
+      [&](int64_t /*index*/, uint64_t /*input*/, uint64_t /*expected*/,
+          uint64_t /*actual*/) {
+        logged_count.fetch_add(1, std::memory_order_relaxed);
+      });
+  EXPECT_THAT(single_thread.Run(), StatusIs(absl::StatusCode::kInternal));
+  EXPECT_EQ(eval_count.load(), 2);
+  EXPECT_EQ(logged_count.load(), 2);
+
+  std::atomic<uint64_t> multi_logged{0};
+  Testbench<uint64_t, uint64_t> multi_thread(
+      /*start=*/0, /*end=*/100, /*num_threads=*/4, /*max_failures=*/1,
+      [](uint64_t index) { return index; },
+      [](uint64_t input) { return input; },
+      [](uint64_t input) { return input == 42 ? input + 1 : input; },
+      [](uint64_t expected, uint64_t actual) { return expected == actual; },
+      [&](int64_t /*index*/, uint64_t /*input*/, uint64_t /*expected*/,
+          uint64_t /*actual*/) {
+        multi_logged.fetch_add(1, std::memory_order_relaxed);
+      });
+  EXPECT_THAT(multi_thread.Run(), StatusIs(absl::StatusCode::kInternal));
+  EXPECT_THAT(multi_logged.load(), Ge(1));
+}
+
+TEST(TestbenchTest, ZeroMaxFailuresLogsAllMismatchesAndReturnsOk) {
+  absl::Mutex mutex;
+  std::vector<int64_t> logged_indices;
+
+  Testbench<uint64_t, uint64_t> testbench(
+      /*start=*/10, /*end=*/30, /*num_threads=*/4, /*max_failures=*/0,
+      [](uint64_t index) { return index; },
+      [](uint64_t input) { return input; },
+      [](uint64_t input) { return input + 1; },
+      [](uint64_t expected, uint64_t actual) { return expected == actual; },
+      [&](int64_t index, uint64_t /*input*/, uint64_t /*expected*/,
+          uint64_t /*actual*/) {
+        absl::MutexLock lock(mutex);
+        logged_indices.push_back(index);
+      });
+  EXPECT_THAT(testbench.Run(), IsOk());
+  absl::c_sort(logged_indices);
+  std::vector<int64_t> expected(20);
+  std::iota(expected.begin(), expected.end(), 10);
+  EXPECT_THAT(logged_indices, ElementsAreArray(expected));
+}
+
+TEST(TestbenchTest, AllShardsInitializeBeforeEvaluation) {
+  constexpr int64_t kNumThreads = 4;
+  std::atomic<int64_t> shards_created{0};
+  std::atomic<bool> saw_uninitialized_shard{false};
+
+  Testbench<uint64_t, uint64_t, int> testbench(
+      /*start=*/0, /*end=*/40, /*num_threads=*/kNumThreads, /*max_failures=*/1,
+      [](uint64_t index) { return index; },
+      [&]() {
+        shards_created.fetch_add(1, std::memory_order_release);
+        return std::make_unique<int>(1);
+      },
+      [&](int* /*shard*/, uint64_t input) {
+        if (shards_created.load(std::memory_order_acquire) != kNumThreads) {
+          saw_uninitialized_shard.store(true, std::memory_order_relaxed);
+        }
+        return input;
+      },
+      [](int* /*shard*/, uint64_t input) { return input; },
+      [](uint64_t expected, uint64_t actual) { return expected == actual; },
+      [](int64_t /*index*/, uint64_t /*input*/, uint64_t /*expected*/,
+         uint64_t /*actual*/) {});
+
+  EXPECT_THAT(testbench.Run(), IsOk());
+  EXPECT_EQ(shards_created.load(), kNumThreads);
+  EXPECT_FALSE(saw_uninitialized_shard.load());
+}
+
+TEST(TestbenchTest, RejectsSetNumThreadsAndSecondRunAfterStart) {
+  Testbench<uint64_t, uint64_t> testbench(
+      /*start=*/0, /*end=*/8, /*num_threads=*/2, /*max_failures=*/1,
+      [](uint64_t index) { return index; },
+      [](uint64_t input) { return input; },
+      [](uint64_t input) { return input; },
+      [](uint64_t expected, uint64_t actual) { return expected == actual; },
+      [](int64_t /*index*/, uint64_t /*input*/, uint64_t /*expected*/,
+         uint64_t /*actual*/) {});
+  EXPECT_THAT(testbench.Run(), IsOk());
+  EXPECT_THAT(testbench.SetNumThreads(4),
+              StatusIs(absl::StatusCode::kFailedPrecondition));
+  EXPECT_THAT(testbench.Run(), StatusIs(absl::StatusCode::kFailedPrecondition));
 }
 
 }  // namespace
