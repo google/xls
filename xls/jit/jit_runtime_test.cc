@@ -26,7 +26,9 @@
 #include "absl/status/status_matchers.h"
 #include "absl/types/span.h"
 #include "llvm/include/llvm/IR/DataLayout.h"
+#include "llvm/include/llvm/IR/DerivedTypes.h"
 #include "llvm/include/llvm/IR/LLVMContext.h"
+#include "llvm/include/llvm/Support/Casting.h"
 #include "xls/common/bits_util.h"
 #include "xls/common/math_util.h"
 #include "xls/common/status/matchers.h"
@@ -35,6 +37,8 @@
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
 #include "xls/jit/aot_entrypoint.pb.h"
+#include "xls/jit/llvm_type_converter.h"
+#include "xls/jit/type_layout.h"
 
 namespace xls {
 namespace {
@@ -278,37 +282,122 @@ TEST(JitRuntimeTest, TargetLayoutInfoRejectsInvalidProtosAndStrings) {
   }
 }
 
-TEST(JitRuntimeTest, DataLayoutAccessorMatchesConstructionLayout) {
+TEST(JitRuntimeTest, DataLayoutFromTargetLayoutInfoRoundTripsAndMatchesTypes) {
+  constexpr std::string_view kX8632DataLayout =
+      "e-m:e-p:32:32-p270:32:32-p271:32:32-p272:64:64-i128:128-f64:32:64-"
+      "f80:32-n8:16:32-S128";
+  constexpr std::string_view kCustomTokenAndWideIntLayout =
+      "e-a:16:128-i1:16:32-i8:8:8-i64:64-i128:64-i256:128-i512:256-S64";
+
+  Package pkg("synthesized_data_layout_test");
+  Type* u0 = pkg.GetBitsType(0);
+  Type* u1 = pkg.GetBitsType(1);
+  Type* u5 = pkg.GetBitsType(5);
+  Type* u8 = pkg.GetBitsType(8);
+  Type* u12 = pkg.GetBitsType(12);
+  Type* u16 = pkg.GetBitsType(16);
+  Type* u32 = pkg.GetBitsType(32);
+  Type* u42 = pkg.GetBitsType(42);
+  Type* u64 = pkg.GetBitsType(64);
+  Type* u128 = pkg.GetBitsType(128);
+  Type* u256 = pkg.GetBitsType(256);
+  Type* u512 = pkg.GetBitsType(512);
+  Type* tok = pkg.GetTokenType();
+  TupleType* flat_tuple = pkg.GetTupleType({u1, u42, u8, u128, u256});
+  Type* nested_tuple = pkg.GetTupleType(
+      {tok, flat_tuple, pkg.GetArrayType(3, pkg.GetTupleType({u32, u5}))});
+  const std::array<Type*, 15> kTypes = {
+      u0,  u1,   u5,   u8,   u12, u16,        u32,          u42,
+      u64, u128, u256, u512, tok, flat_tuple, nested_tuple,
+  };
+
+  for (std::string_view layout_str :
+       {kX86_64DataLayout, kAArch64DataLayout, kX8632DataLayout,
+        kCustomTokenAndWideIntLayout}) {
+    llvm::DataLayout original_dl(layout_str);
+    XLS_ASSERT_OK_AND_ASSIGN(
+        TargetLayoutInfo info,
+        TargetLayoutInfo::FromDataLayoutString(layout_str));
+    llvm::DataLayout synthesized_dl = DataLayoutFromTargetLayoutInfo(info);
+
+    EXPECT_EQ(TargetLayoutInfo::FromDataLayout(synthesized_dl), info)
+        << "layout_str=" << layout_str;
+    EXPECT_EQ(synthesized_dl.getStackAlignment().valueOrOne().value(),
+              info.stack_alignment);
+
+    llvm::LLVMContext ctx;
+    LlvmTypeConverter orig_converter(&ctx, original_dl);
+    LlvmTypeConverter synth_converter(&ctx, synthesized_dl);
+    for (Type* type : kTypes) {
+      EXPECT_EQ(synth_converter.GetTypeByteSize(type),
+                orig_converter.GetTypeByteSize(type))
+          << type->ToString() << " @ " << layout_str;
+      EXPECT_EQ(synth_converter.GetTypeAbiAlignment(type),
+                orig_converter.GetTypeAbiAlignment(type))
+          << type->ToString() << " @ " << layout_str;
+      EXPECT_EQ(synth_converter.GetTypePreferredAlignment(type),
+                orig_converter.GetTypePreferredAlignment(type))
+          << type->ToString() << " @ " << layout_str;
+      EXPECT_EQ(synth_converter.AlignFor(type, 3),
+                orig_converter.AlignFor(type, 3))
+          << type->ToString() << " @ " << layout_str;
+      TypeLayout orig_layout = orig_converter.CreateTypeLayout(type);
+      TypeLayout synth_layout = synth_converter.CreateTypeLayout(type);
+      EXPECT_EQ(synth_layout.size(), orig_layout.size());
+      EXPECT_EQ(synth_layout.elements(), orig_layout.elements())
+          << type->ToString() << " @ " << layout_str;
+    }
+
+    auto* llvm_struct = llvm::cast<llvm::StructType>(
+        synth_converter.ConvertToLlvmType(flat_tuple));
+    const llvm::StructLayout* orig_struct =
+        original_dl.getStructLayout(llvm_struct);
+    const llvm::StructLayout* synth_struct =
+        synthesized_dl.getStructLayout(llvm_struct);
+    EXPECT_EQ(synth_struct->getSizeInBytes(), orig_struct->getSizeInBytes());
+    for (int64_t i = 0; i < flat_tuple->size(); ++i) {
+      EXPECT_EQ(synth_struct->getElementOffset(i),
+                orig_struct->getElementOffset(i));
+    }
+  }
+}
+
+TEST(JitRuntimeTest, DataLayoutAccessorWorksOnJitAndAotRuntimes) {
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wdeprecated-declarations"
+  // Invoke through a member-function pointer so ClangInliner does not rewrite
+  // the unit test exercising the deprecated forwarding method itself.
+  llvm::DataLayout (JitRuntime::*data_layout_fn)() const =
+      &JitRuntime::data_layout;
+#pragma clang diagnostic pop
+
   for (std::string_view layout_str : {kX86_64DataLayout, kAArch64DataLayout}) {
     llvm::DataLayout expected(layout_str);
     JitRuntime rt_from_dl(expected);
-    EXPECT_EQ(rt_from_dl.data_layout(), expected);
-    EXPECT_EQ(rt_from_dl.data_layout().getStringRepresentation(), layout_str);
-    const JitRuntime& const_rt = rt_from_dl;
-    EXPECT_EQ(&const_rt.data_layout(), &rt_from_dl.data_layout());
+    EXPECT_EQ(TargetLayoutInfo::FromDataLayout((rt_from_dl.*data_layout_fn)()),
+              rt_from_dl.target_layout_info());
 
     llvm::LLVMContext ctx;
     JitRuntime rt_with_ctx(expected, ctx);
-    EXPECT_EQ(rt_with_ctx.data_layout(), expected);
-    EXPECT_EQ(rt_with_ctx.data_layout().getStringRepresentation(), layout_str);
+    EXPECT_EQ(TargetLayoutInfo::FromDataLayout((rt_with_ctx.*data_layout_fn)()),
+              rt_with_ctx.target_layout_info());
+
+    XLS_ASSERT_OK_AND_ASSIGN(
+        TargetLayoutInfo aot_info,
+        TargetLayoutInfo::FromDataLayoutString(layout_str));
+    JitRuntime rt_aot(aot_info);
+    EXPECT_EQ(TargetLayoutInfo::FromDataLayout((rt_aot.*data_layout_fn)()),
+              aot_info);
   }
-#pragma clang diagnostic pop
 }
 
-TEST(JitRuntimeTest, DataLayoutAccessorDiesOnAotRuntime) {
+TEST(JitRuntimeTest, DataLayoutFromTargetLayoutInfoRejectsInvalidInfo) {
   XLS_ASSERT_OK_AND_ASSIGN(
-      TargetLayoutInfo info,
+      TargetLayoutInfo bad_endian,
       TargetLayoutInfo::FromDataLayoutString(kX86_64DataLayout));
-  JitRuntime rt_aot(info);
-  Package pkg("aot_layout_test");
-  EXPECT_EQ(rt_aot.GetTypeByteSize(pkg.GetBitsType(32)), 4);
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wdeprecated-declarations"
-  EXPECT_DEATH((void)rt_aot.data_layout(),
-               "only available when constructed from an llvm::DataLayout");
-#pragma clang diagnostic pop
+  bad_endian.is_little_endian = false;
+  EXPECT_DEATH((void)DataLayoutFromTargetLayoutInfo(bad_endian),
+               "is_little_endian");
 }
 
 }  // namespace
