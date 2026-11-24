@@ -355,27 +355,27 @@ FUZZTEST_WRAPPER_TYPE = "FUZZTEST"
 
 _BASE_JIT_WRAPPER_DEPS = {
     FUNCTION_WRAPPER_TYPE: [
-        "//xls/jit:function_base_jit_wrapper",
-        "//xls/ir:xls_type_cc_proto",
+        Label("//xls/jit:function_base_jit_wrapper"),
+        Label("//xls/ir:xls_type_cc_proto"),
     ],
     FUZZTEST_WRAPPER_TYPE: [
-        "@googletest//:gtest",
-        "//xls/common/fuzzing:fuzztest",
-        "//xls/common/status:matchers",
-        "//xls/ir:value",
-        "//xls/ir:xls_type_cc_proto",
-        "//xls/ir:type",
-        "//xls/ir:value_test_util",
-        "//xls/jit:function_base_jit_wrapper",
+        Label("@googletest//:gtest"),
+        Label("//xls/common/fuzzing:fuzztest"),
+        Label("//xls/common/status:matchers"),
+        Label("//xls/ir:value"),
+        Label("//xls/ir:xls_type_cc_proto"),
+        Label("//xls/ir:type"),
+        Label("//xls/ir:value_test_util"),
+        Label("//xls/jit:function_base_jit_wrapper"),
     ],
     PROC_WRAPPER_TYPE: [
-        "//xls/jit:proc_base_jit_wrapper",
-        "@abseil-cpp//absl/container:flat_hash_map",
+        Label("//xls/jit:proc_base_jit_wrapper"),
+        Label("@abseil-cpp//absl/container:flat_hash_map"),
     ],
     BLOCK_WRAPPER_TYPE: [
-        "//xls/jit:block_base_jit_wrapper",
-        "//xls/ir:bits",
-        "@abseil-cpp//absl/container:flat_hash_map",
+        Label("//xls/jit:block_base_jit_wrapper"),
+        Label("//xls/ir:bits"),
+        Label("@abseil-cpp//absl/container:flat_hash_map"),
     ],
 }
 
@@ -455,8 +455,8 @@ def cc_xls_ir_wrapper(
         jobs = jobs,
         enable_llvm_coverage = enable_llvm_coverage,
         aot_target = select({
-            "@platforms//cpu:aarch64": "aarch64",
-            "@platforms//cpu:x86_64": "x86_64",
+            Label("@platforms//cpu:aarch64"): "aarch64",
+            Label("@platforms//cpu:x86_64"): "x86_64",
             "//conditions:default": "native",
         }),
     )
@@ -487,11 +487,11 @@ def cc_xls_ir_wrapper(
         tags = tags,
         deps = extra_lib_deps +
                _BASE_JIT_WRAPPER_DEPS[wrapper_type] + [
-            "@abseil-cpp//absl/status",
-            "@abseil-cpp//absl/status:statusor",
-            "//xls/common/status:status_macros",
-            "//xls/interpreter:evaluator_options",
-            "//xls/public:value",
+            Label("@abseil-cpp//absl/status"),
+            Label("@abseil-cpp//absl/status:statusor"),
+            Label("//xls/common/status:status_macros"),
+            Label("//xls/interpreter:evaluator_options"),
+            Label("//xls/public:value"),
         ] + deps,
         **kwargs
     )

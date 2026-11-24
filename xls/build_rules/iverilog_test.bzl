@@ -54,6 +54,10 @@ def iverilog_test(name, top, main, srcs, execute = True, tick_defines = None):
         ["-D{}={}".format(k, v) for (k, v) in sorted(tick_defines.items())],
     )
 
+    iverilog_tool = Label("@com_icarus_iverilog//:iverilog")
+    vvp_tool = Label("@com_icarus_iverilog//:vvp")
+    generate_vvp_runner = Label("//xls/dev_tools:generate_vvp_runner")
+
     native.genrule(
         name = name + "-iverilog-build",
         srcs = srcs,
@@ -61,27 +65,27 @@ def iverilog_test(name, top, main, srcs, execute = True, tick_defines = None):
         # that points at the genfiles' location, we have to add it to the
         # searched set of paths for inclusions so we can include generated
         # verilog files as we can generated C++ files in cc_library rules.
-        cmd = "$(location @com_icarus_iverilog//:iverilog) -s %s $(location %s) %s -o $@ -g2001 -I$(GENDIR)" % (top, main, defines),
+        cmd = "$(execpath %s) -s %s $(execpath %s) %s -o $@ -g2001 -I$(GENDIR)" % (iverilog_tool, top, main, defines),
         outs = [name + ".iverilog.out"],
         tools = [
-            "@com_icarus_iverilog//:iverilog",
-            "@com_icarus_iverilog//:vvp",
+            iverilog_tool,
+            vvp_tool,
         ],
     )
     if execute:
         native.genrule(
             name = name + "-vvp-runner",
             srcs = [":" + name + "-iverilog-build"],
-            cmd = "$(location //xls/dev_tools:generate_vvp_runner) $< > $@",
+            cmd = "$(execpath %s) $< > $@" % generate_vvp_runner,
             outs = [name + "-vvp-runner.sh"],
-            tools = ["//xls/dev_tools:generate_vvp_runner"],
+            tools = [generate_vvp_runner],
         )
         sh_test(
             name = name + "-run_test",
             srcs = [":" + name + "-vvp-runner"],
             data = [
                 ":" + name + "-iverilog-build",
-                "@com_icarus_iverilog//:vvp",
+                vvp_tool,
             ],
         )
         tests.append(":" + name + "-run_test")

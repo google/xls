@@ -72,17 +72,17 @@ _xls_aot_files_attrs = {
     ),
     "_save_temps_is_requested": attr.label(
         doc = "save_temps config",
-        default = "//xls/common/config:save_temps_is_requested",
+        default = Label("//xls/common/config:save_temps_is_requested"),
         providers = [BoolConfigSettingInfo],
     ),
     "_jit_emulated_tls": attr.label(
         doc = "emulated tls implementation",
-        default = "//xls/jit:jit_emulated_tls",
+        default = Label("//xls/jit:jit_emulated_tls"),
         providers = [CcInfo],
     ),
     "_emit_aot_intermediates": attr.label(
         doc = "emit intermediates",
-        default = "//xls/common/config:emit_aot_intermediates",
+        default = Label("//xls/common/config:emit_aot_intermediates"),
     ),
     "top_type": attr.string(
         doc = "Type of top (FUNCTION/PROC/BLOCK)",

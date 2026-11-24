@@ -45,22 +45,22 @@ load(
 )
 
 _DSLX_FUZZ_TEST_DEPS = [
-    "@googletest//:gtest",
-    "//xls/common/fuzzing:fuzztest",
-    "@abseil-cpp//absl/status",
-    "@abseil-cpp//absl/status:statusor",
-    "//xls/common:xls_gunit_main",
-    "//xls/common/status:matchers",
-    "//xls/common/status:status_macros",
-    "//xls/interpreter:evaluator_options",
-    "//xls/ir",
-    "//xls/ir:bits",
-    "//xls/ir:type",
-    "//xls/ir:value",
-    "//xls/ir:value_test_util",
-    "//xls/ir:xls_type_cc_proto",
-    "//xls/jit:function_base_jit_wrapper",
-    "//xls/public:value",
+    Label("@googletest//:gtest"),
+    Label("//xls/common/fuzzing:fuzztest"),
+    Label("@abseil-cpp//absl/status"),
+    Label("@abseil-cpp//absl/status:statusor"),
+    Label("//xls/common:xls_gunit_main"),
+    Label("//xls/common/status:matchers"),
+    Label("//xls/common/status:status_macros"),
+    Label("//xls/interpreter:evaluator_options"),
+    Label("//xls/ir"),
+    Label("//xls/ir:bits"),
+    Label("//xls/ir:type"),
+    Label("//xls/ir:value"),
+    Label("//xls/ir:value_test_util"),
+    Label("//xls/ir:xls_type_cc_proto"),
+    Label("//xls/jit:function_base_jit_wrapper"),
+    Label("//xls/public:value"),
 ]
 
 def _dslx_fuzz_test_impl(ctx):

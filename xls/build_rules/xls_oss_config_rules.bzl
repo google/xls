@@ -61,10 +61,10 @@ def delay_model_to_standard_cells(delay_model):
       the target for the corresponding standard cells
     """
     if delay_model == "sky130":
-        return "@com_google_skywater_pdk_sky130_fd_sc_hd//:sky130_fd_sc_hd"
+        return Label("@com_google_skywater_pdk_sky130_fd_sc_hd//:sky130_fd_sc_hd")
     if delay_model == "asap7":
-        return "@org_theopenroadproject_asap7sc7p5t_27//:asap7-sc7p5t_rev27_rvt_4x"
+        return Label("@org_theopenroadproject_asap7sc7p5t_27//:asap7-sc7p5t_rev27_rvt_4x")
     if delay_model == "unit":
         # No real delay model used; default to ASAP7 for now.
-        return "@org_theopenroadproject_asap7sc7p5t_27//:asap7-sc7p5t_rev27_rvt_4x"
+        return Label("@org_theopenroadproject_asap7sc7p5t_27//:asap7-sc7p5t_rev27_rvt_4x")
     fail("No cells known for delay model: {}".format(delay_model))
