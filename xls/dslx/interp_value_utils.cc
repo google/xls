@@ -29,6 +29,7 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_split.h"
+#include "absl/types/optional_ref.h"
 #include "absl/types/span.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
@@ -46,11 +47,6 @@
 namespace xls::dslx {
 
 namespace {
-
-absl::StatusOr<InterpValue> InterpValueFromString(std::string_view s) {
-  XLS_ASSIGN_OR_RETURN(Value value, Parser::ParseTypedValue(s));
-  return dslx::ValueToInterpValue(value);
-}
 
 void CollectLeafChannelReferences(const InterpValue& channel_or_array,
                                   std::vector<InterpValue>& leaves) {
@@ -827,9 +823,11 @@ absl::StatusOr<InterpValue> ValueToInterpValueImpl(const Value& v,
                                        &enum_type.nominal_type());
         }
         std::optional<BitsLikeProperties> bits_like = GetBitsLike(*type);
-        XLS_RET_CHECK(bits_like.has_value())
-            << "IR value: " << v
-            << " kind is bits but type is not bits-like: " << type->ToString();
+        if (!bits_like.has_value()) {
+          return absl::InvalidArgumentError(absl::StrFormat(
+              "Raw bits value does not match expected type `%s`.",
+              type->ToString()));
+        }
         XLS_ASSIGN_OR_RETURN(bool is_signed, bits_like->is_signed.GetAsBool());
         tag = is_signed ? InterpValueTag::kSBits : InterpValueTag::kUBits;
       }
@@ -915,16 +913,33 @@ absl::StatusOr<InterpValue> ValueToInterpValue(const Value& v,
   return ValueToInterpValueImpl(v, type, /*validate_sum=*/true);
 }
 
-absl::StatusOr<std::vector<InterpValue>> ParseArgs(std::string_view args_text) {
+absl::StatusOr<std::vector<InterpValue>> ParseArgs(
+    std::string_view args_text,
+    absl::optional_ref<const FunctionType> fn_type) {
   args_text = absl::StripAsciiWhitespace(args_text);
-  std::vector<InterpValue> args;
-  if (args_text.empty()) {
-    return args;
+  std::vector<std::string_view> pieces;
+  if (!args_text.empty()) {
+    pieces = absl::StrSplit(args_text, ';');
   }
-  for (std::string_view piece : absl::StrSplit(args_text, ';')) {
-    piece = absl::StripAsciiWhitespace(piece);
-    XLS_ASSIGN_OR_RETURN(InterpValue value, InterpValueFromString(piece));
-    args.push_back(value);
+  if (fn_type.has_value() && fn_type->params().size() != pieces.size()) {
+    return absl::InvalidArgumentError(
+        absl::StrFormat("Incorrect number of arguments: wanted %d, got %d.",
+                        fn_type->params().size(), pieces.size()));
+  }
+  std::vector<InterpValue> args;
+  args.reserve(pieces.size());
+  for (int64_t i = 0; i < pieces.size(); ++i) {
+    XLS_ASSIGN_OR_RETURN(Value raw, Parser::ParseTypedValue(
+                                        absl::StripAsciiWhitespace(pieces[i])));
+    const Type* type =
+        fn_type.has_value() ? fn_type->params()[i].get() : nullptr;
+    XLS_ASSIGN_OR_RETURN(
+        InterpValue value,
+        ValueToInterpValueImpl(raw, type, /*validate_sum=*/false));
+    if (type != nullptr) {
+      XLS_RETURN_IF_ERROR(ValidateInterpValueMatchesType(value, *type));
+    }
+    args.push_back(std::move(value));
   }
   return args;
 }
