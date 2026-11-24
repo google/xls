@@ -18,7 +18,6 @@
 #include <string>
 #include <utility>
 
-#include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/status_builder.h"
 #include "absl/status/statusor.h"
@@ -91,9 +90,7 @@ absl::StatusOr<SchedulingResult> RunSchedulingPipeline(
 absl::StatusOr<SchedulingResult> Schedule(
     Package* p, const SchedulingOptions& scheduling_options,
     const DelayEstimator* delay_estimator) {
-  QCHECK(scheduling_options.pipeline_stages() != 0 ||
-         scheduling_options.clock_period_ps() != 0)
-      << "Must specify --pipeline_stages or --clock_period_ps (or both).";
+  XLS_RETURN_IF_ERROR(ValidatePipelineScheduleOptions(scheduling_options));
   synthesis::Synthesizer* synthesizer = nullptr;
   if (scheduling_options.use_fdo() &&
       !scheduling_options.fdo_synthesizer_name().empty()) {

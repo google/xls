@@ -160,9 +160,8 @@ struct CodegenMetadata {
         metadata.scheduling_options,
         SetUpSchedulingOptions(scheduling_options_flags_proto, package));
 
-    QCHECK(metadata.scheduling_options.pipeline_stages() != 0 ||
-           metadata.scheduling_options.clock_period_ps() != 0)
-        << "Must specify --pipeline_stages or --clock_period_ps (or both).";
+    XLS_RETURN_IF_ERROR(
+        ValidatePipelineScheduleOptions(metadata.scheduling_options));
 
     // Add IO constraints for RAMs.
     for (const xls::verilog::RamConfiguration& ram_config :
