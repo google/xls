@@ -1952,6 +1952,13 @@ pub enum MyEnum : u32 {
 }
 
 TEST_F(ModuleFmtTest, EnumDefCommentOnEachMember) {
+  const std::string kInput = R"(pub enum MyEnum:u32{
+    // This is the first member comment.
+    FIRST = 0,
+    // This is the second member comment.
+    SECOND = 1,
+    // This is a trailing comment.
+    })";
   const std::string_view kWant = R"(pub enum MyEnum : u32 {
     // This is the first member comment.
     FIRST = 0,
@@ -1960,14 +1967,83 @@ TEST_F(ModuleFmtTest, EnumDefCommentOnEachMember) {
     // This is a trailing comment.
 }
 )";
-  DoFmt(R"(pub enum MyEnum:u32{
-// This is the first member comment.
-FIRST = 0,
-// This is the second member comment.
-SECOND = 1,
-// This is a trailing comment.
-})",
-        kWant);
+  DoFmt(kInput, kWant);
+}
+
+TEST_F(ModuleFmtTest, EnumDefShortCommentsAfterMemberRemainsAfter) {
+  const std::string kInput = R"(enum Foo : u8 {
+  W = u8:0,
+  X = u8:1,  // Description of X
+             // with another line
+  Y = u8:2,  // Description of Y
+             // a second, short comment line.
+  Z = u8:3,  // Description of Z
+}
+)";
+  const std::string_view kWant = R"(enum Foo : u8 {
+    W = u8:0,
+    X = u8:1,  // Description of X
+               // with another line
+    Y = u8:2,  // Description of Y
+               // a second, short comment line.
+    Z = u8:3,  // Description of Z
+}
+)";
+  DoFmtNoPostcondition(kInput, kWant);
+}
+
+TEST_F(ModuleFmtTest, EnumDefLongCommentAfterMemberMovesAbove) {
+  const std::string kInput = R"(enum Foo : u8 {
+  W = u8:0,
+  X = u8:1,  // Description of X
+             // with another line
+  Y = u8:2,  // Description of Y
+             // where the following comment is actually really long and should probably be moved above.
+  Z = u8:3,  // Description of Z
+}
+)";
+  const std::string_view kWant = R"(enum Foo : u8 {
+    W = u8:0,
+    X = u8:1,  // Description of X
+               // with another line
+    // Description of Y
+    // where the following comment is actually really long and should probably be moved above.
+    Y = u8:2,
+    Z = u8:3,  // Description of Z
+}
+)";
+  DoFmtNoPostcondition(kInput, kWant);
+}
+
+TEST_F(ModuleFmtTest, EnumDefCommentsInterleavedAreCombinedWhenTooLong) {
+  const std::string kInput = R"(enum Foo : u8 {
+  W = u8:0,
+  // X's comment before
+  X = u8:1,  // Description of X
+             // with another line
+  // Y's comment before
+  Y = u8:2,  // Description of Y
+             // where the following comment is actually really long and should probably be moved above.
+  Z = u8:3,  // Description of Z
+  // final comment
+}
+)";
+  const std::string_view kWant = R"(enum Foo : u8 {
+    W = u8:0,
+    // X's comment before
+    X = u8:1,  // Description of X
+               // with another line
+    // Y's comment before
+    // Description of Y
+    // where the following comment is actually really long and should probably be moved above.
+    Y = u8:2,
+    Z = u8:3,  // Description of Z
+    // final comment
+}
+)";
+  // Reformatting comments following enum definitions can change
+  // their order.
+  DoFmtNoPostcondition(kInput, kWant);
 }
 
 TEST_F(ModuleFmtTest, SemanticSumEmptyPayloadShapes) {

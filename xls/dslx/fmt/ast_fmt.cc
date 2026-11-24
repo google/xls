@@ -3107,6 +3107,7 @@ DocRef Formatter::FormatEnumMember(const EnumMember& n) {
 }
 
 DocRef Formatter::FormatEnumDef(const EnumDef& n) {
+  VLOG(3) << "Formatting enum: " << n.identifier();
   std::vector<DocRef> pieces;
   std::vector<DocRef> attrs;
   for (const Attribute* attribute : n.attributes()) {
@@ -3157,8 +3158,41 @@ DocRef Formatter::FormatEnumDef(const EnumDef& n) {
 
     last_member_pos = member_span->limit();
 
+    DocRef member_doc = FormatEnumMember(node);
+
+    // Handle trailing comments on enum members:
+    // Find the trailing comment span for this member, which
+    // is limited by either the start of the next member, or the
+    // end of enum definition.
+    const Pos end_of_line(last_member_pos.fileno(),
+                          last_member_pos.lineno() + 1, 0);
+
+    Pos next_member_start;
+    if (i + 1 < n.values().size()) {
+      next_member_start = n.values()[i + 1].GetSpan().start();
+    } else {
+      next_member_start = n.span().limit();
+    }
+    const Pos trailing_limit = std::min(end_of_line, next_member_start);
+
+    // Claim the comment now so it is not treated as a leading comment of the
+    // next member.
+    if (std::optional<DocRef> trailing_comment =
+            FormatCommentsBetween(last_member_pos, trailing_limit, nullptr)) {
+      DocRef trailing_doc = arena_.MakeAlign(trailing_comment.value());
+      // Preferred one line: X = u8:1,  // comment
+      DocRef inline_layout =
+          ConcatN(arena_, {member_doc, arena_.MakeText("  "), trailing_doc});
+      // Fallback when that doesn't fit: comment on its own line above.
+      DocRef above_layout =
+          ConcatN(arena_, {trailing_doc, arena_.hard_line(), member_doc});
+      member_doc =
+          arena_.MakeGroup(arena_.MakeFlatChoice(/*on_flat=*/inline_layout,
+                                                 /*on_break=*/above_layout));
+    }
+
     // Here we actually emit the formatted member.
-    nested.push_back(FormatEnumMember(node));
+    nested.push_back(member_doc);
     if (i + 1 != n.values().size()) {
       nested.push_back(arena_.hard_line());
     }
