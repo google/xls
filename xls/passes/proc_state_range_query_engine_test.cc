@@ -14,6 +14,8 @@
 
 #include "xls/passes/proc_state_range_query_engine.h"
 
+#include <memory>
+
 #include "gtest/gtest.h"
 #include "absl/log/check.h"
 #include "absl/strings/str_format.h"
@@ -23,6 +25,7 @@
 #include "xls/ir/channel_ops.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/ir_test_base.h"
+#include "xls/ir/package.h"
 #include "xls/ir/proc.h"
 #include "xls/ir/value.h"
 #include "xls/passes/range_query_engine.h"
@@ -322,6 +325,44 @@ TEST_F(ProcStateRangeQueryEngineTest, OneBitStateIsZero) {
   BValue state = pb.ReadStateElement("the_state", UBits(0, 1));
   BReceiveChannel chan = pb.AddInputChannel("data", p->GetBitsType(1));
   pb.Next(state, pb.Nor(pb.Receive(chan), pb.Not(state)));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
+
+  ProcStateRangeQueryEngine qe;
+  XLS_ASSERT_OK(qe.Populate(proc).status());
+  EXPECT_EQ(IntervalSetTreeToString(qe.GetIntervals(state.node())), "[[0, 0]]");
+}
+
+TEST_F(ProcStateRangeQueryEngineTest, ZeroBitSelectInNextDependency) {
+  std::unique_ptr<Package> p = CreatePackage();
+  TokenlessProcBuilder pb(NewStyleProc{}, TestName(), "tkn", p.get());
+  BValue state = pb.ReadStateElement("the_state", SBits(0, 32));
+  BReceiveChannel chan = pb.AddInputChannel("cond", p->GetBitsType(1));
+  BValue zero_bit_sel = pb.Select(
+      pb.Receive(chan), {pb.Literal(UBits(0, 0)), pb.Literal(UBits(0, 0))});
+  BValue in_loop = pb.SLt(state, pb.Literal(SBits(7, 32)));
+  pb.Next(state,
+          pb.Concat({pb.Add(state, pb.Literal(UBits(1, 32))), zero_bit_sel}),
+          in_loop);
+  pb.Next(state, pb.Literal(SBits(-7, 32)), pb.Not(in_loop));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
+
+  ProcStateRangeQueryEngine qe;
+  XLS_ASSERT_OK(qe.Populate(proc).status());
+  EXPECT_EQ(
+      IntervalSetTreeToString(qe.GetIntervals(state.node())),
+      absl::StrFormat("[[0, 7], [%v, %v]]", SBits(-7, 32), SBits(-1, 32)));
+}
+
+TEST_F(ProcStateRangeQueryEngineTest, ZeroBitStateElement) {
+  std::unique_ptr<Package> p = CreatePackage();
+  TokenlessProcBuilder pb(NewStyleProc{}, TestName(), "tkn", p.get());
+  BValue state = pb.ReadStateElement("the_state", UBits(0, 0));
+  BReceiveChannel chan = pb.AddInputChannel("cond", p->GetBitsType(1));
+  BValue zero_bit_sel = pb.Select(
+      pb.Receive(chan), {pb.Literal(UBits(0, 0)), pb.Literal(UBits(0, 0))});
+  pb.Next(state, zero_bit_sel);
 
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
 

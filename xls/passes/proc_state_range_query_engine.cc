@@ -180,7 +180,9 @@ ExtractContextSensitiveRange(
 
 bool AbsoluteValueLessThan(const Bits& l, const Bits& r) {
   CHECK_EQ(l.bit_count(), r.bit_count());
-  Bits max_int = Bits::MaxSigned(l.bit_count());
+  if (l.bit_count() == 0) {
+    return false;
+  }
   bool l_pos = !l.GetFromMsb(0);
   bool r_pos = !r.GetFromMsb(0);
   if (l_pos && r_pos) {
