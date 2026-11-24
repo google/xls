@@ -16,6 +16,7 @@
 
 #include <array>
 #include <optional>
+#include <type_traits>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
@@ -55,8 +56,38 @@ TEST(MatchingOrderTest, BacktracksWhenTheFirstMatchIsNeededLater) {
               Optional(ElementsAre(2, 1, 3)));
 }
 
+struct SwappableImmovable {
+  SwappableImmovable() = default;
+  SwappableImmovable(SwappableImmovable&&) = delete;
+  [[maybe_unused]] friend void swap(SwappableImmovable&, SwappableImmovable&) {}
+};
+
+template <typename T>
+concept CanMatchSingleElement = requires {
+  MatchingOrder(std::array<T, 1>{}, [](const T&) { return true; });
+};
+
+static_assert(std::is_swappable_v<SwappableImmovable>);
+static_assert(!CanMatchSingleElement<SwappableImmovable>);
+static_assert(CanMatchSingleElement<int>);
+
 TEST(MatchingOrderTest, EmptyArrayMatchesNoPredicates) {
-  EXPECT_THAT(MatchingOrder(std::array<int, 0>{}), Optional(IsEmpty()));
+  EXPECT_THAT(MatchingOrder(std::array<SwappableImmovable, 0>{}),
+              Optional(IsEmpty()));
+}
+
+struct PredicateResult {
+  bool matches;
+  operator bool() const { return matches; }
+  bool operator!() const = delete;
+};
+
+TEST(MatchingOrderTest, ConvertsPredicateResultToBool) {
+  EXPECT_THAT(
+      MatchingOrder(
+          std::array{1, 2}, [](int n) { return PredicateResult{n == 2}; },
+          [](int n) { return PredicateResult{n == 1}; }),
+      Optional(ElementsAre(2, 1)));
 }
 
 }  // namespace

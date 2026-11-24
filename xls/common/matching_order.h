@@ -35,7 +35,8 @@ template <typename T, typename Predicate, typename... Rest>
 bool MatchRemaining(absl::Span<T> remaining, Predicate& predicate,
                     Rest&... rest) {
   for (T& candidate : remaining) {
-    if (!std::invoke(predicate, std::as_const(candidate))) {
+    const bool matches = std::invoke(predicate, std::as_const(candidate));
+    if (!matches) {
       continue;
     }
     // Let argument-dependent lookup find T's swap, falling back to std::swap.
@@ -57,6 +58,7 @@ bool MatchRemaining(absl::Span<T> remaining, Predicate& predicate,
 // predicates can require trying all permutations.
 template <typename T, typename... Predicates>
   requires(std::is_swappable_v<T> &&
+           std::is_move_constructible_v<std::array<T, sizeof...(Predicates)>> &&
            (std::is_invocable_r_v<bool, Predicates&, const T&> && ...))
 std::optional<std::array<T, sizeof...(Predicates)>> MatchingOrder(
     std::array<T, sizeof...(Predicates)> elements, Predicates&&... predicates) {
