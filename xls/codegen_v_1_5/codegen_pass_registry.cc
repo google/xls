@@ -19,6 +19,7 @@
 #include <string>
 #include <string_view>
 #include <utility>
+#include <vector>
 
 #include "absl/log/check.h"
 #include "absl/status/status.h"
@@ -74,7 +75,7 @@ void CodegenPassRegistry::InitBeforeAccessLocked() const {
           std::make_unique<OptPassWrapperGenerator>(*this, *opt_gen)));
       AddRegistrationInfoLocked(
           codegen_name, absl::StrFormat("opt_pass<%s>", info.class_name),
-          info.header_file);
+          info.header_files);
     }
   }
 }

@@ -31,6 +31,7 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "absl/synchronization/mutex.h"
+#include "absl/types/span.h"
 #include "xls/passes/pass_base.h"
 
 namespace xls {
@@ -83,7 +84,7 @@ class PassRegistry {
   struct RegistrationInfo {
     std::string short_name;
     std::string class_name;
-    std::string header_file;
+    std::vector<std::string> header_files;
     std::optional<std::string> comments;
   };
   using GeneratorUniquePtr =
@@ -156,9 +157,15 @@ class PassRegistry {
   }
 
   void AddRegistrationInfo(std::string_view name, std::string_view class_name,
-                           std::string_view header_file) {
+                           absl::Span<std::string const> header_files) {
     absl::MutexLock mu(&registry_lock_);
-    AddRegistrationInfoLocked(name, class_name, header_file);
+    AddRegistrationInfoLocked(name, class_name, header_files);
+  }
+
+  void AddRegistrationInfo(std::string_view name, std::string_view class_name,
+                           std::string_view header_file) {
+    std::string header(header_file);
+    AddRegistrationInfo(name, class_name, absl::MakeConstSpan(&header, 1));
   }
 
   bool allow_overwrite() const { return allow_overwrite_; }
@@ -201,15 +208,25 @@ class PassRegistry {
     return absl::OkStatus();
   }
 
-  void AddRegistrationInfoLocked(std::string_view name,
-                                 std::string_view class_name,
-                                 std::string_view header_file) const
+  void AddRegistrationInfoLocked(
+      std::string_view name, std::string_view class_name,
+      absl::Span<std::string const> header_files) const
       ABSL_EXCLUSIVE_LOCKS_REQUIRED(registry_lock_) {
     registration_info_[name] = {
         .short_name = std::string(name),
         .class_name = std::string(class_name),
-        .header_file = std::string(header_file),
+        .header_files =
+            std::vector<std::string>(header_files.begin(), header_files.end()),
     };
+  }
+
+  void AddRegistrationInfoLocked(std::string_view name,
+                                 std::string_view class_name,
+                                 std::string_view header_file) const
+      ABSL_EXCLUSIVE_LOCKS_REQUIRED(registry_lock_) {
+    std::string header(header_file);
+    AddRegistrationInfoLocked(name, class_name,
+                              absl::MakeConstSpan(&header, 1));
   }
 
  private:
@@ -251,7 +268,7 @@ class PassRegistry {
         res.push_back({
             .short_name = std::string(k),
             .class_name = "UNKNOWN",
-            .header_file = "UNKNOWN",
+            .header_files = {"UNKNOWN"},
         });
       }
     }

@@ -22,10 +22,24 @@
 #include "absl/types/span.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/tools/pass_documentation.pb.h"
+
 namespace xls {
 
+struct PassHeaderPath {
+  // Path to the header file on disk (in the build execroot) passed to Clang.
+  std::string file_path;
+  // Repository-relative path matched against PassRegistry::RegistrationInfo and
+  // recorded in PassDocumentationProto::OnePass::file.
+  std::string repo_path;
+};
+
 absl::StatusOr<PassDocumentationProto> GenerateDocumentationProto(
-    const OptimizationPassRegistryBase& registry, std::string_view headers,
+    const OptimizationPassRegistryBase& registry,
+    absl::Span<PassHeaderPath const> headers,
+    absl::Span<std::string const> copts);
+
+absl::StatusOr<PassDocumentationProto> GenerateDocumentationProto(
+    const OptimizationPassRegistryBase& registry, std::string_view header,
     absl::Span<std::string const> copts);
 
 }  // namespace xls

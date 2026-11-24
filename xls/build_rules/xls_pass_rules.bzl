@@ -50,10 +50,12 @@ def register_extension_info(*args, **kwargs):
 
 def _generate_registration_impl(ctx):
     output_file = ctx.actions.declare_file(ctx.attr.name + ".cc")
+    public_headers = ctx.attr.lib[CcInfo].compilation_context.direct_public_headers
     headers = ""
-    for h in ctx.attr.lib[CcInfo].compilation_context.direct_public_headers:
+    for h in public_headers:
         headers += "\n"
         headers += '#include "%s"' % _repo_relative_path(h)
+    header_files = "{%s}" % ", ".join(['"%s"' % _repo_relative_path(h) for h in public_headers])
     ctx.actions.expand_template(
         template = ctx.file.registration_template,
         output = output_file,
@@ -63,10 +65,7 @@ def _generate_registration_impl(ctx):
             "{NAME}": ctx.attr.pass_class,
             "{WARNING}": "Generated file. Do not edit.",
             "{HEADERS}": headers,
-            # TODO(allight): Unfortunate to check only the first header; passes
-            # with multiple headers may not list the primary pass header first
-            # in direct_public_headers, breaking doc extraction.
-            "{FIRST_HEADER_FILE}": _repo_relative_path(ctx.attr.lib[CcInfo].compilation_context.direct_public_headers[0]),
+            "{HEADER_FILES}": header_files,
         },
     )
 

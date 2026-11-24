@@ -2,17 +2,24 @@
 
 {HEADERS}
 
+#include <string>
+#include <vector>
+
 #include "absl/log/check.h"
 #include "xls/common/module_initializer.h"
 #include "xls/passes/optimization_pass_registry.h"
 
 namespace xls::pass_registration {
+namespace {
 
-XLS_REGISTER_MODULE_INITIALIZER({REGISTRATION_NAME}, {
+void InitPassRegistration() {
   CHECK_OK(RegisterOptimizationPass<{NAME}>({SHORT_NAME}));
-  RegisterOptimizationPassInfo({SHORT_NAME},
-                               "{NAME}",
-                               "{FIRST_HEADER_FILE}");
-});
+  const std::vector<std::string> header_files = {HEADER_FILES};
+  RegisterOptimizationPassInfo({SHORT_NAME}, "{NAME}", header_files);
+}
+
+}  // namespace
+
+XLS_REGISTER_MODULE_INITIALIZER({REGISTRATION_NAME}, InitPassRegistration());
 
 }  // namespace xls::pass_registration

@@ -142,11 +142,16 @@ absl::Status RegisterOptimizationPass(std::string_view name, Args... args) {
       Pass<PassT>(GetOptimizationRegistry(), std::forward<Args>(args)...));
 }
 
+inline void RegisterOptimizationPassInfo(
+    std::string_view name, std::string_view class_name,
+    absl::Span<std::string const> header_files) {
+  GetOptimizationRegistry().AddRegistrationInfo(name, class_name, header_files);
+}
+
 inline void RegisterOptimizationPassInfo(std::string_view name,
                                          std::string_view class_name,
                                          std::string_view header_file) {
-  return GetOptimizationRegistry().AddRegistrationInfo(name, class_name,
-                                                       header_file);
+  GetOptimizationRegistry().AddRegistrationInfo(name, class_name, header_file);
 }
 
 // Add source info for this name. This is for documentation generation.
