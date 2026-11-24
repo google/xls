@@ -917,6 +917,7 @@ cc_library(
         "//xls/dslx/type_system:unwrap_meta_type",
         "//xls/ir:bits",
         "//xls/ir:bits_ops",
+        "@abseil-cpp//absl/algorithm:container",
         "@abseil-cpp//absl/base",
         "@abseil-cpp//absl/container:flat_hash_map",
         "@abseil-cpp//absl/log:check",
