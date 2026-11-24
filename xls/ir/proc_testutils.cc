@@ -152,10 +152,6 @@ class UnrollProcVisitor final : public DfsVisitorWithDefault {
   GetStateValuesAfterActivation(Proc* p) {
     absl::flat_hash_map<StateElement*, BValue> states;
     for (StateElement* state_element : p->StateElements()) {
-      absl::Span<StateRead* const> reads =
-          p->GetStateReadsByStateElement(state_element);
-      XLS_RET_CHECK(!reads.empty()) << "No reads for " << state_element;
-
       BValue state_val;
       std::vector<BValue> cases;
       std::vector<BValue> selectors;
@@ -167,7 +163,9 @@ class UnrollProcVisitor final : public DfsVisitorWithDefault {
         }
         cases.push_back(values_[nxt->value()]);
       }
-      if (selectors.empty()) {
+      if (cases.empty()) {
+        state_val = prev_activation_.end_state.at(state_element);
+      } else if (selectors.empty()) {
         XLS_RET_CHECK_EQ(cases.size(), 1) << "no cases for " << state_element;
         state_val = cases.front();
       } else if (cases.front().GetType()->IsBits() &&

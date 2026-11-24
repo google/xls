@@ -15,17 +15,80 @@
 #ifndef XLS_INTERPRETER_PROC_EVALUATOR_TEST_BASE_H_
 #define XLS_INTERPRETER_PROC_EVALUATOR_TEST_BASE_H_
 
+#include <cstdint>
 #include <functional>
+#include <initializer_list>
 #include <memory>
+#include <sstream>
+#include <string>
+#include <type_traits>
 #include <utility>
+#include <vector>
 
+#include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/strings/str_cat.h"
+#include "absl/strings/str_join.h"
 #include "xls/interpreter/channel_queue.h"
 #include "xls/interpreter/proc_evaluator.h"
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/package.h"
 
 namespace xls {
+
+// Matches a container containing elements matching `seq` in order (not
+// necessarily contiguously).
+// Note: Can be replaced with `::testing::ContainsSubsequence` once
+// `MODULE.bazel` upgrades to `googletest` >= 1.18.0.
+MATCHER_P(ContainsSubsequence, seq,
+          absl::StrCat(
+              negation ? "does not contain" : "contains", " subsequence [",
+              absl::StrJoin(seq, ", ",
+                            [](std::string* out, const auto& elem) {
+                              using ElemType = std::decay_t<decltype(elem)>;
+                              if constexpr (requires(std::ostringstream os) {
+                                              elem.DescribeTo(&os);
+                                            }) {
+                                std::ostringstream os;
+                                elem.DescribeTo(&os);
+                                absl::StrAppend(out, os.str());
+                              } else {
+                                absl::StrAppend(
+                                    out,
+                                    ::testing::DescribeMatcher<ElemType>(elem));
+                              }
+                            }),
+              "]")) {
+  using Element = typename std::decay_t<decltype(arg)>::value_type;
+  auto it = arg.begin();
+  int64_t idx = 0;
+  for (const auto& elem : seq) {
+    auto matcher = ::testing::SafeMatcherCast<const Element&>(elem);
+    bool found = false;
+    while (it != arg.end()) {
+      ::testing::StringMatchResultListener dummy_listener;
+      if (::testing::ExplainMatchResult(matcher, *it, &dummy_listener)) {
+        found = true;
+        ++it;
+        break;
+      }
+      ++it;
+    }
+    if (!found) {
+      *result_listener << "where element #" << idx << " ("
+                       << ::testing::DescribeMatcher<const Element&>(matcher)
+                       << ") was not found in remaining sequence";
+      return false;
+    }
+    ++idx;
+  }
+  return true;
+}
+
+template <typename T>
+inline auto ContainsSubsequence(std::initializer_list<T> seq) {
+  return ContainsSubsequence(std::vector<T>(seq));
+}
 
 class ProcEvaluatorTestParam {
  public:

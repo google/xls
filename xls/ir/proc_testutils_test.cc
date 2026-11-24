@@ -1041,6 +1041,30 @@ TEST_F(UnrollProcTest, MultipleTokenStateReadsWithRetention) {
   EXPECT_THAT(TryProveEquivalence(f, converted), IsOkAndHolds(IsProvenTrue()));
 }
 
+TEST_F(UnrollProcTest, ZeroReadAndZeroWriteStateElements) {
+  auto p = CreatePackage();
+  ProcBuilder pb(absl::StrCat(TestName(), "_proc"), p.get());
+  BStateElement write_only = pb.StateElement("a_write_only", Value(UBits(1, 4)),
+                                             /*non_synthesizable=*/false);
+  BStateElement read_only = pb.StateElement("b_read_only", Value(UBits(7, 4)),
+                                            /*non_synthesizable=*/false);
+  BValue ro_val = pb.StateRead(read_only);
+  pb.Next(write_only, pb.Add(ro_val, pb.Literal(UBits(2, 4))));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
+
+  FunctionBuilder fb(absl::StrCat(TestName(), "_func"), p.get());
+  BValue state_tuple =
+      fb.Tuple({fb.Literal(UBits(9, 4)), fb.Literal(UBits(7, 4))});
+  BValue act_tuple = fb.Tuple({state_tuple, fb.Tuple({})});
+  fb.Tuple({act_tuple, act_tuple});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Function * converted,
+      UnrollProcToFunction(proc, 2, /*include_state=*/true));
+  EXPECT_THAT(TryProveEquivalence(f, converted), IsOkAndHolds(IsProvenTrue()));
+}
+
 TEST_F(UnrollProcUntimedTest, Simple) {
   auto p = CreatePackage();
   FunctionBuilder fb(absl::StrCat(TestName(), "_func"), p.get());

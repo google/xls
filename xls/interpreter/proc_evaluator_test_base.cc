@@ -22,6 +22,7 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
@@ -37,9 +38,11 @@
 #include "xls/ir/function_builder.h"
 #include "xls/ir/ir_matcher.h"
 #include "xls/ir/ir_test_base.h"
+#include "xls/ir/node.h"
 #include "xls/ir/package.h"
 #include "xls/ir/proc.h"
 #include "xls/ir/proc_elaboration.h"
+#include "xls/ir/topo_sort.h"
 #include "xls/ir/value.h"
 
 namespace m = xls::op_matchers;
@@ -935,6 +938,195 @@ TEST_P(ProcEvaluatorTestBase, DecoupledReadProc) {
         << "idx: " << (idx + 1);
   }
 }
+
+TEST_P(ProcEvaluatorTestBase, DecoupledWriteBeforeReadAcrossContinuation) {
+  Package package(TestName());
+  XLS_ASSERT_OK_AND_ASSIGN(Channel * ch_in, package.CreateStreamingChannel(
+                                                "in", ChannelOps::kReceiveOnly,
+                                                package.GetBitsType(32)));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ch_sync,
+      package.CreateStreamingChannel("sync", ChannelOps::kReceiveOnly,
+                                     package.GetBitsType(1)));
+  XLS_ASSERT_OK_AND_ASSIGN(Channel * ch_out, package.CreateStreamingChannel(
+                                                 "out", ChannelOps::kSendOnly,
+                                                 package.GetBitsType(32)));
+
+  ProcBuilder pb("write_before_read", &package);
+  BStateElement se = pb.StateElement("st", Value(UBits(42, 32)));
+  BStateElement step = pb.StateElement("step", Value(UBits(0, 1)));
+
+  BValue recv = pb.Receive(ch_in, pb.Literal(Value::Token()));
+  BValue recv_tok = pb.TupleIndex(recv, 0);
+  BValue recv_val = pb.TupleIndex(recv, 1);
+
+  BValue st_start = pb.StateRead(se);
+  pb.Send(ch_out, recv_tok, pb.Add(st_start, recv_val));
+
+  // All 0-user sinks appear at the tail of `TopoSort(proc)` in creation order:
+  // `[..., next_se, next_step, sync_recv, post_write_read]`. This guarantees
+  // `next_se` runs in the partition before `sync_recv` and `post_write_read`
+  // (`StateRead(se)`) runs in the partition after `sync_recv` resumes.
+  BValue is_first_tick = pb.Eq(pb.StateRead(step), pb.Literal(UBits(0, 1)));
+  BValue next_se =
+      pb.Next(se, pb.Literal(UBits(99, 32)), /*pred=*/is_first_tick);
+  pb.Next(step, pb.Literal(UBits(1, 1)));
+  BValue sync_recv = pb.Receive(ch_sync, pb.Literal(Value::Token()));
+  BValue post_write_read = pb.StateRead(se);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
+  XLS_ASSERT_OK(package.SetTop(proc));
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::vector<Node*> topo_order, TopoSort(proc));
+  ASSERT_THAT(topo_order,
+              ContainsSubsequence({st_start.node(), next_se.node(),
+                                   sync_recv.node(), post_write_read.node()}));
+
+  std::unique_ptr<ChannelQueueManager> queue_manager =
+      GetParam().CreateQueueManager(&package);
+  std::unique_ptr<ProcEvaluator> evaluator =
+      GetParam().CreateEvaluator(proc, queue_manager.get());
+  std::unique_ptr<ProcContinuation> continuation = evaluator->NewContinuation(
+      queue_manager->elaboration().GetUniqueInstance(proc).value());
+
+  CollectingEvaluationObserver observer;
+  if (GetParam().supports_observers()) {
+    ASSERT_TRUE(continuation->SupportsObservers());
+    XLS_ASSERT_OK(continuation->SetObserver(&observer));
+  }
+
+  ChannelQueue& in_queue = GetQueue(*queue_manager, "in", proc->name());
+  ChannelQueue& sync_queue = GetQueue(*queue_manager, "sync", proc->name());
+  ChannelQueue& out_queue = GetQueue(*queue_manager, "out", proc->name());
+  ChannelInstance* sync_instance = sync_queue.channel_instance();
+  ChannelInstance* out_instance = out_queue.channel_instance();
+
+  // First `Tick` reads `st_start` (`42`) and sends `42 + 10 = 52`; second
+  // `Tick` executes `next_se` (`99`) and then blocks on `sync_recv`.
+  XLS_ASSERT_OK(in_queue.Write(Value(UBits(10, 32))));
+  EXPECT_THAT(evaluator->Tick(*continuation),
+              IsOkAndHolds(TickResult{
+                  .execution_state = TickExecutionState::kSentOnChannel,
+                  .channel_instance = out_instance,
+                  .progress_made = true}));
+  EXPECT_THAT(evaluator->Tick(*continuation),
+              IsOkAndHolds(TickResult{
+                  .execution_state = TickExecutionState::kBlockedOnReceive,
+                  .channel_instance = sync_instance,
+                  .progress_made = true}));
+  EXPECT_THAT(out_queue.Read(), Optional(Value(UBits(52, 32))));
+  EXPECT_THAT(continuation->GetState(),
+              ElementsAre(Value(UBits(42, 32)), Value(UBits(0, 1))));
+
+  // Unblock `sync_recv`: resuming must preserve `99` in `output_` across the
+  // continuation boundary AND execute `post_write_read` (`StateRead(se)`)
+  // without clobbering `99` while still reading the start-of-tick value (`42`).
+  XLS_ASSERT_OK(sync_queue.Write(Value(UBits(1, 1))));
+  EXPECT_THAT(
+      evaluator->Tick(*continuation),
+      IsOkAndHolds(TickResult{.execution_state = TickExecutionState::kCompleted,
+                              .channel_instance = std::nullopt,
+                              .progress_made = true}));
+  EXPECT_THAT(continuation->GetState(),
+              ElementsAre(Value(UBits(99, 32)), Value(UBits(1, 1))));
+  if (GetParam().supports_observers()) {
+    ASSERT_TRUE(observer.values().contains(post_write_read.node()));
+    EXPECT_THAT(observer.values().at(post_write_read.node()),
+                ElementsAre(Value(UBits(42, 32))));
+  }
+
+  // Second activation (`is_first_tick == 0`): no `Next` fires on `st`, so `st`
+  // holds `99` and `Send` emits `99 + 5 = 104`.
+  XLS_ASSERT_OK(in_queue.Write(Value(UBits(5, 32))));
+  XLS_ASSERT_OK(sync_queue.Write(Value(UBits(1, 1))));
+  EXPECT_THAT(evaluator->Tick(*continuation),
+              IsOkAndHolds(TickResult{
+                  .execution_state = TickExecutionState::kSentOnChannel,
+                  .channel_instance = out_instance,
+                  .progress_made = true}));
+  EXPECT_THAT(
+      evaluator->Tick(*continuation),
+      IsOkAndHolds(TickResult{.execution_state = TickExecutionState::kCompleted,
+                              .channel_instance = std::nullopt,
+                              .progress_made = true}));
+  EXPECT_THAT(out_queue.Read(), Optional(Value(UBits(104, 32))));
+  EXPECT_THAT(continuation->GetState(),
+              ElementsAre(Value(UBits(99, 32)), Value(UBits(1, 1))));
+  if (GetParam().supports_observers()) {
+    EXPECT_THAT(observer.values().at(post_write_read.node()),
+                ElementsAre(Value(UBits(42, 32)), Value(UBits(99, 32))));
+  }
+}
+
+TEST_P(ProcEvaluatorTestBase, DecoupledZeroReadAndZeroWriteStateElements) {
+  Package package(TestName());
+  XLS_ASSERT_OK_AND_ASSIGN(Channel * ch_in, package.CreateStreamingChannel(
+                                                "in", ChannelOps::kReceiveOnly,
+                                                package.GetBitsType(33)));
+
+  ProcBuilder pb("zero_read_zero_write", &package);
+  BStateElement write_only =
+      pb.StateElement("write_only", Value(UBits(77, 32)));
+  pb.StateElement("const_state", Value(UBits(123, 32)));
+  pb.StateElement("tok_state", Value::Token());
+
+  BValue recv = pb.Receive(ch_in, pb.Literal(Value::Token()));
+  BValue payload = pb.TupleIndex(recv, 1);
+  BValue do_write = pb.BitSlice(payload, 32, 1);
+  BValue val = pb.BitSlice(payload, 0, 32);
+  pb.Next(write_only, val, /*pred=*/do_write);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
+  XLS_ASSERT_OK(package.SetTop(proc));
+
+  std::unique_ptr<ChannelQueueManager> queue_manager =
+      GetParam().CreateQueueManager(&package);
+  std::unique_ptr<ProcEvaluator> evaluator =
+      GetParam().CreateEvaluator(proc, queue_manager.get());
+  std::unique_ptr<ProcContinuation> continuation = evaluator->NewContinuation(
+      queue_manager->elaboration().GetUniqueInstance(proc).value());
+
+  ChannelQueue& in_queue = GetQueue(*queue_manager, "in", proc->name());
+
+  // Tick 0 with `do_write == 0`: non-zero initial values (and 0-byte token
+  // state) must be retained even though no state element has any `StateRead`.
+  XLS_ASSERT_OK(in_queue.Write(Value(UBits(555, 33))));
+  EXPECT_THAT(
+      evaluator->Tick(*continuation),
+      IsOkAndHolds(TickResult{.execution_state = TickExecutionState::kCompleted,
+                              .channel_instance = std::nullopt,
+                              .progress_made = true}));
+  EXPECT_THAT(
+      continuation->GetState(),
+      ElementsAre(Value(UBits(77, 32)), Value(UBits(123, 32)), Value::Token()));
+
+  // Tick 1 with `do_write == 1`: `write_only` updates to `555`, `const_state`
+  // remains `123`.
+  XLS_ASSERT_OK(in_queue.Write(Value(UBits((uint64_t{1} << 32) | 555, 33))));
+  EXPECT_THAT(
+      evaluator->Tick(*continuation),
+      IsOkAndHolds(TickResult{.execution_state = TickExecutionState::kCompleted,
+                              .channel_instance = std::nullopt,
+                              .progress_made = true}));
+  EXPECT_THAT(continuation->GetState(),
+              ElementsAre(Value(UBits(555, 32)), Value(UBits(123, 32)),
+                          Value::Token()));
+
+  // Override via `SetState` and run a no-write tick: overridden values must
+  // persist.
+  XLS_ASSERT_OK(continuation->SetState(
+      {Value(UBits(888, 32)), Value(UBits(999, 32)), Value::Token()}));
+  XLS_ASSERT_OK(in_queue.Write(Value(UBits(111, 33))));
+  EXPECT_THAT(
+      evaluator->Tick(*continuation),
+      IsOkAndHolds(TickResult{.execution_state = TickExecutionState::kCompleted,
+                              .channel_instance = std::nullopt,
+                              .progress_made = true}));
+  EXPECT_THAT(continuation->GetState(),
+              ElementsAre(Value(UBits(888, 32)), Value(UBits(999, 32)),
+                          Value::Token()));
+}
+
 TEST_P(ProcEvaluatorTestBase, CollidingNextValuesProc) {
   // Create an output-only proc which increments its counter value only every
   // other iteration - but also tries to set the counter value to a different

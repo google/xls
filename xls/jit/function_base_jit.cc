@@ -607,9 +607,8 @@ absl::StatusOr<llvm::Function*> BuildPartitionFunction(
       // Node is an input node. We need to generate a node function for  this
       // node to call callbacks on the node.
       XLS_RET_CHECK(allocator.GetAllocationKind(node) == AllocationKind::kNone);
-      if (wrapper.IsOutputNode(stored_value)) {
-        // `node` is also an output node. This can occur, for example, if a
-        // state param is the next state value for a proc.
+      if (stored_value.is_node() && wrapper.IsOutputNode(stored_value)) {
+        // `node` is also an output node (e.g., a function returning a Param).
         llvm::Value* input_buffer = wrapper.GetInputBuffer(stored_value, b);
         for (llvm::Value* output_buffer :
              wrapper.GetOutputBuffers(stored_value, b)) {
@@ -937,6 +936,25 @@ absl::StatusOr<PartitionedFunction> BuildFunctionInternal(
       jit_context.context(), "start", wrapper.function(),
       /*InsertBefore=*/nullptr);
   auto builder = std::make_unique<llvm::IRBuilder<>>(start_block);
+  if (xls_function->IsProc()) {
+    // Initialize each proc state element's output buffer to its start-of-tick
+    // input value at activation start (`continuation_point == 0`). Doing this
+    // once here (rather than at each `StateRead` in `BuildPartitionFunction`)
+    // preserves unchanged values on zero-read / zero-write state elements and
+    // prevents a `StateRead` ordered after `Next` from overwriting `Next`.
+    for (const JitStoredValue& state_elem : inputs) {
+      int64_t byte_size =
+          jit_context.type_converter().GetTypeByteSize(OutputType(state_elem));
+      if (byte_size == 0) {
+        continue;
+      }
+      llvm::Value* input_buffer = wrapper.GetInputBuffer(state_elem, *builder);
+      for (llvm::Value* output_buffer :
+           wrapper.GetOutputBuffers(state_elem, *builder)) {
+        LlvmMemcpy(output_buffer, input_buffer, byte_size, *builder);
+      }
+    }
+  }
 
   std::vector<llvm::BasicBlock*> resume_blocks;
   for (int64_t i = 0; i < partitions.size(); ++i) {
@@ -1600,18 +1618,34 @@ int64_t JittedFunctionBase::RunUnalignedJittedFunction(
       std::unique_ptr<JitArgumentSetOwnedBuffer> aligned_output =
           CreateOutputBuffer();
       JitTempBuffer temp(CreateTempBuffer());
-      memcpy(temp.get_base_pointer(), temp_buffer, temp_buffer_size_);
+      if (temp_buffer_size_ > 0) {
+        memcpy(temp.get_base_pointer(), temp_buffer, temp_buffer_size_);
+      }
       for (int i = 0; i < GetInputBufferMetadata().size(); ++i) {
-        memcpy(aligned_input->get_element_pointers()[i], inputs[i],
-               GetInputBufferMetadata()[i].size);
+        if (GetInputBufferMetadata()[i].size > 0) {
+          memcpy(aligned_input->get_element_pointers()[i], inputs[i],
+                 GetInputBufferMetadata()[i].size);
+        }
+      }
+      if (continuation != 0) {
+        for (int i = 0; i < GetOutputBufferMetadata().size(); ++i) {
+          if (GetOutputBufferMetadata()[i].size > 0) {
+            memcpy(aligned_output->get_element_pointers()[i], outputs[i],
+                   GetOutputBufferMetadata()[i].size);
+          }
+        }
       }
       auto result =
           RunJittedFunction(*aligned_input, *aligned_output, temp, events,
                             instance_context, jit_runtime, continuation);
-      memcpy(temp_buffer, temp.get_base_pointer(), temp_buffer_size_);
+      if (temp_buffer_size_ > 0) {
+        memcpy(temp_buffer, temp.get_base_pointer(), temp_buffer_size_);
+      }
       for (int i = 0; i < GetOutputBufferMetadata().size(); ++i) {
-        memcpy(outputs[i], aligned_output->get_element_pointers()[i],
-               GetOutputBufferMetadata()[i].size);
+        if (GetOutputBufferMetadata()[i].size > 0) {
+          memcpy(outputs[i], aligned_output->get_element_pointers()[i],
+                 GetOutputBufferMetadata()[i].size);
+        }
       }
       return result;
     }

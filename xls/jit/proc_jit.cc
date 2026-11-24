@@ -15,7 +15,6 @@
 #include "xls/jit/proc_jit.h"
 
 #include <cstdint>
-#include <cstring>
 #include <memory>
 #include <optional>
 #include <string>
@@ -271,18 +270,6 @@ absl::Status ProcJitContinuation::NextTick() {
                            [](std::string* out, const Value& value) {
                              absl::StrAppend(out, value.ToString());
                            });
-
-  if (!proc()->next_values().empty()) {
-    // New-style state param evaluation; initialize the output state params to
-    // be unchanged by default.
-    for (int64_t state_index = 0; state_index < proc()->GetStateElementCount();
-         ++state_index) {
-      memcpy(output_->get_element_pointers()[state_index],
-             input_->get_element_pointers()[state_index],
-             jit_runtime_->GetTypeByteSize(
-                 proc()->GetStateElementType(state_index)));
-    }
-  }
   return absl::OkStatus();
 }
 
