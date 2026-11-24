@@ -1394,6 +1394,242 @@ fn g(x: bits[32] id=4) -> bits[32] {
   ASSERT_NE(functions2[1], nullptr);
 }
 
+struct ProcRuntimeBackend {
+  const char* name;
+  decltype(&xls_proc_runtime_create) create;
+};
+
+using ProcRuntimeTest = ::testing::TestWithParam<ProcRuntimeBackend>;
+
+INSTANTIATE_TEST_SUITE_P(
+    Backends, ProcRuntimeTest,
+    ::testing::Values(ProcRuntimeBackend{"Interpreter",
+                                         xls_proc_runtime_create},
+                      ProcRuntimeBackend{"Jit", xls_proc_runtime_create_jit}),
+    [](const ::testing::TestParamInfo<ProcRuntimeBackend>& info) {
+      return info.param.name;
+    });
+
+constexpr char kEchoProcScopedChannels[] =
+    R"(<input: bits[8] in, output: bits[8] out>() {
+  chan_interface input(direction=receive, kind=streaming, strictness=proven_mutually_exclusive)
+  chan_interface output(direction=send, kind=streaming, strictness=proven_mutually_exclusive)
+)";
+constexpr char kEchoProcBody[] = R"(
+  tok: token = literal(value=token)
+  received: (token, bits[8]) = receive(tok, channel=input)
+  received_tok: token = tuple_index(received, index=0)
+  data: bits[8] = tuple_index(received, index=1)
+  sent: token = send(received_tok, data, channel=output)
+}
+)";
+
+TEST_P(ProcRuntimeTest, ChannelIo) {
+  constexpr char kPackageChannels[] = R"(package test
+chan input(bits[8], id=0, kind=streaming, ops=receive_only, flow_control=none)
+chan output(bits[8], id=1, kind=streaming, ops=send_only, flow_control=none)
+top proc echo() {
+)";
+  for (const std::string& ir : {std::string(kPackageChannels) + kEchoProcBody,
+                                std::string("package test\ntop proc echo") +
+                                    kEchoProcScopedChannels + kEchoProcBody}) {
+    SCOPED_TRACE(ir);
+    char* error = nullptr;
+    absl::Cleanup free_error([&] { xls_c_str_free(error); });
+    xls_package* package = nullptr;
+    ASSERT_TRUE(xls_parse_ir_package(ir.c_str(), "test.ir", &error, &package))
+        << error;
+    absl::Cleanup free_package([&] { xls_package_free(package); });
+
+    xls_proc_runtime* runtime = nullptr;
+    ASSERT_TRUE(GetParam().create(package, &error, &runtime)) << error;
+    absl::Cleanup free_runtime([&] { xls_proc_runtime_free(runtime); });
+
+    {
+      xls_value* token = xls_value_make_token();
+      absl::Cleanup free_token([&] { xls_value_free(token); });
+      char* write_error = nullptr;
+      absl::Cleanup free_write_error([&] { xls_c_str_free(write_error); });
+      EXPECT_FALSE(
+          xls_proc_runtime_write(runtime, "input", token, &write_error));
+      EXPECT_THAT(write_error, HasSubstr("bits[8]"));
+    }
+    {
+      xls_value* input = nullptr;
+      ASSERT_TRUE(xls_value_make_ubits(8, 42, &error, &input)) << error;
+      absl::Cleanup free_input([&] { xls_value_free(input); });
+      ASSERT_TRUE(xls_proc_runtime_write(runtime, "input", input, &error))
+          << error;
+    }
+    ASSERT_TRUE(xls_proc_runtime_tick(runtime, &error)) << error;
+    xls_value* output = nullptr;
+    ASSERT_TRUE(xls_proc_runtime_try_read(runtime, "output", &error, &output))
+        << error;
+    ASSERT_NE(output, nullptr);
+    absl::Cleanup free_output([&] { xls_value_free(output); });
+
+    xls_value* empty = output;
+    ASSERT_TRUE(xls_proc_runtime_try_read(runtime, "output", &error, &empty))
+        << error;
+    EXPECT_EQ(empty, nullptr);
+    EXPECT_EQ(error, nullptr);
+
+    xls_value* missing = output;
+    ASSERT_FALSE(
+        xls_proc_runtime_try_read(runtime, "missing", &error, &missing));
+    EXPECT_THAT(error, HasSubstr("missing"));
+    EXPECT_EQ(missing, nullptr);
+
+    std::move(free_runtime).Invoke();
+    std::move(free_package).Invoke();
+    char* text = nullptr;
+    ASSERT_TRUE(xls_value_to_string(output, &text));
+    absl::Cleanup free_text([&] { xls_c_str_free(text); });
+    EXPECT_STREQ(text, "bits[8]:42");
+  }
+}
+
+TEST_P(ProcRuntimeTest, TakesLatestTickTracesFromEachInstance) {
+  constexpr char kIr[] = R"(package test
+proc child<>(count: bits[8], init={0}) {
+  tok: token = literal(value=token)
+  enabled: bits[1] = literal(value=1)
+  current: bits[8] = state_read(state_element=count)
+  traced: token = trace(tok, enabled, format="count={}", data_operands=[current], verbosity=3)
+  one: bits[8] = literal(value=1)
+  incremented: bits[8] = add(current, one)
+  update: () = next_value(state_element=count, value=incremented)
+}
+top proc parent<>() {
+  proc_instantiation a(proc=child)
+  proc_instantiation b(proc=child)
+}
+)";
+  char* error = nullptr;
+  absl::Cleanup free_error([&] { xls_c_str_free(error); });
+  xls_package* package = nullptr;
+  ASSERT_TRUE(xls_parse_ir_package(kIr, "test.ir", &error, &package)) << error;
+  absl::Cleanup free_package([&] { xls_package_free(package); });
+  xls_proc_runtime* runtime = nullptr;
+  ASSERT_TRUE(GetParam().create(package, &error, &runtime)) << error;
+  absl::Cleanup free_runtime([&] { xls_proc_runtime_free(runtime); });
+
+  xls_trace_message* messages = nullptr;
+  size_t count = 1;
+  xls_proc_runtime_take_trace_messages(runtime, &messages, &count);
+  EXPECT_EQ(messages, nullptr);
+  EXPECT_EQ(count, 0);
+
+  ASSERT_TRUE(xls_proc_runtime_tick(runtime, &error)) << error;
+  ASSERT_TRUE(xls_proc_runtime_tick(runtime, &error)) << error;
+  xls_proc_runtime_take_trace_messages(runtime, &messages, &count);
+  absl::Cleanup free_messages(
+      [=] { xls_trace_messages_free(messages, count); });
+  ASSERT_EQ(count, 2);
+  ASSERT_NE(messages, nullptr);
+
+  xls_trace_message* empty = messages;
+  size_t empty_count = count;
+  xls_proc_runtime_take_trace_messages(runtime, &empty, &empty_count);
+  EXPECT_EQ(empty, nullptr);
+  EXPECT_EQ(empty_count, 0);
+
+  ASSERT_TRUE(xls_proc_runtime_tick(runtime, &error)) << error;
+  std::move(free_runtime).Invoke();
+  std::move(free_package).Invoke();
+  for (size_t i = 0; i < count; ++i) {
+    EXPECT_STREQ(messages[i].message, "count=1");
+    EXPECT_EQ(messages[i].verbosity, 3);
+  }
+}
+
+TEST_P(ProcRuntimeTest, TakesTracesFromFailedTick) {
+  constexpr char kIr[] = R"(package test
+top proc p<>() {
+  tok: token = literal(value=token)
+  enabled: bits[1] = literal(value=1)
+  traced: token = trace(tok, enabled, format="before failure", data_operands=[])
+  disabled: bits[1] = literal(value=0)
+  checked: token = assert(traced, disabled, message="expected failure")
+}
+)";
+  char* error = nullptr;
+  absl::Cleanup free_error([&] { xls_c_str_free(error); });
+  xls_package* package = nullptr;
+  ASSERT_TRUE(xls_parse_ir_package(kIr, "test.ir", &error, &package)) << error;
+  absl::Cleanup free_package([&] { xls_package_free(package); });
+  xls_proc_runtime* runtime = nullptr;
+  ASSERT_TRUE(GetParam().create(package, &error, &runtime)) << error;
+  absl::Cleanup free_runtime([&] { xls_proc_runtime_free(runtime); });
+
+  ASSERT_FALSE(xls_proc_runtime_tick(runtime, &error));
+  EXPECT_THAT(error, HasSubstr("expected failure"));
+  xls_trace_message* messages = nullptr;
+  size_t count = 0;
+  xls_proc_runtime_take_trace_messages(runtime, &messages, &count);
+  absl::Cleanup free_messages(
+      [=] { xls_trace_messages_free(messages, count); });
+  ASSERT_EQ(count, 1);
+  ASSERT_NE(messages, nullptr);
+  EXPECT_STREQ(messages[0].message, "before failure");
+  EXPECT_EQ(messages[0].verbosity, 0);
+}
+
+TEST_P(ProcRuntimeTest, KeepsItsTopAfterPackageTopChanges) {
+  const std::string echo = std::string(kEchoProcScopedChannels) + kEchoProcBody;
+  const std::string ir =
+      absl::StrFormat("package test\ntop proc a%s\nproc b%s", echo, echo);
+  char* error = nullptr;
+  absl::Cleanup free_error([&] { xls_c_str_free(error); });
+  xls_package* package = nullptr;
+  ASSERT_TRUE(xls_parse_ir_package(ir.c_str(), "test.ir", &error, &package))
+      << error;
+  absl::Cleanup free_package([&] { xls_package_free(package); });
+
+  xls_proc_runtime* a = nullptr;
+  ASSERT_TRUE(GetParam().create(package, &error, &a)) << error;
+  absl::Cleanup free_a([&] { xls_proc_runtime_free(a); });
+  ASSERT_TRUE(xls_package_set_top_by_name(package, "b", &error)) << error;
+  xls_proc_runtime* b = nullptr;
+  ASSERT_TRUE(GetParam().create(package, &error, &b)) << error;
+  absl::Cleanup free_b([&] { xls_proc_runtime_free(b); });
+
+  xls_value* input_a = nullptr;
+  ASSERT_TRUE(xls_value_make_ubits(8, 11, &error, &input_a)) << error;
+  absl::Cleanup free_input_a([&] { xls_value_free(input_a); });
+  xls_value* input_b = nullptr;
+  ASSERT_TRUE(xls_value_make_ubits(8, 22, &error, &input_b)) << error;
+  absl::Cleanup free_input_b([&] { xls_value_free(input_b); });
+
+  ASSERT_TRUE(xls_proc_runtime_write(a, "input", input_a, &error)) << error;
+  ASSERT_TRUE(xls_proc_runtime_write(b, "input", input_b, &error)) << error;
+  ASSERT_TRUE(xls_proc_runtime_tick(a, &error)) << error;
+  ASSERT_TRUE(xls_proc_runtime_tick(b, &error)) << error;
+  for (auto [runtime, expected] :
+       {std::pair{b, input_b}, std::pair{a, input_a}}) {
+    xls_value* output = nullptr;
+    ASSERT_TRUE(xls_proc_runtime_try_read(runtime, "output", &error, &output))
+        << error;
+    absl::Cleanup free_output([&] { xls_value_free(output); });
+    ASSERT_NE(output, nullptr);
+    EXPECT_TRUE(xls_value_eq(output, expected));
+  }
+}
+
+TEST_P(ProcRuntimeTest, CreateWithoutTopProc) {
+  char* error = nullptr;
+  absl::Cleanup free_error([&] { xls_c_str_free(error); });
+  xls_package* package = nullptr;
+  ASSERT_TRUE(xls_parse_ir_package("package test\nproc p<>() {}", "test.ir",
+                                   &error, &package))
+      << error;
+  absl::Cleanup free_package([&] { xls_package_free(package); });
+  xls_proc_runtime* runtime = nullptr;
+  EXPECT_FALSE(GetParam().create(package, &error, &runtime));
+  EXPECT_EQ(runtime, nullptr);
+  EXPECT_THAT(error, HasSubstr("Top entity not set"));
+}
+
 TEST(XlsCApiTest, ParsePackageAndInterpretFunctionInIt) {
   const std::string kPackage = R"(package p
 

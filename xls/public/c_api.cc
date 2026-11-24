@@ -44,21 +44,27 @@
 #include "xls/common/init_xls.h"
 #include "xls/dslx/mangle.h"
 #include "xls/dslx/type_system/parametric_env.h"
+#include "xls/interpreter/channel_queue.h"
 #include "xls/interpreter/function_interpreter.h"
+#include "xls/interpreter/interpreter_proc_runtime.h"
+#include "xls/interpreter/serial_proc_runtime.h"
 #include "xls/ir/bit_push_buffer.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/bits_ops.h"
+#include "xls/ir/evaluator_result.pb.h"
 #include "xls/ir/events.h"
 #include "xls/ir/format_preference.h"
 #include "xls/ir/function.h"
 #include "xls/ir/ir_parser.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/package.h"
+#include "xls/ir/proc_elaboration.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
 #include "xls/ir/verifier.h"
 #include "xls/jit/aot_entrypoint.h"
 #include "xls/jit/function_jit.h"
+#include "xls/jit/jit_proc_runtime.h"
 #include "xls/jit/llvm_type_converter.h"
 #include "xls/jit/orc_jit.h"
 #include "xls/public/c_api_format_preference.h"
@@ -75,6 +81,36 @@ struct xls_aot_exec_context {
   xls::InstanceContext instance_context = xls::InstanceContext::CreateForFunc();
   std::unique_ptr<xls::JitRuntime> jit_runtime;
 };
+
+namespace {
+
+bool CreateProcRuntime(xls_package* package, bool use_jit, char** error_out,
+                       xls_proc_runtime** runtime_out) {
+  CHECK_NE(package, nullptr);
+  CHECK_NE(error_out, nullptr);
+  CHECK_NE(runtime_out, nullptr);
+
+  auto* cpp_package = reinterpret_cast<xls::Package*>(package);
+  absl::StatusOr<std::unique_ptr<xls::SerialProcRuntime>> runtime =
+      use_jit ? xls::CreateJitSerialProcRuntime(cpp_package)
+              : xls::CreateInterpreterSerialProcRuntime(cpp_package);
+  if (!runtime.ok()) {
+    *runtime_out = nullptr;
+    *error_out = xls::ToOwnedCString(runtime.status().ToString());
+    return false;
+  }
+  *runtime_out = reinterpret_cast<xls_proc_runtime*>(runtime->release());
+  *error_out = nullptr;
+  return true;
+}
+
+xls_trace_message ToOwnedTraceMessage(const xls::TraceMessageProto& trace) {
+  return {
+      .message = xls::ToOwnedCString(trace.message()),
+      .verbosity = trace.has_statement() ? trace.statement().verbosity() : 0};
+}
+
+}  // namespace
 
 extern "C" {
 
@@ -1366,6 +1402,111 @@ bool xls_function_get_param_name(struct xls_function* function, size_t index,
   return true;
 }
 
+bool xls_proc_runtime_create(struct xls_package* package, char** error_out,
+                             struct xls_proc_runtime** runtime_out) {
+  return CreateProcRuntime(package, /*use_jit=*/false, error_out, runtime_out);
+}
+
+bool xls_proc_runtime_create_jit(struct xls_package* package, char** error_out,
+                                 struct xls_proc_runtime** runtime_out) {
+  return CreateProcRuntime(package, /*use_jit=*/true, error_out, runtime_out);
+}
+
+void xls_proc_runtime_free(struct xls_proc_runtime* runtime) {
+  delete reinterpret_cast<xls::SerialProcRuntime*>(runtime);
+}
+
+bool xls_proc_runtime_tick(struct xls_proc_runtime* runtime, char** error_out) {
+  CHECK_NE(runtime, nullptr);
+  CHECK_NE(error_out, nullptr);
+
+  auto* cpp_runtime = reinterpret_cast<xls::SerialProcRuntime*>(runtime);
+  cpp_runtime->ClearInterpreterEvents();
+  absl::Status status = cpp_runtime->Tick();
+  if (!status.ok()) {
+    *error_out = xls::ToOwnedCString(status.ToString());
+    return false;
+  }
+  *error_out = nullptr;
+  return true;
+}
+
+void xls_proc_runtime_take_trace_messages(
+    struct xls_proc_runtime* runtime, struct xls_trace_message** messages_out,
+    size_t* count_out) {
+  CHECK_NE(runtime, nullptr);
+  CHECK_NE(messages_out, nullptr);
+  CHECK_NE(count_out, nullptr);
+
+  auto* cpp_runtime = reinterpret_cast<xls::SerialProcRuntime*>(runtime);
+  xls::InterpreterEvents events = cpp_runtime->GetGlobalEvents();
+  for (xls::ProcInstance* instance :
+       cpp_runtime->elaboration().proc_instances()) {
+    events.AppendFrom(cpp_runtime->GetInterpreterEvents(instance));
+  }
+  const auto& traces = events.GetTraceMessages();
+  *count_out = traces.size();
+  *messages_out = nullptr;
+  if (!traces.empty()) {
+    auto messages = std::make_unique<xls_trace_message[]>(traces.size());
+    for (int i = 0; i < traces.size(); ++i) {
+      messages[i] = ToOwnedTraceMessage(traces.Get(i));
+    }
+    *messages_out = messages.release();
+  }
+  cpp_runtime->ClearInterpreterEvents();
+}
+
+bool xls_proc_runtime_write(struct xls_proc_runtime* runtime,
+                            const char* channel_name,
+                            const struct xls_value* value, char** error_out) {
+  CHECK_NE(runtime, nullptr);
+  CHECK_NE(channel_name, nullptr);
+  CHECK_NE(value, nullptr);
+  CHECK_NE(error_out, nullptr);
+
+  auto* cpp_runtime = reinterpret_cast<xls::SerialProcRuntime*>(runtime);
+  absl::StatusOr<xls::ChannelQueue*> queue =
+      cpp_runtime->queue_manager().GetBoundaryQueueByName(channel_name);
+  if (!queue.ok()) {
+    *error_out = xls::ToOwnedCString(queue.status().ToString());
+    return false;
+  }
+  absl::Status status =
+      (*queue)->Write(*reinterpret_cast<const xls::Value*>(value));
+  if (!status.ok()) {
+    *error_out = xls::ToOwnedCString(status.ToString());
+    return false;
+  }
+  *error_out = nullptr;
+  return true;
+}
+
+bool xls_proc_runtime_try_read(struct xls_proc_runtime* runtime,
+                               const char* channel_name, char** error_out,
+                               struct xls_value** value_out) {
+  CHECK_NE(runtime, nullptr);
+  CHECK_NE(channel_name, nullptr);
+  CHECK_NE(error_out, nullptr);
+  CHECK_NE(value_out, nullptr);
+
+  auto* cpp_runtime = reinterpret_cast<xls::SerialProcRuntime*>(runtime);
+  absl::StatusOr<xls::ChannelQueue*> queue =
+      cpp_runtime->queue_manager().GetBoundaryQueueByName(channel_name);
+  *value_out = nullptr;
+  if (!queue.ok()) {
+    *error_out = xls::ToOwnedCString(queue.status().ToString());
+    return false;
+  }
+  std::optional<xls::Value> value = (*queue)->Read();
+  if (value.has_value()) {
+    *value_out =
+        reinterpret_cast<xls_value*>(new xls::Value(*std::move(value)));
+  }
+  *error_out = nullptr;
+  return true;
+}
+
 bool xls_make_function_jit(struct xls_function* function, char** error_out,
                            struct xls_function_jit** result_out) {
   CHECK_NE(function, nullptr);
@@ -1585,12 +1726,7 @@ bool xls_aot_exec_context_get_trace_message(
     return false;
   }
 
-  trace_message_out->message =
-      xls::ToOwnedCString(trace_messages.Get(index).message());
-  trace_message_out->verbosity =
-      trace_messages.Get(index).has_statement()
-          ? trace_messages.Get(index).statement().verbosity()
-          : 0;
+  *trace_message_out = ToOwnedTraceMessage(trace_messages.Get(index));
   *error_out = nullptr;
   return true;
 }

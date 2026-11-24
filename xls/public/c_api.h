@@ -62,6 +62,7 @@ struct xls_function_base;
 struct xls_function_jit;
 struct xls_function_type;
 struct xls_package;
+struct xls_proc_runtime;
 struct xls_schedule_and_codegen_result;
 struct xls_type;
 struct xls_value;
@@ -529,6 +530,57 @@ bool xls_interpret_function(struct xls_function* function, size_t argc,
                             const struct xls_value* const* args,
                             char** error_out, struct xls_value** result_out);
 
+// Creates a caller-owned interpreter runtime that borrows `package` and its IR.
+// The package must outlive the runtime. Call `xls_proc_runtime_free` before
+// rewriting IR used by the runtime. While the runtime is live, use a separate
+// package for `xls_schedule_and_codegen_package`.
+//
+// The caller may reselect the package top. For proc-scoped channels, the
+// runtime stays bound to the top proc selected at creation.
+bool xls_proc_runtime_create(struct xls_package* package, char** error_out,
+                             struct xls_proc_runtime** runtime_out);
+
+// JIT-compiles the procs at creation so subsequent ticks execute compiled code.
+// The runtime has the same lifetime and ownership rules as one created by
+// `xls_proc_runtime_create`.
+bool xls_proc_runtime_create_jit(struct xls_package* package, char** error_out,
+                                 struct xls_proc_runtime** runtime_out);
+
+void xls_proc_runtime_free(struct xls_proc_runtime* runtime);
+
+// Discards events from the previous tick and executes up to one iteration of
+// each proc. Returns false on deadlock or another execution error.
+bool xls_proc_runtime_tick(struct xls_proc_runtime* runtime, char** error_out);
+
+struct xls_trace_message {
+  char* message;
+  int64_t verbosity;
+};
+
+// Takes the pending trace messages from the latest successful or failed tick.
+// Messages from each proc instance are in emission order. The relative order
+// between instances is unspecified. The caller owns the array and frees it
+// with `xls_trace_messages_free`. If no traces are pending, sets
+// `*messages_out` to null and `*count_out` to zero.
+void xls_proc_runtime_take_trace_messages(
+    struct xls_proc_runtime* runtime, struct xls_trace_message** messages_out,
+    size_t* count_out);
+
+// Writes to the named channel (in the top proc for proc-scoped channels).
+// The runtime borrows `value` for this call. The caller retains ownership.
+bool xls_proc_runtime_write(struct xls_proc_runtime* runtime,
+                            const char* channel_name,
+                            const struct xls_value* value, char** error_out);
+
+// Reads from the named channel (in the top proc for proc-scoped channels).
+// On success, returns true and sets `*value_out` to an owned value to free with
+// `xls_value_free`, or to null if the queue was empty. On error, returns false,
+// sets `*value_out` to null, and sets `*error_out` to a string to free with
+// `xls_c_str_free`.
+bool xls_proc_runtime_try_read(struct xls_proc_runtime* runtime,
+                               const char* channel_name, char** error_out,
+                               struct xls_value** value_out);
+
 bool xls_make_function_jit(struct xls_function* function, char** error_out,
                            struct xls_function_jit** result_out);
 
@@ -574,11 +626,6 @@ int64_t xls_aot_entrypoint_trampoline(
     void* temp_buffer, struct xls_aot_exec_context* context,
     int64_t continuation_point, size_t* trace_messages_count_out,
     size_t* assert_messages_count_out);
-
-struct xls_trace_message {
-  char* message;
-  int64_t verbosity;
-};
 
 // Gets a trace message from `context` at `index`.
 //
