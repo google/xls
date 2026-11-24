@@ -254,6 +254,30 @@ TEST_F(BitSliceSimplificationPassTest,
   EXPECT_THAT(f->return_value(), m::UGe(m::Param("x"), m::Literal(129)));
 }
 
+TEST_F(BitSliceSimplificationPassTest,
+       CarryExtractionReachesFixedPointWithoutDce) {
+  auto p = CreatePackage();
+  FunctionBuilder fb("f", p.get());
+  BValue x = fb.Param("x", p->GetBitsType(4));
+  BValue sum = fb.Add(fb.ZeroExtend(x, 5), fb.Literal(UBits(7, 5)));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
+                           fb.BuildWithReturnValue(fb.BitSlice(sum, 4, 1)));
+
+  ScopedVerifyEquivalence eq(f, kProverTimeout);
+  BitSliceSimplificationPass pass;
+  PassResults results;
+  OptimizationContext context;
+  ASSERT_THAT(
+      pass.RunOnFunctionBase(f, OptimizationPassOptions(), &results, context),
+      IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(), m::UGe(m::Param("x"), m::Literal(9)));
+  const int64_t node_count = f->node_count();
+  EXPECT_THAT(
+      pass.RunOnFunctionBase(f, OptimizationPassOptions(), &results, context),
+      IsOkAndHolds(false));
+  EXPECT_EQ(f->node_count(), node_count);
+}
+
 TEST_F(BitSliceSimplificationPassTest, CarryExtractionKeepsSliceOfSharedSum) {
   auto p = CreatePackage();
   FunctionBuilder fb("f", p.get());

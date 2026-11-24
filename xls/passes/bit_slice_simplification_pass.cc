@@ -167,7 +167,7 @@ static absl::StatusOr<bool> SimplifyCarryExtraction(
     return false;
   }
   Node* add = bit_slice->operand(0);
-  if (add->op() != Op::kAdd) {
+  if (add->op() != Op::kAdd || bit_slice->IsDead()) {
     return false;
   }
 
