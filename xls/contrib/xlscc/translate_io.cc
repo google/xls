@@ -163,6 +163,10 @@ absl::StatusOr<IOOp*> Translator::AddOpToChannel(
     if (op.op != OpType::kTrace && op.op != OpType::kLoopBegin &&
         op.op != OpType::kLoopEndJump && op.op != OpType::kActivationBarrier &&
         op.op != OpType::kNoOp) {
+      if (op.op == OpType::kSharedCall) {
+        return absl::UnimplementedError(ErrorMessage(
+            loc, "Masking shared function calls is not supported"));
+      }
       XLS_ASSIGN_OR_RETURN(TrackedBValue default_bval,
                            CreateMaskedIOOpInput(channel, xls_param_type, loc));
 
@@ -170,7 +174,9 @@ absl::StatusOr<IOOp*> Translator::AddOpToChannel(
                            GetOpInputValue(op, default_bval, *context().fb));
 
       if (input_io_value.has_value()) {
-        op.input_value = CValue(input_io_value.value(), channel->item_type);
+        // As in the unmasked case below, use the op's parameter type: a
+        // non-blocking receive's input is the (item, valid) tuple.
+        op.input_value = CValue(input_io_value.value(), param_type);
       }
 
       op.input_param = default_bval;
