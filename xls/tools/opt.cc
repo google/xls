@@ -138,7 +138,7 @@ absl::Status OptimizeIrForTop(Package* package, const OptFlagsProto& options,
   VLOG(3) << "Top entity: '" << top.value()->name() << "'";
 
   DelayEstimator* delay_estimator = nullptr;
-  if (options.has_delay_model()) {
+  if (!options.delay_model().empty()) {
     XLS_ASSIGN_OR_RETURN(delay_estimator,
                          GetDelayEstimator(options.delay_model()));
   }

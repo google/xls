@@ -38,6 +38,7 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/scheduling/scheduling_options.h"
+#include "xls/tools/delay_model_flags.h"
 #include "xls/tools/scheduling_options_flags.pb.h"
 
 struct ChannelDelayMap {
@@ -129,8 +130,6 @@ ABSL_FLAG(int64_t, clock_period_ps, 0,
 ABSL_FLAG(int64_t, pipeline_stages, 0,
           "The number of stages in the generated pipeline. See "
           "https://google.github.io/xls/scheduling for details.");
-ABSL_FLAG(std::string, delay_model, "",
-          "Delay model name to use from registry.");
 ABSL_FLAG(xls::SchedulingStrategy, scheduling_strategy,
           xls::SchedulingStrategy::SDC,
           "Scheduler algorithm to use.\n"
@@ -415,7 +414,8 @@ static absl::StatusOr<bool> SetOptionsFromFlags(
   }
   POPULATE_FLAG(clock_period_ps);
   POPULATE_FLAG(pipeline_stages);
-  POPULATE_FLAG(delay_model);
+  any_flags_set |= IsDelayModelSpecifiedOnCommandLine();
+  proto.set_delay_model(GetDelayModelNameFromFlags());
   POPULATE_FLAG(clock_margin_percent);
   POPULATE_FLAG(period_relaxation_percent);
   POPULATE_FLAG(minimize_clock_on_failure);

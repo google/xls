@@ -498,11 +498,83 @@ cc_library(
 )
 
 cc_library(
+    name = "area_model_flags",
+    srcs = ["area_model_flags.cc"],
+    hdrs = ["area_model_flags.h"],
+    visibility = ["//xls:xls_users"],
+    deps = [
+        "//xls/common/status:ret_check",
+        "//xls/common/status:status_macros",
+        "//xls/estimators/area_model:area_estimator",
+        "//xls/estimators/area_model:area_estimators",
+        "//xls/estimators/area_model/models",  # build_cleaner: keep
+        "@abseil-cpp//absl/base:nullability",
+        "@abseil-cpp//absl/flags:flag",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+    ],
+)
+
+cc_test(
+    name = "area_model_flags_test",
+    srcs = ["area_model_flags_test.cc"],
+    deps = [
+        ":area_model_flags",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/estimators/area_model:area_estimator",
+        "@abseil-cpp//absl/flags:flag",
+        "@abseil-cpp//absl/flags:parse",
+        "@abseil-cpp//absl/flags:reflection",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:status_matchers",
+        "@googletest//:gtest",
+    ],
+)
+
+cc_library(
+    name = "delay_model_flags",
+    srcs = ["delay_model_flags.cc"],
+    hdrs = ["delay_model_flags.h"],
+    visibility = ["//xls:xls_users"],
+    deps = [
+        "//xls/common/status:ret_check",
+        "//xls/common/status:status_macros",
+        "//xls/estimators/delay_model:delay_estimator",
+        "//xls/estimators/delay_model:delay_estimators",
+        "//xls/estimators/delay_model/models",  # build_cleaner: keep
+        "@abseil-cpp//absl/base:nullability",
+        "@abseil-cpp//absl/flags:flag",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+    ],
+)
+
+cc_test(
+    name = "delay_model_flags_test",
+    srcs = ["delay_model_flags_test.cc"],
+    deps = [
+        ":delay_model_flags",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/estimators/delay_model:delay_estimator",
+        "@abseil-cpp//absl/flags:flag",
+        "@abseil-cpp//absl/flags:parse",
+        "@abseil-cpp//absl/flags:reflection",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:status_matchers",
+        "@googletest//:gtest",
+    ],
+)
+
+cc_library(
     name = "opt_flags",
     srcs = ["opt_flags.cc"],
     hdrs = ["opt_flags.h"],
     visibility = ["//xls:xls_users"],
     deps = [
+        ":area_model_flags",
+        ":delay_model_flags",
         ":opt_flags_cc_proto",
         ":opt_flags_handler_registry",
         ":pass_pipeline_config",
@@ -753,6 +825,7 @@ cc_library(
     srcs = ["scheduling_options_flags.cc"],
     hdrs = ["scheduling_options_flags.h"],
     deps = [
+        ":delay_model_flags",
         ":scheduling_options_flags_cc_proto",
         "//xls/common/file:filesystem",
         "//xls/common/status:status_macros",
@@ -779,6 +852,7 @@ cc_test(
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "@abseil-cpp//absl/flags:commandlineflag",
+        "@abseil-cpp//absl/flags:flag",
         "@abseil-cpp//absl/flags:reflection",
         "@googletest//:gtest",
     ],

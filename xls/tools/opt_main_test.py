@@ -541,6 +541,41 @@ top proc main<cmd_ch: bits[1] in, out_ch: bits[32] out>(accum: bits[32], noop_se
     self.assertNotIn('value=noop_se', decoupled_ir)
     self.assertIn('state_read(state_element=accum, predicate=cmd', decoupled_ir)
 
+  def test_empty_delay_and_area_model_flags(self):
+    ir_file = self.create_tempfile(content=ADD_ZERO_IR)
+    optimized_ir = subprocess.check_output([
+        OPT_MAIN_PATH,
+        '--delay_model=',
+        '--area_model=',
+        ir_file.full_path,
+    ]).decode('utf-8')
+    self.assertIn('ret x', optimized_ir)
+
+  @parameterized.named_parameters(
+      ('delay_model', '--delay_model=unit'),
+      ('area_model', '--area_model=unit'),
+  )
+  def test_opt_options_proto_rejects_model_flags(self, flag):
+    ir_file = self.create_tempfile(content=ADD_ZERO_IR)
+    proto_file = self.create_tempfile(content='')
+    result = subprocess.run(
+        [
+            OPT_MAIN_PATH,
+            f'--opt_options_proto={proto_file.full_path}',
+            flag,
+            ir_file.full_path,
+        ],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        check=False,
+    )
+    self.assertNotEqual(result.returncode, 0)
+    self.assertIn(
+        "Cannot combine 'opt_options_proto' and opt arguments",
+        result.stdout + result.stderr,
+    )
+
 
 if __name__ == '__main__':
   absltest.main()

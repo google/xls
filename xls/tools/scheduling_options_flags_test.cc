@@ -19,10 +19,14 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/flags/commandlineflag.h"
+#include "absl/flags/declare.h"
+#include "absl/flags/flag.h"
 #include "absl/flags/reflection.h"
 #include "xls/common/proto_test_utils.h"
 #include "xls/common/status/matchers.h"
 #include "xls/tools/scheduling_options_flags.pb.h"
+
+ABSL_DECLARE_FLAG(std::string, delay_model);
 
 namespace xls {
 namespace {
@@ -106,6 +110,15 @@ TEST(SchedulingOptionsFlagsTest,
   EXPECT_THAT(error,
               testing::HasSubstr(
                   "Invalid throughput value for arc L_W1:L_R1: not_an_int"));
+}
+
+TEST(SchedulingOptionsFlagsTest, DelayModelSetFlagRoundTrip) {
+  absl::FlagSaver saver;
+  absl::SetFlag(&FLAGS_delay_model, "unit");
+
+  XLS_ASSERT_OK_AND_ASSIGN(SchedulingOptionsFlagsProto proto,
+                           GetSchedulingOptionsFlagsProto());
+  EXPECT_EQ(proto.delay_model(), "unit");
 }
 
 }  // namespace

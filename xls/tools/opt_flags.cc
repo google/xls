@@ -27,6 +27,8 @@
 #include "xls/common/file/filesystem.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/passes/optimization_pass.h"
+#include "xls/tools/area_model_flags.h"
+#include "xls/tools/delay_model_flags.h"
 #include "xls/tools/opt_flags.pb.h"
 #include "xls/tools/opt_flags_handler_registry.h"
 #include "xls/tools/pass_pipeline_config.h"
@@ -78,11 +80,6 @@ ABSL_FLAG(bool, force_resource_sharing, false,
           "it is legal to do so, overriding therefore the profitability "
           "heuristic of such pass. This option is only used when the resource "
           "sharing pass is enabled.");
-ABSL_FLAG(std::string, area_model, "asap7",
-          "Area model to use for optimizations.");
-ABSL_FLAG(
-    std::string, delay_model, "asap7",
-    "Delay model to use for optimizations benefiting from timing information.");
 ABSL_FLAG(
     std::optional<std::string>, pass_metrics_path, std::nullopt,
     "Output path for the pass pipeline metrics as a PassPipelineMetricsProto.");
@@ -161,8 +158,14 @@ absl::StatusOr<bool> SetOptionsFromFlags(OptFlagsProto& proto) {
   POPULATE_FLAG(decouple_state_access)
   POPULATE_FLAG(enable_resource_sharing)
   POPULATE_FLAG(force_resource_sharing)
-  POPULATE_FLAG(area_model)
-  POPULATE_FLAG(delay_model)
+  if (IsAreaModelSpecifiedOnCommandLine()) {
+    any_flags_set = true;
+    proto.set_area_model(GetAreaModelNameFromFlags());
+  }
+  if (IsDelayModelSpecifiedOnCommandLine()) {
+    any_flags_set = true;
+    proto.set_delay_model(GetDelayModelNameFromFlags());
+  }
   POPULATE_OPTIONAL_FLAG(pass_metrics_path)
 
   XLS_ASSIGN_OR_RETURN(PassPipelineFlagsResult pipeline_flags,
