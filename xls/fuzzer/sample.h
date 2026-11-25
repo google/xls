@@ -24,6 +24,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/base/attributes.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
@@ -118,7 +119,9 @@ class SampleOptions {
     proto_.set_with_valid_holdoff(value);
   }
 
-  const std::string& simulator() const { return proto_.simulator(); }
+  std::string_view simulator() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return proto_.simulator();
+  }
   void set_simulator(std::string_view value) { proto_.set_simulator(value); }
 
   std::vector<std::string> codegen_args() const {
@@ -187,13 +190,13 @@ class SampleOptions {
     known_failures_.clear();
   }
   void add_known_failure(std::string_view re) {
-    *proto_.mutable_known_failure()->Add()->mutable_stderr_regex() = re;
+    proto_.add_known_failure()->set_stderr_regex(re);
     known_failures_.clear();
   }
   void add_known_failure(std::string_view tool, std::string_view re) {
-    auto* fail = proto_.add_known_failure();
-    *fail->mutable_tool() = tool;
-    *fail->mutable_stderr_regex() = re;
+    fuzzer::KnownFailure* fail = proto_.add_known_failure();
+    fail->set_tool(tool);
+    fail->set_stderr_regex(re);
     known_failures_.clear();
   }
   void set_known_failures(absl::Span<const fuzzer::KnownFailure> fails) {

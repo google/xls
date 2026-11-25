@@ -12,11 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-syntax = "proto3";
+edition = "2024";
 
 package xls.fuzzer;
 
 import "xls/tests/testvector.proto";
+
+option features.default_symbol_visibility = STRICT;
 
 enum SampleType {
   SAMPLE_TYPE_UNKNOWN = 0;
@@ -26,78 +28,78 @@ enum SampleType {
 
 message KnownFailure {
   // Regex to match on tool base name.
-  optional string tool = 1;
+  string tool = 1;
   // Regex to match stderr of the tool against.
-  optional string stderr_regex = 2;
+  string stderr_regex = 2;
 }
 
 message SampleOptionsProto {
   // Whether code sample is DSLX. Otherwise assumed to be XLS IR.
-  optional bool input_is_dslx = 1;
+  bool input_is_dslx = 1 [default = true];
 
   // The type of the sample (proc or function).
-  optional SampleType sample_type = 2;
+  SampleType sample_type = 2 [default = SAMPLE_TYPE_FUNCTION];
 
   // Arguments to pass to ir_converter_main. Requires input_is_dslx to be true.
   repeated string ir_converter_args = 3;
 
   // Whether to convert the input code sample to XLS IR. Only meaningful if
   // input_is_dslx is true.
-  optional bool convert_to_ir = 4;
+  bool convert_to_ir = 4 [default = true];
 
   // Whether to optimize the XLS IR.
-  optional bool optimize_ir = 5;
+  bool optimize_ir = 5 [default = true];
 
   // Use LLVM JIT when evaluating the XLS IR.
   //
   // TODO(leary): 2021-03-16 Currently we run the unopt IR interpretation
   // unconditionally, and the opt IR interpretation conditionally. Should we
   // also run the opt IR interpretation unconditionally?
-  optional bool use_jit = 6;
+  bool use_jit = 6 [default = true];
 
   // Optimization level (0-3) for LLVM JIT compilation in eval_ir_main and
   // eval_proc_main. If unset, uses the tool's default optimization level. Only
   // meaningful when use_jit is true.
-  optional int64 llvm_opt_level = 20;
+  int64 llvm_opt_level = 20;
 
   // Generate Verilog from the optimized IR. Requires optimize_ir to be true.
-  optional bool codegen = 7;
+  bool codegen = 7;
 
   // Generate Verilog from the optimized IR using the 2.0 pipeline.
   // Requires optimize_ir to be true.  Can be used simultaneously with
   // codegen.
-  optional bool codegen_ng = 17;
+  bool codegen_ng = 17;
 
   // Arguments to pass to codegen_main. Requires codegen to be true.
   repeated string codegen_args = 8;
 
   // Run the Verilog simulator on the generated Verilog. Requires codegen to be
   // true.
-  optional bool simulate = 9;
+  bool simulate = 9;
 
   // Verilog simulator to use; e.g. "iverilog".
-  optional string simulator = 10;
+  string simulator = 10;
 
   // Whether to use SystemVerilog or Verilog in codegen.
-  optional bool use_system_verilog = 11;
+  bool use_system_verilog = 11 [default = true];
 
   // The timeout value in seconds when executing a subcommand (e.g.,
   // opt_main). This is a per-subcommand invocation timeout *NOT* a timeout
   // value for the entire sample run.
-  optional int64 timeout_seconds = 12;
+  int64 timeout_seconds = 12;
 
   // Number of times to invoke the generated function. Only meaningful for
   // functions.
-  optional int64 calls_per_sample = 13;
+  int64 calls_per_sample = 13 [default = 1];
 
   // Number ticks to execute the generated proc. Only meaningful for procs.
-  optional int64 proc_ticks = 14;
+  int64 proc_ticks = 14;
 
   // Inputs are spaced out with valid holdoffs
-  optional bool with_valid_holdoff = 16;
+  bool with_valid_holdoff = 16;
 
   // If true unopt-interpreter is not run.
-  optional bool disable_unopt_interpreter = 18;
+  bool disable_unopt_interpreter = 18;
 
   // Regex of error messages which are known to be domain-errors in fuzzing.
   //
@@ -109,17 +111,17 @@ message SampleOptionsProto {
 
   // If true, lower the IR to proc-scoped channels. Effectively ignored if
   // input_is_dslx is false.
-  optional bool lower_to_proc_scoped_channels = 19;
+  bool lower_to_proc_scoped_channels = 19;
 }
 
 message CrasherConfigurationProto {
   // The error message (exception) which the crasher sample produces.
-  optional string exception = 1;
+  string exception = 1;
 
   // Github issue for the problem associated with this crasher.
-  optional string issue = 2;
+  string issue = 2;
 
-  optional SampleOptionsProto sample_options = 3;
+  SampleOptionsProto sample_options = 3;
 
   xls.testvector.SampleInputsProto inputs = 4;
 }

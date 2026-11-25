@@ -519,6 +519,7 @@ cc_library(
         "//xls/ir:ir_parser",
         "//xls/ir:value",
         "//xls/tests:testvector_cc_proto",
+        "@abseil-cpp//absl/base:core_headers",
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:statusor",
@@ -993,11 +994,13 @@ cc_test(
     deps = [
         ":sample",
         ":sample_cc_proto",
+        "//xls/common:proto_test_utils",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/dslx:interp_value",
         "@abseil-cpp//absl/log",
         "@googletest//:gtest",
+        "@protobuf//:differencer",
     ],
 )
 

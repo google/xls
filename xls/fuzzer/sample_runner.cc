@@ -827,8 +827,8 @@ absl::StatusOr<CompletedSampleKind> SampleRunner::RunFromFiles(
       break;
     default:
       status = absl::InvalidArgumentError(
-          "Unsupported sample type: " +
-          fuzzer::SampleType_Name(options.sample_type()));
+          absl::StrCat("Unsupported sample type: ",
+                       fuzzer::SampleType_Name(options.sample_type())));
       break;
   }
 

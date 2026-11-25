@@ -22,6 +22,8 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/log/log.h"
+#include "google/protobuf/util/message_differencer.h"
+#include "xls/common/proto_test_utils.h"
 #include "xls/common/status/matchers.h"
 #include "xls/dslx/interp_value.h"
 #include "xls/fuzzer/sample.pb.h"
@@ -29,7 +31,8 @@
 namespace xls {
 namespace {
 
-using testing::ElementsAre;
+using ::testing::ElementsAre;
+using ::xls::proto_testing::EqualsProto;
 
 const char kDslxFunction[] = R"(fn foo(x: u32) -> u32 {
   x
@@ -146,6 +149,39 @@ TEST(SampleCcTest, SerializeDeserializeLlvmOptLevel) {
 
   EXPECT_EQ(sample, copy);
   EXPECT_EQ(copy.options().llvm_opt_level(), 1);
+}
+
+TEST(SampleCcTest, ProtoDefaultInstanceMatchesDefaultSampleOptions) {
+  fuzzer::SampleOptionsProto cpp_defaults = SampleOptions().proto();
+  cpp_defaults.clear_known_failure();
+
+  // DefaultOptionsProto explicitly sets core fields so serialized crashers
+  // remain self-describing.
+  EXPECT_THAT(cpp_defaults, EqualsProto(R"pb(
+                input_is_dslx: true
+                sample_type: SAMPLE_TYPE_FUNCTION
+                convert_to_ir: true
+                optimize_ir: true
+                use_jit: true
+                codegen: false
+                codegen_ng: false
+                simulate: false
+                use_system_verilog: true
+                calls_per_sample: 1
+                lower_to_proc_scoped_channels: false
+              )pb"));
+
+  // Verify an empty SampleOptionsProto has equivalent effective defaults to
+  // DefaultOptionsProto (ignoring field presence and repeated known_failure).
+  XLS_ASSERT_OK_AND_ASSIGN(
+      SampleOptions from_empty,
+      SampleOptions::FromProto(fuzzer::SampleOptionsProto()));
+  google::protobuf::util::MessageDifferencer differencer;
+  differencer.set_message_field_comparison(
+      google::protobuf::util::MessageDifferencer::EQUIVALENT);
+  std::string diff;
+  differencer.ReportDifferencesToString(&diff);
+  EXPECT_TRUE(differencer.Compare(from_empty.proto(), cpp_defaults)) << diff;
 }
 
 }  // namespace
