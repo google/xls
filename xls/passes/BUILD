@@ -971,6 +971,7 @@ cc_test(
         "//xls/tools:opt_flags_cc_proto",
         "//xls/tools:opt_flags_handler_registry",
         "@abseil-cpp//absl/flags:flag",
+        "@abseil-cpp//absl/flags:parse",
         "@abseil-cpp//absl/flags:reflection",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:status_matchers",

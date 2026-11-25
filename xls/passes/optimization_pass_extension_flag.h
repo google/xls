@@ -48,7 +48,9 @@ class OptimizationPassExtensionFlag : public OptimizationPassOptionExtension {
   static OptFlagsParser CreateParser(const absl::Flag<T>& flag,
                                      const ProtoExt& proto_ext) {
     return [&flag, &proto_ext](OptFlagsProto& proto) -> absl::Status {
-      proto.SetExtension(proto_ext, InternalGetFlag(flag));
+      if (flag.IsSpecifiedOnCommandLine() || !proto.HasExtension(proto_ext)) {
+        proto.SetExtension(proto_ext, InternalGetFlag(flag));
+      }
       return absl::OkStatus();
     };
   }

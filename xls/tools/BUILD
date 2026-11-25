@@ -589,6 +589,26 @@ cc_library(
     ],
 )
 
+cc_test(
+    name = "opt_flags_test",
+    srcs = ["opt_flags_test.cc"],
+    deps = [
+        ":opt_flags",
+        ":opt_flags_cc_proto",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/file:temp_file",
+        "//xls/common/status:matchers",
+        "//xls/passes:optimization_pass",
+        "@abseil-cpp//absl/flags:commandlineflag",
+        "@abseil-cpp//absl/flags:parse",
+        "@abseil-cpp//absl/flags:reflection",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:status_matchers",
+        "@abseil-cpp//absl/strings",
+        "@googletest//:gtest",
+    ],
+)
+
 cc_binary(
     name = "opt_main",
     srcs = ["opt_main.cc"],

@@ -35,8 +35,10 @@
 #include "xls/tools/pass_pipeline_flags.h"
 
 // LINT.IfChange
-ABSL_FLAG(std::string, top, "", "Top entity to optimize.");
-ABSL_FLAG(std::string, ir_dump_path, "",
+ABSL_FLAG(std::string, top, xls::OptFlagsProto::default_instance().top(),
+          "Top entity to optimize.");
+ABSL_FLAG(std::string, ir_dump_path,
+          xls::OptFlagsProto::default_instance().ir_dump_path(),
           "Dump all intermediate IR files to the given directory");
 ABSL_FLAG(std::optional<int64_t>, convert_array_index_to_select, std::nullopt,
           "If specified, convert array indexes with fewer than or "
@@ -45,37 +47,45 @@ ABSL_FLAG(std::optional<int64_t>, convert_array_index_to_select, std::nullopt,
           "since it can sometimes reduce output quality.");
 ABSL_FLAG(
     std::optional<int64_t>, split_next_value_selects,
-    xls::kDefaultSplitNextValueSelects,
+    xls::OptFlagsProto::default_instance().split_next_value_selects(),
     "If positive, split `next_value`s that assign `sel`s to state params if "
     "they have fewer than the given number of cases. This optimization is "
     "skipped for selects with more cases, since it can sometimes reduce output "
     "quality by replacing MUX trees with separate equality checks.");
-ABSL_FLAG(int64_t, opt_level, xls::kMaxOptLevel, []() -> const std::string& {
-  static const std::string kDescription = absl::StrFormat(
-      "Optimization level. Ranges from 0 to %d.", xls::kMaxOptLevel);
-  return kDescription;
-}());
+ABSL_FLAG(int64_t, opt_level,
+          xls::OptFlagsProto::default_instance().opt_level(),
+          []() -> const std::string& {
+            static const std::string kDescription = absl::StrFormat(
+                "Optimization level. Ranges from 0 to %d.", xls::kMaxOptLevel);
+            return kDescription;
+          }());
 ABSL_FLAG(std::string, ram_rewrites_pb, "",
           "Path to protobuf describing ram rewrites.");
-ABSL_FLAG(bool, use_context_narrowing_analysis, false,
-          "Use context sensitive narrowing analysis. This is somewhat slower "
-          "but might produce better results in some circumstances by using "
-          "usage context to narrow values more aggressively.");
 ABSL_FLAG(
-    bool, optimize_for_best_case_throughput, false,
+    bool, use_context_narrowing_analysis,
+    xls::OptFlagsProto::default_instance().use_context_narrowing_analysis(),
+    "Use context sensitive narrowing analysis. This is somewhat slower "
+    "but might produce better results in some circumstances by using "
+    "usage context to narrow values more aggressively.");
+ABSL_FLAG(
+    bool, optimize_for_best_case_throughput,
+    xls::OptFlagsProto::default_instance().optimize_for_best_case_throughput(),
     "Optimize for best case throughput, even at the cost of area. This will "
     "aggressively optimize to create opportunities for improved throughput, "
     "but at the cost of constraining the schedule and thus increasing area.");
 // TODO(google/xls#5510): Remove once legacy coupled proc state lowering is
 // retired.
 ABSL_FLAG(
-    bool, decouple_state_access, false,
+    bool, decouple_state_access,
+    xls::OptFlagsProto::default_instance().decouple_state_access(),
     "Whether proc StateRead and Next operations are decoupled (allowing writes "
     "without an active StateRead, StateRead predicate specialization purely "
     "from data uses, and removal of always-false StateReads).");
-ABSL_FLAG(bool, enable_resource_sharing, false,
+ABSL_FLAG(bool, enable_resource_sharing,
+          xls::OptFlagsProto::default_instance().enable_resource_sharing(),
           "Enable the resource sharing optimization to save area.");
-ABSL_FLAG(bool, force_resource_sharing, false,
+ABSL_FLAG(bool, force_resource_sharing,
+          xls::OptFlagsProto::default_instance().force_resource_sharing(),
           "Force the resource sharing pass to apply the transformation where "
           "it is legal to do so, overriding therefore the profitability "
           "heuristic of such pass. This option is only used when the resource "
