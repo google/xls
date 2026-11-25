@@ -591,7 +591,8 @@ TEST_F(ConditionalSpecializationPassTest, ImpliedSelectorValueUsingOr) {
 }
 
 TEST_F(ConditionalSpecializationPassTest, NotImpliedSelectorValueUsingAnd) {
-  // No transformation because r does not imply r&s&t is true or false.
+  // When r is true, the inner select still needs both cases. Its selector
+  // simplifies to 1&s&t in that arm.
   //
   //    a   b
   //     \ /
@@ -616,16 +617,25 @@ TEST_F(ConditionalSpecializationPassTest, NotImpliedSelectorValueUsingAnd) {
   BValue sel1 = fb.Select(r_and_s_and_t, {a, b});
   BValue sel0 = fb.Select(r, {c, sel1});
 
-  // Keep r_and_s alive to the return value to avoid replacing r in the
-  // expression with one (this is not what we're testing).
+  // Return the original selector as a separate, unconditional use.
   XLS_ASSERT_OK_AND_ASSIGN(
       Function * f, fb.BuildWithReturnValue(fb.Concat({sel0, r_and_s_and_t})));
 
-  EXPECT_THAT(Run(f), IsOkAndHolds(false));
+  solvers::ScopedVerifyEquivalence sve{f};
+  ASSERT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(
+      f->return_value(),
+      m::Concat(m::Select(m::Param("r"),
+                          {m::Param("c"),
+                           m::Select(m::And(m::Literal(1), m::Param("s"),
+                                            m::Param("t")),
+                                     {m::Param("a"), m::Param("b")})}),
+                m::And(m::Param("r"), m::Param("s"), m::Param("t"))));
 }
 
 TEST_F(ConditionalSpecializationPassTest, NotImpliedSelectorValueUsingOr) {
-  // No transformation because !r does not imply r|s|t is true or false.
+  // When r is false, the inner select still needs both cases. Its selector
+  // simplifies to 0|s|t in that arm.
   //
   //    a   b
   //     \ /
@@ -650,12 +660,19 @@ TEST_F(ConditionalSpecializationPassTest, NotImpliedSelectorValueUsingOr) {
   BValue sel1 = fb.Select(r_or_s_or_t, {a, b});
   BValue sel0 = fb.Select(r, {sel1, c});
 
-  // Keep r_or_s_or_t alive to the return value to avoid replacing r in the
-  // expression with zero (this is not what we're testing).
+  // Return the original selector as a separate, unconditional use.
   XLS_ASSERT_OK_AND_ASSIGN(
       Function * f, fb.BuildWithReturnValue(fb.Concat({sel0, r_or_s_or_t})));
 
-  EXPECT_THAT(Run(f), IsOkAndHolds(false));
+  solvers::ScopedVerifyEquivalence sve{f};
+  ASSERT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::Concat(m::Select(m::Param("r"),
+                                  {m::Select(m::Or(m::Literal(0), m::Param("s"),
+                                                   m::Param("t")),
+                                             {m::Param("a"), m::Param("b")}),
+                                   m::Param("c")}),
+                        m::Or(m::Param("r"), m::Param("s"), m::Param("t"))));
 }
 
 TEST_F(ConditionalSpecializationPassTest, ImpliedSelectorValueUsingAnd) {
@@ -1655,6 +1672,91 @@ fn f(state: bits[4], r0: bits[1], something_else: bits[1]) -> bits[1] {
   EXPECT_THAT(Run(f), IsOkAndHolds(true));
   EXPECT_THAT(f->return_value(),
               m::And(m::Name("range_check"), m::Param("something_else")));
+}
+
+TEST_F(ConditionalSpecializationPassTest, SimplifyOrSiblingFanin) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* u1 = p->GetBitsType(1);
+  BValue c0 = fb.Param("c0", u1);
+  BValue a = fb.Param("a", u1);
+  BValue b = fb.Param("b", u1);
+
+  // c0 || (a && !c0 && b) after logic canonicalization.
+  BValue inner = fb.Nor({fb.Not(a), c0, fb.Not(b)});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
+                           fb.BuildWithReturnValue(fb.Or(c0, inner)));
+
+  solvers::ScopedVerifyEquivalence sve{f};
+  ASSERT_THAT(Run(f, /*use_bdd=*/false), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::Or(m::Param("c0"), m::Nor(m::Not(m::Param("a")), m::Literal(0),
+                                           m::Not(m::Param("b")))));
+}
+
+TEST_F(ConditionalSpecializationPassTest, SimplifyReconvergentSelectFanin) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* u1 = p->GetBitsType(1);
+  BValue sgn0 = fb.Param("sgn0", u1);
+  BValue n0 = fb.Param("n0", u1);
+  BValue i0 = fb.Param("i0", u1);
+  BValue sgn1 = fb.Param("sgn1", u1);
+  BValue n1 = fb.Param("n1", u1);
+  BValue i1 = fb.Param("i1", u1);
+  BValue x = fb.Param("x", p->GetBitsType(8));
+
+  // The NORs include the i0 && !n0 and i1 && !n1 checks from the source.
+  BValue not_i0 = fb.Not(i0);
+  BValue not_i1 = fb.Not(i1);
+  BValue pos_inf =
+      fb.Or(fb.Nor({not_i0, n0, sgn0}), fb.Nor({not_i1, n1, sgn1}));
+  BValue neg_inf = fb.Or(fb.Nor({not_i0, n0, fb.Not(sgn0)}),
+                         fb.Nor({not_i1, n1, fb.Not(sgn1)}));
+  BValue is_nan = fb.Or({n0, n1, fb.And(pos_inf, neg_inf)});
+  BValue is_inf = fb.Or(pos_inf, neg_inf);
+  BValue inf_value = fb.Concat({fb.Literal(UBits(0x7f, 7)), neg_inf});
+  BValue non_nan_value = fb.Select(is_inf, {x, inf_value});
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Function * f, fb.BuildWithReturnValue(fb.Select(
+                        is_nan, {non_nan_value, fb.Literal(UBits(0xff, 8))})));
+
+  solvers::ScopedVerifyEquivalence sve{f};
+  ASSERT_THAT(Run(f), IsOkAndHolds(true));
+
+  auto specialized_pos_inf =
+      m::Or(m::Nor(m::Not(m::Param("i0")), m::Literal(0), m::Param("sgn0")),
+            m::Nor(m::Not(m::Param("i1")), m::Literal(0), m::Param("sgn1")));
+  auto specialized_neg_inf = m::Or(
+      m::Nor(m::Not(m::Param("i0")), m::Literal(0), m::Not(m::Param("sgn0"))),
+      m::Nor(m::Not(m::Param("i1")), m::Literal(0), m::Not(m::Param("sgn1"))));
+  EXPECT_THAT(
+      f->return_value(),
+      m::Select(m::Or(m::Param("n0"), m::Param("n1"),
+                      m::And(specialized_pos_inf, specialized_neg_inf)),
+                {m::Select(m::Or(specialized_pos_inf, specialized_neg_inf),
+                           {m::Param("x"),
+                            m::Concat(m::Literal(0x7f), specialized_neg_inf)}),
+                 m::Literal(0xff)}));
+}
+
+TEST_F(ConditionalSpecializationPassTest,
+       RecomputeSiblingGuardAfterFaninRewrite) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* u1 = p->GetBitsType(1);
+  BValue x = fb.Param("x", u1);
+  BValue a = fb.Param("a", u1);
+  BValue b = fb.Param("b", u1);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(fb.And(
+                                             fb.Nor(x, a), fb.Nor(x, b))));
+
+  // Either NOR can drop x using the other NOR as a guard. Applying both
+  // substitutions together would change the result for x=1, a=b=0.
+  solvers::ScopedVerifyEquivalence sve{f};
+  ASSERT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(), m::And(m::Nor(m::Literal(0), m::Param("a")),
+                                        m::Nor(m::Param("x"), m::Param("b"))));
 }
 
 TEST_F(ConditionalSpecializationPassTest, SimplifySymmetricBooleanOps) {

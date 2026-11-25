@@ -96,8 +96,7 @@ struct Condition {
 };
 
 // A comparison functor for ordering Conditions. The functor orders conditions
-// based on the topological order of the respective node, and then based on the
-// condition's value. The motivation for ordering based on topological order is
+// based on the topological order of the respective node. The motivation is
 // that the size of the set of conditions considered at any one time is bounded
 // which means some conditions must be discarded.  We preferentially discard
 // conditions of nodes which may be far away from the node being considered for
@@ -112,7 +111,17 @@ class ConditionCmp {
   ConditionCmp& operator=(const ConditionCmp&) = default;
 
   bool operator()(const Condition& a, const Condition& b) const {
-    return topo_index_->at(a.node) < topo_index_->at(b.node);
+    auto a_index = topo_index_->find(a.node);
+    auto b_index = topo_index_->find(b.node);
+    if (a_index != topo_index_->end() && b_index != topo_index_->end()) {
+      return a_index->second < b_index->second;
+    }
+    // A newly specialized operand can become a guard for a later operand.
+    // Keep these nodes after the original topological order.
+    if (a_index != topo_index_->end() || b_index != topo_index_->end()) {
+      return a_index != topo_index_->end();
+    }
+    return Node::NodeIdLessThan{}(a.node, b.node);
   }
 
  private:
@@ -361,6 +370,8 @@ class ConditionMap {
     }
   }
 
+  ConditionSet EmptyConditionSet() const { return ConditionSet(topo_index_); }
+
   // Returns the condition set for the given node. Returns a mutable
   // reference as this is the mechanism for setting condition sets of nodes.
   ConditionSet& GetNodeConditionSet(Node* node) {
@@ -500,6 +511,59 @@ std::optional<Bits> ImpliedNodeValue(const ConditionSet& condition_set,
                                   node->GetName(), implied_value.value());
   }
   return implied_value;
+}
+
+constexpr int64_t kMaxFaninEdges = 64;
+
+bool CanSpecializeFanin(Node* node) {
+  return node->OpIn({Op::kAnd, Op::kNand, Op::kOr, Op::kNor, Op::kXor, Op::kNot,
+                     Op::kSel, Op::kPrioritySel, Op::kOneHotSel, Op::kConcat});
+}
+
+// Copy the part of the operand's fan-in that changes under a single guard.
+// Memoization preserves sharing within the copy. The edge budget bounds search
+// and copying even for large cones or gates with many operands.
+absl::StatusOr<Node*> SpecializeFanin(
+    Node* node, const ConditionSet& guard, int64_t& remaining_edges,
+    absl::flat_hash_map<Node*, Node*>& replacements) {
+  if (node->Is<Literal>()) {
+    return node;
+  }
+  if (auto it = replacements.find(node); it != replacements.end()) {
+    return it->second;
+  }
+
+  if (node->GetType()->IsBits()) {
+    if (std::optional<Condition> condition = guard.condition(node)) {
+      if (std::optional<Bits> value = condition->partial.GetPreciseValue()) {
+        XLS_ASSIGN_OR_RETURN(Node * literal,
+                             node->function_base()->MakeNode<Literal>(
+                                 node->loc(), Value(std::move(*value))));
+        replacements.emplace(node, literal);
+        return literal;
+      }
+    }
+  }
+
+  Node* replacement = node;
+  if (CanSpecializeFanin(node) && node->operand_count() <= remaining_edges) {
+    remaining_edges -= node->operand_count();
+    std::vector<Node*> operands;
+    operands.reserve(node->operand_count());
+    bool changed = false;
+    for (Node* operand : node->operands()) {
+      XLS_ASSIGN_OR_RETURN(
+          Node * specialized,
+          SpecializeFanin(operand, guard, remaining_edges, replacements));
+      operands.push_back(specialized);
+      changed |= specialized != operand;
+    }
+    if (changed) {
+      XLS_ASSIGN_OR_RETURN(replacement, node->Clone(operands));
+    }
+  }
+  replacements.emplace(node, replacement);
+  return replacement;
 }
 
 // Returns the value for node logically implied by the given conditions if a
@@ -760,6 +824,13 @@ class ImpliedConditionCache {
     for (int64_t i = 0; i < topo_sort.size(); ++i) {
       topo_index_[topo_sort[i]] = i;
     }
+  }
+
+  const ConditionSet& GetSelectCaseConditions(Select* select, int64_t case_no) {
+    Node* selector = select->selector();
+    return GetImplied(Condition{.node = selector,
+                                .partial = PartialInformation::Precise(UBits(
+                                    case_no, selector->BitCountOrDie()))});
   }
 
   const ConditionSet& GetImplied(const Condition& condition) {
@@ -1088,11 +1159,8 @@ absl::StatusOr<bool> ConditionalSpecializationPass::RunOnFunctionBaseInternal(
           ConditionSet edge_set = set;
           // If this case is selected, we know the selector is exactly
           // `case_no`.
-          edge_set.Union(condition_cache.GetImplied(Condition{
-              .node = select->selector(),
-              .partial = PartialInformation(IntervalSet::Precise(
-                  UBits(case_no, select->selector()->BitCountOrDie()))),
-          }));
+          edge_set.Union(
+              condition_cache.GetSelectCaseConditions(select, case_no));
           condition_map.SetEdgeConditionSet(node, case_no + 1,
                                             std::move(edge_set));
         }
@@ -1303,19 +1371,7 @@ absl::StatusOr<bool> ConditionalSpecializationPass::RunOnFunctionBaseInternal(
 
       const ConditionSet& original_edge_set =
           condition_map.GetEdgeConditionSet(operand, node);
-      std::optional<ConditionSet> modified_edge_set = std::nullopt;
-      auto edge_set = [&]() -> const ConditionSet& {
-        if (!modified_edge_set.has_value()) {
-          return original_edge_set;
-        }
-        return *modified_edge_set;
-      };
-      auto mutable_edge_set = [&]() -> ConditionSet& {
-        if (!modified_edge_set.has_value()) {
-          modified_edge_set = original_edge_set;
-        }
-        return *modified_edge_set;
-      };
+      ConditionSet sibling_conditions = condition_map.EmptyConditionSet();
 
       if (node->OpIn({Op::kAnd, Op::kNand, Op::kOr, Op::kNor})) {
         // For boolean operations we can assume that all other operands are
@@ -1343,27 +1399,37 @@ absl::StatusOr<bool> ConditionalSpecializationPass::RunOnFunctionBaseInternal(
           if (other_operand->Is<Literal>()) {
             continue;
           }
-          mutable_edge_set().Union(condition_cache.GetImplied(Condition{
+          sibling_conditions.Union(condition_cache.GetImplied(Condition{
               .node = other_operand,
               .partial =
                   PartialInformation(IntervalSet::Punctured(absorbing))}));
         }
       }
 
+      std::optional<ConditionSet> combined_edge_set;
+      if (!sibling_conditions.empty() && !original_edge_set.empty()) {
+        combined_edge_set = original_edge_set;
+        combined_edge_set->Union(sibling_conditions);
+      }
+      const ConditionSet& local_or_original =
+          sibling_conditions.empty() ? original_edge_set : sibling_conditions;
+      const ConditionSet& edge_set = combined_edge_set.has_value()
+                                         ? *combined_edge_set
+                                         : local_or_original;
       VLOG(4) << absl::StrFormat("Conditions on edge %s -> %s: %s",
                                  operand->GetName(), node->GetName(),
-                                 edge_set().ToString());
-      if (edge_set().empty()) {
+                                 edge_set.ToString());
+      if (edge_set.empty()) {
         continue;
       }
 
       std::unique_ptr<QueryEngine> specialized_query_engine =
-          query_engine.SpecializeGiven(edge_set().GetAsGivens());
+          query_engine.SpecializeGiven(edge_set.GetAsGivens());
 
       // First check to see if the condition set directly implies a value for
       // the operand. If so replace with the implied value.
       if (std::optional<Bits> implied_value =
-              ImpliedNodeValue(edge_set(), operand, *specialized_query_engine);
+              ImpliedNodeValue(edge_set, operand, *specialized_query_engine);
           implied_value.has_value()) {
         // If the implied value is the absorbing element for the operation, we
         // can replace the entire operation with the absorbing element (or its
@@ -1438,7 +1504,7 @@ absl::StatusOr<bool> ConditionalSpecializationPass::RunOnFunctionBaseInternal(
               break;
             }
             std::optional<Bits> implied_selector = ImpliedNodeValue(
-                edge_set(), select->selector(), *specialized_query_engine);
+                edge_set, select->selector(), *specialized_query_engine);
             if (!implied_selector.has_value()) {
               break;
             }
@@ -1458,7 +1524,7 @@ absl::StatusOr<bool> ConditionalSpecializationPass::RunOnFunctionBaseInternal(
               break;
             }
             std::optional<TernaryVector> implied_selector = ImpliedNodeTernary(
-                edge_set(), select->selector(), *specialized_query_engine);
+                edge_set, select->selector(), *specialized_query_engine);
             if (!implied_selector.has_value()) {
               break;
             }
@@ -1482,7 +1548,7 @@ absl::StatusOr<bool> ConditionalSpecializationPass::RunOnFunctionBaseInternal(
               break;
             }
             std::optional<TernaryVector> implied_selector = ImpliedNodeTernary(
-                edge_set(), ohs->selector(), *specialized_query_engine);
+                edge_set, ohs->selector(), *specialized_query_engine);
             if (!implied_selector.has_value()) {
               break;
             }
@@ -1535,7 +1601,7 @@ absl::StatusOr<bool> ConditionalSpecializationPass::RunOnFunctionBaseInternal(
             for (Node* potential_src : bitwise_op->operands()) {
               XLS_RET_CHECK(potential_src->GetType()->IsBits());
               std::optional<Bits> implied_src = ImpliedNodeValue(
-                  edge_set(), potential_src, *specialized_query_engine);
+                  edge_set, potential_src, *specialized_query_engine);
               if (implied_src.has_value() && is_identity(*implied_src)) {
                 continue;
               }
@@ -1567,7 +1633,39 @@ absl::StatusOr<bool> ConditionalSpecializationPass::RunOnFunctionBaseInternal(
           XLS_RETURN_IF_ERROR(
               node->ReplaceOperandNumber(operand_no, replacement.value()));
           changed = true;
+          continue;
         }
+      }
+
+      // Use the consumer's own guard for the copied fan-in. Replacing this
+      // edge preserves the consumer's value for all inputs, even when the
+      // guard and this operand have shared dependencies.
+      if (!CanSpecializeFanin(operand)) {
+        continue;
+      }
+      const ConditionSet* guard = &sibling_conditions;
+      if (node->Is<Select>()) {
+        Select* select = node->As<Select>();
+        int64_t case_no = operand_no - 1;
+        if (case_no >= 0 && case_no < select->cases().size() &&
+            !select->selector()->Is<Literal>()) {
+          guard = &condition_cache.GetSelectCaseConditions(select, case_no);
+        }
+      }
+      if (guard->empty()) {
+        continue;
+      }
+      int64_t remaining_edges = kMaxFaninEdges;
+      absl::flat_hash_map<Node*, Node*> replacements;
+      XLS_ASSIGN_OR_RETURN(
+          Node * replacement,
+          SpecializeFanin(operand, *guard, remaining_edges, replacements));
+      if (replacement != operand) {
+        VLOG(3) << absl::StrFormat("Specializing fan-in of operand %d of %s",
+                                   operand_no, node->GetName());
+        XLS_RETURN_IF_ERROR(
+            node->ReplaceOperandNumber(operand_no, replacement));
+        changed = true;
       }
     }
   }
