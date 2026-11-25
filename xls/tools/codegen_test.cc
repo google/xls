@@ -21,6 +21,7 @@
 #include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
+#include "xls/codegen/codegen_options.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/function.h"
@@ -97,6 +98,46 @@ TEST_F(CodegenTest, CombinationalDoesNotRequireTimingOptions) {
 
   XLS_EXPECT_OK(ScheduleAndCodegen(p.get(), scheduling_flags, codegen_flags,
                                    /*with_delay_model=*/false));
+}
+
+TEST_F(CodegenTest, CodegenOptionsFromProtoPropagatesMaxTraceVerbosity) {
+  CodegenFlagsProto proto;
+  proto.set_max_trace_verbosity(3);
+
+  XLS_ASSERT_OK_AND_ASSIGN(verilog::CodegenOptions options,
+                           CodegenOptionsFromProto(proto));
+  EXPECT_EQ(options.max_trace_verbosity(), 3);
+}
+
+TEST_F(CodegenTest, CodegenOptionsFromProtoPropagatesPreservePorts) {
+  CodegenFlagsProto default_proto;
+  XLS_ASSERT_OK_AND_ASSIGN(verilog::CodegenOptions default_options,
+                           CodegenOptionsFromProto(default_proto));
+  EXPECT_TRUE(default_options.preserve_ports());
+
+  CodegenFlagsProto disabled_proto;
+  disabled_proto.set_preserve_ports(false);
+  XLS_ASSERT_OK_AND_ASSIGN(verilog::CodegenOptions disabled_options,
+                           CodegenOptionsFromProto(disabled_proto));
+  EXPECT_FALSE(disabled_options.preserve_ports());
+}
+
+TEST_F(CodegenTest, CodegenOptionsFromProtoAddInvariantAssertions) {
+  for (GeneratorKind kind :
+       {GENERATOR_KIND_COMBINATIONAL, GENERATOR_KIND_PIPELINE}) {
+    CodegenFlagsProto default_proto;
+    default_proto.set_generator(kind);
+    XLS_ASSERT_OK_AND_ASSIGN(verilog::CodegenOptions default_options,
+                             CodegenOptionsFromProto(default_proto));
+    EXPECT_TRUE(default_options.add_invariant_assertions());
+
+    CodegenFlagsProto disabled_proto;
+    disabled_proto.set_generator(kind);
+    disabled_proto.set_add_invariant_assertions(false);
+    XLS_ASSERT_OK_AND_ASSIGN(verilog::CodegenOptions disabled_options,
+                             CodegenOptionsFromProto(disabled_proto));
+    EXPECT_FALSE(disabled_options.add_invariant_assertions());
+  }
 }
 
 }  // namespace

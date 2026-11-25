@@ -966,6 +966,7 @@ cc_test(
         ":codegen",
         ":codegen_flags_cc_proto",
         ":scheduling_options_flags_cc_proto",
+        "//xls/codegen:codegen_options",
         "//xls/codegen_v_1_5:passes",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
@@ -976,6 +977,23 @@ cc_test(
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:status_matchers",
         "@abseil-cpp//absl/status:statusor",
+        "@googletest//:gtest",
+    ],
+)
+
+cc_test(
+    name = "codegen_flags_test",
+    srcs = ["codegen_flags_test.cc"],
+    deps = [
+        ":codegen_flags",
+        ":codegen_flags_cc_proto",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/file:temp_file",
+        "//xls/common/status:matchers",
+        "@abseil-cpp//absl/flags:parse",
+        "@abseil-cpp//absl/flags:reflection",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:status_matchers",
         "@googletest//:gtest",
     ],
 )

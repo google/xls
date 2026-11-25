@@ -341,14 +341,6 @@ absl::StatusOr<verilog::CodegenOptions> CodegenOptionsFromProto(
     options.flop_single_value_channels(p.flop_single_value_channels());
     options.add_idle_output(p.add_idle_output());
 
-    // Set invariant assertion emission regardless of generator kind.  Proto3
-    // returns the default (false) when the field is unset, so if the field is
-    // not present we emit assertions by default via the CodegenOptions default
-    // of `true`.
-    if (p.has_add_invariant_assertions()) {
-      options.add_invariant_assertions(p.add_invariant_assertions());
-    }
-
     if (!p.reset().empty()) {
       options.reset(p.reset(), p.reset_asynchronous(), p.reset_active_low(),
                     p.reset_data_path());
@@ -505,6 +497,10 @@ absl::StatusOr<verilog::CodegenOptions> CodegenOptionsFromProto(
 
   if (p.has_preserve_ports()) {
     options.preserve_ports(p.preserve_ports());
+  }
+
+  if (p.has_max_trace_verbosity()) {
+    options.set_max_trace_verbosity(p.max_trace_verbosity());
   }
 
   XLS_RETURN_IF_ERROR(CodegenFlagsHandlerRegistry::Process(p, options));

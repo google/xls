@@ -393,6 +393,7 @@ static absl::StatusOr<bool> SetOptionsFromFlags(CodegenFlagsProto& proto) {
 
   // Generator is somewhat special, in that we need to parse it to its enum
   // form.
+  any_flags_set |= FLAGS_generator.IsSpecifiedOnCommandLine();
   std::string generator_str = absl::GetFlag(FLAGS_generator);
   if (generator_str == "pipeline") {
     proto.set_generator(GENERATOR_KIND_PIPELINE);
@@ -412,10 +413,12 @@ static absl::StatusOr<bool> SetOptionsFromFlags(CodegenFlagsProto& proto) {
   POPULATE_FLAG(simulation_macro_name);
   POPULATE_REPEATED_FLAG(assertion_macro_names);
 
+  any_flags_set |= FLAGS_flop_inputs_kind.IsSpecifiedOnCommandLine();
   XLS_ASSIGN_OR_RETURN(
       IOKindProto flop_inputs_kind,
       IOKindProtoFromString(absl::GetFlag(FLAGS_flop_inputs_kind)));
   proto.set_flop_inputs_kind(flop_inputs_kind);
+  any_flags_set |= FLAGS_flop_outputs_kind.IsSpecifiedOnCommandLine();
   XLS_ASSIGN_OR_RETURN(
       IOKindProto flop_outputs_kind,
       IOKindProtoFromString(absl::GetFlag(FLAGS_flop_outputs_kind)));
@@ -453,10 +456,13 @@ static absl::StatusOr<bool> SetOptionsFromFlags(CodegenFlagsProto& proto) {
   // Optimizations
   POPULATE_FLAG(gate_recvs);
   POPULATE_FLAG(array_index_bounds_checking);
+  POPULATE_FLAG(max_trace_verbosity);
+  POPULATE_FLAG(preserve_ports);
   POPULATE_FLAG(embed_child_block_signatures);
   POPULATE_FLAG(fifo_module);
   POPULATE_FLAG(nodata_fifo_module);
 
+  any_flags_set |= FLAGS_materialize_internal_fifos.IsSpecifiedOnCommandLine();
   if (absl::GetFlag(FLAGS_materialize_internal_fifos)) {
     any_flags_set = true;
     if (!FLAGS_fifo_module.IsSpecifiedOnCommandLine()) {
