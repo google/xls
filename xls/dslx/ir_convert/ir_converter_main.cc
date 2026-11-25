@@ -33,6 +33,7 @@
 #include "xls/common/init_xls.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/dslx/default_dslx_stdlib_path.h"
 #include "xls/dslx/ir_convert/conversion_info.h"
 #include "xls/dslx/ir_convert/convert_options.h"
 #include "xls/dslx/ir_convert/ir_converter.h"
@@ -79,7 +80,10 @@ absl::Status RealMain(absl::Span<const std::string_view> paths) {
                 ir_converter_options.output_file())
           : std::nullopt;
 
-  std::string_view dslx_stdlib_path = ir_converter_options.dslx_stdlib_path();
+  std::string_view dslx_stdlib_path =
+      ir_converter_options.has_dslx_stdlib_path()
+          ? std::string_view(ir_converter_options.dslx_stdlib_path())
+          : kDefaultDslxStdlibPath;
   std::string_view dslx_path = ir_converter_options.dslx_path();
   std::vector<std::string_view> dslx_path_strs = absl::StrSplit(dslx_path, ':');
 
@@ -111,9 +115,7 @@ absl::Status RealMain(absl::Span<const std::string_view> paths) {
   bool warnings_as_errors = ir_converter_options.warnings_as_errors();
   bool type_inference_v2 = ir_converter_options.type_inference_v2();
   bool lower_to_proc_scoped_channels =
-      ir_converter_options.has_lower_to_proc_scoped_channels()
-          ? ir_converter_options.lower_to_proc_scoped_channels()
-          : true;
+      ir_converter_options.lower_to_proc_scoped_channels();
   bool force_implicit_token_calling_convention =
       ir_converter_options.force_implicit_token_calling_convention();
   bool emit_trace = ir_converter_options.emit_trace();

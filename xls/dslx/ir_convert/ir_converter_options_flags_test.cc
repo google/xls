@@ -22,12 +22,14 @@
 #include "absl/flags/declare.h"
 #include "absl/flags/flag.h"
 #include "xls/common/status/matchers.h"
+#include "xls/dslx/ir_convert/convert_options.h"
 #include "xls/dslx/ir_convert/ir_converter_options_flags.pb.h"
 
 ABSL_DECLARE_FLAG(std::optional<std::string>, enable_warnings);
 ABSL_DECLARE_FLAG(std::optional<std::string>, disable_warnings);
 ABSL_DECLARE_FLAG(bool, warnings_as_errors);
 ABSL_DECLARE_FLAG(bool, force_implicit_token_calling_convention);
+ABSL_DECLARE_FLAG(bool, lower_to_proc_scoped_channels);
 
 namespace xls {
 
@@ -80,6 +82,42 @@ TEST(IrConverterOptionsFlagsTest, ForceImplicitTokenFlagSet) {
                            GetIrConverterOptionsFlagsProto());
   EXPECT_TRUE(options.has_force_implicit_token_calling_convention());
   EXPECT_TRUE(options.force_implicit_token_calling_convention());
+}
+
+TEST(IrConverterOptionsFlagsTest,
+     ProtoDefaultInstanceMatchesFlagsAndConvertOptions) {
+  const IrConverterOptionsFlagsProto& defaults =
+      IrConverterOptionsFlagsProto::default_instance();
+  dslx::ConvertOptions convert_defaults;
+
+  EXPECT_EQ(defaults.verify(), convert_defaults.verify_ir);
+  EXPECT_EQ(defaults.warnings_as_errors(), convert_defaults.warnings_as_errors);
+  EXPECT_EQ(defaults.lower_to_proc_scoped_channels(),
+            convert_defaults.lower_to_proc_scoped_channels);
+  EXPECT_EQ(defaults.emit_trace(), convert_defaults.emit_trace);
+  EXPECT_EQ(defaults.emit_cover(), convert_defaults.emit_cover);
+  EXPECT_EQ(defaults.emit_assert(), convert_defaults.emit_assert);
+  EXPECT_EQ(defaults.convert_tests(), convert_defaults.convert_tests);
+  EXPECT_EQ(defaults.type_inference_v2(), convert_defaults.type_inference_v2);
+  EXPECT_EQ(defaults.force_implicit_token_calling_convention(),
+            convert_defaults.force_implicit_token_calling_convention);
+
+  EXPECT_EQ(absl::GetFlag(FLAGS_lower_to_proc_scoped_channels),
+            defaults.lower_to_proc_scoped_channels());
+
+  XLS_ASSERT_OK_AND_ASSIGN(IrConverterOptionsFlagsProto from_flags,
+                           GetIrConverterOptionsFlagsProto());
+  EXPECT_EQ(from_flags.verify(), defaults.verify());
+  EXPECT_EQ(from_flags.warnings_as_errors(), defaults.warnings_as_errors());
+  EXPECT_EQ(from_flags.lower_to_proc_scoped_channels(),
+            defaults.lower_to_proc_scoped_channels());
+  EXPECT_EQ(from_flags.emit_trace(), defaults.emit_trace());
+  EXPECT_EQ(from_flags.emit_cover(), defaults.emit_cover());
+  EXPECT_EQ(from_flags.emit_assert(), defaults.emit_assert());
+  EXPECT_EQ(from_flags.convert_tests(), defaults.convert_tests());
+  EXPECT_EQ(from_flags.type_inference_v2(), defaults.type_inference_v2());
+  EXPECT_EQ(from_flags.force_implicit_token_calling_convention(),
+            defaults.force_implicit_token_calling_convention());
 }
 
 }  // namespace xls

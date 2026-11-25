@@ -818,6 +818,30 @@ class IrConverterMainTest(test_base.TestCase):
           result.ir,
       )
 
+  def test_options_proto_without_stdlib_path_uses_default_stdlib(self):
+    options_proto = self.create_tempfile(content='top: "main"\n')
+    dslx_file = self.create_tempfile(
+        file_path="main.x",
+        content=textwrap.dedent("""\
+            import std;
+
+            fn main(x: u32) -> u32 { std::popcount(x) }
+            """),
+    )
+    out = subprocess.run(
+        [
+            self.IR_CONVERTER_MAIN_PATH,
+            f"--ir_converter_options_proto={options_proto.full_path}",
+            dslx_file.full_path,
+        ],
+        encoding="utf-8",
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        check=False,
+    )
+    self.assertEqual(out.returncode, 0, msg=f"stderr:\n{out.stderr}")
+    self.assertIn("top fn __main__main(", out.stdout)
+
 
 if __name__ == "__main__":
   test_base.main()
