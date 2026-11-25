@@ -4178,7 +4178,8 @@ absl::StatusOr<std::optional<ChannelOrArray>>
 FunctionConverter::DefineBoundProcDefMember(const ProcDef* proc_def,
                                             const StructMemberNode* member,
                                             const InterpValue& value) {
-  std::vector<InterpValue> channel_refs = GetLeafChannelReferences(value);
+  std::vector<InterpValue> channel_refs =
+      GetChannelArrayLeafReferencesInScopeOrder(value);
   std::vector<const ImplicitChannelDecl*> implicit_decls;
   for (const InterpValue& channel_ref : channel_refs) {
     std::optional<const ImplicitChannelDecl*> implicit_decl =
@@ -4409,9 +4410,9 @@ absl::Status FunctionConverter::AddProcDefIoObjectArgs(
     const TypeInfo* callee_constructor_ti,
     std::vector<ChannelInterface*>& channel_args) {
   std::vector<InterpValue> canonical_channel_refs =
-      GetLeafChannelReferences(canonical_arg);
+      GetChannelArrayLeafReferencesInScopeOrder(canonical_arg);
   std::vector<InterpValue> external_channel_refs =
-      GetLeafChannelReferences(external_arg);
+      GetChannelArrayLeafReferencesInScopeOrder(external_arg);
   XLS_RET_CHECK_EQ(canonical_channel_refs.size(), external_channel_refs.size());
   for (size_t i = 0; i < canonical_channel_refs.size(); ++i) {
     // `callee` binds this element itself, so the channel is internal to it.

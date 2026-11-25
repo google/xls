@@ -9119,6 +9119,68 @@ impl Top {
   ExpectIr(ir);
 }
 
+// Binding row `i` of a non-square 2D array to child `i` gives that child the
+// channels of row `i`, in order.
+TEST_F(IrConverterTest, ProcDefBindsNonSquare2DChannelArrayRows) {
+  XLS_ASSERT_OK_AND_ASSIGN(std::string ir, ConvertModuleForTest(R"(
+#![feature(io_objects)]
+proc Row3 { ins: Source<u32>[3] }
+impl Row3 { fn new() -> Self { Row3 {} } }
+proc Top { to_child: Sink<u32>[3][2] }
+impl Top {
+  fn new() -> Self {
+    let top = Top {};
+    const for (i, _) in u32:0..2 {
+      let c = Row3::new();
+      const for (j, _) in u32:0..3 {
+        top.to_child[i][j].bind(c.ins[j]);
+      }(());
+      c.spawn();
+    }(());
+    top
+  }
+}
+)"));
+  EXPECT_THAT(ir, HasSubstr("proc_instantiation __test_module__Row3_next_inst("
+                            "_to_child__0_0, _to_child__0_1, _to_child__0_2, "
+                            "proc=__test_module__Row3_next)"));
+  EXPECT_THAT(ir,
+              HasSubstr("proc_instantiation __test_module__Row3_next_inst_1("
+                        "_to_child__1_0, _to_child__1_1, _to_child__1_2, "
+                        "proc=__test_module__Row3_next)"));
+}
+
+// Binding each element of a 2D array to the same element of a child's 2D
+// member connects each child port `ins[i][j]` to channel `s[i][j]`.
+TEST_F(IrConverterTest, ProcDefBinds2DChannelArrayToChild2DMember) {
+  XLS_ASSERT_OK_AND_ASSIGN(std::string ir, ConvertModuleForTest(R"(
+#![feature(io_objects)]
+proc Inner { ins: Source<u32>[3][2] }
+impl Inner { fn new() -> Self { Inner {} } }
+proc Top { s: Sink<u32>[3][2] }
+impl Top {
+  fn new() -> Self {
+    let top = Top {};
+    let c = Inner::new();
+    const for (i, _) in u32:0..2 {
+      const for (j, _) in u32:0..3 {
+        top.s[i][j].bind(c.ins[i][j]);
+      }(());
+    }(());
+    c.spawn();
+    top
+  }
+}
+)"));
+  EXPECT_THAT(ir, HasSubstr("proc __test_module__Inner_next<"
+                            "_ins__0_0: bits[32] in, _ins__1_0: bits[32] in, "
+                            "_ins__0_1: bits[32] in, _ins__1_1: bits[32] in, "
+                            "_ins__0_2: bits[32] in, _ins__1_2: bits[32] in>"));
+  EXPECT_THAT(ir, HasSubstr("proc_instantiation __test_module__Inner_next_inst("
+                            "_s__0_0, _s__1_0, _s__0_1, _s__1_1, _s__0_2, "
+                            "_s__1_2, proc=__test_module__Inner_next)"));
+}
+
 TEST_F(IrConverterTest, ProcDefBindArrayMatchesExplicitChannelDecl) {
   constexpr std::string_view kExplicit = R"(
 proc LoopbackArray { ins: chan<u32>[2] in, outs: chan<u32>[2] out }
