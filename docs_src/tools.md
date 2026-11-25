@@ -45,6 +45,55 @@ visit the [codegen options](codegen_options.md) page.
 Dumps delay information about an XLS function including per-node delay
 information and critical-path.
 
+## [`lec_main`](https://github.com/google/xls/tree/main/xls/tools/lec_main.cc) {#lec-main}
+
+Proves or disproves logical equivalence between an XLS IR function and a
+gate-level netlist using Z3. See
+[IR to netlist Logical Equivalence Checking](solvers.md#ir-to-netlist-logical-equivalence-checking-lec)
+for background. The tool prints the result of the check; if the two are not
+equivalent it also prints a dump of the IR and netlist values.
+
+Required flags:
+
+-   `--ir_path=PATH`: the XLS IR file to compare against.
+-   `--netlist_path=PATH`: the netlist to check.
+-   Exactly one of `--cell_lib_path=PATH` (a Liberty cell library) or
+    `--cell_proto_path=PATH` (a preprocessed cell library proto). The proto is
+    much faster to load and is preferred.
+
+Optional flags:
+
+-   `--entry_function_name=NAME`: the IR function to compare. If unset, the
+    package's top function is used.
+-   `--netlist_module_name=NAME`: the netlist module to compare. If unset, the
+    name of the IR entry function is used.
+-   `--schedule_path=PATH`: a `PackageScheduleProto` textproto with the pipeline
+    schedule. It must be given if the netlist spans multiple pipeline stages,
+    otherwise IR nodes cannot be mapped to netlist cells.
+-   `--stage=N`: check only pipeline stage `N`. Requires `--schedule_path`. If a
+    schedule is given without `--stage`, the whole module is checked.
+-   `--auto_stage`: let the tool choose between a full check and a per-stage
+    check. Requires `--schedule_path` and cannot be combined with `--stage`. At
+    the moment the tool switches to per-stage checks only when the IR contains a
+    multiply wider than 8 bits.
+-   `--constraints_file=PATH`: a DSLX file with a function that restricts the
+    inputs considered by the check. It must have the same signature as the
+    function being compared and return 1 when all constraints hold and 0
+    otherwise. It must be named `main`, be named like its package, or be the only
+    function in the file. Constraints cannot be combined with checking a single
+    stage other than stage 0, and `--auto_stage` does not apply them.
+-   `--timeout_sec=N`: the time to allow for the check. The default, `-1`, sets no
+    limit.
+
+Example (a whole-module check, for a netlist produced from the same IR):
+
+```
+$ bazel run -c opt //xls/tools:lec_main -- \
+    --ir_path=$PWD/my_design.opt.ir \
+    --netlist_path=$PWD/my_design.netlist.v \
+    --cell_proto_path=$PWD/my_cells.proto.bin
+```
+
 ## Ir Evaluation {#ir-eval}
 
 There are two different programs that can be used to simulate XLS designs
