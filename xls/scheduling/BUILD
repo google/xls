@@ -819,7 +819,7 @@ cc_test(
     name = "pipeline_scheduling_pass_test",
     srcs = ["pipeline_scheduling_pass_test.cc"],
     data = [
-        "@at_clifford_yosys//:yosys",
+        "@yosys//:yosys",
         "@com_google_skywater_pdk_sky130_fd_sc_hd//:sky130_fd_sc_hd",
         "@org_theopenroadproject//openroad/sta:opensta",
     ],

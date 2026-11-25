@@ -278,14 +278,14 @@ TEST_F(PipelineSchedulingPassTest, FdoWithMultipleProcs) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * func1, make_func("proc1"));
 
   XLS_ASSERT_OK_AND_ASSIGN(std::filesystem::path yosys_path,
-                           GetXlsRunfilePath("third_party/yosys/yosys"));
+                           GetXlsRunfilePath("yosys", "yosys"));
   XLS_ASSERT_OK_AND_ASSIGN(
       std::filesystem::path sta_path,
-      GetXlsRunfilePath("@org_theopenroadproject/openroad/sta/opensta"));
+      GetXlsRunfilePath("openroad/sta/opensta", "org_theopenroadproject"));
   XLS_ASSERT_OK_AND_ASSIGN(
       std::filesystem::path lib_path,
-      GetXlsRunfilePath("@com_google_skywater_pdk_sky130_fd_sc_hd/timing/"
-                        "sky130_fd_sc_hd__ff_100C_1v95.lib"));
+      GetXlsRunfilePath("timing/sky130_fd_sc_hd__ff_100C_1v95.lib",
+                        "com_google_skywater_pdk_sky130_fd_sc_hd"));
   auto scheduling_options =
       SchedulingOptions()
           .pipeline_stages(4)

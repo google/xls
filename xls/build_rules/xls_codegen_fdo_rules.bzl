@@ -116,7 +116,7 @@ xls_ir_verilog_attrs = {
               "used.",
     ),
     "yosys_tool": attr.label(
-        default = Label("@at_clifford_yosys//:yosys"),
+        default = Label("@yosys//:yosys"),
         executable = True,
         cfg = "exec",
     ),
@@ -363,12 +363,9 @@ def xls_ir_verilog_fdo_impl(ctx, src, original_input_files):
                 dont_use_args += " -dont_use {} ".format(dont_use_pattern)
 
         runfiles_list.append(synth_lib)
-        yosys_runfiles_dir = ctx.executable.yosys_tool.path + ".runfiles"
         opensta_runfiles_dir = ctx.executable.sta_tool.path + ".runfiles"
         env = {
-            "ABC": yosys_runfiles_dir + "/abc+/abc_bin",
             "DONT_USE_ARGS": dont_use_args,
-            "YOSYS_DATDIR": yosys_runfiles_dir + "/" + yosys_tool.owner.workspace_name + "/",
             "TCL_LIBRARY": opensta_runfiles_dir + "/tcl_lang+/library",
         }
     else:

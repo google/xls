@@ -33,5 +33,5 @@ see [issue #188](https://github.com/google/xls/issues/188)
 Build `yosys` and `nextpnr-ice40`:
 
 ```
-$ bazel build -c opt @at_clifford_yosys//:yosys @nextpnr//:nextpnr-ice40
+$ bazel build -c opt @yosys//:yosys @nextpnr//:nextpnr-ice40
 ```

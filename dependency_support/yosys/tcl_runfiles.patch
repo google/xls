@@ -1,0 +1,11 @@
+diff --git a/BUILD.bazel b/BUILD.bazel
+--- a/BUILD.bazel
++++ b/BUILD.bazel
+@@ -1160,6 +1160,7 @@ cc_binary(
+     data = [
+         ":yosys_abc",
+         ":yosys_share",
++        "@tcl_lang//:tcl_core",
+     ],
+     linkopts = select({
+         "@platforms//os:linux": [

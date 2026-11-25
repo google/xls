@@ -112,14 +112,6 @@ sh_test(
     ],
 )
 
-pytype_strict_binary(
-    name = "generate_vvp_runner",
-    srcs = ["generate_vvp_runner.py"],
-    deps = [
-        "@abseil-py//absl:app",
-    ],
-)
-
 cc_library(
     name = "extract_interface",
     srcs = ["extract_interface.cc"],
