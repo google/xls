@@ -46,7 +46,13 @@
 #include "absl/strings/substitute.h"
 #include "absl/types/optional_ref.h"
 #include "absl/types/span.h"
+#include "llvm/include/llvm/IR/BasicBlock.h"
 #include "llvm/include/llvm/IR/DataLayout.h"
+#include "llvm/include/llvm/IR/Function.h"
+#include "llvm/include/llvm/IR/Instruction.h"
+#include "llvm/include/llvm/IR/Instructions.h"
+#include "llvm/include/llvm/IR/Module.h"
+#include "llvm/include/llvm/Support/Casting.h"
 #include "xls/common/bits_util.h"
 #include "xls/common/math_util.h"
 #include "xls/common/status/matchers.h"
@@ -65,6 +71,7 @@
 #include "xls/ir/package.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
+#include "xls/ir/value_utils.h"
 #include "xls/ir/value_view.h"
 #include "xls/ir/xls_type.pb.h"
 #include "xls/jit/function_base_jit.h"
@@ -1401,6 +1408,90 @@ FUZZ_TEST(FunctionJitTest, TestPackedArrayWithType)
         ArrayTypeDomain(TypeDomain(/*max_bit_count=*/132,
                                    /*max_elements=*/68),
                         /*max_elements=*/1030)));
+
+// Records the size of the largest first-class aggregate (array or struct)
+// load in the unoptimized LLVM module.
+class AggregateLoadObserver final : public JitObserver {
+ public:
+  JitObserverRequests GetNotificationOptions() const override {
+    return JitObserverRequests{.unoptimized_module = true};
+  }
+  void UnoptimizedModule(const llvm::Module* module) override {
+    const llvm::DataLayout& data_layout = module->getDataLayout();
+    for (const llvm::Function& function : *module) {
+      for (const llvm::BasicBlock& block : function) {
+        for (const llvm::Instruction& inst : block) {
+          const auto* load = llvm::dyn_cast<llvm::LoadInst>(&inst);
+          if (load != nullptr && load->getType()->isAggregateType()) {
+            max_aggregate_load_bytes_ = std::max<int64_t>(
+                max_aggregate_load_bytes_,
+                data_layout.getTypeAllocSize(load->getType()));
+          }
+        }
+      }
+    }
+  }
+  int64_t max_aggregate_load_bytes() const { return max_aggregate_load_bytes_; }
+
+ private:
+  int64_t max_aggregate_load_bytes_ = 0;
+};
+
+// Regression test: the loop state of a counted_for must be copied with memcpy.
+// LLVM lowers first-class aggregate loads/stores element by element, which made
+// compile time and memory super-linear in the state size (a loop updating a
+// tuple of two 10240-element arrays took ~66s and ~13GB to AOT compile).
+TEST(FunctionJitTest, CountedForCopiesLargeLoopStateWithMemcpy) {
+  constexpr int64_t kSize = 1024;
+  constexpr int64_t kTripCount = 15;
+  Package package("my_package");
+  Type* u64 = package.GetBitsType(64);
+  Type* u32 = package.GetBitsType(32);
+  ArrayType* values_type = package.GetArrayType(kSize, u64);
+  ArrayType* flags_type = package.GetArrayType(kSize, package.GetBitsType(1));
+  Type* state_type = package.GetTupleType({values_type, flags_type});
+
+  // body(i, (values, flags), v) =
+  //     (update(values, i, v + i), update(flags, i, 1))
+  FunctionBuilder body_builder("body", &package);
+  BValue i = body_builder.Param("i", u32);
+  BValue state = body_builder.Param("state", state_type);
+  BValue v = body_builder.Param("v", u64);
+  BValue values = body_builder.ArrayUpdate(
+      body_builder.TupleIndex(state, 0),
+      body_builder.Add(v, body_builder.ZeroExtend(i, 64)), {i});
+  BValue flags =
+      body_builder.ArrayUpdate(body_builder.TupleIndex(state, 1),
+                               body_builder.Literal(UBits(1, 1)), {i});
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Function * body,
+      body_builder.BuildWithReturnValue(body_builder.Tuple({values, flags})));
+
+  // f(v) = loop(...).values[3] + loop(...).flags[kTripCount]
+  FunctionBuilder fb("f", &package);
+  BValue param_v = fb.Param("v", u64);
+  BValue init = fb.Literal(ZeroOfType(state_type));
+  BValue loop = fb.CountedFor(init, kTripCount, /*stride=*/1, body, {param_v});
+  BValue value_3 =
+      fb.ArrayIndex(fb.TupleIndex(loop, 0), {fb.Literal(UBits(3, 32))});
+  BValue flag_past_end = fb.ArrayIndex(fb.TupleIndex(loop, 1),
+                                       {fb.Literal(UBits(kTripCount, 32))});
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Function * function,
+      fb.BuildWithReturnValue(fb.Tuple({value_3, flag_past_end})));
+
+  AggregateLoadObserver observer;
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<FunctionJit> jit,
+      FunctionJit::Create(function, EvaluatorOptions(),
+                          JitEvaluatorOptions().set_jit_observer(&observer)));
+  // Nothing as large as one of the state arrays may be loaded as a value.
+  EXPECT_LT(observer.max_aggregate_load_bytes(), kSize);
+
+  EXPECT_THAT(
+      RunJitNoEvents(jit.get(), {Value(UBits(100, 64))}),
+      IsOkAndHolds(Value::Tuple({Value(UBits(103, 64)), Value(UBits(0, 1))})));
+}
 
 }  // namespace
 }  // namespace xls
