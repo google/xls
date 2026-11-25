@@ -272,6 +272,8 @@ def _optimize_ir(ctx, src, original_input_files, extra_flags = [], extra_outs = 
         my_opt_ir_args = dict(opt_ir_args)
     if "delay_model" not in my_opt_ir_args:
         my_opt_ir_args["delay_model"] = DEFAULT_BENCHMARK_SYNTH_DELAY_MODEL
+
+    # Keep in sync with opt_flags.cc and pass_pipeline_flags.cc in tools/.
     IR_OPT_FLAGS = (
         "ir_dump_path",
         "passes",

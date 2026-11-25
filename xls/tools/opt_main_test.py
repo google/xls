@@ -405,6 +405,63 @@ class OptMainTest(parameterized.TestCase):
     ]).decode('utf-8')
     self.assertIn('my_custom_list_pass', output)
 
+  def test_pipeline_proto_and_textproto_conflict(self):
+    ir_file = self.create_tempfile(content=ADD_ZERO_IR)
+    comp = subprocess.run(
+        [
+            OPT_MAIN_PATH,
+            '--pipeline_proto=a.binarypb',
+            '--pipeline_textproto=b.txtpb',
+            ir_file.full_path,
+        ],
+        stderr=subprocess.PIPE,
+        text=True,
+        check=False,
+    )
+    self.assertNotEqual(comp.returncode, 0)
+    self.assertIn('--pipeline_proto and --pipeline_textproto', comp.stderr)
+
+  def test_ram_rewrites_conflicts_with_opt_options_proto(self):
+    ir_file = self.create_tempfile(content=ADD_ZERO_IR)
+    empty_proto = self.create_tempfile(content='')
+    comp = subprocess.run(
+        [
+            OPT_MAIN_PATH,
+            f'--ram_rewrites_pb={empty_proto.full_path}',
+            f'--opt_options_proto={empty_proto.full_path}',
+            ir_file.full_path,
+        ],
+        stderr=subprocess.PIPE,
+        text=True,
+        check=False,
+    )
+    self.assertNotEqual(comp.returncode, 0)
+    self.assertIn("Cannot combine 'opt_options_proto'", comp.stderr)
+
+  def test_passes_conflicts_with_opt_options_proto(self):
+    ir_file = self.create_tempfile(content=ADD_ZERO_IR)
+    empty_proto = self.create_tempfile(content='')
+    comp = subprocess.run(
+        [
+            OPT_MAIN_PATH,
+            '--passes=dce',
+            f'--opt_options_proto={empty_proto.full_path}',
+            ir_file.full_path,
+        ],
+        stderr=subprocess.PIPE,
+        text=True,
+        check=False,
+    )
+    self.assertNotEqual(comp.returncode, 0)
+    self.assertIn("Cannot combine 'opt_options_proto'", comp.stderr)
+
+  def test_empty_passes_is_noop(self):
+    ir_file = self.create_tempfile(content=ADD_ZERO_IR)
+    optimized_ir = subprocess.check_output(
+        [OPT_MAIN_PATH, '--passes=', ir_file.full_path]
+    ).decode('utf-8')
+    self.assertIn('bits[32] = add', optimized_ir)
+
   def test_passes_bisect_limit_is_error(self):
     ir_file = self.create_tempfile(content=ADD_ZERO_IR)
     comp = subprocess.run(

@@ -15,38 +15,27 @@
 #include "xls/tools/opt_flags.h"
 
 #include <cstdint>
-#include <initializer_list>
-#include <memory>
 #include <optional>
 #include <string>
 #include <string_view>
 #include <utility>
-#include <vector>
 
-#include "absl/algorithm/container.h"
 #include "absl/flags/flag.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "xls/common/file/filesystem.h"
-#include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/passes/optimization_pass.h"
-#include "xls/passes/optimization_pass_pipeline.h"
-#include "xls/passes/optimization_pass_registry.h"
-#include "xls/passes/pass_pipeline.pb.h"
-#include "xls/passes/query_engine_checker.h"
-#include "xls/passes/verifier_checker.h"
 #include "xls/tools/opt_flags.pb.h"
 #include "xls/tools/opt_flags_handler_registry.h"
+#include "xls/tools/pass_pipeline_config.h"
+#include "xls/tools/pass_pipeline_flags.h"
 
 // LINT.IfChange
 ABSL_FLAG(std::string, top, "", "Top entity to optimize.");
 ABSL_FLAG(std::string, ir_dump_path, "",
           "Dump all intermediate IR files to the given directory");
-ABSL_FLAG(std::vector<std::string>, skip_passes, {},
-          "If specified, passes in this comma-separated list of (short) "
-          "pass names are skipped.");
 ABSL_FLAG(std::optional<int64_t>, convert_array_index_to_select, std::nullopt,
           "If specified, convert array indexes with fewer than or "
           "equal to the given number of possible indices (by range analysis) "
@@ -95,46 +84,8 @@ ABSL_FLAG(
     std::string, delay_model, "asap7",
     "Delay model to use for optimizations benefiting from timing information.");
 ABSL_FLAG(
-    std::optional<std::string>, passes, std::nullopt,
-    "Explicit list of passes to run in a specific order. Passes are named "
-    "by 'short_name' and if they have non-opt-level arguments these are "
-    "placed in (). Fixed point sets of passes can be put within []. Pass "
-    "names are separated based on spaces. For example a simple pipeline "
-    "might be \"dfe dce [ ident_remove const_fold dce canon dce arith dce "
-    "comparison_simp ] loop_unroll map_inline\". This should not be used "
-    "with --skip_passes. If this is given the standard optimization "
-    "pipeline is ignored entirely, care should be taken to ensure the "
-    "given pipeline will run in reasonable amount of time. See the map in "
-    "passes/optimization_pass_pipeline.cc for pass mappings. Available "
-    "passes shown by running with --list_passes");
-// TODO(allight): Remove this flag, and the old passes proto.
-ABSL_FLAG(std::optional<std::string>, passes_proto, std::nullopt,
-          "A file containing binary PipelinePassList proto defining a pipeline "
-          "of passes to run. The pipeline_proto should be preferred instead.");
-// TODO(allight): Remove this flag, and the old passes proto.
-ABSL_FLAG(std::optional<std::string>, passes_textproto, std::nullopt,
-          "A file containing textproto PipelinePassList proto defining a "
-          "pipeline of passes to run. The pipeline_textproto should be "
-          "preferred instead.");
-ABSL_FLAG(std::optional<std::string>, pipeline_proto, std::nullopt,
-          "A file containing binary OptimizationPipelineProto proto defining a "
-          "pipeline of passes to run");
-ABSL_FLAG(
-    std::optional<std::string>, pipeline_textproto, std::nullopt,
-    "A file containing textproto OptimizationPipelineProto proto defining a "
-    "pipeline of passes to run");
-ABSL_FLAG(std::optional<int64_t>, passes_bisect_limit, std::nullopt,
-          "Number of passes to allow to execute. This can be used as compiler "
-          "fuel to ensure the compiler finishes at a particular point.");
-ABSL_FLAG(bool, passes_bisect_limit_is_error, false,
-          "If set then reaching passes bisect limit is considered an error.");
-ABSL_FLAG(
     std::optional<std::string>, pass_metrics_path, std::nullopt,
     "Output path for the pass pipeline metrics as a PassPipelineMetricsProto.");
-ABSL_FLAG(bool, debug_optimizations, false,
-          "If passed, run additional strict correctness-checking passes; this "
-          "slows down the optimization significantly, and is mostly intended "
-          "for internal XLS debugging.");
 
 ABSL_FLAG(std::string, opt_options_proto, "",
           "Path to a protobuf containing all opt args.");
@@ -147,35 +98,26 @@ ABSL_FLAG(std::optional<std::string>, opt_options_used_textproto_file,
 namespace xls {
 namespace {
 
-absl::Status PopulatePassPipelineProtoFromPassList(std::string_view list,
-                                                   OptFlagsProto& proto) {
-  XLS_RET_CHECK_EQ(proto.skip_passes_size(), 0)
-      << "Skipping/restricting passes while running a custom "
-         "pipeline is probably not something you want to do.";
-
-  std::optional<OptimizationPassRegistry> registry;
-  if (proto.has_custom_registry()) {
-    registry.emplace(GetOptimizationRegistry().OverridableClone());
-    XLS_RETURN_IF_ERROR(registry->RegisterPipelineProto(proto.custom_registry(),
-                                                        "custom-registry"));
+void PopulateOptFlagsProtoFromPipelineConfig(OptimizationPipelineConfig config,
+                                             OptFlagsProto& proto) {
+  proto.mutable_skip_passes()->Clear();
+  proto.mutable_skip_passes()->Add(config.skip_passes.begin(),
+                                   config.skip_passes.end());
+  if (config.custom_registry.has_value()) {
+    *proto.mutable_custom_registry() = std::move(*config.custom_registry);
   }
-  const OptimizationPassRegistry& chosen_registry =
-      registry.value_or(GetOptimizationRegistry());
-
-  XLS_ASSIGN_OR_RETURN(
-      std::unique_ptr<OptimizationCompoundPass> res,
-      GetOptimizationPipelineGenerator(chosen_registry).GeneratePipeline(list));
-  if (proto.debug_optimizations()) {
-    res->AddInvariantChecker<VerifierChecker>();
-    res->AddInvariantChecker<QueryEngineChecker>();
-  } else {
-    res->AddWeakInvariantChecker<VerifierChecker>();
+  if (config.pipeline.has_value()) {
+    *proto.mutable_pipeline() = std::move(*config.pipeline);
   }
-  PassPipelineProto::Element pipeline_proto;
-
-  XLS_ASSIGN_OR_RETURN(pipeline_proto, res->ToProto());
-  *proto.mutable_pipeline()->mutable_top() = std::move(pipeline_proto);
-  return absl::OkStatus();
+  if (config.passes_bisect_limit.has_value()) {
+    proto.set_passes_bisect_limit(*config.passes_bisect_limit);
+  }
+  if (config.passes_bisect_limit_is_error) {
+    proto.set_passes_bisect_limit_is_error(true);
+  }
+  if (config.debug_optimizations) {
+    proto.set_debug_optimizations(true);
+  }
 }
 
 absl::StatusOr<bool> SetOptionsFromFlags(OptFlagsProto& proto) {
@@ -203,21 +145,14 @@ absl::StatusOr<bool> SetOptionsFromFlags(OptFlagsProto& proto) {
   POPULATE_FLAG(opt_level)
   POPULATE_FLAG(top)
   POPULATE_FLAG(ir_dump_path)
-  // skip_passes is a repeated flag.
-  {
-    any_flags_set |= FLAGS_skip_passes.IsSpecifiedOnCommandLine();
-    proto.mutable_skip_passes()->Clear();
-    auto repeated_flag = absl::GetFlag(FLAGS_skip_passes);
-    proto.mutable_skip_passes()->Add(repeated_flag.begin(),
-                                     repeated_flag.end());
-  }
   POPULATE_OPTIONAL_FLAG(convert_array_index_to_select)
   if (FLAGS_split_next_value_selects.IsSpecifiedOnCommandLine()) {
-    any_flags_set |= true;
+    any_flags_set = true;
     proto.set_split_next_value_selects(
         absl::GetFlag(FLAGS_split_next_value_selects).value_or(0));
   }
   if (FLAGS_ram_rewrites_pb.IsSpecifiedOnCommandLine()) {
+    any_flags_set = true;
     XLS_RETURN_IF_ERROR(ParseTextProtoFile(absl::GetFlag(FLAGS_ram_rewrites_pb),
                                            proto.mutable_ram_rewrites()));
   }
@@ -228,64 +163,19 @@ absl::StatusOr<bool> SetOptionsFromFlags(OptFlagsProto& proto) {
   POPULATE_FLAG(force_resource_sharing)
   POPULATE_FLAG(area_model)
   POPULATE_FLAG(delay_model)
-  // pipeline proto flags
-  {
-    std::optional<std::string> protobin_path =
-        absl::GetFlag(FLAGS_pipeline_proto);
-    std::optional<std::string> textproto_path =
-        absl::GetFlag(FLAGS_pipeline_textproto);
-    if (protobin_path.has_value() && textproto_path.has_value()) {
-      return absl::InvalidArgumentError(
-          "At most one of --pipeline_proto and "
-          "--pipeline__textproto is allowed.");
-    }
-    if (protobin_path.has_value()) {
-      any_flags_set |= true;
-      XLS_RETURN_IF_ERROR(
-          ParseProtobinFile(*protobin_path, proto.mutable_custom_registry()));
-    }
-    if (textproto_path.has_value()) {
-      any_flags_set |= true;
-      XLS_RETURN_IF_ERROR(
-          ParseTextProtoFile(*textproto_path, proto.mutable_custom_registry()));
-    }
-  }
-  POPULATE_OPTIONAL_FLAG(passes_bisect_limit)
-  POPULATE_FLAG(passes_bisect_limit_is_error)
   POPULATE_OPTIONAL_FLAG(pass_metrics_path)
-  POPULATE_FLAG(debug_optimizations)
-  std::optional<std::string> passes_binproto =
-      absl::GetFlag(FLAGS_passes_proto);
-  std::optional<std::string> passes_textproto =
-      absl::GetFlag(FLAGS_passes_textproto);
-  std::optional<std::string> passes = absl::GetFlag(FLAGS_passes);
-  if (absl::c_count_if<std::initializer_list<std::optional<std::string>>>(
-          {passes_binproto, passes_textproto, passes},
-          [](const auto& v) -> bool { return v.has_value(); }) > 1) {
-    return absl::InvalidArgumentError(
-        "At most one of --passes_proto, --passes_textproto, or --passes is "
-        "allowed.");
-  }
-  if (passes_binproto.has_value()) {
-    any_flags_set |= true;
-    XLS_RETURN_IF_ERROR(
-        ParseProtobinFile(*passes_binproto, proto.mutable_pipeline()));
-  }
-  if (passes_textproto.has_value()) {
-    any_flags_set |= true;
-    XLS_RETURN_IF_ERROR(
-        ParseTextProtoFile(*passes_textproto, proto.mutable_pipeline()));
-  }
-  if (passes.has_value()) {
-    any_flags_set |= true;
-    XLS_RETURN_IF_ERROR(PopulatePassPipelineProtoFromPassList(*passes, proto));
-  }
+
+  XLS_ASSIGN_OR_RETURN(PassPipelineFlagsResult pipeline_flags,
+                       GetPassPipelineFlags());
+  any_flags_set |= pipeline_flags.any_flags_set;
+  PopulateOptFlagsProtoFromPipelineConfig(std::move(pipeline_flags.config),
+                                          proto);
 
 #undef POPULATE_FLAG
 #undef POPULATE_OPTIONAL_FLAG
 
   return any_flags_set;
-}  // namespace
+}
 
 }  // namespace
 

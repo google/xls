@@ -425,6 +425,45 @@ cc_test(
 )
 
 cc_library(
+    name = "pass_pipeline_flags",
+    srcs = ["pass_pipeline_flags.cc"],
+    hdrs = ["pass_pipeline_flags.h"],
+    visibility = ["//xls:xls_users"],
+    deps = [
+        ":pass_pipeline_config",
+        "//xls/common/file:filesystem",
+        "//xls/common/status:status_macros",
+        "//xls/passes:optimization_pass_pipeline_cc_proto",
+        "//xls/passes:optimization_pass_registry",
+        "//xls/passes:pass_pipeline_cc_proto",
+        "@abseil-cpp//absl/flags:flag",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+    ],
+)
+
+cc_test(
+    name = "pass_pipeline_flags_test",
+    srcs = ["pass_pipeline_flags_test.cc"],
+    deps = [
+        ":pass_pipeline_config",
+        ":pass_pipeline_flags",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/file:filesystem",
+        "//xls/common/file:temp_directory",
+        "//xls/common/status:matchers",
+        "//xls/passes",
+        "//xls/passes:optimization_pass_pipeline_cc_proto",
+        "//xls/passes:pass_pipeline_cc_proto",
+        "@abseil-cpp//absl/flags:flag",
+        "@abseil-cpp//absl/flags:reflection",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:status_matchers",
+        "@googletest//:gtest",
+    ],
+)
+
+cc_library(
     name = "opt",
     srcs = ["opt.cc"],
     hdrs = ["opt.h"],
@@ -466,16 +505,11 @@ cc_library(
     deps = [
         ":opt_flags_cc_proto",
         ":opt_flags_handler_registry",
+        ":pass_pipeline_config",
+        ":pass_pipeline_flags",
         "//xls/common/file:filesystem",
-        "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "//xls/passes:optimization_pass",
-        "//xls/passes:optimization_pass_pipeline",
-        "//xls/passes:optimization_pass_registry",
-        "//xls/passes:pass_pipeline_cc_proto",
-        "//xls/passes:query_engine_checker",
-        "//xls/passes:verifier_checker",
-        "@abseil-cpp//absl/algorithm:container",
         "@abseil-cpp//absl/flags:flag",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:statusor",
