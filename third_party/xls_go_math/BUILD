@@ -94,6 +94,129 @@ cc_test(
 )
 
 xls_dslx_library(
+    name = "fp_atan_32_dslx",
+    srcs = ["fp_atan_32.x"],
+    deps = [
+        "//third_party/xls_berkeley_softfloat:fpdiv_2x32_dslx",
+    ],
+)
+
+xls_dslx_opt_ir(
+    name = "fp_atan_32",
+    dslx_top = "fp_atan_32",
+    ir_file = "fp_atan_32.ir",
+    library = ":fp_atan_32_dslx",
+    opt_ir_file = "fp_atan_32.opt.ir",
+)
+
+xls_dslx_test(
+    name = "fp_atan_32_dslx_test",
+    dslx_test_args = {"compare": "jit"},
+    library = ":fp_atan_32_dslx",
+)
+
+xls_eval_ir_test(
+    name = "fp_atan_32_eval_ir_test",
+    src = ":fp_atan_32.ir",
+)
+
+xls_benchmark_ir(
+    name = "fp_atan_32_benchmark_ir",
+    src = ":fp_atan_32.ir",
+    # Synthesis is disabled, as for fpexp_32, which also uses fpdiv_2x32.
+    synthesize = False,
+)
+
+cc_xls_ir_wrapper(
+    name = "fp_atan_32_jit_wrapper",
+    src = ":fp_atan_32.opt.ir",
+    jit_wrapper_args = {
+        "class_name": "FpAtan32",
+        "namespace": "xls::fp",
+    },
+)
+
+cc_test(
+    name = "fp_atan_32_test",
+    srcs = ["fp_atan_32_test.cc"],
+    tags = ["optonly"],
+    deps = [
+        ":fp_atan_32_jit_wrapper",
+        "//xls/common:init_xls",
+        "//xls/common:math_util",
+        "//xls/tests:testbench_builder",
+        "@abseil-cpp//absl/base",
+        "@abseil-cpp//absl/flags:flag",
+        "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/random",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/strings:str_format",
+    ],
+)
+
+xls_dslx_library(
+    name = "fp_atan2_32_dslx",
+    srcs = ["fp_atan2_32.x"],
+    deps = [
+        ":fp_atan_32_dslx",
+        "//third_party/xls_berkeley_softfloat:fpdiv_2x32_dslx",
+    ],
+)
+
+xls_dslx_opt_ir(
+    name = "fp_atan2_32",
+    dslx_top = "fp_atan2_32",
+    ir_file = "fp_atan2_32.ir",
+    library = ":fp_atan2_32_dslx",
+    opt_ir_file = "fp_atan2_32.opt.ir",
+)
+
+xls_dslx_test(
+    name = "fp_atan2_32_dslx_test",
+    dslx_test_args = {"compare": "jit"},
+    library = ":fp_atan2_32_dslx",
+)
+
+xls_eval_ir_test(
+    name = "fp_atan2_32_eval_ir_test",
+    src = ":fp_atan2_32.ir",
+)
+
+xls_benchmark_ir(
+    name = "fp_atan2_32_benchmark_ir",
+    src = ":fp_atan2_32.ir",
+    # Synthesis is disabled, as for fpexp_32, which also uses fpdiv_2x32.
+    synthesize = False,
+)
+
+cc_xls_ir_wrapper(
+    name = "fp_atan2_32_jit_wrapper",
+    src = ":fp_atan2_32.opt.ir",
+    jit_wrapper_args = {
+        "class_name": "FpAtan2F32",
+        "namespace": "xls::fp",
+    },
+)
+
+cc_test(
+    name = "fp_atan2_32_test",
+    srcs = ["fp_atan2_32_test.cc"],
+    tags = ["optonly"],
+    deps = [
+        ":fp_atan2_32_jit_wrapper",
+        "//xls/common:init_xls",
+        "//xls/common:math_util",
+        "//xls/tests:testbench_builder",
+        "@abseil-cpp//absl/base",
+        "@abseil-cpp//absl/flags:flag",
+        "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/random",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/strings:str_format",
+    ],
+)
+
+xls_dslx_library(
     name = "fp_trig_reduce_dslx",
     srcs = ["fp_trig_reduce.x"],
 )
