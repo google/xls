@@ -346,6 +346,10 @@ class Type {
     return std::nullopt;
   }
 
+  // Returns true if this type is a struct or transitively contains one through
+  // tuple members or array elements.
+  virtual bool HasStruct() const;
+
  protected:
   static std::vector<std::unique_ptr<Type>> CloneSpan(
       absl::Span<const std::unique_ptr<Type>> ts);
@@ -652,6 +656,8 @@ class TupleType : public Type {
   const Type& GetMemberType(int64_t i) const { return *members_.at(i); }
   const std::vector<std::unique_ptr<Type>>& members() const { return members_; }
 
+  bool HasStruct() const override;
+
  private:
   std::vector<std::unique_ptr<Type>> members_;
 };
@@ -710,6 +716,8 @@ class ArrayType : public Type {
   // within this ArrayType. This is in contrast to GetAllDims
   // which is for parametric dimensions, e.g., the N in uN[N]
   int ArrayDimensions() const;
+
+  bool HasStruct() const override;
 
  private:
   std::unique_ptr<Type> element_type_;

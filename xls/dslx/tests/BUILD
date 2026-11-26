@@ -896,6 +896,8 @@ dslx_lang_test(
     convert_to_ir = False,
 )
 
+dslx_lang_test(name = "derive_default")
+
 dslx_lang_test(
     name = "parametric_struct",
 )
