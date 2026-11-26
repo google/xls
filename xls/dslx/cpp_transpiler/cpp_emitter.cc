@@ -48,6 +48,7 @@
 #include "xls/dslx/frontend/ast_utils.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/interp_value.h"
+#include "xls/dslx/type_system/type.h"
 #include "xls/dslx/type_system/type_info.h"
 #include "xls/dslx/type_system_v2/import_utils.h"
 #include "xls/dslx/type_system_v2/type_annotation_utils.h"
@@ -975,6 +976,107 @@ std::string DslxModuleNameToCppNamespace(std::string_view dslx_module) {
 
   return absl::InvalidArgumentError(absl::StrCat(
       "Unsupported TypeAnnotation kind: ", type_annotation->ToString()));
+}
+
+namespace {
+
+// Helper: creates a CppEmitter from a resolved `Type` object (type-system
+// representation). This is the core of parametric type support: once parametric
+// bindings have been resolved to concrete values, the resulting `Type` tree
+// is entirely concrete and can be translated directly to C++ emitter objects.
+absl::StatusOr<std::unique_ptr<CppEmitter>> CreateEmitterFromResolvedType(
+    const Type& type, std::string_view dslx_type, TypeInfo* type_info,
+    ImportData* import_data, std::string_view parent_namespaces,
+    bool for_enum) {
+  // BitsType has no IsBits()/AsBits() on the base Type class; we detect it via
+  // the debug type name.
+  if (type.GetDebugTypeName() == "bits") {
+    const auto& bits = static_cast<const BitsType&>(type);
+    XLS_ASSIGN_OR_RETURN(int64_t bit_count, bits.size().GetAsInt64());
+    return BitVectorCppEmitter::Create(dslx_type, bit_count, bits.is_signed(),
+                                       for_enum);
+  }
+  XLS_RET_CHECK(!for_enum) << "Enums must be bits!";
+
+  if (type.IsArray()) {
+    const ArrayType& array = type.AsArray();
+    XLS_ASSIGN_OR_RETURN(int64_t array_size, array.size().GetAsInt64());
+    XLS_ASSIGN_OR_RETURN(
+        std::unique_ptr<CppEmitter> element_emitter,
+        CreateEmitterFromResolvedType(array.element_type(),
+                                       array.element_type().ToString(),
+                                       type_info, import_data,
+                                       parent_namespaces,
+                                       /*for_enum=*/false));
+    CppType cpp_type = {.name = absl::StrFormat(
+                            "std::array<%s, %d>",
+                            element_emitter->cpp_type().FullyQualifiedName(),
+                            array_size)};
+    return std::make_unique<ArrayCppEmitter>(cpp_type, array.ToString(),
+                                              array_size,
+                                              std::move(element_emitter));
+  }
+
+  if (type.IsTuple()) {
+    const TupleType& tuple = type.AsTuple();
+    std::vector<std::unique_ptr<CppEmitter>> element_emitters;
+    std::vector<std::string> element_cpp_types;
+    for (int64_t i = 0; i < tuple.size(); ++i) {
+      const Type& member_type = tuple.GetMemberType(i);
+      XLS_ASSIGN_OR_RETURN(
+          std::unique_ptr<CppEmitter> element_emitter,
+          CreateEmitterFromResolvedType(member_type, member_type.ToString(),
+                                         type_info, import_data,
+                                         parent_namespaces,
+                                         /*for_enum=*/false));
+      element_cpp_types.push_back(
+          element_emitter->cpp_type().FullyQualifiedName());
+      element_emitters.push_back(std::move(element_emitter));
+    }
+    CppType cpp_type = {
+        .name = absl::StrFormat("std::tuple<%s>",
+                                absl::StrJoin(element_cpp_types, ", "))};
+    return std::make_unique<TupleCppEmitter>(cpp_type, tuple.ToString(),
+                                              std::move(element_emitters));
+  }
+
+  // For struct and enum types referenced by name, we emit a type-ref
+  // emitter that delegates to the generated C++ type.
+  if (type.IsStruct()) {
+    const StructType& struct_type = type.AsStruct();
+    const StructDefBase& def_base = struct_type.struct_def_base();
+    CppType cpp_type = {.name = DslxTypeNameToCpp(def_base.identifier())};
+    return std::make_unique<TypeRefCppEmitter>(
+        /*type_annotation=*/nullptr,
+        /*type_has_methods=*/true, cpp_type, def_base.identifier(),
+        /*dslx_bit_count=*/std::nullopt);
+  }
+
+  if (type.IsEnum()) {
+    const EnumType& enum_type = type.AsEnum();
+    const EnumDef& def = enum_type.nominal_type();
+    CppType cpp_type = {.name = DslxTypeNameToCpp(def.identifier())};
+    return std::make_unique<TypeRefCppEmitter>(
+        /*type_annotation=*/nullptr,
+        /*type_has_methods=*/true, cpp_type, def.identifier(),
+        /*dslx_bit_count=*/std::nullopt);
+  }
+
+  // Fallback: unsupported type.
+  return absl::InvalidArgumentError(absl::StrCat(
+      "CreateFromType does not support this resolved type: ", type.ToString()));
+}
+
+}  // namespace
+
+/* static */ absl::StatusOr<std::unique_ptr<CppEmitter>>
+CppEmitter::CreateFromType(const Type& type, std::string_view dslx_type,
+                           TypeInfo* type_info, ImportData* import_data,
+                           std::string_view parent_namespaces,
+                           bool for_enum) {
+  return CreateEmitterFromResolvedType(type, dslx_type, type_info,
+                                        import_data, parent_namespaces,
+                                        for_enum);
 }
 
 std::string UniqueVarName(absl::Span<const std::string> user_names,
