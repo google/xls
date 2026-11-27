@@ -29,6 +29,7 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "xls/common/status/matchers.h"
+#include "xls/data_structures/leaf_type_tree.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/bits_ops.h"
 #include "xls/ir/function.h"
@@ -36,6 +37,8 @@
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/lsb_or_msb.h"
 #include "xls/ir/package.h"
+#include "xls/ir/ternary.h"
+#include "xls/ir/type.h"
 #include "xls/ir/value.h"
 #include "xls/solvers/prover_matchers.h"
 #include "xls/solvers/solver.h"
@@ -836,6 +839,341 @@ TEST_F(BitwuzlaIrTranslatorTest, HandlesOneHotSelNestedArrayMultiHot) {
                 IsOkAndHolds(IsProvenTrue()))
         << "element " << k;
   }
+}
+
+TEST_F(BitwuzlaIrTranslatorTest, ZeroBitParamSDivAndUDiv) {
+  auto package = CreatePackage();
+  FunctionBuilder fb("f", package.get());
+  BValue x0 = fb.Param("x0", package->GetBitsType(0));
+  BValue zero0 = fb.Literal(UBits(0, 0));
+  BValue sdiv0 = fb.SDiv(x0, zero0);
+  BValue udiv0 = fb.UDiv(x0, zero0);
+  BValue x_param = fb.Param("xp0", package->GetBitsType(0));
+  BValue sdiv_p = fb.SDiv(x_param, zero0);
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Function * f, fb.BuildWithReturnValue(fb.Tuple({sdiv0, udiv0, sdiv_p})));
+  EXPECT_THAT(solver_->TryProve(f, sdiv0.node(), Predicate::EqualToZero(),
+                                SolverLimit()),
+              IsOkAndHolds(IsProvenTrue()));
+  EXPECT_THAT(solver_->TryProve(f, udiv0.node(), Predicate::EqualToZero(),
+                                SolverLimit()),
+              IsOkAndHolds(IsProvenTrue()));
+  EXPECT_THAT(solver_->TryProve(f, sdiv_p.node(), Predicate::EqualToZero(),
+                                SolverLimit()),
+              IsOkAndHolds(IsProvenTrue()));
+  EXPECT_THAT(solver_->TryProve(f, x_param.node(), Predicate::EqualToZero(),
+                                SolverLimit()),
+              IsOkAndHolds(IsProvenTrue()));
+}
+
+TEST_F(BitwuzlaIrTranslatorTest, NonPow2ArrayEqualityAndMultidimUpdate) {
+  auto package = CreatePackage();
+  FunctionBuilder fb("f", package.get());
+  Type* u8 = package->GetBitsType(8);
+  Type* arr3_t = package->GetArrayType(3, u8);
+  BValue a = fb.Param("a", arr3_t);
+  BValue rebuilt_a = fb.Array({fb.ArrayIndex(a, {fb.Literal(UBits(0, 2))}),
+                               fb.ArrayIndex(a, {fb.Literal(UBits(1, 2))}),
+                               fb.ArrayIndex(a, {fb.Literal(UBits(2, 2))})},
+                              u8);
+
+  Type* u32 = package->GetBitsType(32);
+  Type* unit_arr_t = package->GetArrayType(
+      1, package->GetArrayType(2, package->GetArrayType(1, u32)));
+  BValue unit_arr = fb.Param("unit_arr", unit_arr_t);
+  BValue idx = fb.Param("idx", u32);
+  BValue val = fb.Param("val", u32);
+  BValue updated = fb.ArrayUpdate(unit_arr, val, {idx, idx, idx});
+  BValue direct = fb.PrioritySelect(
+      fb.Eq(idx, fb.Literal(UBits(0, 32))),
+      {fb.Array(
+          {fb.ArrayUpdate(fb.ArrayIndex(unit_arr, {fb.Literal(UBits(0, 1))}),
+                          val, {idx, idx})},
+          unit_arr_t->AsArrayOrDie()->element_type())},
+      unit_arr);
+
+  BValue prop = fb.And({fb.Eq(a, rebuilt_a), fb.Eq(updated, direct)});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(prop));
+  EXPECT_THAT(solver_->TryProve(f, prop.node(), Predicate::NotEqualToZero(),
+                                SolverLimit()),
+              IsOkAndHolds(IsProvenTrue()));
+}
+
+TEST_F(BitwuzlaIrTranslatorTest, ArraySliceOobAndPrioritySelectWithArrayNode) {
+  auto package = CreatePackage();
+  FunctionBuilder fb("f", package.get());
+  Type* u4 = package->GetBitsType(4);
+  BValue e0 = fb.Param("e0", u4);
+  BValue e1 = fb.Param("e1", u4);
+  BValue arr2 = fb.Array({e0, e1}, u4);
+  // Start=14 >= arr2.size()=2 -> every element in slice must clamp to e1.
+  BValue oob_slice = fb.ArraySlice(arr2, fb.Literal(UBits(14, 4)), 2);
+
+  BValue outer = fb.Param("outer", package->GetArrayType(1, arr2.GetType()));
+  BValue cond = fb.Param("cond", package->GetBitsType(1));
+  BValue psel =
+      fb.PrioritySelect(cond, {fb.Array({arr2}, arr2.GetType())}, outer);
+  BValue psel_idx =
+      fb.ArrayIndex(psel, {fb.Literal(UBits(0, 1)), fb.Literal(UBits(1, 2))});
+
+  BValue check_slice = fb.Eq(oob_slice, fb.Array({e1, e1}, u4));
+  BValue check_psel =
+      fb.Eq(psel_idx,
+            fb.Select(cond, {fb.ArrayIndex(outer, {fb.Literal(UBits(0, 1)),
+                                                   fb.Literal(UBits(1, 2))}),
+                             e1}));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(check_slice));
+  EXPECT_THAT(solver_->TryProve(f, check_slice.node(),
+                                Predicate::NotEqualToZero(), SolverLimit()),
+              IsOkAndHolds(IsProvenTrue()));
+  EXPECT_THAT(solver_->TryProve(f, check_psel.node(),
+                                Predicate::NotEqualToZero(), SolverLimit()),
+              IsOkAndHolds(IsProvenTrue()));
+}
+
+TEST_F(BitwuzlaIrTranslatorTest, LargeSmtArrayOperations) {
+  auto package = CreatePackage();
+  FunctionBuilder fb("f", package.get());
+  Type* u4 = package->GetBitsType(4);
+  Type* arr_t = package->GetArrayType(65, u4);
+  BValue a = fb.Param("a", arr_t);
+  BValue b = fb.Param("b", arr_t);
+  BValue sel = fb.Param("sel", package->GetBitsType(2));
+  BValue idx = fb.Param("idx", package->GetBitsType(8));
+  BValue val = fb.Param("val", u4);
+
+  BValue ohs = fb.OneHotSelect(sel, {a, b});
+  BValue ohs_idx = fb.ArrayIndex(ohs, {idx});
+  BValue expected_idx =
+      fb.OneHotSelect(sel, {fb.ArrayIndex(a, {idx}), fb.ArrayIndex(b, {idx})});
+
+  BValue gated = fb.Gate(fb.Literal(UBits(0, 1)), a);
+  BValue gated_idx = fb.ArrayIndex(gated, {idx});
+
+  BValue oob_update = fb.ArrayUpdate(a, val, {fb.Literal(UBits(65, 8))});
+  BValue oob_idx = fb.ArrayIndex(oob_update, {fb.Literal(UBits(65, 8))});
+
+  BValue prop = fb.And({
+      fb.Eq(ohs_idx, expected_idx),
+      fb.Eq(gated_idx, fb.Literal(UBits(0, 4))),
+      fb.Eq(oob_idx, fb.ArrayIndex(a, {fb.Literal(UBits(64, 8))})),
+  });
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(prop));
+  EXPECT_THAT(solver_->TryProve(f, prop.node(), Predicate::NotEqualToZero(),
+                                SolverLimit()),
+              IsOkAndHolds(IsProvenTrue()));
+}
+
+TEST_F(BitwuzlaIrTranslatorTest, PredicateOnNestedArraySortNode) {
+  auto package = CreatePackage();
+  FunctionBuilder fb("f", package.get());
+  Type* u8 = package->GetBitsType(8);
+  Type* inner_t = package->GetArrayType(3, u8);
+  Type* nested_t = package->GetArrayType(2, inner_t);
+  BValue x = fb.Param("x", u8);
+  BValue y = fb.Param("y", u8);
+  BValue masked =
+      fb.Or(fb.And(x, fb.Literal(UBits(0x0F, 8))), fb.Literal(UBits(0xA0, 8)));
+  BValue row0 = fb.Array({masked, fb.Literal(UBits(0x55, 8)), y}, u8);
+  BValue row1 =
+      fb.Array({y, fb.Literal(UBits(0xFF, 8)), fb.Literal(UBits(0x01, 8))}, u8);
+  BValue arr = fb.Array({row0, row1}, inner_t);
+  BValue same_update =
+      fb.ArrayUpdate(arr, fb.Literal(UBits(0x55, 8)),
+                     {fb.Literal(UBits(0, 2)), fb.Literal(UBits(1, 2))});
+  BValue diff_update = fb.ArrayUpdate(
+      arr, fb.Not(y), {fb.Literal(UBits(1, 2)), fb.Literal(UBits(0, 2))});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(arr));
+
+  EXPECT_THAT(
+      solver_->TryProve(f, arr.node(), Predicate::IsEqualTo(same_update.node()),
+                        SolverLimit()),
+      IsOkAndHolds(IsProvenTrue()));
+  EXPECT_THAT(
+      solver_->TryProve(f, arr.node(), Predicate::IsEqualTo(diff_update.node()),
+                        SolverLimit()),
+      IsOkAndHolds(IsProvenFalse()));
+  EXPECT_THAT(
+      solver_->TryProve(f, arr.node(), Predicate::EqualToZero(), SolverLimit()),
+      StatusIs(absl::StatusCode::kInvalidArgument));
+
+  XLS_ASSERT_OK_AND_ASSIGN(TernaryVector prefix_a,
+                           StringToTernaryVector("0b1010_XXXX"));
+  XLS_ASSERT_OK_AND_ASSIGN(TernaryVector any_u8,
+                           StringToTernaryVector("0bXXXX_XXXX"));
+  XLS_ASSERT_OK_AND_ASSIGN(TernaryVector val_55,
+                           StringToTernaryVector("0b0101_0101"));
+  std::vector<TernaryVector> leaves = {prefix_a, val_55, any_u8,
+                                       any_u8,   any_u8, any_u8};
+  EXPECT_THAT(solver_->TryProve(
+                  f, arr.node(),
+                  Predicate::IsCompatibleWith(
+                      LeafTypeTree<TernaryVector>(nested_t, leaves).AsShared()),
+                  SolverLimit()),
+              IsOkAndHolds(IsProvenTrue()));
+  leaves[0] = val_55;
+  EXPECT_THAT(solver_->TryProve(
+                  f, arr.node(),
+                  Predicate::IsCompatibleWith(
+                      LeafTypeTree<TernaryVector>(nested_t, leaves).AsShared()),
+                  SolverLimit()),
+              IsOkAndHolds(IsProvenFalse()));
+}
+
+TEST_F(BitwuzlaIrTranslatorTest, SingletonOuterArrayUpdateSemantics) {
+  auto package = CreatePackage();
+  FunctionBuilder fb("f", package.get());
+  Type* u8 = package->GetBitsType(8);
+  Type* u2 = package->GetBitsType(2);
+  Type* inner_t = package->GetArrayType(2, u8);
+  Type* singleton_t = package->GetArrayType(1, inner_t);
+  BValue arr = fb.Param("arr", singleton_t);
+  BValue val = fb.Param("val", u8);
+  BValue idx = fb.Param("idx", u2);
+
+  BValue oob_upd = fb.ArrayUpdate(
+      arr, val, {fb.Literal(UBits(1, 2)), fb.Literal(UBits(0, 1))});
+  BValue ib_upd = fb.ArrayUpdate(
+      arr, val, {fb.Literal(UBits(0, 2)), fb.Literal(UBits(1, 1))});
+  BValue sym_upd = fb.ArrayUpdate(arr, val, {idx, fb.Literal(UBits(1, 1))});
+
+  BValue idx0 = fb.Literal(UBits(0, 1));
+  BValue idx1 = fb.Literal(UBits(1, 1));
+  BValue expected_elem1 = fb.Select(fb.Eq(idx, fb.Literal(UBits(0, 2))),
+                                    {fb.ArrayIndex(arr, {idx0, idx1}), val});
+  BValue prop = fb.And({
+      fb.Eq(fb.ArrayIndex(ib_upd, {idx0, idx1}), val),
+      fb.Eq(fb.ArrayIndex(ib_upd, {idx0, idx0}),
+            fb.ArrayIndex(arr, {idx0, idx0})),
+      fb.Eq(fb.ArrayIndex(sym_upd, {idx0, idx1}), expected_elem1),
+      fb.Eq(fb.ArrayIndex(sym_upd, {idx0, idx0}),
+            fb.ArrayIndex(arr, {idx0, idx0})),
+  });
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(prop));
+  EXPECT_THAT(
+      solver_->TryProve(f, oob_upd.node(), Predicate::IsEqualTo(arr.node()),
+                        SolverLimit()),
+      IsOkAndHolds(IsProvenTrue()));
+  EXPECT_THAT(solver_->TryProve(f, prop.node(), Predicate::NotEqualToZero(),
+                                SolverLimit()),
+              IsOkAndHolds(IsProvenTrue()));
+}
+
+TEST_F(BitwuzlaIrTranslatorTest, WideIndexAndSliceOob) {
+  auto package = CreatePackage();
+  FunctionBuilder fb("f", package.get());
+  Type* u8 = package->GetBitsType(8);
+  BValue a3 = fb.Param("a3", package->GetArrayType(3, u8));
+  BValue v = fb.Param("v", u8);
+  BValue idx65 = fb.Concat({fb.Literal(UBits(1, 1)), fb.Literal(UBits(0, 64))});
+  BValue upd65 = fb.ArrayUpdate(a3, v, {idx65});
+  BValue u8_1 = fb.Literal(UBits(1, 8));
+  BValue u8_2 = fb.Literal(UBits(2, 8));
+  BValue a3_1 = fb.ArrayIndex(a3, {u8_1});
+  BValue a3_2 = fb.ArrayIndex(a3, {u8_2});
+
+  BValue max_slice = fb.ArraySlice(a3, fb.Literal(Bits::AllOnes(64)), 2);
+  BValue max_exp = fb.Array({a3_2, a3_2}, u8);
+  BValue straddle = fb.ArraySlice(a3, u8_1, 3);
+  BValue straddle_exp = fb.Array({a3_1, a3_2, a3_2}, u8);
+  BValue prop = fb.Eq(fb.ArrayIndex(a3, {idx65}), a3_2);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(prop));
+  EXPECT_THAT(solver_->TryProve(f, prop.node(), Predicate::NotEqualToZero(),
+                                SolverLimit()),
+              IsOkAndHolds(IsProvenTrue()));
+  EXPECT_THAT(solver_->TryProve(f, upd65.node(),
+                                Predicate::IsEqualTo(a3.node()), SolverLimit()),
+              IsOkAndHolds(IsProvenTrue()));
+  EXPECT_THAT(
+      solver_->TryProve(f, max_slice.node(),
+                        Predicate::IsEqualTo(max_exp.node()), SolverLimit()),
+      IsOkAndHolds(IsProvenTrue()));
+  EXPECT_THAT(solver_->TryProve(f, straddle.node(),
+                                Predicate::IsEqualTo(straddle_exp.node()),
+                                SolverLimit()),
+              IsOkAndHolds(IsProvenTrue()));
+}
+
+TEST_F(BitwuzlaIrTranslatorTest, MultidimArrayOobAndZeroIndexUpdate) {
+  auto package = CreatePackage();
+  FunctionBuilder fb("f", package.get());
+  Type* u8 = package->GetBitsType(8);
+  Type* row_t = package->GetArrayType(3, u8);
+  Type* mat_t = package->GetArrayType(2, row_t);
+  BValue arr = fb.Param("arr", mat_t);
+  BValue other = fb.Param("other", mat_t);
+  BValue row = fb.Param("row", row_t);
+  BValue val = fb.Param("val", u8);
+
+  BValue i0 = fb.Literal(UBits(0, 2));
+  BValue i1 = fb.Literal(UBits(1, 2));
+  BValue i2 = fb.Literal(UBits(2, 2));
+  BValue oob = fb.Literal(UBits(3, 2));
+  BValue upd_inner_oob = fb.ArrayUpdate(arr, val, {i0, oob});
+  BValue upd_partial_oob = fb.ArrayUpdate(arr, row, {oob});
+  BValue upd_zero_idx = fb.ArrayUpdate(arr, other, {});
+  BValue prop = fb.And({
+      fb.Eq(fb.ArrayIndex(arr, {oob, i1}), fb.ArrayIndex(arr, {i1, i1})),
+      fb.Eq(fb.ArrayIndex(arr, {i0, oob}), fb.ArrayIndex(arr, {i0, i2})),
+      fb.Eq(fb.ArrayIndex(arr, {oob, oob}), fb.ArrayIndex(arr, {i1, i2})),
+  });
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(prop));
+  EXPECT_THAT(solver_->TryProve(f, prop.node(), Predicate::NotEqualToZero(),
+                                SolverLimit()),
+              IsOkAndHolds(IsProvenTrue()));
+  EXPECT_THAT(
+      solver_->TryProve(f, upd_inner_oob.node(),
+                        Predicate::IsEqualTo(arr.node()), SolverLimit()),
+      IsOkAndHolds(IsProvenTrue()));
+  EXPECT_THAT(
+      solver_->TryProve(f, upd_partial_oob.node(),
+                        Predicate::IsEqualTo(arr.node()), SolverLimit()),
+      IsOkAndHolds(IsProvenTrue()));
+  EXPECT_THAT(
+      solver_->TryProve(f, upd_zero_idx.node(),
+                        Predicate::IsEqualTo(other.node()), SolverLimit()),
+      IsOkAndHolds(IsProvenTrue()));
+}
+
+TEST_F(BitwuzlaIrTranslatorTest, ZeroBitComputedIndexAndOps) {
+  auto package = CreatePackage();
+  FunctionBuilder fb("f", package.get());
+  Type* u8 = package->GetBitsType(8);
+  BValue p0 = fb.Param("p0", package->GetBitsType(0));
+  BValue inv0 = fb.Not(p0);
+  BValue a2 = fb.Param("a2", package->GetArrayType(2, u8));
+  BValue a1 = fb.Param("a1", package->GetArrayType(1, u8));
+  BValue val = fb.Param("val", u8);
+
+  BValue idx0 = fb.Literal(UBits(0, 1));
+  BValue one1 = fb.Literal(UBits(1, 1));
+  BValue a2_0 = fb.ArrayIndex(a2, {idx0});
+  BValue upd_a1 = fb.ArrayUpdate(a1, val, {inv0});
+  BValue exp_a1 = fb.Array({val}, u8);
+  BValue slice_a2 = fb.ArraySlice(a2, inv0, 1);
+  BValue exp_slice = fb.Array({a2_0}, u8);
+  BValue prop = fb.And({
+      fb.Eq(fb.ArrayIndex(a2, {inv0}), a2_0),
+      fb.Eq(fb.AndReduce(inv0), one1),
+      fb.Eq(fb.OneHot(inv0, LsbOrMsb::kLsb), one1),
+      fb.Eq(fb.OneHot(inv0, LsbOrMsb::kMsb), one1),
+  });
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(prop));
+  EXPECT_THAT(solver_->TryProve(f, prop.node(), Predicate::NotEqualToZero(),
+                                SolverLimit()),
+              IsOkAndHolds(IsProvenTrue()));
+  EXPECT_THAT(
+      solver_->TryProve(f, upd_a1.node(), Predicate::IsEqualTo(exp_a1.node()),
+                        SolverLimit()),
+      IsOkAndHolds(IsProvenTrue()));
+  EXPECT_THAT(
+      solver_->TryProve(f, slice_a2.node(),
+                        Predicate::IsEqualTo(exp_slice.node()), SolverLimit()),
+      IsOkAndHolds(IsProvenTrue()));
 }
 
 // Microbenchmarks comparing Bitwuzla against Z3 on representative IR operations

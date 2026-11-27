@@ -173,6 +173,10 @@ class IrTranslator : public DfsVisitorWithDefault {
                                                          const Value& val);
 
   ::bitwuzla::Term ZeroOfSort(const ::bitwuzla::Sort& sort);
+  ::bitwuzla::Term MakeZeroTerm(const Type* type);
+  ::bitwuzla::Term BuildArrayFromElements(
+      const ArrayType* type, absl::Span<const ::bitwuzla::Term> elements,
+      std::string_view symbol_prefix);
   ::bitwuzla::Term OnesOfSort(const ::bitwuzla::Sort& sort);
   ::bitwuzla::Term MinSignedOfSort(const ::bitwuzla::Sort& sort);
   ::bitwuzla::Term MaxSignedOfSort(const ::bitwuzla::Sort& sort);
@@ -215,6 +219,14 @@ class IrTranslator : public DfsVisitorWithDefault {
   absl::StatusOr<Value> ExtractValue(::bitwuzla::Bitwuzla& bitwuzla,
                                      ::bitwuzla::Term term, const Type* type);
 
+  absl::StatusOr<::bitwuzla::Term> TernaryTreePredicateToAssertion(
+      LeafTypeTreeView<TernaryVector> ternaries,
+      LeafTypeTreeView<::bitwuzla::Term> leaves);
+  absl::StatusOr<::bitwuzla::Term> IntervalTreePredicateToAssertion(
+      LeafTypeTreeView<IntervalSet> intervals,
+      LeafTypeTreeView<::bitwuzla::Term> leaves);
+  absl::StatusOr<::bitwuzla::Term> LeafTreePredicateToAssertion(
+      const Predicate& p, Node* subject);
   absl::StatusOr<::bitwuzla::Term> PredicateToAssertion(const Predicate& p,
                                                         Node* subject,
                                                         ::bitwuzla::Term val);
