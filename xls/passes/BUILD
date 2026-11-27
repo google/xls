@@ -645,6 +645,7 @@ xls_pass(
         ":query_engine",
         ":stateless_query_engine",
         ":union_query_engine",
+        "//xls/common:matching_order",
         "//xls/common:math_util",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",

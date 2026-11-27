@@ -69,6 +69,22 @@ cc_test(
 )
 
 cc_library(
+    name = "matching_order",
+    hdrs = ["matching_order.h"],
+    deps = ["@abseil-cpp//absl/types:span"],
+)
+
+cc_test(
+    name = "matching_order_test",
+    srcs = ["matching_order_test.cc"],
+    deps = [
+        ":matching_order",
+        ":xls_gunit_main",
+        "@googletest//:gtest",
+    ],
+)
+
+cc_library(
     name = "sorted_vector",
     hdrs = ["sorted_vector.h"],
 )

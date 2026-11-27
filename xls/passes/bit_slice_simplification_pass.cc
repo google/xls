@@ -15,6 +15,7 @@
 #include "xls/passes/bit_slice_simplification_pass.h"
 
 #include <algorithm>
+#include <array>
 #include <cstdint>
 #include <deque>
 #include <functional>
@@ -30,6 +31,7 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
+#include "xls/common/matching_order.h"
 #include "xls/common/math_util.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
@@ -156,13 +158,104 @@ absl::StatusOr<std::optional<Node*>> GetUnscaledIndex(
   return unscaled_index;
 }
 
+// Simplifies a one-bit slice of add(zero_ext(v), K) at the original width of
+// `v`, where `K` is a literal. `query_engine` identifies equivalent extensions.
+static absl::StatusOr<bool> SimplifyCarryExtraction(
+    BitSlice* bit_slice, const QueryEngine& query_engine) {
+  const int64_t n_width = bit_slice->start();
+  if (bit_slice->width() != 1 || n_width == 0) {
+    return false;
+  }
+  Node* add = bit_slice->operand(0);
+  if (add->op() != Op::kAdd || bit_slice->IsDead()) {
+    return false;
+  }
+
+  std::optional<std::array<Node*, 2>> ordered_operands =
+      MatchingOrder(std::array{add->operand(0), add->operand(1)}, IsLiteral,
+                    [](Node* n) { return !IsLiteral(n); });
+  if (!ordered_operands.has_value()) {
+    return false;
+  }
+  Literal* literal = (*ordered_operands)[0]->As<Literal>();
+  Node* extended = (*ordered_operands)[1];
+  // Check the source width before querying a concat's prefix or a sign bit.
+  if ((extended->Is<Concat>() || extended->Is<ExtendOp>()) &&
+      extended->operands().back()->BitCountOrDie() != n_width) {
+    return false;
+  }
+  std::optional<ZeroExtLike> extension =
+      ZeroExtLike::Make(extended, query_engine);
+  if (!extension.has_value() ||
+      extension->to_extend()->BitCountOrDie() != n_width) {
+    return false;
+  }
+  Node* v = extension->to_extend();
+  const Bits& k = literal->value().bits();
+
+  // Let `A = zero_ext(v)` (so `A[N] = 0`) and `B = k` (so `B[N] = b_n`).
+  // Then `sum[N] = b_n XOR carry_in`, where `carry_in` is the carry-out from
+  // adding the low N bits: `v + k_low`.
+  const bool b_n = k.Get(n_width);
+  Bits k_low_wide = k.Slice(0, n_width);
+  if (k_low_wide.IsZero()) {
+    // No carry-in is possible; sum[N] == bN.
+    XLS_RETURN_IF_ERROR(
+        bit_slice->ReplaceUsesWithNew<Literal>(Value(UBits(b_n ? 1 : 0, 1)))
+            .status());
+    return true;
+  }
+
+  // If another user needs the sum, its carry bit is already available.
+  if (!HasSingleUse(add)) {
+    return false;
+  }
+
+  // `carry_in(v + k_low)` <=> `v >= 2^N - k_low`
+  Bits k_low_ext = bits_ops::ZeroExtend(k_low_wide, n_width + 1);
+  Bits two_pow_n = Bits::PowerOfTwo(n_width, /*bit_count=*/n_width + 1);
+  Bits threshold_ext = bits_ops::Sub(two_pow_n, k_low_ext);
+  Bits threshold = threshold_ext.Slice(0, n_width);
+  XLS_ASSIGN_OR_RETURN(Node * threshold_literal,
+                       bit_slice->function_base()->MakeNode<Literal>(
+                           bit_slice->loc(), Value(threshold)));
+
+  if (!b_n) {
+    XLS_ASSIGN_OR_RETURN(Node * cmp,
+                         bit_slice->function_base()->MakeNode<CompareOp>(
+                             bit_slice->loc(), v, threshold_literal, Op::kUGe));
+    VLOG(3) << absl::StreamFormat(
+        "Replacing bitslice(add(zext(x), k), start=N) => uge(x, T): %s",
+        bit_slice->GetName());
+    XLS_RETURN_IF_ERROR(bit_slice->ReplaceUsesWith(cmp));
+    return true;
+  }
+
+  // `bN==1`: `sum[N] == !carry_in == v < threshold`
+  XLS_ASSIGN_OR_RETURN(Node * cmp,
+                       bit_slice->function_base()->MakeNode<CompareOp>(
+                           bit_slice->loc(), v, threshold_literal, Op::kULt));
+  VLOG(3) << absl::StreamFormat(
+      "Replacing bitslice(add(zext(x), k), start=N) => ult(x, T): %s",
+      bit_slice->GetName());
+  XLS_RETURN_IF_ERROR(bit_slice->ReplaceUsesWith(cmp));
+  return true;
+}
+
 // Attempts to replace the given bit slice with a simpler or more canonical
 // form. Returns true if the bit slice was replaced. Any newly created
 // bit-slices are added to the worklist.
 absl::StatusOr<bool> SimplifyBitSlice(BitSlice* bit_slice, int64_t opt_level,
+                                      const QueryEngine& query_engine,
                                       std::deque<BitSlice*>* worklist) {
   Node* operand = bit_slice->operand(0);
   BitsType* operand_type = operand->GetType()->AsBitsOrDie();
+
+  XLS_ASSIGN_OR_RETURN(bool carry_rewritten,
+                       SimplifyCarryExtraction(bit_slice, query_engine));
+  if (carry_rewritten) {
+    return true;
+  }
 
   // Creates a new bit slice and adds it to the worklist.
   auto make_bit_slice = [&](const SourceInfo& loc, Node* operand, int64_t start,
@@ -1121,9 +1214,9 @@ absl::StatusOr<bool> BitSliceSimplificationPass::RunOnFunctionBaseInternal(
   while (!worklist.empty()) {
     BitSlice* bit_slice = worklist.front();
     worklist.pop_front();
-    XLS_ASSIGN_OR_RETURN(
-        bool node_changed,
-        SimplifyBitSlice(bit_slice, options.opt_level, &worklist));
+    XLS_ASSIGN_OR_RETURN(bool node_changed,
+                         SimplifyBitSlice(bit_slice, options.opt_level,
+                                          query_engine, &worklist));
     changed = changed || node_changed;
   }
 

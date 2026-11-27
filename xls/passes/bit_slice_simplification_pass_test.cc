@@ -218,6 +218,150 @@ TEST_F(BitSliceSimplificationPassTest,
   EXPECT_THAT(Run(f), IsOkAndHolds(false));
 }
 
+class CarryExtractionExtensionWidthTest
+    : public BitSliceSimplificationPassTest,
+      public ::testing::WithParamInterface<int64_t> {};
+
+TEST_P(CarryExtractionExtensionWidthTest, ZeroPrefixedConcatRewritesToUGe) {
+  auto p = CreatePackage();
+  FunctionBuilder fb("f", p.get());
+  BValue x = fb.Param("x", p->GetBitsType(8));
+  BValue extended = fb.Concat({fb.Literal(UBits(0, GetParam() - 8)), x});
+  BValue sum = fb.Add(extended, fb.Literal(UBits(127, GetParam())));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
+                           fb.BuildWithReturnValue(fb.BitSlice(sum, 8, 1)));
+
+  ScopedVerifyEquivalence eq(f, kProverTimeout);
+  ASSERT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(), m::UGe(m::Param("x"), m::Literal(129)));
+}
+
+INSTANTIATE_TEST_SUITE_P(VariousExtensionWidths,
+                         CarryExtractionExtensionWidthTest,
+                         ::testing::Values(9, 12, 16));
+
+TEST_F(BitSliceSimplificationPassTest,
+       CarryExtractionMatchesSwappedAddOperands) {
+  auto p = CreatePackage();
+  FunctionBuilder fb("f", p.get());
+  BValue x = fb.Param("x", p->GetBitsType(8));
+  BValue sum = fb.Add(fb.Literal(UBits(127, 12)), fb.ZeroExtend(x, 12));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
+                           fb.BuildWithReturnValue(fb.BitSlice(sum, 8, 1)));
+
+  ScopedVerifyEquivalence eq(f, kProverTimeout);
+  ASSERT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(), m::UGe(m::Param("x"), m::Literal(129)));
+}
+
+TEST_F(BitSliceSimplificationPassTest,
+       CarryExtractionReachesFixedPointWithoutDce) {
+  auto p = CreatePackage();
+  FunctionBuilder fb("f", p.get());
+  BValue x = fb.Param("x", p->GetBitsType(4));
+  BValue sum = fb.Add(fb.ZeroExtend(x, 5), fb.Literal(UBits(7, 5)));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
+                           fb.BuildWithReturnValue(fb.BitSlice(sum, 4, 1)));
+
+  ScopedVerifyEquivalence eq(f, kProverTimeout);
+  BitSliceSimplificationPass pass;
+  PassResults results;
+  OptimizationContext context;
+  ASSERT_THAT(
+      pass.RunOnFunctionBase(f, OptimizationPassOptions(), &results, context),
+      IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(), m::UGe(m::Param("x"), m::Literal(9)));
+  const int64_t node_count = f->node_count();
+  EXPECT_THAT(
+      pass.RunOnFunctionBase(f, OptimizationPassOptions(), &results, context),
+      IsOkAndHolds(false));
+  EXPECT_EQ(f->node_count(), node_count);
+}
+
+TEST_F(BitSliceSimplificationPassTest, CarryExtractionKeepsSliceOfSharedSum) {
+  auto p = CreatePackage();
+  FunctionBuilder fb("f", p.get());
+  BValue x = fb.Param("x", p->GetBitsType(4));
+  BValue sum = fb.Add(fb.ZeroExtend(x, 5), fb.Literal(UBits(7, 5)));
+  BValue carry = fb.BitSlice(sum, 4, 1);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
+                           fb.BuildWithReturnValue(fb.Tuple({sum, carry})));
+
+  ScopedVerifyEquivalence eq(f, kProverTimeout);
+  EXPECT_THAT(Run(f), IsOkAndHolds(false));
+  EXPECT_THAT(f->return_value(),
+              m::Tuple(m::Add(), m::BitSlice(m::Add(), 4, 1)));
+}
+
+TEST_F(BitSliceSimplificationPassTest,
+       CarryExtractionWithSetLiteralBitRewritesToULt) {
+  auto p = CreatePackage();
+  FunctionBuilder fb("f", p.get());
+  BValue x = fb.Param("x", p->GetBitsType(8));
+  BValue sum = fb.Add(fb.ZeroExtend(x, 9), fb.Literal(UBits(257, 9)));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
+                           fb.BuildWithReturnValue(fb.BitSlice(sum, 8, 1)));
+
+  ScopedVerifyEquivalence eq(f, kProverTimeout);
+  ASSERT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(), m::ULt(m::Param("x"), m::Literal(255)));
+}
+
+class CarryExtractionWithZeroLowBitsTest
+    : public BitSliceSimplificationPassTest,
+      public ::testing::WithParamInterface<bool> {};
+
+TEST_P(CarryExtractionWithZeroLowBitsTest, FoldsCarryBitEvenWhenSumIsShared) {
+  auto p = CreatePackage();
+  FunctionBuilder fb("f", p.get());
+  BValue x = fb.Param("x", p->GetBitsType(8));
+  BValue sum =
+      fb.Add(fb.ZeroExtend(x, 9), fb.Literal(UBits(GetParam() ? 256 : 0, 9)));
+  BValue carry = fb.BitSlice(sum, 8, 1);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
+                           fb.BuildWithReturnValue(fb.Tuple({sum, carry})));
+
+  ScopedVerifyEquivalence eq(f, kProverTimeout);
+  ASSERT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::Tuple(m::Add(), m::Literal(UBits(GetParam(), 1))));
+}
+
+INSTANTIATE_TEST_SUITE_P(BothLiteralBits, CarryExtractionWithZeroLowBitsTest,
+                         ::testing::Bool());
+
+TEST_F(BitSliceSimplificationPassTest,
+       CarryExtractionMatchesSignExtensionWithKnownZeroSign) {
+  auto p = CreatePackage();
+  FunctionBuilder fb("f", p.get());
+  BValue x = fb.Param("x", p->GetBitsType(3));
+  BValue nonnegative = fb.Concat({fb.Literal(UBits(0, 1)), x});
+  BValue sum = fb.Add(fb.SignExtend(nonnegative, 5), fb.Literal(UBits(9, 5)));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
+                           fb.BuildWithReturnValue(fb.BitSlice(sum, 4, 1)));
+
+  ScopedVerifyEquivalence eq(f, kProverTimeout);
+  ASSERT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::UGe(m::Concat(m::Literal(0), m::Param("x")), m::Literal(7)));
+}
+
+TEST_F(BitSliceSimplificationPassTest,
+       CarryExtractionPreservesSignExtensionWithUnknownSign) {
+  auto p = CreatePackage();
+  FunctionBuilder fb("f", p.get());
+  BValue x = fb.Param("x", p->GetBitsType(4));
+  BValue sum = fb.Add(fb.SignExtend(x, 5), fb.Literal(UBits(9, 5)));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
+                           fb.BuildWithReturnValue(fb.BitSlice(sum, 4, 1)));
+
+  ScopedVerifyEquivalence eq(f, kProverTimeout);
+  EXPECT_THAT(Run(f), IsOkAndHolds(false));
+  EXPECT_THAT(
+      f->return_value(),
+      m::BitSlice(m::Add(m::SignExt(m::Param("x")), m::Literal(9)), 4, 1));
+}
+
 TEST_F(BitSliceSimplificationPassTest, SliceOfSignExtCaseOne) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
