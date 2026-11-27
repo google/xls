@@ -297,7 +297,7 @@ TEST_P(TracingObserverTest, ScopedTracingObserverWritesFile) {
   {
     std::unique_ptr<riegeli::RecordWriterBase> writer =
         riegeli::Maker<riegeli::RecordWriter>(
-            riegeli::Maker<riegeli::FdWriter>(temp.path()));
+            riegeli::Maker<riegeli::FdWriter>(temp.path().string()));
     CHECK_OK(writer->status());
     ScopedTracingObserver observer(std::move(writer));
     if (GetParam()) {  // JIT
@@ -320,7 +320,8 @@ TEST_P(TracingObserverTest, ScopedTracingObserverWritesFile) {
     }
   }
 
-  riegeli::RecordReader reader(riegeli::Maker<riegeli::FdReader>(temp.path()));
+  riegeli::RecordReader reader(
+      riegeli::Maker<riegeli::FdReader>(temp.path().string()));
   std::vector<TracePacketProto> packets;
   TracePacketProto packet_reader;
   while (reader.ReadRecord(packet_reader)) {

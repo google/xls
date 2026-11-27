@@ -197,7 +197,7 @@ TEST(TraceToPerfettoTest, ConvertTraceFromFile) {
   XLS_ASSERT_OK_AND_ASSIGN(
       std::filesystem::path path,
       GetXlsRunfilePath("xls/tools/testdata/eval_proc_main_test.tr"));
-  riegeli::RecordReader reader{riegeli::FdReader(path)};
+  riegeli::RecordReader reader{riegeli::FdReader(path.string())};
   XLS_ASSERT_OK_AND_ASSIGN(perfetto::protos::Trace perfetto_trace,
                            TraceToPerfetto(reader));
   EXPECT_GT(perfetto_trace.packet_size(), 0);
