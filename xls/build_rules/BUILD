@@ -25,6 +25,11 @@ package(
     licenses = ["notice"],  # Apache 2.0
 )
 
+exports_files(
+    ["vvp_test_runner.sh"],
+    visibility = ["//xls:xls_internal"],
+)
+
 filegroup(
     name = "release_files",
     srcs = glob(["*.bzl"]) + [

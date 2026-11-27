@@ -1,0 +1,11 @@
+diff --git a/tgt-vhdl/stmt.cc b/tgt-vhdl/stmt.cc
+--- a/tgt-vhdl/stmt.cc
++++ b/tgt-vhdl/stmt.cc
+@@ -26,6 +26,7 @@
+ #include <cassert>
+ #include <sstream>
+ #include <typeinfo>
++#include <iterator>
+ #include <limits>
+ #include <set>
+ #include <algorithm>

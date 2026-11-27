@@ -28,8 +28,9 @@ cc_library(
     name = "iverilog_simulator",
     srcs = ["iverilog_simulator.cc"],
     data = [
-        "@com_icarus_iverilog//:iverilog",
-        "@com_icarus_iverilog//:vvp",
+        "@iverilog//:iverilog",
+        "@iverilog//:ivl_base",
+        "@iverilog//:vvp",
     ],
     deps = [
         "//xls/codegen/vast",
@@ -45,7 +46,6 @@ cc_library(
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:statusor",
-        "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/strings:str_format",
         "@abseil-cpp//absl/types:span",
     ],

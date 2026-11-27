@@ -184,6 +184,25 @@ bazel_dep(name = "rules_bison", version = "0.4")
 bazel_dep(name = "rules_flex", version = "0.4")
 bazel_dep(name = "rules_m4", version = "0.3")
 bazel_dep(name = "swig", version = "4.3.0.bcr.2")
+bazel_dep(name = "iverilog", version = "13.0.bcr.1")
+
+# Match the registry version already required by OpenROAD.
+bazel_dep(name = "yosys", version = "0.68.bcr.3")
+
+# Provide init.tcl and related scripts to sandboxed Tcl synthesis actions.
+single_version_override(
+    module_name = "yosys",
+    patch_strip = 1,
+    patches = ["//dependency_support/yosys:tcl_runfiles.patch"],
+)
+
+# The Icarus VHDL target requires <iterator> for std::inserter with XLS's toolchain.
+single_version_override(
+    module_name = "iverilog",
+    patch_strip = 1,
+    patches = ["//dependency_support/iverilog:include_iterator.patch"],
+)
+
 bazel_dep(name = "rules_hdl", version = "0.0.0")
 bazel_dep(name = "openroad", repo_name = "org_theopenroadproject")
 
@@ -238,6 +257,9 @@ single_version_override(
 )
 
 rules_hdl_tools = use_extension("@rules_hdl//dependency_support:tools_extension.bzl", "tools_extension")
+# The rules_hdl synthesis rules refer to this repository by its legacy name.
+override_repo(rules_hdl_tools, at_clifford_yosys = "yosys")
+# The extension also declares its legacy Icarus repository for rules_hdl cocotb.
 use_repo(rules_hdl_tools, "at_clifford_yosys", "com_icarus_iverilog")
 
 rules_hdl_pdks = use_extension("@rules_hdl//dependency_support:pdks_extension.bzl", "pdks_extension")

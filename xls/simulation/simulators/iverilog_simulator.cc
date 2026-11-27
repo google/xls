@@ -14,6 +14,7 @@
 
 #include <filesystem>
 #include <memory>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -23,7 +24,6 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
-#include "absl/strings/strip.h"
 #include "absl/types/span.h"
 #include "xls/codegen/vast/vast.h"
 #include "xls/common/file/filesystem.h"
@@ -54,25 +54,26 @@ absl::StatusOr<std::pair<std::string, std::string>> InvokeIverilog(
     absl::Span<const std::string> args) {
   std::vector<std::string> args_vec;
   XLS_ASSIGN_OR_RETURN(std::filesystem::path iverilog_path,
-                       GetXlsRunfilePath("iverilog-bin", "com_icarus_iverilog"));
+                       GetXlsRunfilePath("driver/iverilog", "iverilog"));
+  XLS_ASSIGN_OR_RETURN(std::filesystem::path ivl_base,
+                       GetXlsRunfilePath("ivl_base", "iverilog"));
   args_vec.push_back(iverilog_path.string());
-  args_vec.push_back("-B");
-  args_vec.push_back(
-      std::string(absl::StripSuffix(iverilog_path.string(), "iverilog-bin")));
   args_vec.insert(args_vec.end(), args.begin(), args.end());
-  return SubprocessResultToStrings(
-      SubprocessErrorAsStatus(InvokeSubprocess(args_vec)));
+  // The registry driver locates ivl before parsing command-line flags.
+  return SubprocessResultToStrings(SubprocessErrorAsStatus(InvokeSubprocess(
+      args_vec, std::nullopt, std::nullopt, {{"IVL_BASE", ivl_base.string()}})));
 }
 
 absl::StatusOr<std::pair<std::string, std::string>> InvokeVvp(
     absl::Span<const std::string> args) {
   std::vector<std::string> args_vec;
-  XLS_ASSIGN_OR_RETURN(std::filesystem::path iverilog_path,
-                       GetXlsRunfilePath("vvp-bin", "com_icarus_iverilog"));
-  args_vec.push_back(iverilog_path.string());
+  XLS_ASSIGN_OR_RETURN(std::filesystem::path vvp_path,
+                       GetXlsRunfilePath("vvp/vvp", "iverilog"));
+  XLS_ASSIGN_OR_RETURN(std::filesystem::path ivl_base,
+                       GetXlsRunfilePath("ivl_base", "iverilog"));
+  args_vec.push_back(vvp_path.string());
   args_vec.push_back("-M");
-  args_vec.push_back(
-      std::string(absl::StripSuffix(iverilog_path.string(), "vvp-bin")));
+  args_vec.push_back(ivl_base.string());
   args_vec.insert(args_vec.end(), args.begin(), args.end());
   return SubprocessResultToStrings(
       SubprocessErrorAsStatus(InvokeSubprocess(args_vec)));

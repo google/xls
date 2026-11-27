@@ -369,7 +369,6 @@ def _xls_model_generation_impl(ctx):
     lib = standard_cell.default_corner.liberty
 
     yosys = ctx.executable._yosys
-    yosys_runfiles_dir = yosys.path + ".runfiles"
 
     sta = ctx.executable._opensta
     sta_runfiles_dir = sta.path + ".runfiles"
@@ -383,8 +382,6 @@ def _xls_model_generation_impl(ctx):
     default_driver_cell = getattr(standard_cell, "default_input_driver_cell", "")
     default_load = getattr(standard_cell, "default_output_load", "")
 
-    script_contents.append("export YOSYS_DATDIR=at_clifford_yosys/techlibs")
-    script_contents.append("export ABC={}/abc+/abc_bin".format(yosys_runfiles_dir))
     script_contents.append("export TCL_LIBRARY={}/tcl_lang+/library".format(sta_runfiles_dir))
     script_contents.append("export DONT_USE_ARGS=")
     script_contents.append("set -e")
@@ -476,7 +473,7 @@ currently produced should be considered INCOMPLETE.""",
             cfg = "target",
         ),
         "_yosys": attr.label(
-            default = Label("@at_clifford_yosys//:yosys"),
+            default = Label("@yosys//:yosys"),
             executable = True,
             cfg = "target",
         ),

@@ -54,10 +54,10 @@ def iverilog_test(name, top, main, srcs, execute = True, tick_defines = None):
         ["-D{}={}".format(k, v) for (k, v) in sorted(tick_defines.items())],
     )
 
-    iverilog_tool = Label("@com_icarus_iverilog//:iverilog")
-    vvp_tool = Label("@com_icarus_iverilog//:vvp")
-    generate_vvp_runner = Label("//xls/dev_tools:generate_vvp_runner")
-
+    iverilog_tool = Label("@iverilog//:iverilog")
+    ivl_base = Label("@iverilog//:ivl_base")
+    vvp_tool = Label("@iverilog//:vvp")
+    compiled = name + ".iverilog.out"
     native.genrule(
         name = name + "-iverilog-build",
         srcs = srcs,
@@ -65,26 +65,32 @@ def iverilog_test(name, top, main, srcs, execute = True, tick_defines = None):
         # that points at the genfiles' location, we have to add it to the
         # searched set of paths for inclusions so we can include generated
         # verilog files as we can generated C++ files in cc_library rules.
-        cmd = "$(execpath %s) -s %s $(execpath %s) %s -o $@ -g2001 -I$(GENDIR)" % (iverilog_tool, top, main, defines),
-        outs = [name + ".iverilog.out"],
+        # Icarus loads VPI modules during compilation and embeds their paths in
+        # the output. Rewrite those paths so VVP finds them in the test runfiles.
+        cmd = (
+            'IVL_BASE="$(execpath %s)" "$(execpath %s)" ' % (ivl_base, iverilog_tool) +
+            "-DIVERILOG -s %s $(execpath %s) %s -o $@.tmp -g2001 -I$(GENDIR) && " % (top, main, defines) +
+            """sed 's|^:vpi_module "$(execpath %s)/|:vpi_module "$(rootpath %s)/|' "$@.tmp" > "$@" && """ % (ivl_base, ivl_base) +
+            'rm "$@.tmp"'
+        ),
+        outs = [compiled],
         tools = [
             iverilog_tool,
-            vvp_tool,
+            ivl_base,
         ],
     )
     if execute:
-        native.genrule(
-            name = name + "-vvp-runner",
-            srcs = [":" + name + "-iverilog-build"],
-            cmd = "$(execpath %s) $< > $@" % generate_vvp_runner,
-            outs = [name + "-vvp-runner.sh"],
-            tools = [generate_vvp_runner],
-        )
         sh_test(
             name = name + "-run_test",
-            srcs = [":" + name + "-vvp-runner"],
+            srcs = [Label("//xls/build_rules:vvp_test_runner.sh")],
+            args = [
+                "$(rootpath %s)" % vvp_tool,
+                "$(rootpath %s)" % ivl_base,
+                "$(rootpath :%s)" % compiled,
+            ],
             data = [
-                ":" + name + "-iverilog-build",
+                ":" + compiled,
+                ivl_base,
                 vvp_tool,
             ],
         )

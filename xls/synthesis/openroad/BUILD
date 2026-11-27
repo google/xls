@@ -34,7 +34,7 @@ cc_binary(
         "@abseil-cpp//absl/flags:flag",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/strings",
-        "@at_clifford_yosys//:json11",
+        "@yosys//:json11",
     ],
 )
 
@@ -54,7 +54,7 @@ cc_binary(
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/time",
-        "@at_clifford_yosys//:json11",
+        "@yosys//:json11",
         "@grpc//:grpc++",
     ],
 )
