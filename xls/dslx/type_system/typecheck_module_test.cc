@@ -651,7 +651,7 @@ fn f() -> u32 {
   ;
 }
 
-TEST_F(TypecheckV2Test, DISABLED_UseOfStdlibModule) {
+TEST_F(TypecheckV2Test, UseOfStdlibModule) {
   constexpr std::string_view kProgram = R"(#![feature(use_syntax)]
 use std;
 
@@ -1070,9 +1070,7 @@ fn f() -> u32 {
 })"));
 }
 
-// TODO: https://github.com/google/xls/issues/2876 - 'use' syntax is not yet
-// supported in TIv2.
-TEST_F(TypecheckV2Test, DISABLED_UseOfClog2InModuleScopedConstantDefinition) {
+TEST_F(TypecheckV2Test, UseOfClog2InModuleScopedConstantDefinition) {
   XLS_EXPECT_OK(Typecheck(R"(#![feature(use_syntax)]
 use std::clog2;
 
@@ -1084,9 +1082,7 @@ fn main() -> u32 {
 )"));
 }
 
-// TODO: https://github.com/google/xls/issues/2876 - 'use' syntax is not yet
-// supported in TIv2.
-TEST_F(TypecheckV2Test, DISABLED_UseOfClog2InParametricOutputType) {
+TEST_F(TypecheckV2Test, UseOfClog2InParametricOutputType) {
   XLS_EXPECT_OK(Typecheck(R"(#![feature(use_syntax)]
 use std::{clog2, is_pow2};
 
