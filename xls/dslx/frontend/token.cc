@@ -104,6 +104,10 @@ std::string Token::ToString() const {
   if (kind() == TokenKind::kComment) {
     return absl::StrCat("//", GetValue().value());
   }
+  if (kind() == TokenKind::kBlockComment) {
+    // TODO: Should this replace newlines with \\n?
+    return absl::StrCat("/*", GetValue().value(), "*/");
+  }
   if (kind() == TokenKind::kCharacter) {
     return absl::StrCat("'", absl::Utf8SafeCHexEscape(GetValue().value()), "'");
   }
