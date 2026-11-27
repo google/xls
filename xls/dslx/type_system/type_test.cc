@@ -32,6 +32,7 @@
 #include "xls/dslx/frontend/module.h"
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/interp_value.h"
+#include "xls/dslx/mangle.h"
 #include "xls/ir/bits.h"
 
 namespace xls::dslx {
@@ -79,6 +80,27 @@ StructType CreateSimpleStruct(Module& module) {
   return StructType(std::move(members), *struct_def);
 }
 
+class TestCheckedTypeReferenceData final
+    : public InterpValue::TypeReferenceData {
+ public:
+  explicit TestCheckedTypeReferenceData(std::shared_ptr<const Type> type)
+      : type_(std::move(type)) {}
+
+  bool IsSameSpecialization(
+      const InterpValue::TypeReferenceData& other) const override {
+    const auto* checked =
+        dynamic_cast<const TestCheckedTypeReferenceData*>(&other);
+    return checked != nullptr && type_->IsSameSpecialization(*checked->type_);
+  }
+
+  absl::StatusOr<std::string> GetSpecializationName() const override {
+    return MangleType(*type_);
+  }
+
+ private:
+  std::shared_ptr<const Type> type_;
+};
+
 TEST(TypeTest, TestU32) {
   BitsType t(false, 32);
   EXPECT_EQ("uN[32]", t.ToString());
@@ -90,6 +112,192 @@ TEST(TypeTest, TestU32) {
   EXPECT_EQ(t, *t.ToUBits());
   EXPECT_TRUE(IsBitsLikeWithNBitsAndSignedness(t, false, 32));
   EXPECT_FALSE(t.IsTuple());
+}
+
+// Verifies: Equivalent bits representations share specialization identity.
+// Catches: Asymmetric equality or different names for equivalent types.
+TEST(TypeTest, SpecializationNormalizesBitsRepresentationsSymmetrically) {
+  BitsType bits(false, 8);
+  ArrayType constructed(
+      std::make_unique<BitsConstructorType>(TypeDim::CreateBool(false)),
+      TypeDim::CreateU32(8));
+  EXPECT_TRUE(bits.IsSameSpecialization(constructed));
+  EXPECT_TRUE(constructed.IsSameSpecialization(bits));
+  XLS_ASSERT_OK_AND_ASSIGN(std::string bits_name, MangleType(bits));
+  XLS_ASSERT_OK_AND_ASSIGN(std::string constructed_name,
+                           MangleType(constructed));
+  EXPECT_EQ(bits_name, constructed_name);
+  BitsConstructorType unsized(TypeDim::CreateBool(false));
+  BitsType zero_width(false, 0);
+  EXPECT_TRUE(unsized.IsSameSpecialization(zero_width));
+  EXPECT_TRUE(zero_width.IsSameSpecialization(unsized));
+  XLS_ASSERT_OK_AND_ASSIGN(std::string unsized_name, MangleType(unsized));
+  XLS_ASSERT_OK_AND_ASSIGN(std::string zero_width_name, MangleType(zero_width));
+  EXPECT_EQ(unsized_name, zero_width_name);
+}
+
+// Verifies: Cloning retains bindings absent from fields.
+// Catches: Merging structs whose associated constants differ.
+TEST(TypeTest, SpecializationRetainsPhantomNominalBindingsAndClones) {
+  FileTable file_table;
+  Module module("test", /*fs_path=*/std::nullopt, file_table);
+  StructType first = CreateSimpleStruct(module);
+  first.SetNominalTypeBindings({{"C", InterpValue::MakeU32(5)}});
+  std::unique_ptr<StructType> second = CloneToUnique(first);
+  second->SetNominalTypeBindings({{"C", InterpValue::MakeU32(6)}});
+
+  EXPECT_EQ(first, *second);
+  EXPECT_FALSE(first.IsSameSpecialization(*second));
+  EXPECT_FALSE(second->IsSameSpecialization(first));
+  XLS_ASSERT_OK_AND_ASSIGN(std::string first_name, MangleType(first));
+  XLS_ASSERT_OK_AND_ASSIGN(std::string second_name, MangleType(*second));
+  EXPECT_NE(first_name, second_name);
+  std::unique_ptr<Type> clone = first.CloneToUnique();
+  EXPECT_TRUE(first.IsSameSpecialization(*clone));
+  EXPECT_THAT(MangleType(*clone), IsOkAndHolds(first_name));
+}
+
+TEST(TypeTest, NominalArrayBindingsCompareTheirEncodedSequences) {
+  FileTable file_table;
+  Module module("test", /*fs_path=*/std::nullopt, file_table);
+  StructType original = CreateSimpleStruct(module);
+  auto bind = [&](InterpValue value) {
+    auto type = CloneToUnique(original);
+    type->SetNominalTypeBindings({{"R", std::move(value)}});
+    return type;
+  };
+  auto unsigned_range = bind(InterpValue::MakeSymbolicRange(
+      InterpValue::MakeU8(128), InterpValue::MakeU8(127)));
+  auto signed_range = bind(InterpValue::MakeSymbolicRange(
+      InterpValue::MakeSBits(8, -128), InterpValue::MakeSBits(8, 127)));
+  auto empty_array = bind(InterpValue::MakeArray({}).value());
+
+  EXPECT_FALSE(unsigned_range->IsSameSpecialization(*signed_range));
+  EXPECT_TRUE(unsigned_range->IsSameSpecialization(*empty_array));
+  XLS_ASSERT_OK_AND_ASSIGN(std::string empty_name, MangleType(*empty_array));
+  EXPECT_THAT(MangleType(*unsigned_range), IsOkAndHolds(empty_name));
+  XLS_ASSERT_OK_AND_ASSIGN(std::string signed_name, MangleType(*signed_range));
+  EXPECT_NE(empty_name, signed_name);
+
+  const InterpValue one = InterpValue::MakeU8(1);
+  const InterpValue two = InterpValue::MakeU8(2);
+  auto ascending = bind(InterpValue::MakeArray({one, two}).value());
+  auto descending = bind(InterpValue::MakeArray({two, one}).value());
+  EXPECT_FALSE(ascending->IsSameSpecialization(*descending));
+  XLS_ASSERT_OK_AND_ASSIGN(std::string ascending_name, MangleType(*ascending));
+  XLS_ASSERT_OK_AND_ASSIGN(std::string descending_name,
+                           MangleType(*descending));
+  EXPECT_NE(ascending_name, descending_name);
+}
+
+TEST(TypeTest, NominalOversizedRangeComparisonDoesNotAbort) {
+  FileTable file_table;
+  Module module("test", /*fs_path=*/std::nullopt, file_table);
+  StructType huge = CreateSimpleStruct(module);
+  huge.SetNominalTypeBindings(
+      {{"R",
+        InterpValue::MakeSymbolicRange(InterpValue::MakeU64(0),
+                                       InterpValue::MakeMaxValue(false, 64))}});
+  auto empty = CloneToUnique(huge);
+  empty->SetNominalTypeBindings({{"R", InterpValue::MakeArray({}).value()}});
+
+  EXPECT_FALSE(huge.IsSameSpecialization(*empty));
+  EXPECT_TRUE(huge.IsSameSpecialization(*huge.CloneToUnique()));
+  EXPECT_FALSE(MangleType(huge).ok());
+}
+
+TEST(TypeTest, NominalDimensionsAreDerivedFromResolvedBindings) {
+  FileTable file_table;
+  Module module("test", /*fs_path=*/std::nullopt, file_table);
+  StructType original = CreateSimpleStruct(module);
+  std::vector<std::unique_ptr<Type>> members;
+  for (const auto& member : original.members()) {
+    members.push_back(member->CloneToUnique());
+  }
+  StructType type(std::move(members), original.nominal_type(),
+                  {{"M", TypeDim::CreateU32(5)}});
+  type.SetNominalTypeBindings(
+      {{"M", InterpValue::MakeU32(6)}, {"N", InterpValue::MakeU32(10)}});
+  auto dims = type.nominal_type_dims_by_identifier();
+  ASSERT_EQ(dims.size(), 1);
+  EXPECT_EQ(dims.at("M"), TypeDim::CreateU32(6));
+  std::unique_ptr<StructType> clone = CloneToUnique(type);
+  EXPECT_EQ(clone->nominal_type_dims_by_identifier(), dims);
+  EXPECT_TRUE(clone->IsSameSpecialization(type));
+}
+
+// A checked Box<T> stores T as both a binding and a derived member type. The
+// specialization name must include the binding once per nesting level.
+TEST(TypeTest, NestedNominalSpecializationNamesGrowLinearly) {
+  FileTable file_table;
+  Module module("test", /*fs_path=*/std::nullopt, file_table);
+  auto* annotation = module.Make<BuiltinTypeAnnotation>(
+      kFakeSpan, BuiltinType::kU32,
+      module.GetOrCreateBuiltinNameDef(BuiltinType::kU32));
+  auto* member = module.Make<StructMemberNode>(
+      kFakeSpan, module.Make<NameDef>(kFakeSpan, "value", nullptr), kFakeSpan,
+      annotation);
+  auto* declaration = module.Make<StructDef>(
+      kFakeSpan, module.Make<NameDef>(kFakeSpan, "Box", nullptr),
+      std::vector<ParametricBinding*>{}, std::vector<StructMemberNode*>{member},
+      /*is_public=*/false);
+
+  std::shared_ptr<const Type> nested = std::make_shared<BitsType>(false, 32);
+  XLS_ASSERT_OK_AND_ASSIGN(std::string name, MangleType(*nested));
+  EXPECT_EQ(name, "u32_");
+  std::optional<std::string::size_type> growth_per_level;
+  for (int64_t depth = 1; depth <= 12; ++depth) {
+    std::string::size_type previous_size = name.size();
+    std::vector<std::unique_ptr<Type>> members;
+    members.push_back(nested->CloneToUnique());
+    auto box = std::make_shared<StructType>(std::move(members), *declaration);
+    box->SetNominalTypeBindings(
+        {{"T", InterpValue::MakeTypeReference(
+                   annotation,
+                   std::make_shared<TestCheckedTypeReferenceData>(nested))}});
+    nested = std::move(box);
+    XLS_ASSERT_OK_AND_ASSIGN(name, MangleType(*nested));
+    std::string::size_type growth = name.size() - previous_size;
+    if (!growth_per_level.has_value()) {
+      growth_per_level = growth;
+    }
+    EXPECT_EQ(growth, *growth_per_level);
+  }
+  EXPECT_TRUE(nested->IsSameSpecialization(*nested->CloneToUnique()));
+  auto* different_annotation = module.Make<BuiltinTypeAnnotation>(
+      kFakeSpan, BuiltinType::kU16,
+      module.GetOrCreateBuiltinNameDef(BuiltinType::kU16));
+  std::unique_ptr<StructType> different = CloneToUnique(nested->AsStruct());
+  different->SetNominalTypeBindings(
+      {{"T", InterpValue::MakeTypeReference(
+                 different_annotation,
+                 std::make_shared<TestCheckedTypeReferenceData>(
+                     std::make_shared<BitsType>(false, 16)))}});
+  EXPECT_FALSE(nested->IsSameSpecialization(*different));
+  EXPECT_FALSE(different->IsSameSpecialization(*nested));
+  XLS_ASSERT_OK_AND_ASSIGN(std::string different_name, MangleType(*different));
+  EXPECT_NE(name, different_name);
+}
+
+// Verifies: Defining module and declaration names are encoded unambiguously.
+// Catches: Collisions caused by underscores or ambiguous identifier boundaries.
+TEST(TypeTest, SpecializationFramesNominalIdentifiers) {
+  FileTable file_table;
+  Module first_module("a__b", /*fs_path=*/std::nullopt, file_table);
+  Module second_module("a", /*fs_path=*/std::nullopt, file_table);
+  auto make_enum = [](Module& module, std::string name) {
+    auto* name_def = module.Make<NameDef>(kFakeSpan, std::move(name), nullptr);
+    auto* def = module.Make<EnumDef>(kFakeSpan, name_def, /*type=*/nullptr,
+                                     std::vector<EnumMember>{}, false);
+    name_def->set_definer(def);
+    return EnumType(*def, TypeDim::CreateU32(2), false, {});
+  };
+  EnumType first = make_enum(first_module, "C");
+  EnumType second = make_enum(second_module, "b__C");
+  EXPECT_FALSE(first.IsSameSpecialization(second));
+  XLS_ASSERT_OK_AND_ASSIGN(std::string first_name, MangleType(first));
+  XLS_ASSERT_OK_AND_ASSIGN(std::string second_name, MangleType(second));
+  EXPECT_NE(first_name, second_name);
 }
 
 TEST(TypeTest, TestUnit) {

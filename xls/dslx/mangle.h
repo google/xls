@@ -25,6 +25,8 @@
 
 namespace xls::dslx {
 
+class Type;
+
 enum class CallingConvention : uint8_t {
   // The IR converted parameters are identical to the DSL parameters in their
   // type, number, and name.
@@ -41,7 +43,12 @@ enum class CallingConvention : uint8_t {
   kProcNext,
 };
 
-// Returns the mangled name of function with the given parametric bindings.
+// Encodes a checked type for use as a specialization argument in an IR name.
+// Equivalent specializations share an encoding. Returns an error for
+// unresolved dimensions or unsupported types or bindings.
+absl::StatusOr<std::string> MangleType(const Type& type);
+
+// Returns the mangled name of a function with the given parametric bindings.
 absl::StatusOr<std::string> MangleDslxName(
     std::string_view module_name, std::string_view function_name,
     CallingConvention convention,

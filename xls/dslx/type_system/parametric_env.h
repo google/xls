@@ -75,7 +75,8 @@ class ParametricEnv {
   template <typename H>
   friend H AbslHashValue(H h, const ParametricEnv& self) {
     for (const ParametricEnvItem& sb : self.bindings_) {
-      h = H::combine(std::move(h), sb.identifier, sb.value.ToString());
+      h = H::combine(std::move(h), sb.identifier);
+      h = HashValue(std::move(h), sb.value);
     }
     return h;
   }
@@ -103,6 +104,43 @@ class ParametricEnv {
   std::optional<InterpValue> GetValue(const NameDef* binding) const;
 
  private:
+  // Match InterpValue equality, which ignores signedness and enum tags for
+  // bits and compares aggregate elements recursively.
+  template <typename H>
+  static H HashValue(H h, const InterpValue& value) {
+    if (value.HasBits()) {
+      return H::combine(std::move(h), value.GetBitsOrDie());
+    } else if (value.IsArray()) {
+      // Equal symbolic ranges can have different lengths: endpoint equality
+      // ignores signedness, while range length uses it. They can also compare
+      // equal to materialized arrays. Hash only the array tag so all of these
+      // equal values hash alike without expanding a range, even when its length
+      // does not fit in int64_t. This deliberately trades array hash
+      // discrimination for compatibility with interpreter equality.
+      return H::combine(std::move(h), value.tag());
+    } else if (value.IsTuple()) {
+      const std::vector<InterpValue>& elements = value.GetValuesOrDie();
+      h = H::combine(std::move(h), value.tag(), elements.size());
+      for (const InterpValue& element : elements) {
+        h = HashValue(std::move(h), element);
+      }
+      return h;
+    } else if (value.IsTypeReference()) {
+      if (value.IsUnresolvedTypeReference()) {
+        return H::combine(std::move(h), value.tag(),
+                          value.GetTypeReference().value());
+      } else {
+        auto name = value.GetTypeReferenceSpecializationName();
+        return H::combine(std::move(h), value.tag(),
+                          name.ok() ? *name : std::string());
+      }
+    } else {
+      // Other interpreter values are not ordinary parametric arguments. Their
+      // printed forms may include details that equality ignores.
+      return H::combine(std::move(h), value.tag());
+    }
+  }
+
   // Sorts all of the bindings_ elements (to maintain the sorted-order invariant
   // of this data structure).
   void Sort();

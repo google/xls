@@ -28,14 +28,14 @@
 #include <string_view>
 #include <vector>
 
-#include "gmock/gmock.h"
-#include "gtest/gtest.h"
 #include "absl/base/casts.h"
 #include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
+#include "gmock/gmock.h"
+#include "gtest/gtest.h"
 #include "xls/common/file/temp_file.h"
 #include "xls/common/status/matchers.h"
 #include "xls/dslx/create_import_data.h"
@@ -47,9 +47,12 @@
 #include "xls/dslx/run_routines/run_comparator.h"
 #include "xls/dslx/run_routines/run_routines.h"
 #include "xls/dslx/type_system/typecheck_test_utils.h"
+#include "xls/interpreter/function_interpreter.h"
 #include "xls/ir/channel.h"
 #include "xls/ir/function.h"
 #include "xls/ir/ir_matcher.h"
+#include "xls/ir/name_uniquer.h"
+#include "xls/ir/nodes.h"
 #include "xls/ir/package.h"
 #include "xls/ir/proc.h"
 
@@ -99,6 +102,8 @@ fn top() -> u32 { helper(u32:1) }
               HasSubstr("fn __test_module__helper(_source: bits[32]"));
 }
 
+// Verifies: A parameterized type produces a legal specialized callee name.
+// Catches: Emitting DSLX annotation punctuation in an IR identifier.
 TEST_F(IrConverterTest, TypeParametricWithColonInTypeNameIsMangledToValidIr) {
   // `S<u32:4>` contains `:`, which is not valid in an IR identifier, so it must
   // be sanitized when mangled into the name of the `id` instantiation.
@@ -108,10 +113,135 @@ fn id<T: type>(x: T) -> T { x }
 fn main(s: S<u32:4>) -> S<u32:4> { id(s) }
 )";
 
-  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
-                           ConvertModuleForTest(program));
-  EXPECT_THAT(converted, HasSubstr("fn __test_module__id__S__type_u32_4("));
-  EXPECT_THAT(converted, Not(HasSubstr(":4")));
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(program, "test_module.x", "test_module", &import_data));
+  XLS_ASSERT_OK_AND_ASSIGN(PackageConversionData conv,
+                           ConvertModuleToPackage(tm.module, &import_data,
+                                                  kProcScopedChannelOptions));
+  XLS_ASSERT_OK_AND_ASSIGN(xls::Function * main,
+                           conv.package->GetFunction("__test_module__main"));
+  ASSERT_THAT(main->return_value(), m::Invoke(m::Param("s")));
+  const xls::Function* id = main->return_value()->As<xls::Invoke>()->to_apply();
+  EXPECT_TRUE(NameUniquer::IsValidIdentifier(id->name())) << id->name();
+}
+
+// Verifies: Defaulted phantom bindings share a specialization with the same
+// explicit value, while distinct values compile separately.
+TEST_F(IrConverterTest, TypeParametricStructPhantomBinding) {
+  constexpr std::string_view program = R"(#![feature(generics)]
+struct S<N: u32 = {u32:0}> {}
+impl S<N> { const VALUE = N; }
+
+type Default = S;
+type First = S<u32:0>;
+type Second = S<u32:2>;
+
+fn value<T: type>() -> u32 { T::VALUE }
+fn main() -> (u32, u32, u32) {
+  (value<Default>(), value<First>(), value<Second>())
+}
+)";
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(program, "test_module.x", "test_module", &import_data));
+  XLS_ASSERT_OK_AND_ASSIGN(PackageConversionData conv,
+                           ConvertModuleToPackage(tm.module, &import_data,
+                                                  kProcScopedChannelOptions));
+  XLS_ASSERT_OK_AND_ASSIGN(xls::Function * main,
+                           conv.package->GetFunction("__test_module__main"));
+  ASSERT_THAT(main->return_value(),
+              m::Tuple(m::Invoke(), m::Invoke(), m::Invoke()));
+  const xls::Invoke* default_value =
+      main->return_value()->operand(0)->As<xls::Invoke>();
+  const xls::Invoke* first =
+      main->return_value()->operand(1)->As<xls::Invoke>();
+  const xls::Invoke* second =
+      main->return_value()->operand(2)->As<xls::Invoke>();
+  ASSERT_EQ(default_value->to_apply(), first->to_apply());
+  ASSERT_NE(first->to_apply(), second->to_apply());
+  EXPECT_THAT(first->to_apply()->return_value(), m::Literal(0, 32));
+  EXPECT_THAT(second->to_apply()->return_value(), m::Literal(2, 32));
+}
+
+// Verifies: Imported enums get distinct correctly typed computations.
+// Catches: Reuse across enums or an abort when their widths differ.
+TEST_F(IrConverterTest, TypeParametricNominalNamesAcrossModules) {
+  for (int second_width : {2, 3}) {
+    SCOPED_TRACE(second_width);
+    auto import_data = CreateImportDataForTest();
+    XLS_ASSERT_OK(ParseAndTypecheck("pub enum Mode: u2 { A = 0 }", "first.x",
+                                    "first", &import_data));
+    XLS_ASSERT_OK(ParseAndTypecheck(
+        absl::StrFormat("pub enum Mode: u%d { A = 2 }", second_width),
+        "second.x", "second", &import_data));
+    constexpr std::string_view program = R"(#![feature(generics)]
+import first;
+import second;
+
+fn classify<T: type>(x: T) -> bool { x == T::A }
+
+fn main() -> (bool, bool) {
+  (classify(first::Mode::A), classify(second::Mode::A))
+}
+)";
+    XLS_ASSERT_OK_AND_ASSIGN(TypecheckedModule tm,
+                             ParseAndTypecheck(program, "test_module.x",
+                                               "test_module", &import_data));
+    XLS_ASSERT_OK_AND_ASSIGN(PackageConversionData conv,
+                             ConvertModuleToPackage(tm.module, &import_data,
+                                                    kProcScopedChannelOptions));
+    XLS_ASSERT_OK_AND_ASSIGN(xls::Function * main,
+                             conv.package->GetFunction("__test_module__main"));
+    ASSERT_THAT(main->return_value(),
+                m::Tuple(m::Invoke(m::Literal(0, 2)),
+                         m::Invoke(m::Literal(2, second_width))));
+    const xls::Invoke* first =
+        main->return_value()->operand(0)->As<xls::Invoke>();
+    const xls::Invoke* second =
+        main->return_value()->operand(1)->As<xls::Invoke>();
+    ASSERT_NE(first->to_apply(), second->to_apply());
+    EXPECT_THAT(first->to_apply()->return_value(),
+                m::Eq(m::Param("x"), m::Literal(0, 2)));
+    EXPECT_THAT(second->to_apply()->return_value(),
+                m::Eq(m::Param("x"), m::Literal(2, second_width)));
+    XLS_ASSERT_OK_AND_ASSIGN(auto evaluation, xls::InterpretFunction(main, {}));
+    EXPECT_EQ(evaluation.value.ToString(), "(bits[1]:1, bits[1]:1)");
+  }
+}
+
+// Verifies: Aliases share a specialization and tuples retain nominal identity.
+// Catches: Duplicate alias instantiations or merged nested enum types.
+TEST_F(IrConverterTest, TypeParametricAliasesAndNestedNominalTypes) {
+  constexpr std::string_view program = R"(#![feature(generics)]
+enum First: u2 { A = 0 }
+enum Second: u2 { A = 0 }
+type Alias = First;
+
+fn id<T: type>(x: T) -> T { x }
+fn main() -> (First, Alias, (First, u8), (Second, u8)) {
+  (id<First>(First::A), id<Alias>(Alias::A),
+   id((First::A, u8:0)), id((Second::A, u8:0)))
+}
+)";
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(program, "test_module.x", "test_module", &import_data));
+  XLS_ASSERT_OK_AND_ASSIGN(PackageConversionData conv,
+                           ConvertModuleToPackage(tm.module, &import_data,
+                                                  kProcScopedChannelOptions));
+  XLS_ASSERT_OK_AND_ASSIGN(xls::Function * main,
+                           conv.package->GetFunction("__test_module__main"));
+  ASSERT_THAT(main->return_value(),
+              m::Tuple(m::Invoke(), m::Invoke(), m::Invoke(), m::Invoke()));
+  auto callee = [&](int64_t index) {
+    return main->return_value()->operand(index)->As<xls::Invoke>()->to_apply();
+  };
+  EXPECT_EQ(callee(0), callee(1));
+  EXPECT_NE(callee(2), callee(3));
 }
 
 TEST_F(IrConverterTest, Concat) {

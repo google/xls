@@ -34,7 +34,10 @@ package(
 cc_library(
     name = "type",
     srcs = ["type.cc"],
-    hdrs = ["type.h"],
+    hdrs = [
+        "type.h",
+        "type_specialization.h",
+    ],
     deps = [
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
@@ -68,6 +71,7 @@ cc_test(
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/dslx:interp_value",
+        "//xls/dslx:mangle",
         "//xls/dslx/frontend:ast",
         "//xls/dslx/frontend:module",
         "//xls/dslx/frontend:pos",
