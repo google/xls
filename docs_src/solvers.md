@@ -121,7 +121,8 @@ for full details.
 ### Utilities
 
 -   [tools/lec_main.cc](https://github.com/google/xls/tree/main/xls/tools/lec_main.cc):
-    Driver function for performing IR-to-netlist LEC.
+    Driver function for performing IR-to-netlist LEC. See
+    [`lec_main`](./tools.md#lec-main) for its flags.
 
 ## Current Limitations
 
