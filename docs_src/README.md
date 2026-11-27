@@ -312,6 +312,30 @@ purpose, and correspond to the components in this XLS stack diagram:
         Visualization tools to inspect the XLS compiler/system interactively.
         See [IR visualization](https://google.github.io/xls/ir_visualization/).
 
+## Related Projects
+
+Projects that extend or use XLS. This list is not exhaustive; please open a PR
+or issue to add more.
+
+In this repository:
+
+-   [`xls/contrib`](https://github.com/google/xls/tree/main/xls/contrib):
+    utilities and components maintained by the community, such as XLS[cc] (a C++
+    HLS tool built on XLS) and the MLIR XLS dialect.
+-   [`third_party`](https://github.com/google/xls/tree/main/third_party):
+    third-party DSLX and C++ code used with XLS, for example soft-float
+    routines, `hsv2rgb` and MachSuite.
+
+External:
+
+-   [xlsynth/xlsynth-crate](https://github.com/xlsynth/xlsynth-crate): Rust
+    bindings to XLS functionality.
+-   [antmicro/xls-dashboard](https://github.com/antmicro/xls-dashboard): demo of
+    dashboard generation from XLS test results.
+-   [antmicro/xls-vizier](https://github.com/antmicro/xls-vizier): demo
+    integration of the [Vizier](https://github.com/google/vizier) black-box
+    optimization tool with an XLS workspace.
+
 ## Community
 
 Discussions about XLS - development, debugging, usage, etc.:
