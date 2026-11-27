@@ -10,7 +10,7 @@ fn __test_module__foo__u16__dim_3(a: bits[16][3] id=2) -> bits[16][3] {
   ret a: bits[16][3] = param(name=a, id=2)
 }
 
-fn __test_module__foo__tuple_s8__s8(a: (bits[8], bits[8]) id=3) -> (bits[8], bits[8]) {
+fn __test_module__foo__0tuple_start_s8__s8__0tuple_end(a: (bits[8], bits[8]) id=3) -> (bits[8], bits[8]) {
   ret a: (bits[8], bits[8]) = param(name=a, id=3)
 }
 
@@ -41,7 +41,7 @@ fn __test_module__main() -> () {
   literal.23: bits[0] = literal(value=0, id=23)
   C: bits[32] = invoke(literal.7, to_apply=__test_module__foo__u32, id=8)
   D: bits[16][3] = invoke(array.12, to_apply=__test_module__foo__u16__dim_3, id=13)
-  E: (bits[8], bits[8]) = invoke(tuple.16, to_apply=__test_module__foo__tuple_s8__s8, id=17)
+  E: (bits[8], bits[8]) = invoke(tuple.16, to_apply=__test_module__foo__0tuple_start_s8__s8__0tuple_end, id=17)
   F: (bits[32]) = invoke(tuple.19, to_apply=__test_module__foo__S, id=20)
   G: bits[34] = invoke(literal.21, to_apply=__test_module__foo__u34, id=22)
   H: bits[0] = invoke(literal.23, to_apply=__test_module__foo__MyEnum, id=24)
