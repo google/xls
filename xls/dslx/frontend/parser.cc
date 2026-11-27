@@ -361,11 +361,12 @@ absl::StatusOr<Lambda*> Parser::ParseLambda(Bindings& bindings) {
   };
   Bindings lambda_bindings(&bindings);
   std::vector<Param*> params;
+  ParamDestructuring destructured;
   if (peek->kind() == TokenKind::kBar) {
     XLS_ASSIGN_OR_RETURN(
         params,
         ParseParamsInternal(lambda_bindings, TokenKind::kBar, TokenKind::kBar,
-                            missing_annotation_generator));
+                            missing_annotation_generator, &destructured));
   } else {
     XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kDoubleBar));
   }
@@ -390,6 +391,7 @@ absl::StatusOr<Lambda*> Parser::ParseLambda(Bindings& bindings) {
 
   XLS_ASSIGN_OR_RETURN(StatementBlock * body,
                        ParseBlockExpression(lambda_bindings, peek_is_brace));
+  body = WrapBodyWithParamDestructuring(body, destructured);
   Span sp = Span(start_pos, GetPos());
   NameDef* fn_name_def =
       module_->Make<NameDef>(sp, std::string(Lambda::kCallLambdaFn), nullptr);
@@ -2716,7 +2718,12 @@ absl::StatusOr<Function*> Parser::ParseFunctionInternal(
                          ParseParametricBindings(bindings));
   }
 
-  XLS_ASSIGN_OR_RETURN(std::vector<Param*> params, ParseParams(bindings));
+  ParamDestructuring destructured;
+  XLS_ASSIGN_OR_RETURN(
+      std::vector<Param*> params,
+      ParseParamsInternal(bindings, TokenKind::kOParen, TokenKind::kCParen,
+                          /*missing_annotation_generator=*/nullptr,
+                          &destructured));
 
   XLS_ASSIGN_OR_RETURN(bool dropped_arrow, TryDropToken(TokenKind::kArrow));
   TypeAnnotation* return_type = nullptr;
@@ -2742,6 +2749,7 @@ absl::StatusOr<Function*> Parser::ParseFunctionInternal(
                                          /*trailing_semi=*/true);
   } else {
     XLS_ASSIGN_OR_RETURN(body, ParseBlockExpression(bindings));
+    body = WrapBodyWithParamDestructuring(body, destructured);
   }
   Function* f = module_->Make<Function>(
       Span(start_pos, GetPos()), name_def, std::move(parametric_bindings),
@@ -4765,9 +4773,30 @@ Parser::ParseNameDefOrWildcard(Bindings& bindings) {
 
 absl::StatusOr<Param*> Parser::ParseParam(
     Bindings& bindings,
-    const AnnotationGeneratorFn& missing_annotation_generator) {
+    const AnnotationGeneratorFn& missing_annotation_generator,
+    ParamDestructuring* destructured) {
   TypeAnnotation* type;
-  XLS_ASSIGN_OR_RETURN(NameDef * name, ParseNameDef(bindings));
+  NameDef* name = nullptr;
+  XLS_ASSIGN_OR_RETURN(const Token* peek_tok, PeekToken());
+  if (peek_tok->kind() == TokenKind::kOParen) {
+    if (destructured == nullptr) {
+      return ParseErrorStatus(
+          peek_tok->span(),
+          "Destructuring is only supported in function and lambda parameters");
+    }
+    XLS_ASSIGN_OR_RETURN(PatternTree pattern, ParseNameDefPattern(bindings));
+    // The parameter itself gets a synthetic name; the pattern is bound from it
+    // at the start of the body (see WrapBodyWithParamDestructuring).
+    Span pattern_span = GetPatternSpan(pattern);
+    name = module_->Make<NameDef>(
+        pattern_span,
+        absl::Substitute("__destructured_param_at_$0",
+                         pattern_span.ToString(file_table())),
+        /*definer=*/nullptr);
+    destructured->emplace_back(pattern, name);
+  } else {
+    XLS_ASSIGN_OR_RETURN(name, ParseNameDef(bindings));
+  }
   XLS_ASSIGN_OR_RETURN(bool peek_is_colon, PeekTokenIs(TokenKind::kColon));
   if (name->identifier() == KeywordToString(Keyword::kSelf)) {
     if (!bindings.HasSelf()) {
@@ -4857,12 +4886,34 @@ absl::StatusOr<std::vector<Param*>> Parser::ParseParams(Bindings& bindings) {
                              /*missing_annotation_generator=*/nullptr);
 }
 
+StatementBlock* Parser::WrapBodyWithParamDestructuring(
+    StatementBlock* body, const ParamDestructuring& destructured) {
+  if (destructured.empty()) {
+    return body;
+  }
+  std::vector<Statement*> stmts;
+  for (const auto& [pattern, param_name] : destructured) {
+    NameRef* source = module_->Make<NameRef>(param_name->span(),
+                                             param_name->identifier(),
+                                             param_name);
+    Let* let = module_->Make<Let>(GetPatternSpan(pattern), pattern,
+                                  /*type=*/nullptr, source, /*is_const=*/false);
+    stmts.push_back(module_->Make<Statement>(let));
+  }
+  // Keep the original body intact as a nested block so its own trailing-semi
+  // and value semantics are unchanged.
+  stmts.push_back(module_->Make<Statement>(static_cast<Expr*>(body)));
+  return module_->Make<StatementBlock>(body->span(), std::move(stmts),
+                                       /*trailing_semi=*/false);
+}
+
 absl::StatusOr<std::vector<Param*>> Parser::ParseParamsInternal(
     Bindings& bindings, TokenKind open_token, TokenKind close_token,
-    const AnnotationGeneratorFn& missing_annotation_generator) {
+    const AnnotationGeneratorFn& missing_annotation_generator,
+    ParamDestructuring* destructured) {
   XLS_RETURN_IF_ERROR(DropTokenOrError(open_token));
   auto sub_production = [&] {
-    return ParseParam(bindings, missing_annotation_generator);
+    return ParseParam(bindings, missing_annotation_generator, destructured);
   };
   XLS_ASSIGN_OR_RETURN(std::vector<Param*> params,
                        ParseCommaSeq<Param*>(sub_production, close_token));

@@ -112,6 +112,11 @@ class ABSL_MUST_USE_RESULT ExpressionDepthGuard final {
 
 using TypeRefOrAnnotation = std::variant<TypeRef*, TypeAnnotation*>;
 
+// Destructuring parameters recorded while parsing a parameter list: each entry
+// is the pattern written in the parameter position and the synthetic NameDef
+// that the parameter was bound to instead.
+using ParamDestructuring = std::vector<std::pair<PatternTree, NameDef*>>;
+
 class Parser : public TokenParser {
  public:
   Parser(std::string module_name, Scanner* scanner, bool parse_fn_stubs = false)
@@ -538,9 +543,19 @@ class Parser : public TokenParser {
   // Parse a parameter. If `missing_annotation_generator` is provided, it will
   // be called if the parameter is missing a type annotation; the returned type
   // annotation will be used as the parameter's type.
+  //
+  // A destructuring parameter such as `(a, b): (u8, u8)` is only accepted when
+  // `destructured` is non-null; the parameter is then bound to a synthetic name
+  // and the pattern is recorded there so the caller can bind it in the body.
   absl::StatusOr<Param*> ParseParam(
       Bindings& bindings,
-      const AnnotationGeneratorFn& missing_annotation_generator = nullptr);
+      const AnnotationGeneratorFn& missing_annotation_generator = nullptr,
+      ParamDestructuring* destructured = nullptr);
+
+  // Prepends `let <pattern> = <synthetic param>;` statements for each
+  // destructured parameter to `body`.
+  StatementBlock* WrapBodyWithParamDestructuring(
+      StatementBlock* body, const ParamDestructuring& destructured);
 
   // Parses a member declaration in the body of a `proc` definition.
   absl::StatusOr<ProcMember*> ParseProcMember(
@@ -649,7 +664,8 @@ class Parser : public TokenParser {
 
   absl::StatusOr<std::vector<Param*>> ParseParamsInternal(
       Bindings& bindings, TokenKind open_token, TokenKind close_token,
-      const AnnotationGeneratorFn& missing_annotation_generator);
+      const AnnotationGeneratorFn& missing_annotation_generator,
+      ParamDestructuring* destructured = nullptr);
 
   // Parses an import statement into an `Import` AST node.
   absl::StatusOr<Import*> ParseImport(Bindings& bindings);
