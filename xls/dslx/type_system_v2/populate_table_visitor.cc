@@ -57,6 +57,7 @@
 #include "xls/dslx/import_routines.h"
 #include "xls/dslx/status_payload_utils.h"
 #include "xls/dslx/type_system/deduce_utils.h"
+#include "xls/dslx/type_system/type_info.h"
 #include "xls/dslx/type_system_v2/import_utils.h"
 #include "xls/dslx/type_system_v2/inference_table.h"
 #include "xls/dslx/type_system_v2/inference_table_utils.h"
@@ -138,6 +139,8 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
 
   absl::Status HandleUse(const Use* node) override {
     VLOG(5) << "HandleUse: " << node->ToString();
+    XLS_ASSIGN_OR_RETURN(TypeInfo * root_type_info,
+                         import_data_.GetRootTypeInfo());
     for (UseSubject& subject : const_cast<Use*>(node)->LinearizeToSubjects()) {
       XLS_ASSIGN_OR_RETURN(
           UseImportResult result,
@@ -145,6 +148,9 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
                          subject.name_def().span(), import_data_.file_table(),
                          import_data_.vfs()));
       XLS_RET_CHECK(result.imported_member != nullptr);
+      root_type_info->AddImport(&subject.use_tree_entry(),
+                                &result.imported_module->module(),
+                                result.imported_module->type_info());
       for (NameDef* name_def :
            ModuleMemberGetNameDefs(*result.imported_member)) {
         std::optional<const NameRef*> type_var =
