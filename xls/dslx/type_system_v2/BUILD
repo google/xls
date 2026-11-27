@@ -893,6 +893,7 @@ cc_library(
     deps = [
         ":import_utils",
         ":inference_table",
+        "//xls/common:math_util",
         "//xls/common:visitor",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",

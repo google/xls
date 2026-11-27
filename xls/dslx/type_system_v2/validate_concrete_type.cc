@@ -30,6 +30,7 @@
 #include "absl/strings/substitute.h"
 #include "absl/types/variant.h"
 #include "re2/re2.h"
+#include "xls/common/math_util.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/common/visitor.h"
@@ -314,6 +315,8 @@ class TypeValidator : public AstNodeVisitorWithDefault {
             {"assert_ne", &TypeValidator::ValidateEqualityAssertion},
             {"cover!", &TypeValidator::ValidateCoverInvocation},
             {"decode", &TypeValidator::ValidateDecodeInvocation},
+            {"encode", &TypeValidator::ValidateEncodeOrOneHotInvocation},
+            {"one_hot", &TypeValidator::ValidateEncodeOrOneHotInvocation},
             {"update", &TypeValidator::ValidateUpdateInvocation},
             {"widening_cast", &TypeValidator::ValidateWideningCastInvocation}};
 
@@ -819,6 +822,32 @@ class TypeValidator : public AstNodeVisitorWithDefault {
           invocation.span(), &return_type,
           absl::Substitute("`decode` return type must be unsigned, saw `$0`",
                            return_type.ToString()),
+          file_table_);
+    }
+    return absl::OkStatus();
+  }
+
+  absl::Status ValidateEncodeOrOneHotInvocation(const Invocation& invocation,
+                                                const FunctionType& signature) {
+    // An explicit M can override the default in the builtin stub, but these
+    // operations produce a fixed number of bits for a given input width.
+    const std::optional<std::string_view> builtin =
+        GetBuiltinFnName(invocation.callee());
+    XLS_RET_CHECK(builtin.has_value());
+    XLS_ASSIGN_OR_RETURN(TypeDim input_bits,
+                         signature.params()[0]->GetTotalBitCount());
+    XLS_ASSIGN_OR_RETURN(int64_t input_width, input_bits.GetAsInt64());
+    XLS_ASSIGN_OR_RETURN(TypeDim result_bits,
+                         signature.return_type().GetTotalBitCount());
+    XLS_ASSIGN_OR_RETURN(int64_t result_width, result_bits.GetAsInt64());
+    const int64_t expected_width =
+        *builtin == "encode" ? CeilOfLog2(input_width) : input_width + 1;
+    if (result_width != expected_width) {
+      return TypeInferenceErrorStatus(
+          invocation.span(), &signature.return_type(),
+          absl::StrFormat(
+              "`%s` result width must be %d for input width %d, got %d",
+              *builtin, expected_width, input_width, result_width),
           file_table_);
     }
     return absl::OkStatus();

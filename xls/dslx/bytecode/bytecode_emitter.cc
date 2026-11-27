@@ -1013,6 +1013,11 @@ absl::Status BytecodeEmitter::HandleFor(const For* node) {
 }
 
 absl::Status BytecodeEmitter::HandleFunctionRef(const FunctionRef* node) {
+  if (IsBuiltinFn(node->callee())) {
+    // In map(xs, encode<2, 1>), the resolved Function is a typechecking stub.
+    // Emit the underlying name so the interpreter calls the builtin directly.
+    return node->callee()->AcceptExpr(this);
+  }
   if (node->callee()->kind() == AstNodeKind::kAttr) {
     const auto* attr = absl::down_cast<const Attr*>(node->callee());
     // Place the struct instance on the stack as the self argument.
