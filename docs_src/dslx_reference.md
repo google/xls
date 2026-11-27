@@ -1465,6 +1465,16 @@ fn f(t: (u8, u32)) -> u32 {
 }
 ```
 
+A bare pattern name that refers to an outer parameter or ordinary `let` binding
+currently compares the matched value with that binding for equality. We intend
+to change this rule so that the pattern introduces a fresh binding that shadows
+the outer name. The default `non_const_match_pattern` warning identifies code
+affected by this migration. See [issue #1909](https://github.com/google/xls/issues/1909).
+
+Use an explicit equality test such as `if x == y { ... } else { ... }` to
+compare two variables, or use a fresh pattern name to bind the matched value.
+Declared constants and value parametrics can be used directly as patterns.
+
 This also works with nested tuples; for example:
 
 ```dslx

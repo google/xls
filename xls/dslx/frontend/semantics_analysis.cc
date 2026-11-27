@@ -26,6 +26,7 @@
 #include <vector>
 
 #include "absl/base/casts.h"
+#include "absl/container/btree_set.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
@@ -778,6 +779,82 @@ class ProcDefTrivialNextGenerator : public AstNodeRecursiveVisitor {
   }
 };
 
+// Classifies `name` as an outer binding of `arm` when it comes from an
+// enclosing non-const declaration. An ordinary `let` qualifies even when
+// its initializer is constant.
+bool IsNonConstOuterBinding(const NameDef& name, const MatchArm& arm) {
+  for (const AstNode* owner = name.parent(); owner != nullptr;
+       owner = owner->parent()) {
+    switch (owner->kind()) {
+      case AstNodeKind::kTuplePattern:
+      case AstNodeKind::kStructPattern:
+      case AstNodeKind::kSumVariantPayloadPattern:
+        continue;
+      case AstNodeKind::kLet:
+        return !absl::down_cast<const Let*>(owner)->is_const();
+      case AstNodeKind::kMatchArm:
+        return owner != &arm;
+      case AstNodeKind::kParam:
+      case AstNodeKind::kProcMember:
+      case AstNodeKind::kFor:
+      case AstNodeKind::kConstFor:
+        return true;
+      default:
+        return false;
+    }
+  }
+  return false;
+}
+
+class MatchPatternWarningVisitor : public AstNodeRecursiveVisitor {
+ public:
+  MatchPatternWarningVisitor(WarningCollector& warning_collector,
+                             const FileTable& file_table)
+      : AstNodeRecursiveVisitor(/*want_types=*/true),
+        warning_collector_(warning_collector),
+        file_table_(file_table) {}
+
+  absl::Status HandleFunction(const Function* node) override {
+    // Tabulation domains are stored outside the function's child list.
+    if (node->tabulate_domains().has_value()) {
+      XLS_RETURN_IF_ERROR((*node->tabulate_domains())->Accept(this));
+    }
+    return DefaultHandler(node);
+  }
+
+  absl::Status HandleMatchArm(const MatchArm* arm) override {
+    // In each pattern alternative, look for a bare name that compares against
+    // a non-const outer binding. Flattening includes names in nested patterns.
+    for (const PatternTree& pattern : arm->patterns()) {
+      for (const PatternLeaf& leaf : FlattenPattern(pattern)) {
+        const auto* ref = std::get_if<NameRef*>(&leaf);
+        if (ref == nullptr || (*ref)->IsBuiltin()) {
+          continue;
+        }
+        const NameDef* name = std::get<const NameDef*>((*ref)->name_def());
+        if (IsNonConstOuterBinding(*name, *arm) &&
+            reported_patterns_.insert((*ref)->span()).second) {
+          warning_collector_.Add(
+              (*ref)->span(), WarningKind::kNonConstMatchPattern,
+              absl::StrFormat("Match pattern `%s` compares against the outer "
+                              "binding at %s. Use an explicit equality test "
+                              "to compare values or a fresh name to bind the "
+                              "matched value.",
+                              name->identifier(),
+                              name->span().ToString(file_table_)));
+        }
+      }
+    }
+    return DefaultHandler(arm);
+  }
+
+ private:
+  WarningCollector& warning_collector_;
+  const FileTable& file_table_;
+  // AST copies of a source pattern share its span.
+  absl::btree_set<Span> reported_patterns_;
+};
+
 class ConfiguredValueUsageVisitor : public AstNodeRecursiveVisitor {
  public:
   ConfiguredValueUsageVisitor(std::string_view module_name,
@@ -833,6 +910,14 @@ absl::Status SemanticsAnalysis::RunPreTypeCheckPass(
     ProcStateVisitor state_visitor(import_data, state_struct_def,
                                    typecheck_imported_module);
     XLS_RETURN_IF_ERROR(module.Accept(&state_visitor));
+  }
+  // Imports share the entry module's warning collector. Skip this check for
+  // imports so their match patterns don't produce warnings in the importer.
+  if (!suppress_warnings_) {
+    // Lambda rewriting can turn a captured let into a parametric binding.
+    MatchPatternWarningVisitor match_patterns(warning_collector,
+                                              import_data.file_table());
+    XLS_RETURN_IF_ERROR(module.Accept(&match_patterns));
   }
   XLS_RETURN_IF_ERROR(RewriteLambdas(module, import_data));
   XLS_RETURN_IF_ERROR(RewriteDomainStructs(module, import_data));

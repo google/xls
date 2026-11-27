@@ -850,14 +850,14 @@ pub fn normalize<EXP_SZ: u32, FRACTION_SZ: u32, WIDE_FRACTION: u32 = {FRACTION_S
     -> APFloat<EXP_SZ, FRACTION_SZ> {
     let leading_zeros = clz(fraction_with_hidden) as bits[FRACTION_SZ];
     let zero_value = zero<EXP_SZ, FRACTION_SZ>(sign);
-    let zero_fraction = WIDE_FRACTION as bits[FRACTION_SZ];
+    const ZERO_FRACTION = WIDE_FRACTION as bits[FRACTION_SZ];
     let normalized_fraction =
         (fraction_with_hidden << (leading_zeros as bits[WIDE_FRACTION])) as bits[FRACTION_SZ];
 
     let is_denormal = exp <= (leading_zeros as bits[EXP_SZ]);
     match (is_denormal, leading_zeros) {
         // Significand is zero.
-        (_, zero_fraction) => zero_value,
+        (_, ZERO_FRACTION) => zero_value,
         // Flush denormals to zero.
         (true, _) => zero_value,
         // Normalize.

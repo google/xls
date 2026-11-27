@@ -2435,11 +2435,14 @@ std::vector<AstNode*> SplatStructInstance::GetChildren(bool want_types) const {
   std::vector<AstNode*> results;
   absl::Span<const std::pair<std::string, Expr*>> members =
       GetUnorderedMembers();
-  results.reserve(members.size() + 1);
+  results.reserve(members.size() + (want_types ? 2 : 1));
   for (auto& item : members) {
     results.push_back(item.second);
   }
   results.push_back(splatted_);
+  if (want_types) {
+    results.push_back(struct_ref());
+  }
   return results;
 }
 

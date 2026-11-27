@@ -659,6 +659,7 @@ cc_test(
         "//xls/dslx:import_data",
         "//xls/dslx:interp_value",
         "//xls/dslx:virtualizable_file_system",
+        "//xls/dslx:warning_kind",
         "//xls/dslx/frontend:ast",
         "//xls/dslx/frontend:module",
         "//xls/dslx/type_system:parametric_env",

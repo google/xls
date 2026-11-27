@@ -990,8 +990,6 @@ class AstCloner : public AstNodeVisitor {
       const SplatStructInstance* n) override {
     XLS_RETURN_IF_ERROR(VisitChildren(n));
 
-    // Have to explicitly visit struct ref, since it's not a child.
-    XLS_RETURN_IF_ERROR(ReplaceOrVisit(n->struct_ref()));
     TypeAnnotation* new_struct_ref =
         absl::down_cast<TypeAnnotation*>(old_to_new_.at(n->struct_ref()));
 
