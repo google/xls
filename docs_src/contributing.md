@@ -145,6 +145,30 @@ to manage your Python environment. You'll need to adjust these instructions if
 you're doing something different. That can include explicitly adding `mkdocs` to
 your path, if locally installed Python binaries aren't available by default.
 
+### Formatting C++ code
+
+C++ files should be formatted with
+[clang-format](https://clang.llvm.org/docs/ClangFormat.html). The file
+`.clang-format` in the top source directory configures the Google style with
+left-aligned pointers and references, and clang-format picks it up
+automatically. To format only the lines you changed, stage them with `git add`
+and run `git clang-format` from the repository root (it refuses to run while the
+files have unstaged changes; `git clang-format -f` skips that check); to format
+whole files in place, run `clang-format -i` on them.
+
+```console
+proj/xls$ git add xls/path/to/file.cc
+proj/xls$ git clang-format
+proj/xls$ clang-format -i xls/path/to/file.cc xls/path/to/file.h
+```
+
+To check files without modifying them, use `--dry-run --Werror`; the command
+exits non-zero if any file needs formatting:
+
+```console
+proj/xls$ clang-format --dry-run --Werror xls/path/to/file.cc xls/path/to/file.h
+```
+
 ### Formatting documentation
 
 Markdown files should be formatted using
