@@ -14,7 +14,7 @@
 
 import std;
 
-import xls.examples.ram;
+import xls.modules.zstd.ram;
 import xls.modules.zstd.common;
 import xls.modules.zstd.memory.axi;
 import xls.modules.zstd.memory.axi_ram_reader;

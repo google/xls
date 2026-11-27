@@ -18,7 +18,7 @@
 // https://datatracker.ietf.org/doc/html/rfc8878
 
 import std;
-import xls.examples.ram;
+import xls.modules.zstd.ram;
 import xls.modules.zstd.axi_csr_accessor;
 import xls.modules.zstd.common;
 import xls.modules.zstd.memory.axi;

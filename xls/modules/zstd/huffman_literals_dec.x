@@ -27,7 +27,7 @@ import xls.modules.zstd.huffman_weights_dec as weights_dec;
 import xls.modules.zstd.memory.axi as axi;
 import xls.modules.zstd.memory.axi_ram_reader;
 import xls.modules.zstd.memory.mem_reader as mem_reader;
-import xls.examples.ram;
+import xls.modules.zstd.ram;
 
 pub type HuffmanLiteralsDecoderReq = ctrl::HuffmanControlAndSequenceCtrl;
 pub type HuffmanLiteralsDecoderResp = ctrl::HuffmanControlAndSequenceResp;

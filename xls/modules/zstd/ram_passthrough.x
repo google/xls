@@ -20,7 +20,7 @@
 // any synchronization when switching RAMs.
 
 import std;
-import xls.examples.ram;
+import xls.modules.zstd.ram;
 
 pub proc RamPassthroughRead<
     ADDR_WIDTH: u32,

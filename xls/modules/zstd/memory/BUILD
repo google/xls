@@ -331,8 +331,8 @@ xls_dslx_library(
     srcs = ["axi_ram_reader.x"],
     deps = [
         ":axi_dslx",
-        "//xls/examples:ram_dslx",
         "//xls/modules/zstd:math_dslx",
+        "//xls/modules/zstd:ram_dslx",
     ],
 )
 

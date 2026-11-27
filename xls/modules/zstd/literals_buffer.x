@@ -18,7 +18,7 @@
 
 import std;
 
-import xls.examples.ram;
+import xls.modules.zstd.ram;
 import xls.modules.zstd.common as common;
 import xls.modules.zstd.parallel_rams as parallel_rams;
 import xls.modules.zstd.ram_printer as ram_printer;

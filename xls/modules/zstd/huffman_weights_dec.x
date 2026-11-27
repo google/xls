@@ -14,7 +14,7 @@
 
 import std;
 
-import xls.examples.ram;
+import xls.modules.zstd.ram;
 import xls.modules.zstd.common ;
 import xls.modules.zstd.huffman_prescan;
 import xls.modules.zstd.memory.axi;

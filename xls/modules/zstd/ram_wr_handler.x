@@ -17,7 +17,7 @@
 // the implementation of other procedures.
 
 import std;
-import xls.examples.ram;
+import xls.modules.zstd.ram;
 
 pub proc RamWrRespHandler<CNT_WIDTH: u32> {
     type Reset = bool;

@@ -350,13 +350,24 @@ xls_benchmark_verilog(
 )
 
 xls_dslx_library(
+    name = "ram_dslx",
+    srcs = ["ram.x"],
+)
+
+xls_dslx_test(
+    name = "ram_dslx_test",
+    dslx_test_args = {"compare": "jit"},
+    library = ":ram_dslx",
+)
+
+xls_dslx_library(
     name = "common_dslx",
     srcs = [
         "common.x",
     ],
     deps = [
+        ":ram_dslx",
         ":shift_buffer_dslx",
-        "//xls/examples:ram_dslx",
     ],
 )
 
@@ -784,7 +795,7 @@ xls_dslx_library(
     name = "ram_printer_dslx",
     srcs = ["ram_printer.x"],
     deps = [
-        "//xls/examples:ram_dslx",
+        ":ram_dslx",
     ],
 )
 
@@ -799,7 +810,7 @@ xls_dslx_library(
     srcs = ["parallel_rams.x"],
     deps = [
         ":common_dslx",
-        "//xls/examples:ram_dslx",
+        ":ram_dslx",
     ],
 )
 
@@ -816,8 +827,8 @@ xls_dslx_library(
     deps = [
         ":common_dslx",
         ":parallel_rams_dslx",
+        ":ram_dslx",
         ":ram_printer_dslx",
-        "//xls/examples:ram_dslx",
         "//xls/modules/zstd/memory:mem_writer_dslx",
     ],
 )
@@ -1089,7 +1100,7 @@ xls_dslx_library(
     name = "ram_wr_handler_dslx",
     srcs = ["ram_wr_handler.x"],
     deps = [
-        "//xls/examples:ram_dslx",
+        ":ram_dslx",
     ],
 )
 
@@ -1172,10 +1183,10 @@ xls_dslx_library(
     srcs = ["fse_proba_freq_dec.x"],
     deps = [
         ":common_dslx",
+        ":ram_dslx",
         ":ram_wr_handler_dslx",
         ":refilling_shift_buffer_dslx",
         ":shift_buffer_dslx",
-        "//xls/examples:ram_dslx",
     ],
 )
 
@@ -1433,8 +1444,8 @@ xls_dslx_library(
         ":literals_buffer_dslx",
         ":literals_decoder_dslx",
         ":parallel_rams_dslx",
+        ":ram_dslx",
         ":sequence_dec_dslx",
-        "//xls/examples:ram_dslx",
         "//xls/modules/zstd/memory:axi_ram_reader_dslx",
         "//xls/modules/zstd/memory:mem_reader_dslx",
     ],
@@ -1465,7 +1476,7 @@ zstd_dec_deps = [
     ":huffman_literals_dec_dslx",
     ":literals_buffer_dslx",
     ":parallel_rams_dslx",
-    "//xls/examples:ram_dslx",
+    ":ram_dslx",
     "//xls/modules/zstd/memory:mem_reader_dslx",
     "//xls/modules/zstd/memory:mem_writer_dslx",
     "//xls/modules/zstd/memory:axi_ram_reader_dslx",
@@ -1566,9 +1577,9 @@ xls_dslx_library(
         ":common_dslx",
         ":fse_proba_freq_dec_dslx",
         ":fse_table_creator_dslx",
+        ":ram_dslx",
         ":refilling_shift_buffer_dslx",
         ":shift_buffer_dslx",
-        "//xls/examples:ram_dslx",
         "//xls/modules/zstd/memory:axi_dslx",
         "//xls/modules/zstd/memory:axi_ram_reader_dslx",
     ],
@@ -1588,8 +1599,8 @@ xls_dslx_library(
     deps = [
         ":common_dslx",
         ":fse_table_creator_dslx",
+        ":ram_dslx",
         ":refilling_shift_buffer_dslx",
-        "//xls/examples:ram_dslx",
     ],
 )
 
@@ -1700,8 +1711,8 @@ xls_dslx_library(
     deps = [
         ":common_dslx",
         ":fse_table_iterator_dslx",
+        ":ram_dslx",
         ":ram_wr_handler_dslx",
-        "//xls/examples:ram_dslx",
     ],
 )
 
@@ -1866,8 +1877,8 @@ xls_dslx_library(
     name = "ram_demux_dslx",
     srcs = ["ram_demux.x"],
     deps = [
+        ":ram_dslx",
         ":ram_passthrough_dslx",
-        "//xls/examples:ram_dslx",
     ],
 )
 
@@ -2033,7 +2044,7 @@ xls_dslx_library(
     name = "ram_passthrough_dslx",
     srcs = ["ram_passthrough.x"],
     deps = [
-        "//xls/examples:ram_dslx",
+        ":ram_dslx",
     ],
 )
 
@@ -2079,8 +2090,8 @@ xls_dslx_library(
         ":common_dslx",
         ":fse_table_creator_dslx",
         ":math_dslx",
+        ":ram_dslx",
         ":refilling_shift_buffer_dslx",
-        "//xls/examples:ram_dslx",
     ],
 )
 
@@ -2261,8 +2272,8 @@ xls_dslx_library(
         "ram_mux.x",
     ],
     deps = [
+        ":ram_dslx",
         ":ram_passthrough_dslx",
-        "//xls/examples:ram_dslx",
     ],
 )
 
@@ -2581,8 +2592,8 @@ xls_dslx_library(
     deps = [
         ":common_dslx",
         ":parallel_rams_dslx",
+        ":ram_dslx",
         ":ram_printer_dslx",
-        "//xls/examples:ram_dslx",
     ],
 )
 
@@ -2688,10 +2699,10 @@ xls_dslx_library(
         ":literals_block_header_dec_dslx",
         ":literals_buffer_dslx",
         ":parallel_rams_dslx",
+        ":ram_dslx",
         ":ram_printer_dslx",
         ":raw_literals_dec_dslx",
         ":rle_literals_dec_dslx",
-        "//xls/examples:ram_dslx",
         "//xls/modules/zstd/memory:axi_dslx",
         "//xls/modules/zstd/memory:axi_ram_reader_dslx",
         "//xls/modules/zstd/memory:mem_reader_dslx",
@@ -2873,8 +2884,8 @@ xls_dslx_library(
     deps = [
         ":common_dslx",
         ":huffman_common_dslx",
+        ":ram_dslx",
         "//xls/dslx/stdlib:acm_random_dslx",
-        "//xls/examples:ram_dslx",
     ],
 )
 
@@ -2965,8 +2976,8 @@ xls_dslx_library(
     deps = [
         ":common_dslx",
         ":huffman_common_dslx",
+        ":ram_dslx",
         "//xls/dslx/stdlib:acm_random_dslx",
-        "//xls/examples:ram_dslx",
     ],
 )
 
@@ -3362,9 +3373,9 @@ xls_dslx_library(
         ":fse_table_creator_dslx",
         ":huffman_prescan_dslx",
         ":math_dslx",
+        ":ram_dslx",
         ":ram_mux_dslx",
         ":refilling_shift_buffer_dslx",
-        "//xls/examples:ram_dslx",
         "//xls/modules/zstd/memory:axi_ram_reader_dslx",
         "//xls/modules/zstd/memory:mem_reader_dslx",
     ],

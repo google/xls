@@ -17,7 +17,7 @@
 // https://datatracker.ietf.org/doc/html/rfc8878#section-3.1.1.2
 
 import std;
-import xls.examples.ram;
+import xls.modules.zstd.ram;
 import xls.modules.zstd.ram_passthrough;
 
 struct RamMuxState { sel: u1, cnt0: u32, cnt1: u32 }

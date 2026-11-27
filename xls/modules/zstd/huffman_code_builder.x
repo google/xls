@@ -51,7 +51,7 @@
 import std;
 import xls.dslx.stdlib.acm_random as random;
 
-import xls.examples.ram;
+import xls.modules.zstd.ram;
 import xls.modules.zstd.common as common;
 import xls.modules.zstd.huffman_common as hcommon;
 

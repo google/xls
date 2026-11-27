@@ -17,7 +17,7 @@ import xls.modules.zstd.common as common;
 import xls.modules.zstd.memory.mem_writer as mem_writer;
 import xls.modules.zstd.parallel_rams as parallel_rams;
 import xls.modules.zstd.ram_printer as ram_printer;
-import xls.examples.ram;
+import xls.modules.zstd.ram;
 
 // Configurable RAM parameters
 pub const RAM_DATA_WIDTH = common::SYMBOL_WIDTH;

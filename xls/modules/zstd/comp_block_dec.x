@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import std;
-import xls.examples.ram;
+import xls.modules.zstd.ram;
 import xls.modules.zstd.memory.axi_ram_reader;
 import xls.modules.zstd.common;
 import xls.modules.zstd.huffman_literals_dec;

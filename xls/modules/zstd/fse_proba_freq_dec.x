@@ -17,7 +17,7 @@
 // https://datatracker.ietf.org/doc/html/rfc8878#section-4.1.1
 
 import std;
-import xls.examples.ram;
+import xls.modules.zstd.ram;
 import xls.modules.zstd.common;
 import xls.modules.zstd.shift_buffer;
 import xls.modules.zstd.refilling_shift_buffer;

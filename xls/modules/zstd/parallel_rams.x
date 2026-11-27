@@ -16,7 +16,7 @@
 
 import std;
 import xls.modules.zstd.common as common;
-import xls.examples.ram;
+import xls.modules.zstd.ram;
 
 type BlockData = common::BlockData;
 type SequenceExecutorMessageType = common::SequenceExecutorMessageType;

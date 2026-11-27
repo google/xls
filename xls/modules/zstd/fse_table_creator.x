@@ -19,7 +19,7 @@
 // https://datatracker.ietf.org/doc/html/rfc8878#section-4.1.1.
 
 import std;
-import xls.examples.ram;
+import xls.modules.zstd.ram;
 import xls.modules.zstd.common;
 import xls.modules.zstd.ram_wr_handler as ram_wr;
 import xls.modules.zstd.fse_table_iterator as fse_table_iterator;

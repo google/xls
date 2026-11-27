@@ -20,7 +20,7 @@
 // any synchronization when switching RAMs.
 
 import std;
-import xls.examples.ram;
+import xls.modules.zstd.ram;
 import xls.modules.zstd.ram_passthrough;
 
 // First bit of queue is not used to simplify the implementation.

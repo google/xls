@@ -15,7 +15,7 @@
 import std;
 
 import xls.modules.zstd.memory.axi;
-import xls.examples.ram;
+import xls.modules.zstd.ram;
 
 type AxiAr = axi::AxiAr;
 type AxiR = axi::AxiR;

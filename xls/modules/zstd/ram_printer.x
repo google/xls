@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import std;
-import xls.examples.ram;
+import xls.modules.zstd.ram;
 
 enum RamPrinterStatus : u2 {
     IDLE = 0,

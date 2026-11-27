@@ -16,7 +16,7 @@
 
 import std;
 
-import xls.examples.ram;
+import xls.modules.zstd.ram;
 import xls.modules.zstd.common as common;
 import xls.modules.zstd.literals_block_header_dec as literals_block_header_dec;
 import xls.modules.zstd.literals_buffer as literals_buffer;

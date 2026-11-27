@@ -14,7 +14,7 @@
 
 
 import std;
-import xls.examples.ram;
+import xls.modules.zstd.ram;
 import xls.modules.zstd.common;
 import xls.modules.zstd.refilling_shift_buffer;
 import xls.modules.zstd.fse_table_creator;

@@ -832,6 +832,7 @@ xls_benchmark_ir(
 xls_dslx_library(
     name = "ram_dslx",
     srcs = ["ram.x"],
+    visibility = ["//xls/examples:__subpackages__"],
 )
 
 xls_dslx_test(
