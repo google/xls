@@ -16,6 +16,7 @@
 
 #include <algorithm>
 #include <compare>
+#include <cstdint>
 #include <memory>
 #include <optional>
 #include <tuple>
@@ -153,6 +154,21 @@ absl::Status MergeRegisters(Register* authoritative_reg, Register* dupe_reg,
     RegisterRead* auth_read = nullptr;
     if (auth_read_status.ok()) {
       auth_read = *auth_read_status;
+      if (block->IsScheduled()) {
+        if (!block->IsStaged(dupe_read) && block->IsStaged(auth_read)) {
+          XLS_RETURN_IF_ERROR(block->RemoveNodeFromStage(auth_read).status());
+        } else if (block->IsStaged(dupe_read) && block->IsStaged(auth_read)) {
+          XLS_ASSIGN_OR_RETURN(int64_t dupe_stage,
+                               block->GetStageIndex(dupe_read));
+          XLS_ASSIGN_OR_RETURN(int64_t auth_stage,
+                               block->GetStageIndex(auth_read));
+          if (dupe_stage < auth_stage) {
+            XLS_RETURN_IF_ERROR(block->RemoveNodeFromStage(auth_read).status());
+            XLS_RETURN_IF_ERROR(
+                block->AddNodeToStage(dupe_stage, auth_read).status());
+          }
+        }
+      }
     } else {
       XLS_ASSIGN_OR_RETURN(
           auth_read, block->MakeNodeWithName<RegisterRead>(
