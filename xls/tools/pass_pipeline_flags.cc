@@ -71,7 +71,7 @@ ABSL_FLAG(bool, debug_optimizations, false,
           "If passed, run additional strict correctness-checking passes; this "
           "slows down the optimization significantly, and is mostly intended "
           "for internal XLS debugging.");
-// LINT.ThenChange(//xls/build_rules/xls_ir_rules.bzl)
+// LINT.ThenChange(//xls/build_rules/xls_providers.bzl)
 
 namespace xls {
 

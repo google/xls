@@ -19,13 +19,10 @@
 #include <string_view>
 
 #include "absl/flags/flag.h"
+#include "xls/tools/common_flags.h"
 #include "xls/tools/delay_info_flags.pb.h"
 
-ABSL_FLAG(
-    std::string, top,
-    std::string(xls::DelayInfoFlagsProto::default_instance().top()),
-    "The name of the top entity. Currently, only functions are supported. "
-    "Function to emit delay information about.");
+// `--top` is defined in common_flags.cc.
 ABSL_FLAG(
     std::string, schedule_path,
     std::string(xls::DelayInfoFlagsProto::default_instance().schedule_path()),

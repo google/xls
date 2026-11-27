@@ -80,9 +80,7 @@
 #include "xls/jit/orc_jit.h"
 #include "xls/jit/proc_jit.h"
 #include "xls/passes/bdd_query_engine.h"
-#include "xls/passes/optimization_pass.h"
-#include "xls/passes/optimization_pass_pipeline.h"
-#include "xls/passes/pass_base.h"
+#include "xls/passes/pass_metrics.pb.h"
 #include "xls/passes/query_engine.h"
 #include "xls/scheduling/pipeline_schedule.h"
 #include "xls/scheduling/schedule_graph.h"
@@ -92,6 +90,9 @@
 #include "xls/tools/codegen.h"
 #include "xls/tools/codegen_flags.h"
 #include "xls/tools/codegen_flags.pb.h"
+#include "xls/tools/opt.h"
+#include "xls/tools/opt_flags.h"
+#include "xls/tools/opt_flags.pb.h"
 #include "xls/tools/schedule.h"
 #include "xls/tools/scheduling_options_flags.h"
 #include "xls/tools/scheduling_options_flags.pb.h"
@@ -112,42 +113,6 @@ Example invocation:
 // LINT.IfChange
 ABSL_FLAG(bool, show_known_bits, false,
           "Show known bits as determined via the query engine.");
-ABSL_FLAG(int64_t, convert_array_index_to_select, -1,
-          "If specified, convert array indexes with fewer than or "
-          "equal to the given number of possible indices (by range analysis) "
-          "into chains of selects. Otherwise, this optimization is skipped, "
-          "since it can sometimes reduce output quality.");
-ABSL_FLAG(
-    int64_t, split_next_value_selects, xls::kDefaultSplitNextValueSelects,
-    "If specified, split `next_value`s that assign `sel`s to state params if "
-    "they have fewer than the given number of cases. Otherwise, this "
-    "optimization is skipped, since it can sometimes reduce output quality.");
-ABSL_FLAG(bool, use_context_narrowing_analysis, false,
-          "Use context sensitive narrowing analysis. This is somewhat slower "
-          "but might produce better results in some circumstances by using "
-          "usage context to narrow values more aggressively.");
-ABSL_FLAG(
-    bool, optimize_for_best_case_throughput, false,
-    "Optimize for best case throughput, even at the cost of area. This will "
-    "aggressively optimize to create opportunities for improved throughput, "
-    "but at the cost of constraining the schedule and thus increasing area.");
-// TODO(google/xls#5510): Remove once legacy coupled proc state lowering is
-// retired.
-ABSL_FLAG(
-    bool, decouple_state_access, false,
-    "Whether proc StateRead and Next operations are decoupled (allowing writes "
-    "without an active StateRead, StateRead predicate specialization purely "
-    "from data uses, and removal of always-false StateReads).");
-ABSL_FLAG(bool, enable_resource_sharing, false,
-          "Enable the resource sharing optimization to save area.");
-ABSL_FLAG(
-    bool, force_resource_sharing, false,
-    "Force the resource sharing pass to apply the transformation where "
-    "it is legal to do so, overriding therefore the profitability "
-    "heuristic of such pass. This option is only used when the resource "
-    "sharing pass is enabled. This option should be used for testing only.");
-ABSL_FLAG(std::string, area_model, "asap7",
-          "Area model to use for optimizations.");
 ABSL_FLAG(bool, run_evaluators, true,
           "Whether to run the JIT and interpreter.");
 ABSL_FLAG(bool, compare_delay_to_synthesis, false,
@@ -193,26 +158,22 @@ int64_t DurationToMs(absl::Duration duration) {
   return duration / absl::Milliseconds(1);
 }
 
-// Run the standard pipeline on the given package and prints stats about the
-// passes and execution time.
-absl::Status RunOptimizationAndPrintStats(
-    Package* package, const OptimizationPassOptions& pass_options) {
-  std::unique_ptr<OptimizationCompoundPass> pipeline =
-      CreateOptimizationPassPipeline();
-
+// Run the configured optimization pipeline on the given package and prints
+// stats about the passes and execution time.
+absl::Status RunOptimizationAndPrintStats(Package* package,
+                                          const OptFlagsProto& opt_flags) {
   absl::Time start = absl::Now();
-  PassResults pass_results;
-  OptimizationContext context;
+  tools::OptMetadata opt_metadata;
   XLS_RETURN_IF_ERROR(
-      pipeline->Run(package, pass_options, &pass_results, context).status());
+      tools::OptimizeIrForTop(package, opt_flags, &opt_metadata));
   absl::Duration total_time = absl::Now() - start;
   std::cout << absl::StreamFormat("Optimization time: %dms\n",
                                   DurationToMs(total_time));
   std::cout << absl::StreamFormat("Dynamic pass count: %d\n",
-                                  pass_results.total_invocations());
+                                  opt_metadata.metrics.total_passes());
 
   // Print table(s) of pass metrics.
-  std::cout << SummarizePassPipelineMetrics(pass_results.ToProto(),
+  std::cout << SummarizePassPipelineMetrics(opt_metadata.metrics,
                                             /*show_all_changed_passes=*/false);
   return absl::OkStatus();
 }
@@ -756,17 +717,44 @@ absl::Status RealMain(std::string_view path) {
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<Package> package,
                        Parser::ParsePackage(contents));
 
+  XLS_ASSIGN_OR_RETURN(OptFlagsProto opt_flags_proto, GetOptFlags(path));
   XLS_ASSIGN_OR_RETURN(CodegenFlagsProto codegen_flags_proto,
                        GetCodegenFlags());
-  if (!codegen_flags_proto.top().empty()) {
-    XLS_RETURN_IF_ERROR(package->SetTopByName(codegen_flags_proto.top()));
-  }
   XLS_ASSIGN_OR_RETURN(
       SchedulingOptionsFlagsProto scheduling_options_flags_proto,
       GetSchedulingOptionsFlagsProto());
   XLS_ASSIGN_OR_RETURN(
       bool delay_model_flag_passed,
       IsDelayModelSpecifiedViaFlag(scheduling_options_flags_proto));
+
+  if (!opt_flags_proto.top().empty() && !codegen_flags_proto.top().empty() &&
+      opt_flags_proto.top() != codegen_flags_proto.top()) {
+    return absl::InvalidArgumentError(absl::StrFormat(
+        "Conflicting top entities specified between opt options (`%s`) and "
+        "codegen options (`%s`); both stages must target the same top entity.",
+        opt_flags_proto.top(), codegen_flags_proto.top()));
+  }
+  const std::string_view configured_top = !opt_flags_proto.top().empty()
+                                              ? opt_flags_proto.top()
+                                              : codegen_flags_proto.top();
+  if (!configured_top.empty()) {
+    XLS_RETURN_IF_ERROR(package->SetTopByName(configured_top));
+    if (opt_flags_proto.top().empty()) {
+      opt_flags_proto.set_top(configured_top);
+    }
+    if (codegen_flags_proto.top().empty()) {
+      codegen_flags_proto.set_top(configured_top);
+    }
+  }
+  if (opt_flags_proto.delay_model().empty() &&
+      !scheduling_options_flags_proto.delay_model().empty()) {
+    opt_flags_proto.set_delay_model(
+        scheduling_options_flags_proto.delay_model());
+  }
+  if (!opt_flags_proto.has_opt_level() &&
+      scheduling_options_flags_proto.has_opt_level()) {
+    opt_flags_proto.set_opt_level(scheduling_options_flags_proto.opt_level());
+  }
 
   if (!package->GetTop().has_value()) {
     return absl::InternalError(absl::StrFormat(
@@ -777,37 +765,29 @@ absl::Status RealMain(std::string_view path) {
         RunInterpreterAndJit(package->GetTop().value(), "unoptimized"));
   }
 
-  OptimizationPassOptions pass_options;
-  int64_t convert_array_index_to_select =
-      absl::GetFlag(FLAGS_convert_array_index_to_select);
-  pass_options.convert_array_index_to_select =
-      (convert_array_index_to_select < 0)
-          ? std::nullopt
-          : std::make_optional(convert_array_index_to_select);
-  int64_t split_next_value_selects =
-      absl::GetFlag(FLAGS_split_next_value_selects);
-  pass_options.split_next_value_selects =
-      (split_next_value_selects < 0)
-          ? std::nullopt
-          : std::make_optional(split_next_value_selects);
-  pass_options.use_context_narrowing_analysis =
-      absl::GetFlag(FLAGS_use_context_narrowing_analysis);
-  pass_options.decouple_state_access =
-      absl::GetFlag(FLAGS_decouple_state_access);
-  XLS_ASSIGN_OR_RETURN(pass_options.area_estimator,
-                       GetAreaEstimator(absl::GetFlag(FLAGS_area_model)));
-  if (!scheduling_options_flags_proto.delay_model().empty()) {
-    XLS_ASSIGN_OR_RETURN(
-        pass_options.delay_estimator,
-        GetDelayEstimator(scheduling_options_flags_proto.delay_model()));
-  }
   XLS_RETURN_IF_ERROR(
-      RunOptimizationAndPrintStats(package.get(), pass_options));
+      RunOptimizationAndPrintStats(package.get(), opt_flags_proto));
 
   FunctionBase* f = package->GetTop().value();
   BddQueryEngine query_engine(BddQueryEngine::kDefaultPathLimit);
   XLS_RETURN_IF_ERROR(query_engine.Populate(f).status());
   PrintNodeBreakdown(f);
+
+  AreaEstimator* area_estimator = nullptr;
+  if (!opt_flags_proto.area_model().empty()) {
+    XLS_ASSIGN_OR_RETURN(area_estimator,
+                         GetAreaEstimator(opt_flags_proto.area_model()));
+  }
+  const DelayEstimator* delay_estimator = &GetStandardDelayEstimator();
+  if (!scheduling_options_flags_proto.delay_model().empty()) {
+    XLS_ASSIGN_OR_RETURN(
+        delay_estimator,
+        GetDelayEstimator(scheduling_options_flags_proto.delay_model()));
+  } else if (!opt_flags_proto.delay_model().empty()) {
+    XLS_ASSIGN_OR_RETURN(delay_estimator,
+                         GetDelayEstimator(opt_flags_proto.delay_model()));
+  }
+  const DelayEstimator& defaulted_delay_estimator = *delay_estimator;
 
   std::optional<int64_t> effective_clock_period_ps;
   if (scheduling_options_flags_proto.has_clock_period_ps() &&
@@ -823,9 +803,6 @@ absl::Status RealMain(std::string_view path) {
               100;
     }
   }
-  const DelayEstimator& defaulted_delay_estimator =
-      pass_options.delay_estimator ? *pass_options.delay_estimator
-                                   : GetStandardDelayEstimator();
   std::unique_ptr<synthesis::Synthesizer> synthesizer;
   if (absl::GetFlag(FLAGS_compare_delay_to_synthesis)) {
     synthesis::GrpcSynthesizerParameters parameters(
@@ -843,8 +820,8 @@ absl::Status RealMain(std::string_view path) {
       scheduling_options_flags_proto.pipeline_stages() > 0;
   if (!f->IsProc() && !benchmark_codegen) {
     XLS_RETURN_IF_ERROR(AnalyzeAndPrintCriticalPath(
-        f, effective_clock_period_ps, defaulted_delay_estimator,
-        pass_options.area_estimator, query_engine,
+        f, effective_clock_period_ps, defaulted_delay_estimator, area_estimator,
+        query_engine,
         /*package_schedule=*/nullptr, synthesizer.get()));
   } else if (benchmark_codegen) {
     PackageSchedule package_schedule(package.get());
@@ -865,8 +842,7 @@ absl::Status RealMain(std::string_view path) {
               absl::Milliseconds(1));
       XLS_RETURN_IF_ERROR(AnalyzeAndPrintCriticalPath(
           f, effective_clock_period_ps, defaulted_delay_estimator,
-          pass_options.area_estimator, query_engine, &package_schedule,
-          synthesizer.get()));
+          area_estimator, query_engine, &package_schedule, synthesizer.get()));
 
       XLS_RETURN_IF_ERROR(PrintScheduleInfo(
           package_schedule, defaulted_delay_estimator,

@@ -32,7 +32,6 @@ ABSL_FLAG(std::string, delay_model, "",
           "tool default; pass empty (--delay_model=) to disable optional delay "
           "estimation.");
 // LINT.ThenChange(
-//   //xls/build_rules/xls_ir_rules.bzl,
 //   //xls/build_rules/xls_providers.bzl,
 //   //docs_src/codegen_options.md
 // )

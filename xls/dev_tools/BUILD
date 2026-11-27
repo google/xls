@@ -80,8 +80,21 @@ sh_test(
     srcs = ["benchmark_main_test.sh"],
     data = [
         ":benchmark_main",
+        ":testdata/benchmark_main_multi_fn.ir",
         "//xls/examples:proc_network_opt_ir_benchmark",
     ],
+)
+
+xls_dslx_library(
+    name = "benchmark_main_flags_test_dslx",
+    srcs = ["testdata/benchmark_main_flags_test.x"],
+)
+
+xls_dslx_ir(
+    name = "benchmark_main_multi_fn_ir",
+    dslx_top = "add_with_inv",
+    ir_file = "testdata/benchmark_main_multi_fn.ir",
+    library = ":benchmark_main_flags_test_dslx",
 )
 
 pytype_strict_contrib_test(
@@ -683,9 +696,7 @@ cc_binary(
         "//xls/jit:proc_jit",
         "//xls/passes",
         "//xls/passes:bdd_query_engine",
-        "//xls/passes:optimization_pass",
-        "//xls/passes:optimization_pass_pipeline",
-        "//xls/passes:pass_base",
+        "//xls/passes:pass_metrics_cc_proto",
         "//xls/passes:query_engine",
         "//xls/scheduling:pipeline_schedule",
         "//xls/scheduling:schedule_graph",
@@ -695,6 +706,9 @@ cc_binary(
         "//xls/tools:codegen",
         "//xls/tools:codegen_flags",
         "//xls/tools:codegen_flags_cc_proto",
+        "//xls/tools:opt",
+        "//xls/tools:opt_flags",
+        "//xls/tools:opt_flags_cc_proto",
         "//xls/tools:schedule",
         "//xls/tools:scheduling_options_flags",
         "//xls/tools:scheduling_options_flags_cc_proto",

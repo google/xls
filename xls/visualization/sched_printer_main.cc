@@ -48,6 +48,7 @@
 #include "xls/scheduling/pipeline_schedule.h"
 #include "xls/scheduling/run_pipeline_schedule.h"
 #include "xls/scheduling/scheduling_options.h"
+#include "xls/tools/common_flags.h"
 #include "xls/tools/scheduling_options_flags.h"
 #include "xls/tools/scheduling_options_flags.pb.h"
 
@@ -60,8 +61,6 @@ Example invocation:
        --pipeline_stages=7 \
        IR_FILE
 )";
-
-ABSL_FLAG(std::string, top, "", "Top entity to use in lieu of the default.");
 
 namespace xls {
 namespace {
