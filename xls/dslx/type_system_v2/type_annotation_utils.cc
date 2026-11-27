@@ -109,8 +109,21 @@ TypeAnnotation* CreateStructOrProcAnnotation(Module& module,
                                              const StructOrProcRef& ref) {
   return CreateStructOrProcAnnotation(module,
                                       const_cast<StructDefBase*>(ref.def),
-                                      ref.parametrics, std::nullopt);
+                                      ref.parametrics, ref.instantiator);
 }
+
+TypeAnnotation* CreateSumAnnotation(
+    Module& module, SumDef* def, std::vector<ExprOrType> parametrics) {
+  return module.Make<TypeRefTypeAnnotation>(
+      def->span(), module.Make<TypeRef>(def->span(), def),
+      std::move(parametrics));
+}
+
+TypeAnnotation* CreateSumAnnotation(Module& module, const SumRef& ref) {
+  return CreateSumAnnotation(module, const_cast<SumDef*>(ref.def),
+                             ref.parametrics);
+}
+
 
 ChannelTypeAnnotation* GetChannelArrayElementType(
     Module& module, const ChannelTypeAnnotation* channel_array_type) {
@@ -516,15 +529,15 @@ bool IsTvtaToGeneric(const TypeAnnotation* type_annotation) {
 }
 
 std::vector<int> GetBindingIndicesWithGenericTvtasLast(
-    const StructDefBase* def) {
+    const std::vector<ParametricBinding*>& bindings) {
   std::vector<int> results;
-  for (int i = 0; i < def->parametric_bindings().size(); i++) {
-    if (!IsTvtaToGeneric(def->parametric_bindings()[i]->type_annotation())) {
+  for (int i = 0; i < bindings.size(); i++) {
+    if (!IsTvtaToGeneric(bindings[i]->type_annotation())) {
       results.push_back(i);
     }
   }
-  for (int i = 0; i < def->parametric_bindings().size(); i++) {
-    if (IsTvtaToGeneric(def->parametric_bindings()[i]->type_annotation())) {
+  for (int i = 0; i < bindings.size(); i++) {
+    if (IsTvtaToGeneric(bindings[i]->type_annotation())) {
       results.push_back(i);
     }
   }

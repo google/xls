@@ -31,8 +31,10 @@ namespace xls::dslx {
 absl::StatusOr<TypeInfoProto> TypeInfoToProto(const TypeInfo& type_info,
                                               const Module* module);
 
-// Converts the given protobuf representation of an AST node in module "m" into
-// a human readable string suitable for debugging and convenient testing.
+// Formats a serialized AST node's type information for debugging and testing.
+// `import_data` must contain typechecked modules from the source snapshot used
+// to produce the proto. Spans locate nodes; they do not verify source content.
+// This API produces debugging text; it does not restore TypeInfo for compilation.
 absl::StatusOr<std::string> ToHumanString(const AstNodeTypeInfoProto& antip,
                                           const ImportData& import_data,
                                           FileTable& file_table);

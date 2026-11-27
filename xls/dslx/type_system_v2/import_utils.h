@@ -28,6 +28,7 @@
 #include "xls/dslx/import_routines.h"
 #include "xls/dslx/type_system/type.h"
 #include "xls/dslx/type_system/type_info.h"
+#include "xls/dslx/type_system_v2/declaration_resolution_cache.h"
 #include "xls/dslx/type_system_v2/type_annotation_utils.h"
 
 namespace xls::dslx {
@@ -65,6 +66,30 @@ absl::StatusOr<std::optional<StructOrProcRef>> GetStructOrProcRefForSubject(
 absl::StatusOr<std::optional<const TypeVariableTypeAnnotation*>>
 GetTypeVariableTypeAnnotationForSubject(const ColonRef* ref,
                                         const ImportData& import_data);
+
+// Resolves the definition and parametrics for the sum type referred to by
+// `annotation`.
+absl::StatusOr<std::optional<SumRef>> GetSumRef(
+    const TypeAnnotation* annotation, const ImportData& import_data);
+
+// Variant that takes a `ColonRef`. This will only yield a sum ref if the
+// `ColonRef` itself refers to an actual sum or alias of one. It will yield
+// `nullopt` for a `ColonRef` to a constructor of a sum.
+absl::StatusOr<std::optional<SumRef>> GetSumRef(const ColonRef* colon_ref,
+                                                const ImportData& import_data);
+
+// Resolves a `ColonRef` that may refer to a sum constructor.
+absl::StatusOr<std::optional<SumConstructorRef>> ResolveSumConstructor(
+    const ColonRef* colon_ref, const ImportData& import_data);
+
+// Resolves a type annotation that may refer to a sum constructor.
+absl::StatusOr<std::optional<SumConstructorRef>> ResolveSumConstructor(
+    const TypeAnnotation* annotation, const ImportData& import_data);
+
+// Resolves and validates only this invocation, without visiting its children or
+// changing the syntax tree. Imports must already be loaded.
+absl::StatusOr<std::optional<SumConstructorRef>> ResolveSumConstructor(
+    const Invocation* invocation, const ImportData& import_data);
 
 // Resolves the struct base definition for the struct or proc type referred to
 // by `annotation`.
@@ -114,6 +139,10 @@ absl::StatusOr<bool> IsProcDefNextFunction(const Function* f,
 // Returns whether `f` is an auto-generated `spawn` function in an impl-style
 // proc.
 absl::StatusOr<bool> IsProcDefSpawnFunction(const Function* f);
+
+// Gets the sum definition for the sum type referred to by `annotation`.
+absl::StatusOr<std::optional<const SumDef*>> GetSumDef(
+    const TypeAnnotation* annotation, const ImportData& import_data);
 
 // Returns whether `colon_ref` is imported from a different module.
 bool IsImport(const ColonRef* colon_ref);
