@@ -332,7 +332,7 @@ pub proc FseProbaFreqDecoder<
 
                 let mask = (u16:1 << out_data.length) - u16:1;
                 let data = out_data.data as u16;
-                assert!(data & mask == data, "data should not contain additional bits");
+                assert!(data & mask == data, "data_contains_additional_bits");
 
                 let value = get_adjusted_value(data, state.remainder);
                 let (remainder, value) = if (value & lower_mask) < threshold {

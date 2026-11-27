@@ -167,7 +167,7 @@ pub proc HuffmanDecoder {
         let state = if start_valid {
             if start.new_config {
                 trace_fmt!("[HuffmanDecoder] {} -> AWAITING_CONFIG", state.fsm);
-                assert!(state.fsm == FSM::IDLE, "invalid_state_transition");
+                assert!(state.fsm == FSM::IDLE, "config_start_outside_idle");
                 State {
                     fsm: FSM::AWAITING_CONFIG,
                     symbol_config_id: u5:0,
@@ -178,7 +178,7 @@ pub proc HuffmanDecoder {
                 }
             } else {
                 trace_fmt!("[HuffmanDecoder] {} -> READ_DATA", state.fsm);
-                assert!(state.fsm == FSM::IDLE, "invalid_state_transition");
+                assert!(state.fsm == FSM::IDLE, "data_start_outside_idle");
                 State {
                     fsm: FSM::READ_DATA,
                     id: start.id,
@@ -219,7 +219,7 @@ pub proc HuffmanDecoder {
             trace_fmt!("[HuffmanDecoder] hcommon::PARALLEL_ACCESS_WIDTH: {:#x}", hcommon::PARALLEL_ACCESS_WIDTH);
             let fsm = if (state.symbol_config_id as u32 + u32:1) == (SYMBOLS_N / hcommon::PARALLEL_ACCESS_WIDTH) {
                 trace_fmt!("[HuffmanDecoder] {} -> READ_DATA", state.fsm);
-                assert!(state.fsm == FSM::AWAITING_CONFIG, "invalid_state_transition");
+                assert!(state.fsm == FSM::AWAITING_CONFIG, "config_received_outside_awaiting_config");
                 trace_fmt!("[HuffmanDecoder] Received codes:");
                 for (i, ()) in u32:0..SYMBOLS_N {
                     if symbol_valid[i] {
@@ -247,7 +247,7 @@ pub proc HuffmanDecoder {
 
         let state = if data_valid {
             trace_fmt!("[HuffmanDecoder] {} -> DECODE", state.fsm);
-            assert!(state.fsm == FSM::READ_DATA, "invalid_state_transition");
+            assert!(state.fsm == FSM::READ_DATA, "data_received_outside_read_data");
             trace_fmt!("[HuffmanDecoder] Received data: {:#b} (len: {})", data.data, data.data_len);
             State {
                 fsm: FSM::DECODE,
@@ -352,7 +352,7 @@ pub proc HuffmanDecoder {
                 trace_fmt!("[HuffmanDecoder] {} -> DECODE", state.fsm);
                 FSM::DECODE
             };
-            assert!(state.fsm == FSM::DECODE, "invalid_state_transition");
+            assert!(state.fsm == FSM::DECODE, "literals_sent_outside_decode");
             State {
                 fsm: fsm,
                 decoded_literals_len: u4:0,

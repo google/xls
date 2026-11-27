@@ -141,7 +141,7 @@ proc MemWriterInternal<
                 }
             },
             _ => {
-                assert!(false, "Invalid state");
+                assert!(false, "invalid_state");
                 state
             }
         };

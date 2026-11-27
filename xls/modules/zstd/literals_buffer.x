@@ -140,7 +140,7 @@ proc PacketDecoder<RAM_ADDR_WIDTH: u32> {
         let literals_last = literals_lasts[literals.length - u64:1];
 
         // TODO: Restore this check after extending request to CommandConstructor
-        // assert!(literals.last == literals_last, "Invalid packet");
+        // assert!(literals.last == literals_last, "invalid_packet");
 
         // Send literals data
         let literals_out = SequenceExecutorPacket<common::SYMBOL_WIDTH> {

@@ -100,7 +100,7 @@ pub proc CommandConstructor {
                 } else {
                     assert!(
                         received_literals >= state.literals_to_receive,
-                        "Too many literals received");
+                        "too_many_literals_received");
                     (zero!<State>(), true, false)
                 }
             },

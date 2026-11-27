@@ -182,8 +182,8 @@ fn num_bits_overlapping(NB_A: u32, BE_A: s32, NB_B: u32, BE_B: s32) -> u32 {
 // representable bits are unioned. Includes the bits that would always be zero if these values were
 // aligned and then ANDed or ORed.
 fn aligned_width(NB_A: u32, BE_A: s32, NB_B: u32, BE_B: s32) -> u32 {
-    assert!(NB_A > u32:0, "0_width_will_yield_nonsensical_results");
-    assert!(NB_B > u32:0, "0_width_will_yield_nonsensical_results");
+    assert!(NB_A > u32:0, "zero_width_a");
+    assert!(NB_B > u32:0, "zero_width_b");
 
     let msb_a = most_significant_bit_position(NB_A, BE_A);
     let msb_b = most_significant_bit_position(NB_B, BE_B);

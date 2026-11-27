@@ -4610,7 +4610,7 @@ fn main(x: u32) -> u32 {
   LOG(INFO) << "status: " << module.status();
   EXPECT_THAT(module.status(),
               StatusIs(absl::StatusCode::kInvalidArgument,
-                       HasSubstr("A fail label must be unique")));
+                       HasSubstr("must be unique within a function")));
 }
 
 TEST_F(ParserTest, ParseAllowNonstandardConstantNamingAnnotation) {
@@ -5080,6 +5080,124 @@ fn will_fail(x:u32) -> u32 {
   // Highlight span of the label parameter
   EXPECT_THAT(module.status(), StatusIs(absl::StatusCode::kInvalidArgument,
                                         HasSubstr("<no-file>:3:10-3:30")));
+}
+
+TEST_F(ParserTest, AssertLabelMustBeAnIdentifier) {
+  constexpr std::string_view kProgram =
+      R"(fn f(ok: bool) { assert!(ok, "not a label"); })";
+  absl::Status status = Parse(kProgram).status();
+  EXPECT_THAT(status,
+              IsPosError("ParseError",
+                         HasSubstr("The label parameter to assert!() must be a "
+                                   "valid Verilog identifier.")));
+  EXPECT_THAT(status, StatusIs(absl::StatusCode::kInvalidArgument,
+                               HasSubstr("<no-file>:1:30-1:43")));
+}
+
+TEST_F(ParserTest, SpecializedAssertionBuiltinsRequireDirectInvocation) {
+  EXPECT_THAT(
+      Parse(R"(fn f(x: bool) { (assert!<9>)(x, "bad label"); })").status(),
+      IsPosError("ParseError", HasSubstr("Invoke assert! directly")));
+  EXPECT_THAT(Parse(R"(fn f() { (fail!<2, ()>)("ok", ()); })").status(),
+              IsPosError("ParseError", HasSubstr("Invoke fail! directly")));
+  XLS_EXPECT_OK(Parse(R"(fn f(ok: bool) {
+    assert!<5>(ok, "check");
+    if ok { () } else { fail!<3, ()>("bad", ()) }
+})"));
+}
+
+TEST_F(ParserTest, AssertRequiresTwoArguments) {
+  EXPECT_THAT(
+      Parse("fn f() { assert!(true); }").status(),
+      IsPosError("ParseError", HasSubstr("assert!() requires two arguments")));
+  EXPECT_THAT(
+      Parse(R"(fn f() { assert!(true, "ok", ()); })").status(),
+      IsPosError("ParseError", HasSubstr("assert!() requires two arguments")));
+}
+
+TEST_F(ParserTest, DetectsDuplicateAssertLabels) {
+  constexpr std::string_view kProgram = R"(
+fn f(ok: bool) {
+    assert!(ok, "check");
+    assert!(ok, "check");
+}
+)";
+  EXPECT_THAT(
+      Parse(kProgram).status(),
+      IsPosError("ParseError", HasSubstr("must be unique within a function")));
+}
+
+TEST_F(ParserTest, AssertAndFailShareLabelScope) {
+  XLS_EXPECT_OK(Parse(R"(
+fn f(ok: bool) { assert!(ok, "check"); }
+fn g() { fail!("check", ()) }
+)"));
+  constexpr std::string_view kProgram = R"(
+fn f(ok: bool) {
+    assert!(ok, "check");
+    if ok { () } else { fail!("check", ()) }
+}
+)";
+  EXPECT_THAT(
+      Parse(kProgram).status(),
+      IsPosError("ParseError", HasSubstr("must be unique within a function")));
+}
+
+TEST_F(ParserTest, ProcFunctionsHaveIndependentAssertionLabels) {
+  XLS_EXPECT_OK(Parse(R"(
+proc P {
+    config() { assert!(true, "check"); () }
+    init { if true { () } else { fail!("check", ()) } }
+    next(state: ()) { assert!(true, "check"); state }
+}
+)"));
+}
+
+TEST_F(ParserTest, DuplicateAssertionLabelInProcInit) {
+  constexpr std::string_view kProgram = R"(
+proc P {
+    config() { () }
+    init {
+        assert!(true, "check");
+        if true { () } else { fail!("check", ()) }
+    }
+    next(state: ()) { state }
+}
+)";
+  EXPECT_THAT(
+      Parse(kProgram).status(),
+      IsPosError("ParseError", HasSubstr("must be unique within a function")));
+}
+
+TEST_F(ParserTest, LambdaHasIndependentAssertionLabels) {
+  XLS_EXPECT_OK(Parse(R"(
+fn f(xs: u32[1]) -> u32[1] {
+    assert!(xs[0] != u32:0, "check");
+    map(xs, |x| { if x != u32:0 { x } else { fail!("check", x) } })
+}
+)"));
+}
+
+TEST_F(ParserTest, AssertionLabelInImportedParametricCall) {
+  XLS_EXPECT_OK(Parse(R"(
+import std;
+fn f() -> u8 {
+    std::unsigned_min_value<{if true {
+        assert!(true, "check");
+        u32:8
+    } else {
+        fail!("unreachable", u32:8)
+    }}>()
+}
+)"));
+}
+
+TEST_F(ParserTest, AssertLabelAtTopLevel) {
+  EXPECT_THAT(
+      Parse(R"(const CHECK = assert!(true, "check");)").status(),
+      IsPosError(
+          "ParseError",
+          HasSubstr("Cannot use the `assert!` builtin at module top-level.")));
 }
 
 TEST(ParserErrorTest, FailLabelAtTopLevel) {

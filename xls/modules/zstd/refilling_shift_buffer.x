@@ -341,25 +341,25 @@ proc RefillingShiftBufferInternal<
         // check some invariants
         // asserts are equivalent to implications in a preceding comment
         // state.fsm == Fsm::IDLE -> next_future_buf_occupancy == 0
-        assert!(!(state.fsm == Fsm::IDLE) || state.future_buf_occupancy == BufferSize:0, "future_buf_occupancy was not 0 in IDLE state");
+        assert!(!(state.fsm == Fsm::IDLE) || state.future_buf_occupancy == BufferSize:0, "nonzero_future_buf_occupancy_in_idle");
         // state.fsm == Fsm::IDLE -> state.bits_to_axi_error == BufferSize:0
-        assert!(!(state.fsm == Fsm::IDLE) || state.bits_to_axi_error == BufferSize:0, "bits_to_axi_error was not 0 in IDLE state");
+        assert!(!(state.fsm == Fsm::IDLE) || state.bits_to_axi_error == BufferSize:0, "nonzero_bits_to_axi_error_in_idle");
         // state.fsm == Fsm::IDLE -> state.bits_to_flush == BufferSize:0
-        assert!(!(state.fsm == Fsm::IDLE) || state.bits_to_flush == BufferSize:0, "bits_to_flush was not 0 in IDLE state");
+        assert!(!(state.fsm == Fsm::IDLE) || state.bits_to_flush == BufferSize:0, "nonzero_bits_to_flush_in_idle");
 
         // state.fsm == Fsm::REFILLING -> state.future_buf_occupancy >= state.bits_to_axi_error
-        assert!(!(state.fsm == Fsm::REFILLING) || state.future_buf_occupancy >= state.bits_to_axi_error, "future_buf_occupancy >= bits_to_axi_error in REFILLING state");
+        assert!(!(state.fsm == Fsm::REFILLING) || state.future_buf_occupancy >= state.bits_to_axi_error, "insufficient_future_buf_occupancy_for_axi_error");
         // state.fsm == Fsm::REFILLING -> state.future_buf_occupancy >= state.bits_to_flush
-        assert!(!(state.fsm == Fsm::REFILLING) || state.future_buf_occupancy >= state.bits_to_flush, "future_buf_occupancy >= bits_to_flush in REFILLING state");
+        assert!(!(state.fsm == Fsm::REFILLING) || state.future_buf_occupancy >= state.bits_to_flush, "insufficient_future_buf_occupancy_for_flush");
         // state.fsm == Fsm::REFILLING -> state.bits_to_flush >= state.bits_to_axi_error
-        assert!(!(state.fsm == Fsm::REFILLING) || state.bits_to_flush >= state.bits_to_axi_error, "bits_to_flush >= bits_to_axi_error in REFILLING state");
+        assert!(!(state.fsm == Fsm::REFILLING) || state.bits_to_flush >= state.bits_to_axi_error, "bits_to_flush_below_bits_to_axi_error");
 
         // state.fsm != Fsm::REFILLING -> state.axi_error == false
-        assert!(!(state.fsm != Fsm::REFILLING) || state.axi_error == false, "axi_error was true in a state other than REFILLING");
+        assert!(!(state.fsm != Fsm::REFILLING) || state.axi_error == false, "axi_error_outside_refilling");
         // axi_error -> state.bits_to_axi_error >= next_bits_to_axi_error
-        assert!(!axi_error || state.bits_to_axi_error >= next_bits_to_axi_error, "state.bits_to_axi_error increased during axi_error");
+        assert!(!axi_error || state.bits_to_axi_error >= next_bits_to_axi_error, "bits_to_axi_error_increased_during_axi_error");
         // flushing -> state.bits_to_flush >= next_bits_to_flush
-        assert!(!flushing || state.bits_to_flush >= next_bits_to_flush, "state.bits_to_flush increased during flushing");
+        assert!(!flushing || state.bits_to_flush >= next_bits_to_flush, "bits_to_flush_increased_during_flushing");
 
         next_state
     }
