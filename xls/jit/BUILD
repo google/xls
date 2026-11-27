@@ -820,6 +820,8 @@ cc_test(
     deps = [
         ":aot_entrypoint_cc_proto",
         ":jit_runtime",
+        ":llvm_type_converter",
+        ":type_layout",
         "//xls/common:bits_util",
         "//xls/common:math_util",
         "//xls/common:xls_gunit_main",
@@ -832,6 +834,7 @@ cc_test(
         "@abseil-cpp//absl/status:status_matchers",
         "@abseil-cpp//absl/types:span",
         "@googletest//:gtest",
+        "@llvm-project//llvm:Support",
         "@llvm-project//llvm:ir_headers",
     ],
 )
