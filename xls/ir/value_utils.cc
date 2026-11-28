@@ -133,7 +133,7 @@ absl::StatusOr<Value> LeafTypeTreeToValue(LeafTypeTreeView<Value> tree) {
       XLS_ASSIGN_OR_RETURN(Value value, LeafTypeTreeToValue(tree.AsView({i})));
       values.push_back(value);
     }
-    return Value::ArrayOrDie(values);
+    return Value::Array(values);
   }
   return tree.Get({});
 }
